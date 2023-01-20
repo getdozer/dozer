@@ -124,7 +124,7 @@ impl PrimaryKeyLookupRecordWriter {
             PrefixTransaction::new(exclusive_tx.as_mut(), RECORD_VERSIONS_INDEX_ID);
         versions_tx
             .put(self.db, rec_key, &version.to_le_bytes())
-            .map_err(|e| ExecutionError::InternalDatabaseError(e))
+            .map_err(ExecutionError::InternalDatabaseError)
     }
 
     pub(crate) fn write_versioned_record(
@@ -132,7 +132,7 @@ impl PrimaryKeyLookupRecordWriter {
         record: Option<&Record>,
         mut key: Vec<u8>,
         version: u32,
-        schema: &Schema,
+        _schema: &Schema,
         tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         self.put_last_record_version(&key, version, tx)?;
@@ -163,7 +163,7 @@ impl PrimaryKeyLookupRecordWriter {
     ) -> Result<Option<Record>, ExecutionError> {
         key.extend(version.to_le_bytes());
         let mut exclusive_tx = Box::new(tx.write());
-        let mut store = PrefixTransaction::new(exclusive_tx.as_mut(), VERSIONED_RECORDS_INDEX_ID);
+        let store = PrefixTransaction::new(exclusive_tx.as_mut(), VERSIONED_RECORDS_INDEX_ID);
         let curr = store
             .get(self.db, &key)?
             .ok_or_else(ExecutionError::RecordNotFound)?;
@@ -203,15 +203,15 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
             }
             Operation::Delete { mut old } => {
                 let key = old.get_key(&self.schema.primary_index);
-                let curr_version = self.get_last_record_version(&key, &tx)?;
+                let curr_version = self.get_last_record_version(&key, tx)?;
                 if self.retr_old_records_for_deletes {
                     old = self
                         .retr_versioned_record(key.to_owned(), curr_version, tx)?
-                        .ok_or_else(|| RecordNotFound())?;
+                        .ok_or_else(RecordNotFound)?;
                 }
                 self.write_versioned_record(
                     None,
-                    key.to_owned(),
+                    key,
                     curr_version + 1,
                     &self.schema,
                     tx,
@@ -221,15 +221,15 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
             }
             Operation::Update { mut old, mut new } => {
                 let key = old.get_key(&self.schema.primary_index);
-                let curr_version = self.get_last_record_version(&key, &tx)?;
+                let curr_version = self.get_last_record_version(&key, tx)?;
                 if self.retr_old_records_for_updates {
                     old = self
                         .retr_versioned_record(key.to_owned(), curr_version, tx)?
-                        .ok_or_else(|| RecordNotFound())?;
+                        .ok_or_else(RecordNotFound)?;
                 }
                 self.write_versioned_record(
                     Some(&new),
-                    key.to_owned(),
+                    key,
                     curr_version + 1,
                     &self.schema,
                     tx,
@@ -265,7 +265,7 @@ impl RecordReader for PrimaryKeyValueLookupRecordReader {
 
         let buf = guard
             .get(self.db, &versioned_key)?
-            .ok_or_else(|| RecordNotFound())?;
+            .ok_or_else(RecordNotFound)?;
         let rec: Option<Record> = match buf[0] {
             RECORD_PRESENT_FLAG => {
                 let mut r: Record =
@@ -390,11 +390,11 @@ impl AutogenRowKeyLookupRecordReader {
 }
 
 impl RecordReader for AutogenRowKeyLookupRecordReader {
-    fn get(&self, key: &[u8], version: u32) -> Result<Option<Record>, ExecutionError> {
+    fn get(&self, key: &[u8], _version: u32) -> Result<Option<Record>, ExecutionError> {
         Ok(match self.tx.read().get(self.db, key)? {
             Some(buf) => {
                 let mut r: Record =
-                    bincode::deserialize(&buf).map_err(|e| DeserializationError {
+                    bincode::deserialize(buf).map_err(|e| DeserializationError {
                         typ: "Record".to_string(),
                         reason: Box::new(e),
                     })?;

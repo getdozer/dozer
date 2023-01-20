@@ -410,7 +410,7 @@ pub fn get_lookup_key(record: &Record, schema: &Schema) -> Result<Vec<u8>, TypeE
     if let Some(version) = record.version {
         lookup_key.extend_from_slice(&version.to_be_bytes());
     } else {
-        lookup_key.extend_from_slice(&[0 as u8; 4]);
+        lookup_key.extend_from_slice(&[0_u8; 4]);
     }
 
     let key = get_composite_key(record, schema.primary_index.as_slice())?;

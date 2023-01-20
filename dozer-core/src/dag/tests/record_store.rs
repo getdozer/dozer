@@ -44,7 +44,7 @@ fn test_pk_record_writer() {
 
     let ver = writer.get_last_record_version(&input_key, &tx).unwrap();
     let res_record = writer
-        .retr_versioned_record(input_key.clone(), ver, &tx)
+        .retr_versioned_record(input_key, ver, &tx)
         .unwrap();
     assert_eq!(res_record, Some(input_record));
 
@@ -102,7 +102,7 @@ fn test_pk_record_writer() {
     );
 
     let res_record = writer
-        .retr_versioned_record(input_key.clone(), 2, &tx)
+        .retr_versioned_record(input_key, 2, &tx)
         .unwrap();
     assert_eq!(
         res_record,
