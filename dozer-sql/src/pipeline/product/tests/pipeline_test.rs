@@ -395,7 +395,7 @@ impl Sink for TestSink {
 fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
-    let (mut pipeline, _) = statement_to_pipeline(
+    let (mut pipeline, (node, port)) = statement_to_pipeline(
         "SELECT  department.name, SUM(user.salary) \
         FROM user JOIN department ON user.department_id = department.id \
         GROUP BY department.name",
@@ -419,12 +419,7 @@ fn test_pipeline_builder() {
 
     pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
     pipeline
-        .connect_nodes(
-            "aggregation",
-            Some(DEFAULT_PORT_HANDLE),
-            "sink",
-            Some(DEFAULT_PORT_HANDLE),
-        )
+        .connect_nodes(&node, Some(port), "sink", Some(DEFAULT_PORT_HANDLE))
         .unwrap();
 
     let mut app = App::new(asm);
