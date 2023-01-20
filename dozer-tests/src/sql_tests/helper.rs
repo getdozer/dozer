@@ -246,9 +246,9 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
                         .replace(|c: char| !c.is_ascii_alphanumeric(), "_"),
                     typ: match typ.as_str() {
                         "integer" => FieldType::Int,
-                        "string" => FieldType::String,
-                        "text" => FieldType::String,
-                        "numeric" => FieldType::Float,
+                        "string" | "text" => FieldType::String,
+                        "real" => FieldType::Float,
+                        "numeric" => FieldType::Decimal,
                         "timestamp" => FieldType::Timestamp,
                         f => panic!("unknown field_type : {}", f),
                     },
