@@ -21,7 +21,7 @@ use std::thread;
 use std::time::Duration;
 use tempdir::TempDir;
 
-use crate::pipeline::builder::PipelineBuilder;
+use crate::pipeline::builder::statement_to_pipeline;
 
 const USER_PORT: u16 = 0 as PortHandle;
 const DEPARTMENT_PORT: u16 = 1 as PortHandle;
@@ -395,16 +395,12 @@ impl Sink for TestSink {
 fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
-    let mut pipeline = PipelineBuilder {}
-        .build_pipeline(
-            // "SELECT user.name, department.name \
-            //     FROM user JOIN department ON user.department_id = department.id \
-            //     WHERE salary >= 1",
-            "SELECT  department.name, SUM(user.salary) \
-                FROM user JOIN department ON user.department_id = department.id \
-                GROUP BY department.name",
-        )
-        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
+    let (mut pipeline, _) = statement_to_pipeline(
+        "SELECT  department.name, SUM(user.salary) \
+        FROM user JOIN department ON user.department_id = department.id \
+        GROUP BY department.name",
+    )
+    .unwrap();
 
     let latch = Arc::new(AtomicBool::new(true));
 

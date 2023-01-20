@@ -12,8 +12,8 @@ use std::collections::HashMap;
 
 use crate::pipeline::{
     aggregation::{factory::get_aggregation_rules, processor::AggregationProcessor},
-    builder::get_select,
     errors::PipelineError,
+    tests::utils::get_select,
 };
 
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
