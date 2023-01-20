@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
 
-use crate::sql_tests::{query_sqllite, SqlMapper};
+use crate::sql_tests::{query_sqlite, SqlMapper};
 
 #[test]
 fn test_framework_to_dozer_types() {
@@ -169,7 +169,7 @@ fn test_null_inserts() {
 
     let mutex_mapper = Arc::new(Mutex::new(mapper));
     assert_eq!(
-        query_sqllite(
+        query_sqlite(
             mutex_mapper.clone(),
             "select actor_id from actor;",
             &Schema {
@@ -192,7 +192,7 @@ fn test_null_inserts() {
     );
 
     assert_eq!(
-        query_sqllite(
+        query_sqlite(
             mutex_mapper,
             "select * from actor;",
             &Schema {
