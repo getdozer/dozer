@@ -9,9 +9,9 @@ use dozer_types::types::Schema;
 use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint};
 
 use crate::pipeline::{
+    builder::{get_input_names, IndexedTabelWithJoins, NameOrAlias},
     errors::{PipelineError, UnsupportedSqlError},
     expression::builder::get_field_index,
-    new_builder::{get_input_names, IndexedTabelWithJoins, NameOrAlias},
 };
 
 use super::{
@@ -264,7 +264,6 @@ fn parse_join_constraint(
 }
 
 fn from_table(ident: &[Ident], left_join_table: &JoinTable) -> bool {
-    left_join_table.schema.print().printstd();
     left_join_table.schema.fields.iter().any(|f| {
         // If table name is provided, match the schema name with table name
         let tables_matches = if ident.len() > 1 {
@@ -313,6 +312,5 @@ fn append_schema(
         field.name = name;
         output_schema.fields.push(field);
     }
-    output_schema.print().printstd();
     output_schema
 }

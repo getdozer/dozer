@@ -1,5 +1,5 @@
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
-use crate::pipeline::new_builder::PipelineError::InvalidQuery;
+use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use crate::pipeline::{errors::PipelineError, product::factory::ProductProcessorFactory};
 use dozer_core::dag::app::AppPipeline;

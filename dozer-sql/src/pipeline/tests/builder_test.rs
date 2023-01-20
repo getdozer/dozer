@@ -22,7 +22,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
 
-use crate::pipeline::new_builder::statement_to_pipeline;
+use crate::pipeline::builder::statement_to_pipeline;
 
 /// Test Source
 #[derive(Debug)]
@@ -167,7 +167,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let (mut pipeline, _) = statement_to_pipeline(
+    let (mut pipeline, (node, node_port)) = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
     FROM users \
     WHERE Spending >= 1",
@@ -189,12 +189,7 @@ fn test_pipeline_builder() {
         "sink",
     );
     pipeline
-        .connect_nodes(
-            "aggregation",
-            Some(DEFAULT_PORT_HANDLE),
-            "sink",
-            Some(DEFAULT_PORT_HANDLE),
-        )
+        .connect_nodes(&node, Some(node_port), "sink", Some(DEFAULT_PORT_HANDLE))
         .unwrap();
 
     let mut app = App::new(asm);

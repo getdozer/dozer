@@ -22,7 +22,7 @@ use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
-use dozer_sql::pipeline::new_builder::statement_to_pipeline;
+use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::log::{info, warn};
 use dozer_types::models::api_config::ApiConfig;

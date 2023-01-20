@@ -1,6 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
-use dozer_sql::pipeline::new_builder::{self, statement_to_pipeline};
+use dozer_sql::pipeline::builder::{self, statement_to_pipeline};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -226,7 +226,7 @@ impl Executor {
             //     .map_err(OrchestrationError::PipelineError)?;
 
             let (mut pipeline, (query_name, query_port)) =
-                new_builder::statement_to_pipeline(&api_endpoint.sql)
+                builder::statement_to_pipeline(&api_endpoint.sql)
                     .map_err(OrchestrationError::PipelineError)?;
 
             pipeline.add_sink(

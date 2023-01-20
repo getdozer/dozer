@@ -21,7 +21,7 @@ use std::thread;
 use std::time::Duration;
 use tempdir::TempDir;
 
-use crate::pipeline::new_builder::statement_to_pipeline;
+use crate::pipeline::builder::statement_to_pipeline;
 
 const USER_PORT: u16 = 0 as PortHandle;
 const DEPARTMENT_PORT: u16 = 1 as PortHandle;

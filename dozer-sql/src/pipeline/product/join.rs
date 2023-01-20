@@ -10,7 +10,7 @@ use dozer_types::bincode;
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Record, Schema};
 
-use crate::pipeline::new_builder::NameOrAlias;
+use crate::pipeline::builder::NameOrAlias;
 use crate::pipeline::product::join::StorageError::SerializationError;
 
 const REVERSE_JOIN_FLAG: u32 = 0x80000000;
