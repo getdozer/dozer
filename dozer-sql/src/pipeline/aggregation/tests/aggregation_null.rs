@@ -61,7 +61,8 @@ fn test_aggregation_alias() {
 
     let select = get_select("SELECT ID, SUM(Salary) as Salaries FROM Users GROUP BY ID").unwrap();
 
-    let factory = AggregationProcessorFactory::new(select.projection, select.group_by, false);
+    let factory =
+        AggregationProcessorFactory::new(select.projection, select.group_by, select.having, false);
     let out_schema = factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,

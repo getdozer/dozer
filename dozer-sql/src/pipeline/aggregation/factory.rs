@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
+use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::{
     dag::DEFAULT_PORT_HANDLE,
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
+use dozer_types::internal_err;
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr as SqlExpr, Expr, SelectItem};
 
@@ -27,15 +29,22 @@ use super::{
 pub struct AggregationProcessorFactory {
     select: Vec<SelectItem>,
     groupby: Vec<SqlExpr>,
+    having: Option<SqlExpr>,
     stateful: bool,
 }
 
 impl AggregationProcessorFactory {
     /// Creates a new [`AggregationProcessorFactory`].
-    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>, stateful: bool) -> Self {
+    pub fn new(
+        select: Vec<SelectItem>,
+        groupby: Vec<SqlExpr>,
+        having: Option<SqlExpr>,
+        stateful: bool,
+    ) -> Self {
         Self {
             select,
             groupby,
+            having,
             stateful,
         }
     }
@@ -84,18 +93,32 @@ impl ProcessorFactory for AggregationProcessorFactory {
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let input_schema = input_schemas
+            .get(&DEFAULT_PORT_HANDLE)
+            .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
+        let output_schema = output_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
+        let having_expr = match &self.having {
+            Some(e) => Some(
+                ExpressionBuilder {}
+                    .build(&BuilderExpressionType::FullExpression, &e, output_schema)
+                    .map_err(|e| InternalError(Box::new(e)))?,
+            ),
+            _ => None,
+        };
+
         if is_aggregation(&self.groupby, &output_field_rules) {
             return Ok(Box::new(AggregationProcessor::new(
                 output_field_rules,
                 input_schema.clone(),
+                output_schema.clone(),
+                having_expr,
             )));
         }
 

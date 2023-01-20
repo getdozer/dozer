@@ -38,7 +38,12 @@ pub(crate) fn init_processor(
         input_schema,
     )?;
 
-    let mut processor = AggregationProcessor::new(output_field_rules, input_schema.clone());
+    let mut processor = AggregationProcessor::new(
+        output_field_rules,
+        input_schema.clone(),
+        Schema::empty(),
+        None,
+    );
 
     let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
         .unwrap_or_else(|e| panic!("{}", e.to_string()));

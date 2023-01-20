@@ -71,6 +71,8 @@ pub struct AggregationProcessor {
     meta_db: Option<Database>,
     aggregators_db: Option<Database>,
     input_schema: Schema,
+    output_schema: Schema,
+    having_expr: Option<Box<Expression>>,
 }
 
 enum AggregatorOperation {
@@ -85,7 +87,12 @@ const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
 const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
-    pub fn new(output_field_rules: Vec<FieldRule>, input_schema: Schema) -> Self {
+    pub fn new(
+        output_field_rules: Vec<FieldRule>,
+        input_schema: Schema,
+        output_schema: Schema,
+        having_expr: Option<Box<Expression>>,
+    ) -> Self {
         let (out_measures, out_dimensions) = populate_rules(&output_field_rules).unwrap();
         Self {
             out_dimensions,
@@ -94,6 +101,8 @@ impl AggregationProcessor {
             meta_db: None,
             aggregators_db: None,
             input_schema,
+            output_schema,
+            having_expr,
         }
     }
 
