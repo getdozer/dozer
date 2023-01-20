@@ -238,7 +238,7 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::Float => Ok("double".to_owned()),
         FieldType::Boolean => Ok("bool".to_owned()),
         FieldType::String => Ok("string".to_owned()),
-        FieldType::Decimal => Ok("float64".to_owned()),
+        FieldType::Decimal => Ok("double".to_owned()),
         FieldType::Timestamp => Ok("google.protobuf.Timestamp".to_owned()),
         FieldType::Date => Ok("string".to_owned()),
         FieldType::Bson => Ok("google.protobuf.Any".to_owned()),

@@ -215,6 +215,9 @@ pub enum SnowflakeSchemaError {
 
     #[error("Schema conversion Error: {0}")]
     SchemaConversionError(#[source] TryFromIntError),
+
+    #[error("Decimal convert error")]
+    DecimalConvertError(#[source] rust_decimal::Error),
 }
 
 #[derive(Error, Debug)]

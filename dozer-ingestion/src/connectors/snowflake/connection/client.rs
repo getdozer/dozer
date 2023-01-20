@@ -6,8 +6,10 @@ use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::connectors::TableInfo;
 use crate::errors::SnowflakeError::QueryError;
+use crate::errors::SnowflakeSchemaError::DecimalConvertError;
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::*;
 use odbc::ffi::{SqlDataType, SQL_TIMESTAMP_STRUCT};
 use odbc::odbc_safe::AutocommitOn;
@@ -17,6 +19,26 @@ use odbc::{
 };
 use std::collections::HashMap;
 use std::fmt::Write;
+
+fn convert_decimal(bytes: &[u8], scale: u16) -> Result<Field, SnowflakeSchemaError> {
+    let is_negative = bytes[bytes.len() - 4] == 255;
+    let mut multiplier: i64 = 1;
+    let mut result: i64 = 0;
+    let bytes: &[u8] = &bytes[4..11];
+    bytes.iter().for_each(|w| {
+        let number = *w as i64;
+        result += number * multiplier;
+        multiplier *= 256;
+    });
+
+    if is_negative {
+        result = result * -1;
+    }
+
+    Ok(Field::from(
+        Decimal::try_new(result, scale as u32).map_err(DecimalConvertError)?,
+    ))
+}
 
 pub fn convert_data(
     cursor: &mut Cursor<Executed, AutocommitOn>,
@@ -46,13 +68,13 @@ pub fn convert_data(
                     Some(value) => Ok(Field::from(value)),
                 }
             }
-            Some(_) => {
+            Some(digits) => {
                 match cursor
-                    .get_data::<f64>(i)
+                    .get_data::<&[u8]>(i)
                     .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
                 {
                     None => Ok(Field::Null),
-                    Some(value) => Ok(Field::from(value)),
+                    Some(value) => convert_decimal(value, digits),
                 }
             }
         },
