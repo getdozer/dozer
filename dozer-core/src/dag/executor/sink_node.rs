@@ -46,6 +46,7 @@ impl SinkNode {
     /// - `record_readers`: Record readers of all stateful ports.
     /// - `receivers`: Input channels to this sink.
     /// - `input_schemas`: Input data schemas.
+    /// - `retention_queue_size`: Size of retention queue (used by RecordWriter)
     pub fn new(
         node_handle: NodeHandle,
         sink_factory: &dyn SinkFactory,
@@ -55,6 +56,7 @@ impl SinkNode {
         >,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         input_schemas: HashMap<PortHandle, Schema>,
+        retention_queue_size: usize,
     ) -> Result<Self, ExecutionError> {
         let mut sink = sink_factory.build(input_schemas)?;
         let state_meta = init_component(&node_handle, base_path, |e| sink.init(e))?;
@@ -64,6 +66,7 @@ impl SinkNode {
             HashMap::new(),
             master_tx.clone(),
             HashMap::new(),
+            retention_queue_size,
         )?;
         let (port_handles, receivers) = build_receivers_lists(receivers);
         Ok(Self {

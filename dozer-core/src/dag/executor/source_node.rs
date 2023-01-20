@@ -136,6 +136,7 @@ impl SourceListenerNode {
     /// - `running`: If the execution DAG should still be running.
     /// - `epoch_manager`: Used for coordinating commit and terminate between sources. Shared by all sources.
     /// - `output_schemas`: Output data schemas.
+    /// - `retention_queue_size`: Size of retention queue (used by RecordWriter)
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         node_handle: NodeHandle,
@@ -154,6 +155,7 @@ impl SourceListenerNode {
         epoch_manager: Arc<EpochManager>,
         output_schemas: HashMap<PortHandle, Schema>,
         start_seq: (u64, u64),
+        retention_queue_size: usize,
     ) -> Result<Self, ExecutionError> {
         let state_meta = init_component(&node_handle, base_path, |_| Ok(()))?;
         let (master_tx, port_databases) =
@@ -172,6 +174,7 @@ impl SourceListenerNode {
                 port_databases,
                 master_tx,
                 output_schemas,
+                retention_queue_size,
             )?,
             true,
             commit_sz,

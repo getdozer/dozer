@@ -44,6 +44,7 @@ impl RecordWriterUtils {
         db: Database,
         meta_db: Database,
         schema: Schema,
+        retention_queue_size: usize,
     ) -> Result<Box<dyn RecordWriter>, ExecutionError> {
         match typ {
             OutputPortType::StatefulWithPrimaryKeyLookup {
@@ -55,6 +56,7 @@ impl RecordWriterUtils {
                 schema,
                 retr_old_records_for_deletes,
                 retr_old_records_for_updates,
+                retention_queue_size,
             ))),
             OutputPortType::AutogenRowKeyLookup => Ok(Box::new(
                 AutogenRowKeyLookupRecordWriter::new(db, meta_db, schema),
@@ -81,6 +83,8 @@ pub(crate) struct PrimaryKeyLookupRecordWriter {
     schema: Schema,
     retr_old_records_for_deletes: bool,
     retr_old_records_for_updates: bool,
+    retention_queue_size: usize,
+    retention_queue: VecDeque<(Vec<u8>, u32)>,
 }
 
 impl PrimaryKeyLookupRecordWriter {
@@ -90,6 +94,7 @@ impl PrimaryKeyLookupRecordWriter {
         schema: Schema,
         retr_old_records_for_deletes: bool,
         retr_old_records_for_updates: bool,
+        retention_queue_size: usize,
     ) -> Self {
         Self {
             db,
@@ -97,6 +102,8 @@ impl PrimaryKeyLookupRecordWriter {
             schema,
             retr_old_records_for_deletes,
             retr_old_records_for_updates,
+            retention_queue_size,
+            retention_queue: VecDeque::with_capacity(retention_queue_size),
         }
     }
 
@@ -196,6 +203,21 @@ impl PrimaryKeyLookupRecordWriter {
             .del(self.db, &key, None)
             .map_err(|e| InternalError(Box::new(e)))
     }
+
+    pub(crate) fn push_pop_retention_queue(
+        &mut self,
+        key: Vec<u8>,
+        version: u32,
+        tx: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        self.retention_queue.push_back((key, version));
+        if self.retention_queue.len() > self.retention_queue_size {
+            if let Some((key, ver)) = self.retention_queue.pop_front() {
+                self.del_versioned_record(key, ver, tx)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
@@ -225,7 +247,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                         .retr_versioned_record(key.to_owned(), curr_version, tx)?
                         .ok_or_else(RecordNotFound)?;
                 }
-                //  let deleted = self.del_versioned_record(key.clone(), curr_version, tx)?;
+                self.push_pop_retention_queue(key.clone(), curr_version, tx)?;
                 self.write_versioned_record(None, key, curr_version + 1, &self.schema, tx)?;
                 old.version = Some(curr_version);
                 Ok(Operation::Delete { old })
@@ -238,7 +260,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                         .retr_versioned_record(key.to_owned(), curr_version, tx)?
                         .ok_or_else(RecordNotFound)?;
                 }
-                //   let deleted = self.del_versioned_record(key.clone(), curr_version, tx)?;
+                self.push_pop_retention_queue(key.clone(), curr_version, tx)?;
                 self.write_versioned_record(Some(&new), key, curr_version + 1, &self.schema, tx)?;
                 old.version = Some(curr_version);
                 new.version = Some(curr_version + 1);

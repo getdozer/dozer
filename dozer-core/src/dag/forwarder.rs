@@ -32,6 +32,7 @@ impl StateWriter {
         dbs: HashMap<PortHandle, StateOptions>,
         tx: SharedTransaction,
         output_schemas: HashMap<PortHandle, Schema>,
+        retention_queue_size: usize,
     ) -> Result<Self, ExecutionError> {
         let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
         for (port, options) in dbs {
@@ -40,8 +41,13 @@ impl StateWriter {
                 .ok_or(ExecutionError::InvalidPortHandle(port))?
                 .clone();
 
-            let writer =
-                RecordWriterUtils::create_writer(options.typ, options.db, options.meta_db, schema)?;
+            let writer = RecordWriterUtils::create_writer(
+                options.typ,
+                options.db,
+                options.meta_db,
+                schema,
+                retention_queue_size,
+            )?;
             record_writers.insert(port, writer);
         }
 
