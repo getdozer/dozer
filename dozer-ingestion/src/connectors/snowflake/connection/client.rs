@@ -32,7 +32,7 @@ fn convert_decimal(bytes: &[u8], scale: u16) -> Result<Field, SnowflakeSchemaErr
     });
 
     if is_negative {
-        result = result * -1;
+        result = -result;
     }
 
     Ok(Field::from(
