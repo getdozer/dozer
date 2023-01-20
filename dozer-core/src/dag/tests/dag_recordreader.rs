@@ -105,7 +105,7 @@ impl Processor for PassthroughProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        _readers: &HashMap<PortHandle, RecordReader>,
+        _readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
     }
@@ -186,7 +186,7 @@ impl Processor for RecordReaderProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         let v = readers
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
@@ -195,6 +195,7 @@ impl Processor for RecordReaderProcessor {
                 Field::String(format!("key_{}", self.ctr))
                     .encode()
                     .as_slice(),
+                1,
             )?;
         assert!(v.is_some());
         self.ctr += 1;
@@ -395,12 +396,12 @@ impl Processor for NoPkRecordReaderProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         let v = readers
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
             .unwrap()
-            .get(Field::UInt(self.ctr).encode().as_slice())?;
+            .get(Field::UInt(self.ctr).encode().as_slice(), 1)?;
         assert!(v.is_some());
         self.ctr += 1;
 

@@ -6,12 +6,10 @@ use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::PrefixTransaction};
-use dozer_types::bincode;
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Record, Schema};
 
 use crate::pipeline::builder::NameOrAlias;
-use crate::pipeline::product::join::StorageError::SerializationError;
 
 const REVERSE_JOIN_FLAG: u32 = 0x80000000;
 
@@ -52,7 +50,7 @@ pub trait JoinExecutor: Send + Sync {
         join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
 
@@ -62,7 +60,7 @@ pub trait JoinExecutor: Send + Sync {
         join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
 
@@ -146,12 +144,12 @@ impl JoinOperator {
         get_composite_key(record, self.right_join_key_indexes.as_slice())
     }
 
-    fn get_right_join_keys(
+    fn get_right_lookup_keys(
         &self,
         join_key: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
-    ) -> Result<Vec<Vec<u8>>, ExecutionError> {
+    ) -> Result<Vec<(Vec<u8>, u32)>, ExecutionError> {
         let mut join_keys = vec![];
 
         let mut exclusive_transaction = transaction.write();
@@ -175,7 +173,9 @@ impl JoinOperator {
                 break;
             }
 
-            join_keys.push(entry.1.to_vec());
+            let (version_bytes, key_bytes) = entry.1.split_at(4);
+            let version = u32::from_be_bytes(version_bytes.try_into().unwrap());
+            join_keys.push((key_bytes.to_vec(), version));
 
             if !cursor.next()? {
                 break;
@@ -185,12 +185,12 @@ impl JoinOperator {
         Ok(join_keys)
     }
 
-    fn get_left_join_keys(
+    fn get_left_lookup_keys(
         &self,
         join_key: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
-    ) -> Result<Vec<Vec<u8>>, ExecutionError> {
+    ) -> Result<Vec<(Vec<u8>, u32)>, ExecutionError> {
         let mut join_keys = vec![];
 
         let mut exclusive_transaction = transaction.write();
@@ -212,7 +212,9 @@ impl JoinOperator {
                 break;
             }
 
-            join_keys.push(entry.1.to_vec());
+            let (version_bytes, key_bytes) = entry.1.split_at(4);
+            let version = u32::from_be_bytes(version_bytes.try_into().unwrap());
+            join_keys.push((key_bytes.to_vec(), version));
 
             if !cursor.next()? {
                 break;
@@ -230,7 +232,7 @@ impl JoinExecutor for JoinOperator {
         join_key: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
         _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let mut result_records = vec![];
@@ -239,18 +241,11 @@ impl JoinExecutor for JoinOperator {
             .ok_or(ExecutionError::InvalidPortHandle(self.right_table))?;
         for record in records.iter_mut() {
             // retrieve the lookup keys for the table on the right side of the join
-            let right_lookup_keys = self.get_right_join_keys(join_key, db, transaction)?;
-            // let right_lookup_keys =
-            //     self.get_right_lookup_keys(&right_join_keys, db, transaction)?;
+            let right_lookup_keys = self.get_right_lookup_keys(join_key, db, transaction)?;
 
             // retrieve records for the table on the right side of the join
-            for right_lookup_key in right_lookup_keys.iter() {
-                if let Some(record_bytes) = reader.get(right_lookup_key)? {
-                    let right_record: Record =
-                        bincode::deserialize(&record_bytes).map_err(|e| SerializationError {
-                            typ: "Record".to_string(),
-                            reason: Box::new(e),
-                        })?;
+            for (right_lookup_key, right_lookup_version) in right_lookup_keys.iter() {
+                if let Some(right_record) = reader.get(right_lookup_key, *right_lookup_version)? {
                     let join_record = join_records(&mut record.clone(), &mut right_record.clone());
                     result_records.push(join_record);
                 }
@@ -283,7 +278,7 @@ impl JoinExecutor for JoinOperator {
         join_key: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
         _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let mut result_records = vec![];
@@ -293,17 +288,11 @@ impl JoinExecutor for JoinOperator {
 
         for record in records.iter_mut() {
             // retrieve the lookup keys for the table on the right side of the join
-            let left_lookup_keys = self.get_left_join_keys(join_key, db, transaction)?;
-            //let left_lookup_keys = self.get_left_lookup_keys(&left_join_keys, db, transaction)?;
+            let left_lookup_keys = self.get_left_lookup_keys(join_key, db, transaction)?;
 
             // retrieve records for the table on the right side of the join
-            for left_lookup_key in left_lookup_keys.iter() {
-                if let Some(record_bytes) = reader.get(left_lookup_key)? {
-                    let left_record: Record =
-                        bincode::deserialize(&record_bytes).map_err(|e| SerializationError {
-                            typ: "Record".to_string(),
-                            reason: Box::new(e),
-                        })?;
+            for (left_lookup_key, left_lookup_version) in left_lookup_keys.iter() {
+                if let Some(left_record) = reader.get(left_lookup_key, *left_lookup_version)? {
                     let join_record = join_records(&mut left_record.clone(), &mut record.clone());
                     result_records.push(join_record);
                 }
@@ -417,5 +406,14 @@ pub fn get_composite_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u
 }
 
 pub fn get_lookup_key(record: &Record, schema: &Schema) -> Result<Vec<u8>, TypeError> {
-    get_composite_key(record, schema.primary_index.as_slice())
+    let mut lookup_key = Vec::with_capacity(64);
+    if let Some(version) = record.version {
+        lookup_key.extend_from_slice(&version.to_be_bytes());
+    } else {
+        lookup_key.extend_from_slice(&[0_u8; 4]);
+    }
+
+    let key = get_composite_key(record, schema.primary_index.as_slice())?;
+    lookup_key.extend(key);
+    Ok(lookup_key)
 }
