@@ -7,7 +7,7 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
 #[test]
 fn test_concat() {
     let f = run_scalar_fct(
-        "SELECT CONCAT(fn, ln) FROM USERS",
+        "SELECT CONCAT(fn, ln, fn) FROM USERS",
         Schema::empty()
             .field(
                 FieldDefinition::new(String::from("fn"), FieldType::String, false),
@@ -23,13 +23,13 @@ fn test_concat() {
             Field::String("Doe".to_string()),
         ],
     );
-    assert_eq!(f, Field::String("JohnDoe".to_string()));
+    assert_eq!(f, Field::String("JohnDoeJohn".to_string()));
 }
 
 #[test]
 fn test_concat_text() {
     let f = run_scalar_fct(
-        "SELECT CONCAT(fn, ln) FROM USERS",
+        "SELECT CONCAT(fn, ln, fn) FROM USERS",
         Schema::empty()
             .field(
                 FieldDefinition::new(String::from("fn"), FieldType::Text, false),
@@ -45,7 +45,29 @@ fn test_concat_text() {
             Field::String("Doe".to_string()),
         ],
     );
-    assert_eq!(f, Field::Text("JohnDoe".to_string()));
+    assert_eq!(f, Field::Text("JohnDoeJohn".to_string()));
+}
+
+#[test]
+fn test_concat_text_empty() {
+    let f = run_scalar_fct(
+        "SELECT CONCAT() FROM USERS",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("fn"), FieldType::String, false),
+                false,
+            )
+            .field(
+                FieldDefinition::new(String::from("ln"), FieldType::String, false),
+                false,
+            )
+            .clone(),
+        vec![
+            Field::String("John".to_string()),
+            Field::String("Doe".to_string()),
+        ],
+    );
+    assert_eq!(f, Field::String("".to_string()));
 }
 
 #[test]

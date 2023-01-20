@@ -6,6 +6,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, Exp
 
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
+
 use dozer_types::types::{Field, FieldType, Record, Schema};
 use like::{Escape, Like};
 
@@ -38,59 +39,47 @@ pub(crate) fn evaluate_ucase(
 }
 
 pub(crate) fn validate_concat(
-    arg0: &Expression,
-    arg1: &Expression,
+    args: &[Expression],
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
-    let arg0 = validate_arg_type(
-        arg0,
-        vec![FieldType::String, FieldType::Text],
-        schema,
-        ScalarFunctionType::Concat,
-        0,
-    )?;
-    let arg1 = validate_arg_type(
-        arg1,
-        vec![FieldType::String, FieldType::Text],
-        schema,
-        ScalarFunctionType::Concat,
-        1,
-    )?;
-
-    Ok(ExpressionType::new(
-        match (arg0.return_type, arg1.return_type) {
-            (FieldType::String, FieldType::String) => FieldType::String,
-            _ => FieldType::Text,
-        },
-        false,
-    ))
+    let mut ret_type = FieldType::String;
+    for exp in args {
+        let r = validate_arg_type(
+            exp,
+            vec![FieldType::String, FieldType::Text],
+            schema,
+            ScalarFunctionType::Concat,
+            0,
+        )?;
+        if matches!(r.return_type, FieldType::Text) {
+            ret_type = FieldType::Text;
+        }
+    }
+    Ok(ExpressionType::new(ret_type, false))
 }
 
 pub(crate) fn evaluate_concat(
     schema: &Schema,
-    arg0: &Expression,
-    arg1: &Expression,
+    args: &[Expression],
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let (f0, f1) = (
-        arg0.evaluate(record, schema)?,
-        arg1.evaluate(record, schema)?,
-    );
-    let (v0, v1) = (
-        arg_str!(f0, ScalarFunctionType::Concat, 0)?,
-        arg_str!(f1, ScalarFunctionType::Concat, 1)?,
-    );
-    let ret_val = v0 + v1.as_str();
+    let mut res_type = FieldType::String;
+    let mut res_vec: Vec<String> = Vec::with_capacity(args.len());
 
-    Ok(
-        match (
-            arg0.get_type(schema)?.return_type,
-            arg1.get_type(schema)?.return_type,
-        ) {
-            (FieldType::String, FieldType::String) => Field::String(ret_val),
-            _ => Field::Text(ret_val),
-        },
-    )
+    for e in args {
+        if matches!(e.get_type(schema)?.return_type, FieldType::Text) {
+            res_type = FieldType::Text;
+        }
+        let f = e.evaluate(record, schema)?;
+        let val = arg_str!(f, ScalarFunctionType::Concat, 0)?;
+        res_vec.push(val);
+    }
+
+    let res_str = res_vec.iter().fold(String::new(), |a, b| a + b.as_str());
+    Ok(match res_type {
+        FieldType::Text => Field::Text(res_str),
+        _ => Field::String(res_str),
+    })
 }
 
 pub(crate) fn evaluate_length(

@@ -42,11 +42,7 @@ pub(crate) fn get_scalar_function_type(
         ScalarFunctionType::Ucase => {
             validate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, schema)
         }
-        ScalarFunctionType::Concat => validate_concat(
-            argv!(args, 0, ScalarFunctionType::Concat)?,
-            argv!(args, 1, ScalarFunctionType::Concat)?,
-            schema,
-        ),
+        ScalarFunctionType::Concat => validate_concat(args, schema),
         ScalarFunctionType::Length => Ok(ExpressionType::new(FieldType::UInt, false)),
     }
 }
@@ -82,12 +78,7 @@ impl ScalarFunctionType {
             ScalarFunctionType::Ucase => {
                 evaluate_ucase(schema, argv!(args, 0, ScalarFunctionType::Ucase)?, record)
             }
-            ScalarFunctionType::Concat => evaluate_concat(
-                schema,
-                argv!(args, 0, ScalarFunctionType::Concat)?,
-                argv!(args, 1, ScalarFunctionType::Concat)?,
-                record,
-            ),
+            ScalarFunctionType::Concat => evaluate_concat(schema, args, record),
             ScalarFunctionType::Length => {
                 evaluate_length(schema, argv!(args, 0, ScalarFunctionType::Length)?, record)
             }
