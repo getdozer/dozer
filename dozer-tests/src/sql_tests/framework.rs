@@ -42,12 +42,11 @@ impl TestFramework {
             .run()
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
-        let source_result = query_sqllite(self.source.clone(), &final_sql, &output_schema)
+        let source_result = query_sqlite(self.source.clone(), &final_sql, &output_schema)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
-        let dest_result =
-            query_sqllite(self.dest.clone(), "select * from results;", &output_schema)
-                .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
+        let dest_result = query_sqlite(self.dest.clone(), "select * from results;", &output_schema)
+            .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
         Ok(source_result == dest_result)
     }
