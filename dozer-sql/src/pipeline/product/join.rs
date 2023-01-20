@@ -54,7 +54,7 @@ pub trait JoinExecutor: Send + Sync {
         join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
 
@@ -64,7 +64,7 @@ pub trait JoinExecutor: Send + Sync {
         join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
 
@@ -232,7 +232,7 @@ impl JoinExecutor for JoinOperator {
         join_key: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
         _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let mut result_records = vec![];
@@ -286,7 +286,7 @@ impl JoinExecutor for JoinOperator {
         join_key: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
         _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let mut result_records = vec![];

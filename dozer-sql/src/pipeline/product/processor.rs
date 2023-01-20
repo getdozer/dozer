@@ -45,7 +45,7 @@ impl ProductProcessor {
         from_port: PortHandle,
         record: &Record,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, dyn RecordReader>,
     ) -> Result<Vec<Record>, ExecutionError> {
         // Get the input Table based on the port of the incoming message
         if let Some(input_table) = self.join_tables.get(&from_port) {
