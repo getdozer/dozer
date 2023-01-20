@@ -209,13 +209,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                         .retr_versioned_record(key.to_owned(), curr_version, tx)?
                         .ok_or_else(RecordNotFound)?;
                 }
-                self.write_versioned_record(
-                    None,
-                    key,
-                    curr_version + 1,
-                    &self.schema,
-                    tx,
-                )?;
+                self.write_versioned_record(None, key, curr_version + 1, &self.schema, tx)?;
                 old.version = Some(curr_version);
                 Ok(Operation::Delete { old })
             }
@@ -227,13 +221,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                         .retr_versioned_record(key.to_owned(), curr_version, tx)?
                         .ok_or_else(RecordNotFound)?;
                 }
-                self.write_versioned_record(
-                    Some(&new),
-                    key,
-                    curr_version + 1,
-                    &self.schema,
-                    tx,
-                )?;
+                self.write_versioned_record(Some(&new), key, curr_version + 1, &self.schema, tx)?;
                 old.version = Some(curr_version);
                 new.version = Some(curr_version + 1);
                 Ok(Operation::Update { old, new })

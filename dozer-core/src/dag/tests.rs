@@ -21,8 +21,8 @@ mod dag_schemas;
 #[cfg(test)]
 mod node;
 #[cfg(test)]
+mod record_store;
+#[cfg(test)]
 mod sinks;
 #[cfg(test)]
 mod sources;
-#[cfg(test)]
-mod record_store;
