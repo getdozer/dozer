@@ -45,7 +45,7 @@ impl ProductProcessor {
         from_port: PortHandle,
         record: &Record,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, dyn RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         // Get the input Table based on the port of the incoming message
         if let Some(input_table) = self.join_tables.get(&from_port) {
@@ -119,7 +119,7 @@ impl ProductProcessor {
         from_port: PortHandle,
         record: &Record,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         // Get the input Table based on the port of the incoming message
 
@@ -196,7 +196,7 @@ impl ProductProcessor {
         old: &Record,
         new: &Record,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<Record>, Vec<Record>), ExecutionError> {
         let input_table = self
             .join_tables
@@ -311,7 +311,7 @@ impl Processor for ProductProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {

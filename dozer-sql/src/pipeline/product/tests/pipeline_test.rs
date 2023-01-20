@@ -364,7 +364,7 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match _op {
             Operation::Delete { old } => info!("s: - {:?}", old.values),
