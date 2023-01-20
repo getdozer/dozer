@@ -1,7 +1,7 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
-use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
+use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
@@ -29,42 +29,37 @@ impl SourceBuilder {
             let first_source = sources_group.get(0).unwrap();
 
             if let Some(connection) = &first_source.connection {
-                let grouped_connector_sources =
-                    get_connector_outputs(connection.clone(), sources_group.clone());
+                let mut ports = HashMap::new();
+                let mut tables = vec![];
+                for source in &sources_group {
+                    if used_sources.contains(&source.name) {
+                        ports.insert(source.name.clone(), port);
 
-                for same_connection_sources in grouped_connector_sources {
-                    let mut ports = HashMap::new();
-                    let mut tables = vec![];
-                    for source in same_connection_sources {
-                        if used_sources.contains(&source.name) {
-                            ports.insert(source.name.clone(), port);
+                        tables.push(TableInfo {
+                            name: source.name.clone(),
+                            table_name: source.table_name.clone(),
+                            id: port as u32,
+                            columns: Some(source.columns.clone()),
+                        });
 
-                            tables.push(TableInfo {
-                                name: source.name,
-                                table_name: source.table_name,
-                                id: port as u32,
-                                columns: Some(source.columns),
-                            });
-
-                            port += 1;
-                        }
+                        port += 1;
                     }
-
-                    let source_factory = ConnectorSourceFactory::new(
-                        Arc::clone(&ingestor),
-                        Arc::clone(&iterator),
-                        ports.clone(),
-                        tables,
-                        connection.clone(),
-                        running.clone(),
-                    );
-
-                    asm.add(AppSource::new(
-                        conn.clone(),
-                        Arc::new(source_factory),
-                        ports,
-                    ))?;
                 }
+
+                let source_factory = ConnectorSourceFactory::new(
+                    Arc::clone(&ingestor),
+                    Arc::clone(&iterator),
+                    ports.clone(),
+                    tables,
+                    connection.clone(),
+                    running.clone(),
+                );
+
+                asm.add(AppSource::new(
+                    conn.clone(),
+                    Arc::new(source_factory),
+                    ports,
+                ))?;
             }
         }
 
