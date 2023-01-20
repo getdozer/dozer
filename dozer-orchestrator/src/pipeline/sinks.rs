@@ -318,7 +318,7 @@ impl Sink for CacheSink {
         from_port: PortHandle,
         op: Operation,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
 
