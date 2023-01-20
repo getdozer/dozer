@@ -56,8 +56,6 @@ fn query_to_pipeline(
     pipeline_map: &mut HashMap<NameOrAlias, (String, PortHandle)>,
     stateful: bool,
 ) -> Result<(), PipelineError> {
-    println!("query_to_pipeline: {:?}, {:?}", processor_name, stateful);
-
     // Attach the first pipeline if there is with clause
     if let Some(with) = &query.with {
         if with.recursive {
@@ -114,8 +112,6 @@ fn select_to_pipeline(
     pipeline_map: &mut HashMap<NameOrAlias, (String, PortHandle)>,
     stateful: bool,
 ) -> Result<(), PipelineError> {
-    println!("select_to_pipeline: {:?}, {:?}", processor_name, stateful);
-
     // FROM clause
     if select.from.len() != 1 {
         return Err(InvalidQuery(
@@ -290,61 +286,59 @@ mod tests {
     #[test]
     fn sql_logic_test_1() {
         let statements: Vec<&str> = vec![
-            // r#"
-            // SELECT
-            // a.name as "Genre",
-            //     SUM(amount) as "Gross Revenue(in $)"
-            // FROM
-            // (
-            //     SELECT
-            //     c.name, f.title, p.amount
-            // FROM film f
-            // LEFT JOIN film_category fc
-            // ON fc.film_id = f.film_id
-            // LEFT JOIN category c
-            // ON fc.category_id = c.category_id
-            // LEFT JOIN inventory i
-            // ON i.film_id = f.film_id
-            // LEFT JOIN rental r
-            // ON r.inventory_id = i.inventory_id
-            // LEFT JOIN payment p
-            // ON p.rental_id = r.rental_id
-            // WHERE p.amount IS NOT NULL
-            // ) a
+            r#"
+            SELECT
+            a.name as "Genre",
+                SUM(amount) as "Gross Revenue(in $)"
+            FROM
+            (
+                SELECT
+                c.name, f.title, p.amount
+            FROM film f
+            LEFT JOIN film_category fc
+            ON fc.film_id = f.film_id
+            LEFT JOIN category c
+            ON fc.category_id = c.category_id
+            LEFT JOIN inventory i
+            ON i.film_id = f.film_id
+            LEFT JOIN rental r
+            ON r.inventory_id = i.inventory_id
+            LEFT JOIN payment p
+            ON p.rental_id = r.rental_id
+            WHERE p.amount IS NOT NULL
+            ) a
 
-            // GROUP BY name
-            // ORDER BY sum(amount) desc
-            // LIMIT 5;
-            // "#,
-            // r#"
-            //     SELECT
-            //     c.name, f.title, p.amount
-            // FROM film f
-            // LEFT JOIN film_category fc
-            // "#,
-            // r#"
-            // WITH tbl as (select id from a)
-            // select id from tbl
-            // "#,
-            // r#"
-            // WITH tbl as (select id from  a),
-            // tbl2 as (select id from tbl)
-            // select id from tbl2
-            // "#,
-            // r#"
-            // WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
-            // cte_table2 as (select id_ct1 from cte_table1)
-            // select id_ct2 from cte_table2
-            // "#,
+            GROUP BY name
+            ORDER BY sum(amount) desc
+            LIMIT 5;
+            "#,
+            r#"
+                SELECT
+                c.name, f.title, p.amount
+            FROM film f
+            LEFT JOIN film_category fc
+            "#,
+            r#"
+            WITH tbl as (select id from a)
+            select id from tbl
+            "#,
+            r#"
+            WITH tbl as (select id from  a),
+            tbl2 as (select id from tbl)
+            select id from tbl2
+            "#,
+            r#"
+            WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
+            cte_table2 as (select id_ct1 from cte_table1)
+            select id_ct2 from cte_table2
+            "#,
             r#"
                 with tbl as (select id, ticker from stocks)
                 select tbl.id from  stocks join tbl on tbl.id = stocks.id;
             "#,
         ];
         for sql in statements {
-            println!("Parsing {:?}", sql);
             let _pipeline = statement_to_pipeline(sql).unwrap();
-            println!("Pipeline ready");
         }
     }
 }
