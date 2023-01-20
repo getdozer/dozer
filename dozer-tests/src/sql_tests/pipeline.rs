@@ -10,7 +10,7 @@ use dozer_core::dag::node::{
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
-use dozer_sql::pipeline::builder::PipelineBuilder;
+use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
@@ -244,7 +244,7 @@ impl TestPipeline {
         }
     }
     pub fn run(&mut self) -> Result<Schema, ExecutionError> {
-        let mut pipeline = PipelineBuilder {}.build_pipeline(&self.sql).unwrap();
+        let (mut pipeline, (pipe_node, pipe_port)) = statement_to_pipeline(&self.sql).unwrap();
 
         let schema_holder: Arc<RwLock<SchemaHolder>> =
             Arc::new(RwLock::new(SchemaHolder { schema: None }));
@@ -278,8 +278,8 @@ impl TestPipeline {
 
         pipeline
             .connect_nodes(
-                "aggregation",
-                Some(DEFAULT_PORT_HANDLE),
+                &pipe_node,
+                Some(pipe_port),
                 "sink",
                 Some(DEFAULT_PORT_HANDLE),
             )

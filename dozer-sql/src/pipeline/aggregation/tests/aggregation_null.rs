@@ -3,7 +3,7 @@ use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     init_input_schema, init_processor, FIELD_100_INT,
 };
-use crate::pipeline::builder::get_select;
+use crate::pipeline::tests::utils::get_select;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;
 use dozer_types::types::FieldType::Int;
@@ -61,7 +61,7 @@ fn test_aggregation_alias() {
 
     let select = get_select("SELECT ID, SUM(Salary) as Salaries FROM Users GROUP BY ID").unwrap();
 
-    let factory = AggregationProcessorFactory::new(select.projection, select.group_by);
+    let factory = AggregationProcessorFactory::new(select.projection, select.group_by, false);
     let out_schema = factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,

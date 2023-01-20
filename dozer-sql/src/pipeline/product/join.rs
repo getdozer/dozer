@@ -9,26 +9,24 @@ use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::Prefi
 use dozer_types::bincode;
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Record, Schema};
-use sqlparser::ast::TableFactor;
 
+use crate::pipeline::builder::NameOrAlias;
 use crate::pipeline::product::join::StorageError::SerializationError;
-
-use super::factory::get_input_name;
 
 const REVERSE_JOIN_FLAG: u32 = 0x80000000;
 
 #[derive(Debug, Clone)]
 pub struct JoinTable {
-    pub name: String,
+    pub name: NameOrAlias,
     pub schema: Schema,
     pub left: Option<JoinOperator>,
     pub right: Option<JoinOperator>,
 }
 
 impl JoinTable {
-    pub fn from(relation: &TableFactor, schema: &Schema) -> Self {
+    pub fn from(name: &NameOrAlias, schema: &Schema) -> Self {
         Self {
-            name: get_input_name(relation).unwrap(),
+            name: name.clone(),
             schema: schema.clone(),
             left: None,
             right: None,
@@ -239,7 +237,6 @@ impl JoinExecutor for JoinOperator {
         let reader = readers
             .get(&self.right_table)
             .ok_or(ExecutionError::InvalidPortHandle(self.right_table))?;
-
         for record in records.iter_mut() {
             // retrieve the lookup keys for the table on the right side of the join
             let right_lookup_keys = self.get_right_join_keys(join_key, db, transaction)?;

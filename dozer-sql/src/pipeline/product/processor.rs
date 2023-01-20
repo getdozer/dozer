@@ -2,7 +2,7 @@ use crate::pipeline::errors::PipelineError;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::epoch::Epoch;
-use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::errors::{ExecutionError, JoinError};
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::Database;
@@ -130,6 +130,7 @@ impl ProductProcessor {
 
             let mut input_left_join = &input_table.left;
 
+            // Update the Join index
             if let Some(left_join) = input_left_join {
                 // generate the key with the fields of the left table used in the join contstraint
                 let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
@@ -150,10 +151,9 @@ impl ProductProcessor {
                     &self.join_tables,
                 )?;
 
-                let next_table = self
-                    .join_tables
-                    .get(&left_join.left_table)
-                    .ok_or(ExecutionError::InvalidPortHandle(left_join.left_table))?;
+                let next_table = self.join_tables.get(&left_join.left_table).ok_or(
+                    ExecutionError::JoinError(JoinError::InsertPortError(left_join.left_table)),
+                )?;
                 input_left_join = &next_table.left;
             }
 
@@ -176,17 +176,18 @@ impl ProductProcessor {
                     &self.join_tables,
                 )?;
 
-                let next_table = self
-                    .join_tables
-                    .get(&right_join.right_table)
-                    .ok_or(ExecutionError::InvalidPortHandle(right_join.left_table))?;
+                let next_table = self.join_tables.get(&right_join.right_table).ok_or(
+                    ExecutionError::JoinError(JoinError::InsertPortError(right_join.left_table)),
+                )?;
                 input_right_join = &next_table.right;
             }
 
             return Ok(records);
         }
 
-        Err(ExecutionError::InvalidPortHandle(from_port))
+        Err(ExecutionError::JoinError(JoinError::PortNotConnected(
+            from_port,
+        )))
     }
 
     fn update(

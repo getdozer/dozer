@@ -1,5 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
+use dozer_sql::pipeline::builder::{self, statement_to_pipeline};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -17,7 +18,6 @@ use dozer_ingestion::connectors::{get_connector, get_connector_info_table, Table
 
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
-use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
 use dozer_types::models::api_security::ApiSecurity;
@@ -163,17 +163,16 @@ impl Executor {
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
-        let mut pipeline = PipelineBuilder {}
-            .build_pipeline(&sql)
-            .map_err(OrchestrationError::PipelineError)?;
+        let (mut pipeline, (query_name, query_port)) =
+            statement_to_pipeline(&sql).map_err(OrchestrationError::PipelineError)?;
         pipeline.add_sink(
             Arc::new(StreamingSinkFactory::new(sender)),
             "streaming_sink",
         );
         pipeline
             .connect_nodes(
-                "aggregation",
-                Some(DEFAULT_PORT_HANDLE),
+                &query_name,
+                Some(query_port),
                 "streaming_sink",
                 Some(DEFAULT_PORT_HANDLE),
             )
@@ -222,9 +221,13 @@ impl Executor {
             let _api_endpoint_name = api_endpoint.name.clone();
             let cache = cache_endpoint.cache;
 
-            let mut pipeline = PipelineBuilder {}
-                .build_pipeline(&api_endpoint.sql)
-                .map_err(OrchestrationError::PipelineError)?;
+            // let mut pipeline = PipelineBuilder {}
+            //     .build_pipeline(&api_endpoint.sql)
+            //     .map_err(OrchestrationError::PipelineError)?;
+
+            let (mut pipeline, (query_name, query_port)) =
+                builder::statement_to_pipeline(&api_endpoint.sql)
+                    .map_err(OrchestrationError::PipelineError)?;
 
             pipeline.add_sink(
                 Arc::new(CacheSinkFactory::new(
@@ -241,8 +244,8 @@ impl Executor {
 
             pipeline
                 .connect_nodes(
-                    "aggregation",
-                    Some(DEFAULT_PORT_HANDLE),
+                    &query_name,
+                    Some(query_port),
                     cache_endpoint.endpoint.name.as_str(),
                     Some(DEFAULT_PORT_HANDLE),
                 )
