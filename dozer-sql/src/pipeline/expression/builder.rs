@@ -450,19 +450,19 @@ impl ExpressionBuilder {
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         let expression = self.parse_sql_expression(expression_type, expr, schema)?;
         let cast_to = match data_type {
-            DataType::Decimal(_precision, _scale) => CastOperatorType::Decimal,
-            DataType::Binary(_length) => CastOperatorType::Binary,
-            DataType::Float(_precision) => CastOperatorType::Float,
-            DataType::Int(_width) => CastOperatorType::Int,
-            DataType::Integer(_width) => CastOperatorType::Int,
-            DataType::UnsignedInt(_width) => CastOperatorType::UInt,
-            DataType::UnsignedInteger(_width) => CastOperatorType::UInt,
+            DataType::Decimal(_) => CastOperatorType::Decimal,
+            DataType::Binary(_) => CastOperatorType::Binary,
+            DataType::Float(_) => CastOperatorType::Float,
+            DataType::Int(_) => CastOperatorType::Int,
+            DataType::Integer(_) => CastOperatorType::Int,
+            DataType::UnsignedInt(_) => CastOperatorType::UInt,
+            DataType::UnsignedInteger(_) => CastOperatorType::UInt,
             DataType::Boolean => CastOperatorType::Boolean,
             DataType::Date => CastOperatorType::Date,
-            DataType::Timestamp => CastOperatorType::Timestamp,
+            DataType::Timestamp(..) => CastOperatorType::Timestamp,
             DataType::Text => CastOperatorType::Text,
             DataType::String => CastOperatorType::String,
-            DataType::Custom(name) => {
+            DataType::Custom(name, ..) => {
                 if name.to_string().to_lowercase() == "bson" {
                     CastOperatorType::Bson
                 } else {

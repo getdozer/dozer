@@ -171,10 +171,10 @@ fn parse_sql_aggregate_item(
         SelectItem::ExprWithAlias { expr, alias } => {
             build_field_rule(expr, schema, alias.value.clone())
         }
-        SelectItem::Wildcard => Err(PipelineError::InvalidExpression(
+        SelectItem::Wildcard(_) => Err(PipelineError::InvalidExpression(
             "Wildcard Operator is not supported".to_string(),
         )),
-        SelectItem::QualifiedWildcard(ref _object_name) => Err(PipelineError::InvalidExpression(
+        SelectItem::QualifiedWildcard(..) => Err(PipelineError::InvalidExpression(
             "Qualified Wildcard Operator is not supported".to_string(),
         )),
     }
