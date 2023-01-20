@@ -34,7 +34,7 @@ pub fn statement_to_pipeline(
     let dialect = AnsiDialect {};
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
-    let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4().to_string()), None);
+    let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
     let statement = ast.get(0).expect("First statement is missing").to_owned();
 
     let mut pipeline = AppPipeline::new();
@@ -88,7 +88,7 @@ fn query_to_pipeline(
             select_to_pipeline(processor_name, *select, pipeline, pipeline_map, stateful)?;
         }
         SetExpr::Query(query) => {
-            let query_name = format!("subquery_{}", uuid::Uuid::new_v4().to_string());
+            let query_name = format!("subquery_{}", uuid::Uuid::new_v4());
 
             query_to_pipeline(
                 &NameOrAlias(query_name, None),
@@ -129,9 +129,9 @@ fn select_to_pipeline(
 
     let input_endpoints = get_entry_points(&input_tables, pipeline_map)?;
 
-    let gen_product_name = format!("product_{}", uuid::Uuid::new_v4().to_string());
-    let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4().to_string());
-    let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4().to_string());
+    let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
+    let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
+    let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
     pipeline.add_processor(Arc::new(product), &gen_product_name, input_endpoints);
 
     let input_names = get_input_names(&input_tables);
@@ -267,7 +267,7 @@ pub fn get_from_source(
             subquery,
             alias,
         } => {
-            let name = format!("derived_{}", uuid::Uuid::new_v4().to_string());
+            let name = format!("derived_{}", uuid::Uuid::new_v4());
             let alias_name = alias
                 .as_ref()
                 .map(|alias_ident| fullname_from_ident(&[alias_ident.name.clone()]));
@@ -278,7 +278,7 @@ pub fn get_from_source(
             Ok(name_or)
         }
         _ => {
-            return Err(PipelineError::UnsupportedSqlError(
+            Err(PipelineError::UnsupportedSqlError(
                 UnsupportedSqlError::JoinTable,
             ))
         }

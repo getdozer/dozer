@@ -110,7 +110,7 @@ pub fn build_join_chain(
 
     for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
         if let Some(input_schema) = input_schemas.get(&((index + 1) as PortHandle)) {
-            let mut right_join_table = JoinTable::from(&relation_name, input_schema);
+            let mut right_join_table = JoinTable::from(relation_name, input_schema);
 
             let join_op = match &join.join_operator {
                 sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {
@@ -272,7 +272,7 @@ fn from_table(ident: &[Ident], left_join_table: &JoinTable) -> bool {
                     .name
                     .1
                     .as_ref()
-                    .map_or(false, |a| a.to_string() == ident[0].value)
+                    .map_or(false, |a| *a == ident[0].value)
         } else {
             true
         };
