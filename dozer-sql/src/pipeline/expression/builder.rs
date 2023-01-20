@@ -515,8 +515,6 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, Pipeli
     if let Some(index) = field_index {
         Ok(index)
     } else {
-        println!("field: {}", full_ident);
-        schema.print().printstd();
         Err(PipelineError::JoinError(JoinError::FieldError(full_ident)))
     }
 }
