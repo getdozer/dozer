@@ -277,11 +277,9 @@ pub fn get_from_source(
 
             Ok(name_or)
         }
-        _ => {
-            Err(PipelineError::UnsupportedSqlError(
-                UnsupportedSqlError::JoinTable,
-            ))
-        }
+        _ => Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::JoinTable,
+        )),
     }
 }
 
