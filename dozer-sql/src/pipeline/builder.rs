@@ -76,7 +76,7 @@ fn query_to_pipeline(
                 &table.query,
                 pipeline,
                 pipeline_map,
-                true,
+                false,
             )?;
         }
     };
@@ -272,7 +272,7 @@ pub fn get_from_source(
                 .map(|alias_ident| fullname_from_ident(&[alias_ident.name.clone()]));
 
             let name_or = NameOrAlias(name, alias_name);
-            query_to_pipeline(&name_or, subquery, pipeline, pipeline_map, true)?;
+            query_to_pipeline(&name_or, subquery, pipeline, pipeline_map, false)?;
 
             Ok(name_or)
         }
