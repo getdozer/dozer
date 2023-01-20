@@ -74,6 +74,9 @@ impl StateWriter {
                 .write()
                 .put(self.meta_db, full_key.as_slice(), value.as_slice())?;
         }
+        for (port, record_writer) in &self.record_writers {
+            record_writer.commit()?;
+        }
         self.tx.write().commit_and_renew()?;
         Ok(())
     }

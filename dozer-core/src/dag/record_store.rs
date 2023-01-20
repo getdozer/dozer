@@ -1,8 +1,9 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
-    RecordNotFound, UnsupportedDeleteOperation, UnsupportedUpdateOperation,
+    InternalError, RecordNotFound, UnsupportedDeleteOperation, UnsupportedUpdateOperation,
 };
 use crate::dag::node::OutputPortType;
+use std::collections::VecDeque;
 
 use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
@@ -16,6 +17,7 @@ use std::fmt::{Debug, Formatter};
 pub trait RecordWriter {
     fn write(&mut self, op: Operation, tx: &SharedTransaction)
         -> Result<Operation, ExecutionError>;
+    fn commit(&self) -> Result<(), ExecutionError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -180,6 +182,20 @@ impl PrimaryKeyLookupRecordWriter {
         };
         Ok(rec)
     }
+
+    pub(crate) fn del_versioned_record(
+        &self,
+        mut key: Vec<u8>,
+        version: u32,
+        tx: &SharedTransaction,
+    ) -> Result<bool, ExecutionError> {
+        key.extend(version.to_le_bytes());
+        let mut exclusive_tx = Box::new(tx.write());
+        let mut store = PrefixTransaction::new(exclusive_tx.as_mut(), VERSIONED_RECORDS_INDEX_ID);
+        store
+            .del(self.db, &key, None)
+            .map_err(|e| InternalError(Box::new(e)))
+    }
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
@@ -209,6 +225,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                         .retr_versioned_record(key.to_owned(), curr_version, tx)?
                         .ok_or_else(RecordNotFound)?;
                 }
+                //  let deleted = self.del_versioned_record(key.clone(), curr_version, tx)?;
                 self.write_versioned_record(None, key, curr_version + 1, &self.schema, tx)?;
                 old.version = Some(curr_version);
                 Ok(Operation::Delete { old })
@@ -221,12 +238,17 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                         .retr_versioned_record(key.to_owned(), curr_version, tx)?
                         .ok_or_else(RecordNotFound)?;
                 }
+                //   let deleted = self.del_versioned_record(key.clone(), curr_version, tx)?;
                 self.write_versioned_record(Some(&new), key, curr_version + 1, &self.schema, tx)?;
                 old.version = Some(curr_version);
                 new.version = Some(curr_version + 1);
                 Ok(Operation::Update { old, new })
             }
         }
+    }
+
+    fn commit(&self) -> Result<(), ExecutionError> {
+        Ok(())
     }
 }
 
@@ -362,6 +384,10 @@ impl RecordWriter for AutogenRowKeyLookupRecordWriter {
                 "AutogenRowsIdLookupRecordWriter does not support delete operations".to_string(),
             )),
         }
+    }
+
+    fn commit(&self) -> Result<(), ExecutionError> {
+        Ok(())
     }
 }
 
