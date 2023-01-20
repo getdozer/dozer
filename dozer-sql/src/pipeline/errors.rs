@@ -72,6 +72,9 @@ pub enum PipelineError {
 
     #[error(transparent)]
     UnsupportedSqlError(#[from] UnsupportedSqlError),
+
+    #[error(transparent)]
+    JoinError(#[from] JoinError),
 }
 
 #[derive(Error, Debug)]
@@ -84,4 +87,14 @@ pub enum UnsupportedSqlError {
     SelectOnlyError,
     #[error("Unsupported syntax in fROM clause")]
     JoinTable,
+    #[error("Unsupported Join constraint")]
+    UnsupportedJoinConstraint,
+    #[error("Unsupported Join type")]
+    UnsupportedJoinType,
+}
+
+#[derive(Error, Debug)]
+pub enum JoinError {
+    #[error("Field {0:?} not found")]
+    FieldError(String),
 }

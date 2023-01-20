@@ -10,22 +10,23 @@ use dozer_types::bincode;
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Record, Schema};
 
+use crate::pipeline::new_builder::NameOrAlias;
 use crate::pipeline::product::join::StorageError::SerializationError;
 
 const REVERSE_JOIN_FLAG: u32 = 0x80000000;
 
 #[derive(Debug, Clone)]
 pub struct JoinTable {
-    pub name: String,
+    pub name: NameOrAlias,
     pub schema: Schema,
     pub left: Option<JoinOperator>,
     pub right: Option<JoinOperator>,
 }
 
 impl JoinTable {
-    pub fn from(name: String, schema: &Schema) -> Self {
+    pub fn from(name: &NameOrAlias, schema: &Schema) -> Self {
         Self {
-            name,
+            name: name.clone(),
             schema: schema.clone(),
             left: None,
             right: None,

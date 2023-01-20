@@ -10,7 +10,7 @@ use sqlparser::ast::{
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{JoinError, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
 use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
@@ -501,7 +501,7 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, Pipeli
     let mut field_index: Option<usize> = None;
 
     for (index, field) in schema.fields.iter().enumerate() {
-        if compare_name(field.name.clone(), full_ident.clone()) {        
+        if compare_name(field.name.clone(), full_ident.clone()) {
             if field_index.is_some() {
                 return Err(PipelineError::InvalidQuery(format!(
                     "Ambiguous Field {}",
@@ -515,10 +515,9 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, Pipeli
     if let Some(index) = field_index {
         Ok(index)
     } else {
-        Err(PipelineError::InvalidQuery(format!(
-            "Field {} not found",
-            full_ident
-        )))
+        println!("field: {}", full_ident);
+        schema.print().printstd();
+        Err(PipelineError::JoinError(JoinError::FieldError(full_ident)))
     }
 }
 

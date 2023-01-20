@@ -6,14 +6,12 @@ use dozer_core::dag::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
 use dozer_types::types::Schema;
-use sqlparser::ast::{
-    BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint
-};
+use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint};
 
 use crate::pipeline::{
-    errors::PipelineError,
+    errors::{PipelineError, UnsupportedSqlError},
     expression::builder::{fullname_from_ident, get_field_index},
-    new_builder::{get_input_names, IndexedTabelWithJoins},
+    new_builder::{get_input_names, IndexedTabelWithJoins, NameOrAlias},
 };
 
 use super::{
@@ -88,8 +86,6 @@ impl ProcessorFactory for ProductProcessorFactory {
     }
 }
 
-
-
 /// Returns an hashmap with the operations to execute the join.
 /// Each entry is linked on the left and/or the right to the other side of the Join operation
 ///
@@ -109,14 +105,12 @@ pub fn build_join_chain(
         return Err(PipelineError::InvalidRelation);
     }
 
-    let relation_name = join_tables.relation.0.clone();
-    let mut left_join_table = get_join_table(relation_name, input_schema.unwrap())?;
+    let mut left_join_table = JoinTable::from(&join_tables.relation.0, input_schema.unwrap());
     input_tables.insert(port, left_join_table.clone());
 
     for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
         if let Some(input_schema) = input_schemas.get(&((index + 1) as PortHandle)) {
-            
-            let mut right_join_table = get_join_table(relation_name.clone(), input_schema)?;
+            let mut right_join_table = JoinTable::from(&relation_name, input_schema);
 
             let join_op = match &join.join_operator {
                 sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {
@@ -133,14 +127,14 @@ pub fn build_join_chain(
                         )
                     }
                     _ => {
-                        return Err(PipelineError::InvalidQuery(
-                            "Unsupported Join constraint".to_string(),
+                        return Err(PipelineError::UnsupportedSqlError(
+                            UnsupportedSqlError::UnsupportedJoinConstraint,
                         ))
                     }
                 },
                 _ => {
-                    return Err(PipelineError::InvalidQuery(
-                        "Unsupported Join type".to_string(),
+                    return Err(PipelineError::UnsupportedSqlError(
+                        UnsupportedSqlError::UnsupportedJoinType,
                     ))
                 }
             };
@@ -271,7 +265,12 @@ fn parse_join_constraint(
 
 fn from_table(ident: &[Ident], left_join_table: &JoinTable) -> bool {
     let full_ident = fullname_from_ident(ident);
-    full_ident.starts_with(&left_join_table.name)
+    full_ident.starts_with(&left_join_table.name.0)
+        || left_join_table
+            .name
+            .1
+            .as_ref()
+            .map_or(false, |a| full_ident.starts_with(a))
 }
 
 fn parse_compound_identifier(
@@ -293,18 +292,18 @@ fn parse_compound_identifier(
     }
 }
 
-fn get_join_table(name: String, schema: &Schema) -> Result<JoinTable, PipelineError> {
-    Ok(JoinTable::from(name, schema))
-}
-
-fn append_schema(mut output_schema: Schema, table: &str, current_schema: &Schema) -> Schema {
+fn append_schema(
+    mut output_schema: Schema,
+    table: &NameOrAlias,
+    current_schema: &Schema,
+) -> Schema {
     for mut field in current_schema.clone().fields.into_iter() {
-        let mut name = String::from(table);
+        let mut name = table.1.as_ref().map_or(table.0.clone(), |a| a.to_string());
         name.push('.');
         name.push_str(&field.name);
         field.name = name;
         output_schema.fields.push(field);
     }
-
+    output_schema.print().printstd();
     output_schema
 }
