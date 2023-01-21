@@ -57,15 +57,15 @@ fn get_queries() -> Vec<&'static str> {
         "select actor_id, TRIM(first_name) from actor where actor_id<=5",
         "select actor_id, first_name, last_name,last_update from actor where last_name = 'PIPPO'",
         "select actor_id, first_name as fn, last_name as ln,last_update from actor where last_name = 'PIPPO'",
-     //   "select actor_id, first_name, last_name,last_update from actor where last_name IS NULL",
+        // "select actor_id, first_name, last_name,last_update from actor where last_name IS NULL",
         "select count(actor_id) from actor",
-         // "select actor_id, first_name, last_name,last_update from actor where actor_id in (1,5)",
-         "select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'",
-         "select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2",
-         "select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>50)",
-         "select actor_id from actor order by actor_id",
-         "select actor_id, count(actor_id) from actor group by actor_id",
-         "select actor_id, count(actor_id) as counts from actor group by actor_id",
+        // "select actor_id, first_name, last_name,last_update from actor where actor_id in (1,5)",
+        "select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'",
+        "select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2",
+        "select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>50)",
+        "select actor_id from actor order by actor_id",
+        "select actor_id, count(actor_id) from actor group by actor_id",
+        "select actor_id, count(actor_id) as counts from actor group by actor_id",
     ]
 }
 
