@@ -51,6 +51,7 @@ impl ProcessorNode {
     /// - `senders`: Output channels from this processor.
     /// - `edges`: All edges in the description DAG, used for creating record readers for input ports which is connected to this processor's stateful output ports.
     /// - `node_schemas`: Input and output data schemas.
+    /// - `retention_queue_size`: Size of retention queue (used by RecordWriter)
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         node_handle: NodeHandle,
@@ -63,6 +64,7 @@ impl ProcessorNode {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         edges: &[Edge],
         node_schemas: NodeSchemas,
+        retention_queue_size: usize,
     ) -> Result<Self, ExecutionError> {
         let mut processor = processor_factory.build(
             node_schemas.input_schemas.clone(),
@@ -87,6 +89,7 @@ impl ProcessorNode {
                 port_databases,
                 master_tx.clone(),
                 node_schemas.output_schemas,
+                retention_queue_size,
             )?,
             true,
         );

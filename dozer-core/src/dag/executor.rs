@@ -256,8 +256,7 @@ impl<'a> DagExecutor<'a> {
         epoch_manager: Arc<EpochManager>,
         start_barrier: Arc<Barrier>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
-        // let (sender, receiver) = bounded(self.options.channel_buffer_sz);
-        let (sender, receiver) = bounded(1);
+        let (sender, receiver) = bounded(self.options.channel_buffer_sz);
 
         let start_seq = *self
             .consistency_metadata
@@ -300,6 +299,7 @@ impl<'a> DagExecutor<'a> {
         let commit_sz = self.options.commit_sz;
         let max_duration_between_commits = self.options.commit_time_threshold;
         let output_schemas = schemas.output_schemas.clone();
+        let retention_queue_sz = self.options.channel_buffer_sz + 1;
         let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let listener = SourceListenerNode::new(
                 handle,
@@ -316,6 +316,7 @@ impl<'a> DagExecutor<'a> {
                 epoch_manager,
                 output_schemas,
                 start_seq,
+                retention_queue_sz,
             )?;
             start_barrier.wait();
             listener.run()
@@ -344,6 +345,7 @@ impl<'a> DagExecutor<'a> {
         let edges = self.dag.edges.clone();
         let schemas = schemas.clone();
         let running = self.running.clone();
+        let retention_queue_sz = self.options.channel_buffer_sz + 1;
         let processor_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let processor = ProcessorNode::new(
                 handle,
@@ -354,6 +356,7 @@ impl<'a> DagExecutor<'a> {
                 senders,
                 &edges,
                 schemas.clone(),
+                retention_queue_sz,
             )?;
             processor.run()
         };
@@ -376,6 +379,7 @@ impl<'a> DagExecutor<'a> {
         let base_path = self.path.clone();
         let record_readers = self.record_stores.clone();
         let input_schemas = schemas.input_schemas.clone();
+        let retention_queue_sz = self.options.channel_buffer_sz + 1;
         let snk_fn = move |handle| -> Result<(), ExecutionError> {
             let sink = SinkNode::new(
                 handle,
@@ -384,6 +388,7 @@ impl<'a> DagExecutor<'a> {
                 record_readers,
                 receivers,
                 input_schemas,
+                retention_queue_sz,
             )?;
             sink.run()
         };
