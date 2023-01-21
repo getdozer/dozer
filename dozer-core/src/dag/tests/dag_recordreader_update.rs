@@ -141,6 +141,25 @@ impl Source for GeneratorSource {
             txid += 1;
         }
 
+        for n in 0..self.count {
+            fw.send(
+                txid,
+                0,
+                Operation::Delete {
+                    old: Record::new(
+                        None,
+                        vec![
+                            Field::String(format!("key_{}", n)),
+                            Field::String(format!("value_{}", n)),
+                        ],
+                        None,
+                    ),
+                },
+                GENERATOR_SOURCE_OUTPUT_PORT,
+            )?;
+            txid += 1;
+        }
+
         loop {
             if !self.running.load(Ordering::Relaxed) {
                 break;
@@ -238,6 +257,14 @@ impl Processor for RecordReaderProcessor {
                 assert!(v.is_some());
                 fw.send(op, RECORD_READER_PROCESSOR_OUTPUT_PORT)
             }
+            Operation::Delete { old } => {
+                let v = readers
+                    .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
+                    .unwrap()
+                    .get(old.values[0].encode().as_slice(), old.version.unwrap())?;
+                assert!(v.is_some());
+                fw.send(op, RECORD_READER_PROCESSOR_OUTPUT_PORT)
+            }
             _ => Ok(()),
         }
     }
@@ -245,13 +272,13 @@ impl Processor for RecordReaderProcessor {
 
 #[test]
 fn test_run_dag_reacord_reader_from_src() {
-    const TOT: u64 = 100_000;
+    const TOT: u64 = 300_000;
 
     let sync = Arc::new(AtomicBool::new(true));
 
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), true);
     let record_reader = RecordReaderProcessorFactory::new();
-    let sink = CountingSinkFactory::new(TOT, sync);
+    let sink = CountingSinkFactory::new(TOT * 2, sync);
 
     let mut dag = Dag::new();
 
@@ -282,7 +309,7 @@ fn test_run_dag_reacord_reader_from_src() {
 
     let tmp_dir = TempDir::new("test").unwrap();
     let mut options = ExecutorOptions::default();
-    options.commit_sz = 100;
+    options.commit_sz = 5000;
     options.channel_buffer_sz = 10_000;
     let mut executor = DagExecutor::new(
         &dag,
