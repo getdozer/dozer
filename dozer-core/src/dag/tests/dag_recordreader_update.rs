@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::epoch::Epoch;
@@ -90,7 +91,7 @@ impl Source for GeneratorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<(u64, u64)>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut txid: u64 = 0;
 
@@ -229,7 +230,7 @@ impl Processor for RecordReaderProcessor {
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match &op {
-            Operation::Update { old, new } => {
+            Operation::Update { old, new: _ } => {
                 let v = readers
                     .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
                     .unwrap()
