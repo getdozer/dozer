@@ -105,7 +105,7 @@ pub fn get_inserts_from_csv(
     Ok(sql_list)
 }
 
-pub fn query_sqllite(
+pub fn query_sqlite(
     mapper: Arc<Mutex<SqlMapper>>,
     sql: &str,
     schema: &Schema,

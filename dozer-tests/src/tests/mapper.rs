@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
 
-use crate::sql_tests::{query_sqllite, SqlMapper};
+use crate::sql_tests::{query_sqlite, SqlMapper};
 
 #[test]
 fn test_framework_to_dozer_types() {
@@ -23,7 +23,7 @@ fn test_framework_to_dozer_types() {
 
     let ops = mapper
         .execute_list(vec![(
-            "actor".to_string(),
+            "actor",
             "INSERT INTO actor(actor_id,name) values (1, 'mario');".to_string(),
         )])
         .unwrap();
@@ -36,12 +36,12 @@ fn test_framework_to_dozer_types() {
                 version: None
             }
         },
-        ops[0]
+        ops[0].1
     );
 
     let ops = mapper
         .execute_list(vec![(
-            "actor".to_string(),
+            "actor",
             "UPDATE actor SET name ='dario' WHERE actor_id=1;".to_string(),
         )])
         .unwrap();
@@ -58,12 +58,12 @@ fn test_framework_to_dozer_types() {
                 version: None
             }
         },
-        ops[0]
+        ops[0].1
     );
 
     let ops = mapper
         .execute_list(vec![(
-            "actor".to_string(),
+            "actor",
             "DELETE FROM actor WHERE actor_id=1;".to_string(),
         )])
         .unwrap();
@@ -76,7 +76,7 @@ fn test_framework_to_dozer_types() {
                 version: None
             },
         },
-        ops[0]
+        ops[0].1
     );
 
     let sql = mapper
@@ -164,12 +164,12 @@ fn test_null_inserts() {
     );
 
     mapper
-        .execute_list(vec![("actor".to_string(), sql.to_string())])
+        .execute_list(vec![("actor", sql.to_string())])
         .unwrap();
 
     let mutex_mapper = Arc::new(Mutex::new(mapper));
     assert_eq!(
-        query_sqllite(
+        query_sqlite(
             mutex_mapper.clone(),
             "select actor_id from actor;",
             &Schema {
@@ -192,7 +192,7 @@ fn test_null_inserts() {
     );
 
     assert_eq!(
-        query_sqllite(
+        query_sqlite(
             mutex_mapper,
             "select * from actor;",
             &Schema {

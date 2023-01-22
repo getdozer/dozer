@@ -5,6 +5,7 @@ use dozer_core::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, S
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
@@ -109,11 +110,14 @@ impl ConnectorSourceFactory {
     }
 }
 
-impl SourceFactory for ConnectorSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
+    fn get_output_schema(
+        &self,
+        port: &PortHandle,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         self.schema_map.get(port).map_or(
             Err(ExecutionError::PortNotFoundInSource(*port)),
-            |schema_name| Ok(schema_name.clone()),
+            |schema_name| Ok((schema_name.clone(), SchemaSQLContext {})),
         )
     }
 
@@ -134,7 +138,10 @@ impl SourceFactory for ConnectorSourceFactory {
             .collect()
     }
 
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         use std::println as info;
         for (port, schema) in output_schemas {
             let (name, _) = self
@@ -143,7 +150,7 @@ impl SourceFactory for ConnectorSourceFactory {
                 .find(|(_, p)| **p == port)
                 .map_or(Err(ExecutionError::PortNotFound(port.to_string())), Ok)?;
             info!("Source: Initializing input schema: {}", name);
-            schema.print().printstd();
+            schema.0.print().printstd();
         }
         Ok(())
     }

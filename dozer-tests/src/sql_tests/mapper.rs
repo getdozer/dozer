@@ -42,13 +42,13 @@ impl SqlMapper {
 
     pub fn execute_list(
         &mut self,
-        list: Vec<(String, String)>,
-    ) -> rusqlite::Result<Vec<Operation>> {
+        list: Vec<(&'static str, String)>,
+    ) -> rusqlite::Result<Vec<(&'static str, Operation)>> {
         let mut ops = vec![];
-        for (_schema_name, sql) in list {
+        for (schema_name, sql) in list {
             let op = self.get_operation_from_sql(&sql);
             self.conn.execute(sql.as_str(), ())?;
-            ops.push(op);
+            ops.push((schema_name, op));
         }
         Ok(ops)
     }

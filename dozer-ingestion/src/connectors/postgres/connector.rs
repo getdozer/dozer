@@ -11,7 +11,6 @@ use dozer_types::types::SchemaWithChangesType;
 use postgres::Client;
 use postgres_types::PgLsn;
 
-use dozer_types::models::source::Source;
 use std::sync::Arc;
 use tokio_postgres::config::ReplicationMode;
 use tokio_postgres::Config;
@@ -151,10 +150,6 @@ impl Connector for PostgresConnector {
         )?;
 
         Ok(())
-    }
-
-    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
-        vec![sources]
     }
 
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {

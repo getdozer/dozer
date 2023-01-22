@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::pipeline::builder::SchemaSQLContext;
 use dozer_core::dag::{
     dag::DEFAULT_PORT_HANDLE,
     errors::ExecutionError,
@@ -24,7 +25,7 @@ impl SelectionProcessorFactory {
     }
 }
 
-impl ProcessorFactory for SelectionProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -39,8 +40,8 @@ impl ProcessorFactory for SelectionProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
@@ -73,8 +74,8 @@ impl ProcessorFactory for SelectionProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

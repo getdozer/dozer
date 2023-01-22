@@ -563,7 +563,7 @@ impl Processor for AggregationProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match self.db {
             Some(d) => {

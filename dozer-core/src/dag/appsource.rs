@@ -8,16 +8,16 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 #[derive(Clone)]
-pub struct AppSource {
+pub struct AppSource<T> {
     pub connection: String,
-    pub source: Arc<dyn SourceFactory>,
+    pub source: Arc<dyn SourceFactory<T>>,
     pub mappings: HashMap<String, PortHandle>,
 }
 
-impl AppSource {
+impl<T> AppSource<T> {
     pub fn new(
         connection: String,
-        source: Arc<dyn SourceFactory>,
+        source: Arc<dyn SourceFactory<T>>,
         mappings: HashMap<String, PortHandle>,
     ) -> Self {
         Self {
@@ -52,29 +52,29 @@ impl AppSourceId {
     }
 }
 
-pub struct AppSourceMappings<'a> {
-    pub source: &'a AppSource,
+pub struct AppSourceMappings<'a, T> {
+    pub source: &'a AppSource<T>,
     pub mappings: HashMap<AppSourceId, PortHandle>,
 }
 
-impl<'a> AppSourceMappings<'a> {
-    pub fn new(source: &'a AppSource, mappings: HashMap<AppSourceId, PortHandle>) -> Self {
+impl<'a, T> AppSourceMappings<'a, T> {
+    pub fn new(source: &'a AppSource<T>, mappings: HashMap<AppSourceId, PortHandle>) -> Self {
         Self { source, mappings }
     }
 }
 
-pub struct AppSourceManager {
-    pub(crate) sources: Vec<AppSource>,
+pub struct AppSourceManager<T> {
+    pub(crate) sources: Vec<AppSource<T>>,
 }
 
-impl Default for AppSourceManager {
+impl<T> Default for AppSourceManager<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl AppSourceManager {
-    pub fn add(&mut self, src: AppSource) -> Result<(), ExecutionError> {
+impl<T> AppSourceManager<T> {
+    pub fn add(&mut self, src: AppSource<T>) -> Result<(), ExecutionError> {
         if self.sources.iter().any(|s| s.connection == src.connection) {
             return Err(AppSourceConnectionAlreadyExists(src.connection));
         }
@@ -83,7 +83,7 @@ impl AppSourceManager {
         Ok(())
     }
 
-    pub fn get(&self, ls: Vec<AppSourceId>) -> Result<Vec<AppSourceMappings>, ExecutionError> {
+    pub fn get(&self, ls: Vec<AppSourceId>) -> Result<Vec<AppSourceMappings<T>>, ExecutionError> {
         let mut res: HashMap<usize, HashMap<AppSourceId, PortHandle>> = HashMap::new();
 
         for source in ls {

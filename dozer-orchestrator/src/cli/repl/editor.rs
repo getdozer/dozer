@@ -63,26 +63,26 @@ fn execute(
     running: Arc<AtomicBool>,
 ) -> Result<bool, OrchestrationError> {
     let cmd_map = get_commands();
-    let (_, dozer_cmd) = cmd_map
-        .iter()
-        .find(|(s, _)| s.to_string() == *cmd)
-        .map_or(Err(CliError::UnknownCommand(cmd.to_string())), Ok)?;
-
-    match dozer_cmd {
-        DozerCmd::Help => {
-            print_help();
-            Ok(true)
+    if let Some((_, dozer_cmd)) = cmd_map.iter().find(|(s, _)| s.to_string() == *cmd) {
+        match dozer_cmd {
+            DozerCmd::Help => {
+                print_help();
+                Ok(true)
+            }
+            DozerCmd::ShowSources => {
+                list_sources(config_path)?;
+                Ok(true)
+            }
+            DozerCmd::Sql => {
+                super::sql::editor(config_path, running)?;
+                Ok(true)
+            }
+            DozerCmd::Exit => Ok(false),
+            DozerCmd::TestConnections => todo!(),
         }
-        DozerCmd::ShowSources => {
-            list_sources(config_path)?;
-            Ok(true)
-        }
-        DozerCmd::Sql => {
-            super::sql::editor(config_path, running)?;
-            Ok(true)
-        }
-        DozerCmd::Exit => Ok(false),
-        DozerCmd::TestConnections => todo!(),
+    } else {
+        error!("Unknown command: {}", cmd);
+        Ok(true)
     }
 }
 

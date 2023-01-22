@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::dag::epoch::Epoch;
+use crate::dag::tests::app::NoneContext;
 use tempdir::TempDir;
 
 macro_rules! chk {
@@ -41,12 +42,12 @@ impl PassthroughProcessorFactory {
     }
 }
 
-impl ProcessorFactory for PassthroughProcessorFactory {
+impl ProcessorFactory<NoneContext> for PassthroughProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         Ok(input_schemas
             .get(&PASSTHROUGH_PROCESSOR_INPUT_PORT)
             .unwrap()
@@ -68,8 +69,8 @@ impl ProcessorFactory for PassthroughProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -105,7 +106,7 @@ impl Processor for PassthroughProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        _readers: &HashMap<PortHandle, RecordReader>,
+        _readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
     }
@@ -123,12 +124,12 @@ impl RecordReaderProcessorFactory {
 pub(crate) const RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
 pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 
-impl ProcessorFactory for RecordReaderProcessorFactory {
+impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         Ok(input_schemas
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
             .unwrap()
@@ -147,8 +148,8 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -186,7 +187,7 @@ impl Processor for RecordReaderProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         let v = readers
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
@@ -195,6 +196,7 @@ impl Processor for RecordReaderProcessor {
                 Field::String(format!("key_{}", self.ctr))
                     .encode()
                     .as_slice(),
+                1,
             )?;
         assert!(v.is_some());
         self.ctr += 1;
@@ -332,12 +334,12 @@ impl NoPkRecordReaderProcessorFactory {
 pub(crate) const NOPK_RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
 pub(crate) const NOPK_RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 
-impl ProcessorFactory for NoPkRecordReaderProcessorFactory {
+impl ProcessorFactory<NoneContext> for NoPkRecordReaderProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         Ok(input_schemas
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
             .unwrap()
@@ -356,8 +358,8 @@ impl ProcessorFactory for NoPkRecordReaderProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -395,12 +397,12 @@ impl Processor for NoPkRecordReaderProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         let v = readers
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
             .unwrap()
-            .get(Field::UInt(self.ctr).encode().as_slice())?;
+            .get(Field::UInt(self.ctr).encode().as_slice(), 1)?;
         assert!(v.is_some());
         self.ctr += 1;
 

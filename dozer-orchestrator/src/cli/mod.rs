@@ -1,8 +1,6 @@
 mod helper;
 pub mod init;
 mod repl;
-#[cfg(test)]
-pub mod tests;
 pub mod types;
 pub use repl::configure;
 

@@ -1,3 +1,4 @@
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
@@ -119,9 +120,12 @@ fn test_alias() {
     let r = processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
+            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext {}))]
+                .into_iter()
+                .collect(),
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     assert_eq!(
         r,

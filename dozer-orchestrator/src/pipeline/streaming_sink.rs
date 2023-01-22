@@ -8,6 +8,7 @@ use dozer_core::{
     },
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
 };
+use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::{
     crossbeam,
     log::debug,
@@ -26,14 +27,14 @@ impl StreamingSinkFactory {
     }
 }
 
-impl SinkFactory for StreamingSinkFactory {
+impl SinkFactory<SchemaSQLContext> for StreamingSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -48,7 +49,10 @@ impl SinkFactory for StreamingSinkFactory {
         }))
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -70,7 +74,7 @@ impl Sink for StreamingSink {
         _from_port: PortHandle,
         op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;
         let _res = self
