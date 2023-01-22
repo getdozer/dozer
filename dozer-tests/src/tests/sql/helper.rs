@@ -1,7 +1,6 @@
 use crate::{
     init::init, sql_tests::get_inserts_from_csv, tests::sql::TestInstruction, TestFramework,
 };
-use dozer_types::tracing::info;
 
 pub fn get_tables() -> Vec<(&'static str, &'static str)> {
     vec![
@@ -82,35 +81,32 @@ pub fn get_sample_queries() -> Vec<&'static str> {
          "select actor_id, count(actor_id) as counts from actor group by actor_id",
     ]
 }
-pub fn get_sample_ops() -> Vec<(String, String)> {
+pub fn get_sample_ops() -> Vec<(&'static str, String)> {
     vec![
         (
-            "actor".to_string(),
+            "actor",
             "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', 'GUINESS','2020-02-15 09:34:33+00')".to_string(),
         ),
         (
-            "actor".to_string(),
+            "actor",
             "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', 'GUINESS','2020-02-15 09:34:33+00')".to_string(),
         ),
         (
-            "actor".to_string(),
+            "actor",
             "UPDATE actor SET first_name ='sampras' WHERE actor_id=2".to_string(),
         ),
-        ("actor".to_string(), "DELETE FROM actor WHERE actor_id=2".to_string()),
+        ("actor", "DELETE FROM actor WHERE actor_id=2".to_string()),
     ]
 }
 
 pub fn compare_with_sqlite(
     table_names: &Vec<&'static str>,
     queries: Vec<&str>,
-    test_name: String,
     test_instruction: TestInstruction,
 ) {
     init();
 
-    let mut results = vec![];
-
-    for (idx, test) in queries.into_iter().enumerate() {
+    for test in queries {
         let mut framework = setup(&table_names);
 
         let list = match test_instruction {
@@ -121,9 +117,8 @@ pub fn compare_with_sqlite(
                     let source = framework.source.lock().unwrap();
                     let schema = source.get_schema(&name);
                     let inserts = get_inserts_from_csv(folder_name, &name.clone(), schema).unwrap();
-
                     for i in inserts {
-                        list.push((name.clone(), i));
+                        list.push((name, i.to_string()));
                     }
                 }
                 list
@@ -131,30 +126,10 @@ pub fn compare_with_sqlite(
             TestInstruction::List(ref list) => list.clone(),
         };
 
-        let result = framework.compare_with_sqlite(list, test.to_string());
+        let result = framework
+            .compare_with_sqlite(list, test.to_string())
+            .unwrap();
 
-        let success = match result {
-            Ok(true) => "success",
-            Ok(false) => "failed",
-            Err(e) => {
-                info!("---------------------------------------------");
-                info!("Error in {}:{}", idx, test);
-                info!("{:?}", e);
-                info!("");
-                "error"
-            }
-        };
-        results.push((test, success));
+        assert!(result, "Test: {}", test);
     }
-
-    info!(
-        "----------------   Report: {}   ------------------",
-        test_name
-    );
-    info!("");
-    for (idx, (test, result)) in results.into_iter().enumerate() {
-        info!("{}: {} - {}", idx, result, test);
-    }
-    info!("");
-    info!("---------------------------------------------");
 }

@@ -9,8 +9,7 @@ fn insert_only_queries() {
     helper::compare_with_sqlite(
         &vec!["actor"],
         queries,
-        "from_csv".to_string(),
-        TestInstruction::FromCsv("actor".to_string(), vec!["actor".to_string()]),
+        TestInstruction::FromCsv("actor", vec!["actor"]),
     );
 }
 
@@ -18,25 +17,20 @@ fn insert_only_queries() {
 fn nullable_queries() {
     let list = vec![
             (
-                "actor".to_string(),
+                "actor",
                 "INSERT INTO actor(actor_id,first_name) values (1, 'mario')".to_string(),
             ),
             (
-                "actor".to_string(),
+                "actor",
                 "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', null, null)".to_string(),
             ),
             (
-                "actor".to_string(),
+                "actor",
                 "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', null, null)".to_string(),
             ),
         ];
     let queries = get_sample_queries();
-    helper::compare_with_sqlite(
-        &vec!["actor"],
-        queries,
-        "nullable".to_string(),
-        TestInstruction::List(list),
-    );
+    helper::compare_with_sqlite(&vec!["actor"], queries, TestInstruction::List(list));
 }
 
 #[test]
@@ -46,10 +40,5 @@ fn changes_queries() {
 
     let list = helper::get_sample_ops();
 
-    helper::compare_with_sqlite(
-        &vec!["actor"],
-        queries,
-        "changes".to_string(),
-        TestInstruction::List(list),
-    );
+    helper::compare_with_sqlite(&vec!["actor"], queries, TestInstruction::List(list));
 }

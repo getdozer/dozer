@@ -28,7 +28,7 @@ impl TestFramework {
     // SQLite as initialized as a sink with data flowing throwing SQL pipeline
     pub fn query(
         &mut self,
-        list: Vec<(String, String)>,
+        list: Vec<(&'static str, String)>,
         final_sql: String,
     ) -> Result<QueryResult, FrameworkError> {
         let source_schema_map = self.source.lock().unwrap().schema_map.clone();
@@ -43,7 +43,9 @@ impl TestFramework {
         let mut pipeline =
             TestPipeline::new(final_sql.clone(), source_schema_map, ops, self.dest.clone());
 
-        let output_schema = pipeline
+        let output_schema = pipeline.get_schema();
+
+        pipeline
             .run()
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
@@ -58,7 +60,7 @@ impl TestFramework {
     // Compare Source and Dest SQLlite records.
     pub fn compare_with_sqlite(
         &mut self,
-        list: Vec<(String, String)>,
+        list: Vec<(&'static str, String)>,
         final_sql: String,
     ) -> Result<bool, FrameworkError> {
         let query_result = self

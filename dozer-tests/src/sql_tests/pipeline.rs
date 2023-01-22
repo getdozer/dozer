@@ -1,7 +1,8 @@
 use dozer_core::dag::app::App;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::dag::{Dag, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
@@ -11,14 +12,14 @@ use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
-use dozer_types::crossbeam::channel::{bounded, Receiver, Sender};
+use dozer_types::crossbeam::channel::{Receiver, Sender};
 use dozer_types::log::debug;
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 use dozer_core::dag::epoch::Epoch;
 
@@ -30,24 +31,24 @@ use super::SqlMapper;
 
 #[derive(Debug)]
 pub struct TestSourceFactory {
-    ops: Vec<(String, Operation)>,
     schemas: HashMap<u16, Schema>,
     name_to_port: HashMap<String, u16>,
-    term_latch: Arc<Receiver<bool>>,
+    running: Arc<AtomicBool>,
+    receiver: Receiver<Option<(String, Operation)>>,
 }
 
 impl TestSourceFactory {
     pub fn new(
         schemas: HashMap<u16, Schema>,
         name_to_port: HashMap<String, u16>,
-        ops: Vec<(String, Operation)>,
-        term_latch: Arc<Receiver<bool>>,
+        running: Arc<AtomicBool>,
+        receiver: Receiver<Option<(String, Operation)>>,
     ) -> Self {
         Self {
             schemas,
-            ops,
             name_to_port,
-            term_latch,
+            running,
+            receiver,
         }
     }
 }
@@ -79,18 +80,18 @@ impl SourceFactory for TestSourceFactory {
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {
-            ops: self.ops.to_owned(),
             name_to_port: self.name_to_port.to_owned(),
-            term_latch: self.term_latch.clone(),
+            running: self.running.clone(),
+            receiver: self.receiver.clone(),
         }))
     }
 }
 
 #[derive(Debug)]
 pub struct TestSource {
-    ops: Vec<(String, Operation)>,
     name_to_port: HashMap<String, u16>,
-    term_latch: Arc<Receiver<bool>>,
+    running: Arc<AtomicBool>,
+    receiver: Receiver<Option<(String, Operation)>>,
 }
 
 impl Source for TestSource {
@@ -100,13 +101,16 @@ impl Source for TestSource {
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut idx = 0;
-        for (schema_name, op) in self.ops.iter().cloned() {
+
+        while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             idx += 1;
             let port = self.name_to_port.get(&schema_name).expect("port not found");
             fw.send(idx, 0, op, *port).unwrap();
         }
-        let _res = self.term_latch.recv_timeout(Duration::from_secs(2));
+        thread::sleep(Duration::from_millis(100));
 
+        self.running
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 }
@@ -120,24 +124,13 @@ pub struct SchemaHolder {
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
     mapper: Arc<Mutex<SqlMapper>>,
-    schema: Arc<RwLock<SchemaHolder>>,
-    term_latch: Arc<Sender<bool>>,
-    ops: usize,
 }
 
 impl TestSinkFactory {
-    pub fn new(
-        mapper: Arc<Mutex<SqlMapper>>,
-        schema: Arc<RwLock<SchemaHolder>>,
-        term_latch: Arc<Sender<bool>>,
-        ops: usize,
-    ) -> Self {
+    pub fn new(mapper: Arc<Mutex<SqlMapper>>) -> Self {
         Self {
             input_ports: vec![DEFAULT_PORT_HANDLE],
             mapper,
-            schema,
-            term_latch,
-            ops,
         }
     }
 }
@@ -148,7 +141,7 @@ impl SinkFactory for TestSinkFactory {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
-        self.schema.write().schema = Some(schema.clone());
+
         self.mapper
             .lock()
             .unwrap()
@@ -170,30 +163,19 @@ impl SinkFactory for TestSinkFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
-        Ok(Box::new(TestSink::new(
-            self.mapper.clone(),
-            self.term_latch.clone(),
-            self.ops,
-        )))
+        Ok(Box::new(TestSink::new(self.mapper.clone())))
     }
 }
 
 #[derive(Debug)]
 pub struct TestSink {
     mapper: Arc<Mutex<SqlMapper>>,
-    term_latch: Arc<Sender<bool>>,
-    ops: usize,
     curr: usize,
 }
 
 impl TestSink {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>, term_latch: Arc<Sender<bool>>, ops: usize) -> Self {
-        Self {
-            mapper,
-            term_latch,
-            ops,
-            curr: 0,
-        }
+    pub fn new(mapper: Arc<Mutex<SqlMapper>>) -> Self {
+        Self { mapper, curr: 0 }
     }
 }
 
@@ -219,13 +201,10 @@ impl Sink for TestSink {
         self.mapper
             .lock()
             .unwrap()
-            .execute_list(vec![("results".to_string(), sql)])
+            .execute_list(vec![("results", sql)])
             .unwrap();
 
         self.curr += 1;
-        if self.curr == self.ops {
-            let _ = self.term_latch.send(true);
-        }
 
         Ok(())
     }
@@ -236,44 +215,47 @@ impl Sink for TestSink {
 }
 
 pub struct TestPipeline {
-    sql: String,
-    schemas: HashMap<String, Schema>,
-    ops: Vec<(String, Operation)>,
-    mapper: Arc<Mutex<SqlMapper>>,
+    pub schema: Schema,
+    pub dag: Dag,
+    pub used_schemas: Vec<String>,
+    pub running: Arc<AtomicBool>,
+    pub sender: Sender<Option<(String, Operation)>>,
+    pub ops: Vec<(&'static str, Operation)>,
 }
 
 impl TestPipeline {
     pub fn new(
         sql: String,
         schemas: HashMap<String, Schema>,
-        ops: Vec<(String, Operation)>,
+        ops: Vec<(&'static str, Operation)>,
         mapper: Arc<Mutex<SqlMapper>>,
     ) -> Self {
-        Self {
-            sql,
-            schemas,
-            ops,
-            mapper,
-        }
+        Self::build_pipeline(sql, schemas, ops, mapper).unwrap()
     }
-    pub fn run(&mut self) -> Result<Schema, ExecutionError> {
-        let (mut pipeline, (pipe_node, pipe_port)) = statement_to_pipeline(&self.sql).unwrap();
 
-        let schema_holder: Arc<RwLock<SchemaHolder>> =
-            Arc::new(RwLock::new(SchemaHolder { schema: None }));
+    pub fn get_schema(&self) -> Schema {
+        self.schema.clone()
+    }
 
+    pub fn build_pipeline(
+        sql: String,
+        schemas: HashMap<String, Schema>,
+        ops: Vec<(&'static str, Operation)>,
+        mapper: Arc<Mutex<SqlMapper>>,
+    ) -> Result<TestPipeline, ExecutionError> {
+        let (mut pipeline, (pipe_node, pipe_port)) = statement_to_pipeline(&sql).unwrap();
+
+        let (sender, receiver) =
+            dozer_types::crossbeam::channel::bounded::<Option<(String, Operation)>>(10);
         let mut port_to_schemas = HashMap::new();
-        let mut name_to_port = HashMap::new();
         let mut mappings = HashMap::new();
 
-        for (idx, (name, schema)) in self.schemas.iter().enumerate() {
+        let running = Arc::new(AtomicBool::new(true));
+
+        for (idx, (name, schema)) in schemas.iter().enumerate() {
             mappings.insert(name.clone(), idx as u16);
             port_to_schemas.insert(idx as u16, schema.clone());
-            name_to_port.insert(name.clone(), idx as u16);
         }
-
-        let (sync_sender, sync_receiver) = bounded::<bool>(0);
-        let ops_count = self.ops.len();
 
         let mut asm = AppSourceManager::new();
 
@@ -281,23 +263,15 @@ impl TestPipeline {
             "mem".to_string(),
             Arc::new(TestSourceFactory::new(
                 port_to_schemas,
-                name_to_port,
-                self.ops.to_owned(),
-                Arc::new(sync_receiver),
+                mappings.clone(),
+                running.clone(),
+                receiver,
             )),
             mappings,
         ))
         .unwrap();
 
-        pipeline.add_sink(
-            Arc::new(TestSinkFactory::new(
-                self.mapper.clone(),
-                schema_holder.clone(),
-                Arc::new(sync_sender),
-                ops_count,
-            )),
-            "sink",
-        );
+        pipeline.add_sink(Arc::new(TestSinkFactory::new(mapper.clone())), "sink");
 
         pipeline
             .connect_nodes(
@@ -307,26 +281,55 @@ impl TestPipeline {
                 Some(DEFAULT_PORT_HANDLE),
             )
             .unwrap();
-
+        let used_schemas = pipeline.get_entry_points_sources_names();
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 
         let dag = app.get_dag().unwrap();
 
+        let schema_manager = DagSchemaManager::new(&dag)?;
+        let streaming_sink_handle = dag.get_sinks().get(0).expect("Sink is expected").clone().0;
+        let schema = schema_manager
+            .get_node_input_schemas(&streaming_sink_handle)?
+            .values()
+            .next()
+            .expect("schema is expected")
+            .clone();
+
+        Ok(TestPipeline {
+            schema,
+            dag,
+            used_schemas,
+            running,
+            sender,
+            ops,
+        })
+    }
+
+    pub fn run(&mut self) -> Result<(), ExecutionError> {
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
         let mut exec = DagExecutor::new(
-            &dag,
+            &self.dag,
             tmp_dir.path(),
             ExecutorOptions::default(),
-            Arc::new(AtomicBool::new(true)),
+            self.running.clone(),
         )
         .unwrap_or_else(|_e| panic!("Unable to create exec"));
         exec.start()?;
+
+        for (schema_name, op) in &self.ops {
+            if self.used_schemas.contains(&schema_name.to_string()) {
+                self.sender
+                    .send(Some((schema_name.to_string(), op.clone())))
+                    .unwrap();
+            }
+        }
+        self.sender.send(None).unwrap();
+
         exec.join()?;
 
-        let r_schema = schema_holder.read().schema.as_ref().unwrap().clone();
-        Ok(r_schema)
+        Ok(())
     }
 }
