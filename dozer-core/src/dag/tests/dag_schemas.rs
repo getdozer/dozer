@@ -10,6 +10,7 @@ use crate::dag::node::{
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use std::collections::HashMap;
 
+use crate::dag::tests::app::NoneContext;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
@@ -23,22 +24,28 @@ macro_rules! chk {
 #[derive(Debug)]
 struct TestUsersSourceFactory {}
 
-impl SourceFactory for TestUsersSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new("user_id".to_string(), FieldType::String, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new("username".to_string(), FieldType::String, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new("country_id".to_string(), FieldType::String, false),
-                true,
-            )
-            .clone())
+impl SourceFactory<NoneContext> for TestUsersSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new("user_id".to_string(), FieldType::String, false),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new("username".to_string(), FieldType::String, false),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new("country_id".to_string(), FieldType::String, false),
+                    true,
+                )
+                .clone(),
+            NoneContext {},
+        ))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -48,7 +55,10 @@ impl SourceFactory for TestUsersSourceFactory {
         )])
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -63,18 +73,24 @@ impl SourceFactory for TestUsersSourceFactory {
 #[derive(Debug)]
 struct TestCountriesSourceFactory {}
 
-impl SourceFactory for TestCountriesSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new("country_id".to_string(), FieldType::String, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new("country_name".to_string(), FieldType::String, false),
-                true,
-            )
-            .clone())
+impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new("country_id".to_string(), FieldType::String, false),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new("country_name".to_string(), FieldType::String, false),
+                    true,
+                )
+                .clone(),
+            NoneContext {},
+        ))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -84,7 +100,10 @@ impl SourceFactory for TestCountriesSourceFactory {
         )])
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -99,20 +118,23 @@ impl SourceFactory for TestCountriesSourceFactory {
 #[derive(Debug)]
 struct TestJoinProcessorFactory {}
 
-impl ProcessorFactory for TestJoinProcessorFactory {
+impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         let mut joined: Vec<FieldDefinition> = Vec::new();
-        joined.extend(input_schemas.get(&1).unwrap().fields.clone());
-        joined.extend(input_schemas.get(&2).unwrap().fields.clone());
-        Ok(Schema {
-            fields: joined,
-            primary_index: vec![],
-            identifier: None,
-        })
+        joined.extend(input_schemas.get(&1).unwrap().0.fields.clone());
+        joined.extend(input_schemas.get(&2).unwrap().0.fields.clone());
+        Ok((
+            Schema {
+                fields: joined,
+                primary_index: vec![],
+                identifier: None,
+            },
+            NoneContext {},
+        ))
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -128,8 +150,8 @@ impl ProcessorFactory for TestJoinProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -146,10 +168,10 @@ impl ProcessorFactory for TestJoinProcessorFactory {
 #[derive(Debug)]
 struct TestSinkFactory {}
 
-impl SinkFactory for TestSinkFactory {
+impl SinkFactory<NoneContext> for TestSinkFactory {
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -158,7 +180,10 @@ impl SinkFactory for TestSinkFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -213,7 +238,12 @@ fn test_extract_dag_schemas() {
 
     let users_output = chk!(sm.get_node_output_schemas(&users_handle));
     assert_eq!(
-        users_output.get(&DEFAULT_PORT_HANDLE).unwrap().fields.len(),
+        users_output
+            .get(&DEFAULT_PORT_HANDLE)
+            .unwrap()
+            .0
+            .fields
+            .len(),
         3
     );
 
@@ -222,24 +252,30 @@ fn test_extract_dag_schemas() {
         countries_output
             .get(&DEFAULT_PORT_HANDLE)
             .unwrap()
+            .0
             .fields
             .len(),
         2
     );
 
     let join_input = chk!(sm.get_node_input_schemas(&join_handle));
-    assert_eq!(join_input.get(&1).unwrap().fields.len(), 3);
-    assert_eq!(join_input.get(&2).unwrap().fields.len(), 2);
+    assert_eq!(join_input.get(&1).unwrap().0.fields.len(), 3);
+    assert_eq!(join_input.get(&2).unwrap().0.fields.len(), 2);
 
     let join_output = chk!(sm.get_node_output_schemas(&join_handle));
     assert_eq!(
-        join_output.get(&DEFAULT_PORT_HANDLE).unwrap().fields.len(),
+        join_output
+            .get(&DEFAULT_PORT_HANDLE)
+            .unwrap()
+            .0
+            .fields
+            .len(),
         5
     );
 
     let sink_input = chk!(sm.get_node_input_schemas(&sink_handle));
     assert_eq!(
-        sink_input.get(&DEFAULT_PORT_HANDLE).unwrap().fields.len(),
+        sink_input.get(&DEFAULT_PORT_HANDLE).unwrap().0.fields.len(),
         5
     );
 }

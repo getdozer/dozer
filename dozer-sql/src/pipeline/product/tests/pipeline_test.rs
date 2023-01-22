@@ -21,7 +21,7 @@ use std::thread;
 use std::time::Duration;
 use tempdir::TempDir;
 
-use crate::pipeline::builder::statement_to_pipeline;
+use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
 const USER_PORT: u16 = 0 as PortHandle;
 const DEPARTMENT_PORT: u16 = 1 as PortHandle;
@@ -37,7 +37,7 @@ impl TestSourceFactory {
     }
 }
 
-impl SourceFactory for TestSourceFactory {
+impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
         Ok(vec![
             OutputPortDef::new(
@@ -57,37 +57,46 @@ impl SourceFactory for TestSourceFactory {
         ])
     }
 
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(
+        &self,
+        port: &PortHandle,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         if port == &USER_PORT {
-            Ok(Schema::empty()
-                .field(
-                    FieldDefinition::new(String::from("id"), FieldType::Int, false),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(String::from("name"), FieldType::String, false),
-                    false,
-                )
-                .field(
-                    FieldDefinition::new(String::from("department_id"), FieldType::Int, false),
-                    false,
-                )
-                .field(
-                    FieldDefinition::new(String::from("salary"), FieldType::Float, false),
-                    false,
-                )
-                .clone())
+            Ok((
+                Schema::empty()
+                    .field(
+                        FieldDefinition::new(String::from("id"), FieldType::Int, false),
+                        true,
+                    )
+                    .field(
+                        FieldDefinition::new(String::from("name"), FieldType::String, false),
+                        false,
+                    )
+                    .field(
+                        FieldDefinition::new(String::from("department_id"), FieldType::Int, false),
+                        false,
+                    )
+                    .field(
+                        FieldDefinition::new(String::from("salary"), FieldType::Float, false),
+                        false,
+                    )
+                    .clone(),
+                SchemaSQLContext {},
+            ))
         } else if port == &DEPARTMENT_PORT {
-            Ok(Schema::empty()
-                .field(
-                    FieldDefinition::new(String::from("id"), FieldType::Int, false),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(String::from("name"), FieldType::String, false),
-                    false,
-                )
-                .clone())
+            Ok((
+                Schema::empty()
+                    .field(
+                        FieldDefinition::new(String::from("id"), FieldType::Int, false),
+                        true,
+                    )
+                    .field(
+                        FieldDefinition::new(String::from("name"), FieldType::String, false),
+                        false,
+                    )
+                    .clone(),
+                SchemaSQLContext {},
+            ))
         } else {
             panic!("Invalid Port Handle {}", port);
         }
@@ -102,7 +111,10 @@ impl SourceFactory for TestSourceFactory {
         }))
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -318,14 +330,14 @@ impl TestSinkFactory {
     }
 }
 
-impl SinkFactory for TestSinkFactory {
+impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -341,7 +353,10 @@ impl SinkFactory for TestSinkFactory {
         }))
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

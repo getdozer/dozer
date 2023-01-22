@@ -19,6 +19,9 @@ use std::sync::Arc;
 use super::errors::UnsupportedSqlError;
 use super::expression::builder::{fullname_from_ident, normalize_ident};
 
+#[derive(Debug, Clone)]
+pub struct SchemaSQLContext {}
+
 /// The struct contains some contexts during query to pipeline.
 #[derive(Debug, Clone, Default)]
 pub struct QueryContext {
@@ -36,7 +39,7 @@ pub struct NameOrAlias(pub String, pub Option<String>);
 
 pub fn statement_to_pipeline(
     sql: &str,
-) -> Result<(AppPipeline, (String, PortHandle)), PipelineError> {
+) -> Result<(AppPipeline<SchemaSQLContext>, (String, PortHandle)), PipelineError> {
     let dialect = AnsiDialect {};
     let mut ctx = QueryContext::default();
 
@@ -66,7 +69,7 @@ pub fn statement_to_pipeline(
 fn query_to_pipeline(
     processor_name: &NameOrAlias,
     query: &Query,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
     query_ctx: &mut QueryContext,
     stateful: bool,
@@ -131,7 +134,7 @@ fn query_to_pipeline(
 fn select_to_pipeline(
     processor_name: &NameOrAlias,
     select: Select,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
     stateful: bool,
 ) -> Result<(), PipelineError> {
@@ -214,7 +217,7 @@ fn select_to_pipeline(
 /// This function will return an error if it's not possible to get an input name.
 pub fn get_input_tables(
     from: &TableWithJoins,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<IndexedTabelWithJoins, PipelineError> {
     let mut input_tables = vec![];
@@ -267,7 +270,7 @@ pub fn get_entry_points(
 
 pub fn get_from_source(
     relation: &TableFactor,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<NameOrAlias, PipelineError> {
     match relation {

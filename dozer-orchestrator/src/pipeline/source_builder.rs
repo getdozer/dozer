@@ -3,6 +3,7 @@ use crate::OrchestrationError;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use std::collections::HashMap;
@@ -20,7 +21,7 @@ impl SourceBuilder {
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
         running: Arc<AtomicBool>,
-    ) -> Result<AppSourceManager, OrchestrationError> {
+    ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
@@ -88,6 +89,7 @@ mod tests {
     use std::sync::Arc;
 
     use dozer_core::dag::appsource::{AppSourceId, AppSourceMappings};
+    use dozer_sql::pipeline::builder::SchemaSQLContext;
     use dozer_types::models::connection::{
         Authentication, Connection, DBType, EventsAuthentication,
     };
@@ -183,7 +185,7 @@ mod tests {
 
         let conn_name_1 = config.connections.get(0).unwrap().name.clone();
         let conn_name_2 = config.connections.get(1).unwrap().name.clone();
-        let pg_source_mapping: Vec<AppSourceMappings> = asm
+        let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![
                 AppSourceId::new(
                     config.sources.get(0).unwrap().table_name.clone(),
@@ -218,7 +220,7 @@ mod tests {
         )
         .unwrap();
 
-        let pg_source_mapping: Vec<AppSourceMappings> = asm
+        let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![AppSourceId::new(
                 config.sources.get(0).unwrap().table_name.clone(),
                 Some(conn_name.clone()),

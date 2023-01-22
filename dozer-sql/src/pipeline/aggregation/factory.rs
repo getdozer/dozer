@@ -8,6 +8,7 @@ use dozer_core::dag::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr as SqlExpr, Expr, SelectItem};
 
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -41,7 +42,7 @@ impl AggregationProcessorFactory {
     }
 }
 
-impl ProcessorFactory for AggregationProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -66,19 +67,25 @@ impl ProcessorFactory for AggregationProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        let input_schema = input_schemas
+        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+        let (input_schema, _ctx) = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
         if is_aggregation(&self.groupby, &output_field_rules) {
-            return build_output_schema(input_schema, output_field_rules);
+            return Ok((
+                build_output_schema(input_schema, output_field_rules)?,
+                SchemaSQLContext {},
+            ));
         }
 
-        build_projection_schema(input_schema, &self.select)
+        Ok((
+            build_projection_schema(input_schema, &self.select)?,
+            SchemaSQLContext {},
+        ))
     }
 
     fn build(
@@ -116,8 +123,8 @@ impl ProcessorFactory for AggregationProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

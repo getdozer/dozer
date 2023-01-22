@@ -8,6 +8,7 @@ use dozer_core::dag::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::SelectItem;
 
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -31,7 +32,7 @@ impl ProjectionProcessorFactory {
     }
 }
 
-impl ProcessorFactory for ProjectionProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -46,9 +47,9 @@ impl ProcessorFactory for ProjectionProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+        let (input_schema, _context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         match self
             .select
             .iter()
@@ -70,7 +71,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
                     ));
                 }
 
-                Ok(output_schema)
+                Ok((output_schema, SchemaSQLContext {}))
             }
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
@@ -104,8 +105,8 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
