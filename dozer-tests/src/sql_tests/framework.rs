@@ -4,6 +4,7 @@ use super::{helper::*, SqlMapper};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
+use dozer_types::types::{Record, Schema};
 
 use std::sync::{Arc, Mutex};
 
@@ -12,21 +13,25 @@ pub enum FrameworkError {
     #[error(transparent)]
     InternalError(#[from] BoxedError),
 }
+
 #[derive(Default)]
 pub struct TestFramework {
     pub source: Arc<Mutex<SqlMapper>>,
     pub dest: Arc<Mutex<SqlMapper>>,
 }
+pub struct QueryResult {
+    pub output_schema: Schema,
+    pub records: Vec<Record>,
+}
 
 impl TestFramework {
-    pub fn run_test(
+    // SQLite as initialized as a sink with data flowing throwing SQL pipeline
+    pub fn query(
         &mut self,
         list: Vec<(String, String)>,
         final_sql: String,
-    ) -> Result<bool, FrameworkError> {
-        let name = &list[0].0;
-
-        let source_schema = self.source.lock().unwrap().get_schema(name).to_owned();
+    ) -> Result<QueryResult, FrameworkError> {
+        let source_schema_map = self.source.lock().unwrap().schema_map.clone();
 
         let ops = self
             .source
@@ -36,7 +41,7 @@ impl TestFramework {
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
         let mut pipeline =
-            TestPipeline::new(final_sql.clone(), source_schema, ops, self.dest.clone());
+            TestPipeline::new(final_sql.clone(), source_schema_map, ops, self.dest.clone());
 
         let output_schema = pipeline
             .run()
@@ -44,10 +49,29 @@ impl TestFramework {
 
         let source_result = query_sqlite(self.source.clone(), &final_sql, &output_schema)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
+        Ok(QueryResult {
+            output_schema,
+            records: source_result,
+        })
+    }
 
-        let dest_result = query_sqlite(self.dest.clone(), "select * from results;", &output_schema)
+    // Compare Source and Dest SQLlite records.
+    pub fn compare_with_sqlite(
+        &mut self,
+        list: Vec<(String, String)>,
+        final_sql: String,
+    ) -> Result<bool, FrameworkError> {
+        let query_result = self
+            .query(list, final_sql)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
-        Ok(source_result == dest_result)
+        let dest_result = query_sqlite(
+            self.dest.clone(),
+            "select * from results;",
+            &query_result.output_schema,
+        )
+        .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
+
+        Ok(query_result.records == dest_result)
     }
 }

@@ -1,8 +1,10 @@
-use crate::{init::init, sql_tests::get_inserts_from_csv, TestFramework};
+use crate::{
+    init::init, sql_tests::get_inserts_from_csv, tests::sql::TestInstruction, TestFramework,
+};
 use dozer_types::tracing::info;
 
-fn setup() -> TestFramework {
-    let tables = vec![
+pub fn get_tables() -> Vec<(&'static str, &'static str)> {
+    vec![
         (
             "actor",
             "CREATE TABLE actor(
@@ -12,34 +14,45 @@ fn setup() -> TestFramework {
                 last_update text
             )",
         ),
-        // (
-        //     "film",
-        //     "CREATE TABLE film (
-        //         film_id integer NOT NULL,
-        //         title text NOT NULL,
-        //         description text,
-        //         release_year text,
-        //         language_id integer NOT NULL,
-        //         original_language_id integer,
-        //         rental_duration integer  NOT NULL,
-        //         rental_rate numeric NOT NULL,
-        //         length integer,
-        //         replacement_cost numeric NOT NULL,
-        //         rating TEXT,
-        //         last_update timestamp NOT NULL,
-        //         special_features text
-        //     )",
-        // ),
-        // (
-        //     "film_actor",
-        //     "CREATE TABLE film_actor (
-        //         actor_id integer NOT NULL,
-        //         film_id integer NOT NULL,
-        //         last_update timestamp NOT NULL
-        //     );",
-        // ),
-    ];
+        (
+            "film",
+            "CREATE TABLE film (
+                film_id integer NOT NULL,
+                title text NOT NULL,
+                description text,
+                release_year text,
+                language_id integer NOT NULL,
+                original_language_id integer,
+                rental_duration integer  NOT NULL,
+                rental_rate numeric NOT NULL,
+                length integer,
+                replacement_cost numeric NOT NULL,
+                rating TEXT,
+                last_update timestamp NOT NULL,
+                special_features text
+            )",
+        ),
+        (
+            "film_actor",
+            "CREATE TABLE film_actor (
+                actor_id integer NOT NULL,
+                film_id integer NOT NULL,
+                last_update timestamp NOT NULL
+            );",
+        ),
+    ]
+}
 
+// Pass empty table_names to get the whole list
+pub fn setup(table_names: &Vec<&'static str>) -> TestFramework {
+    let tables = if table_names.len() == 0 {
+        get_tables()
+    } else {
+        get_tables()
+            .into_iter()
+            .filter(|(name, _)| table_names.contains(name))
+            .collect()
+    };
     let framework = TestFramework::default();
     framework
         .source
@@ -47,10 +60,11 @@ fn setup() -> TestFramework {
         .unwrap()
         .create_tables(tables)
         .unwrap();
+
     framework
 }
 
-fn get_queries() -> Vec<&'static str> {
+pub fn get_sample_queries() -> Vec<&'static str> {
     vec![
         "select actor_id, first_name, last_name,last_update from actor order by actor_id",
         "select actor_id, first_name, last_name,last_update from actor where actor_id<=5",
@@ -68,42 +82,8 @@ fn get_queries() -> Vec<&'static str> {
          "select actor_id, count(actor_id) as counts from actor group by actor_id",
     ]
 }
-
-#[test]
-fn nightly_long_init_queries() {
-    let queries = get_queries();
-    run_tests(
-        queries,
-        "from_csv".to_string(),
-        TestInstruction::FromCsv("actor".to_string(), vec!["actor".to_string()]),
-    );
-}
-
-#[test]
-fn nightly_long_nullable_queries() {
-    let list = vec![
-            (
-                "actor".to_string(),
-                "INSERT INTO actor(actor_id,first_name) values (1, 'mario')".to_string(),
-            ),
-            (
-                "actor".to_string(),
-                "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', null, null)".to_string(),
-            ),
-            (
-                "actor".to_string(),
-                "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', null, null)".to_string(),
-            ),
-        ];
-    let queries = get_queries();
-    run_tests(queries, "nullable".to_string(), TestInstruction::List(list));
-}
-
-#[test]
-fn nightly_long_changes_queries() {
-    let queries =
-        vec!["select actor_id, first_name, last_name,last_update from actor order by actor_id"];
-    let list = vec![
+pub fn get_sample_ops() -> Vec<(String, String)> {
+    vec![
         (
             "actor".to_string(),
             "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', 'GUINESS','2020-02-15 09:34:33+00')".to_string(),
@@ -117,17 +97,21 @@ fn nightly_long_changes_queries() {
             "UPDATE actor SET first_name ='sampras' WHERE actor_id=2".to_string(),
         ),
         ("actor".to_string(), "DELETE FROM actor WHERE actor_id=2".to_string()),
-    ];
-    run_tests(queries, "changes".to_string(), TestInstruction::List(list));
+    ]
 }
 
-fn run_tests(queries: Vec<&str>, test_name: String, test_instruction: TestInstruction) {
+pub fn compare_with_sqlite(
+    table_names: &Vec<&'static str>,
+    queries: Vec<&str>,
+    test_name: String,
+    test_instruction: TestInstruction,
+) {
     init();
 
     let mut results = vec![];
 
     for (idx, test) in queries.into_iter().enumerate() {
-        let mut framework = setup();
+        let mut framework = setup(&table_names);
 
         let list = match test_instruction {
             TestInstruction::FromCsv(ref folder_name, ref names) => {
@@ -147,7 +131,7 @@ fn run_tests(queries: Vec<&str>, test_name: String, test_instruction: TestInstru
             TestInstruction::List(ref list) => list.clone(),
         };
 
-        let result = framework.run_test(list, test.to_string());
+        let result = framework.compare_with_sqlite(list, test.to_string());
 
         let success = match result {
             Ok(true) => "success",
@@ -173,10 +157,4 @@ fn run_tests(queries: Vec<&str>, test_name: String, test_instruction: TestInstru
     }
     info!("");
     info!("---------------------------------------------");
-}
-
-#[derive(Clone, Debug)]
-enum TestInstruction {
-    FromCsv(String, Vec<String>),
-    List(Vec<(String, String)>),
 }

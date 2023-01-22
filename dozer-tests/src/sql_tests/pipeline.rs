@@ -30,33 +30,43 @@ use super::SqlMapper;
 
 #[derive(Debug)]
 pub struct TestSourceFactory {
-    output_ports: Vec<PortHandle>,
-    ops: Vec<Operation>,
-    schema: Schema,
+    ops: Vec<(String, Operation)>,
+    schemas: HashMap<u16, Schema>,
+    name_to_port: HashMap<String, u16>,
     term_latch: Arc<Receiver<bool>>,
 }
 
 impl TestSourceFactory {
-    pub fn new(schema: Schema, ops: Vec<Operation>, term_latch: Arc<Receiver<bool>>) -> Self {
+    pub fn new(
+        schemas: HashMap<u16, Schema>,
+        name_to_port: HashMap<String, u16>,
+        ops: Vec<(String, Operation)>,
+        term_latch: Arc<Receiver<bool>>,
+    ) -> Self {
         Self {
-            output_ports: vec![DEFAULT_PORT_HANDLE],
-            schema,
+            schemas,
             ops,
+            name_to_port,
             term_latch,
         }
     }
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(self.schema.clone())
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        Ok(self
+            .schemas
+            .get(port)
+            .expect("schemas should have been initialized with enumerated index")
+            .to_owned())
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
         Ok(self
-            .output_ports
+            .schemas
             .iter()
-            .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
+            .enumerate()
+            .map(|(idx, _)| OutputPortDef::new(idx as u16, OutputPortType::Stateless))
             .collect())
     }
 
@@ -70,6 +80,7 @@ impl SourceFactory for TestSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {
             ops: self.ops.to_owned(),
+            name_to_port: self.name_to_port.to_owned(),
             term_latch: self.term_latch.clone(),
         }))
     }
@@ -77,7 +88,8 @@ impl SourceFactory for TestSourceFactory {
 
 #[derive(Debug)]
 pub struct TestSource {
-    ops: Vec<Operation>,
+    ops: Vec<(String, Operation)>,
+    name_to_port: HashMap<String, u16>,
     term_latch: Arc<Receiver<bool>>,
 }
 
@@ -88,9 +100,10 @@ impl Source for TestSource {
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut idx = 0;
-        for op in self.ops.iter().cloned() {
+        for (schema_name, op) in self.ops.iter().cloned() {
             idx += 1;
-            fw.send(idx, 0, op, DEFAULT_PORT_HANDLE).unwrap();
+            let port = self.name_to_port.get(&schema_name).expect("port not found");
+            fw.send(idx, 0, op, *port).unwrap();
         }
         let _res = self.term_latch.recv_timeout(Duration::from_secs(2));
 
@@ -224,21 +237,21 @@ impl Sink for TestSink {
 
 pub struct TestPipeline {
     sql: String,
-    schema: Schema,
-    ops: Vec<Operation>,
+    schemas: HashMap<String, Schema>,
+    ops: Vec<(String, Operation)>,
     mapper: Arc<Mutex<SqlMapper>>,
 }
 
 impl TestPipeline {
     pub fn new(
         sql: String,
-        schema: Schema,
-        ops: Vec<Operation>,
+        schemas: HashMap<String, Schema>,
+        ops: Vec<(String, Operation)>,
         mapper: Arc<Mutex<SqlMapper>>,
     ) -> Self {
         Self {
             sql,
-            schema,
+            schemas,
             ops,
             mapper,
         }
@@ -249,20 +262,30 @@ impl TestPipeline {
         let schema_holder: Arc<RwLock<SchemaHolder>> =
             Arc::new(RwLock::new(SchemaHolder { schema: None }));
 
+        let mut port_to_schemas = HashMap::new();
+        let mut name_to_port = HashMap::new();
+        let mut mappings = HashMap::new();
+
+        for (idx, (name, schema)) in self.schemas.iter().enumerate() {
+            mappings.insert(name.clone(), idx as u16);
+            port_to_schemas.insert(idx as u16, schema.clone());
+            name_to_port.insert(name.clone(), idx as u16);
+        }
+
         let (sync_sender, sync_receiver) = bounded::<bool>(0);
         let ops_count = self.ops.len();
 
         let mut asm = AppSourceManager::new();
+
         asm.add(AppSource::new(
             "mem".to_string(),
             Arc::new(TestSourceFactory::new(
-                self.schema.clone(),
+                port_to_schemas,
+                name_to_port,
                 self.ops.to_owned(),
                 Arc::new(sync_receiver),
             )),
-            vec![("actor".to_string(), DEFAULT_PORT_HANDLE)]
-                .into_iter()
-                .collect(),
+            mappings,
         ))
         .unwrap();
 

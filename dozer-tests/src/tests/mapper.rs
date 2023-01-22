@@ -36,7 +36,7 @@ fn test_framework_to_dozer_types() {
                 version: None
             }
         },
-        ops[0]
+        ops[0].1
     );
 
     let ops = mapper
@@ -58,7 +58,7 @@ fn test_framework_to_dozer_types() {
                 version: None
             }
         },
-        ops[0]
+        ops[0].1
     );
 
     let ops = mapper
@@ -76,7 +76,7 @@ fn test_framework_to_dozer_types() {
                 version: None
             },
         },
-        ops[0]
+        ops[0].1
     );
 
     let sql = mapper
