@@ -21,7 +21,7 @@ use dozer_types::{
     models::{
         api_config::{ApiGrpc, ApiPipelineInternal},
         api_security::ApiSecurity,
-        app_config::Flags,
+        flags::Flags,
     },
     types::Schema,
 };

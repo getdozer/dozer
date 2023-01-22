@@ -1,6 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
-use dozer_sql::pipeline::builder::{self, statement_to_pipeline, SchemaSQLContext};
+use dozer_sql::pipeline::builder::{self, statement_to_pipeline};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
-use crate::pipeline::{CacheSinkFactory, StreamingSinkFactory};
+use crate::pipeline::{CacheSinkFactory, CacheSinkSettings, StreamingSinkFactory};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table, TableInfo};
@@ -20,7 +20,7 @@ use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
-use dozer_types::models::api_security::ApiSecurity;
+
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use OrchestrationError::ExecutionError;
@@ -160,7 +160,7 @@ impl Executor {
         &self,
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
-    ) -> Result<dozer_core::dag::dag::Dag<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
         let (mut pipeline, (query_name, query_port)) =
@@ -208,13 +208,13 @@ impl Executor {
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
-        api_security: Option<ApiSecurity>,
-    ) -> Result<dozer_core::dag::dag::Dag<SchemaSQLContext>, OrchestrationError> {
+        settings: CacheSinkSettings,
+    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
         Self::validate_grouped_connections(&grouped_connections)?;
 
-        let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
+        let mut pipelines: Vec<AppPipeline> = vec![];
         let mut used_sources = vec![];
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
             let api_endpoint = cache_endpoint.endpoint.clone();
@@ -236,8 +236,8 @@ impl Executor {
                     api_endpoint,
                     notifier.clone(),
                     api_dir.clone(),
-                    api_security.clone(),
                     self.progress.clone(),
+                    settings.to_owned(),
                 )),
                 cache_endpoint.endpoint.name.as_str(),
             );
@@ -303,10 +303,11 @@ impl Executor {
     pub fn run(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+        settings: CacheSinkSettings,
     ) -> Result<(), OrchestrationError> {
         let running_wait = self.running.clone();
 
-        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), None)?;
+        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {
