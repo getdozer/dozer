@@ -27,12 +27,14 @@ service {{plural_pascal_name}} {
    */
   rpc query(Query{{plural_pascal_name}}Request) returns (Query{{plural_pascal_name}}Response);
 
+  {{#if enable_on_event}}
   /**
    * Subscribes to the Dozer event stream, optionally applies a filter. See [Query](../query) for the filter format.
    *
    * This API is unstable and may change in the future.
    */
   rpc on_event({{pascal_name}}EventRequest) returns (stream {{pascal_name}}Event);
+  {{/if}}
   {{#if enable_token}}
   // Gets the authentication token.
   rpc token(TokenRequest) returns (TokenResponse);
@@ -57,6 +59,7 @@ message Query{{plural_pascal_name}}Response {
   repeated {{pascal_name}} data = 1;
 }
 
+{{#if enable_on_event}}
 // Request for `on_event`.
 message {{pascal_name}}EventRequest {
   // The event type to subscribe to.
@@ -64,7 +67,6 @@ message {{pascal_name}}EventRequest {
   // JSON filter string.
   optional string filter = 2;
 }
-
 // Response for `on_event`.
 message {{pascal_name}}Event {
   // The operation type.
@@ -74,7 +76,7 @@ message {{pascal_name}}Event {
   // New record data.
   optional {{pascal_name}} new = 3;
 }
-
+{{/if}}
 /**
  * {{pascal_name}} record type.
  * 

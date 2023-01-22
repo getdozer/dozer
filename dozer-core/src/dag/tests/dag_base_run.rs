@@ -24,17 +24,18 @@ use std::time::Duration;
 
 use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
 use crate::dag::epoch::Epoch;
+use crate::dag::tests::app::NoneContext;
 use tempdir::TempDir;
 
 #[derive(Debug)]
 pub(crate) struct NoopProcessorFactory {}
 
-impl ProcessorFactory for NoopProcessorFactory {
+impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
     }
 
@@ -51,8 +52,8 @@ impl ProcessorFactory for NoopProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -212,12 +213,12 @@ pub(crate) struct NoopJoinProcessorFactory {}
 pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
 pub const NOOP_JOIN_RIGHT_INPUT_PORT: u16 = 2;
 
-impl ProcessorFactory for NoopJoinProcessorFactory {
+impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         Ok(input_schemas.get(&1).unwrap().clone())
     }
 
@@ -234,8 +235,8 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

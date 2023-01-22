@@ -124,7 +124,7 @@ pub enum IndexDefinition {
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
-    /// List of values, following the definitions of `fields` of the asscoiated schema
+    /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
     pub version: Option<u32>,
 }

@@ -26,7 +26,8 @@ fn test_pk_record_writer() {
         )
         .clone();
 
-    let writer = PrimaryKeyLookupRecordWriter::new(master_db, meta_db, schema.clone(), true, true);
+    let writer =
+        PrimaryKeyLookupRecordWriter::new(master_db, meta_db, schema.clone(), true, true, 1000);
 
     let input_record = Record::new(
         None,
@@ -131,7 +132,7 @@ fn test_read_write_kv() {
         .clone();
 
     let mut writer =
-        PrimaryKeyLookupRecordWriter::new(master_db, meta_db, schema.clone(), true, true);
+        PrimaryKeyLookupRecordWriter::new(master_db, meta_db, schema.clone(), true, true, 1000);
 
     let r = writer
         .write(

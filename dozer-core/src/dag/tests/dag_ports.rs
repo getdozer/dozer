@@ -4,6 +4,7 @@ use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source,
     SourceFactory,
 };
+use crate::dag::tests::app::NoneContext;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,8 +20,11 @@ impl DynPortsSourceFactory {
     }
 }
 
-impl SourceFactory for DynPortsSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
+impl SourceFactory<NoneContext> for DynPortsSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         todo!()
     }
 
@@ -32,7 +36,10 @@ impl SourceFactory for DynPortsSourceFactory {
             .collect())
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -59,12 +66,12 @@ impl DynPortsProcessorFactory {
     }
 }
 
-impl ProcessorFactory for DynPortsProcessorFactory {
+impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        _input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         todo!()
     }
 
@@ -81,8 +88,8 @@ impl ProcessorFactory for DynPortsProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

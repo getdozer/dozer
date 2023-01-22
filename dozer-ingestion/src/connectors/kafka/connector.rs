@@ -9,7 +9,6 @@ use dozer_types::parking_lot::RwLock;
 
 use tokio::runtime::Runtime;
 
-use dozer_types::models::source::Source;
 use dozer_types::types::ReplicationChangesTrackingType;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 
@@ -98,10 +97,6 @@ impl Connector for KafkaConnector {
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
-    }
-
-    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
-        sources.iter().map(|s| vec![s.clone()]).collect()
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {

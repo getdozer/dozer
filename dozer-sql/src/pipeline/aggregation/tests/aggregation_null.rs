@@ -3,6 +3,7 @@ use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     init_input_schema, init_processor, FIELD_100_INT,
 };
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::tests::utils::get_select;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;
@@ -65,9 +66,12 @@ fn test_aggregation_alias() {
     let out_schema = factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
+            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext {}))]
+                .into_iter()
+                .collect(),
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     assert_eq!(
         out_schema,

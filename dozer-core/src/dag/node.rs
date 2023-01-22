@@ -102,10 +102,13 @@ impl OutputPortDef {
     }
 }
 
-pub trait SourceFactory: Send + Sync + Debug {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError>;
+pub trait SourceFactory<T: Clone>: Send + Sync + Debug {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), ExecutionError>;
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError>;
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError>;
+    fn prepare(
+        &self,
+        output_schemas: HashMap<PortHandle, (Schema, T)>,
+    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
@@ -120,18 +123,18 @@ pub trait Source: Debug {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait ProcessorFactory: Send + Sync + Debug {
+pub trait ProcessorFactory<T: Clone>: Send + Sync + Debug {
     fn get_output_schema(
         &self,
         output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError>;
+        input_schemas: &HashMap<PortHandle, (Schema, T)>,
+    ) -> Result<(Schema, T), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn prepare(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        input_schemas: HashMap<PortHandle, (Schema, T)>,
+        output_schemas: HashMap<PortHandle, (Schema, T)>,
     ) -> Result<(), ExecutionError>;
     fn build(
         &self,
@@ -153,13 +156,16 @@ pub trait Processor: Debug {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait SinkFactory: Send + Sync + Debug {
+pub trait SinkFactory<T: Clone>: Send + Sync + Debug {
     fn set_input_schema(
         &self,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        input_schemas: &HashMap<PortHandle, (Schema, T)>,
     ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError>;
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, (Schema, T)>,
+    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,

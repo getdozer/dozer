@@ -7,4 +7,6 @@ mod eth_yaml_deserialize;
 #[cfg(test)]
 mod field_serialize_test;
 #[cfg(test)]
+mod flags_config_yaml_deserialize;
+#[cfg(test)]
 mod postgres_yaml_deserialize;

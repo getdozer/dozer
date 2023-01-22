@@ -95,13 +95,13 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     // Create new stream
     let mut consumer = StreamConsumer::new();
     consumer
-        .consume_stream(&client, &table_name, &ingestor)
+        .consume_stream(&client, &table_name, &ingestor, 0)
         .unwrap();
 
     // Insert single record
     client.execute_query(&conn, &format!("INSERT INTO {} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME) VALUES (1, 'TEST Country 1', 0, 'country name 1');", table_name)).unwrap();
     consumer
-        .consume_stream(&client, &table_name, &ingestor)
+        .consume_stream(&client, &table_name, &ingestor, 0)
         .unwrap();
     assert!(matches!(
         iterator.write().next().unwrap().1,
@@ -118,7 +118,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     client.execute_query(&conn, &format!("INSERT INTO {} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME, TEST_COLUMN) VALUES (2, 'TEST Country 2', 0, 'country name 2', null);", table_name)).unwrap();
 
     consumer
-        .consume_stream(&client, &table_name, &ingestor)
+        .consume_stream(&client, &table_name, &ingestor, 0)
         .unwrap();
     assert!(matches!(
         iterator.write().next().unwrap().1,

@@ -11,8 +11,10 @@ use dozer_core::dag::node::{
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
-use dozer_sql::pipeline::builder::statement_to_pipeline;
+
+use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
+
 use dozer_types::log::debug;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
@@ -53,13 +55,18 @@ impl TestSourceFactory {
     }
 }
 
-impl SourceFactory for TestSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(self
-            .schemas
-            .get(port)
-            .expect("schemas should have been initialized with enumerated index")
-            .to_owned())
+impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
+    fn get_output_schema(
+        &self,
+        port: &PortHandle,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+        Ok((
+            self.schemas
+                .get(port)
+                .expect("schemas should have been initialized with enumerated index")
+                .to_owned(),
+            SchemaSQLContext {},
+        ))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -71,7 +78,10 @@ impl SourceFactory for TestSourceFactory {
             .collect())
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -135,12 +145,12 @@ impl TestSinkFactory {
     }
 }
 
-impl SinkFactory for TestSinkFactory {
+impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn set_input_schema(
         &self,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
-        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
+        let (schema, _) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
 
         self.mapper
             .lock()
@@ -155,7 +165,10 @@ impl SinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -216,7 +229,7 @@ impl Sink for TestSink {
 
 pub struct TestPipeline {
     pub schema: Schema,
-    pub dag: Dag,
+    pub dag: Dag<SchemaSQLContext>,
     pub used_schemas: Vec<String>,
     pub running: Arc<AtomicBool>,
     pub sender: Sender<Option<(String, Operation)>>,

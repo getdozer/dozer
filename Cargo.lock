@@ -1182,12 +1182,12 @@ dependencies = [
 
 [[package]]
 name = "ctrlc"
-version = "3.2.3"
+version = "3.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d91974fbbe88ec1df0c24a4f00f99583667a7e2e6272b2b92d294d81e462173"
+checksum = "1631ca6e3c59112501a9d87fd86f21591ff77acd31331e8a73f8d80a65bbdd71"
 dependencies = [
- "nix 0.25.0",
- "winapi",
+ "nix",
+ "windows-sys 0.42.0",
 ]
 
 [[package]]
@@ -1641,7 +1641,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "serde_yaml 0.9.16",
+ "serde_yaml 0.9.17",
  "thiserror",
  "tracing",
 ]
@@ -3071,18 +3071,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e322c04a9e3440c327fca7b6c8a63e6890a32fa2ad689db972425f07e0d22abb"
-dependencies = [
- "autocfg",
- "bitflags",
- "cfg-if",
- "libc",
-]
-
-[[package]]
-name = "nix"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
@@ -4114,11 +4102,11 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.13"
+version = "0.11.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68cc60575865c7831548863cc02356512e3f1dc2f3f82cb837d7fc4cc8f3c97c"
+checksum = "21eed90ec8570952d53b772ecf8f206aa1ec9a3d76b2521c56c42973f2d91ee9"
 dependencies = [
- "base64 0.13.1",
+ "base64 0.21.0",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -4363,7 +4351,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix 0.26.2",
+ "nix",
  "radix_trie",
  "scopeguard",
  "unicode-segmentation",
@@ -4639,9 +4627,9 @@ dependencies = [
 
 [[package]]
 name = "serde_yaml"
-version = "0.9.16"
+version = "0.9.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92b5b431e8907b50339b51223b97d102db8d987ced36f6e4d03621db9316c834"
+checksum = "8fb06d4b6cdaef0e0c51fa881acb721bed3c924cfaa71d9c94a3b771dfdf6567"
 dependencies = [
  "indexmap",
  "itoa 1.0.4",

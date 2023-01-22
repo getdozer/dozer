@@ -13,11 +13,20 @@ use sqlparser::{
     dialect::AnsiDialect,
     parser::Parser,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
 use super::expression::builder::{fullname_from_ident, normalize_ident};
+
+#[derive(Debug, Clone)]
+pub struct SchemaSQLContext {}
+
+/// The struct contains some contexts during query to pipeline.
+#[derive(Debug, Clone, Default)]
+pub struct QueryContext {
+    pub cte_names: HashSet<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct IndexedTabelWithJoins {
@@ -30,8 +39,9 @@ pub struct NameOrAlias(pub String, pub Option<String>);
 
 pub fn statement_to_pipeline(
     sql: &str,
-) -> Result<(AppPipeline, (String, PortHandle)), PipelineError> {
+) -> Result<(AppPipeline<SchemaSQLContext>, (String, PortHandle)), PipelineError> {
     let dialect = AnsiDialect {};
+    let mut ctx = QueryContext::default();
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
     let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
@@ -40,7 +50,14 @@ pub fn statement_to_pipeline(
     let mut pipeline = AppPipeline::new();
     let mut pipeline_map = HashMap::new();
     if let Statement::Query(query) = statement {
-        query_to_pipeline(&query_name, &query, &mut pipeline, &mut pipeline_map, false)?;
+        query_to_pipeline(
+            &query_name,
+            &query,
+            &mut pipeline,
+            &mut pipeline_map,
+            &mut ctx,
+            false,
+        )?;
     };
     let node = pipeline_map
         .get(&query_name.0)
@@ -52,8 +69,9 @@ pub fn statement_to_pipeline(
 fn query_to_pipeline(
     processor_name: &NameOrAlias,
     query: &Query,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+    query_ctx: &mut QueryContext,
     stateful: bool,
 ) -> Result<(), PipelineError> {
     // Attach the first pipeline if there is with clause
@@ -71,11 +89,18 @@ fn query_to_pipeline(
                 ));
             }
             let table_name = table.alias.name.to_string();
+            if query_ctx.cte_names.contains(&table_name) {
+                return Err(InvalidQuery(format!(
+                    "WITH query name {table_name:?} specified more than once"
+                )));
+            }
+            query_ctx.cte_names.insert(table_name.clone());
             query_to_pipeline(
                 &NameOrAlias(table_name.clone(), Some(table_name)),
                 &table.query,
                 pipeline,
                 pipeline_map,
+                query_ctx,
                 false,
             )?;
         }
@@ -87,12 +112,13 @@ fn query_to_pipeline(
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", uuid::Uuid::new_v4());
-
+            let mut ctx = QueryContext::default();
             query_to_pipeline(
                 &NameOrAlias(query_name, None),
                 &query,
                 pipeline,
                 pipeline_map,
+                &mut ctx,
                 stateful,
             )?
         }
@@ -108,7 +134,7 @@ fn query_to_pipeline(
 fn select_to_pipeline(
     processor_name: &NameOrAlias,
     select: Select,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
     stateful: bool,
 ) -> Result<(), PipelineError> {
@@ -191,7 +217,7 @@ fn select_to_pipeline(
 /// This function will return an error if it's not possible to get an input name.
 pub fn get_input_tables(
     from: &TableWithJoins,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<IndexedTabelWithJoins, PipelineError> {
     let mut input_tables = vec![];
@@ -244,7 +270,7 @@ pub fn get_entry_points(
 
 pub fn get_from_source(
     relation: &TableFactor,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<NameOrAlias, PipelineError> {
     match relation {
@@ -272,7 +298,8 @@ pub fn get_from_source(
                 .map(|alias_ident| fullname_from_ident(&[alias_ident.name.clone()]));
 
             let name_or = NameOrAlias(name, alias_name);
-            query_to_pipeline(&name_or, subquery, pipeline, pipeline_map, false)?;
+            let mut ctx = QueryContext::default();
+            query_to_pipeline(&name_or, subquery, pipeline, pipeline_map, &mut ctx, false)?;
 
             Ok(name_or)
         }

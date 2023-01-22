@@ -17,6 +17,8 @@ mod dag_ports;
 #[cfg(test)]
 mod dag_recordreader;
 #[cfg(test)]
+mod dag_recordreader_update;
+#[cfg(test)]
 mod dag_schemas;
 #[cfg(test)]
 mod node;

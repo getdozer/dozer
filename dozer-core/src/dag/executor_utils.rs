@@ -15,8 +15,6 @@ use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::dag::NodeType;
-
 pub(crate) struct StorageMetadata {
     pub env: LmdbEnvironmentManager,
     pub meta_db: Database,
@@ -80,8 +78,8 @@ pub(crate) fn map_to_exec_op(op: Operation) -> ExecutorOperation {
     }
 }
 
-pub(crate) fn index_edges(
-    dag: &Dag,
+pub(crate) fn index_edges<T: Clone>(
+    dag: &Dag<T>,
     channel_buf_sz: usize,
 ) -> (
     HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
@@ -100,11 +98,7 @@ pub(crate) fn index_edges(
             receivers.insert(edge.to.node.clone(), HashMap::new());
         }
 
-        // let (tx, rx) = bounded(channel_buf_sz);
-        let (tx, rx) = match dag.nodes.get(&edge.from.node).unwrap() {
-            NodeType::Source(_) => bounded(1),
-            _ => bounded(channel_buf_sz),
-        };
+        let (tx, rx) = bounded(channel_buf_sz);
 
         let rcv_port: PortHandle = edge.to.port;
         if receivers
