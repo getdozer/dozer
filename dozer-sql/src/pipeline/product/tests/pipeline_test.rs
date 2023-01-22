@@ -81,7 +81,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                         false,
                     )
                     .clone(),
-                SchemaSQLContext {},
+                SchemaSQLContext::default(),
             ))
         } else if port == &DEPARTMENT_PORT {
             Ok((
@@ -95,7 +95,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                         false,
                     )
                     .clone(),
-                SchemaSQLContext {},
+                SchemaSQLContext::default(),
             ))
         } else {
             panic!("Invalid Port Handle {}", port);

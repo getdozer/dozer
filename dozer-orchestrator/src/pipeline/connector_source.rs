@@ -5,7 +5,7 @@ use dozer_core::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, S
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
-use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_sql::pipeline::builder::{FieldContext, NameOrAlias, SchemaSQLContext};
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
@@ -117,7 +117,19 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         self.schema_map.get(port).map_or(
             Err(ExecutionError::PortNotFoundInSource(*port)),
-            |schema_name| Ok((schema_name.clone(), SchemaSQLContext {})),
+            |schema| {
+                let mut context = SchemaSQLContext::default();
+                for f in schema.fields.iter() {
+                    context.field_contexts.insert(
+                        f.name.clone(),
+                        FieldContext {
+                            source: Some(NameOrAlias(f.name.clone(), None)),
+                        },
+                    );
+                }
+
+                Ok((schema.clone(), context))
+            },
         )
     }
 

@@ -29,9 +29,12 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
     processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, (schema.clone(), SchemaSQLContext {}))]
-                .into_iter()
-                .collect(),
+            &[(
+                DEFAULT_PORT_HANDLE,
+                (schema.clone(), SchemaSQLContext::default()),
+            )]
+            .into_iter()
+            .collect(),
         )
         .unwrap();
 

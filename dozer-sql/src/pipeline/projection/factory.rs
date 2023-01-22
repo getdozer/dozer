@@ -49,7 +49,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        let (input_schema, _context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        let (input_schema, context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         match self
             .select
             .iter()
@@ -71,7 +71,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
                     ));
                 }
 
-                Ok((output_schema, SchemaSQLContext {}))
+                Ok((output_schema, context.clone()))
             }
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }

@@ -64,7 +64,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     false,
                 )
                 .clone(),
-            SchemaSQLContext {},
+            SchemaSQLContext::default(),
         ))
     }
 

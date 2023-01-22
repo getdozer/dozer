@@ -56,15 +56,24 @@ impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let mut output_schema = Schema::empty();
         let input_names = get_input_names(&self.input_tables);
+        let mut context = SchemaSQLContext::default();
         for (port, table) in input_names.iter().enumerate() {
-            if let Some((current_schema, _context)) = input_schemas.get(&(port as PortHandle)) {
-                output_schema = append_schema(output_schema, table, current_schema);
+            if let Some((current_schema, current_context)) =
+                input_schemas.get(&(port as PortHandle))
+            {
+                (output_schema, context) = append_schema(
+                    output_schema,
+                    context,
+                    table,
+                    current_schema,
+                    current_context,
+                );
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
             }
         }
 
-        Ok((output_schema, SchemaSQLContext {}))
+        Ok((output_schema, context))
     }
 
     fn build(
@@ -303,9 +312,11 @@ fn parse_compound_identifier(
 
 fn append_schema(
     mut output_schema: Schema,
+    mut context: SchemaSQLContext,
     table: &NameOrAlias,
     current_schema: &Schema,
-) -> Schema {
+    current_context: &SchemaSQLContext,
+) -> (Schema, SchemaSQLContext) {
     for mut field in current_schema.clone().fields.into_iter() {
         let mut name = table.1.as_ref().map_or(table.0.clone(), |a| a.to_string());
         name.push('.');
@@ -313,5 +324,9 @@ fn append_schema(
         field.name = name;
         output_schema.fields.push(field);
     }
-    output_schema
+
+    for (name, fc) in current_context.clone().field_contexts {
+        context.field_contexts.insert(name, fc);
+    }
+    (output_schema, context)
 }

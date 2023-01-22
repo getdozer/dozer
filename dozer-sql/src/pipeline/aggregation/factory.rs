@@ -8,7 +8,7 @@ use dozer_core::dag::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr as SqlExpr, Expr, SelectItem};
 
-use crate::pipeline::builder::SchemaSQLContext;
+use crate::pipeline::builder::{FieldContext, SchemaSQLContext};
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -69,23 +69,17 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        let (input_schema, _ctx) = input_schemas
+        let (input_schema, ctx) = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
         if is_aggregation(&self.groupby, &output_field_rules) {
-            return Ok((
-                build_output_schema(input_schema, output_field_rules)?,
-                SchemaSQLContext {},
-            ));
+            return Ok(build_output_schema(input_schema, ctx, output_field_rules)?);
         }
 
-        Ok((
-            build_projection_schema(input_schema, &self.select)?,
-            SchemaSQLContext {},
-        ))
+        Ok(build_projection_schema(input_schema, ctx, &self.select)?)
     }
 
     fn build(
@@ -245,10 +239,12 @@ fn get_aggregator(
 
 fn build_output_schema(
     input_schema: &Schema,
+    input_context: &SchemaSQLContext,
     output_field_rules: Vec<FieldRule>,
-) -> Result<Schema, ExecutionError> {
+) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
     let mut output_schema = Schema::empty();
 
+    let mut context = SchemaSQLContext::default();
     for e in output_field_rules.iter().enumerate() {
         match e.1 {
             FieldRule::Measure(pre_aggr, aggr, name) => {
@@ -275,17 +271,28 @@ fn build_output_schema(
                         res.nullable,
                     ));
                     output_schema.primary_index.push(e.0);
+
+                    // Todo: Figure out how to add field context to aggregation.
+                    // get field context.
+                    let field_context = input_context
+                        .field_contexts
+                        .get(name)
+                        .map(|c| c.clone())
+                        .unwrap_or(FieldContext { source: None });
+
+                    context.field_contexts.insert(name.clone(), field_context);
                 }
             }
         }
     }
-    Ok(output_schema)
+    Ok((output_schema, context))
 }
 
 fn build_projection_schema(
     input_schema: &Schema,
+    context: &SchemaSQLContext,
     select: &[SelectItem],
-) -> Result<Schema, ExecutionError> {
+) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
     match select
         .iter()
         .map(|item| parse_sql_select_item(item, input_schema))
@@ -293,7 +300,7 @@ fn build_projection_schema(
     {
         Ok(expressions) => {
             let mut output_schema = Schema::empty();
-
+            let mut output_context = SchemaSQLContext::default();
             for e in expressions.iter() {
                 let field_name = e.0.clone();
                 let field_type =
@@ -305,9 +312,20 @@ fn build_projection_schema(
                     field_type.return_type,
                     field_type.nullable,
                 ));
+
+                // get field context.
+                let field_context = context
+                    .field_contexts
+                    .get(&e.0)
+                    .map(|c| c.clone())
+                    .unwrap_or(FieldContext { source: None });
+
+                output_context
+                    .field_contexts
+                    .insert(e.0.clone(), field_context);
             }
 
-            Ok(output_schema)
+            Ok((output_schema, output_context))
         }
         Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
     }
