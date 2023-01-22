@@ -57,7 +57,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
         let mut output_schema = Schema::empty();
         let input_names = get_input_names(&self.input_tables);
         for (port, table) in input_names.iter().enumerate() {
-            if let Some((current_schema, context)) = input_schemas.get(&(port as PortHandle)) {
+            if let Some((current_schema, _context)) = input_schemas.get(&(port as PortHandle)) {
                 output_schema = append_schema(output_schema, table, current_schema);
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));

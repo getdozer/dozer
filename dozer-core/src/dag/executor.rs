@@ -193,7 +193,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         if existing.output_schemas.len() != current.output_schemas.len() {
             return Err(IncompatibleSchemas());
         }
-        for (port, (schema, ctx)) in &current.output_schemas {
+        for (port, (schema, _ctx)) in &current.output_schemas {
             let other_schema = existing
                 .output_schemas
                 .get(port)
@@ -205,7 +205,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         if existing.input_schemas.len() != current.input_schemas.len() {
             return Err(IncompatibleSchemas());
         }
-        for (port, (schema, ctx)) in &current.output_schemas {
+        for (port, (schema, _ctx)) in &current.output_schemas {
             let other_schema = existing
                 .output_schemas
                 .get(port)

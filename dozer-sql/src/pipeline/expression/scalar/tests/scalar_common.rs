@@ -33,8 +33,7 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
                 .into_iter()
                 .collect(),
         )
-        .unwrap()
-        .0;
+        .unwrap();
 
     let mut processor = processor_factory
         .build(

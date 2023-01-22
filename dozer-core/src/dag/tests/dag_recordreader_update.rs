@@ -319,8 +319,6 @@ fn test_run_dag_reacord_reader_from_src() {
 
     let tmp_dir = TempDir::new("test").unwrap();
     let mut options = ExecutorOptions::default();
-    options.commit_sz = 5000;
-    options.channel_buffer_sz = 10_000;
     let mut executor = DagExecutor::new(
         &dag,
         tmp_dir.path(),

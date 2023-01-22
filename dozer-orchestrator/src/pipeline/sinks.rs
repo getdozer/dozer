@@ -184,7 +184,7 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
             "SinkFactory: Initialising CacheSinkFactory: {}",
             self.api_endpoint.name
         );
-        for (_, (schema, ctx)) in input_schemas.iter() {
+        for (_, (schema, _ctx)) in input_schemas.iter() {
             stdinfo!(
                 "SINK: Initializing output schema: {}",
                 self.api_endpoint.name

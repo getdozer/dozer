@@ -7,7 +7,6 @@ use dozer_types::types::Schema;
 use crate::{
     dag::{
         dag::Edge,
-        dag_schemas::NodeSchemas,
         errors::ExecutionError,
         executor_utils::{
             build_receivers_lists, create_ports_databases_and_fill_downstream_record_readers,
@@ -67,8 +66,7 @@ impl ProcessorNode {
         output_schemas: HashMap<PortHandle, Schema>,
         retention_queue_size: usize,
     ) -> Result<Self, ExecutionError> {
-        let mut processor =
-            processor_factory.build(input_schemas.to_owned(), output_schemas.to_owned())?;
+        let mut processor = processor_factory.build(input_schemas, output_schemas.to_owned())?;
         let state_meta = init_component(&node_handle, base_path, |e| processor.init(e))?;
 
         let (master_tx, port_databases) =
@@ -87,7 +85,7 @@ impl ProcessorNode {
                 state_meta.meta_db,
                 port_databases,
                 master_tx.clone(),
-                output_schemas.to_owned(),
+                output_schemas,
                 retention_queue_size,
             )?,
             true,

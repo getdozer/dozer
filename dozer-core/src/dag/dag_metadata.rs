@@ -287,7 +287,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
             let mut txn = SharedTransaction::try_unwrap(txn)
                 .expect("We just created this `SharedTransaction`. It's not shared.");
 
-            for (handle, (schema, ctx)) in curr_node_schema.output_schemas.iter() {
+            for (handle, (schema, _ctx)) in curr_node_schema.output_schemas.iter() {
                 let mut key: Vec<u8> = vec![OUTPUT_SCHEMA_IDENTIFIER];
                 key.extend(handle.to_be_bytes());
                 let value = bincode::serialize(schema).map_err(|e| SerializationError {
@@ -297,7 +297,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
                 txn.put(db, &key, &value)?;
             }
 
-            for (handle, (schema, ctx)) in curr_node_schema.input_schemas.iter() {
+            for (handle, (schema, _ctx)) in curr_node_schema.input_schemas.iter() {
                 let mut key: Vec<u8> = vec![INPUT_SCHEMA_IDENTIFIER];
                 key.extend(handle.to_be_bytes());
                 let value = bincode::serialize(schema).map_err(|e| SerializationError {

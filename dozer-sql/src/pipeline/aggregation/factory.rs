@@ -69,7 +69,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        let (input_schema, ctx) = input_schemas
+        let (input_schema, _ctx) = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =

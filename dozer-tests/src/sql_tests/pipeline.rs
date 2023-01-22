@@ -140,7 +140,7 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
         &self,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
-        let (schema, ctx) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
+        let (schema, _ctx) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
         self.schema.write().schema = Some(schema.clone());
         self.mapper
             .lock()
