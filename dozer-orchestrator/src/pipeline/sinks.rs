@@ -19,6 +19,7 @@ use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::flags::Flags;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::hash_map::DefaultHasher;
@@ -47,7 +48,19 @@ pub fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
     );
     pb
 }
-
+#[derive(Debug, Clone)]
+pub struct CacheSinkSettings {
+    flags: Option<Flags>,
+    api_security: Option<ApiSecurity>,
+}
+impl CacheSinkSettings {
+    pub fn new(flags: Option<Flags>, api_security: Option<ApiSecurity>) -> Self {
+        Self {
+            flags,
+            api_security,
+        }
+    }
+}
 #[derive(Debug)]
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
@@ -55,8 +68,8 @@ pub struct CacheSinkFactory {
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineResponse>>,
     generated_path: PathBuf,
-    api_security: Option<ApiSecurity>,
     multi_pb: MultiProgress,
+    settings: CacheSinkSettings,
 }
 
 impl CacheSinkFactory {
@@ -66,8 +79,8 @@ impl CacheSinkFactory {
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
         generated_path: PathBuf,
-        api_security: Option<ApiSecurity>,
         multi_pb: MultiProgress,
+        settings: CacheSinkSettings,
     ) -> Self {
         Self {
             input_ports,
@@ -75,8 +88,8 @@ impl CacheSinkFactory {
             api_endpoint,
             notifier,
             generated_path,
-            api_security,
             multi_pb,
+            settings,
         }
     }
 
@@ -218,7 +231,8 @@ impl SinkFactory for CacheSinkFactory {
                     endpoint: self.api_endpoint.to_owned(),
                 },
             },
-            &self.api_security,
+            &self.settings.api_security,
+            &self.settings.flags,
         )
         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 

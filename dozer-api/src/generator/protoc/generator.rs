@@ -2,6 +2,7 @@ use crate::{errors::GenerationError, PipelineDetails};
 use dozer_cache::cache::Cache;
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::flags::Flags;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::FieldType;
 use handlebars::Handlebars;
@@ -22,6 +23,7 @@ pub struct ProtoMetadata {
     plural_pascal_name: String,
     pascal_name: String,
     enable_token: bool,
+    enable_on_event: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +44,7 @@ pub struct ProtoGenerator<'a> {
     schema_name: String,
     folder_path: &'a Path,
     security: &'a Option<ApiSecurity>,
+    flags: &'a Option<Flags>,
 }
 
 fn safe_name(name: &str) -> String {
@@ -55,6 +58,7 @@ impl<'a> ProtoGenerator<'a> {
         pipeline_details: PipelineDetails,
         folder_path: &'a Path,
         security: &'a Option<ApiSecurity>,
+        flags: &'a Option<Flags>,
     ) -> Result<Self, GenerationError> {
         let cache = pipeline_details.cache_endpoint.cache.clone();
         let schema_name = safe_name(&pipeline_details.cache_endpoint.endpoint.name);
@@ -69,6 +73,7 @@ impl<'a> ProtoGenerator<'a> {
             schema_name,
             folder_path,
             security,
+            flags,
         };
         generator.register_template()?;
         Ok(generator)
@@ -146,6 +151,7 @@ impl<'a> ProtoGenerator<'a> {
             plural_pascal_name: self.schema_name.to_pascal_case().to_plural(),
             pascal_name: self.schema_name.to_pascal_case().to_singular(),
             enable_token: self.security.is_some(),
+            enable_on_event: self.flags.to_owned().unwrap_or_default().push_events,
         };
         Ok(metadata)
     }
@@ -198,10 +204,10 @@ impl<'a> ProtoGenerator<'a> {
         folder_path: &Path,
         details: PipelineDetails,
         security: &Option<ApiSecurity>,
+        flags: &Option<Flags>,
     ) -> Result<(), GenerationError> {
-        let generator = ProtoGenerator::new(details, folder_path, security)?;
+        let generator = ProtoGenerator::new(details, folder_path, security, flags)?;
         generator._generate_proto()?;
-
         Ok(())
     }
 
