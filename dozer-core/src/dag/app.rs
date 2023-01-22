@@ -105,7 +105,7 @@ pub struct App<T> {
     sources: AppSourceManager<T>,
 }
 
-impl<T> App<T> {
+impl<T: Clone> App<T> {
     pub fn add_pipeline(&mut self, pipeline: AppPipeline<T>) {
         self.app_counter += 1;
         self.pipelines.push((self.app_counter, pipeline));

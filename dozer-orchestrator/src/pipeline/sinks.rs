@@ -14,6 +14,7 @@ use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
@@ -161,10 +162,10 @@ impl CacheSinkFactory {
     }
 }
 
-impl SinkFactory for CacheSinkFactory {
+impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -173,14 +174,17 @@ impl SinkFactory for CacheSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         use std::println as stdinfo;
         // Insert schemas into cache
         debug!(
             "SinkFactory: Initialising CacheSinkFactory: {}",
             self.api_endpoint.name
         );
-        for (_, schema) in input_schemas.iter() {
+        for (_, (schema, ctx)) in input_schemas.iter() {
             stdinfo!(
                 "SINK: Initializing output schema: {}",
                 self.api_endpoint.name

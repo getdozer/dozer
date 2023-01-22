@@ -76,7 +76,7 @@ impl SourceSenderNode {
     /// - `last_checkpoint`: Last checkpointed output of this source.
     /// - `sender`: Channel to send data to.
     /// - `running`: If the execution DAG should still be running.
-    pub fn new<T>(
+    pub fn new<T: Clone>(
         node_handle: NodeHandle,
         source_factory: &dyn SourceFactory<T>,
         output_schemas: HashMap<PortHandle, Schema>,

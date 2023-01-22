@@ -78,7 +78,7 @@ pub(crate) fn map_to_exec_op(op: Operation) -> ExecutorOperation {
     }
 }
 
-pub(crate) fn index_edges<T>(
+pub(crate) fn index_edges<T: Clone>(
     dag: &Dag<T>,
     channel_buf_sz: usize,
 ) -> (

@@ -32,18 +32,18 @@ impl Edge {
     }
 }
 
-pub enum NodeType<T> {
+pub enum NodeType<T: Clone> {
     Source(Arc<dyn SourceFactory<T>>),
     Processor(Arc<dyn ProcessorFactory<T>>),
     Sink(Arc<dyn SinkFactory<T>>),
 }
 
-pub struct Node<T> {
+pub struct Node<T: Clone> {
     handle: NodeHandle,
     t: NodeType<T>,
 }
 
-pub struct Dag<T> {
+pub struct Dag<T: Clone> {
     pub nodes: HashMap<NodeHandle, NodeType<T>>,
     pub edges: Vec<Edge>,
 }
@@ -54,13 +54,13 @@ pub enum PortDirection {
     Output,
 }
 
-impl<T> Default for Dag<T> {
+impl<T: Clone> Default for Dag<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Dag<T> {
+impl<T: Clone> Dag<T> {
     pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),

@@ -46,7 +46,7 @@ impl SinkNode {
     /// - `record_readers`: Record readers of all stateful ports.
     /// - `receivers`: Input channels to this sink.
     /// - `input_schemas`: Input data schemas.
-    pub fn new<T>(
+    pub fn new<T: Clone>(
         node_handle: NodeHandle,
         sink_factory: &dyn SinkFactory<T>,
         base_path: &Path,

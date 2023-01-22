@@ -8,6 +8,7 @@ use dozer_core::dag::{
 use dozer_types::types::Schema;
 use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint};
 
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     builder::{get_input_names, IndexedTabelWithJoins, NameOrAlias},
     errors::{PipelineError, UnsupportedSqlError},
@@ -31,7 +32,7 @@ impl ProductProcessorFactory {
     }
 }
 
-impl ProcessorFactory for ProductProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         let input_names = get_input_names(&self.input_tables);
         input_names
@@ -51,19 +52,19 @@ impl ProcessorFactory for ProductProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, dozer_types::types::Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let mut output_schema = Schema::empty();
         let input_names = get_input_names(&self.input_tables);
         for (port, table) in input_names.iter().enumerate() {
-            if let Some(current_schema) = input_schemas.get(&(port as PortHandle)) {
+            if let Some((current_schema, context)) = input_schemas.get(&(port as PortHandle)) {
                 output_schema = append_schema(output_schema, table, current_schema);
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
             }
         }
 
-        Ok(output_schema)
+        Ok((output_schema, SchemaSQLContext {}))
     }
 
     fn build(
@@ -79,8 +80,8 @@ impl ProcessorFactory for ProductProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

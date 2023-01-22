@@ -45,14 +45,14 @@ pub(crate) struct DagMetadata {
     pub output_schemas: HashMap<PortHandle, Schema>,
 }
 
-pub(crate) struct DagMetadataManager<'a, T> {
+pub(crate) struct DagMetadataManager<'a, T: Clone> {
     dag: &'a Dag<T>,
     path: &'a Path,
     metadata: HashMap<NodeHandle, DagMetadata>,
     deps_trees: HashMap<NodeHandle, DependencyTreeNode>,
 }
 
-impl<'a, T: 'a> DagMetadataManager<'a, T> {
+impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     pub fn new(
         dag: &'a Dag<T>,
         path: &'a Path,

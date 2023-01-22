@@ -1,3 +1,4 @@
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
@@ -28,11 +29,12 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
     processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, schema.clone())]
+            &[(DEFAULT_PORT_HANDLE, (schema.clone(), SchemaSQLContext {}))]
                 .into_iter()
                 .collect(),
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     let mut processor = processor_factory
         .build(
