@@ -74,6 +74,19 @@ fn query_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
 ) -> Result<(), PipelineError> {
+    // return error if there is unsupported syntax
+    if query.order_by.len() > 0 {
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::OrderByError,
+        ));
+    }
+
+    if query.limit.is_some() || query.offset.is_some() {
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::LimitOffsetError,
+        ));
+    }
+
     // Attach the first pipeline if there is with clause
     if let Some(with) = &query.with {
         if with.recursive {
@@ -140,8 +153,8 @@ fn select_to_pipeline(
 ) -> Result<(), PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
-        return Err(InvalidQuery(
-            "FROM clause doesn't support \"Comma Syntax\"".to_string(),
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::FromCommaSyntax,
         ));
     }
 
@@ -176,7 +189,6 @@ fn select_to_pipeline(
     // Where clause
     if let Some(selection) = select.selection {
         let selection = SelectionProcessorFactory::new(selection);
-        // first_node_name = String::from("selection");
 
         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
 

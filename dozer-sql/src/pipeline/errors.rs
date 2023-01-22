@@ -91,6 +91,12 @@ pub enum UnsupportedSqlError {
     UnsupportedJoinConstraint,
     #[error("Unsupported Join type")]
     UnsupportedJoinType,
+    #[error("FROM clause doesn't support \"Comma Syntax\"")]
+    FromCommaSyntax,
+    #[error("ORDER BY is not supported in SQL. You could achieve the same by using the ORDER BY operator in the cache and APIs")]
+    OrderByError,
+    #[error("Limit and Offset are not supported in SQL. You could achieve the same by using the LIMIT and OFFSET operators in the cache and APIs")]
+    LimitOffsetError,
 }
 
 #[derive(Error, Debug)]
