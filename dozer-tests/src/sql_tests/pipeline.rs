@@ -65,7 +65,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 .get(port)
                 .expect("schemas should have been initialized with enumerated index")
                 .to_owned(),
-            SchemaSQLContext {},
+            SchemaSQLContext::default(),
         ))
     }
 

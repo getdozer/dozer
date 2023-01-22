@@ -35,8 +35,7 @@ fn nullable_queries() {
 
 #[test]
 fn changes_queries() {
-    let queries =
-        vec!["select actor_id, first_name, last_name,last_update from actor order by actor_id"];
+    let queries = vec!["select actor_id, first_name, last_name,last_update from actor"];
 
     let list = helper::get_sample_ops();
 
