@@ -271,7 +271,7 @@ impl TestPipeline {
         ))
         .unwrap();
 
-        pipeline.add_sink(Arc::new(TestSinkFactory::new(mapper.clone())), "sink");
+        pipeline.add_sink(Arc::new(TestSinkFactory::new(mapper)), "sink");
 
         pipeline
             .connect_nodes(

@@ -44,7 +44,7 @@ pub fn get_tables() -> Vec<(&'static str, &'static str)> {
 
 // Pass empty table_names to get the whole list
 pub fn setup(table_names: &Vec<&'static str>) -> TestFramework {
-    let tables = if table_names.len() == 0 {
+    let tables = if table_names.is_empty() {
         get_tables()
     } else {
         get_tables()
@@ -107,16 +107,16 @@ pub fn compare_with_sqlite(
     init();
 
     for test in queries {
-        let mut framework = setup(&table_names);
+        let mut framework = setup(table_names);
 
         let list = match test_instruction {
-            TestInstruction::FromCsv(ref folder_name, ref names) => {
+            TestInstruction::FromCsv(folder_name, ref names) => {
                 let mut list = vec![];
 
                 for name in names.clone() {
                     let source = framework.source.lock().unwrap();
-                    let schema = source.get_schema(&name);
-                    let inserts = get_inserts_from_csv(folder_name, &name.clone(), schema).unwrap();
+                    let schema = source.get_schema(name);
+                    let inserts = get_inserts_from_csv(folder_name, name, schema).unwrap();
                     for i in inserts {
                         list.push((name, i.to_string()));
                     }
