@@ -15,7 +15,7 @@ use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
 use crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, Record};
+use dozer_types::types::{Operation, Record, Schema};
 
 use crate::dag::epoch::{Epoch, EpochManager};
 use std::collections::hash_map::Entry;
@@ -108,9 +108,9 @@ use sink_node::SinkNode;
 
 use self::source_node::{SourceListenerNode, SourceSenderNode};
 
-pub struct DagExecutor<'a> {
-    dag: &'a Dag,
-    schemas: HashMap<NodeHandle, NodeSchemas>,
+pub struct DagExecutor<'a, T: Clone> {
+    dag: &'a Dag<T>,
+    schemas: HashMap<NodeHandle, NodeSchemas<T>>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>>,
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
     path: PathBuf,
@@ -119,9 +119,9 @@ pub struct DagExecutor<'a> {
     consistency_metadata: HashMap<NodeHandle, (u64, u64)>,
 }
 
-impl<'a> DagExecutor<'a> {
+impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
     fn check_consistency(
-        dag: &'a Dag,
+        dag: &'a Dag<T>,
         path: &Path,
     ) -> Result<HashMap<NodeHandle, (u64, u64)>, ExecutionError> {
         let mut r: HashMap<NodeHandle, (u64, u64)> = HashMap::new();
@@ -139,7 +139,7 @@ impl<'a> DagExecutor<'a> {
     }
 
     pub fn new(
-        dag: &'a Dag,
+        dag: &'a Dag<T>,
         path: &Path,
         options: ExecutorOptions,
         running: Arc<AtomicBool>,
@@ -182,18 +182,18 @@ impl<'a> DagExecutor<'a> {
         })
     }
 
-    pub fn validate(dag: &'a Dag, path: &Path) -> Result<(), ExecutionError> {
+    pub fn validate(dag: &'a Dag<T>, path: &Path) -> Result<(), ExecutionError> {
         Self::load_or_init_schema(dag, path).map(|_| ())
     }
 
     fn validate_schemas(
-        current: &NodeSchemas,
+        current: &NodeSchemas<T>,
         existing: &DagMetadata,
     ) -> Result<(), ExecutionError> {
         if existing.output_schemas.len() != current.output_schemas.len() {
             return Err(IncompatibleSchemas());
         }
-        for (port, schema) in &current.output_schemas {
+        for (port, (schema, ctx)) in &current.output_schemas {
             let other_schema = existing
                 .output_schemas
                 .get(port)
@@ -205,7 +205,7 @@ impl<'a> DagExecutor<'a> {
         if existing.input_schemas.len() != current.input_schemas.len() {
             return Err(IncompatibleSchemas());
         }
-        for (port, schema) in &current.output_schemas {
+        for (port, (schema, ctx)) in &current.output_schemas {
             let other_schema = existing
                 .output_schemas
                 .get(port)
@@ -218,9 +218,9 @@ impl<'a> DagExecutor<'a> {
     }
 
     fn load_or_init_schema(
-        dag: &'a Dag,
+        dag: &'a Dag<T>,
         path: &Path,
-    ) -> Result<HashMap<NodeHandle, NodeSchemas>, ExecutionError> {
+    ) -> Result<HashMap<NodeHandle, NodeSchemas<T>>, ExecutionError> {
         let schema_manager = DagSchemaManager::new(dag)?;
         let meta_manager = DagMetadataManager::new(dag, path)?;
 
@@ -250,13 +250,14 @@ impl<'a> DagExecutor<'a> {
     fn start_source(
         &self,
         handle: NodeHandle,
-        src_factory: Arc<dyn SourceFactory>,
+        src_factory: Arc<dyn SourceFactory<T>>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        schemas: &NodeSchemas,
+        schemas: &NodeSchemas<T>,
         epoch_manager: Arc<EpochManager>,
         start_barrier: Arc<Barrier>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
-        let (sender, receiver) = bounded(self.options.channel_buffer_sz);
+        // let (sender, receiver) = bounded(self.options.channel_buffer_sz);
+        let (sender, receiver) = bounded(1);
 
         let start_seq = *self
             .consistency_metadata
@@ -265,7 +266,12 @@ impl<'a> DagExecutor<'a> {
         let output_ports = src_factory.get_output_ports()?;
 
         let st_node_handle = handle.clone();
-        let output_schemas = schemas.output_schemas.clone();
+        let output_schemas: HashMap<PortHandle, Schema> = schemas
+            .output_schemas
+            .clone()
+            .into_iter()
+            .map(|e| (e.0, e.1 .0))
+            .collect();
         let running = self.running.clone();
         let running_source = running.clone();
         let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
@@ -298,8 +304,13 @@ impl<'a> DagExecutor<'a> {
         let running_listener = running.clone();
         let commit_sz = self.options.commit_sz;
         let max_duration_between_commits = self.options.commit_time_threshold;
-        let output_schemas = schemas.output_schemas.clone();
-        let retention_queue_sz = self.options.channel_buffer_sz + 1;
+        let output_schemas: HashMap<PortHandle, Schema> = schemas
+            .output_schemas
+            .clone()
+            .into_iter()
+            .map(|e| (e.0, e.1 .0))
+            .collect();
+        let retention_queue_size = self.options.channel_buffer_sz + 1;
         let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let listener = SourceListenerNode::new(
                 handle,
@@ -316,7 +327,7 @@ impl<'a> DagExecutor<'a> {
                 epoch_manager,
                 output_schemas,
                 start_seq,
-                retention_queue_sz,
+                retention_queue_size,
             )?;
             start_barrier.wait();
             listener.run()
@@ -335,17 +346,28 @@ impl<'a> DagExecutor<'a> {
     pub fn start_processor(
         &self,
         handle: NodeHandle,
-        proc_factory: Arc<dyn ProcessorFactory>,
+        proc_factory: Arc<dyn ProcessorFactory<T>>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        schemas: &NodeSchemas,
+        schemas: &NodeSchemas<T>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
         let base_path = self.path.clone();
         let record_readers = self.record_stores.clone();
         let edges = self.dag.edges.clone();
-        let schemas = schemas.clone();
+        let input_schemas: HashMap<PortHandle, Schema> = schemas
+            .input_schemas
+            .clone()
+            .into_iter()
+            .map(|e| (e.0, e.1 .0))
+            .collect();
+        let output_schemas: HashMap<PortHandle, Schema> = schemas
+            .output_schemas
+            .clone()
+            .into_iter()
+            .map(|e| (e.0, e.1 .0))
+            .collect();
         let running = self.running.clone();
-        let retention_queue_sz = self.options.channel_buffer_sz + 1;
+        let retention_queue_size = self.options.channel_buffer_sz + 1;
         let processor_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let processor = ProcessorNode::new(
                 handle,
@@ -355,8 +377,9 @@ impl<'a> DagExecutor<'a> {
                 receivers,
                 senders,
                 &edges,
-                schemas.clone(),
-                retention_queue_sz,
+                input_schemas,
+                output_schemas,
+                retention_queue_size,
             )?;
             processor.run()
         };
@@ -372,14 +395,19 @@ impl<'a> DagExecutor<'a> {
     pub fn start_sink(
         &self,
         handle: NodeHandle,
-        snk_factory: Arc<dyn SinkFactory>,
+        snk_factory: Arc<dyn SinkFactory<T>>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        schemas: &NodeSchemas,
+        schemas: &NodeSchemas<T>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
         let base_path = self.path.clone();
         let record_readers = self.record_stores.clone();
-        let input_schemas = schemas.input_schemas.clone();
-        let retention_queue_sz = self.options.channel_buffer_sz + 1;
+        let input_schemas: HashMap<PortHandle, Schema> = schemas
+            .input_schemas
+            .clone()
+            .into_iter()
+            .map(|e| (e.0, e.1 .0))
+            .collect();
+        let retention_queue_size = self.options.channel_buffer_sz + 1;
         let snk_fn = move |handle| -> Result<(), ExecutionError> {
             let sink = SinkNode::new(
                 handle,
@@ -388,7 +416,7 @@ impl<'a> DagExecutor<'a> {
                 record_readers,
                 receivers,
                 input_schemas,
-                retention_queue_sz,
+                retention_queue_size,
             )?;
             sink.run()
         };

@@ -45,15 +45,18 @@ pub(crate) struct DagMetadata {
     pub output_schemas: HashMap<PortHandle, Schema>,
 }
 
-pub(crate) struct DagMetadataManager<'a> {
-    dag: &'a Dag,
+pub(crate) struct DagMetadataManager<'a, T> {
+    dag: &'a Dag<T>,
     path: &'a Path,
     metadata: HashMap<NodeHandle, DagMetadata>,
     deps_trees: HashMap<NodeHandle, DependencyTreeNode>,
 }
 
-impl<'a> DagMetadataManager<'a> {
-    pub fn new(dag: &'a Dag, path: &'a Path) -> Result<DagMetadataManager<'a>, ExecutionError> {
+impl<'a, T: 'a> DagMetadataManager<'a, T> {
+    pub fn new(
+        dag: &'a Dag<T>,
+        path: &'a Path,
+    ) -> Result<DagMetadataManager<'a, T>, ExecutionError> {
         let metadata = DagMetadataManager::get_checkpoint_metadata(path, dag)?;
         let mut deps_trees: HashMap<NodeHandle, DependencyTreeNode> = HashMap::new();
 
@@ -158,11 +161,11 @@ impl<'a> DagMetadataManager<'a> {
 
     fn get_checkpoint_metadata(
         path: &Path,
-        dag: &Dag,
+        dag: &Dag<T>,
     ) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
         let mut all = HashMap::<NodeHandle, DagMetadata>::new();
         for node in &dag.nodes {
-            match DagMetadataManager::get_node_checkpoint_metadata(path, node.0) {
+            match DagMetadataManager::<T>::get_node_checkpoint_metadata(path, node.0) {
                 Ok(r) => {
                     all.insert(node.0.clone(), r);
                 }
@@ -188,7 +191,7 @@ impl<'a> DagMetadataManager<'a> {
             .ok_or_else(|| ExecutionError::InvalidCheckpointState(curr.clone()))
     }
 
-    fn get_source_dependency_tree(curr: &mut DependencyTreeNode, dag: &Dag) {
+    fn get_source_dependency_tree(curr: &mut DependencyTreeNode, dag: &Dag<T>) {
         let children: Vec<&Edge> = dag
             .edges
             .iter()
@@ -266,7 +269,7 @@ impl<'a> DagMetadataManager<'a> {
 
     pub(crate) fn init_metadata(
         &self,
-        schemas: &HashMap<NodeHandle, NodeSchemas>,
+        schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
     ) -> Result<(), ExecutionError> {
         for node in &self.dag.nodes {
             let curr_node_schema = schemas
@@ -284,7 +287,7 @@ impl<'a> DagMetadataManager<'a> {
             let mut txn = SharedTransaction::try_unwrap(txn)
                 .expect("We just created this `SharedTransaction`. It's not shared.");
 
-            for (handle, schema) in curr_node_schema.output_schemas.iter() {
+            for (handle, (schema, ctx)) in curr_node_schema.output_schemas.iter() {
                 let mut key: Vec<u8> = vec![OUTPUT_SCHEMA_IDENTIFIER];
                 key.extend(handle.to_be_bytes());
                 let value = bincode::serialize(schema).map_err(|e| SerializationError {
@@ -294,7 +297,7 @@ impl<'a> DagMetadataManager<'a> {
                 txn.put(db, &key, &value)?;
             }
 
-            for (handle, schema) in curr_node_schema.input_schemas.iter() {
+            for (handle, (schema, ctx)) in curr_node_schema.input_schemas.iter() {
                 let mut key: Vec<u8> = vec![INPUT_SCHEMA_IDENTIFIER];
                 key.extend(handle.to_be_bytes());
                 let value = bincode::serialize(schema).map_err(|e| SerializationError {

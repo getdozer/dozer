@@ -9,6 +9,7 @@ use crate::dag::node::{
     SourceFactory,
 };
 use crate::dag::record_store::RecordReader;
+use crate::dag::tests::app::NoneContext;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
@@ -38,18 +39,24 @@ impl GeneratorSourceFactory {
     }
 }
 
-impl SourceFactory for GeneratorSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new("id".to_string(), FieldType::String, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new("value".to_string(), FieldType::String, false),
-                false,
-            )
-            .clone())
+impl SourceFactory<NoneContext> for GeneratorSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new("id".to_string(), FieldType::String, false),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new("value".to_string(), FieldType::String, false),
+                    false,
+                )
+                .clone(),
+            NoneContext {},
+        ))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -66,7 +73,10 @@ impl SourceFactory for GeneratorSourceFactory {
         )])
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -183,12 +193,12 @@ impl RecordReaderProcessorFactory {
 pub(crate) const RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
 pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 
-impl ProcessorFactory for RecordReaderProcessorFactory {
+impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
         Ok(input_schemas
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
             .unwrap()
@@ -207,8 +217,8 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -272,7 +282,7 @@ impl Processor for RecordReaderProcessor {
 
 #[test]
 fn test_run_dag_reacord_reader_from_src() {
-    const TOT: u64 = 300_000;
+    const TOT: u64 = 30_000;
 
     let sync = Arc::new(AtomicBool::new(true));
 

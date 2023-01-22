@@ -78,8 +78,8 @@ pub(crate) fn map_to_exec_op(op: Operation) -> ExecutorOperation {
     }
 }
 
-pub(crate) fn index_edges(
-    dag: &Dag,
+pub(crate) fn index_edges<T>(
+    dag: &Dag<T>,
     channel_buf_sz: usize,
 ) -> (
     HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,

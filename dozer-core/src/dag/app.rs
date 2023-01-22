@@ -21,23 +21,23 @@ impl PipelineEntryPoint {
     }
 }
 
-pub struct AppPipeline {
+pub struct AppPipeline<T> {
     edges: Vec<Edge>,
-    processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory>)>,
-    sinks: Vec<(NodeHandle, Arc<dyn SinkFactory>)>,
+    processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory<T>>)>,
+    sinks: Vec<(NodeHandle, Arc<dyn SinkFactory<T>>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
 }
 
-impl Default for AppPipeline {
+impl<T> Default for AppPipeline<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl AppPipeline {
+impl<T> AppPipeline<T> {
     pub fn add_processor(
         &mut self,
-        proc: Arc<dyn ProcessorFactory>,
+        proc: Arc<dyn ProcessorFactory<T>>,
         id: &str,
         entry_point: Vec<PipelineEntryPoint>,
     ) {
@@ -49,7 +49,7 @@ impl AppPipeline {
         }
     }
 
-    pub fn add_sink(&mut self, sink: Arc<dyn SinkFactory>, id: &str) {
+    pub fn add_sink(&mut self, sink: Arc<dyn SinkFactory<T>>, id: &str) {
         let handle = NodeHandle::new(None, id.to_string());
         self.sinks.push((handle, sink));
     }
@@ -99,19 +99,19 @@ impl AppPipeline {
     }
 }
 
-pub struct App {
-    pipelines: Vec<(u16, AppPipeline)>,
+pub struct App<T> {
+    pipelines: Vec<(u16, AppPipeline<T>)>,
     app_counter: u16,
-    sources: AppSourceManager,
+    sources: AppSourceManager<T>,
 }
 
-impl App {
-    pub fn add_pipeline(&mut self, pipeline: AppPipeline) {
+impl<T> App<T> {
+    pub fn add_pipeline(&mut self, pipeline: AppPipeline<T>) {
         self.app_counter += 1;
         self.pipelines.push((self.app_counter, pipeline));
     }
 
-    pub fn get_dag(&self) -> Result<Dag, ExecutionError> {
+    pub fn get_dag(&self) -> Result<Dag<T>, ExecutionError> {
         let mut dag = Dag::new();
         let mut entry_points: Vec<(AppSourceId, Endpoint)> = Vec::new();
 
@@ -172,7 +172,7 @@ impl App {
         Ok(dag)
     }
 
-    pub fn new(sources: AppSourceManager) -> Self {
+    pub fn new(sources: AppSourceManager<T>) -> Self {
         Self {
             pipelines: Vec::new(),
             app_counter: 0,

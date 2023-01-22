@@ -8,18 +8,18 @@ use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
-pub struct NodeSchemas {
-    pub input_schemas: HashMap<PortHandle, Schema>,
-    pub output_schemas: HashMap<PortHandle, Schema>,
+pub struct NodeSchemas<T> {
+    pub input_schemas: HashMap<PortHandle, (Schema, T)>,
+    pub output_schemas: HashMap<PortHandle, (Schema, T)>,
 }
 
-impl Default for NodeSchemas {
+impl<T> Default for NodeSchemas<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl NodeSchemas {
+impl<T> NodeSchemas<T> {
     pub fn new() -> Self {
         Self {
             input_schemas: HashMap::new(),
@@ -27,8 +27,8 @@ impl NodeSchemas {
         }
     }
     pub fn from(
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        input_schemas: HashMap<PortHandle, (Schema, T)>,
+        output_schemas: HashMap<PortHandle, (Schema, T)>,
     ) -> Self {
         Self {
             input_schemas,
@@ -37,26 +37,25 @@ impl NodeSchemas {
     }
 }
 
-pub struct DagSchemaManager<'a> {
-    dag: &'a Dag,
-    schemas: HashMap<NodeHandle, NodeSchemas>,
+pub struct DagSchemaManager<'a, T: Clone> {
+    dag: &'a Dag<T>,
+    schemas: HashMap<NodeHandle, NodeSchemas<T>>,
 }
 
-impl<'a> DagSchemaManager<'a> {
+impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
     fn get_port_output_schema(
-        node: &NodeType,
+        node: &NodeType<T>,
         output_port: &OutputPortDef,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Option<Schema>, ExecutionError> {
+        input_schemas: &HashMap<PortHandle, (Schema, T)>,
+    ) -> Result<Option<(Schema, T)>, ExecutionError> {
         Ok(match node {
             NodeType::Source(src) => match output_port.typ {
                 OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
                     Some(src.get_output_schema(&output_port.handle)?)
                 }
                 OutputPortType::AutogenRowKeyLookup => {
-                    Some(AutogenRowKeyLookupRecordWriter::prepare_schema(
-                        src.get_output_schema(&output_port.handle)?,
-                    ))
+                    let (schema, ctx) = src.get_output_schema(&output_port.handle)?;
+                    Some((AutogenRowKeyLookupRecordWriter::prepare_schema(schema), ctx))
                 }
             },
             NodeType::Processor(proc) => match output_port.typ {
@@ -64,9 +63,9 @@ impl<'a> DagSchemaManager<'a> {
                     Some(proc.get_output_schema(&output_port.handle, input_schemas)?)
                 }
                 OutputPortType::AutogenRowKeyLookup => {
-                    Some(AutogenRowKeyLookupRecordWriter::prepare_schema(
-                        proc.get_output_schema(&output_port.handle, input_schemas)?,
-                    ))
+                    let (schema, ctx) =
+                        proc.get_output_schema(&output_port.handle, input_schemas)?;
+                    Some((AutogenRowKeyLookupRecordWriter::prepare_schema(schema), ctx))
                 }
             },
             NodeType::Sink(proc) => {
@@ -76,7 +75,7 @@ impl<'a> DagSchemaManager<'a> {
         })
     }
 
-    fn get_node_input_ports(node: &NodeType) -> Vec<PortHandle> {
+    fn get_node_input_ports(node: &NodeType<T>) -> Vec<PortHandle> {
         match node {
             NodeType::Source(_src) => vec![],
             NodeType::Processor(proc) => proc.get_input_ports(),
@@ -84,7 +83,7 @@ impl<'a> DagSchemaManager<'a> {
         }
     }
 
-    fn get_node_output_ports(node: &NodeType) -> Result<Vec<OutputPortDef>, ExecutionError> {
+    fn get_node_output_ports(node: &NodeType<T>) -> Result<Vec<OutputPortDef>, ExecutionError> {
         match node {
             NodeType::Source(src) => src.get_output_ports(),
             NodeType::Processor(proc) => Ok(proc.get_output_ports()),
@@ -93,9 +92,9 @@ impl<'a> DagSchemaManager<'a> {
     }
 
     fn fill_node_output_schemas(
-        dag: &Dag,
+        dag: &Dag<T>,
         handle: &NodeHandle,
-        all_schemas: &mut HashMap<NodeHandle, NodeSchemas>,
+        all_schemas: &mut HashMap<NodeHandle, NodeSchemas<T>>,
     ) -> Result<(), ExecutionError> {
         // Get the current node
         let node = dag
@@ -181,7 +180,7 @@ impl<'a> DagSchemaManager<'a> {
         Ok(())
     }
 
-    pub fn new(dag: &'a Dag) -> Result<Self, ExecutionError> {
+    pub fn new(dag: &'a Dag<T>) -> Result<Self, ExecutionError> {
         let sources: Vec<&NodeHandle> = dag
             .nodes
             .iter()
@@ -189,7 +188,7 @@ impl<'a> DagSchemaManager<'a> {
             .map(|e| e.0)
             .collect();
 
-        let mut schemas: HashMap<NodeHandle, NodeSchemas> = dag
+        let mut schemas: HashMap<NodeHandle, NodeSchemas<T>> = dag
             .nodes
             .keys()
             .map(|handle| (handle.clone(), NodeSchemas::new()))
@@ -205,7 +204,7 @@ impl<'a> DagSchemaManager<'a> {
     pub fn get_node_input_schemas(
         &self,
         handle: &NodeHandle,
-    ) -> Result<&HashMap<PortHandle, Schema>, ExecutionError> {
+    ) -> Result<&HashMap<PortHandle, (Schema, T)>, ExecutionError> {
         let node = self
             .schemas
             .get(handle)
@@ -216,7 +215,7 @@ impl<'a> DagSchemaManager<'a> {
     pub fn get_node_output_schemas(
         &self,
         handle: &NodeHandle,
-    ) -> Result<&HashMap<PortHandle, Schema>, ExecutionError> {
+    ) -> Result<&HashMap<PortHandle, (Schema, T)>, ExecutionError> {
         let node = self
             .schemas
             .get(handle)
@@ -224,7 +223,7 @@ impl<'a> DagSchemaManager<'a> {
         Ok(&node.output_schemas)
     }
 
-    pub fn get_all_schemas(&self) -> &HashMap<NodeHandle, NodeSchemas> {
+    pub fn get_all_schemas(&self) -> &HashMap<NodeHandle, NodeSchemas<T>> {
         &self.schemas
     }
 

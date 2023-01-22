@@ -46,10 +46,9 @@ impl SinkNode {
     /// - `record_readers`: Record readers of all stateful ports.
     /// - `receivers`: Input channels to this sink.
     /// - `input_schemas`: Input data schemas.
-    /// - `retention_queue_size`: Size of retention queue (used by RecordWriter)
-    pub fn new(
+    pub fn new<T>(
         node_handle: NodeHandle,
-        sink_factory: &dyn SinkFactory,
+        sink_factory: &dyn SinkFactory<T>,
         base_path: &Path,
         record_readers: Arc<
             RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>,
