@@ -74,7 +74,15 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             .schemas
             .iter()
             .enumerate()
-            .map(|(idx, _)| OutputPortDef::new(idx as u16, OutputPortType::Stateless))
+            .map(|(idx, _)| {
+                OutputPortDef::new(
+                    idx as u16,
+                    OutputPortType::StatefulWithPrimaryKeyLookup {
+                        retr_old_records_for_deletes: true,
+                        retr_old_records_for_updates: true,
+                    },
+                )
+            })
             .collect())
     }
 
