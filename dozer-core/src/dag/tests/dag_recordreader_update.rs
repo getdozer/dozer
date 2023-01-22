@@ -318,7 +318,7 @@ fn test_run_dag_reacord_reader_from_src() {
         .is_ok());
 
     let tmp_dir = TempDir::new("test").unwrap();
-    let mut options = ExecutorOptions::default();
+    let options = ExecutorOptions::default();
     let mut executor = DagExecutor::new(
         &dag,
         tmp_dir.path(),
