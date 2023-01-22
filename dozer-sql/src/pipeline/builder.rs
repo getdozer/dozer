@@ -82,7 +82,7 @@ fn query_to_pipeline(
     stateful: bool,
 ) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
-    if query.order_by.len() > 0 {
+    if !query.order_by.is_empty() {
         return Err(PipelineError::UnsupportedSqlError(
             UnsupportedSqlError::OrderByError,
         ));

@@ -58,7 +58,7 @@ fn nested_agg_inserts_query() {
     // Insert Only Operation
     let result = helper::query(
         &vec!["actor"],
-        query.clone(),
+        query,
         TestInstruction::FromCsv("actor", vec!["actor"]),
     );
 
@@ -107,7 +107,7 @@ fn cte_agg_inserts_query() {
     // // Insert Only Operation
     let result = helper::query(
         &vec!["actor"],
-        query.clone(),
+        query,
         TestInstruction::FromCsv("actor", vec!["actor"]),
     );
 

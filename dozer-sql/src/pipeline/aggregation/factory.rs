@@ -76,10 +76,10 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
         if is_aggregation(&self.groupby, &output_field_rules) {
-            return Ok(build_output_schema(input_schema, ctx, output_field_rules)?);
+            return build_output_schema(input_schema, ctx, output_field_rules);
         }
 
-        Ok(build_projection_schema(input_schema, ctx, &self.select)?)
+        build_projection_schema(input_schema, ctx, &self.select)
     }
 
     fn build(
@@ -277,7 +277,7 @@ fn build_output_schema(
                     let field_context = input_context
                         .field_contexts
                         .get(name)
-                        .map(|c| c.clone())
+                        .cloned()
                         .unwrap_or(FieldContext { source: None });
 
                     context.field_contexts.insert(name.clone(), field_context);
@@ -317,7 +317,7 @@ fn build_projection_schema(
                 let field_context = context
                     .field_contexts
                     .get(&e.0)
-                    .map(|c| c.clone())
+                    .cloned()
                     .unwrap_or(FieldContext { source: None });
 
                 output_context
