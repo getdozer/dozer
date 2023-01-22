@@ -1,6 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
-use dozer_sql::pipeline::builder::{self, statement_to_pipeline};
+use dozer_sql::pipeline::builder::{self, statement_to_pipeline, SchemaSQLContext};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -160,7 +160,7 @@ impl Executor {
         &self,
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
-    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
+    ) -> Result<dozer_core::dag::dag::Dag<SchemaSQLContext>, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
         let (mut pipeline, (query_name, query_port)) =
@@ -209,12 +209,12 @@ impl Executor {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
         settings: CacheSinkSettings,
-    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
+    ) -> Result<dozer_core::dag::dag::Dag<SchemaSQLContext>, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
         Self::validate_grouped_connections(&grouped_connections)?;
 
-        let mut pipelines: Vec<AppPipeline> = vec![];
+        let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
         let mut used_sources = vec![];
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
             let api_endpoint = cache_endpoint.endpoint.clone();
