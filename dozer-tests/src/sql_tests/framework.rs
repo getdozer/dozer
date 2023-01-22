@@ -19,9 +19,11 @@ pub struct TestFramework {
     pub source: Arc<Mutex<SqlMapper>>,
     pub dest: Arc<Mutex<SqlMapper>>,
 }
+#[derive(Debug)]
 pub struct QueryResult {
     pub output_schema: Schema,
-    pub records: Vec<Record>,
+    pub source_result: Vec<Record>,
+    pub dest_result: Vec<Record>,
 }
 
 impl TestFramework {
@@ -51,29 +53,13 @@ impl TestFramework {
 
         let source_result = query_sqlite(self.source.clone(), &final_sql, &output_schema)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
+
+        let dest_result = query_sqlite(self.dest.clone(), "select * from results;", &output_schema)
+            .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
         Ok(QueryResult {
             output_schema,
-            records: source_result,
+            source_result,
+            dest_result,
         })
-    }
-
-    // Compare Source and Dest SQLlite records.
-    pub fn compare_with_sqlite(
-        &mut self,
-        list: Vec<(&'static str, String)>,
-        final_sql: String,
-    ) -> Result<bool, FrameworkError> {
-        let query_result = self
-            .query(list, final_sql)
-            .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
-
-        let dest_result = query_sqlite(
-            self.dest.clone(),
-            "select * from results;",
-            &query_result.output_schema,
-        )
-        .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
-
-        Ok(query_result.records == dest_result)
     }
 }

@@ -1,5 +1,8 @@
 use crate::{
-    init::init, sql_tests::get_inserts_from_csv, tests::sql::TestInstruction, TestFramework,
+    init::init,
+    sql_tests::{get_inserts_from_csv, QueryResult},
+    tests::sql::TestInstruction,
+    TestFramework,
 };
 
 pub fn get_tables() -> Vec<(&'static str, &'static str)> {
@@ -99,6 +102,35 @@ pub fn get_sample_ops() -> Vec<(&'static str, String)> {
     ]
 }
 
+pub fn query(
+    table_names: &Vec<&'static str>,
+    test: &str,
+    test_instruction: TestInstruction,
+) -> QueryResult {
+    init();
+
+    let mut framework = setup(table_names);
+
+    let list = match test_instruction {
+        TestInstruction::FromCsv(folder_name, ref names) => {
+            let mut list = vec![];
+
+            for name in names.clone() {
+                let source = framework.source.lock().unwrap();
+                let schema = source.get_schema(name);
+                let inserts = get_inserts_from_csv(folder_name, name, schema).unwrap();
+                for i in inserts {
+                    list.push((name, i.to_string()));
+                }
+            }
+            list
+        }
+        TestInstruction::List(ref list) => list.clone(),
+    };
+
+    framework.query(list, test.to_string()).unwrap()
+}
+
 pub fn compare_with_sqlite(
     table_names: &Vec<&'static str>,
     queries: Vec<&str>,
@@ -126,10 +158,8 @@ pub fn compare_with_sqlite(
             TestInstruction::List(ref list) => list.clone(),
         };
 
-        let result = framework
-            .compare_with_sqlite(list, test.to_string())
-            .unwrap();
+        let result = framework.query(list, test.to_string()).unwrap();
 
-        assert!(result, "Test: {}", test);
+        assert_eq!(result.source_result, result.dest_result, "Test: {}", test);
     }
 }

@@ -205,6 +205,7 @@ impl Sink for TestSink {
         _state: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
+        println!("{:?}", op);
         let sql = self
             .mapper
             .lock()
