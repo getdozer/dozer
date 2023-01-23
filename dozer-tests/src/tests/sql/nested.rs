@@ -70,7 +70,6 @@ fn nested_agg_inserts_query() {
 }
 
 #[test]
-#[ignore = "updates seem to trigger the wrong order of events in the test"]
 fn nested_agg_updates_query() {
     let query = r#" 
             SELECT actor_id, count(actor_id) from (
@@ -119,7 +118,6 @@ fn cte_agg_inserts_query() {
 }
 
 #[test]
-#[ignore = "updates seem to trigger the wrong order of events in the test"]
 fn cte_agg_updates_query() {
     let query = r#"
             WITH tbl as (

@@ -24,7 +24,6 @@ fn agg_query() {
 }
 
 #[test]
-#[ignore = "Aggregation is broken for unused fields in the query"]
 fn agg_updates_query() {
     let queries = vec![
         r#"
