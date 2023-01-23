@@ -11,7 +11,7 @@ use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::*;
-use odbc::ffi::{SqlDataType, SQL_TIMESTAMP_STRUCT, SQL_DATE_STRUCT};
+use odbc::ffi::{SqlDataType, SQL_DATE_STRUCT, SQL_TIMESTAMP_STRUCT};
 use odbc::odbc_safe::AutocommitOn;
 use odbc::{
     ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
@@ -123,8 +123,8 @@ pub fn convert_data(
                     );
                     Ok(Field::from(date))
                 }
-                }
             }
+        }
         SqlDataType::SQL_EXT_BIT => {
             match cursor
                 .get_data::<bool>(i)
