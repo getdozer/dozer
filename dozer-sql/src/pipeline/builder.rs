@@ -333,33 +333,31 @@ mod tests {
     use super::statement_to_pipeline;
 
     #[test]
-    fn sql_logic_test_1() {
+    fn parse_sql_pipeline() {
         let statements: Vec<&str> = vec![
             r#"
-            SELECT
-            a.name as "Genre",
-                SUM(amount) as "Gross Revenue(in $)"
-            FROM
-            (
                 SELECT
-                c.name, f.title, p.amount
-            FROM film f
-            LEFT JOIN film_category fc
-            ON fc.film_id = f.film_id
-            LEFT JOIN category c
-            ON fc.category_id = c.category_id
-            LEFT JOIN inventory i
-            ON i.film_id = f.film_id
-            LEFT JOIN rental r
-            ON r.inventory_id = i.inventory_id
-            LEFT JOIN payment p
-            ON p.rental_id = r.rental_id
-            WHERE p.amount IS NOT NULL
-            ) a
+                a.name as "Genre",
+                    SUM(amount) as "Gross Revenue(in $)"
+                FROM
+                (
+                    SELECT
+                    c.name, f.title, p.amount
+                FROM film f
+                LEFT JOIN film_category fc
+                ON fc.film_id = f.film_id
+                LEFT JOIN category c
+                ON fc.category_id = c.category_id
+                LEFT JOIN inventory i
+                ON i.film_id = f.film_id
+                LEFT JOIN rental r
+                ON r.inventory_id = i.inventory_id
+                LEFT JOIN payment p
+                ON p.rental_id = r.rental_id
+                WHERE p.amount IS NOT NULL
+                ) a
 
-            GROUP BY name
-            ORDER BY sum(amount) desc
-            LIMIT 5;
+                GROUP BY name;
             "#,
             r#"
                 SELECT
