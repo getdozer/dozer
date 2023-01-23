@@ -32,14 +32,7 @@ pub fn init() {
 
 fn set_panic_hook() {
     std::panic::set_hook(Box::new(move |panic_info| {
-        if let Some(e) = panic_info
-            .payload()
-            .downcast_ref::<dozer_core::dag::errors::ExecutionError>()
-        {
-            error!("{}", e);
-            debug!("{:?}", e);
-        // All the pipeline errors are captured here
-        } else if let Some(e) = panic_info.payload().downcast_ref::<ExecutionError>() {
+        if let Some(e) = panic_info.payload().downcast_ref::<ExecutionError>() {
             error!("{}", e);
             debug!("{:?}", e);
         // If any errors are sent as strings.
