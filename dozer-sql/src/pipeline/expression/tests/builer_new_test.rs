@@ -291,3 +291,103 @@ fn test_wrong_nested_aggregations() {
         _ => panic!("Invalid expr"),
     };
 }
+
+#[test]
+fn test_name_resolution() {
+    let sql = "SELECT CONCAT(table0.a, connection1.table0.b, a) FROM t0";
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                "a".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Table {
+                    connection: "connection1".to_string(),
+                    name: "table0".to_string(),
+                },
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "b".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Table {
+                    connection: "connection1".to_string(),
+                    name: "table0".to_string(),
+                },
+            ),
+            false,
+        )
+        .to_owned();
+
+    let mut context = ExpressionContext::new();
+    let e = match &get_select(sql).unwrap().projection[0] {
+        SelectItem::UnnamedExpr(e) => {
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
+        }
+        _ => panic!("Invalid expr"),
+    };
+
+    assert_eq!(
+        context,
+        ExpressionContext {
+            aggrgeations: vec![]
+        }
+    );
+    assert_eq!(
+        e,
+        Box::new(Expression::ScalarFunction {
+            fun: ScalarFunctionType::Concat,
+            args: vec![
+                Expression::Column { index: 0 },
+                Expression::Column { index: 1 },
+                Expression::Column { index: 0 }
+            ]
+        })
+    );
+}
+
+#[test]
+fn test_alias_resolution() {
+    let sql = "SELECT CONCAT(alias.a, a) FROM t0";
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                "a".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Alias {
+                    name: "alias".to_string(),
+                },
+            ),
+            false,
+        )
+        .to_owned();
+
+    let mut context = ExpressionContext::new();
+    let e = match &get_select(sql).unwrap().projection[0] {
+        SelectItem::UnnamedExpr(e) => {
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
+        }
+        _ => panic!("Invalid expr"),
+    };
+
+    assert_eq!(
+        context,
+        ExpressionContext {
+            aggrgeations: vec![]
+        }
+    );
+    assert_eq!(
+        e,
+        Box::new(Expression::ScalarFunction {
+            fun: ScalarFunctionType::Concat,
+            args: vec![
+                Expression::Column { index: 0 },
+                Expression::Column { index: 0 }
+            ]
+        })
+    );
+}

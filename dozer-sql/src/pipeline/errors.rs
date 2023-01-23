@@ -63,6 +63,8 @@ pub enum PipelineError {
     InvalidCast { from: Field, to: FieldType },
     #[error("{0}() is invoked from another aggregation function. Nesting of aggregation functions is not possible.")]
     InvalidNestedAggregationFunction(String),
+    #[error("{0} is not a valid table or alias identifier")]
+    InvalidTableOrAliasIdentifier(String),
 
     // Error forwarding
     #[error(transparent)]

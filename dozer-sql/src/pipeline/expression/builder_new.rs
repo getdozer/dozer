@@ -4,8 +4,10 @@ use dozer_types::{
     types::{Field, Schema},
 };
 use std::cmp;
+use std::process::id;
 
 use crate::pipeline::aggregation::aggregator::Aggregator;
+use dozer_types::types::{FieldDefinition, SourceDefinition};
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
@@ -13,7 +15,7 @@ use sqlparser::ast::{
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
-    InvalidValue, TooManyArguments,
+    InvalidTableOrAliasIdentifier, InvalidValue, TooManyArguments,
 };
 use crate::pipeline::errors::{JoinError, PipelineError};
 
@@ -128,10 +130,91 @@ impl ExpressionBuilder {
         ident: &[Ident],
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
-        Ok(Box::new(Expression::Column {
-            index: get_field_index(ident, schema)?,
-            //index: schema.get_field_index(&ident[0].value)?.0,
-        }))
+        let (src_field, src_table_or_alias, src_connection) = match ident.len() {
+            1 => (&ident[0].value, None, None),
+            2 => (&ident[1].value, Some(&ident[0].value), None),
+            3 => (
+                &ident[2].value,
+                Some(&ident[1].value),
+                Some(&ident[0].value),
+            ),
+            _ => {
+                return Err(InvalidTableOrAliasIdentifier(
+                    ident
+                        .iter()
+                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                ))
+            }
+        };
+
+        let matching_by_field: Vec<(usize, &FieldDefinition)> = schema
+            .fields
+            .iter()
+            .enumerate()
+            .filter(|(idx, f)| &f.name == src_field)
+            .collect();
+
+        match matching_by_field.len() {
+            1 => Ok(Box::new(Expression::Column {
+                index: matching_by_field[0].0,
+            })),
+            _ => match src_table_or_alias {
+                None => Err(InvalidTableOrAliasIdentifier(
+                    ident
+                        .iter()
+                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                )),
+                Some(src_table_or_alias) => {
+                    let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> =
+                        matching_by_field
+                            .into_iter()
+                            .filter(|(idx, field)| match &field.source {
+                                SourceDefinition::Alias { name } => name == src_table_or_alias,
+                                SourceDefinition::Table { name, connection } => {
+                                    name == src_table_or_alias
+                                }
+                                _ => false,
+                            })
+                            .collect();
+
+                    match matching_by_table_or_alias.len() {
+                        1 => Ok(Box::new(Expression::Column {
+                            index: matching_by_table_or_alias[0].0,
+                        })),
+                        _ => match src_connection {
+                            None => Err(InvalidTableOrAliasIdentifier(
+                                ident
+                                    .iter()
+                                    .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                            )),
+                            Some(src_connection) => {
+                                let matching_by_connection: Vec<(usize, &FieldDefinition)> =
+                                    matching_by_table_or_alias
+                                        .into_iter()
+                                        .filter(|(idx, field)| match &field.source {
+                                            SourceDefinition::Table { name, connection } => {
+                                                connection == src_connection
+                                            }
+                                            _ => false,
+                                        })
+                                        .collect();
+
+                                match matching_by_connection.len() {
+                                    1 => Ok(Box::new(Expression::Column {
+                                        index: matching_by_connection[0].0,
+                                    })),
+                                    _ => Err(InvalidTableOrAliasIdentifier(
+                                        ident
+                                            .iter()
+                                            .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                                    )),
+                                }
+                            }
+                        },
+                    }
+                }
+            },
+        }
     }
 
     fn parse_sql_trim_function(
