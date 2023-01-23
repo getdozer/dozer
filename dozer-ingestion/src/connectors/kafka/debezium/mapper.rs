@@ -66,14 +66,14 @@ fn convert_value(
                 "io.debezium.time.MicroTimestamp" => value.as_i64().map_or(Ok(Field::Null), |v| {
                     let sec = v / 1000000;
                     let nsecs = (v % 1000000) * 1000;
-                    let date = NaiveDateTime::from_timestamp(sec, nsecs as u32);
+                    let date = NaiveDateTime::from_timestamp_opt(sec, nsecs as u32).unwrap();
                     Ok(Field::from(date))
                 }),
                 "io.debezium.time.Timestamp" | "org.apache.kafka.connect.data.Timestamp" => {
                     value.as_i64().map_or(Ok(Field::Null), |v| {
                         let sec = v / 1000;
                         let nsecs = (v % 1000) * 1000000;
-                        let date = NaiveDateTime::from_timestamp(sec, nsecs as u32);
+                        let date = NaiveDateTime::from_timestamp_opt(sec, nsecs as u32).unwrap();
                         Ok(Field::from(date))
                     })
                 }
@@ -105,7 +105,9 @@ fn convert_value(
                 }
                 "io.debezium.time.Date" | "org.apache.kafka.connect.data.Date" => {
                     value.as_i64().map_or(Ok(Field::Null), |v| {
-                        Ok(Field::from(NaiveDate::from_num_days_from_ce(v as i32)))
+                        Ok(Field::from(
+                            NaiveDate::from_num_days_from_ce_opt(v as i32).unwrap(),
+                        ))
                     })
                 }
                 "io.debezium.time.MicroTime" => Ok(Field::Null),
@@ -252,7 +254,7 @@ mod tests {
             None
         );
 
-        let current_date = NaiveDate::from_ymd(2022, 11, 28);
+        let current_date = NaiveDate::from_ymd_opt(2022, 11, 28).unwrap();
         test_conversion_debezium!(
             738487,
             "-",

@@ -182,7 +182,7 @@ pub fn get_decimal_div_field(numerator: i64, denominator: i64) -> Field {
 }
 
 pub fn get_ts_field(val: i64) -> Field {
-    Field::Timestamp(DateTime::from(Utc.timestamp_millis(val)))
+    Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(val).unwrap()))
 }
 
 pub fn get_date_field(val: &str) -> Field {

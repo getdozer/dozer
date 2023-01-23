@@ -237,8 +237,8 @@ mod tests {
             Field::Text("a".to_string()),
             Field::Binary(vec![255]),
             Field::Decimal(Decimal::new(i64::MAX, 0)),
-            Field::Timestamp(DateTime::from(Utc.timestamp_millis(1))),
-            Field::Date(NaiveDate::from_ymd(2020, 1, 2)),
+            Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(1).unwrap())),
+            Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap()),
             Field::Bson(vec![255]),
         ];
         for a in test_cases.iter() {

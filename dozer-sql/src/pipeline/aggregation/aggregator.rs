@@ -198,7 +198,7 @@ macro_rules! field_extract_timestamp {
     ($stmt:expr, $agg:expr) => {
         match $stmt {
             Field::Timestamp(t) => *t,
-            Field::Null => DateTime::from(Utc.timestamp_millis(0)),
+            Field::Null => DateTime::from(Utc.timestamp_millis_opt(0).unwrap()),
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }
@@ -211,7 +211,7 @@ macro_rules! field_extract_date {
     ($stmt:expr, $agg:expr) => {
         match $stmt {
             Date(d) => *d,
-            Field::Null => Utc.timestamp_millis(0).naive_utc().date(),
+            Field::Null => Utc.timestamp_millis_opt(0).unwrap().naive_utc().date(),
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }

@@ -1083,7 +1083,7 @@ fn test_max_aggregation_date_null() {
     )
     .unwrap();
 
-    let date_null: &Field = &Field::Date(Utc.timestamp_millis(0).naive_utc().date());
+    let date_null: &Field = &Field::Date(Utc.timestamp_millis_opt(0).unwrap().naive_utc().date());
 
     // Insert NULL for segment Italy
     /*

@@ -435,7 +435,8 @@ impl MinAggregator {
             FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
             FieldType::UInt => UInt(u64::from_be_bytes(deserialize!(f))),
             FieldType::Timestamp => Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_be_bytes(deserialize!(f))),
+                Utc.timestamp_millis_opt(i64::from_be_bytes(deserialize!(f)))
+                    .unwrap(),
             )),
             _ => Field::Null,
         }
@@ -503,7 +504,9 @@ impl MinAggregator {
         // get first to get the minimum
         if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            minimum = Utc.timestamp_millis(i64::from_be_bytes(deserialize!(cur.0)));
+            minimum = Utc
+                .timestamp_millis_opt(i64::from_be_bytes(deserialize!(cur.0)))
+                .unwrap();
         }
         Ok(DateTime::from(minimum))
     }

@@ -393,7 +393,8 @@ impl MaxAggregator {
             FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
             FieldType::UInt => UInt(u64::from_be_bytes(deserialize!(f))),
             FieldType::Timestamp => Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_be_bytes(deserialize!(f))),
+                Utc.timestamp_millis_opt(i64::from_be_bytes(deserialize!(f)))
+                    .unwrap(),
             )),
             _ => Field::Null,
         }
@@ -461,7 +462,9 @@ impl MaxAggregator {
         // get first to get the minimum
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            maximum = Utc.timestamp_millis(i64::from_be_bytes(deserialize!(cur.0)));
+            maximum = Utc
+                .timestamp_millis_opt(i64::from_be_bytes(deserialize!(cur.0)))
+                .unwrap();
         }
         Ok(DateTime::from(maximum))
     }
