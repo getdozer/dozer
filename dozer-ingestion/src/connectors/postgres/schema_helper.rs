@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::types::{
     FieldDefinition, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
-    SchemaWithChangesType,
+    SchemaWithChangesType, SourceDefinition,
 };
 
 use crate::connectors::{TableInfo, ValidationResults};
@@ -270,7 +270,7 @@ impl SchemaHelper {
             .map_err(|_e| ValueConversionError("Replication type".to_string()))?;
         Ok((
             table_name,
-            FieldDefinition::new(column_name, typ, is_nullable),
+            FieldDefinition::new(column_name, typ, is_nullable, SourceDefinition::Dynamic),
             is_primary_index,
             table_id,
             replication_type,

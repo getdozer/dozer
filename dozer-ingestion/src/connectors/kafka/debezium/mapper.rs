@@ -149,7 +149,7 @@ mod tests {
     use dozer_types::chrono::{NaiveDate, NaiveDateTime};
     use dozer_types::rust_decimal;
     use dozer_types::serde_json::{Map, Value};
-    use dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
+    use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
     use std::collections::HashMap;
 
     #[macro_export]
@@ -315,21 +315,25 @@ mod tests {
                     name: "id".to_string(),
                     typ: FieldType::Int,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "name".to_string(),
                     typ: FieldType::String,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "description".to_string(),
                     typ: FieldType::String,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "weight".to_string(),
                     typ: FieldType::Float,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
             ],
             primary_index: vec![],
@@ -401,11 +405,13 @@ mod tests {
                     name: "id".to_string(),
                     typ: FieldType::Int,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "name".to_string(),
                     typ: FieldType::String,
                     nullable: true,
+                    source: SourceDefinition::Dynamic,
                 },
             ],
             primary_index: vec![],

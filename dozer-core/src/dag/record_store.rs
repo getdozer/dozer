@@ -11,7 +11,9 @@ use crate::storage::errors::StorageError::{DeserializationError, SerializationEr
 use crate::storage::lmdb_storage::SharedTransaction;
 use crate::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::bincode;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 use std::fmt::{Debug, Formatter};
 
 pub trait RecordWriter {
@@ -331,6 +333,7 @@ impl AutogenRowKeyLookupRecordWriter {
             DOZER_ROWID.to_string(),
             FieldType::UInt,
             false,
+            SourceDefinition::Dynamic,
         ));
         schema.primary_index = vec![schema.fields.len() - 1];
         schema

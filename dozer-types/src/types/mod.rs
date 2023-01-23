@@ -9,18 +9,27 @@ mod field;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum SourceDefinition {
+    Table { connection: String, name: String },
+    Alias { name: String },
+    Dynamic,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FieldDefinition {
     pub name: String,
     pub typ: FieldType,
     pub nullable: bool,
+    pub source: SourceDefinition,
 }
 
 impl FieldDefinition {
-    pub fn new(name: String, typ: FieldType, nullable: bool) -> Self {
+    pub fn new(name: String, typ: FieldType, nullable: bool, source: SourceDefinition) -> Self {
         Self {
             name,
             typ,
             nullable,
+            source,
         }
     }
 }

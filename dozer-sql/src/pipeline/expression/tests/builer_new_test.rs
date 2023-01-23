@@ -7,7 +7,7 @@ use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::tests::utils::get_select;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 use sqlparser::ast::SelectItem;
 
 #[test]
@@ -15,11 +15,21 @@ fn test_simple_function() {
     let sql = "SELECT CONCAT(a,b) FROM t0";
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("a".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "a".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("b".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "b".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .to_owned();
@@ -55,7 +65,12 @@ fn test_simple_aggr_function() {
     let sql = "SELECT SUM(field0) FROM t0";
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("field0".to_string(), FieldType::Int, false),
+            FieldDefinition::new(
+                "field0".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .to_owned();
@@ -85,11 +100,21 @@ fn test_2_nested_aggr_function() {
     let sql = "SELECT SUM(ROUND(field1,2)) FROM t0";
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("field0".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "field0".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("field1".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "field1".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .to_owned();
@@ -125,11 +150,21 @@ fn test_3_nested_aggr_function() {
     let sql = "SELECT ROUND(SUM(ROUND(field1,2))) FROM t0";
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("field0".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "field0".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("field1".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "field1".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .to_owned();
@@ -171,11 +206,21 @@ fn test_3_nested_aggr_function_and_sum() {
     let sql = "SELECT ROUND(SUM(ROUND(field1,2))) + SUM(field0) FROM t0";
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("field0".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "field0".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("field1".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "field1".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .to_owned();
@@ -228,7 +273,12 @@ fn test_wrong_nested_aggregations() {
     let sql = "SELECT SUM(SUM(field0)) FROM t0";
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("field0".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "field0".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .to_owned();

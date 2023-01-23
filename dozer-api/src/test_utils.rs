@@ -1,5 +1,5 @@
 use dozer_types::serde_json::{json, Value};
-use dozer_types::types::{Field, Record};
+use dozer_types::types::{Field, Record, SourceDefinition};
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
@@ -14,26 +14,31 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
             name: "film_id".to_string(),
             typ: FieldType::UInt,
             nullable: false,
+            source: SourceDefinition::Dynamic,
         },
         FieldDefinition {
             name: "description".to_string(),
             typ: FieldType::String,
             nullable: true,
+            source: SourceDefinition::Dynamic,
         },
         FieldDefinition {
             name: "rental_rate".to_string(),
             typ: FieldType::Float,
             nullable: true,
+            source: SourceDefinition::Dynamic,
         },
         FieldDefinition {
             name: "release_year".to_string(),
             typ: FieldType::UInt,
             nullable: true,
+            source: SourceDefinition::Dynamic,
         },
         FieldDefinition {
             name: "updated_at".to_string(),
             typ: FieldType::Timestamp,
             nullable: true,
+            source: SourceDefinition::Dynamic,
         },
     ];
     let secondary_indexes = fields

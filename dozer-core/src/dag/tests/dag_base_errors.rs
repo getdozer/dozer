@@ -12,7 +12,9 @@ use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 
 use std::collections::HashMap;
 use std::panic;
@@ -320,11 +322,21 @@ impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new("id".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .field(
-                    FieldDefinition::new("value".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "value".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     false,
                 )
                 .clone(),

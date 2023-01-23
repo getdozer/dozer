@@ -3,7 +3,9 @@ use crate::dag::record_store::{
     PrimaryKeyValueLookupRecordReader, RecordReader, RecordWriter,
 };
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 use tempdir::TempDir;
 
 #[test]
@@ -17,11 +19,21 @@ fn test_pk_record_writer() {
 
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("id".to_string(), FieldType::Int, false),
+            FieldDefinition::new(
+                "id".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             true,
         )
         .field(
-            FieldDefinition::new("name".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "name".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();
@@ -122,11 +134,21 @@ fn test_read_write_kv() {
 
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("id".to_string(), FieldType::Int, false),
+            FieldDefinition::new(
+                "id".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             true,
         )
         .field(
-            FieldDefinition::new("name".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "name".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();
@@ -236,15 +258,30 @@ fn test_read_write_incr() {
 
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("id".to_string(), FieldType::Int, false),
+            FieldDefinition::new(
+                "id".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("name".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "name".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("rowkey".to_string(), FieldType::Int, false),
+            FieldDefinition::new(
+                "rowkey".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             true,
         )
         .clone();

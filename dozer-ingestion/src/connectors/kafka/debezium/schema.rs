@@ -5,7 +5,7 @@ use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 
 use crate::errors::DebeziumSchemaError;
 use crate::errors::DebeziumSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
-use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition};
 
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
 pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {
@@ -77,6 +77,7 @@ pub fn map_schema<'a>(
                                 name,
                                 typ,
                                 nullable: f.optional.map_or(false, |o| o),
+                                source: SourceDefinition::Dynamic,
                             })
                         })
                         .collect(),
@@ -104,7 +105,9 @@ mod tests {
     use crate::errors::DebeziumSchemaError::SchemaDefinitionNotFound;
     use crate::errors::DebeziumSchemaError::TypeNotSupported;
     use dozer_types::serde_json::Value;
-    use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
+    use dozer_types::types::{
+        FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition,
+    };
 
     #[test]
     fn test_it_fails_when_schema_empty() {
@@ -197,11 +200,13 @@ mod tests {
                     name: "id".to_string(),
                     typ: FieldType::Int,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "name".to_string(),
                     typ: FieldType::String,
                     nullable: true,
+                    source: SourceDefinition::Dynamic,
                 },
             ],
             primary_index: vec![0],

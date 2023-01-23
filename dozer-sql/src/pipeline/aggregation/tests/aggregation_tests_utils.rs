@@ -6,7 +6,7 @@ use dozer_core::{
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
 };
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, DATE_FORMAT,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, DATE_FORMAT,
 };
 use std::collections::HashMap;
 
@@ -55,19 +55,39 @@ pub(crate) fn init_processor(
 pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) -> Schema {
     Schema::empty()
         .field(
-            FieldDefinition::new(String::from("ID"), FieldType::Int, false),
+            FieldDefinition::new(
+                String::from("ID"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("Country"), FieldType::String, false),
+            FieldDefinition::new(
+                String::from("Country"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("Salary"), field_type, false),
+            FieldDefinition::new(
+                String::from("Salary"),
+                field_type,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(format!("{}(Salary)", aggregator_name), field_type, false),
+            FieldDefinition::new(
+                format!("{}(Salary)", aggregator_name),
+                field_type,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone()

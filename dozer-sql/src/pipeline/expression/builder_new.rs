@@ -13,7 +13,8 @@ use sqlparser::ast::{
 };
 
 use crate::pipeline::errors::PipelineError::{
-    InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
+    InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
+    InvalidValue, TooManyArguments,
 };
 use crate::pipeline::errors::{JoinError, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
@@ -178,27 +179,25 @@ impl ExpressionBuilder {
             Self::is_aggregation_function(function_name.as_str()),
             parse_aggregations,
         ) {
-            (Some(aggr), true) => {
-                if sql_function.args.len() > 1 {
-                    return Err(InvalidExpression(format!(
-                        "Function {}() can only take 1 argument. {} were passed.",
-                        function_name.clone(),
-                        sql_function.args.len()
-                    )));
+            (Some(aggr), true) => match sql_function.args.len() {
+                1 => {
+                    let measure = AggregationMeasure::new(
+                        aggr,
+                        *Self::parse_sql_function_arg(
+                            context,
+                            false,
+                            &sql_function.args[0],
+                            schema,
+                        )?,
+                    );
+                    context.aggrgeations.push(measure);
+                    Ok(Box::new(Expression::Column {
+                        index: context.aggrgeations.len() - 1,
+                    }))
                 }
-                let measure = AggregationMeasure::new(
-                    aggr,
-                    *Self::parse_sql_function_arg(context, false, &sql_function.args[0], schema)?,
-                );
-                context.aggrgeations.push(measure);
-                Ok(Box::new(Expression::Column {
-                    index: context.aggrgeations.len() - 1,
-                }))
-            }
-            (Some(agg), false) => Err(InvalidExpression(format!(
-                "Aggregation function {}() cannot be nested within another aggregation function",
-                function_name
-            ))),
+                _ => Err(TooManyArguments(function_name.clone())),
+            },
+            (Some(agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
             (None, _) => {
                 let mut function_args: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
@@ -222,6 +221,10 @@ impl ExpressionBuilder {
     fn is_aggregation_function(name: &str) -> Option<Aggregator> {
         match name {
             "sum" => Some(Aggregator::Sum),
+            "avg" => Some(Aggregator::Avg),
+            "min" => Some(Aggregator::Min),
+            "max" => Some(Aggregator::Max),
+            "count" => Some(Aggregator::Count),
             _ => None,
         }
     }

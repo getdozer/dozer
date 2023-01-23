@@ -4,7 +4,9 @@ use super::SqlMapper;
 use dozer_types::errors::types;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier, SourceDefinition,
+};
 use sqlparser::ast::{Expr, ObjectName};
 use std::error::Error;
 use std::str::FromStr;
@@ -253,6 +255,7 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
                         f => panic!("unknown field_type : {}", f),
                     },
                     nullable: true,
+                    source: SourceDefinition::Dynamic,
                 }
             })
             .collect(),

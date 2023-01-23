@@ -1,6 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    Field, FieldDefinition, Operation, Record, Schema, SchemaIdentifier, SourceDefinition,
+};
 
 use crate::sql_tests::{query_sqlite, SqlMapper};
 
@@ -177,7 +179,8 @@ fn test_null_inserts() {
                 fields: vec![FieldDefinition {
                     name: "actor_id".to_string(),
                     typ: dozer_types::types::FieldType::Int,
-                    nullable: false
+                    nullable: false,
+                    source: SourceDefinition::Dynamic
                 }],
                 primary_index: vec![0],
             }
@@ -201,22 +204,26 @@ fn test_null_inserts() {
                     FieldDefinition {
                         name: "actor_id".to_string(),
                         typ: dozer_types::types::FieldType::Int,
-                        nullable: false
+                        nullable: false,
+                        source: SourceDefinition::Dynamic
                     },
                     FieldDefinition {
                         name: "first_name".to_string(),
                         typ: dozer_types::types::FieldType::String,
-                        nullable: false
+                        nullable: false,
+                        source: SourceDefinition::Dynamic
                     },
                     FieldDefinition {
                         name: "last_name".to_string(),
                         typ: dozer_types::types::FieldType::String,
-                        nullable: true
+                        nullable: true,
+                        source: SourceDefinition::Dynamic
                     },
                     FieldDefinition {
                         name: "last_update".to_string(),
                         typ: dozer_types::types::FieldType::String,
-                        nullable: true
+                        nullable: true,
+                        source: SourceDefinition::Dynamic
                     }
                 ],
                 primary_index: vec![0],
