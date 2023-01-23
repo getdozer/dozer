@@ -87,7 +87,7 @@ impl ExpressionBuilder {
             SqlExpr::Value(SqlValue::Number(n, _)) => Self::parse_sql_number(n),
             SqlExpr::Value(SqlValue::Null) => Ok(Box::new(Expression::Literal(Field::Null))),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
-                parse_sql_string(s)
+                Self::parse_sql_string(s)
             }
             SqlExpr::UnaryOp { expr, op } => {
                 Self::parse_sql_unary_op(context, parse_aggregations, op, expr, schema)
@@ -327,7 +327,13 @@ impl ExpressionBuilder {
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
                 Err(InvalidArgument(format!("{:?}", argument)))
             }
-            _ => Err(InvalidArgument(format!("{:?}", argument))),
+            FunctionArg::Named {
+                name: _,
+                arg: FunctionArgExpr::QualifiedWildcard(_),
+            } => Err(InvalidArgument(format!("{:?}", argument))),
+            FunctionArg::Unnamed(FunctionArgExpr::QualifiedWildcard(_)) => {
+                Err(InvalidArgument(format!("{:?}", argument)))
+            }
         }
     }
 
@@ -367,16 +373,13 @@ impl ExpressionBuilder {
             SqlBinaryOperator::LtEq => BinaryOperatorType::Lte,
             SqlBinaryOperator::Eq => BinaryOperatorType::Eq,
             SqlBinaryOperator::NotEq => BinaryOperatorType::Ne,
-
             SqlBinaryOperator::Plus => BinaryOperatorType::Add,
             SqlBinaryOperator::Minus => BinaryOperatorType::Sub,
             SqlBinaryOperator::Multiply => BinaryOperatorType::Mul,
             SqlBinaryOperator::Divide => BinaryOperatorType::Div,
             SqlBinaryOperator::Modulo => BinaryOperatorType::Mod,
-
             SqlBinaryOperator::And => BinaryOperatorType::And,
             SqlBinaryOperator::Or => BinaryOperatorType::Or,
-
             _ => return Err(InvalidOperator(format!("{:?}", op))),
         };
 
@@ -464,68 +467,8 @@ impl ExpressionBuilder {
             typ: cast_to,
         }))
     }
-}
 
-pub fn fullname_from_ident(ident: &[Ident]) -> String {
-    let mut ident_tokens = vec![];
-    for token in ident.iter() {
-        ident_tokens.push(token.value.clone());
-    }
-    ident_tokens.join(".")
-}
-
-pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, PipelineError> {
-    let full_ident = fullname_from_ident(ident);
-
-    let mut field_index: Option<usize> = None;
-
-    for (index, field) in schema.fields.iter().enumerate() {
-        if compare_name(field.name.clone(), full_ident.clone()) {
-            if field_index.is_some() {
-                return Err(PipelineError::InvalidQuery(format!(
-                    "Ambiguous Field {}",
-                    full_ident
-                )));
-            } else {
-                field_index = Some(index);
-            }
-        }
-    }
-    if let Some(index) = field_index {
-        Ok(index)
-    } else {
-        Err(PipelineError::JoinError(JoinError::FieldError(full_ident)))
-    }
-}
-
-pub(crate) fn compare_name(name: String, ident: String) -> bool {
-    let left = name.split('.').collect::<Vec<&str>>();
-    let right = ident.split('.').collect::<Vec<&str>>();
-
-    let left_len = left.len();
-    let right_len = right.len();
-
-    let shorter = cmp::min(left_len, right_len);
-    let mut is_equal = false;
-    for i in 1..shorter + 1 {
-        if left[left_len - i] == right[right_len - i] {
-            is_equal = true;
-        } else {
-            is_equal = false;
-            break;
-        }
-    }
-
-    is_equal
-}
-
-fn parse_sql_string(s: &str) -> Result<Box<Expression>, PipelineError> {
-    Ok(Box::new(Expression::Literal(Field::String(s.to_owned()))))
-}
-
-pub(crate) fn normalize_ident(id: &Ident) -> String {
-    match id.quote_style {
-        Some(_) => id.value.clone(),
-        None => id.value.clone(),
+    fn parse_sql_string(s: &str) -> Result<Box<Expression>, PipelineError> {
+        Ok(Box::new(Expression::Literal(Field::String(s.to_owned()))))
     }
 }

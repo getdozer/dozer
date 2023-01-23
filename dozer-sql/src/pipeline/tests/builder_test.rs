@@ -58,7 +58,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                         String::from("CustomerID"),
                         FieldType::Int,
                         false,
-                        SourceDefinition::Dynamic,
+                        SourceDefinition::Table {
+                            name: "users".to_string(),
+                            connection: "c1".to_string(),
+                        },
                     ),
                     false,
                 )
@@ -67,7 +70,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                         String::from("Country"),
                         FieldType::String,
                         false,
-                        SourceDefinition::Dynamic,
+                        SourceDefinition::Table {
+                            name: "users".to_string(),
+                            connection: "c1".to_string(),
+                        },
                     ),
                     false,
                 )
@@ -76,7 +82,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                         String::from("Spending"),
                         FieldType::Float,
                         false,
-                        SourceDefinition::Dynamic,
+                        SourceDefinition::Table {
+                            name: "users".to_string(),
+                            connection: "c1".to_string(),
+                        },
                     ),
                     false,
                 )
