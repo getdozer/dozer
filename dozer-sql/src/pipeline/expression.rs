@@ -9,5 +9,6 @@ pub mod mathematical;
 pub mod operator;
 pub mod scalar;
 
+mod builder_new;
 #[cfg(test)]
 mod tests;

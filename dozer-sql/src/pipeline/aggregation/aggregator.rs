@@ -8,7 +8,7 @@ use crate::pipeline::errors::PipelineError;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::{Field, FieldType};
-use std::fmt::{Display, Formatter};
+use std::fmt::{Display, Formatter, Write};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Aggregator {
@@ -19,6 +19,18 @@ pub enum Aggregator {
     Sum,
 }
 
+impl Display for Aggregator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Aggregator::Avg => f.write_str("avg"),
+            Aggregator::Count => f.write_str("count"),
+            Aggregator::Max => f.write_str("max"),
+            Aggregator::Min => f.write_str("min"),
+            Aggregator::Sum => f.write_str("sum"),
+        }
+    }
+}
+
 pub(crate) struct AggregationResult {
     pub value: Field,
     pub state: Option<Vec<u8>>,
@@ -27,12 +39,6 @@ pub(crate) struct AggregationResult {
 impl AggregationResult {
     pub fn new(value: Field, state: Option<Vec<u8>>) -> Self {
         Self { value, state }
-    }
-}
-
-impl Display for Aggregator {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
     }
 }
 
