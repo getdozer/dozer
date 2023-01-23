@@ -11,7 +11,7 @@ use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{
     FieldDefinition, FieldType, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
-    SchemaWithChangesType,
+    SchemaWithChangesType, SourceDefinition,
 };
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
@@ -131,6 +131,7 @@ impl SchemaRegistry {
                                                 name,
                                                 typ,
                                                 nullable,
+                                                source: SourceDefinition::Dynamic,
                                             })
                                         })
                                         .collect();

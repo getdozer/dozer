@@ -7,7 +7,7 @@ use crate::dag::node::{
     SinkFactory, Source, SourceFactory,
 };
 
-use dozer_types::types::{FieldDefinition, FieldType, Schema};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
 
 use crate::dag::tests::app::NoneContext;
@@ -32,15 +32,30 @@ impl SourceFactory<NoneContext> for TestUsersSourceFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new("user_id".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "user_id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .field(
-                    FieldDefinition::new("username".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "username".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .field(
-                    FieldDefinition::new("country_id".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "country_id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .clone(),
@@ -81,11 +96,21 @@ impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new("country_id".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "country_id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .field(
-                    FieldDefinition::new("country_name".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "country_name".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .clone(),

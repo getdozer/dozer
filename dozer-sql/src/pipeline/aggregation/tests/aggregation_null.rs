@@ -9,7 +9,9 @@ use crate::pipeline::tests::utils::get_select;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;
 use dozer_types::types::FieldType::Int;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 use std::collections::HashMap;
 
 #[test]
@@ -96,11 +98,21 @@ fn test_sum_aggregation_del_and_insert() {
 fn test_aggregation_alias() {
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new(String::from("ID"), FieldType::Int, false),
+            FieldDefinition::new(
+                String::from("ID"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("Salary"), FieldType::Int, false),
+            FieldDefinition::new(
+                String::from("Salary"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();
@@ -122,11 +134,21 @@ fn test_aggregation_alias() {
         out_schema,
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("ID"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("ID"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic
+                ),
                 true,
             )
             .field(
-                FieldDefinition::new(String::from("Salaries"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("Salaries"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic
+                ),
                 false,
             )
             .clone()

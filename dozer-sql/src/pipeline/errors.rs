@@ -51,6 +51,8 @@ pub enum PipelineError {
     DataTypeMismatch,
     #[error("Invalid argument for function {0}(): argument: {1}, index: {2}")]
     InvalidFunctionArgument(String, Field, usize),
+    #[error("Too many arguments for function {0}()")]
+    TooManyArguments(String),
     #[error("Not enough arguments for function {0}()")]
     NotEnoughArguments(String),
     #[error(
@@ -59,6 +61,8 @@ pub enum PipelineError {
     InvalidFunctionArgumentType(String, FieldType, FieldTypes, usize),
     #[error("Invalid cast: from: {from}, to: {to}")]
     InvalidCast { from: Field, to: FieldType },
+    #[error("{0}() is invoked from another aggregation function. Nesting of aggregation functions is not possible.")]
+    InvalidNestedAggregationFunction(String),
 
     // Error forwarding
     #[error(transparent)]

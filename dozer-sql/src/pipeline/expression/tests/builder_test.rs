@@ -1,4 +1,4 @@
-use dozer_types::types::{FieldDefinition, FieldType, Schema};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use sqlparser::ast::Ident;
 
 use crate::pipeline::expression::builder::{compare_name, get_field_index};
@@ -53,15 +53,30 @@ fn test_compare_name() {
 fn test_get_field_index() {
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new(String::from("id"), FieldType::Int, false),
+            FieldDefinition::new(
+                String::from("id"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             true,
         )
         .field(
-            FieldDefinition::new(String::from("name"), FieldType::String, false),
+            FieldDefinition::new(
+                String::from("name"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("table.value"), FieldType::String, false),
+            FieldDefinition::new(
+                String::from("table.value"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();
@@ -80,15 +95,30 @@ fn test_get_field_index() {
 
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new(String::from("id"), FieldType::Int, false),
+            FieldDefinition::new(
+                String::from("id"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             true,
         )
         .field(
-            FieldDefinition::new(String::from("table_a.name"), FieldType::String, false),
+            FieldDefinition::new(
+                String::from("table_a.name"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("table_b.name"), FieldType::String, false),
+            FieldDefinition::new(
+                String::from("table_b.name"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();

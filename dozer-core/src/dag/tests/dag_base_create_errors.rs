@@ -12,7 +12,7 @@ use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
-use dozer_types::types::{FieldDefinition, FieldType, Schema};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -40,7 +40,12 @@ impl SourceFactory<NoneContext> for CreateErrSourceFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new("id".to_string(), FieldType::Int, false),
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::Int,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .clone(),
@@ -190,7 +195,12 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new("id".to_string(), FieldType::Int, false),
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::Int,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .clone(),

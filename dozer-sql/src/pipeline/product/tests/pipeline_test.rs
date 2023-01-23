@@ -12,7 +12,9 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -65,19 +67,39 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             Ok((
                 Schema::empty()
                     .field(
-                        FieldDefinition::new(String::from("id"), FieldType::Int, false),
+                        FieldDefinition::new(
+                            String::from("id"),
+                            FieldType::Int,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
                         true,
                     )
                     .field(
-                        FieldDefinition::new(String::from("name"), FieldType::String, false),
+                        FieldDefinition::new(
+                            String::from("name"),
+                            FieldType::String,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
                         false,
                     )
                     .field(
-                        FieldDefinition::new(String::from("department_id"), FieldType::Int, false),
+                        FieldDefinition::new(
+                            String::from("department_id"),
+                            FieldType::Int,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
                         false,
                     )
                     .field(
-                        FieldDefinition::new(String::from("salary"), FieldType::Float, false),
+                        FieldDefinition::new(
+                            String::from("salary"),
+                            FieldType::Float,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
                         false,
                     )
                     .clone(),
@@ -87,11 +109,21 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             Ok((
                 Schema::empty()
                     .field(
-                        FieldDefinition::new(String::from("id"), FieldType::Int, false),
+                        FieldDefinition::new(
+                            String::from("id"),
+                            FieldType::Int,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
                         true,
                     )
                     .field(
-                        FieldDefinition::new(String::from("name"), FieldType::String, false),
+                        FieldDefinition::new(
+                            String::from("name"),
+                            FieldType::String,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
                         false,
                     )
                     .clone(),
