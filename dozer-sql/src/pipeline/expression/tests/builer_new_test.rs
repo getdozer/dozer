@@ -1,6 +1,6 @@
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::expression::builder_new::{
-    AggregationContext, AggregationMeasure, ExpressionBuilder,
+    AggregationMeasure, ExpressionBuilder, ExpressionContext,
 };
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::operator::BinaryOperatorType;
@@ -24,15 +24,20 @@ fn test_simple_function() {
         )
         .to_owned();
 
-    let mut aggr = AggregationContext::new();
+    let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut Some(aggr), &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
 
-    assert_eq!(&aggr, &AggregationContext { measures: vec![] });
+    assert_eq!(
+        context,
+        ExpressionContext {
+            aggrgeations: vec![]
+        }
+    );
     assert_eq!(
         e,
         Box::new(Expression::ScalarFunction {
@@ -55,18 +60,18 @@ fn test_simple_aggr_function() {
         )
         .to_owned();
 
-    let mut aggr = AggregationContext::new();
+    let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut Some(aggr), &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
 
     assert_eq!(
-        aggr,
-        AggregationContext {
-            measures: vec![AggregationMeasure {
+        context,
+        ExpressionContext {
+            aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
                 arg: Expression::Column { index: 0 }
             }]
@@ -89,18 +94,18 @@ fn test_2_nested_aggr_function() {
         )
         .to_owned();
 
-    let mut aggr = AggregationContext::new();
+    let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut Some(aggr), &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
 
     assert_eq!(
-        aggr,
-        AggregationContext {
-            measures: vec![AggregationMeasure {
+        context,
+        ExpressionContext {
+            aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
                 arg: Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
@@ -129,18 +134,18 @@ fn test_3_nested_aggr_function() {
         )
         .to_owned();
 
-    let mut aggr = AggregationContext::new();
+    let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut Some(aggr), &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
 
     assert_eq!(
-        aggr,
-        AggregationContext {
-            measures: vec![AggregationMeasure {
+        context,
+        ExpressionContext {
+            aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
                 arg: Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
@@ -175,18 +180,18 @@ fn test_3_nested_aggr_function_and_sum() {
         )
         .to_owned();
 
-    let mut aggr = AggregationContext::new();
+    let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut Some(aggr), &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
 
     assert_eq!(
-        aggr,
-        AggregationContext {
-            measures: vec![
+        context,
+        ExpressionContext {
+            aggrgeations: vec![
                 AggregationMeasure {
                     typ: Aggregator::Sum,
                     arg: Expression::ScalarFunction {

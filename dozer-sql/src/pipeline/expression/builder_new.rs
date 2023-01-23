@@ -39,33 +39,36 @@ impl AggregationMeasure {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct AggregationContext {
-    pub measures: Vec<AggregationMeasure>,
+pub struct ExpressionContext {
+    pub aggrgeations: Vec<AggregationMeasure>,
 }
 
-impl AggregationContext {
+impl ExpressionContext {
     pub fn new() -> Self {
         Self {
-            measures: Vec::new(),
+            aggrgeations: Vec::new(),
         }
     }
 }
 
 impl ExpressionBuilder {
     pub fn build(
-        aggr_context: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         sql_expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
         Ok(Self::parse_sql_expression(
-            aggr_context,
+            context,
+            parse_aggregations,
             sql_expression,
             schema,
         )?)
     }
 
     fn parse_sql_expression(
-        supports_aggregations: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
@@ -75,7 +78,8 @@ impl ExpressionBuilder {
                 trim_where,
                 trim_what,
             } => Self::parse_sql_trim_function(
-                supports_aggregations,
+                context,
+                parse_aggregations,
                 expr,
                 trim_where,
                 trim_what,
@@ -89,24 +93,29 @@ impl ExpressionBuilder {
                 parse_sql_string(s)
             }
             SqlExpr::UnaryOp { expr, op } => {
-                Self::parse_sql_unary_op(supports_aggregations, op, expr, schema)
+                Self::parse_sql_unary_op(context, parse_aggregations, op, expr, schema)
             }
             SqlExpr::BinaryOp { left, op, right } => {
-                Self::parse_sql_binary_op(supports_aggregations, left, op, right, schema)
+                Self::parse_sql_binary_op(context, parse_aggregations, left, op, right, schema)
             }
             SqlExpr::Nested(expr) => {
-                Self::parse_sql_expression(supports_aggregations, expr, schema)
+                Self::parse_sql_expression(context, parse_aggregations, expr, schema)
             }
-            SqlExpr::Function(sql_function) => {
-                Self::parse_sql_function(supports_aggregations, sql_function, schema, expression)
-            }
+            SqlExpr::Function(sql_function) => Self::parse_sql_function(
+                context,
+                parse_aggregations,
+                sql_function,
+                schema,
+                expression,
+            ),
             SqlExpr::Like {
                 negated,
                 expr,
                 pattern,
                 escape_char,
             } => Self::parse_sql_like_operator(
-                supports_aggregations,
+                context,
+                parse_aggregations,
                 negated,
                 expr,
                 pattern,
@@ -114,7 +123,7 @@ impl ExpressionBuilder {
                 schema,
             ),
             SqlExpr::Cast { expr, data_type } => {
-                Self::parse_sql_cast_operator(supports_aggregations, expr, data_type, schema)
+                Self::parse_sql_cast_operator(context, parse_aggregations, expr, data_type, schema)
             }
             _ => Err(InvalidExpression(format!("{:?}", expression))),
         }
@@ -131,16 +140,18 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_trim_function(
-        supports_aggregations: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         expr: &Expr,
         trim_where: &Option<TrimWhereField>,
         trim_what: &Option<Box<Expr>>,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
-        let arg = Self::parse_sql_expression(supports_aggregations, expr, schema)?;
+        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
         let what = match trim_what {
             Some(e) => Some(Self::parse_sql_expression(
-                supports_aggregations,
+                context,
+                parse_aggregations,
                 e,
                 schema,
             )?),
@@ -155,7 +166,8 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_function(
-        supports_aggregations: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -164,9 +176,9 @@ impl ExpressionBuilder {
 
         match (
             Self::is_aggregation_function(function_name.as_str()),
-            supports_aggregations,
+            parse_aggregations,
         ) {
-            (Some(aggr), Some(aggr_ctx)) => {
+            (Some(aggr), true) => {
                 if sql_function.args.len() > 1 {
                     return Err(InvalidExpression(format!(
                         "Function {}() can only take 1 argument. {} were passed.",
@@ -176,17 +188,26 @@ impl ExpressionBuilder {
                 }
                 let measure = AggregationMeasure::new(
                     aggr,
-                    *Self::parse_sql_function_arg(&mut None, &sql_function.args[0], schema)?,
+                    *Self::parse_sql_function_arg(context, false, &sql_function.args[0], schema)?,
                 );
-                aggr_ctx.measures.push(measure);
+                context.aggrgeations.push(measure);
                 Ok(Box::new(Expression::Column {
-                    index: aggr_ctx.measures.len() - 1,
+                    index: context.aggrgeations.len() - 1,
                 }))
             }
-            (None, agg) => {
+            (Some(agg), false) => Err(InvalidExpression(format!(
+                "Aggregation function {}() cannot be nested within another aggregation function",
+                function_name
+            ))),
+            (None, _) => {
                 let mut function_args: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
-                    function_args.push(*Self::parse_sql_function_arg(agg, &arg, schema)?);
+                    function_args.push(*Self::parse_sql_function_arg(
+                        context,
+                        parse_aggregations,
+                        &arg,
+                        schema,
+                    )?);
                 }
                 let function_type = ScalarFunctionType::new(function_name.as_str())?;
 
@@ -195,10 +216,6 @@ impl ExpressionBuilder {
                     args: function_args,
                 }))
             }
-            (Some(agg), None) => Err(InvalidExpression(format!(
-                "Aggregation function {}() cannot be nested within another aggregation function",
-                function_name
-            ))),
         }
     }
 
@@ -210,7 +227,8 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_function_arg(
-        supports_aggregations: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         argument: &FunctionArg,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
@@ -218,13 +236,13 @@ impl ExpressionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Expr(arg),
-            } => Self::parse_sql_expression(supports_aggregations, arg, schema),
+            } => Self::parse_sql_expression(context, parse_aggregations, arg, schema),
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
             } => Err(InvalidArgument(format!("{:?}", argument))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
-                Self::parse_sql_expression(supports_aggregations, arg, schema)
+                Self::parse_sql_expression(context, parse_aggregations, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
                 Err(InvalidArgument(format!("{:?}", argument)))
@@ -234,12 +252,13 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_unary_op(
-        supports_aggregations: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
-        let arg = Self::parse_sql_expression(supports_aggregations, expr, schema)?;
+        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
         let operator = match op {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
@@ -251,14 +270,15 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_binary_op(
-        supports_aggregations: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         left: &SqlExpr,
         op: &SqlBinaryOperator,
         right: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
-        let left_op = Self::parse_sql_expression(supports_aggregations, left, schema)?;
-        let right_op = Self::parse_sql_expression(supports_aggregations, right, schema)?;
+        let left_op = Self::parse_sql_expression(context, parse_aggregations, left, schema)?;
+        let right_op = Self::parse_sql_expression(context, parse_aggregations, right, schema)?;
 
         let operator = match op {
             SqlBinaryOperator::Gt => BinaryOperatorType::Gt,
@@ -298,15 +318,16 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_like_operator(
-        supports_aggregations: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         negated: &bool,
         expr: &Expr,
         pattern: &Expr,
         escape_char: &Option<char>,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
-        let arg = Self::parse_sql_expression(supports_aggregations, expr, schema)?;
-        let pattern = Self::parse_sql_expression(supports_aggregations, pattern, schema)?;
+        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
+        let pattern = Self::parse_sql_expression(context, parse_aggregations, pattern, schema)?;
         let like_expression = Box::new(Expression::Like {
             arg: arg,
             pattern: pattern,
@@ -323,12 +344,13 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_cast_operator(
-        supports_aggregations: &mut Option<AggregationContext>,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         expr: &Expr,
         data_type: &DataType,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
-        let expression = Self::parse_sql_expression(supports_aggregations, expr, schema)?;
+        let expression = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
         let cast_to = match data_type {
             DataType::Decimal(_) => CastOperatorType::Decimal,
             DataType::Binary(_) => CastOperatorType::Binary,
