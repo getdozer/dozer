@@ -94,11 +94,9 @@ impl SchemaHelper {
                 let table_name: String = row.get(0);
                 let column_name: String = row.get(1);
 
-                tables_columns_map
-                    .get(&table_name)
-                    .map_or(true, |columns|
-                        columns.is_empty() || columns.contains(&column_name)
-                    )
+                tables_columns_map.get(&table_name).map_or(true, |columns| {
+                    columns.is_empty() || columns.contains(&column_name)
+                })
             })
             .map(|r| self.convert_row(r))
             .try_for_each(|row| -> Result<(), PostgresSchemaError> {
