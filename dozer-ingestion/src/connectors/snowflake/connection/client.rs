@@ -94,17 +94,19 @@ pub fn convert_data(
             {
                 None => Ok(Field::Null),
                 Some(value) => {
-                    let date = NaiveDate::from_ymd(
+                    let date = NaiveDate::from_ymd_opt(
                         value.year as i32,
                         value.month as u32,
                         value.day as u32,
-                    );
-                    let time = NaiveTime::from_hms_nano(
+                    )
+                    .unwrap();
+                    let time = NaiveTime::from_hms_nano_opt(
                         value.hour as u32,
                         value.minute as u32,
                         value.second as u32,
                         value.fraction,
-                    );
+                    )
+                    .unwrap();
                     Ok(Field::from(NaiveDateTime::new(date, time)))
                 }
             }
