@@ -96,7 +96,9 @@ impl SchemaHelper {
 
                 tables_columns_map
                     .get(&table_name)
-                    .map_or(true, |table_info| table_info.contains(&column_name))
+                    .map_or(true, |columns|
+                        columns.is_empty() || columns.contains(&column_name)
+                    )
             })
             .map(|r| self.convert_row(r))
             .try_for_each(|row| -> Result<(), PostgresSchemaError> {
