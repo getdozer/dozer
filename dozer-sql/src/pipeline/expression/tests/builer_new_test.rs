@@ -221,3 +221,23 @@ fn test_3_nested_aggr_function_and_sum() {
         })
     );
 }
+
+#[test]
+#[should_panic]
+fn test_wrong_nested_aggregations() {
+    let sql = "SELECT SUM(SUM(field0)) FROM t0";
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new("field0".to_string(), FieldType::Float, false),
+            false,
+        )
+        .to_owned();
+
+    let mut context = ExpressionContext::new();
+    let e = match &get_select(sql).unwrap().projection[0] {
+        SelectItem::UnnamedExpr(e) => {
+            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
+        }
+        _ => panic!("Invalid expr"),
+    };
+}
