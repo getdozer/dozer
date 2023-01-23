@@ -8,7 +8,7 @@ use crate::pipeline::errors::PipelineError;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::{Field, FieldType};
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Aggregator {

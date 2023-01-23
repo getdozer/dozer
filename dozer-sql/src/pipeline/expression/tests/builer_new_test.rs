@@ -2,12 +2,12 @@ use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::expression::builder_new::{
     AggregationMeasure, ExpressionBuilder, ExpressionContext,
 };
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::tests::utils::get_select;
-use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
+
+use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use sqlparser::ast::SelectItem;
 
 #[test]
@@ -37,7 +37,7 @@ fn test_simple_function() {
     let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
@@ -78,7 +78,7 @@ fn test_simple_aggr_function() {
     let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
@@ -122,7 +122,7 @@ fn test_2_nested_aggr_function() {
     let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
@@ -172,7 +172,7 @@ fn test_3_nested_aggr_function() {
     let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
@@ -228,7 +228,7 @@ fn test_3_nested_aggr_function_and_sum() {
     let mut context = ExpressionContext::new();
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };
@@ -284,9 +284,9 @@ fn test_wrong_nested_aggregations() {
         .to_owned();
 
     let mut context = ExpressionContext::new();
-    let e = match &get_select(sql).unwrap().projection[0] {
+    let _e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
-            ExpressionBuilder::build(&mut context, true, &e, &schema).unwrap()
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
         }
         _ => panic!("Invalid expr"),
     };

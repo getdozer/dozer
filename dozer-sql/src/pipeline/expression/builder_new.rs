@@ -1,10 +1,9 @@
-use std::cmp;
-use std::collections::HashSet;
-
+#![allow(dead_code)]
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, Schema},
 };
+use std::cmp;
 
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use sqlparser::ast::{
@@ -17,7 +16,7 @@ use crate::pipeline::errors::PipelineError::{
     InvalidValue, TooManyArguments,
 };
 use crate::pipeline::errors::{JoinError, PipelineError};
-use crate::pipeline::expression::aggregate::AggregateFunctionType;
+
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -59,12 +58,7 @@ impl ExpressionBuilder {
         sql_expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
-        Ok(Self::parse_sql_expression(
-            context,
-            parse_aggregations,
-            sql_expression,
-            schema,
-        )?)
+        Self::parse_sql_expression(context, parse_aggregations, sql_expression, schema)
     }
 
     fn parse_sql_expression(
@@ -171,7 +165,7 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
-        expression: &SqlExpr,
+        _expression: &SqlExpr,
     ) -> Result<Box<Expression>, PipelineError> {
         let function_name = sql_function.name.to_string().to_lowercase();
 
@@ -197,14 +191,14 @@ impl ExpressionBuilder {
                 }
                 _ => Err(TooManyArguments(function_name.clone())),
             },
-            (Some(agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
+            (Some(_agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
             (None, _) => {
                 let mut function_args: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
                     function_args.push(*Self::parse_sql_function_arg(
                         context,
                         parse_aggregations,
-                        &arg,
+                        arg,
                         schema,
                     )?);
                 }
@@ -332,8 +326,8 @@ impl ExpressionBuilder {
         let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
         let pattern = Self::parse_sql_expression(context, parse_aggregations, pattern, schema)?;
         let like_expression = Box::new(Expression::Like {
-            arg: arg,
-            pattern: pattern,
+            arg,
+            pattern,
             escape: *escape_char,
         });
         if *negated {
@@ -382,10 +376,10 @@ impl ExpressionBuilder {
                 data_type
             )))?,
         };
-        Ok((Box::new(Expression::Cast {
+        Ok(Box::new(Expression::Cast {
             arg: expression,
             typ: cast_to,
-        })))
+        }))
     }
 }
 
