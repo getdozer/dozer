@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
-use super::expression::builder::{fullname_from_ident, normalize_ident};
+use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
 
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
@@ -33,9 +33,6 @@ pub struct IndexedTabelWithJoins {
     pub relation: (NameOrAlias, TableFactor),
     pub joins: Vec<(NameOrAlias, Join)>,
 }
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct NameOrAlias(pub String, pub Option<String>);
 
 pub fn statement_to_pipeline(
     sql: &str,
