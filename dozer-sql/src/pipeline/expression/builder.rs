@@ -82,7 +82,7 @@ impl ExpressionBuilder {
             )),
             SqlExpr::CompoundIdentifier(ident) => Ok((
                 Box::new(Expression::Column {
-                    index: get_field_idx(&&ConstraintIdentifier::Compound(ident.clone()), schema)?,
+                    index: get_field_idx(&ConstraintIdentifier::Compound(ident.clone()), schema)?,
                 }),
                 false,
             )),
@@ -538,10 +538,10 @@ pub fn get_field_idx(
             dozer_types::types::SourceDefinition::Table {
                 connection: _,
                 name,
-            } => name == table_ident.value.to_string(),
+            } => name == table_ident.value,
             dozer_types::types::SourceDefinition::Alias { name } => {
                 println!("{:?} {:?} {:?}", name, fd.name, table_ident.value);
-                name == table_ident.value.to_string()
+                name == table_ident.value
             }
             dozer_types::types::SourceDefinition::Dynamic => false,
         }

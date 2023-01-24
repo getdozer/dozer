@@ -203,7 +203,7 @@ fn parse_join_constraint(
 }
 
 fn parse_join_eq_expression(
-    expr: &Box<Expr>,
+    expr: &Expr,
     left_join_table: &JoinTable,
     right_join_table: &JoinTable,
 ) -> Result<(Vec<usize>, Vec<usize>), JoinError> {
