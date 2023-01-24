@@ -30,8 +30,57 @@ pub struct JoinOperator {
     right_source: Box<dyn JoinExecutor>,
 
     // Lookup indexes
-    pub left_join_index: Option<Database>,
-    pub right_join_index: Option<Database>,
+    left_index: Database,
+    right_index: Database,
+}
+
+impl JoinOperator {
+    pub fn new(
+        operator: JoinOperatorType,
+        constraints: Vec<JoinConstraint>,
+        left_source: Box<dyn JoinExecutor>,
+        right_source: Box<dyn JoinExecutor>,
+        left_index: Database,
+        right_index: Database,
+    ) -> Self {
+        Self {
+            operator,
+            constraints,
+            left_source,
+            right_source,
+            left_index,
+            right_index,
+        }
+    }
+
+    pub fn update_indexes_insert(
+        &self,
+        from_port: PortHandle,
+        record: &Record,
+        transaction: &SharedTransaction,
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    pub fn insert_index(
+        &self,
+        from_left: bool,
+        key: &[u8],
+        value: &[u8],
+        transaction: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        let db = if from_left {
+            self.left_index
+        } else {
+            self.right_index
+        };
+
+        let mut exclusive_transaction = transaction.write();
+        exclusive_transaction.put(db, key, value)?;
+
+        Ok(())
+    }
 }
 
 trait JoinExecutor {
