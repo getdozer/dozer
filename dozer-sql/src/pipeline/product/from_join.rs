@@ -7,6 +7,7 @@ use dozer_core::{
 use dozer_types::types::Record;
 use lmdb::Database;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinOperatorType {
     Inner,
     LeftOuter,
@@ -14,13 +15,10 @@ pub enum JoinOperatorType {
     FullOuter,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JoinConstraint {
     pub left_key_index: usize,
     pub right_key_index: usize,
-}
-
-trait RecordProducer {
-    fn produce(&self, record: &Record) -> Result<Vec<Record>, ExecutionError>;
 }
 
 pub struct JoinOperator {
@@ -57,6 +55,12 @@ impl JoinExecutor for PortHandle {
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let port = self;
+
+        // if the source port is the same as the port of the incoming message, return the record
+        if *port == from_port {
+            return Ok(vec![*record]);
+        }
+
         let mut result_records = vec![];
 
         let reader = readers
@@ -84,17 +88,15 @@ impl JoinExecutor for JoinOperator {
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
-        let left_join_keys = self.get_left_join_keys(lookup_keys);
-        let left_lookup_keys = self.get_left_lookup_keys(left_join_keys);
+        let left_lookup_keys = self.get_lookup_keys(lookup_keys, left_join_index);
         let left_records =
             self.left_source
                 .insert(from_port, record, left_lookup_keys, transaction, readers)?;
 
-        let right_join_keys = self.get_right_join_keys(lookup_keys);
-        let right_lookup_keys = self.get_right_lookup_keys(right_join_keys);
+        let right_lookup_keys = self.get_lookup_keys(lookup_keys, left_join_index);
         let right_records =
             self.right_source
-                .insert(from_port, record, lookup_keys, transaction, readers);
+                .insert(from_port, record, right_lookup_keys, transaction, readers);
         let result_records = join(left_records, right_records);
         Ok(result_records)
     }
