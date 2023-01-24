@@ -1,15 +1,22 @@
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
 
 use dozer_core::dag::{
     dag::DEFAULT_PORT_HANDLE,
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
-use dozer_types::types::Schema;
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint};
+use dozer_types::types::{Schema, SourceDefinition};
+use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, JoinConstraint};
 
-use crate::pipeline::builder::{get_input_names, IndexedTabelWithJoins, NameOrAlias};
-use crate::pipeline::{builder::SchemaSQLContext, errors::JoinError};
+use crate::pipeline::{
+    builder::SchemaSQLContext,
+    errors::JoinError,
+    expression::builder::{get_field_idx, ConstraintIdentifier},
+};
+use crate::pipeline::{
+    builder::{get_input_names, IndexedTabelWithJoins},
+    expression::builder::NameOrAlias,
+};
 use sqlparser::ast::Expr;
 
 use super::{
@@ -195,22 +202,8 @@ fn parse_join_constraint(
     }
 }
 
-enum ConstraintIdentifier {
-    Single(Ident),
-    Compound(Vec<Ident>),
-}
-
-impl Display for ConstraintIdentifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConstraintIdentifier::Single(ident) => f.write_fmt(format_args!("{}", ident)),
-            ConstraintIdentifier::Compound(ident) => f.write_fmt(format_args!("{:?}", ident)),
-        }
-    }
-}
-
 fn parse_join_eq_expression(
-    expr: &Box<Expr>,
+    expr: &Expr,
     left_join_table: &JoinTable,
     right_join_table: &JoinTable,
 ) -> Result<(Vec<usize>, Vec<usize>), JoinError> {
@@ -251,65 +244,17 @@ fn parse_identifier(
         }
     };
 
-    let left_idx = get_field_idx(ident, left_join_table)?;
-    let right_idx = get_field_idx(ident, right_join_table)?;
+    let left_idx = get_field_idx(ident, &left_join_table.schema);
+    let right_idx = get_field_idx(ident, &right_join_table.schema);
 
     match (left_idx, right_idx) {
-        (Some(idx), None) => Ok((Some(idx), None)),
-        (None, Some(idx)) => Ok((None, Some(idx))),
-        (None, None) => Err(JoinError::InvalidFieldSpecified(ident.to_string())),
-        (Some(_), Some(_)) => match is_compound(ident) {
+        (Ok(_), Ok(_)) => match is_compound(ident) {
             true => Err(JoinError::InvalidJoinConstraint(ident.to_string())),
             false => Err(JoinError::AmbiguousField(ident.to_string())),
         },
-    }
-}
-
-fn get_field_idx(
-    ident: &ConstraintIdentifier,
-    join_table: &JoinTable,
-) -> Result<Option<usize>, JoinError> {
-    let get_field_idx = |ident: &Ident, schema: &Schema| -> Option<usize> {
-        schema
-            .fields
-            .iter()
-            .enumerate()
-            .find(|(_, f)| f.name == ident.value)
-            .map(|t| t.0)
-    };
-
-    let tables_matches = |table_ident: &Ident| -> bool {
-        join_table.name.0 == table_ident.value
-            || join_table
-                .name
-                .1
-                .as_ref()
-                .map_or(false, |a| *a == table_ident.value)
-    };
-
-    match ident {
-        ConstraintIdentifier::Single(ident) => Ok(get_field_idx(ident, &join_table.schema)),
-        ConstraintIdentifier::Compound(comp_ident) => {
-            if comp_ident.len() > 2 {
-                return Err(JoinError::NameSpaceTooLong(
-                    comp_ident
-                        .iter()
-                        .map(|a| a.value.clone())
-                        .collect::<Vec<String>>()
-                        .join("."),
-                ));
-            }
-            let table_name = comp_ident.first().expect("table_name is expected");
-            let field_name = comp_ident.last().expect("field_name is expected");
-
-            let table_match = tables_matches(table_name);
-            let field_idx = get_field_idx(field_name, &join_table.schema);
-
-            match (field_idx, table_match) {
-                (Some(idx), true) => Ok(Some(idx)),
-                (_, _) => Ok(None),
-            }
-        }
+        (Ok(idx), Err(_)) => Ok((Some(idx), None)),
+        (Err(_), Ok(idx)) => Ok((None, Some(idx))),
+        (Err(_), Err(_)) => Err(JoinError::InvalidFieldSpecified(ident.to_string())),
     }
 }
 
@@ -319,10 +264,12 @@ fn append_schema(
     current_schema: &Schema,
 ) -> Schema {
     for mut field in current_schema.clone().fields.into_iter() {
-        let mut name = table.1.as_ref().map_or(table.0.clone(), |a| a.to_string());
-        name.push('.');
-        name.push_str(&field.name);
-        field.name = name;
+        if let Some(alias) = &table.1 {
+            field.source = SourceDefinition::Alias {
+                name: alias.to_string(),
+            };
+        }
+
         output_schema.fields.push(field);
     }
 

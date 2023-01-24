@@ -64,6 +64,9 @@ pub enum PipelineError {
     #[error("{0}() is invoked from another aggregation function. Nesting of aggregation functions is not possible.")]
     InvalidNestedAggregationFunction(String),
 
+    #[error("Currently join supports two level of namespacing. For example, `connection1.field1` is valid, but `connection1.n1.field1` is not.")]
+    NameSpaceTooLong(String),
+
     // Error forwarding
     #[error(transparent)]
     InternalStorageError(#[from] StorageError),

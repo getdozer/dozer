@@ -9,7 +9,7 @@ use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::Prefi
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Record, Schema};
 
-use crate::pipeline::builder::NameOrAlias;
+use crate::pipeline::expression::builder::NameOrAlias;
 
 const REVERSE_JOIN_FLAG: u32 = 0x80000000;
 
