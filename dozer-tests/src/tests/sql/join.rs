@@ -49,7 +49,27 @@ fn join_alias_query() {
 }
 
 #[test]
-#[ignore = "CTE alias currently not supported with JOIN"]
+#[ignore = "Multiple joins dont work yet"]
+fn multi_join_query() {
+    let queries = vec![
+        r#" 
+        
+        SELECT a.actor_id, first_name, last_name from actor a 
+        JOIN film_actor fa on fa.actor_id = a.actor_id
+        JOIN film f on f.film_id = fa.film_id;
+      "#,
+    ];
+
+    let table_names = vec!["actor", "film_actor", "film"];
+    helper::compare_with_sqlite(
+        &table_names,
+        queries,
+        TestInstruction::FromCsv("actor", table_names.clone()),
+    );
+}
+
+#[test]
+#[ignore = "CTE alias currently not supported with JOIN. Aggregation needs stateful ports and this is currently failing"]
 fn join_cte_query() {
     let queries = vec![
         r#" 
