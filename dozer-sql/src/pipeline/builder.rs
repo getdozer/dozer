@@ -20,14 +20,7 @@ use super::errors::UnsupportedSqlError;
 use super::expression::builder::{fullname_from_ident, normalize_ident};
 
 #[derive(Debug, Clone, Default)]
-pub struct SchemaSQLContext {
-    pub field_contexts: HashMap<String, FieldContext>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FieldContext {
-    pub source: Option<NameOrAlias>,
-}
+pub struct SchemaSQLContext {}
 
 /// The struct contains some contexts during query to pipeline.
 #[derive(Debug, Clone, Default)]

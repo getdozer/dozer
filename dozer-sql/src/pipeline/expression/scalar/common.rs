@@ -38,12 +38,20 @@ pub(crate) fn get_scalar_function_type(
 ) -> Result<ExpressionType, PipelineError> {
     match function {
         ScalarFunctionType::Abs => argv!(args, 0, ScalarFunctionType::Abs)?.get_type(schema),
-        ScalarFunctionType::Round => Ok(ExpressionType::new(FieldType::Int, true)),
+        ScalarFunctionType::Round => Ok(ExpressionType::new(
+            FieldType::Int,
+            true,
+            dozer_types::types::SourceDefinition::Dynamic,
+        )),
         ScalarFunctionType::Ucase => {
             validate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, schema)
         }
         ScalarFunctionType::Concat => validate_concat(args, schema),
-        ScalarFunctionType::Length => Ok(ExpressionType::new(FieldType::UInt, false)),
+        ScalarFunctionType::Length => Ok(ExpressionType::new(
+            FieldType::UInt,
+            false,
+            dozer_types::types::SourceDefinition::Dynamic,
+        )),
     }
 }
 

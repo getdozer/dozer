@@ -251,6 +251,7 @@ impl CastOperatorType {
         Ok(ExpressionType {
             return_type,
             nullable: expression_type.nullable,
+            source: expression_type.source,
         })
     }
 }
