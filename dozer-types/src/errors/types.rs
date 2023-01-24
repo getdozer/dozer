@@ -46,4 +46,6 @@ pub enum DeserializationError {
     BadDateFormat(#[from] chrono::ParseError),
     #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
+    #[error("DateTime conversion error: {0}")]
+    DateTime(String),
 }
