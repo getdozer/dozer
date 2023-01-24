@@ -101,7 +101,7 @@ pub fn build_join_chain(
         Err(JoinError::InvalidJoinConstraint(
             join_tables.relation.0.clone().0,
         )),
-        |s| Ok(s),
+        Ok,
     )?;
 
     let mut left_join_table = JoinTable::from(&join_tables.relation.0, input_schema);
@@ -112,7 +112,7 @@ pub fn build_join_chain(
             Err(JoinError::InvalidJoinConstraint(
                 join_tables.relation.0.clone().0,
             )),
-            |s| Ok(s),
+            Ok,
         )?;
 
         let mut right_join_table = JoinTable::from(relation_name, input_schema);
@@ -223,7 +223,7 @@ fn parse_join_eq_expression(
             right_join_table,
         ),
         SqlExpr::CompoundIdentifier(ident) => parse_identifier(
-            &&ConstraintIdentifier::Compound(ident),
+            &ConstraintIdentifier::Compound(ident),
             left_join_table,
             right_join_table,
         ),
@@ -296,8 +296,7 @@ fn get_field_idx(
                         .iter()
                         .map(|a| a.value.clone())
                         .collect::<Vec<String>>()
-                        .join(".")
-                        .into(),
+                        .join("."),
                 ));
             }
             let table_name = comp_ident.first().expect("table_name is expected");

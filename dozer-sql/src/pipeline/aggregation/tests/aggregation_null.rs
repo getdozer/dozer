@@ -88,9 +88,9 @@ fn test_sum_aggregation_del_and_insert() {
         -------------
         COUNT = 1
     */
-    let mut inp = insert_field(ITALY, FIELD_100_INT);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_1_INT)];
+    let inp = insert_field(ITALY, FIELD_100_INT);
+    let out = output!(processor, inp, tx);
+    let exp = vec![insert_exp(ITALY, FIELD_1_INT)];
     assert_eq!(out, exp);
 }
 
