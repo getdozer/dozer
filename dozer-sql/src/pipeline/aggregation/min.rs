@@ -1,11 +1,7 @@
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
-use crate::{
-    deserialize_u8, field_extract_date, field_extract_decimal, field_extract_f64,
-    field_extract_i64, field_extract_timestamp, field_extract_u64, to_bytes, try_unwrap,
-};
-
+use crate::{deserialize_u8, to_bytes, try_unwrap};
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
@@ -48,7 +44,7 @@ impl MinAggregator {
         match (return_type, new) {
             (FieldType::Date, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_date!(&new, AGGREGATOR_NAME).to_string();
+                let new_val = &Field::to_date(new).unwrap().to_string();
                 Self::update_aggregator_db(new_val.as_bytes(), 1, false, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -65,7 +61,7 @@ impl MinAggregator {
             }
             (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
+                let new_val = &Field::to_decimal(new).unwrap().serialize();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -81,7 +77,7 @@ impl MinAggregator {
             }
             (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
+                let new_val = &OrderedFloat(Field::to_float(new).unwrap());
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
@@ -100,7 +96,7 @@ impl MinAggregator {
             }
             (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
+                let new_val = &Field::to_int(new).unwrap();
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -119,7 +115,7 @@ impl MinAggregator {
             }
             (FieldType::UInt, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_u64!(&new, AGGREGATOR_NAME);
+                let new_val = &Field::to_uint(new).unwrap();
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -138,7 +134,8 @@ impl MinAggregator {
             }
             (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_timestamp!(&new, AGGREGATOR_NAME)
+                let new_val = &Field::to_timestamp(new)
+                    .unwrap()
                     .timestamp_millis()
                     .to_be_bytes();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
@@ -174,9 +171,9 @@ impl MinAggregator {
         match (return_type, new) {
             (FieldType::Date, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_date!(&new, AGGREGATOR_NAME).to_string();
+                let new_val = &Field::to_date(new).unwrap().to_string();
                 Self::update_aggregator_db(new_val.as_bytes(), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_date!(&old, AGGREGATOR_NAME).to_string();
+                let old_val = &Field::to_date(old).unwrap().to_string();
                 Self::update_aggregator_db(old_val.as_bytes(), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -193,9 +190,9 @@ impl MinAggregator {
             }
             (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
+                let new_val = &Field::to_decimal(new).unwrap().serialize();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
+                let old_val = &Field::to_decimal(old).unwrap().serialize();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -211,9 +208,9 @@ impl MinAggregator {
             }
             (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
+                let new_val = &OrderedFloat(Field::to_float(new).unwrap());
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
+                let old_val = &OrderedFloat(Field::to_float(old).unwrap());
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -232,9 +229,9 @@ impl MinAggregator {
             }
             (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
+                let new_val = &Field::to_int(new).unwrap();
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
+                let old_val = &Field::to_int(old).unwrap();
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -253,9 +250,9 @@ impl MinAggregator {
             }
             (FieldType::UInt, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_u64!(&new, AGGREGATOR_NAME);
+                let new_val = &Field::to_uint(new).unwrap();
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_u64!(&old, AGGREGATOR_NAME);
+                let old_val = &Field::to_uint(old).unwrap();
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -274,11 +271,13 @@ impl MinAggregator {
             }
             (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_timestamp!(&new, AGGREGATOR_NAME)
+                let new_val = &Field::to_timestamp(new)
+                    .unwrap()
                     .timestamp_millis()
                     .to_be_bytes();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_timestamp!(&old, AGGREGATOR_NAME)
+                let old_val = &Field::to_timestamp(old)
+                    .unwrap()
                     .timestamp_millis()
                     .to_be_bytes();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
@@ -313,7 +312,7 @@ impl MinAggregator {
         match (return_type, old) {
             (FieldType::Date, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_date!(&old, AGGREGATOR_NAME).to_string();
+                let old_val = &Field::to_date(old).unwrap().to_string();
                 Self::update_aggregator_db(old_val.as_bytes(), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -330,7 +329,7 @@ impl MinAggregator {
             }
             (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
+                let old_val = &Field::to_decimal(old).unwrap().serialize();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -346,7 +345,7 @@ impl MinAggregator {
             }
             (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
+                let old_val = &OrderedFloat(Field::to_float(old).unwrap());
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -362,7 +361,7 @@ impl MinAggregator {
             }
             (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
+                let old_val = &Field::to_int(old).unwrap();
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -378,7 +377,7 @@ impl MinAggregator {
             }
             (FieldType::UInt, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_u64!(&old, AGGREGATOR_NAME);
+                let old_val = &Field::to_uint(old).unwrap();
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -394,7 +393,8 @@ impl MinAggregator {
             }
             (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_timestamp!(&old, AGGREGATOR_NAME)
+                let old_val = &Field::to_timestamp(old)
+                    .unwrap()
                     .timestamp_millis()
                     .to_be_bytes();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
