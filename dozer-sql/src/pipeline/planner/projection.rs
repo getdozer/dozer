@@ -1,8 +1,6 @@
-use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder_new::ExpressionBuilder;
-use crate::pipeline::expression::execution::Expression;
+#![allow(dead_code)]
+
 use dozer_types::types::Schema;
-use sqlparser::ast::SelectItem;
 
 enum FieldReferenceType {
     Alias(String),

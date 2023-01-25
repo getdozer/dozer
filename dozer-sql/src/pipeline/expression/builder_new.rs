@@ -3,8 +3,8 @@ use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, Schema},
 };
-use std::cmp;
-use std::process::id;
+
+
 
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use dozer_types::types::{FieldDefinition, SourceDefinition};
@@ -17,7 +17,7 @@ use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
     InvalidValue, TooManyArguments,
 };
-use crate::pipeline::errors::{JoinError, PipelineError};
+use crate::pipeline::errors::{PipelineError};
 
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
@@ -151,7 +151,7 @@ impl ExpressionBuilder {
             .fields
             .iter()
             .enumerate()
-            .filter(|(idx, f)| &f.name == src_field)
+            .filter(|(_idx, f)| &f.name == src_field)
             .collect();
 
         match matching_by_field.len() {
@@ -168,9 +168,9 @@ impl ExpressionBuilder {
                     let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> =
                         matching_by_field
                             .into_iter()
-                            .filter(|(idx, field)| match &field.source {
+                            .filter(|(_idx, field)| match &field.source {
                                 SourceDefinition::Alias { name } => name == src_table_or_alias,
-                                SourceDefinition::Table { name, connection } => {
+                                SourceDefinition::Table { name, connection: _ } => {
                                     name == src_table_or_alias
                                 }
                                 _ => false,
@@ -191,8 +191,8 @@ impl ExpressionBuilder {
                                 let matching_by_connection: Vec<(usize, &FieldDefinition)> =
                                     matching_by_table_or_alias
                                         .into_iter()
-                                        .filter(|(idx, field)| match &field.source {
-                                            SourceDefinition::Table { name, connection } => {
+                                        .filter(|(_idx, field)| match &field.source {
+                                            SourceDefinition::Table { name: _, connection } => {
                                                 connection == src_connection
                                             }
                                             _ => false,
