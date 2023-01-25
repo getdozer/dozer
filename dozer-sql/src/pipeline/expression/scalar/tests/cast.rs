@@ -1,3 +1,4 @@
+use dozer_types::types::SourceDefinition;
 use dozer_types::{
     chrono::{DateTime, NaiveDate, TimeZone, Utc},
     ordered_float::OrderedFloat,
@@ -52,7 +53,12 @@ fn test_int() {
         "SELECT CAST(field AS INT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -64,7 +70,12 @@ fn test_int() {
         "SELECT CAST(field AS INT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::String, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -76,7 +87,12 @@ fn test_int() {
         "SELECT CAST(field AS INT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::UInt, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -91,7 +107,12 @@ fn test_float() {
         "SELECT CAST(field AS FLOAT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Decimal, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Decimal,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -106,7 +127,12 @@ fn test_float() {
         "SELECT CAST(field AS FLOAT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Float, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Float,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -118,7 +144,12 @@ fn test_float() {
         "SELECT CAST(field AS FLOAT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -130,7 +161,12 @@ fn test_float() {
         "SELECT CAST(field AS FLOAT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::String, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -142,7 +178,12 @@ fn test_float() {
         "SELECT CAST(field AS FLOAT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::UInt, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -157,7 +198,12 @@ fn test_boolean() {
         "SELECT CAST(field AS BOOLEAN) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Boolean, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Boolean,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -169,7 +215,12 @@ fn test_boolean() {
         "SELECT CAST(field AS BOOLEAN) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Decimal, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Decimal,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -181,7 +232,12 @@ fn test_boolean() {
         "SELECT CAST(field AS BOOLEAN) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Decimal, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Decimal,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -193,7 +249,12 @@ fn test_boolean() {
         "SELECT CAST(field AS BOOLEAN) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Float, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Float,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -205,7 +266,12 @@ fn test_boolean() {
         "SELECT CAST(field AS BOOLEAN) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -217,7 +283,12 @@ fn test_boolean() {
         "SELECT CAST(field AS BOOLEAN) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::UInt, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -244,7 +315,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Boolean, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Boolean,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -256,7 +332,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Date, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Date,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -268,7 +349,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Decimal, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Decimal,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -280,7 +366,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Float, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Float,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -292,7 +383,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -304,7 +400,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::String, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -316,7 +417,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Text, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Text,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -328,7 +434,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Timestamp, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -342,7 +453,12 @@ fn test_string() {
         "SELECT CAST(field AS STRING) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::UInt, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -369,7 +485,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Boolean, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Boolean,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -381,7 +502,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Date, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Date,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -393,7 +519,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Decimal, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Decimal,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -405,7 +536,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Float, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Float,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -417,7 +553,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -429,7 +570,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::String, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -441,7 +587,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Text, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Text,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -453,7 +604,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::Timestamp, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),
@@ -467,7 +623,12 @@ fn test_text() {
         "SELECT CAST(field AS TEXT) FROM users",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("field"), FieldType::UInt, false),
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),

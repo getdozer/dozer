@@ -12,7 +12,9 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -21,7 +23,7 @@ use std::thread;
 use std::time::Duration;
 use tempdir::TempDir;
 
-use crate::pipeline::builder::statement_to_pipeline;
+use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
 const USER_PORT: u16 = 0 as PortHandle;
 const DEPARTMENT_PORT: u16 = 1 as PortHandle;
@@ -37,7 +39,7 @@ impl TestSourceFactory {
     }
 }
 
-impl SourceFactory for TestSourceFactory {
+impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
         Ok(vec![
             OutputPortDef::new(
@@ -57,37 +59,76 @@ impl SourceFactory for TestSourceFactory {
         ])
     }
 
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(
+        &self,
+        port: &PortHandle,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         if port == &USER_PORT {
-            Ok(Schema::empty()
-                .field(
-                    FieldDefinition::new(String::from("id"), FieldType::Int, false),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(String::from("name"), FieldType::String, false),
-                    false,
-                )
-                .field(
-                    FieldDefinition::new(String::from("department_id"), FieldType::Int, false),
-                    false,
-                )
-                .field(
-                    FieldDefinition::new(String::from("salary"), FieldType::Float, false),
-                    false,
-                )
-                .clone())
+            Ok((
+                Schema::empty()
+                    .field(
+                        FieldDefinition::new(
+                            String::from("id"),
+                            FieldType::Int,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        true,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("name"),
+                            FieldType::String,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        false,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("department_id"),
+                            FieldType::Int,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        false,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("salary"),
+                            FieldType::Float,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        false,
+                    )
+                    .clone(),
+                SchemaSQLContext::default(),
+            ))
         } else if port == &DEPARTMENT_PORT {
-            Ok(Schema::empty()
-                .field(
-                    FieldDefinition::new(String::from("id"), FieldType::Int, false),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(String::from("name"), FieldType::String, false),
-                    false,
-                )
-                .clone())
+            Ok((
+                Schema::empty()
+                    .field(
+                        FieldDefinition::new(
+                            String::from("id"),
+                            FieldType::Int,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        true,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("name"),
+                            FieldType::String,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        false,
+                    )
+                    .clone(),
+                SchemaSQLContext::default(),
+            ))
         } else {
             panic!("Invalid Port Handle {}", port);
         }
@@ -102,7 +143,10 @@ impl SourceFactory for TestSourceFactory {
         }))
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -318,14 +362,14 @@ impl TestSinkFactory {
     }
 }
 
-impl SinkFactory for TestSinkFactory {
+impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -341,7 +385,10 @@ impl SinkFactory for TestSinkFactory {
         }))
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -364,7 +411,7 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match _op {
             Operation::Delete { old } => info!("s: - {:?}", old.values),
@@ -395,7 +442,7 @@ impl Sink for TestSink {
 fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
-    let (mut pipeline, _) = statement_to_pipeline(
+    let (mut pipeline, (node, port)) = statement_to_pipeline(
         "SELECT  department.name, SUM(user.salary) \
         FROM user JOIN department ON user.department_id = department.id \
         GROUP BY department.name",
@@ -419,12 +466,7 @@ fn test_pipeline_builder() {
 
     pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
     pipeline
-        .connect_nodes(
-            "aggregation",
-            Some(DEFAULT_PORT_HANDLE),
-            "sink",
-            Some(DEFAULT_PORT_HANDLE),
-        )
+        .connect_nodes(&node, Some(port), "sink", Some(DEFAULT_PORT_HANDLE))
         .unwrap();
 
     let mut app = App::new(asm);

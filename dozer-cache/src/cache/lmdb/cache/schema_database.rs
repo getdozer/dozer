@@ -132,7 +132,7 @@ fn get_schema_reverse_key(name: &str) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::types::{FieldDefinition, FieldType};
+    use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 
     use crate::cache::{lmdb::utils::init_env, CacheOptions};
 
@@ -151,6 +151,7 @@ mod tests {
                 name: "id".to_string(),
                 typ: FieldType::UInt,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             }],
             primary_index: vec![0],
         };

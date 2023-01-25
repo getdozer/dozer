@@ -1,8 +1,9 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
-use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
+use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use std::collections::HashMap;
@@ -20,7 +21,7 @@ impl SourceBuilder {
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
         running: Arc<AtomicBool>,
-    ) -> Result<AppSourceManager, OrchestrationError> {
+    ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
@@ -29,42 +30,37 @@ impl SourceBuilder {
             let first_source = sources_group.get(0).unwrap();
 
             if let Some(connection) = &first_source.connection {
-                let grouped_connector_sources =
-                    get_connector_outputs(connection.clone(), sources_group.clone());
+                let mut ports = HashMap::new();
+                let mut tables = vec![];
+                for source in &sources_group {
+                    if used_sources.contains(&source.name) {
+                        ports.insert(source.name.clone(), port);
 
-                for same_connection_sources in grouped_connector_sources {
-                    let mut ports = HashMap::new();
-                    let mut tables = vec![];
-                    for source in same_connection_sources {
-                        if used_sources.contains(&source.name) {
-                            ports.insert(source.name.clone(), port);
+                        tables.push(TableInfo {
+                            name: source.name.clone(),
+                            table_name: source.table_name.clone(),
+                            id: port as u32,
+                            columns: Some(source.columns.clone()),
+                        });
 
-                            tables.push(TableInfo {
-                                name: source.name,
-                                table_name: source.table_name,
-                                id: port as u32,
-                                columns: Some(source.columns),
-                            });
-
-                            port += 1;
-                        }
+                        port += 1;
                     }
-
-                    let source_factory = ConnectorSourceFactory::new(
-                        Arc::clone(&ingestor),
-                        Arc::clone(&iterator),
-                        ports.clone(),
-                        tables,
-                        connection.clone(),
-                        running.clone(),
-                    );
-
-                    asm.add(AppSource::new(
-                        conn.clone(),
-                        Arc::new(source_factory),
-                        ports,
-                    ))?;
                 }
+
+                let source_factory = ConnectorSourceFactory::new(
+                    Arc::clone(&ingestor),
+                    Arc::clone(&iterator),
+                    ports.clone(),
+                    tables,
+                    connection.clone(),
+                    running.clone(),
+                );
+
+                asm.add(AppSource::new(
+                    conn.clone(),
+                    Arc::new(source_factory),
+                    ports,
+                ))?;
             }
         }
 
@@ -93,6 +89,7 @@ mod tests {
     use std::sync::Arc;
 
     use dozer_core::dag::appsource::{AppSourceId, AppSourceMappings};
+    use dozer_sql::pipeline::builder::SchemaSQLContext;
     use dozer_types::models::connection::{
         Authentication, Connection, DBType, EventsAuthentication,
     };
@@ -188,7 +185,7 @@ mod tests {
 
         let conn_name_1 = config.connections.get(0).unwrap().name.clone();
         let conn_name_2 = config.connections.get(1).unwrap().name.clone();
-        let pg_source_mapping: Vec<AppSourceMappings> = asm
+        let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![
                 AppSourceId::new(
                     config.sources.get(0).unwrap().table_name.clone(),
@@ -223,7 +220,7 @@ mod tests {
         )
         .unwrap();
 
-        let pg_source_mapping: Vec<AppSourceMappings> = asm
+        let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![AppSourceId::new(
                 config.sources.get(0).unwrap().table_name.clone(),
                 Some(conn_name.clone()),

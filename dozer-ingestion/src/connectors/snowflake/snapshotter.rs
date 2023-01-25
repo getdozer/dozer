@@ -20,6 +20,7 @@ impl Snapshotter {
         client: &Client,
         ingestor: &Arc<RwLock<Ingestor>>,
         table_name: String,
+        table_idx: usize,
     ) -> Result<(), ConnectorError> {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
@@ -46,7 +47,10 @@ impl Snapshotter {
                                 seq_no: 0,
                                 operation: Operation::Insert {
                                     new: Record {
-                                        schema_id: Some(SchemaIdentifier { id: 0, version: 1 }),
+                                        schema_id: Some(SchemaIdentifier {
+                                            id: table_idx as u32,
+                                            version: 1,
+                                        }),
                                         values: values
                                             .iter()
                                             .map(|v| match v {

@@ -196,6 +196,7 @@ pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, Postg
         name: column.name().to_string(),
         typ,
         nullable: true,
+        source: SourceDefinition::Dynamic,
     })
 }
 

@@ -32,19 +32,19 @@ impl Edge {
     }
 }
 
-pub enum NodeType {
-    Source(Arc<dyn SourceFactory>),
-    Processor(Arc<dyn ProcessorFactory>),
-    Sink(Arc<dyn SinkFactory>),
+pub enum NodeType<T: Clone> {
+    Source(Arc<dyn SourceFactory<T>>),
+    Processor(Arc<dyn ProcessorFactory<T>>),
+    Sink(Arc<dyn SinkFactory<T>>),
 }
 
-pub struct Node {
+pub struct Node<T: Clone> {
     handle: NodeHandle,
-    t: NodeType,
+    t: NodeType<T>,
 }
 
-pub struct Dag {
-    pub nodes: HashMap<NodeHandle, NodeType>,
+pub struct Dag<T: Clone> {
+    pub nodes: HashMap<NodeHandle, NodeType<T>>,
     pub edges: Vec<Edge>,
 }
 
@@ -54,13 +54,13 @@ pub enum PortDirection {
     Output,
 }
 
-impl Default for Dag {
+impl<T: Clone> Default for Dag<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Dag {
+impl<T: Clone> Dag<T> {
     pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
@@ -68,11 +68,15 @@ impl Dag {
         }
     }
 
-    pub fn add_node(&mut self, node_builder: NodeType, handle: NodeHandle) {
+    pub fn add_node(&mut self, node_builder: NodeType<T>, handle: NodeHandle) {
         self.nodes.insert(handle, node_builder);
     }
 
-    fn get_ports(&self, n: &NodeType, d: PortDirection) -> Result<Vec<PortHandle>, ExecutionError> {
+    fn get_ports(
+        &self,
+        n: &NodeType<T>,
+        d: PortDirection,
+    ) -> Result<Vec<PortHandle>, ExecutionError> {
         match n {
             NodeType::Processor(p) => {
                 if matches!(d, Output) {
@@ -123,7 +127,7 @@ impl Dag {
         Ok(())
     }
 
-    pub fn merge(&mut self, ns: Option<u16>, other: Dag) {
+    pub fn merge(&mut self, ns: Option<u16>, other: Dag<T>) {
         for (handle, node) in other.nodes {
             self.nodes.insert(
                 NodeHandle::new(
@@ -173,8 +177,8 @@ impl Dag {
             .collect()
     }
 
-    pub fn get_sources(&self) -> Vec<(NodeHandle, &Arc<dyn SourceFactory>)> {
-        let mut r: Vec<(NodeHandle, &Arc<dyn SourceFactory>)> = Vec::new();
+    pub fn get_sources(&self) -> Vec<(NodeHandle, &Arc<dyn SourceFactory<T>>)> {
+        let mut r: Vec<(NodeHandle, &Arc<dyn SourceFactory<T>>)> = Vec::new();
         for (handle, typ) in &self.nodes {
             if let NodeType::Source(s) = typ {
                 r.push((handle.clone(), s))
@@ -183,8 +187,8 @@ impl Dag {
         r
     }
 
-    pub fn get_processors(&self) -> Vec<(NodeHandle, &Arc<dyn ProcessorFactory>)> {
-        let mut r: Vec<(NodeHandle, &Arc<dyn ProcessorFactory>)> = Vec::new();
+    pub fn get_processors(&self) -> Vec<(NodeHandle, &Arc<dyn ProcessorFactory<T>>)> {
+        let mut r: Vec<(NodeHandle, &Arc<dyn ProcessorFactory<T>>)> = Vec::new();
         for (handle, typ) in &self.nodes {
             if let NodeType::Processor(s) = typ {
                 r.push((handle.clone(), s));
@@ -193,8 +197,8 @@ impl Dag {
         r
     }
 
-    pub fn get_sinks(&self) -> Vec<(NodeHandle, &Arc<dyn SinkFactory>)> {
-        let mut r: Vec<(NodeHandle, &Arc<dyn SinkFactory>)> = Vec::new();
+    pub fn get_sinks(&self) -> Vec<(NodeHandle, &Arc<dyn SinkFactory<T>>)> {
+        let mut r: Vec<(NodeHandle, &Arc<dyn SinkFactory<T>>)> = Vec::new();
         for (handle, typ) in &self.nodes {
             if let NodeType::Sink(s) = typ {
                 r.push((handle.clone(), s));

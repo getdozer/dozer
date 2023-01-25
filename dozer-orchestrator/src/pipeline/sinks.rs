@@ -14,11 +14,13 @@ use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::flags::Flags;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::hash_map::DefaultHasher;
@@ -47,7 +49,19 @@ pub fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
     );
     pb
 }
-
+#[derive(Debug, Clone)]
+pub struct CacheSinkSettings {
+    flags: Option<Flags>,
+    api_security: Option<ApiSecurity>,
+}
+impl CacheSinkSettings {
+    pub fn new(flags: Option<Flags>, api_security: Option<ApiSecurity>) -> Self {
+        Self {
+            flags,
+            api_security,
+        }
+    }
+}
 #[derive(Debug)]
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
@@ -55,8 +69,8 @@ pub struct CacheSinkFactory {
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineResponse>>,
     generated_path: PathBuf,
-    api_security: Option<ApiSecurity>,
     multi_pb: MultiProgress,
+    settings: CacheSinkSettings,
 }
 
 impl CacheSinkFactory {
@@ -66,8 +80,8 @@ impl CacheSinkFactory {
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
         generated_path: PathBuf,
-        api_security: Option<ApiSecurity>,
         multi_pb: MultiProgress,
+        settings: CacheSinkSettings,
     ) -> Self {
         Self {
             input_ports,
@@ -75,8 +89,8 @@ impl CacheSinkFactory {
             api_endpoint,
             notifier,
             generated_path,
-            api_security,
             multi_pb,
+            settings,
         }
     }
 
@@ -161,10 +175,10 @@ impl CacheSinkFactory {
     }
 }
 
-impl SinkFactory for CacheSinkFactory {
+impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -173,14 +187,17 @@ impl SinkFactory for CacheSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         use std::println as stdinfo;
         // Insert schemas into cache
         debug!(
             "SinkFactory: Initialising CacheSinkFactory: {}",
             self.api_endpoint.name
         );
-        for (_, schema) in input_schemas.iter() {
+        for (_, (schema, _ctx)) in input_schemas.iter() {
             stdinfo!(
                 "SINK: Initializing output schema: {}",
                 self.api_endpoint.name
@@ -218,7 +235,8 @@ impl SinkFactory for CacheSinkFactory {
                     endpoint: self.api_endpoint.to_owned(),
                 },
             },
-            &self.api_security,
+            &self.settings.api_security,
+            &self.settings.flags,
         )
         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
@@ -318,7 +336,7 @@ impl Sink for CacheSink {
         from_port: PortHandle,
         op: Operation,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
 

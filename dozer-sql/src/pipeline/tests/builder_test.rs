@@ -11,7 +11,9 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 
 use dozer_core::dag::epoch::Epoch;
 
@@ -22,7 +24,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
 
-use crate::pipeline::builder::statement_to_pipeline;
+use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
 /// Test Source
 #[derive(Debug)]
@@ -36,7 +38,7 @@ impl TestSourceFactory {
     }
 }
 
-impl SourceFactory for TestSourceFactory {
+impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
         Ok(self
             .output_ports
@@ -45,21 +47,42 @@ impl SourceFactory for TestSourceFactory {
             .collect())
     }
 
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
-                false,
-            )
-            .field(
-                FieldDefinition::new(String::from("Country"), FieldType::String, false),
-                false,
-            )
-            .field(
-                FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
-                false,
-            )
-            .clone())
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(
+                        String::from("CustomerID"),
+                        FieldType::Int,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    false,
+                )
+                .field(
+                    FieldDefinition::new(
+                        String::from("Country"),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    false,
+                )
+                .field(
+                    FieldDefinition::new(
+                        String::from("Spending"),
+                        FieldType::Float,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    false,
+                )
+                .clone(),
+            SchemaSQLContext::default(),
+        ))
     }
 
     fn build(
@@ -69,7 +92,10 @@ impl SourceFactory for TestSourceFactory {
         Ok(Box::new(TestSource {}))
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -117,14 +143,14 @@ impl TestSinkFactory {
     }
 }
 
-impl SinkFactory for TestSinkFactory {
+impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
 
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -136,7 +162,10 @@ impl SinkFactory for TestSinkFactory {
         Ok(Box::new(TestSink {}))
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -155,7 +184,7 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

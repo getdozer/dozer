@@ -5,11 +5,14 @@ use dozer_core::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, S
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -109,12 +112,38 @@ impl ConnectorSourceFactory {
     }
 }
 
-impl SourceFactory for ConnectorSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
-        self.schema_map.get(port).map_or(
-            Err(ExecutionError::PortNotFoundInSource(*port)),
-            |schema_name| Ok(schema_name.clone()),
-        )
+impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
+    fn get_output_schema(
+        &self,
+        port: &PortHandle,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+        let mut schema = self
+            .schema_map
+            .get(port)
+            .map_or(Err(ExecutionError::PortNotFoundInSource(*port)), |s| {
+                Ok(s.clone())
+            })?;
+
+        let table_name = self
+            .ports
+            .iter()
+            .find(|(_, p)| **p == *port)
+            .unwrap()
+            .0
+            .clone();
+        // Add source information to the schema.
+        let mut fields = vec![];
+        for field in schema.fields {
+            let mut f = field.clone();
+            f.source = SourceDefinition::Table {
+                connection: self.connection.name.clone(),
+                name: table_name.clone(),
+            };
+            fields.push(f);
+        }
+        schema.fields = fields;
+
+        Ok((schema, SchemaSQLContext::default()))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -134,7 +163,10 @@ impl SourceFactory for ConnectorSourceFactory {
             .collect()
     }
 
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         use std::println as info;
         for (port, schema) in output_schemas {
             let (name, _) = self
@@ -143,7 +175,7 @@ impl SourceFactory for ConnectorSourceFactory {
                 .find(|(_, p)| **p == port)
                 .map_or(Err(ExecutionError::PortNotFound(port.to_string())), Ok)?;
             info!("Source: Initializing input schema: {}", name);
-            schema.print().printstd();
+            schema.0.print().printstd();
         }
         Ok(())
     }

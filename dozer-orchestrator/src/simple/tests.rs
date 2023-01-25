@@ -18,11 +18,14 @@ use dozer_types::{
         self,
         api_endpoint::{ApiEndpoint, ApiIndex},
         connection::EventsAuthentication,
+        flags::Flags,
     },
     types::{Field, OperationEvent, Record, Schema},
 };
 use serde_json::{json, Value};
 use tempdir::TempDir;
+
+use crate::pipeline::CacheSinkSettings;
 
 use super::executor::Executor;
 
@@ -94,7 +97,8 @@ fn single_source_sink_impl(schema: Schema) {
             executor_running,
             tmp_path,
         );
-        match executor.run(None) {
+        let flags = Flags::default();
+        match executor.run(None, CacheSinkSettings::new(Some(flags), None)) {
             Ok(_) => {}
             Err(e) => warn!("Exiting: {:?}", e),
         }

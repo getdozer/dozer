@@ -13,11 +13,20 @@ use sqlparser::{
     dialect::AnsiDialect,
     parser::Parser,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
-use super::expression::builder::{fullname_from_ident, normalize_ident};
+use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
+
+#[derive(Debug, Clone, Default)]
+pub struct SchemaSQLContext {}
+
+/// The struct contains some contexts during query to pipeline.
+#[derive(Debug, Clone, Default)]
+pub struct QueryContext {
+    pub cte_names: HashSet<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct IndexedTabelWithJoins {
@@ -25,13 +34,11 @@ pub struct IndexedTabelWithJoins {
     pub joins: Vec<(NameOrAlias, Join)>,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct NameOrAlias(pub String, pub Option<String>);
-
 pub fn statement_to_pipeline(
     sql: &str,
-) -> Result<(AppPipeline, (String, PortHandle)), PipelineError> {
+) -> Result<(AppPipeline<SchemaSQLContext>, (String, PortHandle)), PipelineError> {
     let dialect = AnsiDialect {};
+    let mut ctx = QueryContext::default();
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
     let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
@@ -40,7 +47,14 @@ pub fn statement_to_pipeline(
     let mut pipeline = AppPipeline::new();
     let mut pipeline_map = HashMap::new();
     if let Statement::Query(query) = statement {
-        query_to_pipeline(&query_name, &query, &mut pipeline, &mut pipeline_map, false)?;
+        query_to_pipeline(
+            &query_name,
+            &query,
+            &mut pipeline,
+            &mut pipeline_map,
+            &mut ctx,
+            false,
+        )?;
     };
     let node = pipeline_map
         .get(&query_name.0)
@@ -52,10 +66,24 @@ pub fn statement_to_pipeline(
 fn query_to_pipeline(
     processor_name: &NameOrAlias,
     query: &Query,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+    query_ctx: &mut QueryContext,
     stateful: bool,
 ) -> Result<(), PipelineError> {
+    // return error if there is unsupported syntax
+    if !query.order_by.is_empty() {
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::OrderByError,
+        ));
+    }
+
+    if query.limit.is_some() || query.offset.is_some() {
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::LimitOffsetError,
+        ));
+    }
+
     // Attach the first pipeline if there is with clause
     if let Some(with) = &query.with {
         if with.recursive {
@@ -71,11 +99,18 @@ fn query_to_pipeline(
                 ));
             }
             let table_name = table.alias.name.to_string();
+            if query_ctx.cte_names.contains(&table_name) {
+                return Err(InvalidQuery(format!(
+                    "WITH query name {table_name:?} specified more than once"
+                )));
+            }
+            query_ctx.cte_names.insert(table_name.clone());
             query_to_pipeline(
                 &NameOrAlias(table_name.clone(), Some(table_name)),
                 &table.query,
                 pipeline,
                 pipeline_map,
+                query_ctx,
                 false,
             )?;
         }
@@ -87,12 +122,13 @@ fn query_to_pipeline(
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", uuid::Uuid::new_v4());
-
+            let mut ctx = QueryContext::default();
             query_to_pipeline(
                 &NameOrAlias(query_name, None),
                 &query,
                 pipeline,
                 pipeline_map,
+                &mut ctx,
                 stateful,
             )?
         }
@@ -108,14 +144,14 @@ fn query_to_pipeline(
 fn select_to_pipeline(
     processor_name: &NameOrAlias,
     select: Select,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
     stateful: bool,
 ) -> Result<(), PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
-        return Err(InvalidQuery(
-            "FROM clause doesn't support \"Comma Syntax\"".to_string(),
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::FromCommaSyntax,
         ));
     }
 
@@ -142,15 +178,18 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation =
-        AggregationProcessorFactory::new(select.projection.clone(), select.group_by, stateful);
+    let aggregation = AggregationProcessorFactory::new(
+        input_tables.relation.0,
+        select.projection.clone(),
+        select.group_by,
+        stateful,
+    );
 
     pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
 
     // Where clause
     if let Some(selection) = select.selection {
         let selection = SelectionProcessorFactory::new(selection);
-        // first_node_name = String::from("selection");
 
         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
 
@@ -191,7 +230,7 @@ fn select_to_pipeline(
 /// This function will return an error if it's not possible to get an input name.
 pub fn get_input_tables(
     from: &TableWithJoins,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<IndexedTabelWithJoins, PipelineError> {
     let mut input_tables = vec![];
@@ -244,7 +283,7 @@ pub fn get_entry_points(
 
 pub fn get_from_source(
     relation: &TableFactor,
-    pipeline: &mut AppPipeline,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<NameOrAlias, PipelineError> {
     match relation {
@@ -272,7 +311,8 @@ pub fn get_from_source(
                 .map(|alias_ident| fullname_from_ident(&[alias_ident.name.clone()]));
 
             let name_or = NameOrAlias(name, alias_name);
-            query_to_pipeline(&name_or, subquery, pipeline, pipeline_map, false)?;
+            let mut ctx = QueryContext::default();
+            query_to_pipeline(&name_or, subquery, pipeline, pipeline_map, &mut ctx, false)?;
 
             Ok(name_or)
         }
@@ -287,33 +327,31 @@ mod tests {
     use super::statement_to_pipeline;
 
     #[test]
-    fn sql_logic_test_1() {
+    fn parse_sql_pipeline() {
         let statements: Vec<&str> = vec![
             r#"
-            SELECT
-            a.name as "Genre",
-                SUM(amount) as "Gross Revenue(in $)"
-            FROM
-            (
                 SELECT
-                c.name, f.title, p.amount
-            FROM film f
-            LEFT JOIN film_category fc
-            ON fc.film_id = f.film_id
-            LEFT JOIN category c
-            ON fc.category_id = c.category_id
-            LEFT JOIN inventory i
-            ON i.film_id = f.film_id
-            LEFT JOIN rental r
-            ON r.inventory_id = i.inventory_id
-            LEFT JOIN payment p
-            ON p.rental_id = r.rental_id
-            WHERE p.amount IS NOT NULL
-            ) a
+                a.name as "Genre",
+                    SUM(amount) as "Gross Revenue(in $)"
+                FROM
+                (
+                    SELECT
+                    c.name, f.title, p.amount
+                FROM film f
+                LEFT JOIN film_category fc
+                ON fc.film_id = f.film_id
+                LEFT JOIN category c
+                ON fc.category_id = c.category_id
+                LEFT JOIN inventory i
+                ON i.film_id = f.film_id
+                LEFT JOIN rental r
+                ON r.inventory_id = i.inventory_id
+                LEFT JOIN payment p
+                ON p.rental_id = r.rental_id
+                WHERE p.amount IS NOT NULL
+                ) a
 
-            GROUP BY name
-            ORDER BY sum(amount) desc
-            LIMIT 5;
+                GROUP BY name;
             "#,
             r#"
                 SELECT

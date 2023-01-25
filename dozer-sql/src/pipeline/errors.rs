@@ -51,6 +51,8 @@ pub enum PipelineError {
     DataTypeMismatch,
     #[error("Invalid argument for function {0}(): argument: {1}, index: {2}")]
     InvalidFunctionArgument(String, Field, usize),
+    #[error("Too many arguments for function {0}()")]
+    TooManyArguments(String),
     #[error("Not enough arguments for function {0}()")]
     NotEnoughArguments(String),
     #[error(
@@ -59,6 +61,11 @@ pub enum PipelineError {
     InvalidFunctionArgumentType(String, FieldType, FieldTypes, usize),
     #[error("Invalid cast: from: {from}, to: {to}")]
     InvalidCast { from: Field, to: FieldType },
+    #[error("{0}() is invoked from another aggregation function. Nesting of aggregation functions is not possible.")]
+    InvalidNestedAggregationFunction(String),
+
+    #[error("Currently join supports two level of namespacing. For example, `connection1.field1` is valid, but `connection1.n1.field1` is not.")]
+    NameSpaceTooLong(String),
 
     // Error forwarding
     #[error(transparent)]
@@ -87,14 +94,31 @@ pub enum UnsupportedSqlError {
     SelectOnlyError,
     #[error("Unsupported syntax in fROM clause")]
     JoinTable,
-    #[error("Unsupported Join constraint")]
-    UnsupportedJoinConstraint,
-    #[error("Unsupported Join type")]
-    UnsupportedJoinType,
+
+    #[error("FROM clause doesn't support \"Comma Syntax\"")]
+    FromCommaSyntax,
+    #[error("ORDER BY is not supported in SQL. You could achieve the same by using the ORDER BY operator in the cache and APIs")]
+    OrderByError,
+    #[error("Limit and Offset are not supported in SQL. You could achieve the same by using the LIMIT and OFFSET operators in the cache and APIs")]
+    LimitOffsetError,
 }
 
 #[derive(Error, Debug)]
 pub enum JoinError {
     #[error("Field {0:?} not found")]
     FieldError(String),
+    #[error("Currently join supports two level of namespacing. For example, `connection1.field1` is valid, but `connection1.n1.field1` is not.")]
+    NameSpaceTooLong(String),
+    #[error("Invalid Join constraint on : {0}")]
+    InvalidJoinConstraint(String),
+    #[error("Ambigous field specified in join : {0}")]
+    AmbiguousField(String),
+    #[error("Invalid Field specified in join : {0}")]
+    InvalidFieldSpecified(String),
+    #[error("Unsupported Join constraint")]
+    UnsupportedJoinConstraint,
+    #[error("Unsupported Join type")]
+    UnsupportedJoinType,
+    #[error("Invalid Table name specified")]
+    InvalidRelation(String),
 }

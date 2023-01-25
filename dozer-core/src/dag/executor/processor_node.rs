@@ -2,11 +2,11 @@ use std::{borrow::Cow, collections::HashMap, mem::swap, path::Path, sync::Arc};
 
 use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
+use dozer_types::types::Schema;
 
 use crate::{
     dag::{
         dag::Edge,
-        dag_schemas::NodeSchemas,
         errors::ExecutionError,
         executor_utils::{
             build_receivers_lists, create_ports_databases_and_fill_downstream_record_readers,
@@ -33,7 +33,7 @@ pub struct ProcessorNode {
     /// The processor.
     processor: Box<dyn Processor>,
     /// Record readers of all stateful ports. Using `self.node_handle`, we can find the record readers of our stateful inputs.
-    record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+    record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>>,
     /// The transaction for this node's environment. Processor uses it to persist data.
     master_tx: SharedTransaction,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
@@ -52,20 +52,21 @@ impl ProcessorNode {
     /// - `edges`: All edges in the description DAG, used for creating record readers for input ports which is connected to this processor's stateful output ports.
     /// - `node_schemas`: Input and output data schemas.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn new<T: Clone>(
         node_handle: NodeHandle,
-        processor_factory: &dyn ProcessorFactory,
+        processor_factory: &dyn ProcessorFactory<T>,
         base_path: &Path,
-        record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        record_readers: Arc<
+            RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>,
+        >,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         edges: &[Edge],
-        node_schemas: NodeSchemas,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+        retention_queue_size: usize,
     ) -> Result<Self, ExecutionError> {
-        let mut processor = processor_factory.build(
-            node_schemas.input_schemas.clone(),
-            node_schemas.output_schemas.clone(),
-        )?;
+        let mut processor = processor_factory.build(input_schemas, output_schemas.to_owned())?;
         let state_meta = init_component(&node_handle, base_path, |e| processor.init(e))?;
 
         let (master_tx, port_databases) =
@@ -84,7 +85,8 @@ impl ProcessorNode {
                 state_meta.meta_db,
                 port_databases,
                 master_tx.clone(),
-                node_schemas.output_schemas,
+                output_schemas,
+                retention_queue_size,
             )?,
             true,
         );
