@@ -38,10 +38,18 @@ impl JoinSource {
     ) -> Result<Vec<Record>, ExecutionError> {
         match self {
             JoinSource::Table(table) => {
+                // if the source port is the same as the port of the incoming message, return the record
+                if table.port == from_port {
+                    return Ok(vec![record.clone()]);
+                }
+
+                let mut result_records = vec![];
+
                 let reader = readers
                     .get(&table.port)
                     .ok_or(ExecutionError::InvalidPortHandle(table.port))?;
-                let mut result_records = vec![];
+
+                // retrieve records for the table on the right side of the join
                 for (lookup_key, lookup_version) in lookup_keys.iter() {
                     if let Some(left_record) = reader.get(lookup_key, *lookup_version)? {
                         let join_record =
@@ -49,35 +57,13 @@ impl JoinSource {
                         result_records.push(join_record);
                     }
                 }
+
                 Ok(result_records)
             }
             JoinSource::Join(join) => {
                 join.insert(from_port, record, lookup_keys, transaction, readers)
             }
         }
-
-        // let port = self;
-
-        // // if the source port is the same as the port of the incoming message, return the record
-        // if *port == from_port {
-        //     return Ok(vec![*record]);
-        // }
-
-        // let mut result_records = vec![];
-
-        // let reader = readers
-        //     .get(&port)
-        //     .ok_or(ExecutionError::InvalidPortHandle(*port))?;
-
-        // // retrieve records for the table on the right side of the join
-        // for (lookup_key, lookup_version) in lookup_keys.iter() {
-        //     if let Some(left_record) = reader.get(lookup_key, *lookup_version)? {
-        //         let join_record = join_records(&mut left_record.clone(), &mut record.clone());
-        //         result_records.push(join_record);
-        //     }
-        // }
-
-        // Ok(result_records)
     }
 }
 
