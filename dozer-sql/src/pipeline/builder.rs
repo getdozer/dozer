@@ -17,9 +17,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
-use super::expression::builder::{fullname_from_ident, normalize_ident};
+use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
 
 /// The struct contains some contexts during query to pipeline.
@@ -33,9 +33,6 @@ pub struct IndexedTabelWithJoins {
     pub relation: (NameOrAlias, TableFactor),
     pub joins: Vec<(NameOrAlias, Join)>,
 }
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct NameOrAlias(pub String, pub Option<String>);
 
 pub fn statement_to_pipeline(
     sql: &str,
@@ -74,6 +71,19 @@ fn query_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
 ) -> Result<(), PipelineError> {
+    // return error if there is unsupported syntax
+    if !query.order_by.is_empty() {
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::OrderByError,
+        ));
+    }
+
+    if query.limit.is_some() || query.offset.is_some() {
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::LimitOffsetError,
+        ));
+    }
+
     // Attach the first pipeline if there is with clause
     if let Some(with) = &query.with {
         if with.recursive {
@@ -140,8 +150,8 @@ fn select_to_pipeline(
 ) -> Result<(), PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
-        return Err(InvalidQuery(
-            "FROM clause doesn't support \"Comma Syntax\"".to_string(),
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::FromCommaSyntax,
         ));
     }
 
@@ -168,15 +178,18 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation =
-        AggregationProcessorFactory::new(select.projection.clone(), select.group_by, stateful);
+    let aggregation = AggregationProcessorFactory::new(
+        input_tables.relation.0,
+        select.projection.clone(),
+        select.group_by,
+        stateful,
+    );
 
     pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
 
     // Where clause
     if let Some(selection) = select.selection {
         let selection = SelectionProcessorFactory::new(selection);
-        // first_node_name = String::from("selection");
 
         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
 
@@ -314,33 +327,31 @@ mod tests {
     use super::statement_to_pipeline;
 
     #[test]
-    fn sql_logic_test_1() {
+    fn parse_sql_pipeline() {
         let statements: Vec<&str> = vec![
             r#"
-            SELECT
-            a.name as "Genre",
-                SUM(amount) as "Gross Revenue(in $)"
-            FROM
-            (
                 SELECT
-                c.name, f.title, p.amount
-            FROM film f
-            LEFT JOIN film_category fc
-            ON fc.film_id = f.film_id
-            LEFT JOIN category c
-            ON fc.category_id = c.category_id
-            LEFT JOIN inventory i
-            ON i.film_id = f.film_id
-            LEFT JOIN rental r
-            ON r.inventory_id = i.inventory_id
-            LEFT JOIN payment p
-            ON p.rental_id = r.rental_id
-            WHERE p.amount IS NOT NULL
-            ) a
+                a.name as "Genre",
+                    SUM(amount) as "Gross Revenue(in $)"
+                FROM
+                (
+                    SELECT
+                    c.name, f.title, p.amount
+                FROM film f
+                LEFT JOIN film_category fc
+                ON fc.film_id = f.film_id
+                LEFT JOIN category c
+                ON fc.category_id = c.category_id
+                LEFT JOIN inventory i
+                ON i.film_id = f.film_id
+                LEFT JOIN rental r
+                ON r.inventory_id = i.inventory_id
+                LEFT JOIN payment p
+                ON p.rental_id = r.rental_id
+                WHERE p.amount IS NOT NULL
+                ) a
 
-            GROUP BY name
-            ORDER BY sum(amount) desc
-            LIMIT 5;
+                GROUP BY name;
             "#,
             r#"
                 SELECT

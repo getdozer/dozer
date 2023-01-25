@@ -55,7 +55,11 @@ pub(crate) fn validate_concat(
             ret_type = FieldType::Text;
         }
     }
-    Ok(ExpressionType::new(ret_type, false))
+    Ok(ExpressionType::new(
+        ret_type,
+        false,
+        dozer_types::types::SourceDefinition::Dynamic,
+    ))
 }
 
 pub(crate) fn evaluate_concat(

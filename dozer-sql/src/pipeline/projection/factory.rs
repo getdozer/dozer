@@ -5,7 +5,7 @@ use dozer_core::dag::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
-use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
+use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::SelectItem;
 
 use crate::pipeline::builder::SchemaSQLContext;
@@ -49,7 +49,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        let (input_schema, _context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        let (input_schema, context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         match self
             .select
             .iter()
@@ -57,22 +57,23 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
             .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
         {
             Ok(expressions) => {
-                let mut output_schema = Schema::empty();
-
+                let mut output_schema = input_schema.clone();
+                let mut fields = vec![];
                 for e in expressions.iter() {
                     let field_name = e.0.clone();
                     let field_type =
                         e.1.get_type(input_schema)
                             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-                    output_schema.fields.push(FieldDefinition::new(
+                    fields.push(FieldDefinition::new(
                         field_name,
                         field_type.return_type,
                         field_type.nullable,
-                        SourceDefinition::Dynamic,
+                        field_type.source,
                     ));
                 }
+                output_schema.fields = fields;
 
-                Ok((output_schema, SchemaSQLContext {}))
+                Ok((output_schema, context.clone()))
             }
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }

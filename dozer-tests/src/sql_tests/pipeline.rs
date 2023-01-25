@@ -16,7 +16,7 @@ use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::log::debug;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{Operation, Schema, SourceDefinition};
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;
@@ -60,13 +60,32 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         &self,
         port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        Ok((
-            self.schemas
-                .get(port)
-                .expect("schemas should have been initialized with enumerated index")
-                .to_owned(),
-            SchemaSQLContext {},
-        ))
+        let mut schema = self
+            .schemas
+            .get(port)
+            .expect("schemas should have been initialized with enumerated index")
+            .to_owned();
+
+        let table_name = self
+            .name_to_port
+            .iter()
+            .find(|(_, p)| **p == *port)
+            .unwrap()
+            .0
+            .clone();
+        // Add source information to the schema.
+        let mut fields = vec![];
+        for field in schema.fields {
+            let mut f = field.clone();
+            f.source = SourceDefinition::Table {
+                connection: "test_connection".to_string(),
+                name: table_name.clone(),
+            };
+            fields.push(f);
+        }
+        schema.fields = fields;
+
+        Ok((schema, SchemaSQLContext::default()))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -74,7 +93,15 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             .schemas
             .iter()
             .enumerate()
-            .map(|(idx, _)| OutputPortDef::new(idx as u16, OutputPortType::Stateless))
+            .map(|(idx, _)| {
+                OutputPortDef::new(
+                    idx as u16,
+                    OutputPortType::StatefulWithPrimaryKeyLookup {
+                        retr_old_records_for_deletes: true,
+                        retr_old_records_for_updates: true,
+                    },
+                )
+            })
             .collect())
     }
 

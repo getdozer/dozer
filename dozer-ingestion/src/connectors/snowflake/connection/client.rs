@@ -11,7 +11,7 @@ use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::*;
-use odbc::ffi::{SqlDataType, SQL_TIMESTAMP_STRUCT};
+use odbc::ffi::{SqlDataType, SQL_DATE_STRUCT, SQL_TIMESTAMP_STRUCT};
 use odbc::odbc_safe::AutocommitOn;
 use odbc::{
     ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
@@ -106,6 +106,22 @@ pub fn convert_data(
                         value.fraction,
                     );
                     Ok(Field::from(NaiveDateTime::new(date, time)))
+                }
+            }
+        }
+        SqlDataType::SQL_DATE => {
+            match cursor
+                .get_data::<SQL_DATE_STRUCT>(i)
+                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+            {
+                None => Ok(Field::Null),
+                Some(value) => {
+                    let date = NaiveDate::from_ymd(
+                        value.year as i32,
+                        value.month as u32,
+                        value.day as u32,
+                    );
+                    Ok(Field::from(date))
                 }
             }
         }
@@ -425,6 +441,7 @@ impl Client {
                             name: field_name.clone(),
                             typ: SchemaHelper::map_schema_type(type_name, scale)?,
                             nullable: *nullable,
+                            source: SourceDefinition::Dynamic,
                         })
                 }
 

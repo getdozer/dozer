@@ -1,5 +1,8 @@
 use crate::{
-    init::init, sql_tests::get_inserts_from_csv, tests::sql::TestInstruction, TestFramework,
+    init::init,
+    sql_tests::{get_inserts_from_csv, QueryResult},
+    tests::sql::TestInstruction,
+    TestFramework,
 };
 
 pub fn get_tables() -> Vec<(&'static str, &'static str)> {
@@ -65,20 +68,19 @@ pub fn setup(table_names: &Vec<&'static str>) -> TestFramework {
 
 pub fn get_sample_queries() -> Vec<&'static str> {
     vec![
-        "select actor_id, first_name, last_name,last_update from actor order by actor_id",
+        "select actor_id, first_name, last_name,last_update from actor",
         "select actor_id, first_name, last_name,last_update from actor where actor_id<=5",
         "select actor_id, TRIM(first_name) from actor where actor_id<=5",
         "select actor_id, first_name, last_name,last_update from actor where last_name = 'PIPPO'",
         "select actor_id, first_name as fn, last_name as ln,last_update from actor where last_name = 'PIPPO'",
-     //   "select actor_id, first_name, last_name,last_update from actor where last_name IS NULL",
         "select count(actor_id) from actor",
-         // "select actor_id, first_name, last_name,last_update from actor where actor_id in (1,5)",
          "select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'",
          "select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2",
          "select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>50)",
-         "select actor_id from actor order by actor_id",
          "select actor_id, count(actor_id) from actor group by actor_id",
          "select actor_id, count(actor_id) as counts from actor group by actor_id",
+         //   "select actor_id, first_name, last_name,last_update from actor where last_name IS NULL",
+         // "select actor_id, first_name, last_name,last_update from actor where actor_id in (1,5)"
     ]
 }
 pub fn get_sample_ops() -> Vec<(&'static str, String)> {
@@ -97,6 +99,35 @@ pub fn get_sample_ops() -> Vec<(&'static str, String)> {
         ),
         ("actor", "DELETE FROM actor WHERE actor_id=2".to_string()),
     ]
+}
+
+pub fn query(
+    table_names: &Vec<&'static str>,
+    test: &str,
+    test_instruction: TestInstruction,
+) -> QueryResult {
+    init();
+
+    let mut framework = setup(table_names);
+
+    let list = match test_instruction {
+        TestInstruction::FromCsv(folder_name, ref names) => {
+            let mut list = vec![];
+
+            for name in names.clone() {
+                let source = framework.source.lock().unwrap();
+                let schema = source.get_schema(name);
+                let inserts = get_inserts_from_csv(folder_name, name, schema).unwrap();
+                for i in inserts {
+                    list.push((name, i.to_string()));
+                }
+            }
+            list
+        }
+        TestInstruction::List(ref list) => list.clone(),
+    };
+
+    framework.query(list, test.to_string()).unwrap()
 }
 
 pub fn compare_with_sqlite(
@@ -126,10 +157,8 @@ pub fn compare_with_sqlite(
             TestInstruction::List(ref list) => list.clone(),
         };
 
-        let result = framework
-            .compare_with_sqlite(list, test.to_string())
-            .unwrap();
+        let result = framework.query(list, test.to_string()).unwrap();
 
-        assert!(result, "Test: {}", test);
+        assert_eq!(result.source_result, result.dest_result, "Test: {}", test);
     }
 }

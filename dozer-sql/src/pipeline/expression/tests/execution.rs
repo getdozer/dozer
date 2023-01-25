@@ -145,7 +145,7 @@ fn test_alias() {
     let r = processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext {}))]
+            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext::default()))]
                 .into_iter()
                 .collect(),
         )
