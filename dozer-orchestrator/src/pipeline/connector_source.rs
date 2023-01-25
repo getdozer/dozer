@@ -127,7 +127,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         let table_name = self
             .ports
             .iter()
-            .find(|(_, port)| *port == *port)
+            .find(|(_, p)| **p == *port)
             .unwrap()
             .0
             .clone();
