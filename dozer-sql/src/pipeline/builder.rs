@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
 use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
+use super::product::from_factory::FromProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
@@ -157,7 +158,7 @@ fn select_to_pipeline(
 
     let input_tables = get_input_tables(&select.from[0], pipeline, pipeline_map)?;
 
-    let product = ProductProcessorFactory::new(input_tables.clone());
+    let product = FromProcessorFactory::new(input_tables.clone());
 
     let input_endpoints = get_entry_points(&input_tables, pipeline_map)?;
 

@@ -21,16 +21,12 @@ use super::{
 #[derive(Debug)]
 pub struct FromProcessorFactory {
     input_tables: IndexedTabelWithJoins,
-    operator: JoinOperator,
 }
 
 impl FromProcessorFactory {
     /// Creates a new [`FromProcessorFactory`].
-    pub fn new(input_tables: IndexedTabelWithJoins, operator: JoinOperator) -> Self {
-        Self {
-            input_tables,
-            operator,
-        }
+    pub fn new(input_tables: IndexedTabelWithJoins) -> Self {
+        Self { input_tables }
     }
 }
 
