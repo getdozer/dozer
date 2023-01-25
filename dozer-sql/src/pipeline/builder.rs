@@ -13,7 +13,7 @@ use sqlparser::{
     dialect::AnsiDialect,
     parser::Parser,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
@@ -25,7 +25,6 @@ pub struct SchemaSQLContext {}
 /// The struct contains some contexts during query to pipeline.
 #[derive(Debug, Clone, Default)]
 pub struct QueryContext {
-    pub cte_names: HashSet<String>,
     pub pipeline_map: HashMap<String, (String, PortHandle)>,
 }
 
@@ -92,12 +91,11 @@ fn query_to_pipeline(
                 ));
             }
             let table_name = table.alias.name.to_string();
-            if query_ctx.cte_names.contains(&table_name) {
+            if query_ctx.pipeline_map.contains_key(&table_name) {
                 return Err(InvalidQuery(format!(
                     "WITH query name {table_name:?} specified more than once"
                 )));
             }
-            query_ctx.cte_names.insert(table_name.clone());
             query_to_pipeline(
                 &NameOrAlias(table_name.clone(), Some(table_name)),
                 &table.query,
