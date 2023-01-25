@@ -365,6 +365,7 @@ impl Field {
         match self {
             Field::Timestamp(t) => Some(*t),
             Field::String(s) => DateTime::parse_from_rfc3339(s.as_str()).ok(),
+            Field::Null => Some(DateTime::from(Utc.timestamp_millis(0))),
             _ => None,
         }
     }
@@ -373,6 +374,7 @@ impl Field {
         match self {
             Field::Date(d) => Some(*d),
             Field::String(s) => NaiveDate::parse_from_str(s, "%Y-%m-%d").ok(),
+            Field::Null => Some(Utc.timestamp_millis(0).naive_utc().date()),
             _ => None,
         }
     }
@@ -844,8 +846,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().is_some());
+        assert!(field.to_date().is_some());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_some());
     }
