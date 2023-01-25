@@ -82,7 +82,6 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         let (input_schema, ctx) = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
-        println!("aggregation: input_schema: {:?}", input_schema);
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
@@ -300,20 +299,22 @@ fn build_projection_schema(
         .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
     {
         Ok(expressions) => {
-            let mut output_schema = Schema::empty();
+            let mut output_schema = input_schema.clone();
+            let mut fields = vec![];
             for e in expressions.iter() {
                 let field_name = e.0.clone();
                 let field_type =
                     e.1.get_type(input_schema)
                         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
-                output_schema.fields.push(FieldDefinition::new(
+                fields.push(FieldDefinition::new(
                     field_name,
                     field_type.return_type,
                     field_type.nullable,
                     SourceDefinition::Dynamic,
                 ));
             }
+            output_schema.fields = fields;
 
             Ok((output_schema, context.clone()))
         }

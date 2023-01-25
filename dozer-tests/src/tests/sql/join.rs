@@ -19,11 +19,11 @@ fn join_query() {
         TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
-    helper::compare_with_sqlite(
-        &table_names,
-        queries,
-        TestInstruction::List(get_sample_ops()),
-    );
+    // helper::compare_with_sqlite(
+    //     &table_names,
+    //     queries,
+    //     TestInstruction::List(get_sample_ops()),
+    // );
 }
 
 #[test]

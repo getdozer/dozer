@@ -77,7 +77,6 @@ impl ExpressionBuilder {
             SqlExpr::Identifier(ident) => {
                 let idx = get_field_index(&ConstraintIdentifier::Single(ident.clone()), schema);
 
-                println!("idx: {:?}", idx);
                 let idx = idx?.map_or(
                     Err(PipelineError::InvalidExpression(ident.value.to_string())),
                     Ok,
@@ -527,7 +526,8 @@ pub(crate) fn normalize_ident(id: &Ident) -> String {
 }
 
 pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
-    let mut output_schema = Schema::empty();
+    let mut output_schema = schema.clone();
+    let mut fields = vec![];
     for mut field in schema.clone().fields.into_iter() {
         if let Some(alias) = &name.1 {
             field.source = SourceDefinition::Alias {
@@ -535,8 +535,9 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
             };
         }
 
-        output_schema.fields.push(field);
+        fields.push(field);
     }
+    output_schema.fields = fields;
 
     output_schema
 }
