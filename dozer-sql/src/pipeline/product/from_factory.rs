@@ -260,8 +260,8 @@ fn parse_join_eq_expression(
 
 fn parse_identifier(
     ident: &ConstraintIdentifier,
-    left_join_table: &Schema,
-    right_join_table: &Schema,
+    left_join_schema: &Schema,
+    right_join_schema: &Schema,
 ) -> Result<(Option<usize>, Option<usize>), PipelineError> {
     let is_compound = |ident: &ConstraintIdentifier| -> bool {
         match ident {
@@ -270,9 +270,9 @@ fn parse_identifier(
         }
     };
 
-    let left_idx = get_field_index(ident, &left_join_table)?;
+    let left_idx = get_field_index(ident, left_join_schema)?;
 
-    let right_idx = get_field_index(ident, &right_join_table)?;
+    let right_idx = get_field_index(ident, right_join_schema)?;
 
     match (left_idx, right_idx) {
         (None, None) => Err(PipelineError::JoinError(JoinError::InvalidFieldSpecified(
@@ -354,6 +354,5 @@ fn append_schema(mut output_schema: Schema, current_schema: &Schema) -> Schema {
     for field in current_schema.clone().fields.into_iter() {
         output_schema.fields.push(field);
     }
-
     output_schema
 }

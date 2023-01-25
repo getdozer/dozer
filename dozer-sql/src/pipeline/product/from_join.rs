@@ -4,7 +4,10 @@ use dozer_core::{
     dag::{errors::ExecutionError, node::PortHandle, record_store::RecordReader},
     storage::{lmdb_storage::SharedTransaction, prefix_transaction::PrefixTransaction},
 };
-use dozer_types::types::{FieldDefinition, Record, Schema};
+use dozer_types::{
+    errors::types::TypeError,
+    types::{Record, Schema},
+};
 use lmdb::Database;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,6 +36,7 @@ impl JoinSource {
         from_port: PortHandle,
         record: &Record,
         lookup_keys: &[(Vec<u8>, u32)],
+        db: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
@@ -61,7 +65,7 @@ impl JoinSource {
                 Ok(result_records)
             }
             JoinSource::Join(join) => {
-                join.insert(from_port, record, lookup_keys, transaction, readers)
+                join.insert(from_port, record, lookup_keys, db, transaction, readers)
             }
         }
     }
@@ -132,18 +136,35 @@ impl JoinOperator {
         from_port: PortHandle,
         record: &Record,
         lookup_keys: &[(Vec<u8>, u32)],
+        database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
+        let join_key: Vec<u8> = get_join_key(record, &self.left_join_key)?;
+
+        let lookup_key: Vec<u8> = get_lookup_key(record, &self.left_source.get_output_schema())?;
+
+        self.insert_index(true, &join_key, &lookup_key, database, transaction)?;
+
         let left_lookup_keys = vec![]; // self.get_lookup_keys(lookup_keys, left_join_index);
-        let left_records =
-            self.left_source
-                .insert(from_port, record, &left_lookup_keys, transaction, readers)?;
+        let left_records = self.left_source.insert(
+            from_port,
+            record,
+            &left_lookup_keys,
+            database,
+            transaction,
+            readers,
+        )?;
 
         let right_lookup_keys = vec![]; // self.get_lookup_keys(lookup_keys, left_join_index);
-        let right_records =
-            self.right_source
-                .insert(from_port, record, &right_lookup_keys, transaction, readers);
+        let right_records = self.right_source.insert(
+            from_port,
+            record,
+            &right_lookup_keys,
+            database,
+            transaction,
+            readers,
+        );
         let result_records = vec![]; //join(left_records, right_records);
         Ok(result_records)
     }
@@ -163,7 +184,7 @@ impl JoinOperator {
         from_left: bool,
         key: &[u8],
         value: &[u8],
-        db: &Database,
+        database: &Database,
         transaction: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         let prefix = if from_left {
@@ -175,7 +196,7 @@ impl JoinOperator {
         let mut exclusive_transaction = transaction.write();
         let mut prefix_transaction = PrefixTransaction::new(&mut exclusive_transaction, prefix);
 
-        prefix_transaction.put(*db, key, value)?;
+        prefix_transaction.put(*database, key, value)?;
 
         Ok(())
     }
@@ -184,4 +205,33 @@ impl JoinOperator {
 fn join_records(left_record: &mut Record, right_record: &mut Record) -> Record {
     left_record.values.append(&mut right_record.values);
     Record::new(None, left_record.values.clone(), None)
+}
+
+pub fn get_join_key(record: &Record, join_keys: &[usize]) -> Result<Vec<u8>, TypeError> {
+    get_composite_key(record, join_keys)
+}
+
+pub fn get_lookup_key(record: &Record, schema: &Schema) -> Result<Vec<u8>, TypeError> {
+    let mut lookup_key = Vec::with_capacity(64);
+    if let Some(version) = record.version {
+        lookup_key.extend_from_slice(&version.to_be_bytes());
+    } else {
+        lookup_key.extend_from_slice(&[0_u8; 4]);
+    }
+
+    let key = get_composite_key(record, schema.primary_index.as_slice())?;
+    lookup_key.extend(key);
+    Ok(lookup_key)
+}
+
+pub fn get_composite_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {
+    let mut join_key = Vec::with_capacity(64);
+
+    for key_index in key_indexes.iter() {
+        let key_value = record.get_value(*key_index)?;
+        let key_bytes = key_value.encode();
+        join_key.extend(key_bytes.iter());
+    }
+
+    Ok(join_key)
 }

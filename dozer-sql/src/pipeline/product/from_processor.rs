@@ -55,11 +55,17 @@ impl FromProcessor {
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
-        // Get the input Table based on the portof the incoming message
+        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
         let lookup_keys = vec![];
-        self.operator
-            .insert(from_port, record, &lookup_keys, transaction, reader)
+        return self.operator.insert(
+            from_port,
+            record,
+            &lookup_keys,
+            database,
+            transaction,
+            reader,
+        );
     }
 
     fn update(
