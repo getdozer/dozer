@@ -340,7 +340,7 @@ dependencies = [
  "strum_macros",
  "thiserror",
  "typed-builder",
- "uuid 1.2.1",
+ "uuid 1.2.2",
  "zerocopy",
 ]
 
@@ -661,7 +661,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "time 0.3.16",
- "uuid 1.2.1",
+ "uuid 1.2.2",
 ]
 
 [[package]]
@@ -1444,7 +1444,7 @@ dependencies = [
  "tonic-build",
  "tonic-reflection",
  "tonic-web",
- "uuid 1.2.1",
+ "uuid 1.2.2",
 ]
 
 [[package]]
@@ -1511,7 +1511,7 @@ dependencies = [
  "lmdb-rkv-sys",
  "tempdir",
  "unixstring",
- "uuid 1.2.1",
+ "uuid 1.2.2",
 ]
 
 [[package]]
@@ -1567,7 +1567,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "uuid 1.2.1",
+ "uuid 1.2.2",
 ]
 
 [[package]]
@@ -1584,7 +1584,7 @@ dependencies = [
  "num-traits",
  "sqlparser 0.30.0",
  "tempdir",
- "uuid 1.2.1",
+ "uuid 1.2.2",
 ]
 
 [[package]]
@@ -5484,7 +5484,7 @@ dependencies = [
  "actix-web",
  "pin-project",
  "tracing",
- "uuid 1.2.1",
+ "uuid 1.2.2",
 ]
 
 [[package]]
@@ -5758,9 +5758,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.2.1"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "feb41e78f93363bb2df8b0e86a2ca30eed7806ea16ea0c790d757cf93f79be83"
+checksum = "422ee0de9031b5b948b97a8fc04e3aa35230001a722ddd27943e0be31564ce4c"
 dependencies = [
  "atomic",
  "getrandom",
