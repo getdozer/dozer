@@ -6,7 +6,7 @@ use lmdb::{Cursor, Database, Environment, RwTransaction, Transaction, WriteFlags
 
 use crate::{
     cache::lmdb::utils::{self, DatabaseCreateOptions},
-    errors::{CacheError, QueryError},
+    errors::{CacheError, LmdbQueryError},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -42,7 +42,7 @@ impl SchemaDatabase {
 
         // Insert Schema with {id, version}
         txn.put::<Vec<u8>, Vec<u8>>(self.0, &key, &encoded, WriteFlags::NO_OVERWRITE)
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+            .map_err(|e| CacheError::QueryError(LmdbQueryError::InsertValue(e)))?;
 
         let schema_id_bytes =
             bincode::serialize(&schema_id).map_err(CacheError::map_serialization_error)?;
@@ -56,7 +56,7 @@ impl SchemaDatabase {
             &schema_id_bytes,
             WriteFlags::NO_OVERWRITE,
         )
-        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+        .map_err(|e| CacheError::QueryError(LmdbQueryError::InsertValue(e)))?;
 
         Ok(())
     }
@@ -69,7 +69,7 @@ impl SchemaDatabase {
         let schema_reverse_key = get_schema_reverse_key(name);
         let schema_identifier = txn
             .get(self.0, &schema_reverse_key)
-            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
+            .map_err(|e| CacheError::QueryError(LmdbQueryError::GetValue(e)))?;
         let schema_id: SchemaIdentifier = bincode::deserialize(schema_identifier)
             .map_err(CacheError::map_deserialization_error)?;
 
@@ -86,7 +86,7 @@ impl SchemaDatabase {
         let key = get_schema_key(identifier);
         let schema = txn
             .get(self.0, &key)
-            .map_err(|e| CacheError::QueryError(QueryError::GetSchema(e)))?;
+            .map_err(|e| CacheError::QueryError(LmdbQueryError::GetSchema(e)))?;
         let schema = bincode::deserialize(schema).map_err(CacheError::map_deserialization_error)?;
         Ok(schema)
     }
@@ -104,7 +104,7 @@ impl SchemaDatabase {
 
         let mut result = vec![];
         for item in cursor.iter_start() {
-            let (key, value) = item.map_err(QueryError::GetValue)?;
+            let (key, value) = item.map_err(LmdbQueryError::GetValue)?;
             if key.starts_with(b"sc#") {
                 let schema: (Schema, Vec<IndexDefinition>) =
                     bincode::deserialize(value).map_err(CacheError::map_deserialization_error)?;

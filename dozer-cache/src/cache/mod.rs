@@ -1,4 +1,5 @@
 mod lmdb;
+mod redis;
 use self::expression::QueryExpression;
 pub use self::lmdb::{
     cache::lmdb as lmdb_rs, cache::LmdbCache, CacheCommonOptions, CacheOptions, CacheOptionsKind,

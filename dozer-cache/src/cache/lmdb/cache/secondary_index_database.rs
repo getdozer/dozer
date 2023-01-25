@@ -9,7 +9,7 @@ use crate::{
         query::helper::lmdb_cmp,
         utils::{self, DatabaseCreateOptions},
     },
-    errors::{CacheError, QueryError},
+    errors::{CacheError, LmdbQueryError},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -52,13 +52,13 @@ impl SecondaryIndexDatabase {
         id: [u8; 8],
     ) -> Result<(), CacheError> {
         txn.put(self.0, &key, &id, WriteFlags::default())
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))
+            .map_err(|e| CacheError::QueryError(LmdbQueryError::InsertValue(e)))
     }
 
     #[cfg(test)]
     pub fn get<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<[u8; 8], CacheError> {
         txn.get(self.0, &key)
-            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))
+            .map_err(|e| CacheError::QueryError(LmdbQueryError::GetValue(e)))
             .map(|id| {
                 id.try_into()
                     .expect("All values must be u64 ids in this database")
@@ -72,7 +72,7 @@ impl SecondaryIndexDatabase {
         id: [u8; 8],
     ) -> Result<(), CacheError> {
         txn.del(self.0, &key, Some(&id))
-            .map_err(|e| CacheError::QueryError(QueryError::DeleteValue(e)))
+            .map_err(|e| CacheError::QueryError(LmdbQueryError::DeleteValue(e)))
     }
 
     pub fn open_ro_cursor<'txn, T: Transaction>(

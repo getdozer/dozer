@@ -6,7 +6,7 @@ use crate::{
         query::helper,
         utils::{self, DatabaseCreateOptions},
     },
-    errors::{CacheError, QueryError},
+    errors::{CacheError, LmdbQueryError},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -36,7 +36,7 @@ impl RecordDatabase {
             bincode::serialize(&record).map_err(CacheError::map_serialization_error)?;
 
         txn.put(self.0, &id, &encoded.as_slice(), WriteFlags::NO_OVERWRITE)
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))
+            .map_err(|e| CacheError::QueryError(LmdbQueryError::InsertValue(e)))
     }
 
     pub fn get<T: Transaction>(&self, txn: &T, id: [u8; 8]) -> Result<Record, CacheError> {
@@ -45,7 +45,7 @@ impl RecordDatabase {
 
     pub fn delete(&self, txn: &mut RwTransaction, id: [u8; 8]) -> Result<(), CacheError> {
         txn.del(self.0, &id, None)
-            .map_err(|e| CacheError::QueryError(QueryError::DeleteValue(e)))
+            .map_err(|e| CacheError::QueryError(LmdbQueryError::DeleteValue(e)))
     }
 
     pub fn count(&self, txn: &impl Transaction) -> Result<usize, CacheError> {

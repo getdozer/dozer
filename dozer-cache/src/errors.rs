@@ -14,7 +14,7 @@ pub enum CacheError {
     #[error(transparent)]
     InternalError(#[from] BoxedError),
     #[error(transparent)]
-    QueryError(#[from] QueryError),
+    QueryError(#[from] LmdbQueryError),
     #[error(transparent)]
     IndexError(#[from] IndexError),
     #[error(transparent)]
@@ -43,7 +43,7 @@ impl CacheError {
 }
 
 #[derive(Error, Debug)]
-pub enum QueryError {
+pub enum LmdbQueryError {
     #[error("Failed to get a record by id - {0:?}")]
     GetValue(#[source] lmdb::Error),
     #[error("Get by primary key is not supported when it is composite: {0:?}")]

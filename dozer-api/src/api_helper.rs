@@ -85,7 +85,7 @@ impl<'a> ApiHelper<'a> {
             json_str_to_field(key, field.typ, field.nullable).map_err(CacheError::TypeError)
         } else {
             Err(CacheError::QueryError(
-                dozer_cache::errors::QueryError::MultiIndexFetch(key.to_string()),
+                dozer_cache::errors::LmdbQueryError::MultiIndexFetch(key.to_string()),
             ))
         }?;
 

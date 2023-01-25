@@ -1,4 +1,4 @@
-use crate::errors::{CacheError, QueryError};
+use crate::errors::{CacheError, LmdbQueryError};
 use dozer_types::{bincode, serde};
 use lmdb::{Database, Transaction};
 use lmdb_sys as ffi;
@@ -9,7 +9,7 @@ where
 {
     let rec = txn
         .get(db, &id)
-        .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
+        .map_err(|e| CacheError::QueryError(LmdbQueryError::GetValue(e)))?;
     bincode::deserialize(rec).map_err(CacheError::map_deserialization_error)
 }
 
