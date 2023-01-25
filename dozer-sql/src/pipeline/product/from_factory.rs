@@ -336,7 +336,7 @@ pub fn get_field_index(
                 //     let field_name = comp_ident.get(2).expect("field_name is expected");
                 // }
                 _ => {
-                    return Err(PipelineError::NameSpaceTooLong(
+                    return Err(PipelineError::IllegalFieldIdentifier(
                         comp_ident
                             .iter()
                             .map(|a| a.value.clone())
