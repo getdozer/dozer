@@ -56,7 +56,7 @@ fn single_source_sink_impl(schema: Schema) {
             id: Some("1".to_string()),
             name: table_name.to_string(),
             path: "/events".to_string(),
-            sql: "select a, b from events group by a,b;".to_string(),
+            sql: Some("select a, b from events group by a,b;".to_string()),
             index: Some(ApiIndex {
                 primary_key: vec!["a".to_string()],
             }),

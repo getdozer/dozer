@@ -168,8 +168,12 @@ impl CacheSinkFactory {
     fn get_schema_hash(&self) -> u64 {
         // Get hash of SQL
         let mut hasher = DefaultHasher::new();
-        let bytes = self.api_endpoint.sql.as_bytes();
-        hasher.write(bytes);
+        let name = self
+            .api_endpoint
+            .sql
+            .as_ref()
+            .map_or(self.api_endpoint.name.clone(), |sql| sql.clone());
+        hasher.write(name.as_bytes());
 
         hasher.finish()
     }

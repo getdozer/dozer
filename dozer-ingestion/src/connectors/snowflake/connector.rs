@@ -99,7 +99,7 @@ impl Connector for SnowflakeConnector {
         Ok(())
     }
 
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
+    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         let _connector_id = self.id;
         let ingestor = self
             .ingestor
@@ -107,9 +107,9 @@ impl Connector for SnowflakeConnector {
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
 
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(self.config.clone(), self.tables.clone(), ingestor).await })
+        Runtime::new().unwrap().block_on(async {
+            run(self.config.clone(), self.tables.clone(), ingestor, from_seq).await
+        })
     }
 
     fn stop(&self) {}
@@ -128,6 +128,7 @@ async fn run(
     config: SnowflakeConfig,
     tables: Option<Vec<TableInfo>>,
     ingestor: Arc<RwLock<Ingestor>>,
+    from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
@@ -140,7 +141,13 @@ async fn run(
                     StreamConsumer::is_stream_created(&client, table.table_name.clone())?;
                 if !is_stream_created {
                     let ingestor_snapshot = Arc::clone(&ingestor);
-                    Snapshotter::run(&client, &ingestor_snapshot, table.table_name.clone(), idx)?;
+                    Snapshotter::run(
+                        &client,
+                        &ingestor_snapshot,
+                        table.table_name.clone(),
+                        idx,
+                        from_seq.map_or(0, |(_, offset)| offset as usize),
+                    )?;
                     StreamConsumer::create_stream(&client, &table.table_name)?;
                 }
             }
