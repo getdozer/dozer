@@ -16,6 +16,9 @@ unicode-segmentation = "1.10.0"
 itertools = "0.10.5"
 roaring = "0.10.1"
 
+[dependencies.redis]
+version = "*"
+
 [dev-dependencies]
 criterion = "0.4"
 rand = "0.8.5"
