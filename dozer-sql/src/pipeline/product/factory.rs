@@ -10,8 +10,8 @@ use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, JoinConstraint};
 
 use crate::pipeline::{
     builder::SchemaSQLContext,
-    errors::JoinError,
-    expression::builder::{get_field_idx, ConstraintIdentifier},
+    errors::{JoinError, PipelineError},
+    expression::builder::{extend_schema_source_def, get_field_index, ConstraintIdentifier},
 };
 use crate::pipeline::{
     builder::{get_input_names, IndexedTabelWithJoins},
@@ -100,7 +100,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
 pub fn build_join_chain(
     join_tables: &IndexedTabelWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
-) -> Result<HashMap<PortHandle, JoinTable>, JoinError> {
+) -> Result<HashMap<PortHandle, JoinTable>, PipelineError> {
     let mut input_tables = HashMap::new();
 
     let port = 0;
@@ -111,7 +111,9 @@ pub fn build_join_chain(
         Ok,
     )?;
 
-    let mut left_join_table = JoinTable::from(&join_tables.relation.0, input_schema);
+    let input_schema = extend_schema_source_def(input_schema, &join_tables.relation.0);
+
+    let mut left_join_table = JoinTable::from(&input_schema);
     input_tables.insert(port as PortHandle, left_join_table.clone());
 
     for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
@@ -121,8 +123,8 @@ pub fn build_join_chain(
             )),
             Ok,
         )?;
-
-        let mut right_join_table = JoinTable::from(relation_name, input_schema);
+        let input_schema = extend_schema_source_def(input_schema, relation_name);
+        let mut right_join_table = JoinTable::from(&input_schema);
 
         let join_op = match &join.join_operator {
             sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {
@@ -138,9 +140,13 @@ pub fn build_join_chain(
                         right_keys,
                     )
                 }
-                _ => return Err(JoinError::UnsupportedJoinConstraint),
+                _ => {
+                    return Err(PipelineError::JoinError(
+                        JoinError::UnsupportedJoinConstraint,
+                    ))
+                }
             },
-            _ => return Err(JoinError::UnsupportedJoinType),
+            _ => return Err(PipelineError::JoinError(JoinError::UnsupportedJoinType)),
         };
 
         input_tables.get_mut(&(index as PortHandle)).unwrap().right = Some(join_op.clone());
@@ -162,7 +168,7 @@ fn parse_join_constraint(
     expression: &sqlparser::ast::Expr,
     left_join_table: &JoinTable,
     right_join_table: &JoinTable,
-) -> Result<(Vec<usize>, Vec<usize>), JoinError> {
+) -> Result<(Vec<usize>, Vec<usize>), PipelineError> {
     match expression {
         SqlExpr::BinaryOp {
             ref left,
@@ -196,9 +202,13 @@ fn parse_join_constraint(
 
                 Ok((left_key_indexes, right_key_indexes))
             }
-            _ => Err(JoinError::UnsupportedJoinConstraint),
+            _ => Err(PipelineError::JoinError(
+                JoinError::UnsupportedJoinConstraint,
+            )),
         },
-        _ => Err(JoinError::UnsupportedJoinConstraint),
+        _ => Err(PipelineError::JoinError(
+            JoinError::UnsupportedJoinConstraint,
+        )),
     }
 }
 
@@ -206,10 +216,10 @@ fn parse_join_eq_expression(
     expr: &Expr,
     left_join_table: &JoinTable,
     right_join_table: &JoinTable,
-) -> Result<(Vec<usize>, Vec<usize>), JoinError> {
+) -> Result<(Vec<usize>, Vec<usize>), PipelineError> {
     let mut left_key_indexes = vec![];
     let mut right_key_indexes = vec![];
-    let (left_keys, right_keys) = match *expr.clone() {
+    let (left_keys, right_keys) = match expr.clone() {
         SqlExpr::Identifier(ident) => parse_identifier(
             &ConstraintIdentifier::Single(ident),
             left_join_table,
@@ -220,13 +230,21 @@ fn parse_join_eq_expression(
             left_join_table,
             right_join_table,
         ),
-        _ => return Err(JoinError::UnsupportedJoinConstraint),
+        _ => {
+            return Err(PipelineError::JoinError(
+                JoinError::UnsupportedJoinConstraint,
+            ))
+        }
     }?;
 
     match (left_keys, right_keys) {
         (Some(left_key), None) => left_key_indexes.push(left_key),
         (None, Some(right_key)) => right_key_indexes.push(right_key),
-        _ => return Err(JoinError::UnsupportedJoinConstraint),
+        _ => {
+            return Err(PipelineError::JoinError(
+                JoinError::UnsupportedJoinConstraint,
+            ))
+        }
     }
 
     Ok((left_key_indexes, right_key_indexes))
@@ -236,7 +254,7 @@ fn parse_identifier(
     ident: &ConstraintIdentifier,
     left_join_table: &JoinTable,
     right_join_table: &JoinTable,
-) -> Result<(Option<usize>, Option<usize>), JoinError> {
+) -> Result<(Option<usize>, Option<usize>), PipelineError> {
     let is_compound = |ident: &ConstraintIdentifier| -> bool {
         match ident {
             ConstraintIdentifier::Single(_) => false,
@@ -244,17 +262,23 @@ fn parse_identifier(
         }
     };
 
-    let left_idx = get_field_idx(ident, &left_join_table.schema);
-    let right_idx = get_field_idx(ident, &right_join_table.schema);
+    let left_idx = get_field_index(ident, &left_join_table.schema)?;
+    let right_idx = get_field_index(ident, &right_join_table.schema)?;
 
     match (left_idx, right_idx) {
-        (Ok(_), Ok(_)) => match is_compound(ident) {
-            true => Err(JoinError::InvalidJoinConstraint(ident.to_string())),
-            false => Err(JoinError::AmbiguousField(ident.to_string())),
+        (None, None) => Err(PipelineError::JoinError(JoinError::InvalidFieldSpecified(
+            ident.to_string(),
+        ))),
+        (None, Some(idx)) => Ok((None, Some(idx))),
+        (Some(idx), None) => Ok((Some(idx), None)),
+        (Some(_), Some(_)) => match is_compound(ident) {
+            true => Err(PipelineError::JoinError(JoinError::InvalidJoinConstraint(
+                ident.to_string(),
+            ))),
+            false => Err(PipelineError::JoinError(JoinError::AmbiguousField(
+                ident.to_string(),
+            ))),
         },
-        (Ok(idx), Err(_)) => Ok((Some(idx), None)),
-        (Err(_), Ok(idx)) => Ok((None, Some(idx))),
-        (Err(_), Err(_)) => Err(JoinError::InvalidFieldSpecified(ident.to_string())),
     }
 }
 

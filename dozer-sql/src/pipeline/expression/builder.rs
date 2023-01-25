@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use dozer_types::{
     ordered_float::OrderedFloat,
-    types::{Field, FieldDefinition, Schema},
+    types::{Field, FieldDefinition, Schema, SourceDefinition},
 };
 
 use sqlparser::ast::{
@@ -74,18 +74,23 @@ impl ExpressionBuilder {
                 trim_where,
                 trim_what,
             } => self.parse_sql_trim_function(expression_type, expr, trim_where, trim_what, schema),
-            SqlExpr::Identifier(ident) => Ok((
-                Box::new(Expression::Column {
-                    index: get_field_idx(&ConstraintIdentifier::Single(ident.clone()), schema)?,
-                }),
-                false,
-            )),
-            SqlExpr::CompoundIdentifier(ident) => Ok((
-                Box::new(Expression::Column {
-                    index: get_field_idx(&ConstraintIdentifier::Compound(ident.clone()), schema)?,
-                }),
-                false,
-            )),
+            SqlExpr::Identifier(ident) => {
+                let idx = get_field_index(&ConstraintIdentifier::Single(ident.clone()), schema);
+
+                let idx = idx?.map_or(
+                    Err(PipelineError::InvalidExpression(ident.value.to_string())),
+                    Ok,
+                )?;
+                Ok((Box::new(Expression::Column { index: idx }), false))
+            }
+            SqlExpr::CompoundIdentifier(ident) => {
+                let idx = get_field_index(&ConstraintIdentifier::Compound(ident.clone()), schema)?
+                    .map_or(
+                        Err(PipelineError::InvalidExpression(format!("{:?}", ident))),
+                        Ok,
+                    )?;
+                Ok((Box::new(Expression::Column { index: idx }), false))
+            }
             SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
             SqlExpr::Value(SqlValue::Null) => {
                 Ok((Box::new(Expression::Literal(Field::Null)), false))
@@ -520,10 +525,27 @@ pub(crate) fn normalize_ident(id: &Ident) -> String {
     }
 }
 
-pub fn get_field_idx(
+pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
+    let mut output_schema = schema.clone();
+    let mut fields = vec![];
+    for mut field in schema.clone().fields.into_iter() {
+        if let Some(alias) = &name.1 {
+            field.source = SourceDefinition::Alias {
+                name: alias.to_string(),
+            };
+        }
+
+        fields.push(field);
+    }
+    output_schema.fields = fields;
+
+    output_schema
+}
+
+pub fn get_field_index(
     ident: &ConstraintIdentifier,
     schema: &Schema,
-) -> Result<usize, PipelineError> {
+) -> Result<Option<usize>, PipelineError> {
     let get_field_idx = |ident: &Ident, schema: &Schema| -> Option<(usize, FieldDefinition)> {
         schema
             .fields
@@ -539,10 +561,7 @@ pub fn get_field_idx(
                 connection: _,
                 name,
             } => name == table_ident.value,
-            dozer_types::types::SourceDefinition::Alias { name } => {
-                println!("{:?} {:?} {:?}", name, fd.name, table_ident.value);
-                name == table_ident.value
-            }
+            dozer_types::types::SourceDefinition::Alias { name } => name == table_ident.value,
             dozer_types::types::SourceDefinition::Dynamic => false,
         }
     };
@@ -552,7 +571,7 @@ pub fn get_field_idx(
             let field_idx = get_field_idx(ident, schema);
             field_idx.map_or(
                 Err(PipelineError::InvalidExpression(ident.value.to_string())),
-                |t| Ok(t.0),
+                |t| Ok(Some(t.0)),
             )
         }
         ConstraintIdentifier::Compound(comp_ident) => {
@@ -571,12 +590,10 @@ pub fn get_field_idx(
             let field_idx = get_field_idx(field_name, schema);
             if let Some((idx, fd)) = field_idx {
                 if tables_matches(table_name, fd) {
-                    return Ok(idx);
+                    return Ok(Some(idx));
                 }
             }
-            Err(PipelineError::InvalidExpression(fullname_from_ident(
-                comp_ident,
-            )))
+            Ok(None)
         }
     }
 }

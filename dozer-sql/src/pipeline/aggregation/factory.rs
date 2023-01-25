@@ -8,7 +8,10 @@ use dozer_core::dag::{
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
 use sqlparser::ast::{Expr as SqlExpr, Expr, SelectItem};
 
-use crate::pipeline::builder::SchemaSQLContext;
+use crate::pipeline::{
+    builder::SchemaSQLContext,
+    expression::builder::{extend_schema_source_def, NameOrAlias},
+};
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -26,6 +29,7 @@ use super::{
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
+    name: NameOrAlias,
     select: Vec<SelectItem>,
     groupby: Vec<SqlExpr>,
     stateful: bool,
@@ -33,8 +37,14 @@ pub struct AggregationProcessorFactory {
 
 impl AggregationProcessorFactory {
     /// Creates a new [`AggregationProcessorFactory`].
-    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>, stateful: bool) -> Self {
+    pub fn new(
+        name: NameOrAlias,
+        select: Vec<SelectItem>,
+        groupby: Vec<SqlExpr>,
+        stateful: bool,
+    ) -> Self {
         Self {
+            name,
             select,
             groupby,
             stateful,
@@ -79,7 +89,6 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             let output_schema = build_output_schema(input_schema, output_field_rules)?;
             return Ok((output_schema, ctx.clone()));
         }
-
         build_projection_schema(input_schema, ctx, &self.select)
     }
 
@@ -91,13 +100,14 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
+        let input_schema = extend_schema_source_def(input_schema, &self.name);
         let output_field_rules =
-            get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
+            get_aggregation_rules(&self.select, &self.groupby, &input_schema).unwrap();
 
         if is_aggregation(&self.groupby, &output_field_rules) {
             return Ok(Box::new(AggregationProcessor::new(
                 output_field_rules,
-                input_schema.clone(),
+                input_schema,
             )));
         }
 
@@ -105,11 +115,11 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         match self
             .select
             .iter()
-            .map(|item| parse_sql_select_item(item, input_schema))
+            .map(|item| parse_sql_select_item(item, &input_schema))
             .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
         {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
-                input_schema.clone(),
+                input_schema,
                 expressions,
             ))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
@@ -289,20 +299,22 @@ fn build_projection_schema(
         .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
     {
         Ok(expressions) => {
-            let mut output_schema = Schema::empty();
+            let mut output_schema = input_schema.clone();
+            let mut fields = vec![];
             for e in expressions.iter() {
                 let field_name = e.0.clone();
                 let field_type =
                     e.1.get_type(input_schema)
                         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
-                output_schema.fields.push(FieldDefinition::new(
+                fields.push(FieldDefinition::new(
                     field_name,
                     field_type.return_type,
                     field_type.nullable,
                     SourceDefinition::Dynamic,
                 ));
             }
+            output_schema.fields = fields;
 
             Ok((output_schema, context.clone()))
         }
