@@ -425,6 +425,7 @@ impl Client {
                             name: field_name.clone(),
                             typ: SchemaHelper::map_schema_type(type_name, scale)?,
                             nullable: *nullable,
+                            source: SourceDefinition::Dynamic,
                         })
                 }
 
