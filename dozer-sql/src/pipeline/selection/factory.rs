@@ -45,6 +45,7 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
+        println!("selection: input_schema: {:?}", input_schemas);
         Ok(schema.clone())
     }
 

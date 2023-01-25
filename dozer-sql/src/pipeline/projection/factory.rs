@@ -50,6 +50,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let (input_schema, context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        println!("projection: input_schema: {:?}", input_schema);
         match self
             .select
             .iter()
