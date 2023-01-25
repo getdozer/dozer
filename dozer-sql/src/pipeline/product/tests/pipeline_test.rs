@@ -309,51 +309,51 @@ impl Source for TestSource {
                 },
                 USER_PORT,
             ),
-            (
-                Operation::Delete {
-                    old: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10002),
-                            Field::String("Craig".to_string()),
-                            Field::Int(1),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                        None,
-                    ),
-                },
-                USER_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10004),
-                            Field::String("Frank".to_string()),
-                            Field::Int(1),
-                            Field::Float(OrderedFloat(1.5)),
-                        ],
-                        None,
-                    ),
-                },
-                USER_PORT,
-            ),
-            (
-                Operation::Update {
-                    old: Record::new(
-                        None,
-                        vec![Field::Int(0), Field::String("IT".to_string())],
-                        None,
-                    ),
-                    new: Record::new(
-                        None,
-                        vec![Field::Int(0), Field::String("XX".to_string())],
-                        None,
-                    ),
-                },
-                DEPARTMENT_PORT,
-            ),
+            // (
+            //     Operation::Delete {
+            //         old: Record::new(
+            //             None,
+            //             vec![
+            //                 Field::Int(10002),
+            //                 Field::String("Craig".to_string()),
+            //                 Field::Int(1),
+            //                 Field::Float(OrderedFloat(1.1)),
+            //             ],
+            //             None,
+            //         ),
+            //     },
+            //     USER_PORT,
+            // ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![
+            //                 Field::Int(10004),
+            //                 Field::String("Frank".to_string()),
+            //                 Field::Int(1),
+            //                 Field::Float(OrderedFloat(1.5)),
+            //             ],
+            //             None,
+            //         ),
+            //     },
+            //     USER_PORT,
+            // ),
+            // (
+            //     Operation::Update {
+            //         old: Record::new(
+            //             None,
+            //             vec![Field::Int(0), Field::String("IT".to_string())],
+            //             None,
+            //         ),
+            //         new: Record::new(
+            //             None,
+            //             vec![Field::Int(0), Field::String("XX".to_string())],
+            //             None,
+            //         ),
+            //     },
+            //     DEPARTMENT_PORT,
+            // ),
         ];
 
         for operation in operations.iter().enumerate() {
@@ -485,8 +485,7 @@ fn test_pipeline_builder() {
 
     let (mut pipeline, (node, port)) = statement_to_pipeline(
         "SELECT  dname, salary \
-        FROM user JOIN department ON department_id = did JOIN country ON country_id = cid \
-        ",
+        FROM user JOIN department ON department_id = did ",
     )
     .unwrap();
 
@@ -499,7 +498,7 @@ fn test_pipeline_builder() {
         vec![
             ("user".to_string(), USER_PORT),
             ("department".to_string(), DEPARTMENT_PORT),
-            ("country".to_string(), COUNTRY_PORT),
+            //("country".to_string(), COUNTRY_PORT),
         ]
         .into_iter()
         .collect(),

@@ -4,7 +4,7 @@ use dozer_core::{
     dag::{errors::ExecutionError, node::PortHandle, record_store::RecordReader},
     storage::{lmdb_storage::SharedTransaction, prefix_transaction::PrefixTransaction},
 };
-use dozer_types::types::{Record, Schema};
+use dozer_types::types::{FieldDefinition, Record, Schema};
 use lmdb::Database;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -65,13 +65,20 @@ impl JoinSource {
             }
         }
     }
+
+    pub fn get_output_schema(&self) -> Schema {
+        match self {
+            JoinSource::Table(table) => table.schema.clone(),
+            JoinSource::Join(join) => join.schema.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct JoinTable {
     port: PortHandle,
 
-    schema: Schema,
+    pub schema: Schema,
 }
 
 impl JoinTable {
@@ -84,7 +91,8 @@ impl JoinTable {
 pub struct JoinOperator {
     operator: JoinOperatorType,
 
-    constraints: Vec<JoinConstraint>,
+    left_join_key: Vec<usize>,
+    right_join_key: Vec<usize>,
 
     schema: Schema,
 
@@ -99,7 +107,8 @@ pub struct JoinOperator {
 impl JoinOperator {
     pub fn new(
         operator: JoinOperatorType,
-        constraints: Vec<JoinConstraint>,
+        left_join_key: Vec<usize>,
+        right_join_key: Vec<usize>,
         schema: Schema,
         left_source: Box<JoinSource>,
         right_source: Box<JoinSource>,
@@ -108,7 +117,8 @@ impl JoinOperator {
     ) -> Self {
         Self {
             operator,
-            constraints,
+            left_join_key,
+            right_join_key,
             schema,
             left_source,
             right_source,
