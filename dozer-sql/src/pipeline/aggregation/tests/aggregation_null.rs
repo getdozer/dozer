@@ -5,11 +5,14 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_100_INT, FIELD_1_INT, ITALY,
 };
 use crate::pipeline::builder::SchemaSQLContext;
+use crate::pipeline::expression::builder::NameOrAlias;
 use crate::pipeline::tests::utils::get_select;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;
 use dozer_types::types::FieldType::Int;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 use std::collections::HashMap;
 
 #[test]
@@ -86,9 +89,9 @@ fn test_sum_aggregation_del_and_insert() {
         -------------
         COUNT = 1
     */
-    let mut inp = insert_field(ITALY, FIELD_100_INT);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_1_INT)];
+    let inp = insert_field(ITALY, FIELD_100_INT);
+    let out = output!(processor, inp, tx);
+    let exp = vec![insert_exp(ITALY, FIELD_1_INT)];
     assert_eq!(out, exp);
 }
 
@@ -96,22 +99,37 @@ fn test_sum_aggregation_del_and_insert() {
 fn test_aggregation_alias() {
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new(String::from("ID"), FieldType::Int, false),
+            FieldDefinition::new(
+                String::from("ID"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("Salary"), FieldType::Int, false),
+            FieldDefinition::new(
+                String::from("Salary"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();
 
     let select = get_select("SELECT ID, SUM(Salary) as Salaries FROM Users GROUP BY ID").unwrap();
 
-    let factory = AggregationProcessorFactory::new(select.projection, select.group_by, false);
+    let factory = AggregationProcessorFactory::new(
+        NameOrAlias("Users".to_string(), None),
+        select.projection,
+        select.group_by,
+        false,
+    );
     let out_schema = factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext {}))]
+            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext::default()))]
                 .into_iter()
                 .collect(),
         )
@@ -122,11 +140,21 @@ fn test_aggregation_alias() {
         out_schema,
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("ID"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("ID"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic
+                ),
                 true,
             )
             .field(
-                FieldDefinition::new(String::from("Salaries"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("Salaries"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic
+                ),
                 false,
             )
             .clone()

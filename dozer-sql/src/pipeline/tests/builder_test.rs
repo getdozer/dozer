@@ -11,7 +11,9 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 
 use dozer_core::dag::epoch::Epoch;
 
@@ -52,19 +54,34 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
+                    FieldDefinition::new(
+                        String::from("CustomerID"),
+                        FieldType::Int,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     false,
                 )
                 .field(
-                    FieldDefinition::new(String::from("Country"), FieldType::String, false),
+                    FieldDefinition::new(
+                        String::from("Country"),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     false,
                 )
                 .field(
-                    FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
+                    FieldDefinition::new(
+                        String::from("Spending"),
+                        FieldType::Float,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     false,
                 )
                 .clone(),
-            SchemaSQLContext {},
+            SchemaSQLContext::default(),
         ))
     }
 

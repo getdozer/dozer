@@ -2,7 +2,9 @@ use crate::pipeline::CacheSink;
 use dozer_cache::cache::{CacheOptions, LmdbCache};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
-use dozer_types::types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -14,11 +16,13 @@ pub fn get_schema() -> Schema {
                 name: "film_id".to_string(),
                 typ: FieldType::Int,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "film_name".to_string(),
                 typ: FieldType::String,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
         ],
         primary_index: vec![0],

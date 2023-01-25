@@ -1,7 +1,9 @@
 use crate::connectors::postgres::helper;
 use crate::errors::{PostgresConnectorError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, Operation, OperationEvent, Record, Schema, SourceDefinition,
+};
 use helper::postgres_type_to_dozer_type;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
@@ -248,6 +250,7 @@ impl XlogMapper {
                 name: c.name.clone(),
                 typ,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             });
         }
 

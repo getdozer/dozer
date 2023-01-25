@@ -1,6 +1,7 @@
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, OperationEvent, Record,
     ReplicationChangesTrackingType, Schema, SchemaIdentifier, SchemaWithChangesType,
+    SourceDefinition,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -46,6 +47,7 @@ pub fn get_contract_event_schemas(
                         | web3::ethabi::ParamType::Tuple(_) => FieldType::Text,
                     },
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 });
             }
 
@@ -250,61 +252,73 @@ pub fn get_eth_schema() -> Schema {
                 name: "id".to_string(),
                 typ: FieldType::UInt,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "address".to_string(),
                 typ: FieldType::String,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "topics".to_string(),
                 typ: FieldType::String,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "data".to_string(),
                 typ: FieldType::Binary,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "block_hash".to_string(),
                 typ: FieldType::String,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "block_number".to_string(),
                 typ: FieldType::UInt,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "transaction_hash".to_string(),
                 typ: FieldType::String,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "transaction_index".to_string(),
                 typ: FieldType::Int,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "log_index".to_string(),
                 typ: FieldType::Int,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "transaction_log_index".to_string(),
                 typ: FieldType::Int,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "log_type".to_string(),
                 typ: FieldType::String,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "removed".to_string(),
                 typ: FieldType::Boolean,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
         ],
 

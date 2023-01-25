@@ -1,7 +1,9 @@
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -38,11 +40,21 @@ impl SourceFactory<NoneContext> for GeneratorSourceFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new("id".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .field(
-                    FieldDefinition::new("value".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "value".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     false,
                 )
                 .clone(),
@@ -153,11 +165,21 @@ impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new("id".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .field(
-                    FieldDefinition::new("value".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "value".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     false,
                 )
                 .clone(),
@@ -291,11 +313,21 @@ impl SourceFactory<NoneContext> for NoPkGeneratorSourceFactory {
         Ok((
             Schema::empty()
                 .field(
-                    FieldDefinition::new("id".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     true,
                 )
                 .field(
-                    FieldDefinition::new("value".to_string(), FieldType::String, false),
+                    FieldDefinition::new(
+                        "value".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
                     false,
                 )
                 .clone(),

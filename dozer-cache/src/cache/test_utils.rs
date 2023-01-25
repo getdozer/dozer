@@ -1,4 +1,6 @@
-use dozer_types::types::{FieldDefinition, IndexDefinition, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    FieldDefinition, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
+};
 
 pub fn schema_0() -> (Schema, Vec<IndexDefinition>) {
     (
@@ -8,6 +10,7 @@ pub fn schema_0() -> (Schema, Vec<IndexDefinition>) {
                 name: "foo".to_string(),
                 typ: dozer_types::types::FieldType::String,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             }],
             primary_index: vec![0],
         },
@@ -24,16 +27,19 @@ pub fn schema_1() -> (Schema, Vec<IndexDefinition>) {
                     name: "a".to_string(),
                     typ: dozer_types::types::FieldType::Int,
                     nullable: true,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "b".to_string(),
                     typ: dozer_types::types::FieldType::String,
                     nullable: true,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "c".to_string(),
                     typ: dozer_types::types::FieldType::Int,
                     nullable: true,
+                    source: SourceDefinition::Dynamic,
                 },
             ],
             primary_index: vec![0],
@@ -57,11 +63,13 @@ pub fn schema_full_text() -> (Schema, Vec<IndexDefinition>) {
                     name: "foo".to_string(),
                     typ: dozer_types::types::FieldType::String,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "bar".to_string(),
                     typ: dozer_types::types::FieldType::Text,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
             ],
             primary_index: vec![0],
@@ -79,6 +87,7 @@ pub fn schema_empty_primary_index() -> (Schema, Vec<IndexDefinition>) {
                 name: "foo".to_string(),
                 typ: dozer_types::types::FieldType::String,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             }],
             primary_index: vec![],
         },
@@ -95,11 +104,13 @@ pub fn schema_multi_indices() -> (Schema, Vec<IndexDefinition>) {
                     name: "id".to_string(),
                     typ: dozer_types::types::FieldType::Int,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
                 FieldDefinition {
                     name: "text".to_string(),
                     typ: dozer_types::types::FieldType::String,
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 },
             ],
             primary_index: vec![0],

@@ -10,7 +10,9 @@ use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -115,10 +117,33 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         &self,
         port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        self.schema_map.get(port).map_or(
-            Err(ExecutionError::PortNotFoundInSource(*port)),
-            |schema_name| Ok((schema_name.clone(), SchemaSQLContext {})),
-        )
+        let mut schema = self
+            .schema_map
+            .get(port)
+            .map_or(Err(ExecutionError::PortNotFoundInSource(*port)), |s| {
+                Ok(s.clone())
+            })?;
+
+        let table_name = self
+            .ports
+            .iter()
+            .find(|(_, p)| **p == *port)
+            .unwrap()
+            .0
+            .clone();
+        // Add source information to the schema.
+        let mut fields = vec![];
+        for field in schema.fields {
+            let mut f = field.clone();
+            f.source = SourceDefinition::Table {
+                connection: self.connection.name.clone(),
+                name: table_name.clone(),
+            };
+            fields.push(f);
+        }
+        schema.fields = fields;
+
+        Ok((schema, SchemaSQLContext::default()))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
