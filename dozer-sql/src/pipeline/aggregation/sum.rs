@@ -2,11 +2,11 @@ use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use crate::{deserialize, deserialize_decimal, deserialize_f64, deserialize_i64, deserialize_u64};
-use std::ops::{Add, Sub};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType};
+use std::ops::{Add, Sub};
 
 pub struct SumAggregator {}
 const AGGREGATOR_NAME: &str = "SUM";
