@@ -4,8 +4,6 @@ use dozer_types::{
     types::{Field, Schema},
 };
 
-
-
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use dozer_types::types::{FieldDefinition, SourceDefinition};
 use sqlparser::ast::{
@@ -13,11 +11,11 @@ use sqlparser::ast::{
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
     InvalidValue, TooManyArguments,
 };
-use crate::pipeline::errors::{PipelineError};
 
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
@@ -170,9 +168,10 @@ impl ExpressionBuilder {
                             .into_iter()
                             .filter(|(_idx, field)| match &field.source {
                                 SourceDefinition::Alias { name } => name == src_table_or_alias,
-                                SourceDefinition::Table { name, connection: _ } => {
-                                    name == src_table_or_alias
-                                }
+                                SourceDefinition::Table {
+                                    name,
+                                    connection: _,
+                                } => name == src_table_or_alias,
                                 _ => false,
                             })
                             .collect();
@@ -192,9 +191,10 @@ impl ExpressionBuilder {
                                     matching_by_table_or_alias
                                         .into_iter()
                                         .filter(|(_idx, field)| match &field.source {
-                                            SourceDefinition::Table { name: _, connection } => {
-                                                connection == src_connection
-                                            }
+                                            SourceDefinition::Table {
+                                                name: _,
+                                                connection,
+                                            } => connection == src_connection,
                                             _ => false,
                                         })
                                         .collect();
