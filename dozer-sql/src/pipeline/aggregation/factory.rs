@@ -107,7 +107,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         if is_aggregation(&self.groupby, &output_field_rules) {
             return Ok(Box::new(AggregationProcessor::new(
                 output_field_rules,
-                input_schema.clone(),
+                input_schema,
             )));
         }
 
@@ -119,7 +119,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
         {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
-                input_schema.clone(),
+                input_schema,
                 expressions,
             ))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),

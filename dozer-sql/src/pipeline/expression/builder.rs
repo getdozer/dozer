@@ -84,7 +84,7 @@ impl ExpressionBuilder {
                 Ok((Box::new(Expression::Column { index: idx }), false))
             }
             SqlExpr::CompoundIdentifier(ident) => {
-                let idx = get_field_index(&&ConstraintIdentifier::Compound(ident.clone()), schema)?
+                let idx = get_field_index(&ConstraintIdentifier::Compound(ident.clone()), schema)?
                     .map_or(
                         Err(PipelineError::InvalidExpression(format!("{:?}", ident))),
                         Ok,

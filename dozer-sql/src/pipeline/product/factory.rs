@@ -123,7 +123,7 @@ pub fn build_join_chain(
             )),
             Ok,
         )?;
-        let input_schema = extend_schema_source_def(input_schema, &relation_name);
+        let input_schema = extend_schema_source_def(input_schema, relation_name);
         let mut right_join_table = JoinTable::from(&input_schema);
 
         let join_op = match &join.join_operator {
