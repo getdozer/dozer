@@ -222,16 +222,12 @@ pub fn get_input_tables(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
 ) -> Result<IndexedTabelWithJoins, PipelineError> {
-    let mut input_tables = vec![];
-
     let name = get_from_source(&from.relation, pipeline, query_ctx)?;
-    input_tables.insert(0, name.clone());
     let mut joins = vec![];
 
-    for (index, join) in from.joins.iter().enumerate() {
+    for join in from.joins.iter() {
         let input_name = get_from_source(&join.relation, pipeline, query_ctx)?;
         joins.push((input_name.clone(), join.clone()));
-        input_tables.insert(index + 1, input_name);
     }
 
     Ok(IndexedTabelWithJoins {
