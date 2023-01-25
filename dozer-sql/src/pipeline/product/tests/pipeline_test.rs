@@ -27,6 +27,7 @@ use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
 const USER_PORT: u16 = 0 as PortHandle;
 const DEPARTMENT_PORT: u16 = 1 as PortHandle;
+const COUNTRY_PORT: u16 = 2 as PortHandle;
 
 #[derive(Debug)]
 pub struct TestSourceFactory {
@@ -51,6 +52,13 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             ),
             OutputPortDef::new(
                 DEPARTMENT_PORT,
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                },
+            ),
+            OutputPortDef::new(
+                COUNTRY_PORT,
                 OutputPortType::StatefulWithPrimaryKeyLookup {
                     retr_old_records_for_updates: true,
                     retr_old_records_for_deletes: true,
@@ -95,6 +103,15 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     )
                     .field(
                         FieldDefinition::new(
+                            String::from("country_id"),
+                            FieldType::String,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        false,
+                    )
+                    .field(
+                        FieldDefinition::new(
                             String::from("salary"),
                             FieldType::Float,
                             false,
@@ -110,7 +127,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 Schema::empty()
                     .field(
                         FieldDefinition::new(
-                            String::from("id"),
+                            String::from("did"),
                             FieldType::Int,
                             false,
                             SourceDefinition::Dynamic,
@@ -119,7 +136,31 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     )
                     .field(
                         FieldDefinition::new(
-                            String::from("name"),
+                            String::from("dname"),
+                            FieldType::String,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        false,
+                    )
+                    .clone(),
+                SchemaSQLContext::default(),
+            ))
+        } else if port == &COUNTRY_PORT {
+            Ok((
+                Schema::empty()
+                    .field(
+                        FieldDefinition::new(
+                            String::from("cid"),
+                            FieldType::String,
+                            false,
+                            SourceDefinition::Dynamic,
+                        ),
+                        true,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("cname"),
                             FieldType::String,
                             false,
                             SourceDefinition::Dynamic,
@@ -443,9 +484,9 @@ fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
     let (mut pipeline, (node, port)) = statement_to_pipeline(
-        "SELECT  department.name, SUM(user.salary) \
-        FROM user JOIN department ON user.department_id = department.id \
-        GROUP BY department.name",
+        "SELECT  dname, salary \
+        FROM user JOIN department ON department_id = did JOIN country ON country_id = cid \
+        ",
     )
     .unwrap();
 
@@ -458,6 +499,7 @@ fn test_pipeline_builder() {
         vec![
             ("user".to_string(), USER_PORT),
             ("department".to_string(), DEPARTMENT_PORT),
+            ("country".to_string(), COUNTRY_PORT),
         ]
         .into_iter()
         .collect(),
