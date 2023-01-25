@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
 
 use dozer_core::dag::{
     dag::DEFAULT_PORT_HANDLE,
@@ -6,7 +6,7 @@ use dozer_core::dag::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
 use dozer_types::types::Schema;
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint};
+use sqlparser::ast::JoinConstraint;
 
 use crate::pipeline::builder::{get_input_names, IndexedTabelWithJoins};
 use crate::pipeline::{builder::SchemaSQLContext, errors::JoinError};
@@ -15,7 +15,6 @@ use sqlparser::ast::Expr;
 use super::{
     from_join::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},
     from_processor::FromProcessor,
-    join::JoinExecutor,
 };
 
 #[derive(Debug)]
@@ -95,6 +94,8 @@ pub fn build_join_tree(
     join_tables: &IndexedTabelWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<JoinOperator, JoinError> {
+    const RIGHT_JOIN_FLAG: u32 = 0x80000000;
+
     let port = 0 as PortHandle;
     let mut left_schema = input_schemas
         .get(&port)
@@ -132,8 +133,8 @@ pub fn build_join_tree(
                     join_schema.clone(),
                     Box::new(left_join_table),
                     Box::new(right_join_table),
-                    0,
-                    0,
+                    index as u32,
+                    (index + 1) as u32 | RIGHT_JOIN_FLAG,
                 ),
                 _ => return Err(JoinError::UnsupportedJoinConstraint),
             },
@@ -154,22 +155,8 @@ pub fn build_join_tree(
     }
 }
 
-enum ConstraintIdentifier {
-    Single(Ident),
-    Compound(Vec<Ident>),
-}
-
-impl Display for ConstraintIdentifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConstraintIdentifier::Single(ident) => f.write_fmt(format_args!("{}", ident)),
-            ConstraintIdentifier::Compound(ident) => f.write_fmt(format_args!("{:?}", ident)),
-        }
-    }
-}
-
 fn append_schema(mut output_schema: Schema, current_schema: &Schema) -> Schema {
-    for mut field in current_schema.clone().fields.into_iter() {
+    for field in current_schema.clone().fields.into_iter() {
         output_schema.fields.push(field);
     }
 

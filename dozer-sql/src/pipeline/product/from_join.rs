@@ -49,10 +49,10 @@ impl JoinSource {
                         result_records.push(join_record);
                     }
                 }
-                return Ok(result_records);
+                Ok(result_records)
             }
             JoinSource::Join(join) => {
-                return join.insert(from_port, record, lookup_keys, transaction, readers);
+                join.insert(from_port, record, lookup_keys, transaction, readers)
             }
         }
 
