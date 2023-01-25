@@ -15,7 +15,7 @@ use sqlparser::ast::{
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
-    InvalidTableOrAliasIdentifier, InvalidValue, TooManyArguments,
+    InvalidValue, TooManyArguments,
 };
 use crate::pipeline::errors::{JoinError, PipelineError};
 
@@ -139,7 +139,7 @@ impl ExpressionBuilder {
                 Some(&ident[0].value),
             ),
             _ => {
-                return Err(InvalidTableOrAliasIdentifier(
+                return Err(InvalidExpression(
                     ident
                         .iter()
                         .fold(String::new(), |a, b| a + "." + b.value.as_str()),
@@ -159,7 +159,7 @@ impl ExpressionBuilder {
                 index: matching_by_field[0].0,
             })),
             _ => match src_table_or_alias {
-                None => Err(InvalidTableOrAliasIdentifier(
+                None => Err(InvalidExpression(
                     ident
                         .iter()
                         .fold(String::new(), |a, b| a + "." + b.value.as_str()),
@@ -182,7 +182,7 @@ impl ExpressionBuilder {
                             index: matching_by_table_or_alias[0].0,
                         })),
                         _ => match src_connection {
-                            None => Err(InvalidTableOrAliasIdentifier(
+                            None => Err(InvalidExpression(
                                 ident
                                     .iter()
                                     .fold(String::new(), |a, b| a + "." + b.value.as_str()),
@@ -203,7 +203,7 @@ impl ExpressionBuilder {
                                     1 => Ok(Box::new(Expression::Column {
                                         index: matching_by_connection[0].0,
                                     })),
-                                    _ => Err(InvalidTableOrAliasIdentifier(
+                                    _ => Err(InvalidExpression(
                                         ident
                                             .iter()
                                             .fold(String::new(), |a, b| a + "." + b.value.as_str()),
