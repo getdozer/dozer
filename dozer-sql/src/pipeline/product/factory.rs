@@ -8,10 +8,12 @@ use dozer_core::dag::{
 use dozer_types::types::{Schema, SourceDefinition};
 use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, JoinConstraint};
 
+use crate::pipeline::expression::builder::ConstraintIdentifier;
+use crate::pipeline::product::from_factory::get_field_index;
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::{JoinError, PipelineError},
-    expression::builder::{extend_schema_source_def, get_field_index, ConstraintIdentifier},
+    expression::builder::extend_schema_source_def,
 };
 use crate::pipeline::{
     builder::{get_input_names, IndexedTabelWithJoins},
