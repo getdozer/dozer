@@ -4,7 +4,7 @@ use dozer_core::{
     dag::{errors::ExecutionError, node::PortHandle, record_store::RecordReader},
     storage::{lmdb_storage::SharedTransaction, prefix_transaction::PrefixTransaction},
 };
-use dozer_types::types::Record;
+use dozer_types::types::{Record, Schema};
 use lmdb::Database;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,7 +23,7 @@ pub struct JoinConstraint {
 
 #[derive(Clone, Debug)]
 pub enum JoinSource {
-    Table(PortHandle),
+    Table(JoinTable),
     Join(JoinOperator),
 }
 
@@ -37,10 +37,10 @@ impl JoinSource {
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         match self {
-            JoinSource::Table(port) => {
+            JoinSource::Table(table) => {
                 let reader = readers
-                    .get(port)
-                    .ok_or(ExecutionError::InvalidPortHandle(*port))?;
+                    .get(&table.port)
+                    .ok_or(ExecutionError::InvalidPortHandle(table.port))?;
                 let mut result_records = vec![];
                 for (lookup_key, lookup_version) in lookup_keys.iter() {
                     if let Some(left_record) = reader.get(lookup_key, *lookup_version)? {
@@ -82,10 +82,25 @@ impl JoinSource {
 }
 
 #[derive(Clone, Debug)]
+pub struct JoinTable {
+    port: PortHandle,
+
+    schema: Schema,
+}
+
+impl JoinTable {
+    pub fn new(port: PortHandle, schema: Schema) -> Self {
+        Self { port, schema }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct JoinOperator {
     operator: JoinOperatorType,
 
     constraints: Vec<JoinConstraint>,
+
+    schema: Schema,
 
     left_source: Box<JoinSource>,
     right_source: Box<JoinSource>,
@@ -99,6 +114,7 @@ impl JoinOperator {
     pub fn new(
         operator: JoinOperatorType,
         constraints: Vec<JoinConstraint>,
+        schema: Schema,
         left_source: Box<JoinSource>,
         right_source: Box<JoinSource>,
         left_index: u32,
@@ -107,6 +123,7 @@ impl JoinOperator {
         Self {
             operator,
             constraints,
+            schema,
             left_source,
             right_source,
             left_index,

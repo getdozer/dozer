@@ -13,7 +13,7 @@ use crate::pipeline::{builder::SchemaSQLContext, errors::JoinError};
 use sqlparser::ast::Expr;
 
 use super::{
-    from_join::{JoinOperator, JoinOperatorType, JoinSource},
+    from_join::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},
     from_processor::FromProcessor,
     join::JoinExecutor,
 };
@@ -95,26 +95,41 @@ pub fn build_join_tree(
     join_tables: &IndexedTabelWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<JoinOperator, JoinError> {
-    let port = 0;
-    let input_schema = input_schemas.get(&(port as PortHandle)).map_or(
-        Err(JoinError::InvalidJoinConstraint(
-            join_tables.relation.0.clone().0,
-        )),
-        Ok,
-    )?;
+    let port = 0 as PortHandle;
+    let mut left_schema = input_schemas
+        .get(&port)
+        .map_or(
+            Err(JoinError::InvalidJoinConstraint(
+                join_tables.relation.0.clone().0,
+            )),
+            Ok,
+        )
+        .unwrap()
+        .clone();
 
-    let mut left_join_table = JoinSource::Table(0);
+    let mut left_join_table = JoinSource::Table(JoinTable::new(port, left_schema.clone()));
 
     let mut join_tree_root = None;
 
     for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
-        let mut right_join_table = JoinSource::Table((index + 1) as PortHandle);
+        let right_port = (index + 1) as PortHandle;
+        let right_schema = input_schemas.get(&right_port).map_or(
+            Err(JoinError::InvalidJoinConstraint(
+                relation_name.0.to_string(),
+            )),
+            Ok,
+        )?;
+
+        let right_join_table = JoinSource::Table(JoinTable::new(right_port, right_schema.clone()));
+
+        let join_schema = append_schema(left_schema.clone(), right_schema);
 
         let join_op = match &join.join_operator {
             sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {
                 JoinConstraint::On(expression) => JoinOperator::new(
                     JoinOperatorType::Inner,
                     vec![],
+                    join_schema.clone(),
                     Box::new(left_join_table),
                     Box::new(right_join_table),
                     0,
@@ -126,6 +141,7 @@ pub fn build_join_tree(
         };
 
         join_tree_root = Some(join_op.clone());
+        left_schema = join_schema;
         left_join_table = JoinSource::Join(join_op);
     }
 
