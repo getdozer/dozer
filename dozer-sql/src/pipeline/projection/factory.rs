@@ -67,6 +67,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
                                 field.name,
                                 field.typ,
                                 field.nullable,
+                                field.source,
                             ));
                         }
                         break;

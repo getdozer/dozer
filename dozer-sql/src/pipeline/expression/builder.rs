@@ -78,7 +78,7 @@ impl ExpressionBuilder {
                 let idx = get_field_index(&ConstraintIdentifier::Single(ident.clone()), schema);
 
                 let idx = idx?.map_or(
-                    Err(PipelineError::InvalidExpression(ident.value.to_string())),
+                    Err(PipelineError::InvalidExpression(ident.clone().value.to_string())),
                     Ok,
                 )?;
                 Ok((Box::new(Expression::Column { index: idx }), false))
@@ -337,7 +337,6 @@ impl ExpressionBuilder {
                 self.parse_sql_expression(expression_type, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                // Err(InvalidArgument(format!("{:?}", argument)))
                 self.parse_sql_function_arg_expression(&FunctionArgExpr::Wildcard, schema)
             }
             _ => Err(InvalidArgument(format!("{:?}", argument))),
@@ -353,7 +352,11 @@ impl ExpressionBuilder {
             FunctionArgExpr::Wildcard => {
                 let idents: Vec<Ident> = schema.fields.iter()
                     .map(|field| Ident::new(field.clone().name)).collect();
-                self.parse_sql_column(idents.as_slice(), schema)
+                self.parse_sql_expression(
+                    &BuilderExpressionType::FullExpression,
+                    &SqlExpr::CompoundIdentifier(idents),
+                    schema
+                )
             },
             _ => Err(InvalidArgument(format!("{:?}", argument))),
         }
