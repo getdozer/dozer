@@ -8,7 +8,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter};
-use dozer_types::models::source::Source;
+
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
@@ -27,6 +27,7 @@ pub struct EthConnector {
     // contract_signacture -> SchemaID
     schema_map: HashMap<H256, usize>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
+    conn_name: String,
 }
 
 #[derive(Debug, Clone)]
@@ -83,7 +84,7 @@ impl EthConnector {
         builder.build()
     }
 
-    pub fn new(id: u64, config: EthConfig) -> Self {
+    pub fn new(id: u64, config: EthConfig, conn_name: String) -> Self {
         let mut contracts = HashMap::new();
 
         for c in &config.contracts {
@@ -102,6 +103,7 @@ impl EthConnector {
             schema_map,
             tables: None,
             ingestor: None,
+            conn_name,
         }
     }
 
@@ -152,7 +154,7 @@ impl Connector for EthConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|(n, _, _)| tables.iter().any(|t| t.name == *n))
+                .filter(|(n, _, _)| tables.iter().any(|t| t.table_name == *n))
                 .cloned()
                 .collect()
         } else {
@@ -170,6 +172,7 @@ impl Connector for EthConnector {
             .enumerate()
             .map(|(id, (name, schema, _))| TableInfo {
                 name: name.to_string(),
+                table_name: name.to_string(),
                 id: id as u32,
                 columns: Some(schema.fields.iter().map(|f| f.name.to_owned()).collect()),
             })
@@ -187,7 +190,7 @@ impl Connector for EthConnector {
         Ok(())
     }
 
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
+    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
         let filter = self.config.filter.to_owned().unwrap_or_default();
@@ -206,6 +209,8 @@ impl Connector for EthConnector {
                 self.contracts.to_owned(),
                 self.tables.to_owned(),
                 self.schema_map.to_owned(),
+                from_seq,
+                self.conn_name.clone(),
             ));
             run(details).await
         })
@@ -226,10 +231,6 @@ impl Connector for EthConnector {
             }
         }
         Ok(())
-    }
-
-    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
-        vec![sources]
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {

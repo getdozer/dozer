@@ -2,14 +2,11 @@ use crate::deserialize;
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
-use crate::{
-    check_nan_f64, deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64,
-    to_bytes, try_unwrap,
-};
+use crate::{check_nan_f64, deserialize_u8, to_bytes, try_unwrap};
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::Field::{Decimal, Float, Int};
+use dozer_types::types::Field::{Decimal, Float};
 use dozer_types::types::{Field, FieldType};
 use num_traits::Zero;
 use std::ops::Div;
@@ -25,7 +22,8 @@ impl AvgAggregator {
         match from {
             FieldType::Decimal => FieldType::Decimal,
             FieldType::Float => FieldType::Float,
-            FieldType::Int => FieldType::Int,
+            FieldType::Int => FieldType::Decimal,
+            FieldType::UInt => FieldType::Decimal,
             _ => from,
         }
     }
@@ -44,7 +42,7 @@ impl AvgAggregator {
         match (return_type, new) {
             (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
+                let new_val = Field::to_decimal(new).unwrap().serialize();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
 
                 // Calculate average
@@ -56,7 +54,7 @@ impl AvgAggregator {
             }
             (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
+                let new_val = &OrderedFloat(Field::to_float(new).unwrap());
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
@@ -68,11 +66,23 @@ impl AvgAggregator {
             }
             (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
+                let new_val = &Field::to_int(new).unwrap();
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_be_bytes();
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).serialize();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
+            }
+            (FieldType::UInt, _) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = &Field::to_uint(new).unwrap();
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+
+                // Calculate average
+                let avg = try_unwrap!(Self::calc_u64_average(ptx, aggregators_db)).serialize();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
@@ -93,11 +103,11 @@ impl AvgAggregator {
         match (return_type, new) {
             (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
+                let new_val = &Field::to_decimal(new).unwrap().serialize();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
 
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
+                let old_val = &Field::to_decimal(old).unwrap().serialize();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
 
                 // Calculate average
@@ -109,9 +119,9 @@ impl AvgAggregator {
             }
             (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
+                let new_val = &OrderedFloat(Field::to_float(new).unwrap());
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
+                let old_val = &OrderedFloat(Field::to_float(old).unwrap());
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
@@ -123,13 +133,27 @@ impl AvgAggregator {
             }
             (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
+                let new_val = &Field::to_int(new).unwrap();
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
+                let old_val = &Field::to_int(old).unwrap();
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = (try_unwrap!(Self::calc_i64_average(ptx, aggregators_db))).to_be_bytes();
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).serialize();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
+            }
+            (FieldType::UInt, _) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = &Field::to_uint(new).unwrap();
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+                let old_val = &Field::to_uint(old).unwrap();
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
+
+                // Calculate average
+                let avg = try_unwrap!(Self::calc_u64_average(ptx, aggregators_db)).serialize();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
@@ -149,7 +173,7 @@ impl AvgAggregator {
         match (return_type, old) {
             (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
+                let old_val = &Field::to_decimal(old).unwrap().serialize();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
 
                 // Calculate average
@@ -161,7 +185,7 @@ impl AvgAggregator {
             }
             (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
+                let old_val = &OrderedFloat(Field::to_float(old).unwrap());
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
@@ -173,11 +197,23 @@ impl AvgAggregator {
             }
             (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
+                let old_val = &Field::to_int(old).unwrap();
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_be_bytes();
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).serialize();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
+            }
+            (FieldType::UInt, _) => {
+                // Update aggregators_db with new val and its occurrence
+                let old_val = &Field::to_uint(old).unwrap();
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
+
+                // Calculate average
+                let avg = try_unwrap!(Self::calc_u64_average(ptx, aggregators_db)).serialize();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
@@ -193,7 +229,12 @@ impl AvgAggregator {
                 deserialize!(f),
             )),
             FieldType::Float => Float(OrderedFloat(f64::from_be_bytes(deserialize!(f)))),
-            FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
+            FieldType::Int => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
+                deserialize!(f),
+            )),
+            FieldType::UInt => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
+                deserialize!(f),
+            )),
             _ => Field::Null,
         }
     }
@@ -275,7 +316,7 @@ impl AvgAggregator {
     fn calc_i64_average(
         ptx: &mut PrefixTransaction,
         aggregators_db: Database,
-    ) -> Result<i64, PipelineError> {
+    ) -> Result<dozer_types::rust_decimal::Decimal, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut total_count = 0_u8;
         let mut total_sum = 0_i64;
@@ -293,6 +334,40 @@ impl AvgAggregator {
             }
             exist = ptx_cur.next()?;
         }
-        Ok(check_nan_f64!(total_sum as f64 / total_count as f64) as i64)
+        let total_count_sum = dozer_types::rust_decimal::Decimal::from(total_sum);
+        if total_count.is_zero() {
+            Ok(dozer_types::rust_decimal::Decimal::zero())
+        } else {
+            Ok(total_count_sum.div(dozer_types::rust_decimal::Decimal::from(total_count)))
+        }
+    }
+
+    fn calc_u64_average(
+        ptx: &mut PrefixTransaction,
+        aggregators_db: Database,
+    ) -> Result<dozer_types::rust_decimal::Decimal, PipelineError> {
+        let ptx_cur = ptx.open_cursor(aggregators_db)?;
+        let mut total_count = 0_u8;
+        let mut total_sum = 0_u64;
+        let mut exist = ptx_cur.first()?;
+
+        // Loop through aggregators_db to calculate average
+        while exist {
+            let cur = try_unwrap!(ptx_cur.read()).unwrap();
+            let val = u64::from_be_bytes(deserialize!(cur.0));
+            let get_count = ptx.get(aggregators_db, cur.0);
+            if get_count.is_ok() {
+                let count = deserialize_u8!(try_unwrap!(get_count));
+                total_count += count;
+                total_sum += val * u64::from(count);
+            }
+            exist = ptx_cur.next()?;
+        }
+        let total_count_sum = dozer_types::rust_decimal::Decimal::from(total_sum);
+        if total_count.is_zero() {
+            Ok(dozer_types::rust_decimal::Decimal::zero())
+        } else {
+            Ok(total_count_sum.div(dozer_types::rust_decimal::Decimal::from(total_count)))
+        }
     }
 }

@@ -322,17 +322,17 @@ impl AggregationProcessor {
             None => 0_u64,
         };
 
-        txn.put(
-            db,
-            key.as_slice(),
-            (if decr {
-                curr_count.wrapping_sub(delta)
-            } else {
-                curr_count.wrapping_add(delta)
-            })
-            .to_be_bytes()
-            .as_slice(),
-        )?;
+        let new_val = if decr {
+            curr_count.wrapping_sub(delta)
+        } else {
+            curr_count.wrapping_add(delta)
+        };
+
+        if new_val > 0 {
+            txn.put(db, key.as_slice(), new_val.to_be_bytes().as_slice())?;
+        } else {
+            txn.del(db, key.as_slice(), None)?;
+        }
         Ok(curr_count)
     }
 
@@ -383,10 +383,10 @@ impl AggregationProcessor {
             }
         };
 
-        if prev_count > 0 {
-            txn.put(db, record_key.as_slice(), new_state.as_slice())?;
-        } else {
+        if prev_count == 1 {
             let _ = txn.del(db, record_key.as_slice(), None)?;
+        } else {
+            txn.put(db, record_key.as_slice(), new_state.as_slice())?;
         }
         Ok(res)
     }
@@ -554,7 +554,7 @@ impl Processor for AggregationProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match self.db {
             Some(d) => {

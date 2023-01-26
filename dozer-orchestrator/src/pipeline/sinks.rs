@@ -14,11 +14,13 @@ use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::flags::Flags;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::hash_map::DefaultHasher;
@@ -47,7 +49,19 @@ pub fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
     );
     pb
 }
-
+#[derive(Debug, Clone)]
+pub struct CacheSinkSettings {
+    flags: Option<Flags>,
+    api_security: Option<ApiSecurity>,
+}
+impl CacheSinkSettings {
+    pub fn new(flags: Option<Flags>, api_security: Option<ApiSecurity>) -> Self {
+        Self {
+            flags,
+            api_security,
+        }
+    }
+}
 #[derive(Debug)]
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
@@ -55,8 +69,8 @@ pub struct CacheSinkFactory {
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineResponse>>,
     generated_path: PathBuf,
-    api_security: Option<ApiSecurity>,
     multi_pb: MultiProgress,
+    settings: CacheSinkSettings,
 }
 
 impl CacheSinkFactory {
@@ -66,8 +80,8 @@ impl CacheSinkFactory {
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
         generated_path: PathBuf,
-        api_security: Option<ApiSecurity>,
         multi_pb: MultiProgress,
+        settings: CacheSinkSettings,
     ) -> Self {
         Self {
             input_ports,
@@ -75,8 +89,8 @@ impl CacheSinkFactory {
             api_endpoint,
             notifier,
             generated_path,
-            api_security,
             multi_pb,
+            settings,
         }
     }
 
@@ -125,22 +139,27 @@ impl CacheSinkFactory {
             .fields
             .iter()
             .enumerate()
-            .filter_map(|(idx, f)| match f.typ {
-                // Create secondary indexes for these fields
+            .flat_map(|(idx, f)| match f.typ {
+                // Create sorted inverted indexes for these fields
                 FieldType::UInt
                 | FieldType::Int
                 | FieldType::Float
                 | FieldType::Boolean
-                | FieldType::String
                 | FieldType::Decimal
                 | FieldType::Timestamp
-                | FieldType::Date => Some(IndexDefinition::SortedInverted(vec![idx])),
+                | FieldType::Date => vec![IndexDefinition::SortedInverted(vec![idx])],
+
+                // Create sorted inverted and full text indexes for string fields.
+                FieldType::String => vec![
+                    IndexDefinition::SortedInverted(vec![idx]),
+                    IndexDefinition::FullText(idx),
+                ],
 
                 // Create full text indexes for text fields
-                FieldType::Text => Some(IndexDefinition::FullText(idx)),
+                FieldType::Text => vec![IndexDefinition::FullText(idx)],
 
                 // Skip creating indexes
-                FieldType::Binary | FieldType::Bson => None,
+                FieldType::Binary | FieldType::Bson => vec![],
             })
             .collect();
         Ok((schema, secondary_indexes))
@@ -156,10 +175,10 @@ impl CacheSinkFactory {
     }
 }
 
-impl SinkFactory for CacheSinkFactory {
+impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -168,33 +187,24 @@ impl SinkFactory for CacheSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(), ExecutionError> {
         use std::println as stdinfo;
         // Insert schemas into cache
         debug!(
             "SinkFactory: Initialising CacheSinkFactory: {}",
             self.api_endpoint.name
         );
-        for (_, schema) in input_schemas.iter() {
-            let mut pipeline_schema = schema.to_owned();
+        for (_, (schema, _ctx)) in input_schemas.iter() {
             stdinfo!(
                 "SINK: Initializing output schema: {}",
                 self.api_endpoint.name
             );
-
-            let hash = self.get_schema_hash();
-
-            pipeline_schema.set_identifier(Some(SchemaIdentifier {
-                id: hash as u32,
-                version: 1,
-            }))?;
-
-            let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
-            pipeline_schema.primary_index = create_primary_indexes(&pipeline_schema, &api_index)?;
-
+            let (pipeline_schema, secondary_indexes) = self.get_output_schema(schema)?;
             pipeline_schema.print().printstd();
-            // Automatically create secondary indexes
-            let secondary_indexes = create_secondary_indexes(&pipeline_schema);
+
             if self
                 .cache
                 .get_schema_and_indexes_by_name(&self.api_endpoint.name)
@@ -225,7 +235,8 @@ impl SinkFactory for CacheSinkFactory {
                     endpoint: self.api_endpoint.to_owned(),
                 },
             },
-            &self.api_security,
+            &self.settings.api_security,
+            &self.settings.flags,
         )
         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
@@ -278,32 +289,6 @@ fn create_primary_indexes(
         primary_index.push(idx);
     }
     Ok(primary_index)
-}
-
-fn create_secondary_indexes(schema: &Schema) -> Vec<IndexDefinition> {
-    // Automatically create secondary indexes
-    schema
-        .fields
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, f)| match f.typ {
-            // Create secondary indexes for these fields
-            FieldType::UInt
-            | FieldType::Int
-            | FieldType::Float
-            | FieldType::Boolean
-            | FieldType::String
-            | FieldType::Decimal
-            | FieldType::Timestamp
-            | FieldType::Date => Some(IndexDefinition::SortedInverted(vec![idx])),
-
-            // Create full text indexes for text fields
-            FieldType::Text => Some(IndexDefinition::FullText(idx)),
-
-            // Skip creating indexes
-            FieldType::Binary | FieldType::Bson => None,
-        })
-        .collect()
 }
 
 fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
@@ -360,7 +345,7 @@ impl Sink for CacheSink {
         from_port: PortHandle,
         op: Operation,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
 
@@ -399,7 +384,8 @@ impl Sink for CacheSink {
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
         match op {
-            Operation::Delete { old } => {
+            Operation::Delete { mut old } => {
+                old.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 self.cache
                     .delete_with_txn(txn, &key, &old, schema, secondary_indexes)
@@ -407,17 +393,18 @@ impl Sink for CacheSink {
                         ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
                     })?;
             }
-            Operation::Insert { new } => {
-                // new.schema_id = schema.identifier.clone();
+            Operation::Insert { mut new } => {
+                new.schema_id = schema.identifier;
                 self.cache
                     .insert_with_txn(txn, &new, schema, secondary_indexes)
                     .map_err(|e| {
                         ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
                     })?;
             }
-            Operation::Update { old, new } => {
+            Operation::Update { mut old, mut new } => {
+                old.schema_id = schema.identifier;
+                new.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
-                // new.schema_id = old.schema_id.clone();
                 self.cache
                     .update_with_txn(txn, &key, &old, &new, schema, secondary_indexes)
                     .map_err(|e| {

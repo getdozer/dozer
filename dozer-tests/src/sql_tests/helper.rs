@@ -4,7 +4,9 @@ use super::SqlMapper;
 use dozer_types::errors::types;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier, SourceDefinition,
+};
 use sqlparser::ast::{Expr, ObjectName};
 use std::error::Error;
 use std::str::FromStr;
@@ -105,7 +107,7 @@ pub fn get_inserts_from_csv(
     Ok(sql_list)
 }
 
-pub fn query_sqllite(
+pub fn query_sqlite(
     mapper: Arc<Mutex<SqlMapper>>,
     sql: &str,
     schema: &Schema,
@@ -246,13 +248,14 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
                         .replace(|c: char| !c.is_ascii_alphanumeric(), "_"),
                     typ: match typ.as_str() {
                         "integer" => FieldType::Int,
-                        "string" => FieldType::String,
-                        "text" => FieldType::String,
-                        "numeric" => FieldType::Float,
+                        "string" | "text" => FieldType::String,
+                        "real" => FieldType::Float,
+                        "numeric" => FieldType::Decimal,
                         "timestamp" => FieldType::Timestamp,
                         f => panic!("unknown field_type : {}", f),
                     },
                     nullable: true,
+                    source: SourceDefinition::Dynamic,
                 }
             })
             .collect(),

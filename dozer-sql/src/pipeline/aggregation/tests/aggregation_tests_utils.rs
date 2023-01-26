@@ -6,14 +6,14 @@ use dozer_core::{
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
 };
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, DATE_FORMAT,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, DATE_FORMAT,
 };
 use std::collections::HashMap;
 
 use crate::pipeline::{
     aggregation::{factory::get_aggregation_rules, processor::AggregationProcessor},
-    builder::get_select,
     errors::PipelineError,
+    tests::utils::get_select,
 };
 
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
@@ -55,19 +55,39 @@ pub(crate) fn init_processor(
 pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) -> Schema {
     Schema::empty()
         .field(
-            FieldDefinition::new(String::from("ID"), FieldType::Int, false),
+            FieldDefinition::new(
+                String::from("ID"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("Country"), FieldType::String, false),
+            FieldDefinition::new(
+                String::from("Country"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("Salary"), field_type, false),
+            FieldDefinition::new(
+                String::from("Salary"),
+                field_type,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(format!("{}(Salary)", aggregator_name), field_type, false),
+            FieldDefinition::new(
+                format!("{}(Salary)", aggregator_name),
+                field_type,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone()
@@ -227,7 +247,11 @@ pub const FIELD_150_INT: &Field = &Field::Int(150);
 pub const FIELD_200_INT: &Field = &Field::Int(200);
 pub const FIELD_250_INT: &Field = &Field::Int(250);
 pub const FIELD_350_INT: &Field = &Field::Int(350);
-pub const FIELD_75_INT: &Field = &Field::Int(75);
 pub const FIELD_50_INT: &Field = &Field::Int(50);
-pub const FIELD_250_DIV_3_INT: &Field = &Field::Int(250 / 3);
-pub const FIELD_350_DIV_3_INT: &Field = &Field::Int(350 / 3);
+
+pub const FIELD_100_UINT: &Field = &Field::UInt(100);
+pub const FIELD_150_UINT: &Field = &Field::UInt(150);
+pub const FIELD_200_UINT: &Field = &Field::UInt(200);
+pub const FIELD_250_UINT: &Field = &Field::UInt(250);
+pub const FIELD_350_UINT: &Field = &Field::UInt(350);
+pub const FIELD_50_UINT: &Field = &Field::UInt(50);

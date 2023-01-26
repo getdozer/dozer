@@ -97,7 +97,7 @@ fn spawn_command(bin: &str, args: &[&str]) -> Child {
     cmd.args(args);
     info!("Spawning command: {:?}", cmd);
     let mut child = cmd.spawn().expect("Failed to run command");
-    sleep(Duration::from_millis(10000));
+    sleep(Duration::from_millis(30000));
     if let Some(exit_status) = child
         .try_wait()
         .unwrap_or_else(|e| panic!("Failed to check status of command {:?}: {}", cmd, e))

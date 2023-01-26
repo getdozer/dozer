@@ -52,9 +52,9 @@ Test cases may need to establish various kinds of connections. Connection servic
 
 The framework traverses `dozer-config.yaml`, and for every `connection`, it tries to find a directory with the connection name under `dozer-tests/src/e2e_tests/connections`. If found, it adds the connection service defined in that directory to a docker compose file, and starts the containers before running the test client.
 
-The connection directory must have a `Dockerfile` used for building the image. The build context will be the connection directory.
+The connection directory may have a `Dockerfile` used for building the image. The build context will be the connection directory.
 
-It can optionally contain a `service.yaml` file, whose content will be added to the connection service section of the docker commpose file. The `build` section of `service.yaml` will be overwritten. The working directory of the `docker compose` run will be the repository root, so be careful with relative paths in `service.yaml` (better don't use them).
+If there's no `Dockerfile` under the connection directory, it must contain a `service.yaml` file, whose content will be added to the connection service section of the docker commpose file. The `build` section of `service.yaml` will be overwritten, to the `Dockerfile` if it exists, removed if not. The working directory of the `docker compose` run will be the repository root, so be careful with relative paths in `service.yaml` (better don't use them).
 
 ### Troubleshoot Connections
 

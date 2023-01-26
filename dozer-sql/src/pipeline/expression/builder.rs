@@ -1,12 +1,12 @@
-use std::cmp;
+use std::fmt::Display;
 
 use dozer_types::{
     ordered_float::OrderedFloat,
-    types::{Field, Schema},
+    types::{Field, FieldDefinition, Schema, SourceDefinition},
 };
 
 use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, Expr, Function, FunctionArg,
+    BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
@@ -22,6 +22,8 @@ use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorTyp
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::expression::scalar::string::TrimType;
 
+use super::cast::CastOperatorType;
+
 pub type Bypass = bool;
 
 pub enum BuilderExpressionType {
@@ -30,7 +32,22 @@ pub enum BuilderExpressionType {
     // PostAggregation,
     FullExpression,
 }
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct NameOrAlias(pub String, pub Option<String>);
 
+pub enum ConstraintIdentifier {
+    Single(Ident),
+    Compound(Vec<Ident>),
+}
+
+impl Display for ConstraintIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConstraintIdentifier::Single(ident) => f.write_fmt(format_args!("{}", ident)),
+            ConstraintIdentifier::Compound(ident) => f.write_fmt(format_args!("{:?}", ident)),
+        }
+    }
+}
 pub struct ExpressionBuilder;
 
 impl ExpressionBuilder {
@@ -57,8 +74,23 @@ impl ExpressionBuilder {
                 trim_where,
                 trim_what,
             } => self.parse_sql_trim_function(expression_type, expr, trim_where, trim_what, schema),
-            SqlExpr::Identifier(ident) => self.parse_sql_column(&[ident.clone()], schema),
-            SqlExpr::CompoundIdentifier(ident) => self.parse_sql_column(ident, schema),
+            SqlExpr::Identifier(ident) => {
+                let idx = get_field_index(&ConstraintIdentifier::Single(ident.clone()), schema);
+
+                let idx = idx?.map_or(
+                    Err(PipelineError::InvalidExpression(ident.value.to_string())),
+                    Ok,
+                )?;
+                Ok((Box::new(Expression::Column { index: idx }), false))
+            }
+            SqlExpr::CompoundIdentifier(ident) => {
+                let idx = get_field_index(&ConstraintIdentifier::Compound(ident.clone()), schema)?
+                    .map_or(
+                        Err(PipelineError::InvalidExpression(format!("{:?}", ident))),
+                        Ok,
+                    )?;
+                Ok((Box::new(Expression::Column { index: idx }), false))
+            }
             SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
             SqlExpr::Value(SqlValue::Null) => {
                 Ok((Box::new(Expression::Literal(Field::Null)), false))
@@ -104,22 +136,11 @@ impl ExpressionBuilder {
                 escape_char,
                 schema,
             ),
+            SqlExpr::Cast { expr, data_type } => {
+                self.parse_sql_cast_operator(expression_type, expr, data_type, schema)
+            }
             _ => Err(InvalidExpression(format!("{:?}", expression))),
         }
-    }
-
-    fn parse_sql_column(
-        &self,
-        ident: &[Ident],
-        schema: &Schema,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
-        Ok((
-            Box::new(Expression::Column {
-                index: get_field_index(ident, schema)?,
-                //index: schema.get_field_index(&ident[0].value)?.0,
-            }),
-            false,
-        ))
     }
 
     fn parse_sql_trim_function(
@@ -451,6 +472,51 @@ impl ExpressionBuilder {
             Ok((like_expression, arg.1))
         }
     }
+
+    fn parse_sql_cast_operator(
+        &self,
+        expression_type: &BuilderExpressionType,
+        expr: &Expr,
+        data_type: &DataType,
+        schema: &Schema,
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
+        let expression = self.parse_sql_expression(expression_type, expr, schema)?;
+        let cast_to = match data_type {
+            DataType::Decimal(_) => CastOperatorType::Decimal,
+            DataType::Binary(_) => CastOperatorType::Binary,
+            DataType::Float(_) => CastOperatorType::Float,
+            DataType::Int(_) => CastOperatorType::Int,
+            DataType::Integer(_) => CastOperatorType::Int,
+            DataType::UnsignedInt(_) => CastOperatorType::UInt,
+            DataType::UnsignedInteger(_) => CastOperatorType::UInt,
+            DataType::Boolean => CastOperatorType::Boolean,
+            DataType::Date => CastOperatorType::Date,
+            DataType::Timestamp(..) => CastOperatorType::Timestamp,
+            DataType::Text => CastOperatorType::Text,
+            DataType::String => CastOperatorType::String,
+            DataType::Custom(name, ..) => {
+                if name.to_string().to_lowercase() == "bson" {
+                    CastOperatorType::Bson
+                } else {
+                    Err(PipelineError::InvalidFunction(format!(
+                        "Unsupported Cast type {}",
+                        name
+                    )))?
+                }
+            }
+            _ => Err(PipelineError::InvalidFunction(format!(
+                "Unsupported Cast type {}",
+                data_type
+            )))?,
+        };
+        Ok((
+            Box::new(Expression::Cast {
+                arg: expression.0,
+                typ: cast_to,
+            }),
+            expression.1,
+        ))
+    }
 }
 
 pub fn fullname_from_ident(ident: &[Ident]) -> String {
@@ -459,54 +525,6 @@ pub fn fullname_from_ident(ident: &[Ident]) -> String {
         ident_tokens.push(token.value.clone());
     }
     ident_tokens.join(".")
-}
-
-pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, PipelineError> {
-    let full_ident = fullname_from_ident(ident);
-
-    let mut field_index: Option<usize> = None;
-
-    for (index, field) in schema.fields.iter().enumerate() {
-        if compare_name(field.name.clone(), full_ident.clone()) {
-            if field_index.is_some() {
-                return Err(PipelineError::InvalidQuery(format!(
-                    "Ambiguous Field {}",
-                    full_ident
-                )));
-            } else {
-                field_index = Some(index);
-            }
-        }
-    }
-    if let Some(index) = field_index {
-        Ok(index)
-    } else {
-        Err(PipelineError::InvalidQuery(format!(
-            "Field {} not found",
-            full_ident
-        )))
-    }
-}
-
-pub(crate) fn compare_name(name: String, ident: String) -> bool {
-    let left = name.split('.').collect::<Vec<&str>>();
-    let right = ident.split('.').collect::<Vec<&str>>();
-
-    let left_len = left.len();
-    let right_len = right.len();
-
-    let shorter = cmp::min(left_len, right_len);
-    let mut is_equal = false;
-    for i in 1..shorter + 1 {
-        if left[left_len - i] == right[right_len - i] {
-            is_equal = true;
-        } else {
-            is_equal = false;
-            break;
-        }
-    }
-
-    is_equal
 }
 
 fn parse_sql_string(s: &str) -> Result<(Box<Expression>, bool), PipelineError> {
@@ -520,5 +538,78 @@ pub(crate) fn normalize_ident(id: &Ident) -> String {
     match id.quote_style {
         Some(_) => id.value.clone(),
         None => id.value.clone(),
+    }
+}
+
+pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
+    let mut output_schema = schema.clone();
+    let mut fields = vec![];
+    for mut field in schema.clone().fields.into_iter() {
+        if let Some(alias) = &name.1 {
+            field.source = SourceDefinition::Alias {
+                name: alias.to_string(),
+            };
+        }
+
+        fields.push(field);
+    }
+    output_schema.fields = fields;
+
+    output_schema
+}
+
+pub fn get_field_index(
+    ident: &ConstraintIdentifier,
+    schema: &Schema,
+) -> Result<Option<usize>, PipelineError> {
+    let get_field_idx = |ident: &Ident, schema: &Schema| -> Option<(usize, FieldDefinition)> {
+        schema
+            .fields
+            .iter()
+            .enumerate()
+            .find(|(_, f)| f.name == ident.value)
+            .map(|(idx, fd)| (idx, fd.clone()))
+    };
+
+    let tables_matches = |table_ident: &Ident, fd: FieldDefinition| -> bool {
+        match fd.source {
+            dozer_types::types::SourceDefinition::Table {
+                connection: _,
+                name,
+            } => name == table_ident.value,
+            dozer_types::types::SourceDefinition::Alias { name } => name == table_ident.value,
+            dozer_types::types::SourceDefinition::Dynamic => false,
+        }
+    };
+
+    match ident {
+        ConstraintIdentifier::Single(ident) => {
+            let field_idx = get_field_idx(ident, schema);
+            field_idx.map_or(
+                Err(PipelineError::InvalidExpression(ident.value.to_string())),
+                |t| Ok(Some(t.0)),
+            )
+        }
+        ConstraintIdentifier::Compound(comp_ident) => {
+            if comp_ident.len() > 2 {
+                return Err(PipelineError::NameSpaceTooLong(
+                    comp_ident
+                        .iter()
+                        .map(|a| a.value.clone())
+                        .collect::<Vec<String>>()
+                        .join("."),
+                ));
+            }
+            let table_name = comp_ident.first().expect("table_name is expected");
+            let field_name = comp_ident.last().expect("field_name is expected");
+
+            let field_idx = get_field_idx(field_name, schema);
+            if let Some((idx, fd)) = field_idx {
+                if tables_matches(table_name, fd) {
+                    return Ok(Some(idx));
+                }
+            }
+            Ok(None)
+        }
     }
 }

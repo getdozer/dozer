@@ -1,5 +1,6 @@
 #[cfg(feature = "snowflake")]
 use odbc::create_environment_v3;
+use std::collections::HashMap;
 use std::sync::Arc;
 #[cfg(feature = "snowflake")]
 use std::time::Duration;
@@ -18,7 +19,7 @@ use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 #[cfg(feature = "snowflake")]
 use crate::errors::SnowflakeError::ConnectionError;
-use dozer_types::models::source::Source;
+
 use dozer_types::types::SchemaWithChangesType;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
@@ -43,10 +44,6 @@ impl SnowflakeConnector {
 }
 
 impl Connector for SnowflakeConnector {
-    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
-        sources.iter().map(|s| vec![s.clone()]).collect()
-    }
-
     #[cfg(feature = "snowflake")]
     fn get_schemas(
         &self,
@@ -58,8 +55,21 @@ impl Connector for SnowflakeConnector {
             .connect_with_connection_string(&client.get_conn_string())
             .map_err(|e| ConnectionError(Box::new(e)))?;
 
+        let keys = client
+            .fetch_keys(&conn)
+            .map_err(ConnectorError::SnowflakeError)?;
+
+        let tables_indexes = table_names.clone().map_or(HashMap::new(), |tables| {
+            let mut result = HashMap::new();
+            for (idx, table) in tables.iter().enumerate() {
+                result.insert(table.table_name.clone(), idx);
+            }
+
+            result
+        });
+
         client
-            .fetch_tables(table_names, &self.config, &conn)
+            .fetch_tables(table_names, tables_indexes, keys, &conn)
             .map_err(ConnectorError::SnowflakeError)
     }
 
@@ -109,7 +119,7 @@ impl Connector for SnowflakeConnector {
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        todo!()
+        Ok(HashMap::new())
     }
 }
 
@@ -125,13 +135,13 @@ async fn run(
     match tables {
         None => {}
         Some(tables) => {
-            for table in tables.iter() {
+            for (idx, table) in tables.iter().enumerate() {
                 let is_stream_created =
-                    StreamConsumer::is_stream_created(&client, table.name.clone())?;
+                    StreamConsumer::is_stream_created(&client, table.table_name.clone())?;
                 if !is_stream_created {
                     let ingestor_snapshot = Arc::clone(&ingestor);
-                    Snapshotter::run(&client, &ingestor_snapshot, table.name.clone())?;
-                    StreamConsumer::create_stream(&client, &table.name)?;
+                    Snapshotter::run(&client, &ingestor_snapshot, table.table_name.clone(), idx)?;
+                    StreamConsumer::create_stream(&client, &table.table_name)?;
                 }
             }
 
@@ -141,8 +151,13 @@ async fn run(
 
             let mut consumer = StreamConsumer::new();
             loop {
-                for table in tables.iter() {
-                    consumer.consume_stream(&stream_client, &table.name, &ingestor_stream)?;
+                for (idx, table) in tables.iter().enumerate() {
+                    consumer.consume_stream(
+                        &stream_client,
+                        &table.table_name,
+                        &ingestor_stream,
+                        idx,
+                    )?;
 
                     interval.tick().await;
                 }

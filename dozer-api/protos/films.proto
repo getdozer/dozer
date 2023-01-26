@@ -19,7 +19,7 @@ service Films {
   /**
    * Counts the number of records satisfying the given query. See [Query](../query) for the query format.
    *
-   * If no query is specified, total number of records or 50 will be returned, whichever is smaller.
+   * If no query is specified, total number of records will be returned.
    */
   rpc count(QueryFilmsRequest) returns (CountFilmsResponse);
   /**

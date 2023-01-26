@@ -12,12 +12,13 @@ use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
-use dozer_types::types::{FieldDefinition, FieldType, Schema};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use crate::dag::tests::app::NoneContext;
 use tempdir::TempDir;
 
 #[derive(Debug)]
@@ -31,14 +32,25 @@ impl CreateErrSourceFactory {
     }
 }
 
-impl SourceFactory for CreateErrSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new("id".to_string(), FieldType::Int, false),
-                true,
-            )
-            .clone())
+impl SourceFactory<NoneContext> for CreateErrSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::Int,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    true,
+                )
+                .clone(),
+            NoneContext {},
+        ))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -48,7 +60,10 @@ impl SourceFactory for CreateErrSourceFactory {
         )])
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -171,18 +186,26 @@ impl CreateErrProcessorFactory {
     }
 }
 
-impl ProcessorFactory for CreateErrProcessorFactory {
+impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
     fn get_output_schema(
         &self,
         _port: &PortHandle,
-        _input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new("id".to_string(), FieldType::Int, false),
-                true,
-            )
-            .clone())
+        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::Int,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    true,
+                )
+                .clone(),
+            NoneContext {},
+        ))
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -198,8 +221,8 @@ impl ProcessorFactory for CreateErrProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

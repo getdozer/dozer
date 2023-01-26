@@ -11,7 +11,6 @@ use dozer_types::types::SchemaWithChangesType;
 use postgres::Client;
 use postgres_types::PgLsn;
 
-use dozer_types::models::source::Source;
 use std::sync::Arc;
 use tokio_postgres::config::ReplicationMode;
 use tokio_postgres::Config;
@@ -153,10 +152,6 @@ impl Connector for PostgresConnector {
         Ok(())
     }
 
-    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
-        vec![sources]
-    }
-
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         SchemaHelper::validate(&self.schema_helper, tables)
             .map_err(ConnectorError::PostgresConnectorError)
@@ -177,7 +172,7 @@ impl PostgresConnector {
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
             Some(arr) => {
-                let table_names: Vec<String> = arr.iter().map(|t| t.name.clone()).collect();
+                let table_names: Vec<String> = arr.iter().map(|t| t.table_name.clone()).collect();
                 format!("TABLE {}", table_names.join(" , "))
             }
         };

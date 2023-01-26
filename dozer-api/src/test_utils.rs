@@ -1,5 +1,5 @@
 use dozer_types::serde_json::{json, Value};
-use dozer_types::types::{Field, Record};
+use dozer_types::types::{Field, Record, SourceDefinition};
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
@@ -14,26 +14,31 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
             name: "film_id".to_string(),
             typ: FieldType::UInt,
             nullable: false,
+            source: SourceDefinition::Dynamic,
         },
         FieldDefinition {
             name: "description".to_string(),
             typ: FieldType::String,
             nullable: true,
+            source: SourceDefinition::Dynamic,
         },
         FieldDefinition {
             name: "rental_rate".to_string(),
             typ: FieldType::Float,
             nullable: true,
+            source: SourceDefinition::Dynamic,
         },
         FieldDefinition {
             name: "release_year".to_string(),
-            typ: FieldType::Int,
+            typ: FieldType::UInt,
             nullable: true,
+            source: SourceDefinition::Dynamic,
         },
         FieldDefinition {
             name: "updated_at".to_string(),
             typ: FieldType::Timestamp,
             nullable: true,
+            source: SourceDefinition::Dynamic,
         },
     ];
     let secondary_indexes = fields
@@ -67,8 +72,8 @@ pub fn get_endpoint() -> ApiEndpoint {
     }
 }
 
-pub fn get_films() -> Vec<Value> {
-    vec![
+fn get_films() -> Vec<Value> {
+    let mut result = vec![
         json!({
           "description": "A Amazing Panorama of a Mad Scientist And a Husband who must Meet a Woman in The Outback",
           "rental_rate": null,
@@ -83,7 +88,18 @@ pub fn get_films() -> Vec<Value> {
           "description": "A Intrepid Display of a Pastry Chef And a Cat who must Kill a A Shark in Ancient China",
           "updated_at": null
         }),
-    ]
+    ];
+
+    for film_id in 1..=50 {
+        result.push(json!({
+            "film_id": film_id,
+            "description": format!("Film {}", film_id),
+            "rental_rate": null,
+            "release_year": 2006,
+            "updated_at": null
+        }));
+    }
+    result
 }
 
 pub fn initialize_cache(

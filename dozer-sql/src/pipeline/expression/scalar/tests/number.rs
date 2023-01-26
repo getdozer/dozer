@@ -2,7 +2,7 @@ use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::scalar::number::evaluate_round;
 use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
 #[test]
 fn test_abs() {
@@ -10,7 +10,12 @@ fn test_abs() {
         "SELECT ABS(c) FROM USERS",
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("c"), FieldType::Int, false),
+                FieldDefinition::new(
+                    String::from("c"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
                 false,
             )
             .clone(),

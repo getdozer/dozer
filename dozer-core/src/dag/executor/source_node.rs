@@ -76,9 +76,9 @@ impl SourceSenderNode {
     /// - `last_checkpoint`: Last checkpointed output of this source.
     /// - `sender`: Channel to send data to.
     /// - `running`: If the execution DAG should still be running.
-    pub fn new(
+    pub fn new<T: Clone>(
         node_handle: NodeHandle,
-        source_factory: &dyn SourceFactory,
+        source_factory: &dyn SourceFactory<T>,
         output_schemas: HashMap<PortHandle, Schema>,
         last_checkpoint: (u64, u64),
         sender: Sender<(PortHandle, u64, u64, Operation)>,
@@ -136,6 +136,7 @@ impl SourceListenerNode {
     /// - `running`: If the execution DAG should still be running.
     /// - `epoch_manager`: Used for coordinating commit and terminate between sources. Shared by all sources.
     /// - `output_schemas`: Output data schemas.
+    /// - `retention_queue_size`: Size of retention queue (used by RecordWriter)
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         node_handle: NodeHandle,
@@ -143,7 +144,9 @@ impl SourceListenerNode {
         timeout: Duration,
         base_path: &Path,
         output_ports: &[OutputPortDef],
-        record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        record_readers: Arc<
+            RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>,
+        >,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         edges: &[Edge],
         running: Arc<AtomicBool>,
@@ -152,6 +155,7 @@ impl SourceListenerNode {
         epoch_manager: Arc<EpochManager>,
         output_schemas: HashMap<PortHandle, Schema>,
         start_seq: (u64, u64),
+        retention_queue_size: usize,
     ) -> Result<Self, ExecutionError> {
         let state_meta = init_component(&node_handle, base_path, |_| Ok(()))?;
         let (master_tx, port_databases) =
@@ -170,6 +174,7 @@ impl SourceListenerNode {
                 port_databases,
                 master_tx,
                 output_schemas,
+                retention_queue_size,
             )?,
             true,
             commit_sz,

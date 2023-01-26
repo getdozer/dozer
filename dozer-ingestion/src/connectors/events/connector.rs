@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use dozer_types::models::source::Source;
 use dozer_types::types::ReplicationChangesTrackingType;
 use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 
@@ -79,10 +78,6 @@ impl Connector for EventsConnector {
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
-    }
-
-    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
-        vec![sources]
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {

@@ -1,11 +1,12 @@
-use crate::pipeline::builder::get_select;
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::projection::factory::ProjectionProcessorFactory;
+use crate::pipeline::tests::utils::get_select;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
 #[test]
 fn test_column_execution() {
@@ -13,15 +14,30 @@ fn test_column_execution() {
 
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new("int_field".to_string(), FieldType::Int, false),
+            FieldDefinition::new(
+                "int_field".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("str_field".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "str_field".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("float_field".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "float_field".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();
@@ -105,11 +121,21 @@ fn test_column_execution() {
 fn test_alias() {
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new(String::from("fn"), FieldType::Text, false),
+            FieldDefinition::new(
+                String::from("fn"),
+                FieldType::Text,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("ln"), FieldType::String, false),
+            FieldDefinition::new(
+                String::from("ln"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();
@@ -119,19 +145,32 @@ fn test_alias() {
     let r = processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
+            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext::default()))]
+                .into_iter()
+                .collect(),
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     assert_eq!(
         r,
         Schema::empty()
             .field(
-                FieldDefinition::new(String::from("alias1"), FieldType::Text, false),
+                FieldDefinition::new(
+                    String::from("alias1"),
+                    FieldType::Text,
+                    false,
+                    SourceDefinition::Dynamic
+                ),
                 false,
             )
             .field(
-                FieldDefinition::new(String::from("alias2"), FieldType::String, false),
+                FieldDefinition::new(
+                    String::from("alias2"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic
+                ),
                 false,
             )
             .clone()

@@ -1,5 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
-use dozer_core::dag::app::App;
+use dozer_core::dag::app::{App, AppPipeline};
+use dozer_sql::pipeline::builder::{self, statement_to_pipeline, SchemaSQLContext};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -10,17 +11,16 @@ use std::sync::Arc;
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
-use crate::pipeline::{CacheSinkFactory, StreamingSinkFactory};
+use crate::pipeline::{CacheSinkFactory, CacheSinkSettings, StreamingSinkFactory};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table, TableInfo};
 
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
-use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
-use dozer_types::models::api_security::ApiSecurity;
+
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use OrchestrationError::ExecutionError;
@@ -73,7 +73,8 @@ impl Executor {
                 let tables: Vec<TableInfo> = sources_group
                     .iter()
                     .map(|source| TableInfo {
-                        name: source.table_name.clone(),
+                        name: source.name.clone(),
+                        table_name: source.table_name.clone(),
                         id: 0,
                         columns: Some(source.columns.clone()),
                     })
@@ -159,32 +160,34 @@ impl Executor {
         &self,
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
-    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
+    ) -> Result<dozer_core::dag::dag::Dag<SchemaSQLContext>, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
-        let asm = SourceBuilder::build_source_manager(
-            grouped_connections,
-            self.ingestor.clone(),
-            self.iterator.clone(),
-            self.running.clone(),
-        )?;
-        let mut app = App::new(asm);
 
-        let mut pipeline = PipelineBuilder {}
-            .build_pipeline(&sql)
-            .map_err(OrchestrationError::PipelineError)?;
+        let (mut pipeline, (query_name, query_port)) =
+            statement_to_pipeline(&sql).map_err(OrchestrationError::PipelineError)?;
         pipeline.add_sink(
             Arc::new(StreamingSinkFactory::new(sender)),
             "streaming_sink",
         );
         pipeline
             .connect_nodes(
-                "aggregation",
-                Some(DEFAULT_PORT_HANDLE),
+                &query_name,
+                Some(query_port),
                 "streaming_sink",
                 Some(DEFAULT_PORT_HANDLE),
             )
             .map_err(OrchestrationError::ExecutionError)?;
 
+        let used_sources: Vec<String> = pipeline.get_entry_points_sources_names();
+
+        let asm = SourceBuilder::build_source_manager(
+            used_sources,
+            grouped_connections,
+            self.ingestor.clone(),
+            self.iterator.clone(),
+            self.running.clone(),
+        )?;
+        let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 
         let dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
@@ -205,28 +208,26 @@ impl Executor {
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
-        api_security: Option<ApiSecurity>,
-    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
+        settings: CacheSinkSettings,
+    ) -> Result<dozer_core::dag::dag::Dag<SchemaSQLContext>, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
         Self::validate_grouped_connections(&grouped_connections)?;
 
-        let asm = SourceBuilder::build_source_manager(
-            grouped_connections,
-            self.ingestor.clone(),
-            self.iterator.clone(),
-            self.running.clone(),
-        )?;
-        let mut app = App::new(asm);
-
+        let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
+        let mut used_sources = vec![];
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
             let api_endpoint = cache_endpoint.endpoint.clone();
             let _api_endpoint_name = api_endpoint.name.clone();
             let cache = cache_endpoint.cache;
 
-            let mut pipeline = PipelineBuilder {}
-                .build_pipeline(&api_endpoint.sql)
-                .map_err(OrchestrationError::PipelineError)?;
+            // let mut pipeline = PipelineBuilder {}
+            //     .build_pipeline(&api_endpoint.sql)
+            //     .map_err(OrchestrationError::PipelineError)?;
+
+            let (mut pipeline, (query_name, query_port)) =
+                builder::statement_to_pipeline(&api_endpoint.sql)
+                    .map_err(OrchestrationError::PipelineError)?;
 
             pipeline.add_sink(
                 Arc::new(CacheSinkFactory::new(
@@ -235,23 +236,40 @@ impl Executor {
                     api_endpoint,
                     notifier.clone(),
                     api_dir.clone(),
-                    api_security.clone(),
                     self.progress.clone(),
+                    settings.to_owned(),
                 )),
                 cache_endpoint.endpoint.name.as_str(),
             );
 
             pipeline
                 .connect_nodes(
-                    "aggregation",
-                    Some(DEFAULT_PORT_HANDLE),
+                    &query_name,
+                    Some(query_port),
                     cache_endpoint.endpoint.name.as_str(),
                     Some(DEFAULT_PORT_HANDLE),
                 )
                 .map_err(ExecutionError)?;
 
-            app.add_pipeline(pipeline);
+            for name in pipeline.get_entry_points_sources_names() {
+                used_sources.push(name);
+            }
+
+            pipelines.push(pipeline);
         }
+
+        let asm = SourceBuilder::build_source_manager(
+            used_sources,
+            grouped_connections,
+            self.ingestor.clone(),
+            self.iterator.clone(),
+            self.running.clone(),
+        )?;
+        let mut app = App::new(asm);
+
+        Vec::into_iter(pipelines).for_each(|p| {
+            app.add_pipeline(p);
+        });
 
         let dag = app.get_dag().map_err(ExecutionError)?;
 
@@ -285,10 +303,11 @@ impl Executor {
     pub fn run(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+        settings: CacheSinkSettings,
     ) -> Result<(), OrchestrationError> {
         let running_wait = self.running.clone();
 
-        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), None)?;
+        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {

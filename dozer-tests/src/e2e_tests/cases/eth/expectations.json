@@ -9,7 +9,7 @@
                         "fields": [
                             {
                                 "name": "block_number",
-                                "typ": "Int",
+                                "typ": "UInt",
                                 "nullable": true
                             },
                             {
@@ -32,7 +32,7 @@
                         "fields": [
                             {
                                 "name": "block_number",
-                                "typ": "Int",
+                                "typ": "UInt",
                                 "nullable": true
                             },
                             {

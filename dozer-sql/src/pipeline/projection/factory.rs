@@ -8,6 +8,7 @@ use dozer_core::dag::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{FunctionArg, FunctionArgExpr, SelectItem};
 
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -31,7 +32,7 @@ impl ProjectionProcessorFactory {
     }
 }
 
-impl ProcessorFactory for ProjectionProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -46,9 +47,9 @@ impl ProcessorFactory for ProjectionProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+        let (input_schema, context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         match self
             .select
             .iter()
@@ -56,8 +57,8 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
         {
             Ok(expressions) => {
-                let mut output_schema = Schema::empty();
-
+                let mut output_schema = input_schema.clone();
+                let mut fields = vec![];
                 for e in expressions.iter() {
                     let field_name = e.0.clone();
                     if field_name.eq(&FunctionArgExpr::Wildcard.to_string()) {
@@ -73,14 +74,16 @@ impl ProcessorFactory for ProjectionProcessorFactory {
                     let field_type =
                         e.1.get_type(input_schema)
                             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-                    output_schema.fields.push(FieldDefinition::new(
+                    fields.push(FieldDefinition::new(
                         field_name,
                         field_type.return_type,
                         field_type.nullable,
+                        field_type.source,
                     ));
                 }
+                output_schema.fields = fields;
 
-                Ok(output_schema)
+                Ok((output_schema, context.clone()))
             }
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
@@ -114,8 +117,8 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -145,8 +148,7 @@ pub(crate) fn parse_sql_select_item(
             }
         }
         // TODO: (chloe) implement wildcard
-        // SelectItem::Wildcard => Err(PipelineError::InvalidOperator("*".to_string())),
-        SelectItem::Wildcard => {
+        SelectItem::Wildcard(_) => {
             match builder.parse_sql_function_arg(
                 &BuilderExpressionType::FullExpression,
                 &FunctionArg::Unnamed(FunctionArgExpr::Wildcard),
@@ -156,8 +158,8 @@ pub(crate) fn parse_sql_select_item(
                 Err(error) => Err(error),
             }
         }
-        SelectItem::QualifiedWildcard(ref object_name) => {
-            Err(PipelineError::InvalidOperator(format!("{}.*", object_name)))
+        SelectItem::QualifiedWildcard(ref object_name, ..) => {
+            Err(PipelineError::InvalidOperator(object_name.to_string()))
         }
     }
 }

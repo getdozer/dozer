@@ -4,9 +4,10 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
 
 use super::aggregate::AggregateFunctionType;
+use super::cast::CastOperatorType;
 use super::scalar::string::{evaluate_like, get_like_operator_type};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +33,10 @@ pub enum Expression {
         fun: AggregateFunctionType,
         args: Vec<Expression>,
     },
+    Cast {
+        arg: Box<Expression>,
+        typ: CastOperatorType,
+    },
     Trim {
         arg: Box<Expression>,
         what: Option<Box<Expression>>,
@@ -47,13 +52,15 @@ pub enum Expression {
 pub struct ExpressionType {
     pub return_type: FieldType,
     pub nullable: bool,
+    pub source: SourceDefinition,
 }
 
 impl ExpressionType {
-    pub fn new(return_type: FieldType, nullable: bool) -> Self {
+    pub fn new(return_type: FieldType, nullable: bool, source: SourceDefinition) -> Self {
         Self {
             return_type,
             nullable,
+            source,
         }
     }
 }
@@ -94,6 +101,7 @@ impl ExpressionExecutor for Expression {
                 pattern,
                 escape,
             } => evaluate_like(schema, arg, pattern, *escape, record),
+            Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
         }
     }
 
@@ -105,9 +113,13 @@ impl ExpressionExecutor for Expression {
                         "literal expression cannot be null".to_string(),
                     )
                 })?;
-                Ok(ExpressionType::new(r, false))
+                Ok(ExpressionType::new(r, false, SourceDefinition::Dynamic))
             }
-            Expression::Column { index } => Ok(get_column_type(index, schema)),
+            Expression::Column { index } => {
+                let t = schema.fields.get(*index).unwrap();
+
+                Ok(ExpressionType::new(t.typ, t.nullable, t.source.clone()))
+            }
             Expression::UnaryOperator { operator, arg } => {
                 get_unary_operator_type(operator, arg, schema)
             }
@@ -130,6 +142,7 @@ impl ExpressionExecutor for Expression {
                 pattern,
                 escape: _,
             } => get_like_operator_type(arg, pattern, schema),
+            Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
         }
     }
 }
@@ -149,11 +162,6 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
     }
-}
-
-fn get_column_type(index: &usize, schema: &Schema) -> ExpressionType {
-    let t = schema.fields.get(*index).unwrap();
-    ExpressionType::new(t.typ, t.nullable)
 }
 
 fn get_unary_operator_type(
@@ -189,13 +197,19 @@ fn get_binary_operator_type(
         | BinaryOperatorType::Gt
         | BinaryOperatorType::Gte
         | BinaryOperatorType::Lt
-        | BinaryOperatorType::Lte => Ok(ExpressionType::new(FieldType::Boolean, false)),
+        | BinaryOperatorType::Lte => Ok(ExpressionType::new(
+            FieldType::Boolean,
+            false,
+            SourceDefinition::Dynamic,
+        )),
 
         BinaryOperatorType::And | BinaryOperatorType::Or => {
             match (left_field_type.return_type, right_field_type.return_type) {
-                (FieldType::Boolean, FieldType::Boolean) => {
-                    Ok(ExpressionType::new(FieldType::Boolean, false))
-                }
+                (FieldType::Boolean, FieldType::Boolean) => Ok(ExpressionType::new(
+                    FieldType::Boolean,
+                    false,
+                    SourceDefinition::Dynamic,
+                )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
                         "cannot apply {:?} to {:?} and {:?}",
@@ -207,12 +221,18 @@ fn get_binary_operator_type(
 
         BinaryOperatorType::Add | BinaryOperatorType::Sub | BinaryOperatorType::Mul => {
             match (left_field_type.return_type, right_field_type.return_type) {
-                (FieldType::Int, FieldType::Int) => Ok(ExpressionType::new(FieldType::Int, false)),
+                (FieldType::Int, FieldType::Int) => Ok(ExpressionType::new(
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                )),
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
-                | (FieldType::Float, FieldType::Float) => {
-                    Ok(ExpressionType::new(FieldType::Float, false))
-                }
+                | (FieldType::Float, FieldType::Float) => Ok(ExpressionType::new(
+                    FieldType::Float,
+                    false,
+                    SourceDefinition::Dynamic,
+                )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
                         "cannot apply {:?} to {:?} and {:?}",
@@ -225,9 +245,11 @@ fn get_binary_operator_type(
             match (left_field_type.return_type, right_field_type.return_type) {
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
-                | (FieldType::Float, FieldType::Float) => {
-                    Ok(ExpressionType::new(FieldType::Float, false))
-                }
+                | (FieldType::Float, FieldType::Float) => Ok(ExpressionType::new(
+                    FieldType::Float,
+                    false,
+                    SourceDefinition::Dynamic,
+                )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
                         "cannot apply {:?} to {:?} and {:?}",
@@ -245,15 +267,31 @@ fn get_aggregate_function_type(
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => Ok(ExpressionType::new(FieldType::Float, false)),
-        AggregateFunctionType::Count => Ok(ExpressionType::new(FieldType::Int, false)),
+        AggregateFunctionType::Avg => Ok(ExpressionType::new(
+            FieldType::Float,
+            false,
+            SourceDefinition::Dynamic,
+        )),
+        AggregateFunctionType::Count => Ok(ExpressionType::new(
+            FieldType::Int,
+            false,
+            SourceDefinition::Dynamic,
+        )),
         AggregateFunctionType::Max => argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema),
         AggregateFunctionType::Median => {
             argv!(args, 0, AggregateFunctionType::Median)?.get_type(schema)
         }
         AggregateFunctionType::Min => argv!(args, 0, AggregateFunctionType::Min)?.get_type(schema),
         AggregateFunctionType::Sum => argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema),
-        AggregateFunctionType::Stddev => Ok(ExpressionType::new(FieldType::Float, false)),
-        AggregateFunctionType::Variance => Ok(ExpressionType::new(FieldType::Float, false)),
+        AggregateFunctionType::Stddev => Ok(ExpressionType::new(
+            FieldType::Float,
+            false,
+            SourceDefinition::Dynamic,
+        )),
+        AggregateFunctionType::Variance => Ok(ExpressionType::new(
+            FieldType::Float,
+            false,
+            SourceDefinition::Dynamic,
+        )),
     }
 }

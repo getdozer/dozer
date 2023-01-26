@@ -22,6 +22,7 @@ pub fn get_iterator(config: Connection, table_name: String) -> Arc<RwLock<Ingest
     thread::spawn(move || {
         let tables: Vec<TableInfo> = vec![TableInfo {
             name: table_name.clone(),
+            table_name: table_name.clone(),
             id: 0,
             columns: None,
         }];

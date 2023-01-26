@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::types::{
     FieldDefinition, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
-    SchemaWithChangesType,
+    SchemaWithChangesType, SourceDefinition,
 };
 
 use crate::connectors::{TableInfo, ValidationResults};
@@ -46,6 +46,7 @@ impl SchemaHelper {
                 let columns = Some(schema.fields.iter().map(|f| f.name.clone()).collect());
                 TableInfo {
                     name: name.clone(),
+                    table_name: name.clone(),
                     id: schema.identifier.unwrap().id,
                     columns,
                 }
@@ -63,10 +64,10 @@ impl SchemaHelper {
         let query = if let Some(tables) = table_name {
             tables.iter().for_each(|t| {
                 if let Some(columns) = t.columns.clone() {
-                    tables_columns_map.insert(t.name.clone(), columns);
+                    tables_columns_map.insert(t.table_name.clone(), columns);
                 }
             });
-            let table_names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
+            let table_names: Vec<String> = tables.iter().map(|t| t.table_name.clone()).collect();
             let sql = str::replace(SQL, ":tables_condition", "= ANY($1) AND table_schema = $2");
             client.query(&sql, &[&table_names, &schema])
         } else {
@@ -212,7 +213,7 @@ impl SchemaHelper {
         for table in tables {
             if let Some(columns) = &table.columns {
                 let mut existing_columns = HashMap::new();
-                if let Some(res) = validation_result.get(&table.name) {
+                if let Some(res) = validation_result.get(&table.table_name) {
                     for (col_name, _) in res {
                         if let Some(name) = col_name {
                             existing_columns.insert(name.clone(), ());
@@ -223,14 +224,14 @@ impl SchemaHelper {
                 for column_name in columns {
                     if existing_columns.get(column_name).is_none() {
                         validation_result
-                            .entry(table.name.clone())
+                            .entry(table.table_name.clone())
                             .and_modify(|r| {
                                 r.push((
                                     None,
                                     Err(ConnectorError::PostgresConnectorError(
                                         PostgresConnectorError::ColumnNotFound(
                                             column_name.to_string(),
-                                            table.name.clone(),
+                                            table.table_name.clone(),
                                         ),
                                     )),
                                 ))
@@ -269,7 +270,7 @@ impl SchemaHelper {
             .map_err(|_e| ValueConversionError("Replication type".to_string()))?;
         Ok((
             table_name,
-            FieldDefinition::new(column_name, typ, is_nullable),
+            FieldDefinition::new(column_name, typ, is_nullable, SourceDefinition::Dynamic),
             is_primary_index,
             table_id,
             replication_type,
@@ -366,7 +367,7 @@ mod tests {
         let result = schema_helper.get_tables(None).unwrap();
 
         let table = result.get(0).unwrap();
-        assert_eq!(table_name, table.name.clone());
+        assert_eq!(table_name, table.table_name.clone());
         assert!(assert_vec_eq(
             vec![
                 "name".to_string(),
@@ -397,13 +398,14 @@ mod tests {
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let table_info = TableInfo {
             name: table_name.clone(),
+            table_name: table_name.clone(),
             id: 0,
             columns: Some(vec!["name".to_string(), "id".to_string()]),
         };
         let result = schema_helper.get_tables(Some(vec![table_info])).unwrap();
 
         let table = result.get(0).unwrap();
-        assert_eq!(table_name, table.name.clone());
+        assert_eq!(table_name, table.table_name.clone());
         assert!(assert_vec_eq(
             vec!["name".to_string(), "id".to_string()],
             table.columns.clone().unwrap()

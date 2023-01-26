@@ -1,5 +1,6 @@
 use crate::grpc::types::{self as GrpcTypes};
-use dozer_types::types::{Field, Record};
+use crate::grpc::types_helper::field_to_prost_value;
+use dozer_types::types::Record;
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, MessageDescriptor};
 use prost_reflect::{DynamicMessage, Value};
@@ -107,35 +108,32 @@ fn internal_record_to_pb(
     let mut resource = DynamicMessage::new(resource_desc.to_owned());
 
     for (field, value) in resource_desc.fields().zip(rec.values.into_iter()) {
-        if let Some(value) = value.value {
-            let value = convert_internal_type_to_pb(value);
+        if let Some(value) = interval_value_to_pb(value) {
             resource.set_field(&field, value);
         }
     }
     resource
 }
 
-fn convert_internal_type_to_pb(value: GrpcTypes::value::Value) -> prost_reflect::Value {
-    match value {
+fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value> {
+    value.value.map(|value| match value {
         GrpcTypes::value::Value::UintValue(n) => Value::U64(n),
         GrpcTypes::value::Value::IntValue(n) => Value::I64(n),
         GrpcTypes::value::Value::FloatValue(n) => Value::F32(n),
         GrpcTypes::value::Value::BoolValue(n) => Value::Bool(n),
         GrpcTypes::value::Value::StringValue(n) => Value::String(n),
         GrpcTypes::value::Value::BytesValue(n) => {
-            Value::Bytes(prost_reflect::bytes::Bytes::from(n.to_vec()))
+            Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
         GrpcTypes::value::Value::DoubleValue(n) => Value::F64(n),
         _ => todo!(),
-    }
+    })
 }
 fn record_to_pb(record: Record, desc: &MessageDescriptor) -> DynamicMessage {
     let mut resource = DynamicMessage::new(desc.clone());
     for (field, value) in desc.fields().zip(record.values.into_iter()) {
-        if let Field::Null = value {
-            // Don't set the field if null
-        } else {
-            resource.set_field(&field, convert_field_to_reflect_value(value));
+        if let Some(value) = interval_value_to_pb(field_to_prost_value(value)) {
+            resource.set_field(&field, value);
         }
     }
     resource
@@ -177,21 +175,4 @@ pub fn token_response(token: String, desc: &DescriptorPool, endpoint_name: &str)
     let mut msg = DynamicMessage::new(token_desc);
     msg.set_field_by_name("token", prost_reflect::Value::String(token));
     TypedResponse::new(msg)
-}
-
-fn convert_field_to_reflect_value(field: Field) -> prost_reflect::Value {
-    match field {
-        Field::UInt(n) => Value::U64(n),
-        Field::Int(n) => Value::I64(n),
-        Field::Float(n) => Value::F64(n.0),
-        Field::Boolean(n) => Value::Bool(n),
-        Field::String(n) => Value::String(n),
-        Field::Text(n) => Value::String(n),
-        Field::Binary(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n)),
-        Field::Decimal(n) => Value::String(n.to_string()),
-        Field::Timestamp(n) => Value::String(n.to_rfc3339()),
-        Field::Date(n) => Value::String(n.to_string()),
-        Field::Bson(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n)),
-        Field::Null => panic!("Cannot convert null to protobuf value"),
-    }
 }

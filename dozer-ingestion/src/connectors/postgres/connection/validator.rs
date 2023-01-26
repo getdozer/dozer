@@ -132,8 +132,8 @@ fn validate_wal_level(client: &mut Client) -> Result<(), PostgresConnectorError>
 fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
     let table_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
-        if !table_regex.is_match(&t.name) {
-            return Err(TableNameNotValid(t.name.clone()));
+        if !table_regex.is_match(&t.table_name) {
+            return Err(TableNameNotValid(t.table_name.clone()));
         }
     }
 
@@ -161,7 +161,7 @@ fn validate_tables(
 ) -> Result<(), PostgresConnectorError> {
     let mut tables_names: HashMap<String, bool> = HashMap::new();
     table_info.iter().for_each(|t| {
-        tables_names.insert(t.name.clone(), true);
+        tables_names.insert(t.table_name.clone(), true);
     });
 
     validate_tables_names(table_info)?;
@@ -329,6 +329,7 @@ mod tests {
 
             let tables = vec![TableInfo {
                 name: "not_existing".to_string(),
+                table_name: "not_existing".to_string(),
                 id: 0,
                 columns: None,
             }];
@@ -490,6 +491,7 @@ mod tests {
         for (table_name, expected_result) in tables_with_result {
             let res = validate_tables_names(&vec![TableInfo {
                 name: table_name.to_string(),
+                table_name: table_name.to_string(),
                 id: 0,
                 columns: None,
             }]);
@@ -510,6 +512,7 @@ mod tests {
         for (column_name, expected_result) in columns_names_with_result {
             let res = validate_columns_names(&vec![TableInfo {
                 name: "column_test_table".to_string(),
+                table_name: "column_test_table".to_string(),
                 id: 0,
                 columns: Some(vec![column_name.to_string()]),
             }]);

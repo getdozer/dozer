@@ -152,6 +152,7 @@ fn connector_disabled_test_e2e_connect_debezium_json_and_get_schema() {
     let schemas = connector
         .get_schemas(Some(vec![TableInfo {
             name: topic.clone(),
+            table_name: topic.clone(),
             id: 0,
             columns: None,
         }]))
@@ -208,6 +209,7 @@ fn connector_disabled_test_e2e_connect_debezium_avro_and_get_schema() {
     let schemas = connector
         .get_schemas(Some(vec![TableInfo {
             name: topic.clone(),
+            table_name: topic.clone(),
             id: 0,
             columns: None,
         }]))

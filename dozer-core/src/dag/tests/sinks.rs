@@ -8,6 +8,7 @@ use dozer_types::types::{Operation, Schema};
 use dozer_types::log::info;
 use std::collections::HashMap;
 
+use crate::dag::tests::app::NoneContext;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -28,10 +29,10 @@ impl CountingSinkFactory {
     }
 }
 
-impl SinkFactory for CountingSinkFactory {
+impl SinkFactory<NoneContext> for CountingSinkFactory {
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -40,7 +41,10 @@ impl SinkFactory for CountingSinkFactory {
         vec![COUNTING_SINK_INPUT_PORT]
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -87,7 +91,7 @@ impl Sink for CountingSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;
         if self.current == self.expected {

@@ -1,16 +1,12 @@
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
-use crate::{
-    deserialize, deserialize_decimal, deserialize_f64, deserialize_i64, field_extract_decimal,
-    field_extract_f64, field_extract_i64,
-};
-use std::ops::{Add, Sub};
-
+use crate::{deserialize, deserialize_decimal, deserialize_f64, deserialize_i64, deserialize_u64};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType};
+use std::ops::{Add, Sub};
 
 pub struct SumAggregator {}
 const AGGREGATOR_NAME: &str = "SUM";
@@ -23,6 +19,7 @@ impl SumAggregator {
             FieldType::Decimal => FieldType::Decimal,
             FieldType::Float => FieldType::Float,
             FieldType::Int => FieldType::Int,
+            FieldType::UInt => FieldType::UInt,
             _ => from,
         }
     }
@@ -40,7 +37,7 @@ impl SumAggregator {
         match return_type {
             FieldType::Decimal => {
                 let prev = deserialize_decimal!(cur_state);
-                let curr = field_extract_decimal!(&new, AGGREGATOR_NAME);
+                let curr = &Field::to_decimal(new).unwrap();
                 let r_bytes = (prev.add(curr)).serialize();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -49,7 +46,7 @@ impl SumAggregator {
             }
             FieldType::Float => {
                 let prev = OrderedFloat::from(deserialize_f64!(cur_state));
-                let curr = field_extract_f64!(&new, AGGREGATOR_NAME);
+                let curr = &OrderedFloat(Field::to_float(new).unwrap());
                 let r_bytes = (prev + *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -58,7 +55,16 @@ impl SumAggregator {
             }
             FieldType::Int => {
                 let prev = deserialize_i64!(cur_state);
-                let curr = field_extract_i64!(&new, AGGREGATOR_NAME);
+                let curr = &Field::to_int(new).unwrap();
+                let r_bytes = (prev + *curr).to_be_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type)?,
+                    Some(Vec::from(r_bytes)),
+                ))
+            }
+            FieldType::UInt => {
+                let prev = deserialize_u64!(cur_state);
+                let curr = &Field::to_uint(new).unwrap();
                 let r_bytes = (prev + *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -79,8 +85,8 @@ impl SumAggregator {
         match return_type {
             FieldType::Decimal => {
                 let prev = deserialize_decimal!(cur_state);
-                let curr_del = field_extract_decimal!(&old, AGGREGATOR_NAME);
-                let curr_added = field_extract_decimal!(&new, AGGREGATOR_NAME);
+                let curr_del = &Field::to_decimal(old).unwrap();
+                let curr_added = &Field::to_decimal(new).unwrap();
                 let r_bytes = prev.sub(curr_del).add(curr_added).serialize();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -89,8 +95,8 @@ impl SumAggregator {
             }
             FieldType::Float => {
                 let prev = OrderedFloat::from(deserialize_f64!(cur_state));
-                let curr_del = field_extract_f64!(&old, AGGREGATOR_NAME);
-                let curr_added = field_extract_f64!(&new, AGGREGATOR_NAME);
+                let curr_del = &OrderedFloat(Field::to_float(old).unwrap());
+                let curr_added = &OrderedFloat(Field::to_float(new).unwrap());
                 let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -99,8 +105,18 @@ impl SumAggregator {
             }
             FieldType::Int => {
                 let prev = deserialize_i64!(cur_state);
-                let curr_del = field_extract_i64!(&old, AGGREGATOR_NAME);
-                let curr_added = field_extract_i64!(&new, AGGREGATOR_NAME);
+                let curr_del = &Field::to_int(old).unwrap();
+                let curr_added = &Field::to_int(new).unwrap();
+                let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type)?,
+                    Some(Vec::from(r_bytes)),
+                ))
+            }
+            FieldType::UInt => {
+                let prev = deserialize_u64!(cur_state);
+                let curr_del = &Field::to_uint(old).unwrap();
+                let curr_added = &Field::to_uint(new).unwrap();
                 let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -120,7 +136,7 @@ impl SumAggregator {
         match return_type {
             FieldType::Decimal => {
                 let prev = deserialize_decimal!(cur_state);
-                let curr = field_extract_decimal!(&old, AGGREGATOR_NAME);
+                let curr = &Field::to_decimal(old).unwrap();
                 let r_bytes = (prev.sub(curr)).serialize();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -129,7 +145,7 @@ impl SumAggregator {
             }
             FieldType::Float => {
                 let prev = OrderedFloat::from(deserialize_f64!(cur_state));
-                let curr = field_extract_f64!(&old, AGGREGATOR_NAME);
+                let curr = &OrderedFloat(Field::to_float(old).unwrap());
                 let r_bytes = (prev - *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -138,7 +154,16 @@ impl SumAggregator {
             }
             FieldType::Int => {
                 let prev = deserialize_i64!(cur_state);
-                let curr = field_extract_i64!(&old, AGGREGATOR_NAME);
+                let curr = &Field::to_int(old).unwrap();
+                let r_bytes = (prev - *curr).to_be_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type)?,
+                    Some(Vec::from(r_bytes)),
+                ))
+            }
+            FieldType::UInt => {
+                let prev = deserialize_u64!(cur_state);
+                let curr = &Field::to_uint(old).unwrap();
                 let r_bytes = (prev - *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -156,6 +181,7 @@ impl SumAggregator {
                 deserialize!(f),
             )))),
             FieldType::Int => Ok(Field::Int(i64::from_be_bytes(deserialize!(f)))),
+            FieldType::UInt => Ok(Field::UInt(u64::from_be_bytes(deserialize!(f)))),
             _ => Err(PipelineError::DataTypeMismatch),
         }
     }

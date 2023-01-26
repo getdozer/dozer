@@ -259,16 +259,17 @@ fn get_range_spec(
         }
         IndexScanKind::FullText { filter } => match filter.op {
             Operator::Contains => {
-                if let Field::String(token) = &filter.val {
-                    let key = index::get_full_text_secondary_index(token);
-                    Ok(RangeSpec {
-                        start: Some(KeyEndpoint::Including(key.clone())),
-                        end: Some(KeyEndpoint::Including(key)),
-                        direction: SortDirection::Ascending, // doesn't matter
-                    })
-                } else {
-                    Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
-                }
+                let token = match &filter.val {
+                    Field::String(token) => token,
+                    Field::Text(token) => token,
+                    _ => return Err(CacheError::IndexError(IndexError::ExpectedStringFullText)),
+                };
+                let key = index::get_full_text_secondary_index(token);
+                Ok(RangeSpec {
+                    start: Some(KeyEndpoint::Including(key.clone())),
+                    end: Some(KeyEndpoint::Including(key)),
+                    direction: SortDirection::Ascending, // doesn't matter
+                })
             }
             Operator::MatchesAll | Operator::MatchesAny => {
                 unimplemented!("matches all and matches any are not implemented")

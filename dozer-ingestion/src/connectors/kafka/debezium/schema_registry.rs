@@ -11,7 +11,7 @@ use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{
     FieldDefinition, FieldType, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
-    SchemaWithChangesType,
+    SchemaWithChangesType, SourceDefinition,
 };
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
@@ -86,8 +86,10 @@ impl SchemaRegistry {
         let sr_settings = SrSettings::new(config.schema_registry_url.unwrap());
         table_names.map_or(Ok(vec![]), |tables| {
             tables.get(0).map_or(Ok(vec![]), |table| {
-                let key_result = SchemaRegistry::fetch_struct(&sr_settings, &table.name, true)?;
-                let schema_result = SchemaRegistry::fetch_struct(&sr_settings, &table.name, false)?;
+                let key_result =
+                    SchemaRegistry::fetch_struct(&sr_settings, &table.table_name, true)?;
+                let schema_result =
+                    SchemaRegistry::fetch_struct(&sr_settings, &table.table_name, false)?;
 
                 let pk_fields = key_result.fields.map_or(vec![], |fields| {
                     fields
@@ -129,6 +131,7 @@ impl SchemaRegistry {
                                                 name,
                                                 typ,
                                                 nullable,
+                                                source: SourceDefinition::Dynamic,
                                             })
                                         })
                                         .collect();
@@ -140,7 +143,7 @@ impl SchemaRegistry {
                                 };
 
                                 schema_data = Some(Ok(vec![(
-                                    table.name.clone(),
+                                    table.table_name.clone(),
                                     schema,
                                     ReplicationChangesTrackingType::FullChanges,
                                 )]));

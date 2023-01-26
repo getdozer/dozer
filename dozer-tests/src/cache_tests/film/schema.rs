@@ -1,7 +1,7 @@
 use dozer_types::{
     chrono::{DateTime, FixedOffset},
     serde::{self, Deserialize, Serialize},
-    types::{FieldDefinition, FieldType, Schema, SchemaIdentifier},
+    types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition},
 };
 use mongodb::bson::doc;
 
@@ -28,55 +28,120 @@ pub fn film_schema() -> Schema {
     schema.identifier = Some(SchemaIdentifier { id: 0, version: 0 });
     schema
         .field(
-            FieldDefinition::new("film_id".to_string(), FieldType::UInt, false),
+            FieldDefinition::new(
+                "film_id".to_string(),
+                FieldType::UInt,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             true,
         )
         .field(
-            FieldDefinition::new("title".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "title".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("description".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "description".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("release_year".to_string(), FieldType::UInt, false),
+            FieldDefinition::new(
+                "release_year".to_string(),
+                FieldType::UInt,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("language_id".to_string(), FieldType::UInt, false),
+            FieldDefinition::new(
+                "language_id".to_string(),
+                FieldType::UInt,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("original_language_id".to_string(), FieldType::UInt, true),
+            FieldDefinition::new(
+                "original_language_id".to_string(),
+                FieldType::UInt,
+                true,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("rental_duration".to_string(), FieldType::UInt, false),
+            FieldDefinition::new(
+                "rental_duration".to_string(),
+                FieldType::UInt,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("rental_rate".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "rental_rate".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("length".to_string(), FieldType::UInt, false),
+            FieldDefinition::new(
+                "length".to_string(),
+                FieldType::UInt,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("replacement_cost".to_string(), FieldType::Float, false),
+            FieldDefinition::new(
+                "replacement_cost".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("rating".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "rating".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("last_update".to_string(), FieldType::Timestamp, false),
+            FieldDefinition::new(
+                "last_update".to_string(),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new("special_features".to_string(), FieldType::String, false),
+            FieldDefinition::new(
+                "special_features".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         );
     schema

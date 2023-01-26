@@ -9,7 +9,6 @@ use dozer_types::parking_lot::RwLock;
 
 use tokio::runtime::Runtime;
 
-use dozer_types::models::source::Source;
 use dozer_types::types::ReplicationChangesTrackingType;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 
@@ -77,7 +76,7 @@ impl Connector for KafkaConnector {
             .map_or_else(|| Err(TopicNotDefined), Ok)?;
         let topic = tables
             .get(0)
-            .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
+            .map_or(Err(TopicNotDefined), |table| Ok(&table.table_name))?;
 
         let broker = self.config.broker.to_owned();
         let ingestor = self
@@ -98,10 +97,6 @@ impl Connector for KafkaConnector {
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
-    }
-
-    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
-        sources.iter().map(|s| vec![s.clone()]).collect()
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {

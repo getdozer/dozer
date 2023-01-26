@@ -6,10 +6,12 @@ use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::connectors::TableInfo;
 use crate::errors::SnowflakeError::QueryError;
+use crate::errors::SnowflakeSchemaError::DecimalConvertError;
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::*;
-use odbc::ffi::{SqlDataType, SQL_TIMESTAMP_STRUCT};
+use odbc::ffi::{SqlDataType, SQL_DATE_STRUCT, SQL_TIMESTAMP_STRUCT};
 use odbc::odbc_safe::AutocommitOn;
 use odbc::{
     ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
@@ -17,6 +19,26 @@ use odbc::{
 };
 use std::collections::HashMap;
 use std::fmt::Write;
+
+fn convert_decimal(bytes: &[u8], scale: u16) -> Result<Field, SnowflakeSchemaError> {
+    let is_negative = bytes[bytes.len() - 4] == 255;
+    let mut multiplier: i64 = 1;
+    let mut result: i64 = 0;
+    let bytes: &[u8] = &bytes[4..11];
+    bytes.iter().for_each(|w| {
+        let number = *w as i64;
+        result += number * multiplier;
+        multiplier *= 256;
+    });
+
+    if is_negative {
+        result = -result;
+    }
+
+    Ok(Field::from(
+        Decimal::try_new(result, scale as u32).map_err(DecimalConvertError)?,
+    ))
+}
 
 pub fn convert_data(
     cursor: &mut Cursor<Executed, AutocommitOn>,
@@ -33,18 +55,29 @@ pub fn convert_data(
                 Some(value) => Ok(Field::from(value)),
             }
         }
-        SqlDataType::SQL_NUMERIC
-        | SqlDataType::SQL_DECIMAL
+        SqlDataType::SQL_DECIMAL
+        | SqlDataType::SQL_NUMERIC
         | SqlDataType::SQL_INTEGER
-        | SqlDataType::SQL_SMALLINT => {
-            match cursor
-                .get_data::<i64>(i)
-                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
-            {
-                None => Ok(Field::Null),
-                Some(value) => Ok(Field::from(value)),
+        | SqlDataType::SQL_SMALLINT => match column_descriptor.decimal_digits {
+            None => {
+                match cursor
+                    .get_data::<i64>(i)
+                    .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+                {
+                    None => Ok(Field::Null),
+                    Some(value) => Ok(Field::from(value)),
+                }
             }
-        }
+            Some(digits) => {
+                match cursor
+                    .get_data::<&[u8]>(i)
+                    .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+                {
+                    None => Ok(Field::Null),
+                    Some(value) => convert_decimal(value, digits),
+                }
+            }
+        },
         SqlDataType::SQL_FLOAT | SqlDataType::SQL_REAL | SqlDataType::SQL_DOUBLE => {
             match cursor
                 .get_data::<f64>(i)
@@ -66,13 +99,29 @@ pub fn convert_data(
                         value.month as u32,
                         value.day as u32,
                     );
-                    let time = NaiveTime::from_hms_milli(
+                    let time = NaiveTime::from_hms_nano(
                         value.hour as u32,
                         value.minute as u32,
                         value.second as u32,
                         value.fraction,
                     );
                     Ok(Field::from(NaiveDateTime::new(date, time)))
+                }
+            }
+        }
+        SqlDataType::SQL_DATE => {
+            match cursor
+                .get_data::<SQL_DATE_STRUCT>(i)
+                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+            {
+                None => Ok(Field::Null),
+                Some(value) => {
+                    let date = NaiveDate::from_ymd(
+                        value.year as i32,
+                        value.month as u32,
+                        value.day as u32,
+                    );
+                    Ok(Field::from(date))
                 }
             }
         }
@@ -285,7 +334,8 @@ impl Client {
     pub fn fetch_tables(
         &self,
         tables: Option<Vec<TableInfo>>,
-        _config: &SnowflakeConfig,
+        tables_indexes: HashMap<String, usize>,
+        keys: HashMap<String, Vec<String>>,
         conn: &Connection<AutocommitOn>,
     ) -> Result<Vec<SchemaWithChangesType>, SnowflakeError> {
         let tables_condition = tables.map_or("".to_string(), |tables| {
@@ -295,7 +345,8 @@ impl Client {
                 if idx > 0 {
                     buf.write_char(',').unwrap();
                 }
-                buf.write_str(&format!("\'{}\'", table_info.name)).unwrap();
+                buf.write_str(&format!("\'{}\'", table_info.table_name))
+                    .unwrap();
             }
             buf.write_char(')').unwrap();
             buf
@@ -373,29 +424,107 @@ impl Client {
                         None
                     };
 
+                    let schema_id = *tables_indexes.get(&table_name.clone()).unwrap();
+
                     schemas
                         .entry(table_name.clone())
                         .or_insert(Schema {
-                            identifier: Some(SchemaIdentifier { id: 0, version: 0 }),
+                            identifier: Some(SchemaIdentifier {
+                                id: schema_id as u32,
+                                version: 0,
+                            }),
                             fields: vec![],
-                            primary_index: vec![],
+                            primary_index: vec![0],
                         })
                         .fields
                         .push(FieldDefinition {
                             name: field_name.clone(),
                             typ: SchemaHelper::map_schema_type(type_name, scale)?,
                             nullable: *nullable,
+                            source: SourceDefinition::Dynamic,
                         })
                 }
 
                 Ok(schemas
                     .into_iter()
-                    .map(|(name, schema)| {
+                    .map(|(name, mut schema)| {
+                        let mut indexes = vec![];
+                        keys.get(&name).map_or((), |columns| {
+                            schema.fields.iter().enumerate().for_each(|(idx, f)| {
+                                if columns.contains(&f.name) {
+                                    indexes.push(idx);
+                                }
+                            });
+                        });
+
+                        schema.primary_index = indexes;
+
                         (name, schema, ReplicationChangesTrackingType::FullChanges)
                     })
                     .collect())
             }
             NoData(_) => Ok(vec![]),
+        }
+    }
+
+    pub fn fetch_keys(
+        &self,
+        conn: &Connection<AutocommitOn>,
+    ) -> Result<HashMap<String, Vec<String>>, SnowflakeError> {
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
+        match stmt
+            .exec_direct("SHOW PRIMARY KEYS IN SCHEMA")
+            .map_err(|e| QueryError(Box::new(e)))?
+        {
+            Data(data) => {
+                let cols = data
+                    .num_result_cols()
+                    .map_err(|e| QueryError(Box::new(e)))?;
+
+                let schema_result: Result<Vec<ColumnDescriptor>, SnowflakeError> = (1..(cols + 1))
+                    .map(|i| {
+                        let value = i.try_into();
+                        match value {
+                            Ok(v) => {
+                                Ok(data.describe_col(v).map_err(|e| QueryError(Box::new(e)))?)
+                            }
+                            Err(e) => Err(SnowflakeError::SnowflakeSchemaError(
+                                SchemaConversionError(e),
+                            )),
+                        }
+                    })
+                    .collect();
+
+                let schema = schema_result?;
+
+                let mut keys: HashMap<String, Vec<String>> = HashMap::new();
+                let iterator = ResultIterator {
+                    cols,
+                    stmt: data,
+                    schema,
+                };
+
+                for row_data in iterator {
+                    let empty = "".to_string();
+                    let table_name = row_data.get(3).map_or(empty.clone(), |v| {
+                        v.as_ref().map_or(empty.clone(), |field| match field {
+                            Field::String(v) => v.clone(),
+                            _ => empty.clone(),
+                        })
+                    });
+                    let column_name = row_data.get(4).map_or(empty.clone(), |v| {
+                        v.as_ref().map_or(empty.clone(), |field| match field {
+                            Field::String(v) => v.clone(),
+                            _ => empty.clone(),
+                        })
+                    });
+
+                    keys.entry(table_name).or_default().push(column_name);
+                }
+
+                Ok(keys)
+            }
+            NoData(_) => Ok(HashMap::new()),
         }
     }
 }

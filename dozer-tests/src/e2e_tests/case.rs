@@ -14,6 +14,7 @@ use super::{
 pub struct Connection {
     pub directory: PathBuf,
     pub service: Option<Service>,
+    pub has_docker_file: bool,
 }
 
 pub enum CaseKind {
@@ -42,20 +43,26 @@ impl Case {
                 continue;
             }
 
-            if !connection_dir.join("Dockerfile").exists() {
-                panic!("Connection {:?} must have Dockerfile", connection_dir);
-            }
+            let docker_file = connection_dir.join("Dockerfile");
 
             let service_path = find_service_path(&connection_dir);
             let service = service_path
                 .as_ref()
                 .map(|service_path| read_yaml(service_path));
 
+            if !docker_file.exists() && service.is_none() {
+                panic!(
+                    "Connection {:?} must have either service.yaml or Dockerfile",
+                    connection_dir
+                );
+            }
+
             connections.insert(
                 connection.name.clone(),
                 Connection {
                     directory: connection_dir,
                     service,
+                    has_docker_file: docker_file.exists(),
                 },
             );
         }

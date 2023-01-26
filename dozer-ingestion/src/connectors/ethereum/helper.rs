@@ -1,6 +1,7 @@
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, OperationEvent, Record,
     ReplicationChangesTrackingType, Schema, SchemaIdentifier, SchemaWithChangesType,
+    SourceDefinition,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -46,6 +47,7 @@ pub fn get_contract_event_schemas(
                         | web3::ethabi::ParamType::Tuple(_) => FieldType::Text,
                     },
                     nullable: false,
+                    source: SourceDefinition::Dynamic,
                 });
             }
 
@@ -78,17 +80,16 @@ pub fn decode_event(
     tables: Option<Vec<TableInfo>>,
     schema_map: HashMap<H256, usize>,
 ) -> Option<OperationEvent> {
-    // Topics 0, 1, 2 should be name, buyer, seller in most cases
-    let name = log
-        .topics
-        .get(0)
-        .expect("name is expected")
-        .to_owned()
-        .to_string();
-
     let address = format!("{:?}", log.address);
 
     if let Some(contract_tuple) = contracts.get(&address) {
+        // Topics 0, 1, 2 should be name, buyer, seller in most cases
+        let name = log
+            .topics
+            .get(0)
+            .expect("name is expected")
+            .to_owned()
+            .to_string();
         let opt_event = contract_tuple
             .0
             .events
@@ -105,8 +106,9 @@ pub fn decode_event(
 
             let seq_no = get_id(&log) + schema_id as u64;
             let table_name = get_table_name(contract_tuple, &event.name);
-            let is_table_required =
-                tables.map_or(true, |tables| tables.iter().any(|t| t.name == table_name));
+            let is_table_required = tables.map_or(true, |tables| {
+                tables.iter().any(|t| t.table_name == table_name)
+            });
             if is_table_required {
                 // let event = contract.event(&name_str).unwrap();
                 let parsed_event = event
@@ -127,7 +129,7 @@ pub fn decode_event(
                     .into_iter()
                     .map(|p| map_abitype_to_field(p.value))
                     .collect();
-                Some(OperationEvent {
+                return Some(OperationEvent {
                     seq_no,
                     operation: Operation::Insert {
                         new: Record {
@@ -139,16 +141,12 @@ pub fn decode_event(
                             version: None,
                         },
                     },
-                })
-            } else {
-                None
+                });
             }
-        } else {
-            None
         }
-    } else {
-        None
     }
+
+    None
 }
 
 pub fn get_table_name(contract_tuple: &ContractTuple, event_name: &str) -> String {
@@ -178,7 +176,7 @@ pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
 pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationEvent> {
     // Check if table is requested
     let is_table_required = details.tables.as_ref().map_or(true, |tables| {
-        tables.iter().any(|t| t.name == ETH_LOGS_TABLE)
+        tables.iter().any(|t| t.table_name == ETH_LOGS_TABLE)
     });
 
     if !is_table_required {
@@ -211,20 +209,17 @@ pub fn get_id(log: &Log) -> u64 {
     block_no * 100_000 + log_idx * 2
 }
 pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
-    let block_no = log
-        .block_number
-        .expect("expected for non pendning")
-        .as_u64();
+    let block_no = log.block_number.expect("expected for non pending").as_u64();
     let txn_idx = log
         .transaction_index
-        .expect("expected for non pendning")
+        .expect("expected for non pending")
         .as_u64();
-    let log_idx = log.log_index.expect("expected for non pendning").as_u64();
+    let log_idx = log.log_index.expect("expected for non pending").as_u64();
 
     let idx = get_id(&log);
 
     let values = vec![
-        Field::Int(idx as i64),
+        Field::UInt(idx),
         Field::String(format!("{:?}", log.address)),
         Field::Text(
             log.topics
@@ -255,63 +250,75 @@ pub fn get_eth_schema() -> Schema {
         fields: vec![
             FieldDefinition {
                 name: "id".to_string(),
-                typ: FieldType::Int,
+                typ: FieldType::UInt,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "address".to_string(),
                 typ: FieldType::String,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "topics".to_string(),
                 typ: FieldType::String,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "data".to_string(),
                 typ: FieldType::Binary,
                 nullable: false,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "block_hash".to_string(),
                 typ: FieldType::String,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "block_number".to_string(),
                 typ: FieldType::UInt,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "transaction_hash".to_string(),
                 typ: FieldType::String,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "transaction_index".to_string(),
                 typ: FieldType::Int,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "log_index".to_string(),
                 typ: FieldType::Int,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "transaction_log_index".to_string(),
                 typ: FieldType::Int,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "log_type".to_string(),
                 typ: FieldType::String,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
             FieldDefinition {
                 name: "removed".to_string(),
                 typ: FieldType::Boolean,
                 nullable: true,
+                source: SourceDefinition::Dynamic,
             },
         ],
 

@@ -1,0 +1,101 @@
+name: Dozer Coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: coverage/${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Run coverage
+  coverage:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install stable with llvm-tools-preview
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Download grcov
+        run: |
+          mkdir target
+          wget -O target/grcov https://dozer-ci.s3.ap-southeast-1.amazonaws.com/grcov-linux-amd64-v0.8.13
+          chmod +x target/grcov
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: coverage-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            coverage-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+            coverage-${{ runner.os }}-cargo-
+
+      - name: MongoDB in GitHub Actions
+        uses: supercharge/mongodb-github-action@1.8.0
+
+      - uses: ./.github/workflows/setup-snowflake-and-kafka
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features --no-fail-fast
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Cinstrument-coverage"
+          LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: connector_e2e_ --all-features -- --ignored
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Cinstrument-coverage"
+          LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - id: coverage
+        run: |
+          ./target/grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" --ignore 'target/*' --ignore 'dozer-tests/*' -o coverage.lcov
+          echo "::set-output name=report::coverage.lcov"
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: |
+            ${{ steps.coverage.outputs.report }}
+          retention-days: 10
+
+      - id: coveralls
+        name: Coveralls upload
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ${{ steps.coverage.outputs.report }}

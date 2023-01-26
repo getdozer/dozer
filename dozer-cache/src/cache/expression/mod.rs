@@ -18,17 +18,34 @@ pub struct QueryExpression {
     #[serde(rename = "$skip", default)]
     pub skip: usize,
 }
+
 pub fn default_limit_for_query() -> usize {
     50
 }
-impl Default for QueryExpression {
-    fn default() -> Self {
+
+impl QueryExpression {
+    pub fn with_default_limit() -> Self {
         Self {
             filter: None,
             order_by: Default::default(),
             limit: Some(default_limit_for_query()),
             skip: Default::default(),
         }
+    }
+
+    pub fn with_no_limit() -> Self {
+        Self {
+            filter: None,
+            order_by: Default::default(),
+            limit: None,
+            skip: Default::default(),
+        }
+    }
+}
+
+impl Default for QueryExpression {
+    fn default() -> Self {
+        Self::with_default_limit()
     }
 }
 

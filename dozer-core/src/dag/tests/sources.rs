@@ -1,13 +1,16 @@
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
+use crate::dag::tests::app::NoneContext;
 use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
@@ -29,18 +32,34 @@ impl GeneratorSourceFactory {
     }
 }
 
-impl SourceFactory for GeneratorSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new("id".to_string(), FieldType::String, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new("value".to_string(), FieldType::String, false),
-                false,
-            )
-            .clone())
+impl SourceFactory<NoneContext> for GeneratorSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new(
+                        "value".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    false,
+                )
+                .clone(),
+            NoneContext {},
+        ))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -57,7 +76,10 @@ impl SourceFactory for GeneratorSourceFactory {
         )])
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -135,18 +157,34 @@ impl DualPortGeneratorSourceFactory {
     }
 }
 
-impl SourceFactory for DualPortGeneratorSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new("id".to_string(), FieldType::String, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new("value".to_string(), FieldType::String, false),
-                false,
-            )
-            .clone())
+impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new(
+                        "value".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    false,
+                )
+                .clone(),
+            NoneContext {},
+        ))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -176,7 +214,10 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
         ])
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -264,18 +305,34 @@ impl NoPkGeneratorSourceFactory {
     }
 }
 
-impl SourceFactory for NoPkGeneratorSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new("id".to_string(), FieldType::String, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new("value".to_string(), FieldType::String, false),
-                false,
-            )
-            .clone())
+impl SourceFactory<NoneContext> for NoPkGeneratorSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        Ok((
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(
+                        "id".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new(
+                        "value".to_string(),
+                        FieldType::String,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    false,
+                )
+                .clone(),
+            NoneContext {},
+        ))
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
@@ -289,7 +346,10 @@ impl SourceFactory for NoPkGeneratorSourceFactory {
         )])
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 

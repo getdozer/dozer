@@ -2,13 +2,14 @@ use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_date_field, get_decimal_field, get_ts_field, init_input_schema,
     init_processor, insert_exp, insert_field, update_exp, update_field, DATE16, DATE4, DATE8,
-    FIELD_0_FLOAT, FIELD_0_INT, FIELD_100_FLOAT, FIELD_100_INT, FIELD_200_FLOAT, FIELD_200_INT,
-    FIELD_50_FLOAT, FIELD_50_INT, FIELD_NULL, ITALY, SINGAPORE,
+    FIELD_0_FLOAT, FIELD_0_INT, FIELD_100_FLOAT, FIELD_100_INT, FIELD_100_UINT, FIELD_200_FLOAT,
+    FIELD_200_INT, FIELD_200_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_NULL, ITALY,
+    SINGAPORE,
 };
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::types::Field;
-use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp};
+use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp, UInt};
 use std::collections::HashMap;
 
 #[test]
@@ -234,6 +235,119 @@ fn test_max_aggregation_int() {
     inp = delete_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp, tx);
     exp = vec![delete_exp(ITALY, FIELD_100_INT)];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_max_aggregation_uint() {
+    let schema = init_input_schema(UInt, "MAX");
+    let (processor, tx) = init_processor(
+        "SELECT Country, MAX(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    // Insert 100 for segment Italy
+    /*
+        Italy, 100.0
+        -------------
+        MAX = 100.0
+    */
+    let mut inp = insert_field(ITALY, FIELD_100_UINT);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, FIELD_100_UINT)];
+    assert_eq!(out, exp);
+
+    // Insert another 100 for segment Italy
+    /*
+        Italy, 100.0
+        Italy, 100.0
+        -------------
+        MAX = 100.0
+    */
+    inp = insert_field(ITALY, FIELD_100_UINT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_100_UINT)];
+    assert_eq!(out, exp);
+
+    // Insert 50 for segment Singapore
+    /*
+        Italy, 100.0
+        Italy, 100.0
+        -------------
+        MAX = 100.0
+
+        Singapore, 50.0
+        ---------------
+        MAX = 50.0
+    */
+    inp = insert_field(SINGAPORE, FIELD_50_UINT);
+    out = output!(processor, inp, tx);
+    exp = vec![insert_exp(SINGAPORE, FIELD_50_UINT)];
+    assert_eq!(out, exp);
+
+    // Update Singapore segment to Italy
+    /*
+        Italy, 100.0
+        Italy, 100.0
+        Italy, 50.0
+        -------------
+        MAX = 100.0
+    */
+    inp = update_field(SINGAPORE, ITALY, FIELD_50_UINT, FIELD_50_UINT);
+    out = output!(processor, inp, tx);
+    exp = vec![
+        delete_exp(SINGAPORE, FIELD_50_UINT),
+        update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_100_UINT),
+    ];
+    assert_eq!(out, exp);
+
+    // Update Italy value 100 -> 200
+    /*
+        Italy, 200.0
+        Italy, 100.0
+        Italy, 50.0
+        -------------
+        MAX = 200.0
+    */
+    inp = update_field(ITALY, ITALY, FIELD_100_UINT, FIELD_200_UINT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_200_UINT)];
+    assert_eq!(out, exp);
+
+    // Delete 1 record (200)
+    /*
+        Italy, 100.0
+        Italy, 50.0
+        -------------
+        MAX = 50.0
+    */
+    inp = delete_field(ITALY, FIELD_200_UINT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_200_UINT, FIELD_100_UINT)];
+    assert_eq!(out, exp);
+
+    // Delete another record (50)
+    /*
+        Italy, 100.0
+        -------------
+        MAX = 100.0
+    */
+    inp = delete_field(ITALY, FIELD_50_UINT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_100_UINT)];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        MAX = Null
+    */
+    inp = delete_field(ITALY, FIELD_100_UINT);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, FIELD_100_UINT)];
     assert_eq!(out, exp);
 }
 

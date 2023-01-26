@@ -32,7 +32,7 @@ pub fn postgres_type_to_field(
                         .parse::<f64>()
                         .unwrap(),
                 ))),
-                Type::TEXT | Type::VARCHAR | Type::CHAR => {
+                Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR => {
                     Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
                 }
                 Type::BYTEA => Ok(Field::Binary(v.to_vec())),
@@ -80,7 +80,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
     match column_type {
         Type::BOOL => Ok(FieldType::Boolean),
         Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
-        Type::CHAR | Type::TEXT | Type::VARCHAR => Ok(FieldType::String),
+        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR => Ok(FieldType::String),
         Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
         Type::BIT => Ok(FieldType::Binary),
         Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
@@ -196,6 +196,7 @@ pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, Postg
         name: column.name().to_string(),
         typ,
         nullable: true,
+        source: SourceDefinition::Dynamic,
     })
 }
 
