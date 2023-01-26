@@ -41,12 +41,14 @@ impl AggregationMeasure {
 #[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionContext {
     pub aggrgeations: Vec<AggregationMeasure>,
+    pub offset: usize,
 }
 
 impl ExpressionContext {
-    pub fn new() -> Self {
+    pub fn new(offset: usize) -> Self {
         Self {
             aggrgeations: Vec::new(),
+            offset,
         }
     }
 }
@@ -269,7 +271,7 @@ impl ExpressionBuilder {
                     );
                     context.aggrgeations.push(measure);
                     Ok(Box::new(Expression::Column {
-                        index: context.aggrgeations.len() - 1,
+                        index: context.offset + context.aggrgeations.len() - 1,
                     }))
                 }
                 _ => Err(TooManyArguments(function_name.clone())),

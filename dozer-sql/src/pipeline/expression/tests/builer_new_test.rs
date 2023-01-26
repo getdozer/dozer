@@ -34,7 +34,7 @@ fn test_simple_function() {
         )
         .to_owned();
 
-    let mut context = ExpressionContext::new();
+    let mut context = ExpressionContext::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
             ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
@@ -45,6 +45,7 @@ fn test_simple_function() {
     assert_eq!(
         context,
         ExpressionContext {
+            offset: schema.fields.len(),
             aggrgeations: vec![]
         }
     );
@@ -75,7 +76,7 @@ fn test_simple_aggr_function() {
         )
         .to_owned();
 
-    let mut context = ExpressionContext::new();
+    let mut context = ExpressionContext::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
             ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
@@ -86,13 +87,14 @@ fn test_simple_aggr_function() {
     assert_eq!(
         context,
         ExpressionContext {
+            offset: schema.fields.len(),
             aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
                 arg: Expression::Column { index: 0 }
             }]
         }
     );
-    assert_eq!(e, Box::new(Expression::Column { index: 0 }));
+    assert_eq!(e, Box::new(Expression::Column { index: 1 }));
 }
 
 #[test]
@@ -119,7 +121,7 @@ fn test_2_nested_aggr_function() {
         )
         .to_owned();
 
-    let mut context = ExpressionContext::new();
+    let mut context = ExpressionContext::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
             ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
@@ -130,6 +132,7 @@ fn test_2_nested_aggr_function() {
     assert_eq!(
         context,
         ExpressionContext {
+            offset: schema.fields.len(),
             aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
                 arg: Expression::ScalarFunction {
@@ -142,7 +145,7 @@ fn test_2_nested_aggr_function() {
             }]
         }
     );
-    assert_eq!(e, Box::new(Expression::Column { index: 0 }));
+    assert_eq!(e, Box::new(Expression::Column { index: 2 }));
 }
 
 #[test]
@@ -169,7 +172,7 @@ fn test_3_nested_aggr_function() {
         )
         .to_owned();
 
-    let mut context = ExpressionContext::new();
+    let mut context = ExpressionContext::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
             ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
@@ -180,6 +183,7 @@ fn test_3_nested_aggr_function() {
     assert_eq!(
         context,
         ExpressionContext {
+            offset: schema.fields.len(),
             aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
                 arg: Expression::ScalarFunction {
@@ -196,7 +200,7 @@ fn test_3_nested_aggr_function() {
         e,
         Box::new(Expression::ScalarFunction {
             fun: ScalarFunctionType::Round,
-            args: vec![Expression::Column { index: 0 }]
+            args: vec![Expression::Column { index: 2 }]
         })
     );
 }
@@ -225,7 +229,7 @@ fn test_3_nested_aggr_function_and_sum() {
         )
         .to_owned();
 
-    let mut context = ExpressionContext::new();
+    let mut context = ExpressionContext::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
             ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
@@ -236,6 +240,7 @@ fn test_3_nested_aggr_function_and_sum() {
     assert_eq!(
         context,
         ExpressionContext {
+            offset: schema.fields.len(),
             aggrgeations: vec![
                 AggregationMeasure {
                     typ: Aggregator::Sum,
@@ -260,9 +265,80 @@ fn test_3_nested_aggr_function_and_sum() {
             operator: BinaryOperatorType::Add,
             left: Box::new(Expression::ScalarFunction {
                 fun: ScalarFunctionType::Round,
-                args: vec![Expression::Column { index: 0 }]
+                args: vec![Expression::Column { index: 2 }]
             }),
-            right: Box::new(Expression::Column { index: 1 })
+            right: Box::new(Expression::Column { index: 3 })
+        })
+    );
+}
+
+#[test]
+fn test_3_nested_aggr_function_and_sum_3() {
+    let sql = "SELECT (ROUND(SUM(ROUND(field1,2))) + SUM(field0)) + field0 FROM t0";
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                "field0".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "field1".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .to_owned();
+
+    let mut context = ExpressionContext::new(schema.fields.len());
+    let e = match &get_select(sql).unwrap().projection[0] {
+        SelectItem::UnnamedExpr(e) => {
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
+        }
+        _ => panic!("Invalid expr"),
+    };
+
+    assert_eq!(
+        context,
+        ExpressionContext {
+            offset: schema.fields.len(),
+            aggrgeations: vec![
+                AggregationMeasure {
+                    typ: Aggregator::Sum,
+                    arg: Expression::ScalarFunction {
+                        fun: ScalarFunctionType::Round,
+                        args: vec![
+                            Expression::Column { index: 1 },
+                            Expression::Literal(Field::Int(2))
+                        ]
+                    }
+                },
+                AggregationMeasure {
+                    typ: Aggregator::Sum,
+                    arg: Expression::Column { index: 0 }
+                }
+            ]
+        }
+    );
+    assert_eq!(
+        e,
+        Box::new(Expression::BinaryOperator {
+            operator: BinaryOperatorType::Add,
+            left: Box::new(Expression::BinaryOperator {
+                operator: BinaryOperatorType::Add,
+                left: Box::new(Expression::ScalarFunction {
+                    fun: ScalarFunctionType::Round,
+                    args: vec![Expression::Column { index: 2 }]
+                }),
+                right: Box::new(Expression::Column { index: 3 })
+            }),
+            right: Box::new(Expression::Column { index: 0 })
         })
     );
 }
@@ -283,7 +359,7 @@ fn test_wrong_nested_aggregations() {
         )
         .to_owned();
 
-    let mut context = ExpressionContext::new();
+    let mut context = ExpressionContext::new(schema.fields.len());
     let _e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
             ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
@@ -322,7 +398,7 @@ fn test_name_resolution() {
         )
         .to_owned();
 
-    let mut context = ExpressionContext::new();
+    let mut context = ExpressionContext::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
             ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
@@ -333,6 +409,7 @@ fn test_name_resolution() {
     assert_eq!(
         context,
         ExpressionContext {
+            offset: schema.fields.len(),
             aggrgeations: vec![]
         }
     );
@@ -366,7 +443,7 @@ fn test_alias_resolution() {
         )
         .to_owned();
 
-    let mut context = ExpressionContext::new();
+    let mut context = ExpressionContext::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
         SelectItem::UnnamedExpr(e) => {
             ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
@@ -377,6 +454,7 @@ fn test_alias_resolution() {
     assert_eq!(
         context,
         ExpressionContext {
+            offset: schema.fields.len(),
             aggrgeations: vec![]
         }
     );

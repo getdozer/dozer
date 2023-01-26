@@ -1,23 +1,17 @@
 #![allow(dead_code)]
 
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::execution::Expression;
 use dozer_types::types::Schema;
-
-enum FieldReferenceType {
-    Alias(String),
-    Name(String),
-}
+use sqlparser::ast::{Expr, SelectItem};
 
 struct ProjectionPlanner {
     input_schema: Schema,
+    output_schema: Schema,
 }
 
 impl ProjectionPlanner {
-    // fn parse_projection_item(item: &SelectItem) -> Result<Vec<(FieldReferenceType, Expression)>, PipelineError> {
-    //     match item {
-    //         SelectItem::UnnamedExpr(_) => ExpressionBuilder::build(),
-    //         SelectItem::ExprWithAlias { .. } => {}
-    //         SelectItem::QualifiedWildcard(_, _) => {}
-    //         SelectItem::Wildcard(_) => {}
-    //     }
-    // }
+    fn parse_projection_item(expr: Expr) -> Result<(), PipelineError> {
+        Ok(())
+    }
 }
