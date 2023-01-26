@@ -72,6 +72,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         if port == &USER_PORT {
+            let source_id = SourceDefinition::Table {
+                connection: "connection".to_string(),
+                name: "user".to_string(),
+            };
             Ok((
                 Schema::empty()
                     .field(
@@ -79,7 +83,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("id"),
                             FieldType::Int,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         true,
                     )
@@ -88,7 +92,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("name"),
                             FieldType::String,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         false,
                     )
@@ -97,7 +101,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("department_id"),
                             FieldType::Int,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         false,
                     )
@@ -106,7 +110,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("country_id"),
                             FieldType::String,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         false,
                     )
@@ -115,7 +119,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("salary"),
                             FieldType::Float,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id,
                         ),
                         false,
                     )
@@ -123,6 +127,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 SchemaSQLContext::default(),
             ))
         } else if port == &DEPARTMENT_PORT {
+            let source_id = SourceDefinition::Table {
+                connection: "connection".to_string(),
+                name: "department".to_string(),
+            };
             Ok((
                 Schema::empty()
                     .field(
@@ -130,7 +138,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("did"),
                             FieldType::Int,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         true,
                     )
@@ -139,7 +147,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("dname"),
                             FieldType::String,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id,
                         ),
                         false,
                     )
@@ -147,6 +155,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 SchemaSQLContext::default(),
             ))
         } else if port == &COUNTRY_PORT {
+            let source_id = SourceDefinition::Table {
+                connection: "connection".to_string(),
+                name: "country".to_string(),
+            };
             Ok((
                 Schema::empty()
                     .field(
@@ -154,7 +166,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("cid"),
                             FieldType::String,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         true,
                     )
@@ -163,7 +175,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("cname"),
                             FieldType::String,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id,
                         ),
                         false,
                     )
@@ -485,7 +497,7 @@ fn test_pipeline_builder() {
 
     let (mut pipeline, (node, port)) = statement_to_pipeline(
         "SELECT  dname, salary \
-        FROM user JOIN department ON department_id = did ",
+        FROM user JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
     )
     .unwrap();
 
@@ -493,12 +505,12 @@ fn test_pipeline_builder() {
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
-        "conn1".to_string(),
+        "conn".to_string(),
         Arc::new(TestSourceFactory::new(latch.clone())),
         vec![
             ("user".to_string(), USER_PORT),
             ("department".to_string(), DEPARTMENT_PORT),
-            //("country".to_string(), COUNTRY_PORT),
+            ("country".to_string(), COUNTRY_PORT),
         ]
         .into_iter()
         .collect(),

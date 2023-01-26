@@ -9,7 +9,6 @@ use dozer_types::types::{Schema, SourceDefinition};
 use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, JoinConstraint};
 
 use crate::pipeline::expression::builder::ConstraintIdentifier;
-use crate::pipeline::product::from_factory::get_field_index;
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::{JoinError, PipelineError},
@@ -264,8 +263,8 @@ fn parse_identifier(
         }
     };
 
-    let left_idx = get_field_index(ident, &left_join_table.schema)?;
-    let right_idx = get_field_index(ident, &right_join_table.schema)?;
+    let left_idx = None; //get_field_index(ident, &left_join_table.schema)?;
+    let right_idx = None; // get_field_index(ident, &right_join_table.schema)?;
 
     match (left_idx, right_idx) {
         (None, None) => Err(PipelineError::JoinError(JoinError::InvalidFieldSpecified(

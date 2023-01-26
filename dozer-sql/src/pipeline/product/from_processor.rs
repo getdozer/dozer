@@ -2,7 +2,7 @@ use crate::pipeline::errors::PipelineError;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::epoch::Epoch;
-use dozer_core::dag::errors::{ExecutionError, JoinError};
+use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::Database;
@@ -13,14 +13,13 @@ use std::collections::HashMap;
 
 use dozer_core::dag::errors::ExecutionError::InternalError;
 
-use super::from_join::JoinOperator;
-use super::join::{get_lookup_key, JoinExecutor, JoinTable};
+use super::from_join::JoinSource;
 
 /// Cartesian Product Processor
 #[derive(Debug)]
 pub struct FromProcessor {
     /// Join operations
-    operator: JoinOperator,
+    operator: JoinSource,
 
     /// Database to store Join indexes
     db: Option<Database>,
@@ -28,7 +27,7 @@ pub struct FromProcessor {
 
 impl FromProcessor {
     /// Creates a new [`FromProcessor`].
-    pub fn new(operator: JoinOperator) -> Self {
+    pub fn new(operator: JoinSource) -> Self {
         Self { operator, db: None }
     }
 
@@ -58,14 +57,14 @@ impl FromProcessor {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
         let lookup_keys = vec![];
-        return self.operator.insert(
+        self.operator.insert(
             from_port,
             record,
             &lookup_keys,
             database,
             transaction,
             reader,
-        );
+        )
     }
 
     fn update(
