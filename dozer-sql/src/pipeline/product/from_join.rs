@@ -8,10 +8,13 @@ use dozer_core::{
     },
 };
 use dozer_types::{
-    errors::types::TypeError,
-    types::{Record, Schema},
+    errors::types::{DeserializationError, TypeError},
+    types::{Field, Record, Schema},
 };
 use lmdb::Database;
+use sqlparser::keywords::RIGHT;
+
+use crate::pipeline::errors::JoinError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinOperatorType {
@@ -56,17 +59,17 @@ impl JoinSource {
         &self,
         from_port: PortHandle,
         record: &Record,
-        join_keys: &[usize],
+        join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         match self {
             JoinSource::Table(table) => {
-                table.lookup(from_port, record, join_keys, database, transaction, readers)
+                table.lookup(from_port, record, join_key, database, transaction, readers)
             }
             JoinSource::Join(join) => {
-                join.lookup(from_port, record, join_keys, database, transaction, readers)
+                join.lookup(from_port, record, join_key, database, transaction, readers)
             }
         }
     }
@@ -133,7 +136,7 @@ impl JoinTable {
         &self,
         from_port: PortHandle,
         record: &Record,
-        join_keys: &[usize],
+        join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
@@ -149,7 +152,7 @@ impl JoinTable {
             .get(&self.port)
             .ok_or(ExecutionError::InvalidPortHandle(self.port))?;
 
-        let join_key = get_join_key(record, join_keys)?;
+        // let join_key = get_join_key(record, join_keys)?;
         let lookup_keys = self.get_lookup_keys(&join_key, database, transaction)?;
 
         // retrieve records for the table on the right side of the join
@@ -179,6 +182,7 @@ impl JoinTable {
         Ok(())
     }
 
+    // todo: isolate the index logic and make it generic (see the todo in the JoinOperator get_lookup_keys)
     fn get_lookup_keys(
         &self,
         join_key: &[u8],
@@ -288,18 +292,12 @@ impl JoinOperator {
                 readers,
             )?;
 
-            // update the lookup index
-            for record in left_records.iter() {
-                // let join_key: Vec<u8> = get_join_key(&record, &self.left_join_key)?;
-                // let lookup_key: Vec<u8> = get_lookup_key(&record, &self.schema)?;
-                // self.insert_index(&join_key, &lookup_key, database, transaction)?;
-            }
-
+            let join_key: Vec<u8> = get_join_key(record, &self.left_join_key)?;
             // lookup on the right branch to find matching records
             let mut right_records = self.right_source.lookup(
                 from_port,
                 record,
-                join_keys,
+                &join_key,
                 database,
                 transaction,
                 readers,
@@ -313,9 +311,23 @@ impl JoinOperator {
                     output_records.push(join_record);
                 }
             }
+
+            // update the lookup index
+            for record in output_records.iter() {
+                // get the join key for the merged record, which is the key for the lookup index
+                let join_key: Vec<u8> = get_join_key(&record, join_keys)?;
+                // generate the composite value using left and right constraints, which is the value for the lookup index
+                // in the lookup operation, the composite value will be split back into left and right constraints
+                // and forwarded to the left and right sources for lookup
+                let merged_join_keys = merge_join_keys(&self.left_join_key, &self.right_join_key);
+                let composite_lookup_key: Vec<u8> =
+                    encode_composite_lookup_key_from_record(record, merged_join_keys);
+                self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
+            }
+
             return Ok(output_records);
         } else if self.right_source.get_sources().contains(&from_port) {
-            self.right_source.insert(
+            let mut right_records = self.right_source.insert(
                 from_port,
                 record,
                 join_keys,
@@ -323,24 +335,103 @@ impl JoinOperator {
                 transaction,
                 readers,
             )?;
+
+            // lookup on the left branch to find matching records
+            let join_key: Vec<u8> = get_join_key(record, &self.right_join_key)?;
+            let mut left_records = self.left_source.lookup(
+                from_port,
+                record,
+                &join_key,
+                database,
+                transaction,
+                readers,
+            )?;
+
+            // join the records
+            let mut output_records = vec![];
+            for left_record in left_records.iter_mut() {
+                for right_record in right_records.iter_mut() {
+                    let join_record = join_records(left_record, right_record);
+                    output_records.push(join_record);
+                }
+            }
+
+            // update the lookup index
+            for record in output_records.iter() {
+                // get the join key for the merged record, which is the key for the lookup index
+                let join_key: Vec<u8> = get_join_key(&record, join_keys)?;
+                // generate the composite value using left and right constraints, which is the value for the lookup index
+                // in the lookup operation, the composite value will be split back into left and right constraints
+                // and forwarded to the left and right sources for lookup
+                let merged_join_keys = merge_join_keys(&self.left_join_key, &self.right_join_key);
+                let composite_lookup_key: Vec<u8> =
+                    encode_composite_lookup_key_from_record(record, merged_join_keys);
+                self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
+            }
+
+            return Ok(output_records);
         } else {
             return Err(ExecutionError::InvalidPortHandle(from_port));
         }
-
-        let result_records = vec![]; //join(left_records, right_records);
-        Ok(result_records)
     }
 
     fn lookup(
         &self,
         from_port: PortHandle,
         record: &Record,
-        join_keys: &[usize],
+        join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
-        todo!()
+        let mut output_records = vec![];
+
+        let composite_lookup_keys = self.get_lookup_keys(join_key, database, transaction)?;
+
+        for binary_lookup_key in composite_lookup_keys.iter() {
+            let merged_join_keys = merge_join_keys(&self.left_join_key, &self.right_join_key);
+
+            if let Ok(join_keys) =
+                decode_composite_lookup_key(binary_lookup_key.to_vec(), merged_join_keys)
+            {
+                let left_join_keys = join_keys[0..self.left_join_key.len()].to_vec();
+                let join_key: Vec<u8> = encode_composite_lookup_key(left_join_keys);
+
+                let mut left_records = self.left_source.lookup(
+                    from_port,
+                    record,
+                    &join_key,
+                    database,
+                    transaction,
+                    readers,
+                )?;
+
+                let right_join_keys = join_keys[self.left_join_key.len()..].to_vec();
+                let join_key: Vec<u8> = encode_composite_lookup_key(right_join_keys);
+
+                let mut right_records = self.right_source.lookup(
+                    from_port,
+                    record,
+                    &join_key,
+                    database,
+                    transaction,
+                    readers,
+                )?;
+
+                for left_record in left_records.iter_mut() {
+                    for right_record in right_records.iter_mut() {
+                        let join_record = join_records(left_record, right_record);
+                        output_records.push(join_record);
+                    }
+                }
+            } else {
+                return Err(ExecutionError::InternalStringError(
+                    "Invalid constraint key".to_string(),
+                ));
+            }
+        }
+
+        Ok(output_records)
     }
 
     pub fn insert_index(
@@ -358,6 +449,95 @@ impl JoinOperator {
 
         Ok(())
     }
+
+    fn get_lookup_keys(
+        &self,
+        join_key: &[u8],
+        database: &Database,
+        transaction: &SharedTransaction,
+    ) -> Result<Vec<Vec<u8>>, ExecutionError> {
+        let mut join_keys = vec![];
+
+        let mut exclusive_transaction = transaction.write();
+        let right_prefix_transaction =
+            PrefixTransaction::new(&mut exclusive_transaction, self.right_index);
+
+        let cursor = right_prefix_transaction.open_cursor(*database)?;
+
+        if !cursor.seek(join_key)? {
+            return Ok(join_keys);
+        }
+
+        loop {
+            let entry = cursor.read()?.ok_or(ExecutionError::InternalDatabaseError(
+                StorageError::InvalidRecord,
+            ))?;
+
+            if entry.0 != join_key {
+                break;
+            }
+
+            join_keys.push(entry.1.to_vec());
+
+            if !cursor.next()? {
+                break;
+            }
+        }
+
+        Ok(join_keys)
+    }
+}
+
+fn encode_composite_lookup_key(left_join_keys: Vec<Field>) -> Vec<u8> {
+    let mut composite_lookup_key = vec![];
+    for key in left_join_keys {
+        let value = &key.encode();
+        let length = value.len() as u32;
+        composite_lookup_key.extend_from_slice(&length.to_be_bytes());
+        composite_lookup_key.extend_from_slice(value.as_slice());
+    }
+    composite_lookup_key
+}
+
+fn encode_composite_lookup_key_from_record(
+    record: &Record,
+    merged_join_keys: Vec<usize>,
+) -> Vec<u8> {
+    let mut composite_lookup_key = vec![];
+    for key in merged_join_keys {
+        let value = &record.values[key].encode();
+        let length = value.len() as u32;
+        composite_lookup_key.extend_from_slice(&length.to_be_bytes());
+        composite_lookup_key.extend_from_slice(value.as_slice());
+    }
+    composite_lookup_key
+}
+
+fn decode_composite_lookup_key(
+    binary_lookup_key: Vec<u8>,
+    merged_join_keys: Vec<usize>,
+) -> Result<Vec<Field>, DeserializationError> {
+    let mut lookup_key = vec![];
+    let mut offset = 0;
+    for _index in merged_join_keys {
+        let length = u32::from_be_bytes([
+            binary_lookup_key[offset],
+            binary_lookup_key[offset + 1],
+            binary_lookup_key[offset + 2],
+            binary_lookup_key[offset + 3],
+        ]);
+        offset += 4;
+        let value = &binary_lookup_key[offset..offset + length as usize];
+        offset += length as usize;
+        lookup_key.push(Field::decode(value)?);
+    }
+    Ok(lookup_key)
+}
+
+fn merge_join_keys(left_join_key: &[usize], right_join_key: &[usize]) -> Vec<usize> {
+    let mut merged_join_keys = left_join_key.to_vec();
+    merged_join_keys.append(&mut right_join_key.to_vec());
+    merged_join_keys
 }
 
 fn join_records(left_record: &mut Record, right_record: &mut Record) -> Record {
