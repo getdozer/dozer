@@ -6,7 +6,7 @@ use dozer_core::dag::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
 use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::{Expr as SqlExpr, Expr, SelectItem};
+use sqlparser::ast::{Expr as SqlExpr, Expr, FunctionArgExpr, SelectItem};
 
 use crate::pipeline::{
     errors::PipelineError,
@@ -274,6 +274,10 @@ fn build_projection_schema(
 
             for e in expressions.iter() {
                 let field_name = e.0.clone();
+                if field_name.eq(&FunctionArgExpr::Wildcard.to_string()) {
+                    output_schema = input_schema.clone();
+                    break;
+                }
                 let field_type =
                     e.1.get_type(input_schema)
                         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;

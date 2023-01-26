@@ -6,7 +6,7 @@ use dozer_core::dag::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
 use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::SelectItem;
+use sqlparser::ast::{FunctionArg, FunctionArgExpr, SelectItem};
 
 use crate::pipeline::{
     errors::PipelineError,
@@ -60,6 +60,16 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
                 for e in expressions.iter() {
                     let field_name = e.0.clone();
+                    if field_name.eq(&FunctionArgExpr::Wildcard.to_string()) {
+                        for field in input_schema.fields.clone() {
+                            output_schema.fields.push(FieldDefinition::new(
+                                field.name,
+                                field.typ,
+                                field.nullable,
+                            ));
+                        }
+                        break;
+                    }
                     let field_type =
                         e.1.get_type(input_schema)
                             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
@@ -134,9 +144,20 @@ pub(crate) fn parse_sql_select_item(
                 Err(error) => Err(error),
             }
         }
-        SelectItem::Wildcard => Err(PipelineError::InvalidOperator("*".to_string())),
+        // TODO: (chloe) implement wildcard
+        // SelectItem::Wildcard => Err(PipelineError::InvalidOperator("*".to_string())),
+        SelectItem::Wildcard => {
+            match builder.parse_sql_function_arg(
+                &BuilderExpressionType::FullExpression,
+                &FunctionArg::Unnamed(FunctionArgExpr::Wildcard),
+                schema
+            ) {
+                Ok(expr) => Ok(("*".to_string(), *expr.0)),
+                Err(error) => Err(error),
+            }
+        }
         SelectItem::QualifiedWildcard(ref object_name) => {
-            Err(PipelineError::InvalidOperator(object_name.to_string()))
+            Err(PipelineError::InvalidOperator(format!("{}.*", object_name)))
         }
     }
 }

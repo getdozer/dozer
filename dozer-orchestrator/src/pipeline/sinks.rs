@@ -261,7 +261,16 @@ fn create_primary_indexes(
         let idx = schema
             .fields
             .iter()
-            .position(|fd| fd.name == name.clone())
+            .position(|fd| {
+                let slice_char = ".";
+                fd.name == name.clone()
+                    || (fd.name.contains(slice_char) && {
+                        let slice: String = fd.name.chars()
+                            .skip(fd.name.find(slice_char).unwrap().wrapping_add(1))
+                            .collect();
+                        slice == name.clone()
+                })
+            })
             .map_or(Err(ExecutionError::FieldNotFound(name.to_owned())), |p| {
                 Ok(p)
             })?;

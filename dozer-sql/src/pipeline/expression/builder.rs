@@ -86,7 +86,7 @@ impl ExpressionBuilder {
                     schema,
                     expression,
                 ),
-                // ExpressionType::PostAggregation => todo!(),
+                // BuilderExpressionType::PostAggregation => todo!(),
                 BuilderExpressionType::FullExpression => {
                     self.parse_sql_function(expression_type, sql_function, schema, expression)
                 }
@@ -297,7 +297,7 @@ impl ExpressionBuilder {
         )))
     }
 
-    fn parse_sql_function_arg(
+    pub(crate) fn parse_sql_function_arg(
         &self,
         expression_type: &BuilderExpressionType,
         argument: &FunctionArg,
@@ -316,8 +316,24 @@ impl ExpressionBuilder {
                 self.parse_sql_expression(expression_type, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                Err(InvalidArgument(format!("{:?}", argument)))
+                // Err(InvalidArgument(format!("{:?}", argument)))
+                self.parse_sql_function_arg_expression(&FunctionArgExpr::Wildcard, schema)
             }
+            _ => Err(InvalidArgument(format!("{:?}", argument))),
+        }
+    }
+
+    fn parse_sql_function_arg_expression(
+        &self,
+        argument: &FunctionArgExpr,
+        schema: &Schema,
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
+        match argument {
+            FunctionArgExpr::Wildcard => {
+                let idents: Vec<Ident> = schema.fields.iter()
+                    .map(|field| Ident::new(field.clone().name)).collect();
+                self.parse_sql_column(idents.as_slice(), schema)
+            },
             _ => Err(InvalidArgument(format!("{:?}", argument))),
         }
     }
