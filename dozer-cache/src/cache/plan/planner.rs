@@ -41,7 +41,7 @@ impl<'a> QueryPlanner<'a> {
             // Find the field index.
             let (field_index, _, _) =
                 get_field_index_and_type(&order.field_name, &self.schema.fields)
-                    .ok_or(PlanError::FieldNotFound(order.field_name.clone()))?;
+                    .ok_or_else(|| PlanError::FieldNotFound(order.field_name.clone()))?;
             // If the field is already in a filter supported by `SortedInverted`, mark the corresponding filter.
             if seen_in_sorted_inverted_filter(field_index, order.direction, &mut filters)? {
                 continue;
@@ -103,7 +103,7 @@ fn collect_filters(
         FilterExpression::Simple(field_name, operator, value) => {
             let (field_index, field_type, nullable) =
                 get_field_index_and_type(field_name, &schema.fields)
-                    .ok_or(PlanError::FieldNotFound(field_name.clone()))?;
+                    .ok_or_else(|| PlanError::FieldNotFound(field_name.clone()))?;
             let field = json_value_to_field(value.clone(), field_type, nullable)?;
             filters.push((IndexFilter::new(field_index, *operator, field), None));
         }

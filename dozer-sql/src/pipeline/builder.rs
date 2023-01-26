@@ -13,7 +13,7 @@ use sqlparser::{
     dialect::AnsiDialect,
     parser::Parser,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
@@ -26,7 +26,7 @@ pub struct SchemaSQLContext {}
 /// The struct contains some contexts during query to pipeline.
 #[derive(Debug, Clone, Default)]
 pub struct QueryContext {
-    pub cte_names: HashSet<String>,
+    pub pipeline_map: HashMap<String, (String, PortHandle)>,
 }
 
 #[derive(Debug, Clone)]
@@ -46,18 +46,11 @@ pub fn statement_to_pipeline(
     let statement = ast.get(0).expect("First statement is missing").to_owned();
 
     let mut pipeline = AppPipeline::new();
-    let mut pipeline_map = HashMap::new();
     if let Statement::Query(query) = statement {
-        query_to_pipeline(
-            &query_name,
-            &query,
-            &mut pipeline,
-            &mut pipeline_map,
-            &mut ctx,
-            false,
-        )?;
+        query_to_pipeline(&query_name, &query, &mut pipeline, &mut ctx, false)?;
     };
-    let node = pipeline_map
+    let node = ctx
+        .pipeline_map
         .get(&query_name.0)
         .expect("query should have been initialized")
         .to_owned();
@@ -68,7 +61,6 @@ fn query_to_pipeline(
     processor_name: &NameOrAlias,
     query: &Query,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
-    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
     query_ctx: &mut QueryContext,
     stateful: bool,
 ) -> Result<(), PipelineError> {
@@ -100,17 +92,15 @@ fn query_to_pipeline(
                 ));
             }
             let table_name = table.alias.name.to_string();
-            if query_ctx.cte_names.contains(&table_name) {
+            if query_ctx.pipeline_map.contains_key(&table_name) {
                 return Err(InvalidQuery(format!(
                     "WITH query name {table_name:?} specified more than once"
                 )));
             }
-            query_ctx.cte_names.insert(table_name.clone());
             query_to_pipeline(
                 &NameOrAlias(table_name.clone(), Some(table_name)),
                 &table.query,
                 pipeline,
-                pipeline_map,
                 query_ctx,
                 false,
             )?;
@@ -119,7 +109,7 @@ fn query_to_pipeline(
 
     match *query.body.clone() {
         SetExpr::Select(select) => {
-            select_to_pipeline(processor_name, *select, pipeline, pipeline_map, stateful)?;
+            select_to_pipeline(processor_name, *select, pipeline, query_ctx, stateful)?;
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", uuid::Uuid::new_v4());
@@ -128,7 +118,6 @@ fn query_to_pipeline(
                 &NameOrAlias(query_name, None),
                 &query,
                 pipeline,
-                pipeline_map,
                 &mut ctx,
                 stateful,
             )?
@@ -146,7 +135,7 @@ fn select_to_pipeline(
     processor_name: &NameOrAlias,
     select: Select,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
-    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+    query_ctx: &mut QueryContext,
     stateful: bool,
 ) -> Result<(), PipelineError> {
     // FROM clause
@@ -156,11 +145,11 @@ fn select_to_pipeline(
         ));
     }
 
-    let input_tables = get_input_tables(&select.from[0], pipeline, pipeline_map)?;
+    let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx)?;
 
     let product = FromProcessorFactory::new(input_tables.clone());
 
-    let input_endpoints = get_entry_points(&input_tables, pipeline_map)?;
+    let input_endpoints = get_entry_points(&input_tables, &mut query_ctx.pipeline_map)?;
 
     let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
@@ -169,7 +158,7 @@ fn select_to_pipeline(
 
     let input_names = get_input_names(&input_tables);
     for (port_index, table_name) in input_names.iter().enumerate() {
-        if let Some((processor_name, processor_port)) = pipeline_map.get(&table_name.0) {
+        if let Some((processor_name, processor_port)) = query_ctx.pipeline_map.get(&table_name.0) {
             pipeline.connect_nodes(
                 processor_name,
                 Some(*processor_port),
@@ -216,7 +205,7 @@ fn select_to_pipeline(
         )?;
     }
 
-    pipeline_map.insert(
+    query_ctx.pipeline_map.insert(
         processor_name.0.clone(),
         (gen_agg_name, DEFAULT_PORT_HANDLE),
     );
@@ -232,18 +221,14 @@ fn select_to_pipeline(
 pub fn get_input_tables(
     from: &TableWithJoins,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
-    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+    query_ctx: &mut QueryContext,
 ) -> Result<IndexedTabelWithJoins, PipelineError> {
-    let mut input_tables = vec![];
-
-    let name = get_from_source(&from.relation, pipeline, pipeline_map)?;
-    input_tables.insert(0, name.clone());
+    let name = get_from_source(&from.relation, pipeline, query_ctx)?;
     let mut joins = vec![];
 
-    for (index, join) in from.joins.iter().enumerate() {
-        let input_name = get_from_source(&join.relation, pipeline, pipeline_map)?;
+    for join in from.joins.iter() {
+        let input_name = get_from_source(&join.relation, pipeline, query_ctx)?;
         joins.push((input_name.clone(), join.clone()));
-        input_tables.insert(index + 1, input_name);
     }
 
     Ok(IndexedTabelWithJoins {
@@ -285,7 +270,7 @@ pub fn get_entry_points(
 pub fn get_from_source(
     relation: &TableFactor,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
-    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+    query_ctx: &mut QueryContext,
 ) -> Result<NameOrAlias, PipelineError> {
     match relation {
         TableFactor::Table { name, alias, .. } => {
@@ -312,8 +297,7 @@ pub fn get_from_source(
                 .map(|alias_ident| fullname_from_ident(&[alias_ident.name.clone()]));
 
             let name_or = NameOrAlias(name, alias_name);
-            let mut ctx = QueryContext::default();
-            query_to_pipeline(&name_or, subquery, pipeline, pipeline_map, &mut ctx, false)?;
+            query_to_pipeline(&name_or, subquery, pipeline, query_ctx, false)?;
 
             Ok(name_or)
         }
