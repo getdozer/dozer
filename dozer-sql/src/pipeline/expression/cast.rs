@@ -252,6 +252,7 @@ impl CastOperatorType {
             return_type,
             nullable: expression_type.nullable,
             source: expression_type.source,
+            is_primary_key: expression_type.is_primary_key,
         })
     }
 }

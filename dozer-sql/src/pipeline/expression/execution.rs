@@ -1,5 +1,7 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
+use std::fmt::{Display, Formatter};
+use uuid::Uuid;
 
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
@@ -49,18 +51,96 @@ pub enum Expression {
     },
 }
 
+impl Expression {
+    pub fn to_string(&self, schema: &Schema) -> String {
+        match &self {
+            Expression::Column { index } => schema.fields[*index].name.clone(),
+            Expression::Literal(value) => value.to_string().unwrap_or(Uuid::new_v4().to_string()),
+            Expression::UnaryOperator { operator, arg } => {
+                operator.to_string() + arg.to_string(schema).as_str()
+            }
+            Expression::BinaryOperator {
+                left,
+                operator,
+                right,
+            } => {
+                left.to_string(schema)
+                    + operator.to_string().as_str()
+                    + right.to_string(schema).as_str()
+            }
+            Expression::ScalarFunction { fun, args } => {
+                fun.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|e| e.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
+            Expression::AggregateFunction { fun, args } => {
+                fun.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|e| e.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
+            Expression::Cast { arg, typ } => {
+                "CAST(".to_string()
+                    + arg.to_string(schema).as_str()
+                    + " AS "
+                    + typ.to_string().as_str()
+                    + ")"
+            }
+            Expression::Trim { typ, what, arg } => {
+                "TRIM(".to_string()
+                    + if let Some(t) = typ {
+                        t.to_string().as_str()
+                    } else {
+                        ""
+                    }
+                    + if let Some(w) = what {
+                        (w.to_string(schema) + " FROM ").as_str()
+                    } else {
+                        ""
+                    }
+                    + arg.to_string(schema).as_str()
+                    + ")"
+            }
+
+            Expression::Like {
+                arg,
+                pattern,
+                escape,
+            } => arg.to_string(schema) + " LIKE " + pattern.to_string(schema).as_str(),
+        }
+    }
+}
+
 pub struct ExpressionType {
     pub return_type: FieldType,
     pub nullable: bool,
     pub source: SourceDefinition,
+    pub is_primary_key: bool,
 }
 
 impl ExpressionType {
-    pub fn new(return_type: FieldType, nullable: bool, source: SourceDefinition) -> Self {
+    pub fn new(
+        return_type: FieldType,
+        nullable: bool,
+        source: SourceDefinition,
+        is_primary_key: bool,
+    ) -> Self {
         Self {
             return_type,
             nullable,
             source,
+            is_primary_key,
         }
     }
 }
@@ -113,12 +193,22 @@ impl ExpressionExecutor for Expression {
                         "literal expression cannot be null".to_string(),
                     )
                 })?;
-                Ok(ExpressionType::new(r, false, SourceDefinition::Dynamic))
+                Ok(ExpressionType::new(
+                    r,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                ))
             }
             Expression::Column { index } => {
                 let t = schema.fields.get(*index).unwrap();
 
-                Ok(ExpressionType::new(t.typ, t.nullable, t.source.clone()))
+                Ok(ExpressionType::new(
+                    t.typ,
+                    t.nullable,
+                    t.source.clone(),
+                    schema.primary_index.contains(index),
+                ))
             }
             Expression::UnaryOperator { operator, arg } => {
                 get_unary_operator_type(operator, arg, schema)
@@ -201,6 +291,7 @@ fn get_binary_operator_type(
             FieldType::Boolean,
             false,
             SourceDefinition::Dynamic,
+            false,
         )),
 
         BinaryOperatorType::And | BinaryOperatorType::Or => {
@@ -209,6 +300,7 @@ fn get_binary_operator_type(
                     FieldType::Boolean,
                     false,
                     SourceDefinition::Dynamic,
+                    false,
                 )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
@@ -225,6 +317,7 @@ fn get_binary_operator_type(
                     FieldType::Int,
                     false,
                     SourceDefinition::Dynamic,
+                    false,
                 )),
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
@@ -232,6 +325,7 @@ fn get_binary_operator_type(
                     FieldType::Float,
                     false,
                     SourceDefinition::Dynamic,
+                    false,
                 )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
@@ -249,6 +343,7 @@ fn get_binary_operator_type(
                     FieldType::Float,
                     false,
                     SourceDefinition::Dynamic,
+                    false,
                 )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
@@ -271,11 +366,13 @@ fn get_aggregate_function_type(
             FieldType::Float,
             false,
             SourceDefinition::Dynamic,
+            false,
         )),
         AggregateFunctionType::Count => Ok(ExpressionType::new(
             FieldType::Int,
             false,
             SourceDefinition::Dynamic,
+            false,
         )),
         AggregateFunctionType::Max => argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema),
         AggregateFunctionType::Median => {
@@ -287,11 +384,13 @@ fn get_aggregate_function_type(
             FieldType::Float,
             false,
             SourceDefinition::Dynamic,
+            false,
         )),
         AggregateFunctionType::Variance => Ok(ExpressionType::new(
             FieldType::Float,
             false,
             SourceDefinition::Dynamic,
+            false,
         )),
     }
 }

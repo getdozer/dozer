@@ -1,4 +1,5 @@
 use crate::arg_str;
+use std::fmt::{Display, Formatter, Write};
 
 use crate::pipeline::errors::PipelineError;
 
@@ -59,6 +60,7 @@ pub(crate) fn validate_concat(
         ret_type,
         false,
         dozer_types::types::SourceDefinition::Dynamic,
+        false,
     ))
 }
 
@@ -101,6 +103,16 @@ pub enum TrimType {
     Trailing,
     Leading,
     Both,
+}
+
+impl Display for TrimType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TrimType::Trailing => f.write_str("TRAILING "),
+            TrimType::Leading => f.write_str("LEADING "),
+            TrimType::Both => f.write_str("BOTH "),
+        }
+    }
 }
 
 pub(crate) fn validate_trim(
