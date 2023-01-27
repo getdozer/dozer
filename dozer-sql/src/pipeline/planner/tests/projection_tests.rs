@@ -16,7 +16,7 @@ use sqlparser::parser::Parser;
 #[test]
 fn test_basic_projection() {
     let sql =
-        "SELECT ROUND(SUM(ROUND(a,2)),2), a as a2 FROM t0 GROUP BY b,a HAVING SUM(ROUND(a,2)) > 0";
+        "SELECT ROUND(SUM(ROUND(a,2)),2), a as a2 FROM t0 GROUP BY b,a HAVING SUM(ROUND(a,2)) > SUM(b)";
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(
@@ -51,16 +51,22 @@ fn test_basic_projection() {
 
     assert_eq!(
         projection_planner.aggregation_output,
-        vec![Expression::AggregateFunction {
-            fun: AggregateFunctionType::Sum,
-            args: vec![Expression::ScalarFunction {
-                fun: ScalarFunctionType::Round,
-                args: vec![
-                    Expression::Column { index: 0 },
-                    Expression::Literal(Field::Int(2))
-                ]
-            }]
-        }]
+        vec![
+            Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
+                args: vec![Expression::ScalarFunction {
+                    fun: ScalarFunctionType::Round,
+                    args: vec![
+                        Expression::Column { index: 0 },
+                        Expression::Literal(Field::Int(2))
+                    ]
+                }]
+            },
+            Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
+                args: vec![Expression::Column { index: 1 }]
+            }
+        ]
     );
 
     assert_eq!(
@@ -117,7 +123,7 @@ fn test_basic_projection() {
         Some(Expression::BinaryOperator {
             operator: BinaryOperatorType::Gt,
             left: Box::new(Expression::Column { index: 2 }),
-            right: Box::new(Expression::Literal(Field::Int(0)))
+            right: Box::new(Expression::Column { index: 3 })
         })
     );
 }
