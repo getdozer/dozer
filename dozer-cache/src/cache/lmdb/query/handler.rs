@@ -274,7 +274,7 @@ fn get_range_spec(
             Operator::MatchesAll | Operator::MatchesAny => {
                 unimplemented!("matches all and matches any are not implemented")
             }
-            other => panic!("operator {:?} is not supported by full text index", other),
+            other => panic!("operator {other:?} is not supported by full text index"),
         },
     }
 }
@@ -349,8 +349,7 @@ fn get_key_interval_from_range_query(
             direction: SortDirection::Descending,
         },
         (other, _) => panic!(
-            "operator {:?} is not supported by sorted inverted index range query",
-            other
+            "operator {other:?} is not supported by sorted inverted index range query"
         ),
     }
 }

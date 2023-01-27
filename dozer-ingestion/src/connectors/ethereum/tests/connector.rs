@@ -25,7 +25,7 @@ fn test_eth_iterator() {
     validate(
         &msgs[1],
         0,
-        Some(Field::String(format!("{:?}", my_account))),
+        Some(Field::String(format!("{my_account:?}"))),
     );
 
     validate(&msgs[1], 1, Some(Field::String("Hello World!".to_string())));

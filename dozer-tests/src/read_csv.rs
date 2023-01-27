@@ -1,8 +1,8 @@
 pub fn read_csv(folder_name: &str, name: &str) -> Result<csv::Reader<std::fs::File>, csv::Error> {
     let current_dir = std::env::current_dir().unwrap();
     let paths = vec![
-        current_dir.join(format!("../target/debug/{}-data/{}.csv", folder_name, name)),
-        current_dir.join(format!("./target/debug/{}-data/{}.csv", folder_name, name)),
+        current_dir.join(format!("../target/debug/{folder_name}-data/{name}.csv")),
+        current_dir.join(format!("./target/debug/{folder_name}-data/{name}.csv")),
     ];
 
     let mut err = None;

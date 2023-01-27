@@ -231,7 +231,7 @@ fn test_deserialize_filter(a: Value, b: FilterExpression) {
 }
 fn test_deserialize_filter_error(a: Value) {
     use std::println as info;
-    info!("deserialize: {:?}", a);
+    info!("deserialize: {a:?}");
     let parsed_result = serde_json::from_value::<FilterExpression>(a);
     assert!(parsed_result.is_err());
 }

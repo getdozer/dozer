@@ -7,7 +7,7 @@ use dozer_types::types::{Field, Record, Schema};
 use std::sync::Arc;
 
 fn insert(cache: &LmdbCache, schema: &Schema, n: usize) {
-    let val = format!("bar_{}", n);
+    let val = format!("bar_{n}");
 
     let record = Record::new(schema.identifier, vec![Field::String(val.clone())], None);
 
@@ -18,13 +18,13 @@ fn insert(cache: &LmdbCache, schema: &Schema, n: usize) {
 }
 
 fn delete(cache: &LmdbCache, n: usize) {
-    let val = format!("bar_{}", n);
+    let val = format!("bar_{n}");
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
     let _ = cache.delete(&key);
 }
 
 fn get(cache: &LmdbCache, n: usize) {
-    let val = format!("bar_{}", n);
+    let val = format!("bar_{n}");
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
     let _get_record = cache.get(&key).unwrap();
 }

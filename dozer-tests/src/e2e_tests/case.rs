@@ -52,8 +52,7 @@ impl Case {
 
             if !docker_file.exists() && service.is_none() {
                 panic!(
-                    "Connection {:?} must have either service.yaml or Dockerfile",
-                    connection_dir
+                    "Connection {connection_dir:?} must have either service.yaml or Dockerfile"
                 );
             }
 
@@ -89,8 +88,7 @@ impl Case {
             }
         } else {
             panic!(
-                "Case {:?} must have either expectations or error expectation",
-                case_dir
+                "Case {case_dir:?} must have either expectations or error expectation"
             );
         }
     }
@@ -103,11 +101,11 @@ fn find_dozer_config_path(case_dir: &Path) -> String {
         if config_path.exists() {
             return config_path
                 .to_str()
-                .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", config_path))
+                .unwrap_or_else(|| panic!("Non-UTF8 path: {config_path:?}"))
                 .to_string();
         }
     }
-    panic!("Cannot find config file in case directory: {:?}", case_dir);
+    panic!("Cannot find config file in case directory: {case_dir:?}");
 }
 
 fn read_yaml<T: dozer_types::serde::de::DeserializeOwned>(path: &Path) -> T {

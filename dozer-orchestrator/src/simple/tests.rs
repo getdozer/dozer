@@ -144,5 +144,5 @@ fn test_query(schema_name: String, query: Value, count: usize, cache: &LmdbCache
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     let records = cache.query(&schema_name, &query).unwrap();
 
-    assert_eq!(records.len(), count, "Count must be equal : {:?}", query);
+    assert_eq!(records.len(), count, "Count must be equal : {query:?}");
 }

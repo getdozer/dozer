@@ -84,7 +84,7 @@ fn run_command(bin: &str, args: &[&str]) {
 fn run_docker_compose(docker_compose_path: &Path, service_name: &str) -> Cleanup {
     let docker_compose_path = docker_compose_path
         .to_str()
-        .unwrap_or_else(|| panic!("Non-UFT8 path {:?}", docker_compose_path));
+        .unwrap_or_else(|| panic!("Non-UFT8 path {docker_compose_path:?}"));
     run_command(
         "docker",
         &["compose", "-f", docker_compose_path, "run", service_name],
@@ -100,17 +100,15 @@ fn spawn_command(bin: &str, args: &[&str]) -> Child {
     sleep(Duration::from_millis(30000));
     if let Some(exit_status) = child
         .try_wait()
-        .unwrap_or_else(|e| panic!("Failed to check status of command {:?}: {}", cmd, e))
+        .unwrap_or_else(|e| panic!("Failed to check status of command {cmd:?}: {e}"))
     {
         if exit_status.success() {
             panic!(
-                "Service {:?} is expected to run in background, but it exited immediately",
-                cmd
+                "Service {cmd:?} is expected to run in background, but it exited immediately"
             );
         } else {
             panic!(
-                "Service {:?} is expected to run in background, but it exited with status {}",
-                cmd, exit_status
+                "Service {cmd:?} is expected to run in background, but it exited with status {exit_status}"
             );
         }
     }

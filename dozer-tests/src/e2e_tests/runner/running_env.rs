@@ -146,12 +146,10 @@ fn add_dozer_service(
             ports: vec![],
             environment: vec![("ETH_WSS_URL".to_string())],
             volumes: vec![format!(
-                "{}:{}",
-                dozer_config_path, dozer_config_path_in_container
+                "{dozer_config_path}:{dozer_config_path_in_container}"
             )],
             command: Some(format!(
-                "dozer --config-path {}",
-                dozer_config_path_in_container
+                "dozer --config-path {dozer_config_path_in_container}"
             )),
             depends_on,
             healthcheck: None,
@@ -174,10 +172,10 @@ fn add_dozer_test_client_service(
     let dozer_test_client_service_name = "dozer-test-client";
     let case_dir = case_dir
         .to_str()
-        .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", case_dir));
+        .unwrap_or_else(|| panic!("Non-UTF8 path: {case_dir:?}"));
     let connections_dir = connections_dir
         .to_str()
-        .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", connections_dir));
+        .unwrap_or_else(|| panic!("Non-UTF8 path: {connections_dir:?}"));
     let case_dir_in_container = "/case";
     let connections_dir_in_container = "/connections";
     let dozer_test_client_path = current_dir()
@@ -185,13 +183,12 @@ fn add_dozer_test_client_service(
         .join("target/debug/dozer-test-client");
     if !dozer_test_client_path.exists() {
         panic!(
-            "dozer-test-client not found at {:?}. Did you run `cargo build --bin dozer-test-client`?",
-            dozer_test_client_path
+            "dozer-test-client not found at {dozer_test_client_path:?}. Did you run `cargo build --bin dozer-test-client`?"
         );
     }
     let dozer_test_client_path = dozer_test_client_path
         .to_str()
-        .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", dozer_test_client_path));
+        .unwrap_or_else(|| panic!("Non-UTF8 path: {dozer_test_client_path:?}"));
     let dozer_test_client_path_in_container = "/dozer-test-client";
     services.insert(
         dozer_test_client_service_name.to_string(),
@@ -203,18 +200,13 @@ fn add_dozer_test_client_service(
             environment: vec![("RUST_LOG=info".to_string())],
             volumes: vec![
                 format!(
-                    "{}:{}",
-                    dozer_test_client_path, dozer_test_client_path_in_container
+                    "{dozer_test_client_path}:{dozer_test_client_path_in_container}"
                 ),
-                format!("{}:{}", case_dir, case_dir_in_container),
-                format!("{}:{}", connections_dir, connections_dir_in_container),
+                format!("{case_dir}:{case_dir_in_container}"),
+                format!("{connections_dir}:{connections_dir_in_container}"),
             ],
             command: Some(format!(
-                "{} --wait-in-millis 10000 --dozer-api-host {} --case-dir {} --connections-dir {}",
-                dozer_test_client_path_in_container,
-                dozer_api_service_name,
-                case_dir_in_container,
-                connections_dir_in_container
+                "{dozer_test_client_path_in_container} --wait-in-millis 10000 --dozer-api-host {dozer_api_service_name} --case-dir {case_dir_in_container} --connections-dir {connections_dir_in_container}"
             )),
             depends_on: vec![(
                 dozer_api_service_name,
@@ -289,13 +281,13 @@ fn add_connection_services(
 
 fn create_dir_if_not_existing(path: &Path) {
     if !path.exists() {
-        create_dir(path).unwrap_or_else(|e| panic!("Failed to create directory {:?}: {}", path, e));
+        create_dir(path).unwrap_or_else(|e| panic!("Failed to create directory {path:?}: {e}"));
     }
 }
 
 fn get_dozer_image() -> String {
     let version = env::var("DOZER_VERSION").unwrap_or_else(|_| "latest".to_string());
-    let result = format!("public.ecr.aws/k7k6x1d4/dozer:{}", version);
+    let result = format!("public.ecr.aws/k7k6x1d4/dozer:{version}");
     info!("Using dozer image: {}", result);
     result
 }
@@ -307,9 +299,9 @@ fn get_dozer_tests_image() -> String {
 
 fn write_docker_compose(path: &Path, services: HashMap<String, Service>) {
     let file =
-        File::create(path).unwrap_or_else(|e| panic!("Failed to create file {:?}: {}", path, e));
+        File::create(path).unwrap_or_else(|e| panic!("Failed to create file {path:?}: {e}"));
     dozer_types::serde_yaml::to_writer(file, &DockerCompose::new_v2_4(services))
-        .unwrap_or_else(|e| panic!("Failed to write docker compose file {:?}: {}", path, e));
+        .unwrap_or_else(|e| panic!("Failed to write docker compose file {path:?}: {e}"));
 }
 
 fn write_dozer_config_for_running_in_docker_compose(
@@ -334,7 +326,7 @@ fn write_dozer_config_for_running_in_docker_compose(
         host_port_to_container_port
             .get(&port)
             .copied()
-            .unwrap_or_else(|| panic!("A connection attempts to use port {} that's not published. Is this a connection that doesn't needs to run in the docker compose? If so, try to remove the connection from the repository", port))
+            .unwrap_or_else(|| panic!("A connection attempts to use port {port} that's not published. Is this a connection that doesn't needs to run in the docker compose? If so, try to remove the connection from the repository"))
     };
 
     for connection in &mut config.connections {
@@ -361,11 +353,11 @@ fn write_dozer_config_for_running_in_docker_compose(
 
     let config_path = dir.join("dozer-config.yaml");
     let file = File::create(&config_path)
-        .unwrap_or_else(|e| panic!("Failed to create file {:?}: {}", config_path, e));
+        .unwrap_or_else(|e| panic!("Failed to create file {config_path:?}: {e}"));
     dozer_types::serde_yaml::to_writer(file, &config)
-        .unwrap_or_else(|e| panic!("Failed to write dozer config file {:?}: {}", config_path, e));
+        .unwrap_or_else(|e| panic!("Failed to write dozer config file {config_path:?}: {e}"));
     config_path
         .to_str()
-        .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", config_path))
+        .unwrap_or_else(|| panic!("Non-UTF8 path: {config_path:?}"))
         .to_string()
 }

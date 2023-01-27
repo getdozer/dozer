@@ -159,6 +159,6 @@ pub fn compare_with_sqlite(
 
         let result = framework.query(list, test.to_string()).unwrap();
 
-        assert_eq!(result.source_result, result.dest_result, "Test: {}", test);
+        assert_eq!(result.source_result, result.dest_result, "Test: {test}");
     }
 }

@@ -138,7 +138,7 @@ impl Default for Authentication {
 
 impl Display for DBType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

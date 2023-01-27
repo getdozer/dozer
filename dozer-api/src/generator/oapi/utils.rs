@@ -89,7 +89,7 @@ pub fn convert_cache_to_oapi_schema(
 
     Schema {
         schema_data: SchemaData {
-            description: Some(format!("A representation of {}", name)),
+            description: Some(format!("A representation of {name}")),
             ..Default::default()
         },
         schema_kind: SchemaKind::Type(Type::Object(ObjectType {

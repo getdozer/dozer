@@ -64,8 +64,7 @@ impl RecordWriterUtils {
                 AutogenRowKeyLookupRecordWriter::new(db, meta_db, schema),
             )),
             _ => panic!(
-                "Unexpected port type in RecordWriterUtils::create_writer(): {}",
-                typ
+                "Unexpected port type in RecordWriterUtils::create_writer(): {typ}"
             ),
         }
     }

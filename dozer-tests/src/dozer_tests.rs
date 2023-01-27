@@ -49,9 +49,9 @@ async fn main() {
         if case_dir.is_dir()
             && case_dir
                 .file_name()
-                .unwrap_or_else(|| panic!("Case dir {:?} doesn't have file name", case_dir))
+                .unwrap_or_else(|| panic!("Case dir {case_dir:?} doesn't have file name"))
                 .to_str()
-                .unwrap_or_else(|| panic!("Non-UTF8 path {:?}", case_dir))
+                .unwrap_or_else(|| panic!("Non-UTF8 path {case_dir:?}"))
                 .starts_with(&args.case_prefix)
         {
             info!("Running case {:?}", case_dir);

@@ -107,8 +107,7 @@ impl<'de> Deserialize<'de> for Config {
                         let connection_ref = source_value["connection"].to_owned();
                         if connection_ref.is_null() {
                             return Err(de::Error::custom(format!(
-                                "sources[{:}]: missing connection ref",
-                                idx
+                                "sources[{idx:}]: missing connection ref"
                             )));
                         }
                         let connection_ref: super::source::Value = serde_yaml::from_value(
@@ -116,22 +115,20 @@ impl<'de> Deserialize<'de> for Config {
                         )
                         .map_err(|err| {
                             de::Error::custom(format!(
-                                "sources[{:}]: connection ref - {:} ",
-                                idx, err
+                                "sources[{idx:}]: connection ref - {err:} "
                             ))
                         })?;
                         let super::source::Value::Ref(connection_name) = connection_ref;
                         let mut source: Source = serde_yaml::from_value(source_value.to_owned())
                             .map_err(|err| {
-                                de::Error::custom(format!("sources[{:}]: {:} ", idx, err))
+                                de::Error::custom(format!("sources[{idx:}]: {err:} "))
                             })?;
                         let connection = connections
                             .iter()
                             .find(|c| c.name == connection_name)
                             .ok_or_else(|| {
                                 de::Error::custom(format!(
-                                    "sources[{:}]: Cannot find Ref connection name: {:}",
-                                    idx, connection_name
+                                    "sources[{idx:}]: Cannot find Ref connection name: {connection_name:}"
                                 ))
                             })?;
                         source.connection = Some(connection.to_owned());

@@ -34,7 +34,7 @@ pub(crate) fn init_component<F>(
 where
     F: FnMut(&mut LmdbEnvironmentManager) -> Result<(), ExecutionError>,
 {
-    let mut env = LmdbEnvironmentManager::create(base_path, format!("{}", node_handle).as_str())?;
+    let mut env = LmdbEnvironmentManager::create(base_path, format!("{node_handle}").as_str())?;
     let db = env.open_database(METADATA_DB_NAME, false)?;
     init_f(&mut env)?;
     Ok(StorageMetadata::new(env, db))
