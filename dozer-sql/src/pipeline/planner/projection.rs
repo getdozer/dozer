@@ -74,12 +74,12 @@ impl ProjectionPlanner {
             SelectItem::Wildcard(_) => panic!("not supported yet"),
         }
 
-        let mut context =
-            ExpressionContext::new(self.input_schema.fields.len() + self.aggregation_output.len());
-        let projection_expression =
-            ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
-
-        self.aggregation_output.extend(context.aggrgeations);
+        // let mut context =
+        //     ExpressionContext::new(self.input_schema.fields.len() + self.aggregation_output.len());
+        // let projection_expression =
+        //     ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
+        //
+        // self.aggregation_output.extend(context.aggrgeations);
         //  self.projection_output.push(projection_expression);
         Ok(())
     }

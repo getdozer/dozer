@@ -100,15 +100,17 @@ impl Expression {
             Expression::Trim { typ, what, arg } => {
                 "TRIM(".to_string()
                     + if let Some(t) = typ {
-                        t.to_string().as_str()
+                        t.to_string()
                     } else {
-                        ""
+                        "".to_string()
                     }
+                    .as_str()
                     + if let Some(w) = what {
-                        (w.to_string(schema) + " FROM ").as_str()
+                        (w.to_string(schema) + " FROM ")
                     } else {
-                        ""
+                        "".to_string()
                     }
+                    .as_str()
                     + arg.to_string(schema).as_str()
                     + ")"
             }
