@@ -42,12 +42,6 @@ impl AggregationResult {
     }
 }
 
-impl Display for Aggregator {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
 impl Aggregator {
     pub(crate) fn get_return_type(&self, from: FieldType) -> FieldType {
         match (&self, from) {
