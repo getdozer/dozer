@@ -26,17 +26,11 @@ impl Expectation {
         let expectations_path = find_expectations_path(case_dir)?;
         let expectations: Vec<Self> = dozer_types::serde_json::from_reader(
             std::fs::File::open(&expectations_path).unwrap_or_else(|e| {
-                panic!(
-                    "Failed to open expectations file {}: {}",
-                    expectations_path, e
-                )
+                panic!("Failed to open expectations file {expectations_path}: {e}")
             }),
         )
         .unwrap_or_else(|e| {
-            panic!(
-                "Failed to deserialize expectations file {}: {}",
-                expectations_path, e
-            )
+            panic!("Failed to deserialize expectations file {expectations_path}: {e}")
         });
         Some(expectations)
     }
@@ -50,7 +44,7 @@ fn find_expectations_path(case_dir: &Path) -> Option<String> {
             return Some(
                 expectations_path
                     .to_str()
-                    .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", expectations_path))
+                    .unwrap_or_else(|| panic!("Non-UTF8 path: {expectations_path:?}"))
                     .to_string(),
             );
         }
@@ -69,17 +63,11 @@ impl ErrorExpectation {
         let error_expectation_path = find_error_expectation_path(case_dir)?;
         let error_expectation: Self = dozer_types::serde_json::from_reader(
             std::fs::File::open(&error_expectation_path).unwrap_or_else(|e| {
-                panic!(
-                    "Failed to open error expectation file {}: {}",
-                    error_expectation_path, e
-                )
+                panic!("Failed to open error expectation file {error_expectation_path}: {e}")
             }),
         )
         .unwrap_or_else(|e| {
-            panic!(
-                "Failed to deserialize error expectation file {}: {}",
-                error_expectation_path, e
-            )
+            panic!("Failed to deserialize error expectation file {error_expectation_path}: {e}")
         });
         Some(error_expectation)
     }
@@ -93,7 +81,7 @@ fn find_error_expectation_path(case_dir: &Path) -> Option<String> {
             return Some(
                 error_expectation_path
                     .to_str()
-                    .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", error_expectation_path))
+                    .unwrap_or_else(|| panic!("Non-UTF8 path: {error_expectation_path:?}"))
                     .to_string(),
             );
         }

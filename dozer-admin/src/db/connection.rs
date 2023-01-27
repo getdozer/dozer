@@ -133,7 +133,7 @@ impl Persistable<'_, dozer_types::models::connection::Connection>
             let _ = apps
                 .find(new_connection.app_id.to_owned())
                 .first::<Application>(conn)
-                .map_err(|err| format!("App_id: {:}", err))?;
+                .map_err(|err| format!("App_id: {err:}"))?;
             let _inserted = insert_into(connections)
                 .values(&new_connection)
                 .on_conflict(connections::id)

@@ -240,7 +240,7 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         stream_name: &String,
     ) -> Result<bool, SnowflakeError> {
-        let query = format!("DESCRIBE STREAM {};", stream_name);
+        let query = format!("DESCRIBE STREAM {stream_name};");
 
         let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)
@@ -254,10 +254,8 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         table_name: &String,
     ) -> Result<bool, SnowflakeError> {
-        let query = format!(
-            "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{}';",
-            table_name
-        );
+        let query =
+            format!("SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}';");
 
         let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)
@@ -271,7 +269,7 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         stream_name: &String,
     ) -> Result<bool, SnowflakeError> {
-        let query = format!("DROP STREAM IF EXISTS {}", stream_name);
+        let query = format!("DROP STREAM IF EXISTS {stream_name}");
 
         let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)
@@ -355,9 +353,8 @@ impl Client {
         let query = format!(
             "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, NUMERIC_SCALE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'PUBLIC' {}
-            ORDER BY TABLE_NAME, ORDINAL_POSITION",
-            tables_condition
+            WHERE TABLE_SCHEMA = 'PUBLIC' {tables_condition}
+            ORDER BY TABLE_NAME, ORDINAL_POSITION"
         );
 
         let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;

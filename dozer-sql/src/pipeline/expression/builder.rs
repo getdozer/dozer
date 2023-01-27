@@ -46,8 +46,8 @@ pub enum ConstraintIdentifier {
 impl Display for ConstraintIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConstraintIdentifier::Single(ident) => f.write_fmt(format_args!("{}", ident)),
-            ConstraintIdentifier::Compound(ident) => f.write_fmt(format_args!("{:?}", ident)),
+            ConstraintIdentifier::Single(ident) => f.write_fmt(format_args!("{ident}")),
+            ConstraintIdentifier::Compound(ident) => f.write_fmt(format_args!("{ident:?}")),
         }
     }
 }
@@ -320,14 +320,14 @@ impl ExpressionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => Err(InvalidArgument(format!("{:?}", argument))),
+            } => Err(InvalidArgument(format!("{argument:?}"))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 self.parse_sql_expression(expression_type, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                Err(InvalidArgument(format!("{:?}", argument)))
+                Err(InvalidArgument(format!("{argument:?}")))
             }
-            _ => Err(InvalidArgument(format!("{:?}", argument))),
+            _ => Err(InvalidArgument(format!("{argument:?}"))),
         }
     }
 
@@ -390,7 +390,7 @@ impl ExpressionBuilder {
             // BinaryOperator::BitwiseAnd => ...
             // BinaryOperator::BitwiseOr => ...
             // BinaryOperator::StringConcat => ...
-            _ => return Err(InvalidOperator(format!("{:?}", op))),
+            _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
         Ok((
@@ -471,14 +471,12 @@ impl ExpressionBuilder {
                     CastOperatorType::Bson
                 } else {
                     Err(PipelineError::InvalidFunction(format!(
-                        "Unsupported Cast type {}",
-                        name
+                        "Unsupported Cast type {name}"
                     )))?
                 }
             }
             _ => Err(PipelineError::InvalidFunction(format!(
-                "Unsupported Cast type {}",
-                data_type
+                "Unsupported Cast type {data_type}"
             )))?,
         };
         Ok((

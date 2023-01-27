@@ -154,7 +154,7 @@ fn setup_data(connection: &mut SqliteConnection, config_id: TestConfigId) {
 }
 
 fn insert_apps(connection: &mut SqliteConnection, app_id: String) {
-    diesel::sql_query(format!("INSERT INTO apps (id, name, created_at, updated_at) VALUES('{}', \'app_name\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", app_id))
+    diesel::sql_query(format!("INSERT INTO apps (id, name, created_at, updated_at) VALUES('{app_id}', \'app_name\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
         .execute(connection)
         .unwrap();
 }
@@ -168,8 +168,7 @@ fn insert_connections(
     name: String,
 ) {
     diesel::sql_query(
-        format!("INSERT INTO connections (id, app_id, auth, name, db_type, created_at, updated_at) VALUES('{}', '{}', '{}', '{}', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);",
-        connection_id, app_id, auth, name, db_type))
+        format!("INSERT INTO connections (id, app_id, auth, name, db_type, created_at, updated_at) VALUES('{connection_id}', '{app_id}', '{auth}', '{name}', '{db_type}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
     .execute(connection)
     .unwrap();
 }
@@ -184,8 +183,7 @@ fn insert_sources(
     columns: String,
 ) {
     diesel::sql_query(
-        format!("INSERT INTO sources (id, app_id, name, table_name, connection_id,columns, created_at, updated_at) VALUES('{}', '{}', '{}', '{}', '{}','{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);",
-        source_id, app_id, name,table_name, connection_id, columns))
+        format!("INSERT INTO sources (id, app_id, name, table_name, connection_id,columns, created_at, updated_at) VALUES('{source_id}', '{app_id}', '{name}', '{table_name}', '{connection_id}','{columns}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
     .execute(connection)
     .unwrap();
 }
@@ -200,8 +198,8 @@ fn insert_endpoints(
     primary_keys: String,
 ) {
     diesel::sql_query(
-        format!("INSERT INTO endpoints (id, app_id, name, \"path\", \"sql\", primary_keys, created_at, updated_at) VALUES( '{}', '{}', '{}', '{}','{}','{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"
-        ,endpoint_id, app_id, name,path, sql, primary_keys))
+        format!("INSERT INTO endpoints (id, app_id, name, \"path\", \"sql\", primary_keys, created_at, updated_at) VALUES( '{endpoint_id}', '{app_id}', '{name}', '{path}','{sql}','{primary_keys}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"
+        ))
         .execute(connection)
         .unwrap();
 }

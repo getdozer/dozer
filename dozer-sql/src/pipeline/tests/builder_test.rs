@@ -246,7 +246,7 @@ fn test_pipeline_builder() {
 
     executor
         .start()
-        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
+        .unwrap_or_else(|e| panic!("Unable to start the Executor: {e}"));
     assert!(executor.join().is_ok());
 
     let elapsed = now.elapsed();

@@ -63,10 +63,7 @@ impl RecordWriterUtils {
             OutputPortType::AutogenRowKeyLookup => Ok(Box::new(
                 AutogenRowKeyLookupRecordWriter::new(db, meta_db, schema),
             )),
-            _ => panic!(
-                "Unexpected port type in RecordWriterUtils::create_writer(): {}",
-                typ
-            ),
+            _ => panic!("Unexpected port type in RecordWriterUtils::create_writer(): {typ}"),
         }
     }
 }

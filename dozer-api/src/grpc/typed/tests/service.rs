@@ -110,15 +110,12 @@ async fn test_grpc_count_and_query_common(
         Server::builder()
             .layer(layer)
             .add_service(typed_service)
-            .serve_with_shutdown(
-                format!("127.0.0.1:{:}", port).parse().unwrap(),
-                rx.map(drop),
-            )
+            .serve_with_shutdown(format!("127.0.0.1:{port:}").parse().unwrap(), rx.map(drop))
             .await
             .unwrap();
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
-    let channel = Endpoint::from_str(&format!("http://127.0.0.1:{:}", port))
+    let channel = Endpoint::from_str(&format!("http://127.0.0.1:{port:}"))
         .unwrap()
         .connect()
         .await
@@ -126,7 +123,7 @@ async fn test_grpc_count_and_query_common(
     if api_security.is_some() {
         let my_token = access_token.unwrap_or_default();
         let mut client = FilmsClient::with_interceptor(channel, move |mut req: Request<()>| {
-            let token: MetadataValue<_> = format!("Bearer {:}", my_token).parse().unwrap();
+            let token: MetadataValue<_> = format!("Bearer {my_token:}").parse().unwrap();
             req.metadata_mut().insert("authorization", token);
             Ok(req)
         });

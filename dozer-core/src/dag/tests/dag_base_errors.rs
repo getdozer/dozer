@@ -395,8 +395,8 @@ impl Source for ErrGeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),

@@ -60,7 +60,7 @@ where
     B: MessageBody,
     E: Debug,
 {
-    let mut req = actix_web::test::TestRequest::post().uri(&format!("{}/count", path));
+    let mut req = actix_web::test::TestRequest::post().uri(&format!("{path}/count"));
     if let Some(query) = query.clone() {
         req = req.set_json(query);
     }
@@ -71,7 +71,7 @@ where
     let body: Value = actix_web::test::read_body_json(res).await;
     let count = body.as_u64().unwrap();
 
-    let mut req = actix_web::test::TestRequest::post().uri(&format!("{}/query", path));
+    let mut req = actix_web::test::TestRequest::post().uri(&format!("{path}/query"));
     if let Some(query) = query {
         req = req.set_json(query);
     }

@@ -173,8 +173,7 @@ impl ExpressionExecutor for Expression {
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(
-                    "Aggregate Function {:?} should not be executed at this point",
-                    fun
+                    "Aggregate Function {fun:?} should not be executed at this point"
                 )))
             }
             Expression::Trim { typ, what, arg } => evaluate_trim(schema, arg, what, typ, record),
@@ -266,8 +265,7 @@ fn get_unary_operator_type(
         UnaryOperatorType::Not => match field_type.return_type {
             FieldType::Boolean => Ok(field_type),
             field_type => Err(PipelineError::InvalidExpression(format!(
-                "cannot apply NOT to {:?}",
-                field_type
+                "cannot apply NOT to {field_type:?}"
             ))),
         },
         UnaryOperatorType::Plus => Ok(field_type),
@@ -306,8 +304,7 @@ fn get_binary_operator_type(
                 )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
-                        "cannot apply {:?} to {:?} and {:?}",
-                        operator, left_field_type, right_field_type
+                        "cannot apply {operator:?} to {left_field_type:?} and {right_field_type:?}"
                     )))
                 }
             }
@@ -331,8 +328,7 @@ fn get_binary_operator_type(
                 )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
-                        "cannot apply {:?} to {:?} and {:?}",
-                        operator, left_field_type, right_field_type
+                        "cannot apply {operator:?} to {left_field_type:?} and {right_field_type:?}"
                     )))
                 }
             }
@@ -349,8 +345,7 @@ fn get_binary_operator_type(
                 )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
-                        "cannot apply {:?} to {:?} and {:?}",
-                        operator, left_field_type, right_field_type
+                        "cannot apply {operator:?} to {left_field_type:?} and {right_field_type:?}"
                     )))
                 }
             }

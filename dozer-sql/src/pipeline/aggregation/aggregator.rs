@@ -42,6 +42,12 @@ impl AggregationResult {
     }
 }
 
+impl Display for Aggregator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
 impl Aggregator {
     pub(crate) fn get_return_type(&self, from: FieldType) -> FieldType {
         match (&self, from) {
@@ -169,84 +175,6 @@ macro_rules! deserialize_u8 {
         match $stmt {
             Some(v) => u8::from_be_bytes(deserialize!(v)),
             None => 0_u8,
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! field_extract_f64 {
-    ($stmt:expr, $agg:expr) => {
-        match $stmt {
-            Field::Float(f) => f,
-            Field::Null => &OrderedFloat(0.0),
-            _ => {
-                return Err(InvalidOperandType($agg.to_string()));
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! field_extract_decimal {
-    ($stmt:expr, $agg:expr) => {
-        match $stmt {
-            Field::Decimal(d) => *d,
-            Field::Null => dozer_types::rust_decimal::Decimal::from(0),
-            _ => {
-                return Err(InvalidOperandType($agg.to_string()));
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! field_extract_timestamp {
-    ($stmt:expr, $agg:expr) => {
-        match $stmt {
-            Field::Timestamp(t) => *t,
-            Field::Null => DateTime::from(Utc.timestamp_millis(0)),
-            _ => {
-                return Err(InvalidOperandType($agg.to_string()));
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! field_extract_date {
-    ($stmt:expr, $agg:expr) => {
-        match $stmt {
-            Date(d) => *d,
-            Field::Null => Utc.timestamp_millis(0).naive_utc().date(),
-            _ => {
-                return Err(InvalidOperandType($agg.to_string()));
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! field_extract_i64 {
-    ($stmt:expr, $agg:expr) => {
-        match $stmt {
-            Field::Int(i) => i,
-            Field::Null => &0_i64,
-            _ => {
-                return Err(InvalidOperandType($agg.to_string()));
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! field_extract_u64 {
-    ($stmt:expr, $agg:expr) => {
-        match $stmt {
-            Field::UInt(i) => i,
-            Field::Null => &0_u64,
-            _ => {
-                return Err(InvalidOperandType($agg.to_string()));
-            }
         }
     };
 }

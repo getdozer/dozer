@@ -100,7 +100,7 @@ fn test_checkpoint_consistency() {
         Consistency::FullyConsistent(r) => assert_eq!(r, &(SRC2_MSG_COUNT, 0)),
     }
 
-    LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{}", proc_handle).as_str());
+    LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{proc_handle}").as_str());
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
     let c = r.get_checkpoint_consistency();
 

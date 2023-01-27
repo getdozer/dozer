@@ -83,11 +83,11 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         path: &Path,
         name: &NodeHandle,
     ) -> Result<DagMetadata, ExecutionError> {
-        if !LmdbEnvironmentManager::exists(path, format!("{}", name).as_str()) {
+        if !LmdbEnvironmentManager::exists(path, format!("{name}").as_str()) {
             return Err(InvalidCheckpointState(name.clone()));
         }
 
-        let mut env = LmdbEnvironmentManager::create(path, format!("{}", name).as_str())?;
+        let mut env = LmdbEnvironmentManager::create(path, format!("{name}").as_str())?;
         let db = env.open_database(METADATA_DB_NAME, false)?;
         let txn = env.create_txn()?;
         let txn = SharedTransaction::try_unwrap(txn)

@@ -170,7 +170,7 @@ mod tests {
         }
 
         fn receiver_name(&self, index: usize) -> Cow<str> {
-            Cow::Owned(format!("receiver_{}", index))
+            Cow::Owned(format!("receiver_{index}"))
         }
 
         fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {

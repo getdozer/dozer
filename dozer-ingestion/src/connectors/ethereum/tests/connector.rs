@@ -22,11 +22,7 @@ fn test_eth_iterator() {
     let address = format!("{:?}", contract.address());
     validate(&msgs[0], 1, Some(Field::String(address)));
 
-    validate(
-        &msgs[1],
-        0,
-        Some(Field::String(format!("{:?}", my_account))),
-    );
+    validate(&msgs[1], 0, Some(Field::String(format!("{my_account:?}"))));
 
     validate(&msgs[1], 1, Some(Field::String("Hello World!".to_string())));
 

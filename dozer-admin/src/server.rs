@@ -305,7 +305,7 @@ pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::tra
     let host = config.host;
     let port = config.port;
     let dozer_path = config.dozer_path;
-    let addr = format!("{:}:{:}", host, port).parse().unwrap();
+    let addr = format!("{host:}:{port:}").parse().unwrap();
     dotenv().ok();
     let database_url: String = get_db_path();
     let db_pool = establish_connection(database_url);
