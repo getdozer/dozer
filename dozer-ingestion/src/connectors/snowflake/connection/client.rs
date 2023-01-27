@@ -254,9 +254,8 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         table_name: &String,
     ) -> Result<bool, SnowflakeError> {
-        let query = format!(
-            "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}';"
-        );
+        let query =
+            format!("SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}';");
 
         let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)

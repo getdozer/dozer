@@ -79,9 +79,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     client
         .execute_query(
             &conn,
-            &format!(
-                "CREATE TABLE {table_name} LIKE SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.NATION;"
-            ),
+            &format!("CREATE TABLE {table_name} LIKE SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.NATION;"),
         )
         .unwrap();
     client
