@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use dozer_core::dag::errors::ExecutionError::InternalError;
 
-use super::from_join::JoinSource;
+use super::from_join::{JoinAction, JoinSource};
 
 /// Cartesian Product Processor
 #[derive(Debug)]
@@ -39,12 +39,22 @@ impl FromProcessor {
 
     fn delete(
         &self,
-        _from_port: PortHandle,
-        _record: &Record,
-        _transaction: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        from_port: PortHandle,
+        record: &Record,
+        transaction: &SharedTransaction,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
-        todo!()
+        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+
+        self.operator.insert(
+            &JoinAction::Delete,
+            from_port,
+            record,
+            &[],
+            database,
+            transaction,
+            reader,
+        )
     }
 
     fn insert(
@@ -56,11 +66,11 @@ impl FromProcessor {
     ) -> Result<Vec<Record>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
-        let lookup_keys = vec![];
         self.operator.insert(
+            &JoinAction::Insert,
             from_port,
             record,
-            &lookup_keys,
+            &[],
             database,
             transaction,
             reader,

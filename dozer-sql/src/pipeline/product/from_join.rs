@@ -14,6 +14,13 @@ use dozer_types::{
 use lmdb::Database;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum JoinAction {
+    Insert,
+    Delete,
+    Update,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinOperatorType {
     Inner,
     LeftOuter,
@@ -35,6 +42,7 @@ pub enum JoinSource {
 impl JoinSource {
     pub fn insert(
         &self,
+        action: &JoinAction,
         from_port: PortHandle,
         record: &Record,
         join_keys: &[usize],
@@ -43,17 +51,30 @@ impl JoinSource {
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         match self {
-            JoinSource::Table(table) => {
-                table.insert(from_port, record, join_keys, database, transaction, readers)
-            }
-            JoinSource::Join(join) => {
-                join.insert(from_port, record, join_keys, database, transaction, readers)
-            }
+            JoinSource::Table(table) => table.insert(
+                action,
+                from_port,
+                record,
+                join_keys,
+                database,
+                transaction,
+                readers,
+            ),
+            JoinSource::Join(join) => join.insert(
+                action,
+                from_port,
+                record,
+                join_keys,
+                database,
+                transaction,
+                readers,
+            ),
         }
     }
 
     pub fn lookup(
         &self,
+        action: &JoinAction,
         from_port: PortHandle,
         record: &Record,
         join_key: &[u8],
@@ -62,12 +83,24 @@ impl JoinSource {
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         match self {
-            JoinSource::Table(table) => {
-                table.lookup(from_port, record, join_key, database, transaction, readers)
-            }
-            JoinSource::Join(join) => {
-                join.lookup(from_port, record, join_key, database, transaction, readers)
-            }
+            JoinSource::Table(table) => table.lookup(
+                action,
+                from_port,
+                record,
+                join_key,
+                database,
+                transaction,
+                readers,
+            ),
+            JoinSource::Join(join) => join.lookup(
+                action,
+                from_port,
+                record,
+                join_key,
+                database,
+                transaction,
+                readers,
+            ),
         }
     }
 
@@ -110,6 +143,7 @@ impl JoinTable {
 
     fn insert(
         &self,
+        action: &JoinAction,
         from_port: PortHandle,
         record: &Record,
         join_keys: &[usize],
@@ -119,7 +153,16 @@ impl JoinTable {
     ) -> Result<Vec<Record>, ExecutionError> {
         let join_key = get_join_key(record, join_keys)?;
         let lookup_key: Vec<u8> = get_lookup_key(record, &self.schema)?;
-        self.insert_index(&join_key, &lookup_key, database, transaction)?;
+
+        if *action == JoinAction::Delete {
+            self.delete_index(&join_key, &lookup_key, database, transaction)?;
+        } else if *action == JoinAction::Insert {
+            self.insert_index(&join_key, &lookup_key, database, transaction)?;
+        } else if *action == JoinAction::Update {
+            todo!()
+        } else {
+            return Err(ExecutionError::InvalidPortHandle(self.port));
+        }
 
         // if the source port is the same as the port of the incoming message, return the record
         if self.port == from_port {
@@ -131,6 +174,7 @@ impl JoinTable {
 
     fn lookup(
         &self,
+        action: &JoinAction,
         _from_port: PortHandle,
         _record: &Record,
         join_key: &[u8],
@@ -155,22 +199,6 @@ impl JoinTable {
         }
 
         Ok(output_records)
-    }
-
-    pub fn insert_index(
-        &self,
-        key: &[u8],
-        value: &[u8],
-        database: &Database,
-        transaction: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
-        let mut exclusive_transaction = transaction.write();
-        let mut prefix_transaction =
-            PrefixTransaction::new(&mut exclusive_transaction, self.join_index);
-
-        prefix_transaction.put(*database, key, value)?;
-
-        Ok(())
     }
 
     // todo: isolate the index logic and make it generic (see the todo in the JoinOperator get_lookup_keys)
@@ -211,6 +239,38 @@ impl JoinTable {
         }
 
         Ok(join_keys)
+    }
+
+    fn delete_index(
+        &self,
+        key: &[u8],
+        value: &[u8],
+        database: &Database,
+        transaction: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        let mut exclusive_transaction = transaction.write();
+        let mut prefix_transaction =
+            PrefixTransaction::new(&mut exclusive_transaction, self.join_index);
+
+        prefix_transaction.del(*database, key, Some(value))?;
+
+        Ok(())
+    }
+
+    pub fn insert_index(
+        &self,
+        key: &[u8],
+        value: &[u8],
+        database: &Database,
+        transaction: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        let mut exclusive_transaction = transaction.write();
+        let mut prefix_transaction =
+            PrefixTransaction::new(&mut exclusive_transaction, self.join_index);
+
+        prefix_transaction.put(*database, key, value)?;
+
+        Ok(())
     }
 }
 
@@ -261,6 +321,7 @@ impl JoinOperator {
 
     pub fn insert(
         &self,
+        action: &JoinAction,
         from_port: PortHandle,
         record: &Record,
         join_keys: &[usize],
@@ -274,6 +335,7 @@ impl JoinOperator {
 
             // forward the record and the current join constraints to the left source
             let mut left_records = self.left_source.insert(
+                action,
                 from_port,
                 record,
                 &self.left_join_key,
@@ -286,6 +348,7 @@ impl JoinOperator {
                 let join_key: Vec<u8> = get_join_key(left_record, &self.left_join_key)?;
                 // lookup on the right branch to find matching records
                 let mut right_records = self.right_source.lookup(
+                    action,
                     from_port,
                     left_record,
                     &join_key,
@@ -312,7 +375,16 @@ impl JoinOperator {
                 let merged_join_keys = merge_join_keys(&self.left_join_key, &self.right_join_key);
                 let composite_lookup_key: Vec<u8> =
                     encode_composite_lookup_key_from_record(record, merged_join_keys);
-                self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
+
+                if *action == JoinAction::Delete {
+                    self.delete_index(&join_key, &composite_lookup_key, database, transaction)?;
+                } else if *action == JoinAction::Insert {
+                    self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
+                } else if *action == JoinAction::Update {
+                    todo!()
+                } else {
+                    return Err(ExecutionError::InvalidPortHandle(from_port));
+                }
             }
 
             Ok(output_records)
@@ -320,6 +392,7 @@ impl JoinOperator {
             let mut output_records = vec![];
 
             let mut right_records = self.right_source.insert(
+                action,
                 from_port,
                 record,
                 &self.right_join_key,
@@ -332,6 +405,7 @@ impl JoinOperator {
                 // lookup on the left branch to find matching records
                 let join_key: Vec<u8> = get_join_key(right_record, &self.right_join_key)?;
                 let mut left_records = self.left_source.lookup(
+                    action,
                     from_port,
                     right_record,
                     &join_key,
@@ -358,7 +432,16 @@ impl JoinOperator {
                 let merged_join_keys = merge_join_keys(&self.left_join_key, &self.right_join_key);
                 let composite_lookup_key: Vec<u8> =
                     encode_composite_lookup_key_from_record(record, merged_join_keys);
-                self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
+
+                if *action == JoinAction::Delete {
+                    self.delete_index(&join_key, &composite_lookup_key, database, transaction)?;
+                } else if *action == JoinAction::Insert {
+                    self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
+                } else if *action == JoinAction::Update {
+                    todo!()
+                } else {
+                    return Err(ExecutionError::InvalidPortHandle(from_port));
+                }
             }
 
             return Ok(output_records);
@@ -369,6 +452,7 @@ impl JoinOperator {
 
     fn lookup(
         &self,
+        action: &JoinAction,
         from_port: PortHandle,
         record: &Record,
         join_key: &[u8],
@@ -390,6 +474,7 @@ impl JoinOperator {
                 let join_key: Vec<u8> = encode_composite_lookup_key(left_join_keys);
 
                 let mut left_records = self.left_source.lookup(
+                    action,
                     from_port,
                     record,
                     &join_key,
@@ -402,6 +487,7 @@ impl JoinOperator {
                 let join_key: Vec<u8> = encode_composite_lookup_key(right_join_keys);
 
                 let mut right_records = self.right_source.lookup(
+                    action,
                     from_port,
                     record,
                     &join_key,
@@ -438,6 +524,22 @@ impl JoinOperator {
             PrefixTransaction::new(&mut exclusive_transaction, self.join_lookup_index);
 
         prefix_transaction.put(*database, key, value)?;
+
+        Ok(())
+    }
+
+    pub fn delete_index(
+        &self,
+        key: &[u8],
+        value: &[u8],
+        database: &Database,
+        transaction: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        let mut exclusive_transaction = transaction.write();
+        let mut prefix_transaction =
+            PrefixTransaction::new(&mut exclusive_transaction, self.join_lookup_index);
+
+        prefix_transaction.del(*database, key, Some(value))?;
 
         Ok(())
     }
