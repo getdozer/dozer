@@ -4,13 +4,13 @@ pub use ingestor::ChannelForwarder;
 pub use ingestor::{IngestionIterator, Ingestor};
 
 pub struct IngestionConfig {
-    forwarder_channel_cap: usize
+    forwarder_channel_cap: usize,
 }
 
 impl Default for IngestionConfig {
     fn default() -> Self {
         Self {
-            forwarder_channel_cap: 100000
+            forwarder_channel_cap: 100000,
         }
     }
 }
