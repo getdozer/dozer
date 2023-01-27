@@ -58,60 +58,48 @@ impl StreamConsumer {
             .map_err(ConnectorError::SnowflakeError)
     }
 
-    fn map_record(row: Vec<Option<Field>>, table_idx: usize) -> Record {
+    fn map_record(row: Vec<Field>, table_idx: usize) -> Record {
         Record {
             schema_id: Some(SchemaIdentifier {
                 id: table_idx as u32,
                 version: 1,
             }),
-            values: row
-                .iter()
-                .map(|v| match v.clone() {
-                    None => Field::Null,
-                    Some(s) => s,
-                })
-                .collect(),
+            values: row,
             version: None,
         }
     }
 
     fn get_ingestion_message(
-        row: Vec<Option<Field>>,
+        row: Vec<Field>,
         action_idx: usize,
         used_columns_for_schema: usize,
         table_idx: usize,
     ) -> Result<IngestionMessage, ConnectorError> {
-        if let Some(action) = row.get(action_idx).unwrap() {
+        if let Field::String(action) = row.get(action_idx).unwrap() {
             let mut row_mut = row.clone();
+            let insert_action = &"INSERT";
+            let delete_action = &"DELETE";
 
-            let insert_action = "INSERT".to_string();
-            let delete_action = "DELETE".to_string();
-
-            let action_value = match action {
-                Field::String(value) => value.clone(),
-                _ => "".to_string(),
-            };
-
-            if insert_action == action_value {
+            if insert_action == action {
                 row_mut.truncate(used_columns_for_schema);
                 Ok(IngestionMessage::OperationEvent(OperationEvent {
                     seq_no: 0,
                     operation: Operation::Insert {
-                        new: Self::map_record(row_mut, table_idx),
+                        new: Self::map_record(row, table_idx),
                     },
                 }))
-            } else if delete_action == action_value {
+            } else if delete_action == action {
                 row_mut.truncate(used_columns_for_schema);
 
                 Ok(IngestionMessage::OperationEvent(OperationEvent {
                     seq_no: 0,
                     operation: Operation::Delete {
-                        old: Self::map_record(row_mut, table_idx),
+                        old: Self::map_record(row, table_idx),
                     },
                 }))
             } else {
                 Err(ConnectorError::SnowflakeError(
-                    SnowflakeError::SnowflakeStreamError(UnsupportedActionInStream(action_value)),
+                    SnowflakeError::SnowflakeStreamError(UnsupportedActionInStream(action.clone())),
                 ))
             }
         } else {

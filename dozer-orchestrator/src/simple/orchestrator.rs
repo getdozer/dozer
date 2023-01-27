@@ -406,21 +406,32 @@ impl SimpleOrchestrator {
 pub fn validate_endpoints(endpoints: &Vec<ApiEndpoint>) -> Result<(), OrchestrationError> {
     let mut is_all_valid = true;
     for endpoint in endpoints {
-        statement_to_pipeline(&endpoint.sql).map_or_else(
-            |e| {
-                is_all_valid = false;
-                error!(
-                    "[Endpoints][{}] {} Endpoint validation error: {}",
-                    endpoint.name,
-                    get_colored_text("X", "31"),
-                    e
-                );
-            },
-            |_| {
+        endpoint.sql.as_ref().map_or_else(
+            || {
                 info!(
                     "[Endpoints][{}] {} Endpoint validation completed",
                     endpoint.name,
                     get_colored_text("✓", "32")
+                );
+            },
+            |sql| {
+                statement_to_pipeline(sql).map_or_else(
+                    |e| {
+                        is_all_valid = false;
+                        error!(
+                            "[Endpoints][{}] {} Endpoint validation error: {}",
+                            endpoint.name,
+                            get_colored_text("X", "31"),
+                            e
+                        );
+                    },
+                    |_| {
+                        info!(
+                            "[Endpoints][{}] {} Endpoint validation completed",
+                            endpoint.name,
+                            get_colored_text("✓", "32")
+                        );
+                    },
                 );
             },
         );
@@ -455,7 +466,11 @@ fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
 
     table_parent.add_row(row!["Path", "Name", "Sql"]);
     for endpoint in endpoints {
-        table_parent.add_row(row![endpoint.path, endpoint.name, endpoint.sql]);
+        let sql = endpoint
+            .sql
+            .as_ref()
+            .map_or("-".to_string(), |sql| sql.clone());
+        table_parent.add_row(row![endpoint.path, endpoint.name, sql]);
     }
 
     table_parent.printstd();

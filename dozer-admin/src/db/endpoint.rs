@@ -62,7 +62,7 @@ impl TryFrom<dozer_types::models::api_endpoint::ApiEndpoint> for NewEndpoint {
             id: input.id.unwrap_or_default(),
             name: input.name,
             path: input.path,
-            sql: input.sql,
+            sql: input.sql.as_ref().map_or("".to_string(), |s| s.to_string()),
             app_id: input.app_id.unwrap_or_default(),
             primary_keys: input.index.unwrap().primary_key.join(","),
         })
@@ -83,7 +83,7 @@ impl TryFrom<DbEndpoint> for dozer_types::models::api_endpoint::ApiEndpoint {
             app_id: Some(input.app_id),
             name: input.name,
             path: input.path,
-            sql: input.sql,
+            sql: Some(input.sql),
             index: Some(ApiIndex {
                 primary_key: primary_keys_arr,
             }),

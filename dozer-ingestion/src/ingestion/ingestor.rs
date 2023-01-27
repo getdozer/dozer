@@ -1,4 +1,4 @@
-use crossbeam::channel::{unbounded, Receiver};
+use crossbeam::channel::{bounded, Receiver};
 use dozer_types::ingestion_types::{
     IngestionMessage, IngestionOperation, IngestorError, IngestorForwarder,
 };
@@ -63,7 +63,7 @@ impl Ingestor {
     pub fn initialize_channel(
         config: IngestionConfig,
     ) -> (Arc<RwLock<Ingestor>>, Arc<RwLock<IngestionIterator>>) {
-        let (tx, rx) = unbounded::<((u64, u64), IngestionOperation)>();
+        let (tx, rx) = bounded::<((u64, u64), IngestionOperation)>(config.forwarder_channel_cap);
         let sender: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         let ingestor = Arc::new(RwLock::new(Self::new(config, sender)));
