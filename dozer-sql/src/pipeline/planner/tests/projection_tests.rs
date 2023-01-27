@@ -14,7 +14,7 @@ use sqlparser::parser::Parser;
 
 #[test]
 fn test_basic_projection() {
-    let sql = "SELECT ROUND(SUM(ROUND(a,2)),2), a FROM t0";
+    let sql = "SELECT ROUND(SUM(ROUND(a,2)),2), a as a2 FROM t0";
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(
@@ -64,4 +64,45 @@ fn test_basic_projection() {
             }]
         }]
     );
+
+    assert_eq!(
+        projection_planner.projection_output,
+        vec![
+            Expression::ScalarFunction {
+                fun: ScalarFunctionType::Round,
+                args: vec![
+                    Expression::Column { index: 2 },
+                    Expression::Literal(Field::Int(2))
+                ]
+            },
+            Expression::Column { index: 0 }
+        ]
+    );
+
+    assert_eq!(
+        projection_planner.post_projection_schema,
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    "ROUND(SUM(ROUND(a,2)),2)".to_string(),
+                    FieldType::Int,
+                    true,
+                    SourceDefinition::Dynamic
+                ),
+                false
+            )
+            .field(
+                FieldDefinition::new(
+                    "a2".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Table {
+                        name: "t0".to_string(),
+                        connection: "c0".to_string(),
+                    },
+                ),
+                false,
+            )
+            .to_owned()
+    )
 }

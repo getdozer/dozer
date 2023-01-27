@@ -20,7 +20,7 @@ pub struct ProjectionPlanner {
     pub post_projection_schema: Schema,
     // Vector of aggregations to be appended to the original record
     pub aggregation_output: Vec<Expression>,
-    pub projection_output: Vec<Box<Expression>>,
+    pub projection_output: Vec<Expression>,
 }
 
 impl ProjectionPlanner {
@@ -84,7 +84,7 @@ impl ProjectionPlanner {
                 self.aggregation_output.push(new_aggr);
             }
 
-            self.projection_output.push(projection_expression.clone());
+            self.projection_output.push(*projection_expression.clone());
             Self::append_to_schema(
                 &projection_expression,
                 alias,
