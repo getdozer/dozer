@@ -174,7 +174,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
                 .iter()
                 .find(|(_, p)| **p == port)
                 .map_or(Err(ExecutionError::PortNotFound(port.to_string())), Ok)?;
-            info!("Source: Initializing input schema: {}", name);
+            info!("Source: Initializing input schema: {name}");
             schema.0.print().printstd();
         }
         Ok(())

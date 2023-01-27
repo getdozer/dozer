@@ -21,7 +21,7 @@ fn get_response_descriptor(
             );
 
             desc.get_message_by_name(&count_path)
-                .unwrap_or_else(|| panic!("{}: not found", count_path))
+                .unwrap_or_else(|| panic!("{count_path}: not found"))
         }
         "query" => {
             let query_path = format!(
@@ -31,7 +31,7 @@ fn get_response_descriptor(
             );
 
             desc.get_message_by_name(&query_path)
-                .unwrap_or_else(|| panic!("{}: not found", query_path))
+                .unwrap_or_else(|| panic!("{query_path}: not found"))
         }
         "on_event" => {
             let query_path = format!(
@@ -41,7 +41,7 @@ fn get_response_descriptor(
             );
 
             desc.get_message_by_name(&query_path)
-                .unwrap_or_else(|| panic!("{}: not found", query_path))
+                .unwrap_or_else(|| panic!("{query_path}: not found"))
         }
         "token" => {
             let token_path = format!(
@@ -49,7 +49,7 @@ fn get_response_descriptor(
                 endpoint_name.to_lowercase(),
             );
             desc.get_message_by_name(&token_path)
-                .unwrap_or_else(|| panic!("{}: not found", token_path))
+                .unwrap_or_else(|| panic!("{token_path}: not found"))
         }
         _ => panic!("method not found"),
     }
@@ -63,7 +63,7 @@ fn get_resource_desc(desc: &DescriptorPool, endpoint_name: &str) -> MessageDescr
     );
 
     desc.get_message_by_name(&msg_path)
-        .unwrap_or_else(|| panic!("{}: not found", msg_path))
+        .unwrap_or_else(|| panic!("{msg_path}: not found"))
 }
 
 pub fn on_event_to_typed_response(
@@ -104,7 +104,7 @@ fn internal_record_to_pb(
     );
     let resource_desc = desc
         .get_message_by_name(&msg_path)
-        .unwrap_or_else(|| panic!("{}: not found", msg_path));
+        .unwrap_or_else(|| panic!("{msg_path}: not found"));
     let mut resource = DynamicMessage::new(resource_desc.to_owned());
 
     for (field, value) in resource_desc.fields().zip(rec.values.into_iter()) {

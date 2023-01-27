@@ -236,14 +236,12 @@ fn get_aggregator(
                 (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
                 (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                 _ => Err(PipelineError::InvalidExpression(format!(
-                    "Not implemented Aggregation function: {:?}",
-                    fun
+                    "Not implemented Aggregation function: {fun:?}"
                 ))),
             }
         }
         _ => Err(PipelineError::InvalidExpression(format!(
-            "Not an Aggregation function: {:?}",
-            expression
+            "Not an Aggregation function: {expression:?}"
         ))),
     }
 }

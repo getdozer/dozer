@@ -127,7 +127,7 @@ fn get_schema_key(schema_id: SchemaIdentifier) -> Vec<u8> {
 const SCHEMA_NAME_PREFIX: &str = "schema_name_";
 
 fn get_schema_reverse_key(name: &str) -> Vec<u8> {
-    format!("{}{}", SCHEMA_NAME_PREFIX, name).into_bytes()
+    format!("{SCHEMA_NAME_PREFIX}{name}").into_bytes()
 }
 
 #[cfg(test)]

@@ -50,7 +50,7 @@ pub fn init_db_with_config(mut config: Config) -> Config {
 
 pub fn kill_process_at(port: u16) {
     let mut check_ports_used = Command::new("lsof");
-    check_ports_used.args(["-t", &format!("-i:{:}", port)]);
+    check_ports_used.args(["-t", &format!("-i:{port:}")]);
     let check_port_result = check_ports_used
         .output()
         .expect("failed to execute process");

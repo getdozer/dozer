@@ -29,8 +29,8 @@ fn test_cursor_duplicate_keys() {
         for i in 'a'..'s' {
             tx.put(
                 db,
-                &format!("key_{}", k).as_bytes(),
-                &format!("val_{}", i).as_bytes(),
+                &format!("key_{k}").as_bytes(),
+                &format!("val_{i}").as_bytes(),
                 WriteFlags::default(),
             )
             .unwrap();
@@ -52,14 +52,14 @@ fn test_cursor_duplicate_keys() {
         }
 
         assert_eq!(r.0, "key_1".as_bytes());
-        assert_eq!(r.1, format!("val_{}", i).as_bytes());
+        assert_eq!(r.1, format!("val_{i}").as_bytes());
         let _r = cursor.next().unwrap();
     }
 
     for i in 'a'..='z' {
         let r = cursor.read().unwrap().unwrap();
         assert_eq!(r.0, "key_2".as_bytes());
-        assert_eq!(r.1, format!("val_{}", i).as_bytes());
+        assert_eq!(r.1, format!("val_{i}").as_bytes());
         let r = cursor.next().unwrap();
 
         if !r {

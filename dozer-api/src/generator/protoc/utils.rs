@@ -36,7 +36,7 @@ pub fn create_descriptor_set(
 
     let resources: Vec<_> = resources
         .iter()
-        .map(|r| folder_path.join(format!("{}.proto", r)))
+        .map(|r| folder_path.join(format!("{r}.proto")))
         .collect();
 
     let mut prost_build_config = prost_build::Config::new();

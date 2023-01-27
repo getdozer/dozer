@@ -93,7 +93,7 @@ fn get_films() -> Vec<Value> {
     for film_id in 1..=50 {
         result.push(json!({
             "film_id": film_id,
-            "description": format!("Film {}", film_id),
+            "description": format!("Film {film_id}"),
             "rental_rate": null,
             "release_year": 2006,
             "updated_at": null

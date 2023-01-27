@@ -44,7 +44,7 @@ pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
                 FieldType::Timestamp => "timestamp",
                 FieldType::Boolean => "bool",
 
-                typ => panic!("unsupported type {:?}", typ),
+                typ => panic!("unsupported type {typ:?}"),
             };
             format!(
                 "{} {}",
@@ -54,7 +54,7 @@ pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
         })
         .collect::<Vec<String>>()
         .join(",");
-    let creation_sql = format!("CREATE TABLE {} ({})", name, columns);
+    let creation_sql = format!("CREATE TABLE {name} ({columns})");
     creation_sql
 }
 
@@ -80,10 +80,10 @@ pub fn get_inserts_from_csv(
                     }
                 }
                 FieldType::String | FieldType::Text | FieldType::Timestamp => {
-                    format!("'{}'", val)
+                    format!("'{val}'")
                 }
                 _ => {
-                    format!("'{}'", val)
+                    format!("'{val}'")
                 }
             };
             values.push(val);
@@ -221,11 +221,11 @@ pub fn map_field_to_string(f: &Field) -> String {
         Field::Int(i) => i.to_string(),
         Field::Float(i) => i.to_string(),
         Field::Boolean(i) => i.to_string(),
-        Field::String(i) => format!("'{}'", i),
+        Field::String(i) => format!("'{i}'"),
         Field::Text(i) => i.to_string(),
         Field::Timestamp(i) => i.to_string(),
         Field::Date(i) => i.to_string(),
-        Field::Binary(_) | Field::Bson(_) => panic!("not supported {:?}", f),
+        Field::Binary(_) | Field::Bson(_) => panic!("not supported {f:?}"),
         Field::Decimal(i) => i.to_string(),
         Field::Null => "null".to_string(),
     }
@@ -252,7 +252,7 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
                         "real" => FieldType::Float,
                         "numeric" => FieldType::Decimal,
                         "timestamp" => FieldType::Timestamp,
-                        f => panic!("unknown field_type : {}", f),
+                        f => panic!("unknown field_type : {f}"),
                     },
                     nullable: true,
                     source: SourceDefinition::Dynamic,

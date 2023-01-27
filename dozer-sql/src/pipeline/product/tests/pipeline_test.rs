@@ -183,7 +183,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 SchemaSQLContext::default(),
             ))
         } else {
-            panic!("Invalid Port Handle {}", port);
+            panic!("Invalid Port Handle {port}");
         }
     }
 
@@ -580,7 +580,7 @@ fn test_pipeline_builder() {
 
     executor
         .start()
-        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
+        .unwrap_or_else(|e| panic!("Unable to start the Executor: {e}"));
     assert!(executor.join().is_ok());
 
     let elapsed = now.elapsed();

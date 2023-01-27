@@ -34,7 +34,7 @@ impl SqlMapper {
     pub fn get_schema_from_conn(&self, table_name: &str) -> rusqlite::Result<Schema> {
         let stmt = self
             .conn
-            .prepare(&format!("SELECT * FROM {} LIMIT 1", table_name))?;
+            .prepare(&format!("SELECT * FROM {table_name} LIMIT 1"))?;
 
         let columns = stmt.columns();
         Ok(get_schema(&columns))
@@ -56,7 +56,7 @@ impl SqlMapper {
     pub fn get_schema(&self, name: &str) -> &Schema {
         self.schema_map
             .get(name)
-            .unwrap_or_else(|| panic!("Schema is missing: {}", name))
+            .unwrap_or_else(|| panic!("Schema is missing: {name}"))
     }
 
     pub fn get_operation_from_sql(&mut self, sql: &str) -> Operation {
@@ -166,7 +166,7 @@ impl SqlMapper {
         let schema = self
             .schema_map
             .get(name)
-            .unwrap_or_else(|| panic!("Schema is missing: {}", name));
+            .unwrap_or_else(|| panic!("Schema is missing: {name}"));
         let pkey_name = get_primary_key_name(schema);
 
         match op {
@@ -197,8 +197,7 @@ impl SqlMapper {
                     .collect::<Vec<String>>()
                     .join(",");
                 Ok(format!(
-                    "INSERT INTO {}({}) values ({});",
-                    name, column_names, values_str
+                    "INSERT INTO {name}({column_names}) values ({values_str});"
                 ))
             }
             Operation::Update { old, new } => {
@@ -251,7 +250,7 @@ impl SqlMapper {
             let schema = self
                 .schema_map
                 .get(&name)
-                .unwrap_or_else(|| panic!("Schema is missing: {}", name))
+                .unwrap_or_else(|| panic!("Schema is missing: {name}"))
                 .to_owned();
 
             if let Some(Expr::BinaryOp {
@@ -262,7 +261,7 @@ impl SqlMapper {
             {
                 let column_name = match *left.to_owned() {
                     Expr::Identifier(ident) => ident.value,
-                    _ => panic!("not supported: {:?}", left),
+                    _ => panic!("not supported: {left:?}"),
                 };
 
                 let val = parse_exp_to_string(right);
@@ -279,10 +278,10 @@ impl SqlMapper {
 
                 (rec, SchemaResponse { schema })
             } else {
-                panic!("not supported: {:?}", selection);
+                panic!("not supported: {selection:?}");
             }
         } else {
-            panic!("not supported: {:?}", selection);
+            panic!("not supported: {selection:?}");
         }
     }
 
@@ -293,7 +292,7 @@ impl SqlMapper {
         val: &str,
         schema: &Schema,
     ) -> Result<Record, rusqlite::Error> {
-        let sql = format!("select * from {} where {} = {};", table_name, key_name, val);
+        let sql = format!("select * from {table_name} where {key_name} = {val};");
         let mut stmt = self.conn.prepare(&sql)?;
         let mut rows = stmt.query(())?;
 

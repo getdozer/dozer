@@ -287,7 +287,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         };
 
         let _st_handle = Builder::new()
-            .name(format!("{}-sender", handle))
+            .name(format!("{handle}-sender"))
             .spawn(move || {
                 if let Err(e) = source_fn(st_node_handle) {
                     if running_source.load(Ordering::Relaxed) {
@@ -333,7 +333,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
             listener.run()
         };
         Ok(Builder::new()
-            .name(format!("{}-listener", handle))
+            .name(format!("{handle}-listener"))
             .spawn(move || {
                 if let Err(e) = source_fn(handle) {
                     if running_listener.load(Ordering::Relaxed) {

@@ -91,7 +91,7 @@ fn print_help() {
     info!("Commands:");
     info!();
     for (c, _) in get_commands() {
-        info!("{}", c);
+        info!("{c}");
     }
     info!();
 }

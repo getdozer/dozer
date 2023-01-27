@@ -86,7 +86,7 @@ pub async fn start_fake_internal_grpc_pipeline(
     port: u32,
     receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<(), tonic::transport::Error> {
-    let mut addr = format!("{}:{}", host, port).to_socket_addrs().unwrap();
+    let mut addr = format!("{host}:{port}").to_socket_addrs().unwrap();
     let server = FakeInternalPipelineServer {};
 
     Server::builder()
