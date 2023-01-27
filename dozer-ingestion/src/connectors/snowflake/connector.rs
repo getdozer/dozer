@@ -180,6 +180,7 @@ async fn run(
     _config: SnowflakeConfig,
     _tables: Option<Vec<TableInfo>>,
     _ingestor: Arc<RwLock<Ingestor>>,
+    _from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     Ok(())
 }
