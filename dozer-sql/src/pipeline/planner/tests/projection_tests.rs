@@ -3,6 +3,7 @@ use crate::pipeline::builder::QueryContext;
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder_new::ExpressionContext;
 use crate::pipeline::expression::execution::Expression;
+use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::planner::projection::{PrimaryKeyAction, ProjectionPlanner};
 use crate::pipeline::projection::processor::ProjectionProcessor;
@@ -14,7 +15,8 @@ use sqlparser::parser::Parser;
 
 #[test]
 fn test_basic_projection() {
-    let sql = "SELECT ROUND(SUM(ROUND(a,2)),2), a as a2 FROM t0";
+    let sql =
+        "SELECT ROUND(SUM(ROUND(a,2)),2), a as a2 FROM t0 GROUP BY b,a HAVING SUM(ROUND(a,2)) > 0";
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(
@@ -43,13 +45,9 @@ fn test_basic_projection() {
         .to_owned();
 
     let mut projection_planner = ProjectionPlanner::new(schema);
-    let select = get_select(sql).unwrap().projection;
+    let statement = get_select(sql).unwrap();
 
-    for expr in select {
-        projection_planner
-            .add_select_item(expr, PrimaryKeyAction::Retain)
-            .unwrap();
-    }
+    projection_planner.plan(*statement).unwrap();
 
     assert_eq!(
         projection_planner.aggregation_output,
@@ -104,5 +102,22 @@ fn test_basic_projection() {
                 false,
             )
             .to_owned()
-    )
+    );
+
+    assert_eq!(
+        projection_planner.groupby,
+        vec![
+            Expression::Column { index: 1 },
+            Expression::Column { index: 0 }
+        ]
+    );
+
+    assert_eq!(
+        projection_planner.having,
+        Some(Expression::BinaryOperator {
+            operator: BinaryOperatorType::Gt,
+            left: Box::new(Expression::Column { index: 2 }),
+            right: Box::new(Expression::Literal(Field::Int(0)))
+        })
+    );
 }

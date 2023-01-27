@@ -4,7 +4,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder_new::{ExpressionBuilder, ExpressionContext};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
-use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
+use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, Select, SelectItem};
 use std::vec;
 
 #[derive(Clone, Copy)]
@@ -20,6 +20,8 @@ pub struct ProjectionPlanner {
     pub post_projection_schema: Schema,
     // Vector of aggregations to be appended to the original record
     pub aggregation_output: Vec<Expression>,
+    pub having: Option<Expression>,
+    pub groupby: Vec<Expression>,
     pub projection_output: Vec<Expression>,
 }
 
@@ -53,11 +55,7 @@ impl ProjectionPlanner {
         Ok(())
     }
 
-    pub fn add_select_item(
-        &mut self,
-        item: SelectItem,
-        pk_action: PrimaryKeyAction,
-    ) -> Result<(), PipelineError> {
+    fn add_select_item(&mut self, item: SelectItem) -> Result<(), PipelineError> {
         //
         let expr_items: Vec<(Expr, Option<String>)> = match item {
             SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
@@ -88,7 +86,7 @@ impl ProjectionPlanner {
             Self::append_to_schema(
                 &projection_expression,
                 alias,
-                pk_action,
+                PrimaryKeyAction::Retain,
                 &self.post_aggregation_schema,
                 &mut self.post_projection_schema,
             )?;
@@ -96,12 +94,76 @@ impl ProjectionPlanner {
 
         Ok(())
     }
+
+    fn add_having_item(&mut self, expr: Expr) -> Result<(), PipelineError> {
+        //
+
+        let mut context = ExpressionContext::from(
+            self.input_schema.fields.len(),
+            self.aggregation_output.clone(),
+        );
+        let having_expression =
+            ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
+
+        let mut post_aggregation_schema = self.input_schema.clone();
+        let mut aggregation_output = Vec::new();
+
+        for new_aggr in context.aggrgeations {
+            Self::append_to_schema(
+                &new_aggr,
+                None,
+                PrimaryKeyAction::Drop,
+                &self.input_schema,
+                &mut post_aggregation_schema,
+            )?;
+            aggregation_output.push(new_aggr);
+        }
+        self.aggregation_output = aggregation_output;
+        self.post_aggregation_schema = post_aggregation_schema;
+
+        self.having = Some(*having_expression);
+
+        Ok(())
+    }
+
+    fn add_groupby_items(&mut self, expr_items: Vec<Expr>) -> Result<(), PipelineError> {
+        //
+
+        for expr in expr_items {
+            let mut context = ExpressionContext::new(
+                &self.input_schema.fields.len() + &self.aggregation_output.len(),
+            );
+            let groupby_expression =
+                ExpressionBuilder::build(&mut context, false, &expr, &self.input_schema)?;
+            self.groupby.push(*groupby_expression.clone());
+        }
+
+        Ok(())
+    }
+
+    pub fn plan(&mut self, select: Select) -> Result<(), PipelineError> {
+        for expr in select.projection {
+            self.add_select_item(expr)?;
+        }
+        if select.group_by.len() > 0 {
+            self.add_groupby_items(select.group_by)?;
+        }
+
+        if let Some(having) = select.having {
+            self.add_having_item(having)?;
+        }
+
+        Ok(())
+    }
+
     pub fn new(input_schema: Schema) -> Self {
         Self {
             input_schema: input_schema.clone(),
             post_aggregation_schema: input_schema.to_owned(),
             post_projection_schema: Schema::empty(),
             aggregation_output: Vec::new(),
+            having: None,
+            groupby: Vec::new(),
             projection_output: Vec::new(),
         }
     }

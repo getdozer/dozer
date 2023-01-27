@@ -61,7 +61,7 @@ pub enum PipelineError {
     InvalidFunctionArgumentType(String, FieldType, FieldTypes, usize),
     #[error("Invalid cast: from: {from}, to: {to}")]
     InvalidCast { from: Field, to: FieldType },
-    #[error("{0}() is invoked from another aggregation function. Nesting of aggregation functions is not possible.")]
+    #[error("{0}() cannot be called frome here. Aggregations can only be used in SELECT and HAVING and cannot be nested within other aggregations.")]
     InvalidNestedAggregationFunction(String),
     #[error("Field {0} is not present in teh source schema")]
     UnknownFieldIdentifier(String),

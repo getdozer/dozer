@@ -41,6 +41,13 @@ impl ExpressionContext {
             offset,
         }
     }
+
+    pub fn from(offset: usize, aggrgeations: Vec<Expression>) -> Self {
+        Self {
+            aggrgeations,
+            offset,
+        }
+    }
 }
 
 impl ExpressionBuilder {
