@@ -440,7 +440,7 @@ mod tests {
 
         let range = used_slots..slots_limit - 1;
         for n in range {
-            let slot_name = format!("slot_{}", n);
+            let slot_name = format!("slot_{n}");
             client
                 .query(
                     r#"SELECT pg_create_logical_replication_slot($1, 'pgoutput');"#,
@@ -472,7 +472,7 @@ mod tests {
 
         // Teardown
         for n in used_slots..slots_limit {
-            let slot_name = format!("slot_{}", n);
+            let slot_name = format!("slot_{n}");
             client
                 .query(r#"SELECT pg_drop_replication_slot($1);"#, &[&slot_name])
                 .expect("Slot drop failed");

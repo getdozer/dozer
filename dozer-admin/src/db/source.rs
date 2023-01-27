@@ -149,7 +149,7 @@ impl Persistable<'_, dozer_types::models::source::Source> for dozer_types::model
                 let _ = apps
                     .find(self.app_id.to_owned().unwrap_or_default())
                     .first::<Application>(conn)
-                    .map_err(|err| format!("App_id: {:}", err))?;
+                    .map_err(|err| format!("App_id: {err:}"))?;
 
                 connection.app_id = self.app_id.to_owned();
                 let new_connection = NewConnection::try_from(connection.to_owned())?;

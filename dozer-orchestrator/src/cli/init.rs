@@ -26,7 +26,7 @@ impl Completer for InitHelper {
         _pos: usize,
         _ctx: &Context,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        let line = format!("{}_", line);
+        let line = format!("{line}_");
         let mut tokens = line.split_whitespace();
         let mut last_token = String::from(tokens.next_back().unwrap());
         last_token.pop();

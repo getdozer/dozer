@@ -83,7 +83,7 @@ pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) ->
         )
         .field(
             FieldDefinition::new(
-                format!("{}(Salary)", aggregator_name),
+                format!("{aggregator_name}(Salary)"),
                 field_type,
                 false,
                 SourceDefinition::Dynamic,

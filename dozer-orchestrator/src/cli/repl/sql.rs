@@ -60,7 +60,7 @@ pub fn editor(config_path: &String, running: Arc<AtomicBool>) -> Result<(), Orch
     let mut stdout = stdout();
     // let mut out = terminal::
 
-    info!("{}", HELP);
+    info!("{HELP}");
 
     loop {
         let readline = rl.readline("sql>");

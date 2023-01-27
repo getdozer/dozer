@@ -178,16 +178,14 @@ impl PostgresConnector {
         };
 
         client
-            .simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())
+            .simple_query(format!("DROP PUBLICATION IF EXISTS {publication_name}").as_str())
             .map_err(|e| {
                 error!("failed to drop publication {}", e.to_string());
                 PostgresConnectorError::DropPublicationError
             })?;
 
         client
-            .simple_query(
-                format!("CREATE PUBLICATION {} FOR {}", publication_name, table_str).as_str(),
-            )
+            .simple_query(format!("CREATE PUBLICATION {publication_name} FOR {table_str}").as_str())
             .map_err(|e| {
                 error!("failed to create publication {}", e.to_string());
                 PostgresConnectorError::CreatePublicationError

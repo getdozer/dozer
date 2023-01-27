@@ -178,7 +178,7 @@ impl Persistable<'_, ApiConfig> for ApiConfig {
             let _ = apps
                 .find(new_config.app_id.to_owned())
                 .first::<Application>(conn)
-                .map_err(|err| format!("App_id: {:}", err))?;
+                .map_err(|err| format!("App_id: {err:}"))?;
             let _inserted = insert_into(configs)
                 .values(&new_config)
                 .on_conflict(configs::id)

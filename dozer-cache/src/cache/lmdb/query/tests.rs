@@ -274,7 +274,7 @@ fn test_query(query: Value, count: usize, cache: &LmdbCache) {
     assert_eq!(cache.count("sample", &query).unwrap(), count);
     let records = cache.query("sample", &query).unwrap();
 
-    assert_eq!(records.len(), count, "Count must be equal : {:?}", query);
+    assert_eq!(records.len(), count, "Count must be equal : {query:?}");
 }
 
 fn test_query_record(

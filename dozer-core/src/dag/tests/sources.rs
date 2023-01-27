@@ -116,8 +116,8 @@ impl Source for GeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -252,8 +252,8 @@ impl Source for DualPortGeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -267,8 +267,8 @@ impl Source for DualPortGeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -386,8 +386,8 @@ impl Source for NoPkGeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),

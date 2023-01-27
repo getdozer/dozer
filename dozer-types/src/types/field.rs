@@ -304,10 +304,10 @@ impl Field {
         match self {
             Field::String(s) => Some(s.to_owned()),
             Field::Text(t) => Some(t.to_owned()),
-            Field::Int(i) => Some(format!("{}", i)),
-            Field::UInt(i) => Some(format!("{}", i)),
-            Field::Float(i) => Some(format!("{}", i)),
-            Field::Decimal(i) => Some(format!("{}", i)),
+            Field::Int(i) => Some(format!("{i}")),
+            Field::UInt(i) => Some(format!("{i}")),
+            Field::Float(i) => Some(format!("{i}")),
+            Field::Decimal(i) => Some(format!("{i}")),
             Field::Boolean(i) => Some(if *i {
                 "TRUE".to_string()
             } else {
@@ -315,7 +315,7 @@ impl Field {
             }),
             Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
             Field::Timestamp(t) => Some(t.to_rfc3339()),
-            Field::Binary(b) => Some(format!("{:X?}", b)),
+            Field::Binary(b) => Some(format!("{b:X?}")),
             Field::Null => Some("".to_string()),
             _ => None,
         }
@@ -325,10 +325,10 @@ impl Field {
         match self {
             Field::String(s) => Some(s.to_owned()),
             Field::Text(t) => Some(t.to_owned()),
-            Field::Int(i) => Some(format!("{}", i)),
-            Field::UInt(i) => Some(format!("{}", i)),
-            Field::Float(i) => Some(format!("{}", i)),
-            Field::Decimal(i) => Some(format!("{}", i)),
+            Field::Int(i) => Some(format!("{i}")),
+            Field::UInt(i) => Some(format!("{i}")),
+            Field::Float(i) => Some(format!("{i}")),
+            Field::Decimal(i) => Some(format!("{i}")),
             Field::Boolean(i) => Some(if *i {
                 "TRUE".to_string()
             } else {
@@ -336,7 +336,7 @@ impl Field {
             }),
             Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
             Field::Timestamp(t) => Some(t.to_rfc3339()),
-            Field::Binary(b) => Some(format!("{:X?}", b)),
+            Field::Binary(b) => Some(format!("{b:X?}")),
             Field::Null => Some("".to_string()),
             _ => None,
         }
@@ -397,17 +397,17 @@ impl Field {
 impl Display for Field {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Field::UInt(v) => f.write_str(&format!("{} (unsigned int)", v)),
-            Field::Int(v) => f.write_str(&format!("{} (signed int)", v)),
-            Field::Float(v) => f.write_str(&format!("{} (Float)", v)),
-            Field::Boolean(v) => f.write_str(&format!("{}", v)),
+            Field::UInt(v) => f.write_str(&format!("{v} (unsigned int)")),
+            Field::Int(v) => f.write_str(&format!("{v} (signed int)")),
+            Field::Float(v) => f.write_str(&format!("{v} (Float)")),
+            Field::Boolean(v) => f.write_str(&format!("{v}")),
             Field::String(v) => f.write_str(&v.to_string()),
             Field::Text(v) => f.write_str(&v.to_string()),
-            Field::Binary(v) => f.write_str(&format!("{:x?}", v)),
-            Field::Decimal(v) => f.write_str(&format!("{} (Decimal)", v)),
-            Field::Timestamp(v) => f.write_str(&format!("{}", v)),
-            Field::Date(v) => f.write_str(&format!("{}", v)),
-            Field::Bson(v) => f.write_str(&format!("{:x?}", v)),
+            Field::Binary(v) => f.write_str(&format!("{v:x?}")),
+            Field::Decimal(v) => f.write_str(&format!("{v} (Decimal)")),
+            Field::Timestamp(v) => f.write_str(&format!("{v}")),
+            Field::Date(v) => f.write_str(&format!("{v}")),
+            Field::Bson(v) => f.write_str(&format!("{v:x?}")),
             Field::Null => f.write_str("NULL"),
         }
     }

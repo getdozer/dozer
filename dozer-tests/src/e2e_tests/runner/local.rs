@@ -18,7 +18,7 @@ impl Runner {
         match std::env::var("DOZER_BIN") {
             Ok(dozer_bin) => {
                 if !AsRef::<Path>::as_ref(&dozer_bin).exists() {
-                    panic!("dozer binary not found at {}", dozer_bin);
+                    panic!("dozer binary not found at {dozer_bin}");
                 }
                 Self { dozer_bin }
             }
@@ -26,8 +26,7 @@ impl Runner {
                 let dozer_bin = "./target/debug/dozer".to_string();
                 if !AsRef::<Path>::as_ref(&dozer_bin).exists() {
                     panic!(
-                        "dozer binary not found at {}. Did you run `cargo build --bin dozer`?",
-                        dozer_bin
+                        "dozer binary not found at {dozer_bin}. Did you run `cargo build --bin dozer`?"
                     );
                 }
                 Self { dozer_bin }
