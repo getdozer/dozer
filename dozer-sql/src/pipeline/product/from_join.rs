@@ -216,7 +216,7 @@ impl JoinTable {
 
 #[derive(Clone, Debug)]
 pub struct JoinOperator {
-    operator: JoinOperatorType,
+    _operator: JoinOperatorType,
 
     left_join_key: Vec<usize>,
     right_join_key: Vec<usize>,
@@ -241,7 +241,7 @@ impl JoinOperator {
         right_index: u32,
     ) -> Self {
         Self {
-            operator,
+            _operator: operator,
             left_join_key,
             right_join_key,
             schema,
