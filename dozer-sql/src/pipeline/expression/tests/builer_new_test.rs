@@ -1,12 +1,11 @@
 use crate::pipeline::aggregation::aggregator::Aggregator;
-use crate::pipeline::expression::builder_new::{
-    AggregationMeasure, ExpressionBuilder, ExpressionContext,
-};
+use crate::pipeline::expression::builder_new::{ExpressionBuilder, ExpressionContext};
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::tests::utils::get_select;
 
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use sqlparser::ast::SelectItem;
 
@@ -88,8 +87,8 @@ fn test_simple_aggr_function() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![AggregationMeasure {
-                typ: Aggregator::Sum,
+            aggrgeations: vec![Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
                 args: vec![Expression::Column { index: 0 }]
             }]
         }
@@ -133,8 +132,8 @@ fn test_2_nested_aggr_function() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![AggregationMeasure {
-                typ: Aggregator::Sum,
+            aggrgeations: vec![Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
                 args: vec![Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
                     args: vec![
@@ -184,8 +183,8 @@ fn test_3_nested_aggr_function() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![AggregationMeasure {
-                typ: Aggregator::Sum,
+            aggrgeations: vec![Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
                 args: vec![Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
                     args: vec![
@@ -241,8 +240,8 @@ fn test_3_nested_aggr_function_dup() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![AggregationMeasure {
-                typ: Aggregator::Sum,
+            aggrgeations: vec![Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
                 args: vec![Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
                     args: vec![
@@ -302,8 +301,8 @@ fn test_3_nested_aggr_function_and_sum() {
         ExpressionContext {
             offset: schema.fields.len(),
             aggrgeations: vec![
-                AggregationMeasure {
-                    typ: Aggregator::Sum,
+                Expression::AggregateFunction {
+                    fun: AggregateFunctionType::Sum,
                     args: vec![Expression::ScalarFunction {
                         fun: ScalarFunctionType::Round,
                         args: vec![
@@ -312,8 +311,8 @@ fn test_3_nested_aggr_function_and_sum() {
                         ]
                     }]
                 },
-                AggregationMeasure {
-                    typ: Aggregator::Sum,
+                Expression::AggregateFunction {
+                    fun: AggregateFunctionType::Sum,
                     args: vec![Expression::Column { index: 0 }]
                 }
             ]
@@ -369,8 +368,8 @@ fn test_3_nested_aggr_function_and_sum_3() {
         ExpressionContext {
             offset: schema.fields.len(),
             aggrgeations: vec![
-                AggregationMeasure {
-                    typ: Aggregator::Sum,
+                Expression::AggregateFunction {
+                    fun: AggregateFunctionType::Sum,
                     args: vec![Expression::ScalarFunction {
                         fun: ScalarFunctionType::Round,
                         args: vec![
@@ -379,8 +378,8 @@ fn test_3_nested_aggr_function_and_sum_3() {
                         ]
                     }]
                 },
-                AggregationMeasure {
-                    typ: Aggregator::Sum,
+                Expression::AggregateFunction {
+                    fun: AggregateFunctionType::Sum,
                     args: vec![Expression::Column { index: 0 }]
                 }
             ]

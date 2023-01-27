@@ -16,6 +16,7 @@ use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
     InvalidValue, TooManyArguments,
 };
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
@@ -27,20 +28,9 @@ use super::cast::CastOperatorType;
 pub struct ExpressionBuilder;
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct AggregationMeasure {
-    pub typ: Aggregator,
-    pub args: Vec<Expression>,
-}
-
-impl AggregationMeasure {
-    pub fn new(typ: Aggregator, args: Vec<Expression>) -> Self {
-        Self { typ, args }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionContext {
-    pub aggrgeations: Vec<AggregationMeasure>,
+    // Must be an aggregate function
+    pub aggrgeations: Vec<Expression>,
     pub offset: usize,
 }
 
@@ -255,16 +245,18 @@ impl ExpressionBuilder {
         let function_name = sql_function.name.to_string().to_lowercase();
 
         match (
-            Self::is_aggregation_function(function_name.as_str()),
+            AggregateFunctionType::new(function_name.as_str()),
             parse_aggregations,
         ) {
-            (Some(aggr), true) => {
+            (Ok(aggr), true) => {
                 let mut arg_expr: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
                     arg_expr.push(*Self::parse_sql_function_arg(context, false, &arg, schema)?);
                 }
-                let measure = AggregationMeasure::new(aggr, arg_expr);
-
+                let measure = Expression::AggregateFunction {
+                    fun: aggr,
+                    args: arg_expr,
+                };
                 let index = match context
                     .aggrgeations
                     .iter()
@@ -281,8 +273,8 @@ impl ExpressionBuilder {
                     index: context.offset + index,
                 }))
             }
-            (Some(_agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
-            (None, _) => {
+            (Ok(_agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
+            (Err(_), _) => {
                 let mut function_args: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
                     function_args.push(*Self::parse_sql_function_arg(
@@ -299,17 +291,6 @@ impl ExpressionBuilder {
                     args: function_args,
                 }))
             }
-        }
-    }
-
-    fn is_aggregation_function(name: &str) -> Option<Aggregator> {
-        match name {
-            "sum" => Some(Aggregator::Sum),
-            "avg" => Some(Aggregator::Avg),
-            "min" => Some(Aggregator::Min),
-            "max" => Some(Aggregator::Max),
-            "count" => Some(Aggregator::Count),
-            _ => None,
         }
     }
 
