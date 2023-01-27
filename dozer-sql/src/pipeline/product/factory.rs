@@ -32,7 +32,7 @@ pub struct ProductProcessorFactory {
 
 impl ProductProcessorFactory {
     /// Creates a new [`ProductProcessorFactory`].
-    pub fn new(input_tables: IndexedTabelWithJoins) -> Self {
+    pub fn _new(input_tables: IndexedTabelWithJoins) -> Self {
         Self { input_tables }
     }
 }
@@ -253,8 +253,8 @@ fn parse_join_eq_expression(
 
 fn parse_identifier(
     ident: &ConstraintIdentifier,
-    left_join_table: &JoinTable,
-    right_join_table: &JoinTable,
+    _left_join_table: &JoinTable,
+    _right_join_table: &JoinTable,
 ) -> Result<(Option<usize>, Option<usize>), PipelineError> {
     let is_compound = |ident: &ConstraintIdentifier| -> bool {
         match ident {
