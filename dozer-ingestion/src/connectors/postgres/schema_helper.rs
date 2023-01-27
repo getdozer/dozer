@@ -413,4 +413,37 @@ mod tests {
 
         client.drop_schema(&schema);
     }
+
+    #[test]
+    #[ignore]
+    // fn connector_e2e_get_schema_without_selected_columns() {
+    fn connector_disabled_test_e2e_get_schema_without_selected_columns() {
+        let mut client = get_client();
+
+        let mut rng = rand::thread_rng();
+
+        let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
+        let table_name = format!("products_test_{}", rng.gen::<u32>());
+
+        client.create_schema(&schema);
+        client.create_simple_table(&schema, &table_name);
+
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let table_info = TableInfo {
+            name: table_name.clone(),
+            table_name: table_name.clone(),
+            id: 0,
+            columns: Some(vec![]),
+        };
+        let result = schema_helper.get_tables(Some(vec![table_info])).unwrap();
+
+        let table = result.get(0).unwrap();
+        assert_eq!(table_name, table.table_name.clone());
+        assert!(assert_vec_eq(
+            vec!["id".to_string(), "name".to_string(), "description".to_string(), "weight".to_string()],
+            table.columns.clone().unwrap()
+        ));
+
+        client.drop_schema(&schema);
+    }
 }
