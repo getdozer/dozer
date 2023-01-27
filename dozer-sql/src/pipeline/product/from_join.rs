@@ -12,9 +12,6 @@ use dozer_types::{
     types::{Field, Record, Schema},
 };
 use lmdb::Database;
-use sqlparser::keywords::RIGHT;
-
-use crate::pipeline::errors::JoinError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinOperatorType {
@@ -118,7 +115,7 @@ impl JoinTable {
         join_keys: &[usize],
         database: &Database,
         transaction: &SharedTransaction,
-        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        _readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let join_key = get_join_key(record, join_keys)?;
         let lookup_key: Vec<u8> = get_lookup_key(record, &self.schema)?;
@@ -134,36 +131,30 @@ impl JoinTable {
 
     fn lookup(
         &self,
-        from_port: PortHandle,
-        record: &Record,
+        _from_port: PortHandle,
+        _record: &Record,
         join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
-        // if the source port is the same as the port of the incoming message, return the record
-        if self.port == from_port {
-            return Ok(vec![record.clone()]);
-        }
-
-        let mut result_records = vec![];
+        let mut output_records = vec![];
 
         let reader = readers
             .get(&self.port)
             .ok_or(ExecutionError::InvalidPortHandle(self.port))?;
 
         // let join_key = get_join_key(record, join_keys)?;
-        let lookup_keys = self.get_lookup_keys(&join_key, database, transaction)?;
+        let lookup_keys = self.get_lookup_keys(join_key, database, transaction)?;
 
         // retrieve records for the table on the right side of the join
         for (lookup_key, lookup_version) in lookup_keys.iter() {
-            if let Some(left_record) = reader.get(lookup_key, *lookup_version)? {
-                let join_record = join_records(&mut left_record.clone(), &mut record.clone());
-                result_records.push(join_record);
+            if let Some(record) = reader.get(lookup_key, *lookup_version)? {
+                output_records.push(record);
             }
         }
 
-        Ok(result_records)
+        Ok(output_records)
     }
 
     pub fn insert_index(
@@ -236,8 +227,7 @@ pub struct JoinOperator {
     right_source: Box<JoinSource>,
 
     // Lookup indexes
-    left_index: u32,
-    right_index: u32,
+    join_lookup_index: u32,
 }
 
 impl JoinOperator {
@@ -248,7 +238,6 @@ impl JoinOperator {
         schema: Schema,
         left_source: Box<JoinSource>,
         right_source: Box<JoinSource>,
-        left_index: u32,
         right_index: u32,
     ) -> Self {
         Self {
@@ -258,8 +247,7 @@ impl JoinOperator {
             schema,
             left_source,
             right_source,
-            left_index,
-            right_index,
+            join_lookup_index: right_index,
         }
     }
 
@@ -282,6 +270,8 @@ impl JoinOperator {
     ) -> Result<Vec<Record>, ExecutionError> {
         // if the source port is under the left branch of the join
         if self.left_source.get_sources().contains(&from_port) {
+            let mut output_records = vec![];
+
             // forward the record and the current join constraints to the left source
             let mut left_records = self.left_source.insert(
                 from_port,
@@ -292,7 +282,6 @@ impl JoinOperator {
                 readers,
             )?;
 
-            let mut output_records = vec![];
             for left_record in left_records.iter_mut() {
                 let join_key: Vec<u8> = get_join_key(left_record, &self.left_join_key)?;
                 // lookup on the right branch to find matching records
@@ -316,7 +305,7 @@ impl JoinOperator {
             // update the lookup index
             for record in output_records.iter() {
                 // get the join key for the merged record, which is the key for the lookup index
-                let join_key: Vec<u8> = get_join_key(&record, join_keys)?;
+                let join_key: Vec<u8> = get_join_key(record, join_keys)?;
                 // generate the composite value using left and right constraints, which is the value for the lookup index
                 // in the lookup operation, the composite value will be split back into left and right constraints
                 // and forwarded to the left and right sources for lookup
@@ -328,18 +317,7 @@ impl JoinOperator {
 
             Ok(output_records)
         } else if self.right_source.get_sources().contains(&from_port) {
-            // // shift the keys indexes on the right side of the merged schema before forwarding
-            // let mut right_join_keys = vec![];
-            // let max = self.schema.fields.len();
-            // for right_join_key in self.right_join_key.iter() {
-            //     if *right_join_key >= max {
-            //         return Err(ExecutionError::InternalStringError(
-            //             "Invalid constraint key".to_string(),
-            //         ));
-            //     }
-            //     let left_len = self.left_source.get_output_schema().fields.len();
-            //     right_join_keys.push(*right_join_key - left_len);
-            // }
+            let mut output_records = vec![];
 
             let mut right_records = self.right_source.insert(
                 from_port,
@@ -350,7 +328,6 @@ impl JoinOperator {
                 readers,
             )?;
 
-            let mut output_records = vec![];
             for right_record in right_records.iter_mut() {
                 // lookup on the left branch to find matching records
                 let join_key: Vec<u8> = get_join_key(right_record, &self.right_join_key)?;
@@ -374,7 +351,7 @@ impl JoinOperator {
             // update the lookup index
             for record in output_records.iter() {
                 // get the join key for the merged record, which is the key for the lookup index
-                let join_key: Vec<u8> = get_join_key(&record, join_keys)?;
+                let join_key: Vec<u8> = get_join_key(record, join_keys)?;
                 // generate the composite value using left and right constraints, which is the value for the lookup index
                 // in the lookup operation, the composite value will be split back into left and right constraints
                 // and forwarded to the left and right sources for lookup
@@ -458,7 +435,7 @@ impl JoinOperator {
     ) -> Result<(), ExecutionError> {
         let mut exclusive_transaction = transaction.write();
         let mut prefix_transaction =
-            PrefixTransaction::new(&mut exclusive_transaction, self.right_index);
+            PrefixTransaction::new(&mut exclusive_transaction, self.join_lookup_index);
 
         prefix_transaction.put(*database, key, value)?;
 
@@ -475,7 +452,7 @@ impl JoinOperator {
 
         let mut exclusive_transaction = transaction.write();
         let right_prefix_transaction =
-            PrefixTransaction::new(&mut exclusive_transaction, self.right_index);
+            PrefixTransaction::new(&mut exclusive_transaction, self.join_lookup_index);
 
         let cursor = right_prefix_transaction.open_cursor(*database)?;
 

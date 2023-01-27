@@ -99,7 +99,7 @@ pub fn build_join_tree(
     join_tables: &IndexedTabelWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<JoinSource, PipelineError> {
-    const LEFT_JOIN_FLAG: u32 = 0x80000000;
+    const JOIN_INDEX_FLAG: u32 = 0x80000000;
     const RIGHT_JOIN_FLAG: u32 = 0x40000000;
 
     let port = 0 as PortHandle;
@@ -170,8 +170,7 @@ pub fn build_join_tree(
             join_schema.clone(),
             Box::new(left_join_table),
             Box::new(right_join_table),
-            index as u32 | LEFT_JOIN_FLAG,
-            (index + 1) as u32 | RIGHT_JOIN_FLAG,
+            index as u32 | JOIN_INDEX_FLAG,
         );
 
         join_tree_root = JoinSource::Join(join_op.clone());

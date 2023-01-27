@@ -230,16 +230,6 @@ impl Source for TestSource {
                 Operation::Insert {
                     new: Record::new(
                         None,
-                        vec![Field::Int(1), Field::String("HR".to_string())],
-                        None,
-                    ),
-                },
-                DEPARTMENT_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
                         vec![
                             Field::String("UK".to_string()),
                             Field::String("United Kingdom".to_string()),
@@ -247,7 +237,7 @@ impl Source for TestSource {
                         None,
                     ),
                 },
-                DEPARTMENT_PORT,
+                COUNTRY_PORT,
             ),
             (
                 Operation::Insert {
@@ -276,7 +266,7 @@ impl Source for TestSource {
                         None,
                     ),
                 },
-                COUNTRY_PORT,
+                USER_PORT,
             ),
             (
                 Operation::Insert {
@@ -527,7 +517,7 @@ fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
     let (mut pipeline, (node, port)) = statement_to_pipeline(
-        "SELECT  dname, salary \
+        "SELECT  name, dname, salary \
         FROM user JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
     )
     .unwrap();
