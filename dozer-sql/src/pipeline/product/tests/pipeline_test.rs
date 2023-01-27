@@ -241,15 +241,42 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![
+                            Field::String("UK".to_string()),
+                            Field::String("United Kingdom".to_string()),
+                        ],
+                        None,
+                    ),
+                },
+                DEPARTMENT_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String("SG".to_string()),
+                            Field::String("Singapore".to_string()),
+                        ],
+                        None,
+                    ),
+                },
+                COUNTRY_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
                             Field::Int(10000),
                             Field::String("Alice".to_string()),
                             Field::Int(0),
+                            Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
                         None,
                     ),
                 },
-                USER_PORT,
+                COUNTRY_PORT,
             ),
             (
                 Operation::Insert {
@@ -269,6 +296,7 @@ impl Source for TestSource {
                             Field::Int(10001),
                             Field::String("Bob".to_string()),
                             Field::Int(0),
+                            Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
                         None,
@@ -284,6 +312,7 @@ impl Source for TestSource {
                             Field::Int(10002),
                             Field::String("Craig".to_string()),
                             Field::Int(1),
+                            Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
                         None,
@@ -299,6 +328,7 @@ impl Source for TestSource {
                             Field::Int(10003),
                             Field::String("Dan".to_string()),
                             Field::Int(0),
+                            Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
                         None,
@@ -314,6 +344,7 @@ impl Source for TestSource {
                             Field::Int(10004),
                             Field::String("Eve".to_string()),
                             Field::Int(1),
+                            Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
                         None,

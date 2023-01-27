@@ -292,20 +292,21 @@ impl JoinOperator {
                 readers,
             )?;
 
-            let join_key: Vec<u8> = get_join_key(record, &self.left_join_key)?;
-            // lookup on the right branch to find matching records
-            let mut right_records = self.right_source.lookup(
-                from_port,
-                record,
-                &join_key,
-                database,
-                transaction,
-                readers,
-            )?;
-
-            // join the records
             let mut output_records = vec![];
             for left_record in left_records.iter_mut() {
+                let join_key: Vec<u8> = get_join_key(left_record, &self.left_join_key)?;
+                // lookup on the right branch to find matching records
+                let mut right_records = self.right_source.lookup(
+                    from_port,
+                    left_record,
+                    &join_key,
+                    database,
+                    transaction,
+                    readers,
+                )?;
+
+                // join the records
+
                 for right_record in right_records.iter_mut() {
                     let join_record = join_records(left_record, right_record);
                     output_records.push(join_record);
@@ -325,32 +326,46 @@ impl JoinOperator {
                 self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
             }
 
-            return Ok(output_records);
+            Ok(output_records)
         } else if self.right_source.get_sources().contains(&from_port) {
+            // // shift the keys indexes on the right side of the merged schema before forwarding
+            // let mut right_join_keys = vec![];
+            // let max = self.schema.fields.len();
+            // for right_join_key in self.right_join_key.iter() {
+            //     if *right_join_key >= max {
+            //         return Err(ExecutionError::InternalStringError(
+            //             "Invalid constraint key".to_string(),
+            //         ));
+            //     }
+            //     let left_len = self.left_source.get_output_schema().fields.len();
+            //     right_join_keys.push(*right_join_key - left_len);
+            // }
+
             let mut right_records = self.right_source.insert(
                 from_port,
                 record,
-                join_keys,
+                &self.right_join_key,
                 database,
                 transaction,
                 readers,
             )?;
 
-            // lookup on the left branch to find matching records
-            let join_key: Vec<u8> = get_join_key(record, &self.right_join_key)?;
-            let mut left_records = self.left_source.lookup(
-                from_port,
-                record,
-                &join_key,
-                database,
-                transaction,
-                readers,
-            )?;
-
-            // join the records
             let mut output_records = vec![];
-            for left_record in left_records.iter_mut() {
-                for right_record in right_records.iter_mut() {
+            for right_record in right_records.iter_mut() {
+                // lookup on the left branch to find matching records
+                let join_key: Vec<u8> = get_join_key(right_record, &self.right_join_key)?;
+                let mut left_records = self.left_source.lookup(
+                    from_port,
+                    right_record,
+                    &join_key,
+                    database,
+                    transaction,
+                    readers,
+                )?;
+
+                // join the records
+
+                for left_record in left_records.iter_mut() {
                     let join_record = join_records(left_record, right_record);
                     output_records.push(join_record);
                 }
