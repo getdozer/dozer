@@ -1,17 +1,12 @@
-use crate::pipeline::aggregation::aggregator::Aggregator;
-use crate::pipeline::builder::QueryContext;
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::builder_new::ExpressionContext;
+
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
-use crate::pipeline::planner::projection::{PrimaryKeyAction, ProjectionPlanner};
-use crate::pipeline::projection::processor::ProjectionProcessor;
+use crate::pipeline::planner::projection::ProjectionPlanner;
+
 use crate::pipeline::tests::utils::get_select;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
-use sqlparser::ast::{Query, Select, SelectItem, SetExpr, Statement};
-use sqlparser::dialect::AnsiDialect;
-use sqlparser::parser::Parser;
 
 #[test]
 fn test_basic_projection() {

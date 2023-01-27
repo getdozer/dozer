@@ -1,6 +1,6 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
-use std::fmt::{Display, Formatter};
+
 use uuid::Uuid;
 
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -55,7 +55,9 @@ impl Expression {
     pub fn to_string(&self, schema: &Schema) -> String {
         match &self {
             Expression::Column { index } => schema.fields[*index].name.clone(),
-            Expression::Literal(value) => value.to_string().unwrap_or(Uuid::new_v4().to_string()),
+            Expression::Literal(value) => value
+                .to_string()
+                .unwrap_or_else(|| Uuid::new_v4().to_string()),
             Expression::UnaryOperator { operator, arg } => {
                 operator.to_string() + arg.to_string(schema).as_str()
             }
@@ -106,7 +108,7 @@ impl Expression {
                     }
                     .as_str()
                     + if let Some(w) = what {
-                        (w.to_string(schema) + " FROM ")
+                        w.to_string(schema) + " FROM "
                     } else {
                         "".to_string()
                     }
@@ -118,7 +120,7 @@ impl Expression {
             Expression::Like {
                 arg,
                 pattern,
-                escape,
+                escape: _,
             } => arg.to_string(schema) + " LIKE " + pattern.to_string(schema).as_str(),
         }
     }

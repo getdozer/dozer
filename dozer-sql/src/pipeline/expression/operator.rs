@@ -4,7 +4,7 @@ use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::logical::*;
 use crate::pipeline::expression::mathematical::*;
 use dozer_types::types::{Field, Record, Schema};
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum UnaryOperatorType {

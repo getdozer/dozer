@@ -4,7 +4,6 @@ use dozer_types::{
     types::{Field, Schema},
 };
 
-use crate::pipeline::aggregation::aggregator::Aggregator;
 use dozer_types::types::{FieldDefinition, SourceDefinition};
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
@@ -14,7 +13,7 @@ use sqlparser::ast::{
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
-    InvalidValue, TooManyArguments,
+    InvalidValue,
 };
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 
@@ -258,7 +257,7 @@ impl ExpressionBuilder {
             (Ok(aggr), true) => {
                 let mut arg_expr: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
-                    arg_expr.push(*Self::parse_sql_function_arg(context, false, &arg, schema)?);
+                    arg_expr.push(*Self::parse_sql_function_arg(context, false, arg, schema)?);
                 }
                 let measure = Expression::AggregateFunction {
                     fun: aggr,
@@ -270,7 +269,7 @@ impl ExpressionBuilder {
                     .enumerate()
                     .find(|e| e.1 == &measure)
                 {
-                    Some((index, existing)) => index,
+                    Some((index, _existing)) => index,
                     _ => {
                         context.aggrgeations.push(measure);
                         context.aggrgeations.len() - 1

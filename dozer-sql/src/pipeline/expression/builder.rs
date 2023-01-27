@@ -77,8 +77,8 @@ impl ExpressionBuilder {
                 trim_where,
                 trim_what,
             } => self.parse_sql_trim_function(expression_type, expr, trim_where, trim_what, schema),
-            SqlExpr::Identifier(ident) => Ok((parse_sql_column(&[ident.clone()], &schema)?, false)),
-            SqlExpr::CompoundIdentifier(ident) => Ok((parse_sql_column(ident, &schema)?, false)),
+            SqlExpr::Identifier(ident) => Ok((parse_sql_column(&[ident.clone()], schema)?, false)),
+            SqlExpr::CompoundIdentifier(ident) => Ok((parse_sql_column(ident, schema)?, false)),
             SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
             SqlExpr::Value(SqlValue::Null) => {
                 Ok((Box::new(Expression::Literal(Field::Null)), false))

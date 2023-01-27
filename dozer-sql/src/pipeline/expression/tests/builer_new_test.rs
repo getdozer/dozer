@@ -1,4 +1,3 @@
-use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::expression::builder_new::{ExpressionBuilder, ExpressionContext};
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::BinaryOperatorType;

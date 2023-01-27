@@ -1,5 +1,5 @@
 use crate::arg_str;
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 
 use crate::pipeline::errors::PipelineError;
 

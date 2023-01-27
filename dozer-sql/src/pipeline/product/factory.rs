@@ -324,7 +324,7 @@ pub fn get_field_index(
                 .enumerate()
                 .find(|(_, f)| f.name == ident.value)
                 .map(|(idx, fd)| (idx, fd.clone()));
-            field_index.map_or(Ok(None), |(i, fd)| Ok(Some(i)))
+            field_index.map_or(Ok(None), |(i, _fd)| Ok(Some(i)))
         }
         ConstraintIdentifier::Compound(comp_ident) => {
             let field_index = match comp_ident.len() {

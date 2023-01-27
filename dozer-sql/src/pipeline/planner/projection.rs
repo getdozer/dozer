@@ -3,8 +3,8 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder_new::{ExpressionBuilder, ExpressionContext};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
-use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, Select, SelectItem};
+use dozer_types::types::{FieldDefinition, Schema};
+use sqlparser::ast::{Expr, Select, SelectItem};
 use std::vec;
 
 #[derive(Clone, Copy)]
@@ -41,7 +41,7 @@ impl ProjectionPlanner {
         };
 
         output_schema.fields.push(FieldDefinition::new(
-            alias.unwrap_or(expr.to_string(input_schema)),
+            alias.unwrap_or_else(|| expr.to_string(input_schema)),
             expr_type.return_type,
             expr_type.nullable,
             expr_type.source,
@@ -66,7 +66,7 @@ impl ProjectionPlanner {
 
         for (expr, alias) in expr_items {
             let mut context = ExpressionContext::new(
-                &self.input_schema.fields.len() + &self.aggregation_output.len(),
+                self.input_schema.fields.len() + self.aggregation_output.len(),
             );
             let projection_expression =
                 ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
@@ -131,7 +131,7 @@ impl ProjectionPlanner {
 
         for expr in expr_items {
             let mut context = ExpressionContext::new(
-                &self.input_schema.fields.len() + &self.aggregation_output.len(),
+                self.input_schema.fields.len() + self.aggregation_output.len(),
             );
             let groupby_expression =
                 ExpressionBuilder::build(&mut context, false, &expr, &self.input_schema)?;
@@ -145,7 +145,7 @@ impl ProjectionPlanner {
         for expr in select.projection {
             self.add_select_item(expr)?;
         }
-        if select.group_by.len() > 0 {
+        if !select.group_by.is_empty() {
             self.add_groupby_items(select.group_by)?;
         }
 
@@ -159,7 +159,7 @@ impl ProjectionPlanner {
     pub fn new(input_schema: Schema) -> Self {
         Self {
             input_schema: input_schema.clone(),
-            post_aggregation_schema: input_schema.to_owned(),
+            post_aggregation_schema: input_schema,
             post_projection_schema: Schema::empty(),
             aggregation_output: Vec::new(),
             having: None,
