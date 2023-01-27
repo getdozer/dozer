@@ -63,7 +63,7 @@ impl Ingestor {
     pub fn initialize_channel(
         config: IngestionConfig,
     ) -> (Arc<RwLock<Ingestor>>, Arc<RwLock<IngestionIterator>>) {
-        let (tx, rx) = bounded::<((u64, u64), IngestionOperation)>(100000);
+        let (tx, rx) = bounded::<((u64, u64), IngestionOperation)>(config.forwarder_channel_cap);
         let sender: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         let ingestor = Arc::new(RwLock::new(Self::new(config, sender)));
