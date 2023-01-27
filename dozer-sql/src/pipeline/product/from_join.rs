@@ -51,15 +51,9 @@ impl JoinSource {
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         match self {
-            JoinSource::Table(table) => table.insert(
-                action,
-                from_port,
-                record,
-                join_keys,
-                database,
-                transaction,
-                readers,
-            ),
+            JoinSource::Table(table) => {
+                table.insert(action, from_port, record, join_keys, database, transaction)
+            }
             JoinSource::Join(join) => join.insert(
                 action,
                 from_port,
@@ -149,20 +143,11 @@ impl JoinTable {
         join_keys: &[usize],
         database: &Database,
         transaction: &SharedTransaction,
-        _readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let join_key = get_join_key(record, join_keys)?;
         let lookup_key: Vec<u8> = get_lookup_key(record, &self.schema)?;
 
-        if *action == JoinAction::Delete {
-            self.delete_index(&join_key, &lookup_key, database, transaction)?;
-        } else if *action == JoinAction::Insert {
-            self.insert_index(&join_key, &lookup_key, database, transaction)?;
-        } else if *action == JoinAction::Update {
-            todo!()
-        } else {
-            return Err(ExecutionError::InvalidPortHandle(self.port));
-        }
+        self.update_index(action, &join_key, &lookup_key, database, transaction)?;
 
         // if the source port is the same as the port of the incoming message, return the record
         if self.port == from_port {
@@ -174,7 +159,7 @@ impl JoinTable {
 
     fn lookup(
         &self,
-        action: &JoinAction,
+        _action: &JoinAction,
         _from_port: PortHandle,
         _record: &Record,
         join_key: &[u8],
@@ -241,8 +226,9 @@ impl JoinTable {
         Ok(join_keys)
     }
 
-    fn delete_index(
+    pub fn update_index(
         &self,
+        action: &JoinAction,
         key: &[u8],
         value: &[u8],
         database: &Database,
@@ -252,23 +238,17 @@ impl JoinTable {
         let mut prefix_transaction =
             PrefixTransaction::new(&mut exclusive_transaction, self.join_index);
 
-        prefix_transaction.del(*database, key, Some(value))?;
-
-        Ok(())
-    }
-
-    pub fn insert_index(
-        &self,
-        key: &[u8],
-        value: &[u8],
-        database: &Database,
-        transaction: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
-        let mut exclusive_transaction = transaction.write();
-        let mut prefix_transaction =
-            PrefixTransaction::new(&mut exclusive_transaction, self.join_index);
-
-        prefix_transaction.put(*database, key, value)?;
+        match *action {
+            JoinAction::Insert => {
+                prefix_transaction.put(*database, key, value)?;
+            }
+            JoinAction::Delete => {
+                prefix_transaction.del(*database, key, Some(value))?;
+            }
+            JoinAction::Update => {
+                todo!()
+            }
+        }
 
         Ok(())
     }
@@ -376,15 +356,13 @@ impl JoinOperator {
                 let composite_lookup_key: Vec<u8> =
                     encode_composite_lookup_key_from_record(record, merged_join_keys);
 
-                if *action == JoinAction::Delete {
-                    self.delete_index(&join_key, &composite_lookup_key, database, transaction)?;
-                } else if *action == JoinAction::Insert {
-                    self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
-                } else if *action == JoinAction::Update {
-                    todo!()
-                } else {
-                    return Err(ExecutionError::InvalidPortHandle(from_port));
-                }
+                self.update_index(
+                    action,
+                    &join_key,
+                    &composite_lookup_key,
+                    database,
+                    transaction,
+                )?;
             }
 
             Ok(output_records)
@@ -433,15 +411,13 @@ impl JoinOperator {
                 let composite_lookup_key: Vec<u8> =
                     encode_composite_lookup_key_from_record(record, merged_join_keys);
 
-                if *action == JoinAction::Delete {
-                    self.delete_index(&join_key, &composite_lookup_key, database, transaction)?;
-                } else if *action == JoinAction::Insert {
-                    self.insert_index(&join_key, &composite_lookup_key, database, transaction)?;
-                } else if *action == JoinAction::Update {
-                    todo!()
-                } else {
-                    return Err(ExecutionError::InvalidPortHandle(from_port));
-                }
+                self.update_index(
+                    action,
+                    &join_key,
+                    &composite_lookup_key,
+                    database,
+                    transaction,
+                )?;
             }
 
             return Ok(output_records);
@@ -512,8 +488,9 @@ impl JoinOperator {
         Ok(output_records)
     }
 
-    pub fn insert_index(
+    pub fn update_index(
         &self,
+        action: &JoinAction,
         key: &[u8],
         value: &[u8],
         database: &Database,
@@ -523,23 +500,17 @@ impl JoinOperator {
         let mut prefix_transaction =
             PrefixTransaction::new(&mut exclusive_transaction, self.join_lookup_index);
 
-        prefix_transaction.put(*database, key, value)?;
-
-        Ok(())
-    }
-
-    pub fn delete_index(
-        &self,
-        key: &[u8],
-        value: &[u8],
-        database: &Database,
-        transaction: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
-        let mut exclusive_transaction = transaction.write();
-        let mut prefix_transaction =
-            PrefixTransaction::new(&mut exclusive_transaction, self.join_lookup_index);
-
-        prefix_transaction.del(*database, key, Some(value))?;
+        match *action {
+            JoinAction::Insert => {
+                prefix_transaction.put(*database, key, value)?;
+            }
+            JoinAction::Delete => {
+                prefix_transaction.del(*database, key, Some(value))?;
+            }
+            JoinAction::Update => {
+                todo!()
+            }
+        }
 
         Ok(())
     }
