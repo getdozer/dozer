@@ -24,29 +24,31 @@ pub struct ProjectionPlanner {
 }
 
 impl ProjectionPlanner {
-    fn append_to_output_schema(
-        &mut self,
+    fn append_to_schema(
         expr: &Expression,
         alias: Option<String>,
         pk_action: PrimaryKeyAction,
-        schema: &mut Schema,
+        input_schema: &Schema,
+        output_schema: &mut Schema,
     ) -> Result<(), PipelineError> {
-        let expr_type = expr.get_type(&self.input_schema)?;
+        let expr_type = expr.get_type(input_schema)?;
         let primary_key = match pk_action {
             PrimaryKeyAction::Force => true,
             PrimaryKeyAction::Drop => false,
             PrimaryKeyAction::Retain => expr_type.is_primary_key,
         };
 
-        schema.fields.push(FieldDefinition::new(
-            alias.unwrap_or(expr.to_string(&self.input_schema)),
+        output_schema.fields.push(FieldDefinition::new(
+            alias.unwrap_or(expr.to_string(input_schema)),
             expr_type.return_type,
             expr_type.nullable,
             expr_type.source,
         ));
 
         if primary_key {
-            schema.primary_index.push(schema.fields.len() - 1);
+            output_schema
+                .primary_index
+                .push(output_schema.fields.len() - 1);
         }
         Ok(())
     }
@@ -56,6 +58,7 @@ impl ProjectionPlanner {
         item: SelectItem,
         pk_action: PrimaryKeyAction,
     ) -> Result<(), PipelineError> {
+        //
         let expr_items: Vec<(Expr, Option<String>)> = match item {
             SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
             SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
@@ -71,16 +74,24 @@ impl ProjectionPlanner {
                 ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
 
             for new_aggr in context.aggrgeations {
+                Self::append_to_schema(
+                    &new_aggr,
+                    alias.clone(),
+                    PrimaryKeyAction::Drop,
+                    &self.input_schema,
+                    &mut self.post_aggregation_schema,
+                )?;
                 self.aggregation_output.push(new_aggr);
-                //  self.append_to_schema()
             }
 
-            // if context.aggrgeations.len() > 0 {
-            //     self.aggregation_output.extend(context.aggrgeations);
-            // }
-            //
-            // self.projection_output.push(projection_expression.clone());
-            // self.append_to_output_schema(&projection_expression, alias, pk_action)?;
+            self.projection_output.push(projection_expression.clone());
+            Self::append_to_schema(
+                &projection_expression,
+                alias,
+                pk_action,
+                &self.post_aggregation_schema,
+                &mut self.post_projection_schema,
+            )?;
         }
 
         Ok(())
