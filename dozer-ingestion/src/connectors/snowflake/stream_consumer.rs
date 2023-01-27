@@ -21,11 +21,11 @@ impl StreamConsumer {
     }
 
     pub fn get_stream_table_name(table_name: &str) -> String {
-        format!("dozer_{}_stream", table_name)
+        format!("dozer_{table_name}_stream")
     }
 
     pub fn get_stream_temp_table_name(table_name: &str) -> String {
-        format!("dozer_{}_stream_temp", table_name)
+        format!("dozer_{table_name}_stream_temp")
     }
 
     pub fn is_stream_created(client: &Client, table_name: String) -> Result<bool, ConnectorError> {
@@ -139,15 +139,14 @@ impl StreamConsumer {
 
         if !temp_table_exist {
             let query = format!(
-                "CREATE OR REPLACE TEMP TABLE {} AS
-                    SELECT * FROM {} ORDER BY METADATA$ACTION;",
-                temp_table_name, stream_name
+                "CREATE OR REPLACE TEMP TABLE {temp_table_name} AS
+                    SELECT * FROM {stream_name} ORDER BY METADATA$ACTION;"
             );
 
             client.exec(&conn, query)?;
         }
 
-        let result = client.fetch(&conn, format!("SELECT * FROM {};", temp_table_name))?;
+        let result = client.fetch(&conn, format!("SELECT * FROM {temp_table_name};"))?;
         if let Some((schema, iterator)) = result {
             let mut truncated_schema = schema.clone();
             truncated_schema.truncate(schema.len() - 3);
@@ -170,7 +169,7 @@ impl StreamConsumer {
             }
         }
 
-        let query = format!("DROP TABLE {};", temp_table_name);
+        let query = format!("DROP TABLE {temp_table_name};");
 
         client
             .exec(&conn, query)

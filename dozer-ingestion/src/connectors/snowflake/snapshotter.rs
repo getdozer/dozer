@@ -13,7 +13,7 @@ pub struct Snapshotter {}
 
 impl Snapshotter {
     pub fn get_snapshot_table_name(table_name: &String) -> String {
-        format!("dozer_{}_snapshot", table_name)
+        format!("dozer_{table_name}_snapshot")
     }
 
     pub fn run(
@@ -34,7 +34,7 @@ impl Snapshotter {
         );
         client.exec(&conn, query)?;
 
-        let result = client.fetch(&conn, format!("SELECT * FROM {};", table_name));
+        let result = client.fetch(&conn, format!("SELECT * FROM {table_name};"));
         match result {
             Ok(Some((_, mut iterator))) => {
                 let mut idx = 0;

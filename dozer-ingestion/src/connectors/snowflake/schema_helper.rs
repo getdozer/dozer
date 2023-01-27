@@ -24,8 +24,7 @@ impl SchemaHelper {
             "DATE" => Ok(FieldType::Date),
             "TIMESTAMP_LTZ" | "TIMESTAMP_NTZ" | "TIMESTAMP_TZ" => Ok(FieldType::Timestamp),
             _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
-                "{:?}",
-                type_name
+                "{type_name:?}"
             ))),
         }
     }
