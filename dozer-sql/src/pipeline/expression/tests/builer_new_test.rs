@@ -90,7 +90,7 @@ fn test_simple_aggr_function() {
             offset: schema.fields.len(),
             aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
-                arg: Expression::Column { index: 0 }
+                args: vec![Expression::Column { index: 0 }]
             }]
         }
     );
@@ -135,13 +135,13 @@ fn test_2_nested_aggr_function() {
             offset: schema.fields.len(),
             aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
-                arg: Expression::ScalarFunction {
+                args: vec![Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
                     args: vec![
                         Expression::Column { index: 1 },
                         Expression::Literal(Field::Int(2))
                     ]
-                }
+                }]
             }]
         }
     );
@@ -186,13 +186,13 @@ fn test_3_nested_aggr_function() {
             offset: schema.fields.len(),
             aggrgeations: vec![AggregationMeasure {
                 typ: Aggregator::Sum,
-                arg: Expression::ScalarFunction {
+                args: vec![Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
                     args: vec![
                         Expression::Column { index: 1 },
                         Expression::Literal(Field::Int(2))
                     ]
-                }
+                }]
             }]
         }
     );
@@ -201,6 +201,66 @@ fn test_3_nested_aggr_function() {
         Box::new(Expression::ScalarFunction {
             fun: ScalarFunctionType::Round,
             args: vec![Expression::Column { index: 2 }]
+        })
+    );
+}
+
+#[test]
+fn test_3_nested_aggr_function_dup() {
+    let sql = "SELECT CONCAT(SUM(ROUND(field1,2)), SUM(ROUND(field1,2))) FROM t0";
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                "field0".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "field1".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .to_owned();
+
+    let mut context = ExpressionContext::new(schema.fields.len());
+    let e = match &get_select(sql).unwrap().projection[0] {
+        SelectItem::UnnamedExpr(e) => {
+            ExpressionBuilder::build(&mut context, true, e, &schema).unwrap()
+        }
+        _ => panic!("Invalid expr"),
+    };
+
+    assert_eq!(
+        context,
+        ExpressionContext {
+            offset: schema.fields.len(),
+            aggrgeations: vec![AggregationMeasure {
+                typ: Aggregator::Sum,
+                args: vec![Expression::ScalarFunction {
+                    fun: ScalarFunctionType::Round,
+                    args: vec![
+                        Expression::Column { index: 1 },
+                        Expression::Literal(Field::Int(2))
+                    ]
+                }]
+            }]
+        }
+    );
+    assert_eq!(
+        e,
+        Box::new(Expression::ScalarFunction {
+            fun: ScalarFunctionType::Concat,
+            args: vec![
+                Expression::Column { index: 2 },
+                Expression::Column { index: 2 }
+            ]
         })
     );
 }
@@ -244,17 +304,17 @@ fn test_3_nested_aggr_function_and_sum() {
             aggrgeations: vec![
                 AggregationMeasure {
                     typ: Aggregator::Sum,
-                    arg: Expression::ScalarFunction {
+                    args: vec![Expression::ScalarFunction {
                         fun: ScalarFunctionType::Round,
                         args: vec![
                             Expression::Column { index: 1 },
                             Expression::Literal(Field::Int(2))
                         ]
-                    }
+                    }]
                 },
                 AggregationMeasure {
                     typ: Aggregator::Sum,
-                    arg: Expression::Column { index: 0 }
+                    args: vec![Expression::Column { index: 0 }]
                 }
             ]
         }
@@ -311,17 +371,17 @@ fn test_3_nested_aggr_function_and_sum_3() {
             aggrgeations: vec![
                 AggregationMeasure {
                     typ: Aggregator::Sum,
-                    arg: Expression::ScalarFunction {
+                    args: vec![Expression::ScalarFunction {
                         fun: ScalarFunctionType::Round,
                         args: vec![
                             Expression::Column { index: 1 },
                             Expression::Literal(Field::Int(2))
                         ]
-                    }
+                    }]
                 },
                 AggregationMeasure {
                     typ: Aggregator::Sum,
-                    arg: Expression::Column { index: 0 }
+                    args: vec![Expression::Column { index: 0 }]
                 }
             ]
         }

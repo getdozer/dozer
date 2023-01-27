@@ -29,12 +29,12 @@ pub struct ExpressionBuilder;
 #[derive(Clone, PartialEq, Debug)]
 pub struct AggregationMeasure {
     pub typ: Aggregator,
-    pub arg: Expression,
+    pub args: Vec<Expression>,
 }
 
 impl AggregationMeasure {
-    pub fn new(typ: Aggregator, arg: Expression) -> Self {
-        Self { typ, arg }
+    pub fn new(typ: Aggregator, args: Vec<Expression>) -> Self {
+        Self { typ, args }
     }
 }
 
@@ -258,24 +258,29 @@ impl ExpressionBuilder {
             Self::is_aggregation_function(function_name.as_str()),
             parse_aggregations,
         ) {
-            (Some(aggr), true) => match sql_function.args.len() {
-                1 => {
-                    let measure = AggregationMeasure::new(
-                        aggr,
-                        *Self::parse_sql_function_arg(
-                            context,
-                            false,
-                            &sql_function.args[0],
-                            schema,
-                        )?,
-                    );
-                    context.aggrgeations.push(measure);
-                    Ok(Box::new(Expression::Column {
-                        index: context.offset + context.aggrgeations.len() - 1,
-                    }))
+            (Some(aggr), true) => {
+                let mut arg_expr: Vec<Expression> = Vec::new();
+                for arg in &sql_function.args {
+                    arg_expr.push(*Self::parse_sql_function_arg(context, false, &arg, schema)?);
                 }
-                _ => Err(TooManyArguments(function_name.clone())),
-            },
+                let measure = AggregationMeasure::new(aggr, arg_expr);
+
+                let index = match context
+                    .aggrgeations
+                    .iter()
+                    .enumerate()
+                    .find(|e| e.1 == &measure)
+                {
+                    Some((index, existing)) => index,
+                    _ => {
+                        context.aggrgeations.push(measure);
+                        context.aggrgeations.len() - 1
+                    }
+                };
+                Ok(Box::new(Expression::Column {
+                    index: context.offset + index,
+                }))
+            }
             (Some(_agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
             (None, _) => {
                 let mut function_args: Vec<Expression> = Vec::new();

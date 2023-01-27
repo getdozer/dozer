@@ -6,31 +6,22 @@ use crate::pipeline::expression::builder_new::{
 };
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
-use sqlparser::ast::{Expr as SqlExpr, Ident, SelectItem};
+use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
+use std::vec;
 
+#[derive(Clone, Copy)]
 pub enum PrimaryKeyAction {
     Retain,
     Drop,
     Force,
 }
 
-struct ProjectionElement {
-    expr: Box<Expression>,
-    projected: bool,
-}
-
-impl ProjectionElement {
-    pub fn new(expr: Box<Expression>, projected: bool) -> Self {
-        Self { expr, projected }
-    }
-}
-
-struct ProjectionPlanner {
+pub struct ProjectionPlanner {
     input_schema: Schema,
     output_schema: Schema,
     // Vector of aggregations to be appended to the original record
     aggregation_output: Vec<AggregationMeasure>,
-    projection_output: Vec<ProjectionElement>,
+    projection_output: Vec<Box<Expression>>,
 }
 
 impl ProjectionPlanner {
@@ -62,25 +53,38 @@ impl ProjectionPlanner {
         Ok(())
     }
 
-    fn add_select_item(
+    pub fn add_select_item(
         &mut self,
-        expr: SelectItem,
-        output_name: Option<String>,
+        item: SelectItem,
+        pk_action: PrimaryKeyAction,
     ) -> Result<(), PipelineError> {
-        match expr {
-            SelectItem::UnnamedExpr(expr) => {}
-            SelectItem::ExprWithAlias { expr, alias } => {}
+        let expr_items: Vec<(Expr, Option<String>)> = match item {
+            SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
+            SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
             SelectItem::QualifiedWildcard(_, _) => panic!("not supported yet"),
             SelectItem::Wildcard(_) => panic!("not supported yet"),
+        };
+
+        for (expr, alias) in expr_items {
+            let mut context = ExpressionContext::new(
+                &self.input_schema.fields.len() + &self.aggregation_output.len(),
+            );
+            let projection_expression =
+                ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
+
+            self.aggregation_output.extend(context.aggrgeations);
+            self.projection_output.push(projection_expression.clone());
+            self.append_to_output_schema(&projection_expression, alias, pk_action)?;
         }
 
-        // let mut context =
-        //     ExpressionContext::new(self.input_schema.fields.len() + self.aggregation_output.len());
-        // let projection_expression =
-        //     ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
-        //
-        // self.aggregation_output.extend(context.aggrgeations);
-        //  self.projection_output.push(projection_expression);
         Ok(())
+    }
+    pub fn new(input_schema: Schema) -> Self {
+        Self {
+            input_schema,
+            output_schema: Schema::empty(),
+            aggregation_output: Vec::new(),
+            projection_output: Vec::new(),
+        }
     }
 }
