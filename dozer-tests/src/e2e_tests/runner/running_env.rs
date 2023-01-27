@@ -298,8 +298,7 @@ fn get_dozer_tests_image() -> String {
 }
 
 fn write_docker_compose(path: &Path, services: HashMap<String, Service>) {
-    let file =
-        File::create(path).unwrap_or_else(|e| panic!("Failed to create file {path:?}: {e}"));
+    let file = File::create(path).unwrap_or_else(|e| panic!("Failed to create file {path:?}: {e}"));
     dozer_types::serde_yaml::to_writer(file, &DockerCompose::new_v2_4(services))
         .unwrap_or_else(|e| panic!("Failed to write docker compose file {path:?}: {e}"));
 }

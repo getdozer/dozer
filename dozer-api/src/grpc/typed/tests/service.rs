@@ -110,10 +110,7 @@ async fn test_grpc_count_and_query_common(
         Server::builder()
             .layer(layer)
             .add_service(typed_service)
-            .serve_with_shutdown(
-                format!("127.0.0.1:{port:}").parse().unwrap(),
-                rx.map(drop),
-            )
+            .serve_with_shutdown(format!("127.0.0.1:{port:}").parse().unwrap(), rx.map(drop))
             .await
             .unwrap();
     });

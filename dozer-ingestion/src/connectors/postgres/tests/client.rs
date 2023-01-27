@@ -66,9 +66,7 @@ impl TestPostgresClient {
             .unwrap();
         }
 
-        let query = format!(
-            "insert into {table_name}(name, description, weight) values {buf}",
-        );
+        let query = format!("insert into {table_name}(name, description, weight) values {buf}",);
 
         self.execute_query(&query);
     }

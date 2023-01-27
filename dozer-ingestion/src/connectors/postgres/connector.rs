@@ -185,9 +185,7 @@ impl PostgresConnector {
             })?;
 
         client
-            .simple_query(
-                format!("CREATE PUBLICATION {publication_name} FOR {table_str}").as_str(),
-            )
+            .simple_query(format!("CREATE PUBLICATION {publication_name} FOR {table_str}").as_str())
             .map_err(|e| {
                 error!("failed to create publication {}", e.to_string());
                 PostgresConnectorError::CreatePublicationError

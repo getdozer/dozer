@@ -348,8 +348,8 @@ fn get_key_interval_from_range_query(
             end: Some(KeyEndpoint::Including(comparison_key)),
             direction: SortDirection::Descending,
         },
-        (other, _) => panic!(
-            "operator {other:?} is not supported by sorted inverted index range query"
-        ),
+        (other, _) => {
+            panic!("operator {other:?} is not supported by sorted inverted index range query")
+        }
     }
 }

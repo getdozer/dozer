@@ -42,16 +42,12 @@ impl Client {
         let health_grpc_client = HealthGrpcServiceClient::connect(grpc_endpoint.clone())
             .await
             .unwrap_or_else(|e| {
-                panic!(
-                    "Health grpc client cannot connect to endpoint {grpc_endpoint_string}: {e}"
-                )
+                panic!("Health grpc client cannot connect to endpoint {grpc_endpoint_string}: {e}")
             });
         let common_grpc_client = CommonGrpcServiceClient::connect(grpc_endpoint.clone())
             .await
             .unwrap_or_else(|e| {
-                panic!(
-                    "Common grpc client cannot connect to endpoint {grpc_endpoint_string}: {e}"
-                )
+                panic!("Common grpc client cannot connect to endpoint {grpc_endpoint_string}: {e}")
             });
 
         Self {
@@ -125,9 +121,7 @@ impl Client {
             });
         let status = response.status();
         if !status.is_success() {
-            panic!(
-                "REST oapi endpoint {endpoint} responds {status}, path is {rest_path}"
-            );
+            panic!("REST oapi endpoint {endpoint} responds {status}, path is {rest_path}");
         }
 
         // Common service getEndpoints.
@@ -179,9 +173,7 @@ impl Client {
             });
         let status = response.status();
         if !status.is_success() {
-            panic!(
-                "REST oapi endpoint {endpoint} responds {status}, path is {rest_path}"
-            );
+            panic!("REST oapi endpoint {endpoint} responds {status}, path is {rest_path}");
         }
         let open_api: OpenAPI = response.json().await.unwrap_or_else(|e| {
             panic!(
@@ -311,9 +303,7 @@ async fn check_grpc_health(client: &mut HealthGrpcServiceClient<Channel>, servic
         })
         .await
         .unwrap_or_else(|e| {
-            panic!(
-                "Cannot get response from grpc health endpoint for service {service}: {e}"
-            )
+            panic!("Cannot get response from grpc health endpoint for service {service}: {e}")
         });
     let status = response.into_inner().status;
     if status != ServingStatus::Serving as i32 {

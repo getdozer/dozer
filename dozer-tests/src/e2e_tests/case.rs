@@ -51,9 +51,7 @@ impl Case {
                 .map(|service_path| read_yaml(service_path));
 
             if !docker_file.exists() && service.is_none() {
-                panic!(
-                    "Connection {connection_dir:?} must have either service.yaml or Dockerfile"
-                );
+                panic!("Connection {connection_dir:?} must have either service.yaml or Dockerfile");
             }
 
             connections.insert(
@@ -87,9 +85,7 @@ impl Case {
                 kind: CaseKind::ErrorExpectation(error_expectation),
             }
         } else {
-            panic!(
-                "Case {case_dir:?} must have either expectations or error expectation"
-            );
+            panic!("Case {case_dir:?} must have either expectations or error expectation");
         }
     }
 }

@@ -54,9 +54,7 @@ fn assert_command_fails(mut command: Command, expected_string_in_stdout: Option<
     info!("Running command: {:?}", command);
     let output = command.output().expect("Failed to run command");
     if output.status.success() {
-        panic!(
-            "Command {command:?} is expected to fail, but it succeeded"
-        );
+        panic!("Command {command:?} is expected to fail, but it succeeded");
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
     error!("{}", stdout);

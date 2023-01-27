@@ -103,9 +103,7 @@ fn spawn_command(bin: &str, args: &[&str]) -> Child {
         .unwrap_or_else(|e| panic!("Failed to check status of command {cmd:?}: {e}"))
     {
         if exit_status.success() {
-            panic!(
-                "Service {cmd:?} is expected to run in background, but it exited immediately"
-            );
+            panic!("Service {cmd:?} is expected to run in background, but it exited immediately");
         } else {
             panic!(
                 "Service {cmd:?} is expected to run in background, but it exited with status {exit_status}"
