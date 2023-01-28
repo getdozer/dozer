@@ -176,3 +176,64 @@ fn test_alias() {
             .clone()
     );
 }
+
+
+#[test]
+fn test_wildcard() {
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                String::from("fn"),
+                FieldType::Text,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("ln"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .clone();
+
+    let select = get_select("SELECT * FROM t1").unwrap();
+    let processor_factory = ProjectionProcessorFactory::_new(select.projection);
+    let r = processor_factory
+        .get_output_schema(
+            &DEFAULT_PORT_HANDLE,
+            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext::default()))]
+                .into_iter()
+                .collect(),
+        )
+        .unwrap()
+        .0;
+
+    assert_eq!(
+        r,
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("fn"),
+                    FieldType::Text,
+                    false,
+                    SourceDefinition::Dynamic
+                ),
+                false,
+            )
+            .field(
+                FieldDefinition::new(
+                    String::from("ln"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic
+                ),
+                false,
+            )
+            .clone()
+    );
+}

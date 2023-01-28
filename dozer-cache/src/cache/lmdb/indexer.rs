@@ -117,6 +117,10 @@ impl Indexer {
         let string = match field {
             Field::String(string) => string,
             Field::Text(string) => string,
+            Field::Null => {
+                let empty_string = "";
+                empty_string
+            }
             _ => {
                 return Err(CacheError::IndexError(IndexError::FieldNotCompatibleIndex(
                     field_index,
