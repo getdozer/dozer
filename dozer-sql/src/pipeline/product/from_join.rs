@@ -246,11 +246,11 @@ impl JoinOperator {
                 readers,
             )?;
 
-            let mut right_records = vec![];
+            let mut right_join_key = None;
+            // update left join index
             for (left_record, left_lookup_key) in left_records.iter_mut() {
                 let join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key)?;
-
-                // update left join index
+                right_join_key = Some(join_key.clone());
                 self.update_index(
                     action,
                     &join_key,
@@ -259,7 +259,10 @@ impl JoinOperator {
                     database,
                     transaction,
                 )?;
+            }
 
+            let mut right_records = vec![];
+            if let Some(join_key) = right_join_key {
                 let right_lookup_keys =
                     self.read_index(&join_key, self.right_lookup_index, database, transaction)?;
 
@@ -312,12 +315,11 @@ impl JoinOperator {
                 readers,
             )?;
 
-            let mut left_records = vec![];
-
+            let mut left_join_key = None;
+            // update right join index
             for (right_record, right_lookup_key) in right_records.iter_mut() {
                 let join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key)?;
-
-                // update right join index
+                left_join_key = Some(join_key.clone());
                 self.update_index(
                     action,
                     &join_key,
@@ -326,7 +328,11 @@ impl JoinOperator {
                     database,
                     transaction,
                 )?;
+            }
 
+            let mut left_records = vec![];
+
+            if let Some(join_key) = left_join_key {
                 let left_lookup_keys =
                     self.read_index(&join_key, self.left_lookup_index, database, transaction)?;
 
