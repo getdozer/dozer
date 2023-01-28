@@ -342,16 +342,6 @@ impl Source for TestSource {
                 },
                 USER_PORT,
             ),
-            (
-                Operation::Delete {
-                    old: Record::new(
-                        None,
-                        vec![Field::Int(1), Field::String("HR".to_string())],
-                        Some(1),
-                    ),
-                },
-                DEPARTMENT_PORT,
-            ),
             // (
             //     Operation::Delete {
             //         old: Record::new(
@@ -367,21 +357,31 @@ impl Source for TestSource {
             //     },
             //     USER_PORT,
             // ),
-            // (
-            //     Operation::Insert {
-            //         new: Record::new(
-            //             None,
-            //             vec![
-            //                 Field::Int(10004),
-            //                 Field::String("Frank".to_string()),
-            //                 Field::Int(1),
-            //                 Field::Float(OrderedFloat(1.5)),
-            //             ],
-            //             None,
-            //         ),
-            //     },
-            //     USER_PORT,
-            // ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(10004),
+                            Field::String("Frank".to_string()),
+                            Field::Int(1),
+                            Field::Float(OrderedFloat(1.5)),
+                        ],
+                        None,
+                    ),
+                },
+                USER_PORT,
+            ),
+            (
+                Operation::Delete {
+                    old: Record::new(
+                        None,
+                        vec![Field::Int(1), Field::String("HR".to_string())],
+                        Some(1),
+                    ),
+                },
+                DEPARTMENT_PORT,
+            ),
             // (
             //     Operation::Update {
             //         old: Record::new(
@@ -502,10 +502,10 @@ impl Sink for TestSink {
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match _op {
-            Operation::Delete { old } => info!("o0: - {:?}", old.values),
-            Operation::Insert { new } => info!("o0: + {:?}", new.values),
+            Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
+            Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
             Operation::Update { old, new } => {
-                info!("o0: - {:?}, + {:?}", old.values, new.values)
+                info!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
         }
 

@@ -100,11 +100,11 @@ pub(crate) fn index_edges<T: Clone>(
             receivers.insert(edge.to.node.clone(), HashMap::new());
         }
 
-        // let (tx, rx) = bounded(channel_buf_sz);
-        let (tx, rx) = match dag.nodes.get(&edge.from.node).unwrap() {
-            NodeType::Source(_) => bounded(1),
-            _ => bounded(channel_buf_sz),
-        };
+        let (tx, rx) = bounded(channel_buf_sz);
+        // let (tx, rx) = match dag.nodes.get(&edge.from.node).unwrap() {
+        //     NodeType::Source(_) => bounded(1),
+        //     _ => bounded(channel_buf_sz),
+        // };
 
         let rcv_port: PortHandle = edge.to.port;
         if receivers
