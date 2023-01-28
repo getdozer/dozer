@@ -51,20 +51,24 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let (input_schema, context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
 
-        let mut select_expr: Vec<(String, Expression)> = vec!();
+        let mut select_expr: Vec<(String, Expression)> = vec![];
         for s in self.select.iter() {
             match s {
                 SelectItem::Wildcard(_) => {
-                    let fields: Vec<SelectItem> = input_schema.fields
+                    let fields: Vec<SelectItem> = input_schema
+                        .fields
                         .iter()
-                        .map(|col| SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name))))
+                        .map(|col| {
+                            SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(
+                                col.to_owned().name,
+                            )))
+                        })
                         .collect();
                     for f in fields {
                         let res = parse_sql_select_item(&f, input_schema);
                         if let Ok(..) = res {
                             select_expr.push(res.unwrap())
                         }
-
                     }
                 }
                 _ => {

@@ -111,20 +111,24 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             )));
         }
 
-        let mut select_expr: Vec<(String, Expression)> = vec!();
+        let mut select_expr: Vec<(String, Expression)> = vec![];
         for s in self.select.iter() {
             match s {
                 SelectItem::Wildcard(_) => {
-                    let fields: Vec<SelectItem> = input_schema.fields
+                    let fields: Vec<SelectItem> = input_schema
+                        .fields
                         .iter()
-                        .map(|col| SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name))))
+                        .map(|col| {
+                            SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(
+                                col.to_owned().name,
+                            )))
+                        })
                         .collect();
                     for f in fields {
                         let res = parse_sql_select_item(&f, &input_schema);
                         if let Ok(..) = res {
                             select_expr.push(res.unwrap())
                         }
-
                     }
                 }
                 _ => {
@@ -136,7 +140,10 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             }
         }
 
-        Ok(Box::new(ProjectionProcessor::new(input_schema, select_expr)))
+        Ok(Box::new(ProjectionProcessor::new(
+            input_schema,
+            select_expr,
+        )))
     }
 
     fn prepare(
@@ -163,20 +170,22 @@ pub(crate) fn get_aggregation_rules(
     groupby: &[SqlExpr],
     schema: &Schema,
 ) -> Result<Vec<FieldRule>, PipelineError> {
-    let mut select_rules: Vec<FieldRule> = vec!();
+    let mut select_rules: Vec<FieldRule> = vec![];
     for s in select {
         match s {
             SelectItem::Wildcard(_) => {
-                let fields: Vec<SelectItem> = schema.fields
+                let fields: Vec<SelectItem> = schema
+                    .fields
                     .iter()
-                    .map(|col| SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name))))
+                    .map(|col| {
+                        SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name)))
+                    })
                     .collect();
                 for f in fields {
                     let res = parse_sql_aggregate_item(&f, schema);
                     if let Ok(..) = res {
                         select_rules.push(res.unwrap())
                     }
-
                 }
             }
             _ => {
@@ -323,20 +332,22 @@ fn build_projection_schema(
     context: &SchemaSQLContext,
     select: &[SelectItem],
 ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-    let mut select_expr: Vec<(String, Expression)> = vec!();
+    let mut select_expr: Vec<(String, Expression)> = vec![];
     for s in select.iter() {
         match s {
             SelectItem::Wildcard(_) => {
-                let fields: Vec<SelectItem> = input_schema.fields
+                let fields: Vec<SelectItem> = input_schema
+                    .fields
                     .iter()
-                    .map(|col| SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name))))
+                    .map(|col| {
+                        SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name)))
+                    })
                     .collect();
                 for f in fields {
                     let res = parse_sql_select_item(&f, input_schema);
                     if let Ok(..) = res {
                         select_expr.push(res.unwrap())
                     }
-
                 }
             }
             _ => {

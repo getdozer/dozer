@@ -177,7 +177,6 @@ fn test_alias() {
     );
 }
 
-
 #[test]
 fn test_wildcard() {
     let schema = Schema::empty()
