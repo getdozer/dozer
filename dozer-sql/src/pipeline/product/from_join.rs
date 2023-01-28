@@ -17,7 +17,7 @@ use lmdb::Database;
 pub enum JoinAction {
     Insert,
     Delete,
-    Update,
+    // Update,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -192,26 +192,28 @@ pub struct JoinOperator {
     right_lookup_index: u32,
 }
 
+pub struct JoinBranch {
+    pub join_key: Vec<usize>,
+    pub source: Box<JoinSource>,
+    pub lookup_index: u32,
+}
+
 impl JoinOperator {
     pub fn new(
         operator: JoinOperatorType,
-        left_join_key: Vec<usize>,
-        right_join_key: Vec<usize>,
         schema: Schema,
-        left_source: Box<JoinSource>,
-        right_source: Box<JoinSource>,
-        left_lookup_index: u32,
-        right_lookup_index: u32,
+        left_join_branch: JoinBranch,
+        right_join_branch: JoinBranch,
     ) -> Self {
         Self {
             _operator: operator,
-            left_join_key,
-            right_join_key,
+            left_join_key: left_join_branch.join_key,
+            right_join_key: right_join_branch.join_key,
             schema,
-            left_source,
-            right_source,
-            left_lookup_index,
-            right_lookup_index,
+            left_source: left_join_branch.source,
+            right_source: right_join_branch.source,
+            left_lookup_index: left_join_branch.lookup_index,
+            right_lookup_index: right_join_branch.lookup_index,
         }
     }
 
@@ -423,10 +425,9 @@ impl JoinOperator {
             }
             JoinAction::Delete => {
                 prefix_transaction.del(*database, key, Some(value))?;
-            }
-            JoinAction::Update => {
-                todo!()
-            }
+            } // JoinAction::Update => {
+              //     todo!()
+              // }
         }
 
         Ok(())

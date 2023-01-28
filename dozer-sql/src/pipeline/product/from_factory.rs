@@ -10,6 +10,7 @@ use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
 use crate::pipeline::{
     builder::SchemaSQLContext, errors::JoinError, expression::builder::fullname_from_ident,
+    product::from_join::JoinBranch,
 };
 use crate::pipeline::{
     builder::{get_input_names, IndexedTabelWithJoins},
@@ -159,13 +160,17 @@ pub fn build_join_tree(
         )?;
         let join_op = JoinOperator::new(
             join_type,
-            left_keys,
-            right_keys,
             join_schema.clone(),
-            Box::new(left_join_table),
-            Box::new(right_join_table),
-            index as u32,
-            (index + 1) as u32 | RIGHT_JOIN_FLAG,
+            JoinBranch {
+                join_key: left_keys,
+                source: Box::new(left_join_table),
+                lookup_index: index as u32,
+            },
+            JoinBranch {
+                join_key: right_keys,
+                source: Box::new(right_join_table),
+                lookup_index: (index + 1) as u32 | RIGHT_JOIN_FLAG,
+            },
         );
 
         join_tree_root = JoinSource::Join(join_op.clone());

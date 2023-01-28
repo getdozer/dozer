@@ -15,8 +15,6 @@ use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::dag::NodeType;
-
 pub(crate) struct StorageMetadata {
     pub env: LmdbEnvironmentManager,
     pub meta_db: Database,
