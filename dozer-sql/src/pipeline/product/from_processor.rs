@@ -8,6 +8,7 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::internal_err;
+use dozer_types::tracing::info;
 use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
 
@@ -43,14 +44,13 @@ impl FromProcessor {
         record: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<Record>, ExecutionError> {
+    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
         self.operator.insert(
             &JoinAction::Delete,
             from_port,
             record,
-            &[],
             database,
             transaction,
             reader,
@@ -63,14 +63,13 @@ impl FromProcessor {
         record: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<Record>, ExecutionError> {
+    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
         self.operator.insert(
             &JoinAction::Insert,
             from_port,
             record,
-            &[],
             database,
             transaction,
             reader,
@@ -106,18 +105,26 @@ impl Processor for FromProcessor {
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
+        match op.clone() {
+            Operation::Delete { old } => info!("p{from_port}: - {:?}", old.values),
+            Operation::Insert { new } => info!("p{from_port}: + {:?}", new.values),
+            Operation::Update { old, new } => {
+                info!("p{from_port}: - {:?}, + {:?}", old.values, new.values)
+            }
+        }
+
         match op {
             Operation::Delete { ref old } => {
                 let records = self.delete(from_port, old, transaction, reader)?;
 
-                for record in records.into_iter() {
+                for (record, lookup_key) in records.into_iter() {
                     let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
                 let records = self.insert(from_port, new, transaction, reader)?;
 
-                for record in records.into_iter() {
+                for (record, lookup_key) in records.into_iter() {
                     let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
             }

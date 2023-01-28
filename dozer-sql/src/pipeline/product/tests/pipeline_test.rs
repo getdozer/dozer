@@ -231,32 +231,6 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String("UK".to_string()),
-                            Field::String("United Kingdom".to_string()),
-                        ],
-                        Some(1),
-                    ),
-                },
-                COUNTRY_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String("SG".to_string()),
-                            Field::String("Singapore".to_string()),
-                        ],
-                        Some(1),
-                    ),
-                },
-                COUNTRY_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
                             Field::Int(10000),
                             Field::String("Alice".to_string()),
                             Field::Int(0),
@@ -293,6 +267,32 @@ impl Source for TestSource {
                     ),
                 },
                 USER_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String("UK".to_string()),
+                            Field::String("United Kingdom".to_string()),
+                        ],
+                        Some(1),
+                    ),
+                },
+                COUNTRY_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String("SG".to_string()),
+                            Field::String("Singapore".to_string()),
+                        ],
+                        Some(1),
+                    ),
+                },
+                COUNTRY_PORT,
             ),
             (
                 Operation::Insert {
@@ -400,18 +400,22 @@ impl Source for TestSource {
         ];
 
         for operation in operations.iter().enumerate() {
-            match operation.1.clone().0 {
-                Operation::Delete { old } => info!("{}: - {:?}", operation.1.clone().1, old.values),
-                Operation::Insert { new } => info!("{}: + {:?}", operation.1.clone().1, new.values),
-                Operation::Update { old, new } => {
-                    info!(
-                        "{}: - {:?}, + {:?}",
-                        operation.1.clone().1,
-                        old.values,
-                        new.values
-                    )
-                }
-            }
+            // match operation.1.clone().0 {
+            //     Operation::Delete { old } => {
+            //         info!("s{}: - {:?}", operation.1.clone().1, old.values)
+            //     }
+            //     Operation::Insert { new } => {
+            //         info!("s{}: + {:?}", operation.1.clone().1, new.values)
+            //     }
+            //     Operation::Update { old, new } => {
+            //         info!(
+            //             "s{}: - {:?}, + {:?}",
+            //             operation.1.clone().1,
+            //             old.values,
+            //             new.values
+            //         )
+            //     }
+            // }
             fw.send(
                 operation.0.try_into().unwrap(),
                 0,
@@ -498,10 +502,10 @@ impl Sink for TestSink {
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match _op {
-            Operation::Delete { old } => info!("s: - {:?}", old.values),
-            Operation::Insert { new } => info!("s: + {:?}", new.values),
+            Operation::Delete { old } => info!("o0: - {:?}", old.values),
+            Operation::Insert { new } => info!("o0: + {:?}", new.values),
             Operation::Update { old, new } => {
-                info!("s: - {:?}, + {:?}", old.values, new.values)
+                info!("o0: - {:?}, + {:?}", old.values, new.values)
             }
         }
 

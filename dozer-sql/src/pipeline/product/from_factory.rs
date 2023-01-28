@@ -99,8 +99,7 @@ pub fn build_join_tree(
     join_tables: &IndexedTabelWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<JoinSource, PipelineError> {
-    const JOIN_INDEX_FLAG: u32 = 0x80000000;
-    const RIGHT_JOIN_FLAG: u32 = 0x40000000;
+    const RIGHT_JOIN_FLAG: u32 = 0x80000000;
 
     let port = 0 as PortHandle;
     let mut left_schema = input_schemas
@@ -114,8 +113,7 @@ pub fn build_join_tree(
         .unwrap()
         .clone();
 
-    let mut left_join_table =
-        JoinSource::Table(JoinTable::new(port, left_schema.clone(), port as u32));
+    let mut left_join_table = JoinSource::Table(JoinTable::new(port, left_schema.clone()));
 
     let mut join_tree_root = left_join_table.clone();
 
@@ -128,11 +126,7 @@ pub fn build_join_tree(
             Ok,
         )?;
 
-        let right_join_table = JoinSource::Table(JoinTable::new(
-            right_port,
-            right_schema.clone(),
-            (index + 1) as u32 | RIGHT_JOIN_FLAG,
-        ));
+        let right_join_table = JoinSource::Table(JoinTable::new(right_port, right_schema.clone()));
 
         let join_schema = append_schema(left_schema.clone(), right_schema);
 
@@ -170,7 +164,8 @@ pub fn build_join_tree(
             join_schema.clone(),
             Box::new(left_join_table),
             Box::new(right_join_table),
-            index as u32 | JOIN_INDEX_FLAG,
+            index as u32,
+            (index + 1) as u32 | RIGHT_JOIN_FLAG,
         );
 
         join_tree_root = JoinSource::Join(join_op.clone());
@@ -336,8 +331,14 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>
 }
 
 fn append_schema(mut output_schema: Schema, current_schema: &Schema) -> Schema {
+    let current_len = current_schema.fields.len();
+
     for field in current_schema.clone().fields.into_iter() {
         output_schema.fields.push(field);
+    }
+
+    for primary_key in current_schema.clone().primary_index.into_iter() {
+        output_schema.primary_index.push(primary_key + current_len);
     }
 
     output_schema
