@@ -246,6 +246,7 @@ impl JoinOperator {
                 readers,
             )?;
 
+            let mut right_records = vec![];
             for (left_record, left_lookup_key) in left_records.iter_mut() {
                 let join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key)?;
 
@@ -262,7 +263,6 @@ impl JoinOperator {
                 let right_lookup_keys =
                     self.read_index(&join_key, self.right_lookup_index, database, transaction)?;
 
-                let mut right_records = vec![];
                 for right_lookup_key in right_lookup_keys.iter() {
                     // lookup on the right branch to find matching records
                     let mut right_lookup_records = self.right_source.lookup(
@@ -273,8 +273,11 @@ impl JoinOperator {
                     )?;
                     right_records.append(&mut right_lookup_records);
                 }
+            }
 
-                // join the records
+            // join the records
+            for (left_record, left_lookup_key) in left_records.iter_mut() {
+                let join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key)?;
 
                 for (right_record, right_lookup_key) in right_records.iter_mut() {
                     // update right join index
@@ -309,6 +312,8 @@ impl JoinOperator {
                 readers,
             )?;
 
+            let mut left_records = vec![];
+
             for (right_record, right_lookup_key) in right_records.iter_mut() {
                 let join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key)?;
 
@@ -325,7 +330,6 @@ impl JoinOperator {
                 let left_lookup_keys =
                     self.read_index(&join_key, self.left_lookup_index, database, transaction)?;
 
-                let mut left_records = vec![];
                 for left_lookup_key in left_lookup_keys.iter() {
                     // lookup on the left branch to find matching records
                     let mut left_lookup_records =
@@ -333,8 +337,11 @@ impl JoinOperator {
                             .lookup(left_lookup_key, database, transaction, readers)?;
                     left_records.append(&mut left_lookup_records);
                 }
+            }
 
-                // join the records
+            // join the records
+            for (right_record, right_lookup_key) in right_records.iter_mut() {
+                let join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key)?;
 
                 for (left_record, left_lookup_key) in left_records.iter_mut() {
                     // update left join index
@@ -562,9 +569,9 @@ impl JoinOperator {
 //     merged_join_keys
 // }
 
-fn join_records(left_record: &mut Record, right_record: &mut Record) -> Record {
-    left_record.values.append(&mut right_record.values);
-    Record::new(None, left_record.values.clone(), None)
+fn join_records(left_record: &Record, right_record: &Record) -> Record {
+    let concat_values = [left_record.values.clone(), right_record.values.clone()].concat();
+    Record::new(None, concat_values, None)
 }
 
 fn encode_join_key(record: &Record, join_keys: &[usize]) -> Result<Vec<u8>, TypeError> {

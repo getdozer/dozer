@@ -117,14 +117,14 @@ impl Processor for FromProcessor {
             Operation::Delete { ref old } => {
                 let records = self.delete(from_port, old, transaction, reader)?;
 
-                for (record, lookup_key) in records.into_iter() {
+                for (record, _lookup_key) in records.into_iter() {
                     let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
                 let records = self.insert(from_port, new, transaction, reader)?;
 
-                for (record, lookup_key) in records.into_iter() {
+                for (record, _lookup_key) in records.into_iter() {
                     let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
             }
