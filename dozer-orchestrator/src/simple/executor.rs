@@ -1,6 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
-use dozer_sql::pipeline::builder::{self, statement_to_pipeline, SchemaSQLContext};
+use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -28,6 +28,7 @@ use OrchestrationError::ExecutionError;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::source_builder::SourceBuilder;
+use crate::simple::direct_cache_pipeline::source_to_pipeline;
 use crate::{validate, validate_schema};
 
 pub struct Executor {
@@ -225,9 +226,10 @@ impl Executor {
             //     .build_pipeline(&api_endpoint.sql)
             //     .map_err(OrchestrationError::PipelineError)?;
 
-            let (mut pipeline, (query_name, query_port)) =
-                builder::statement_to_pipeline(&api_endpoint.sql)
-                    .map_err(OrchestrationError::PipelineError)?;
+            let (mut pipeline, (query_name, query_port)) = api_endpoint.sql.as_ref().map_or_else(
+                || Ok(source_to_pipeline(&api_endpoint)),
+                |sql| statement_to_pipeline(sql).map_err(OrchestrationError::PipelineError),
+            )?;
 
             pipeline.add_sink(
                 Arc::new(CacheSinkFactory::new(
