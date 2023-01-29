@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
 use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
-use super::product::from_factory::FromProcessorFactory;
+use super::product::factory::FromProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
