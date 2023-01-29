@@ -9,7 +9,9 @@ use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
 use crate::pipeline::{
-    builder::SchemaSQLContext, errors::JoinError, expression::builder::fullname_from_ident,
+    builder::SchemaSQLContext,
+    errors::JoinError,
+    expression::builder::{extend_schema_source_def, fullname_from_ident},
     product::join::JoinBranch,
 };
 use crate::pipeline::{
@@ -103,7 +105,7 @@ pub fn build_join_tree(
     const RIGHT_JOIN_FLAG: u32 = 0x80000000;
 
     let port = 0 as PortHandle;
-    let mut left_schema = input_schemas
+    let left_schema = input_schemas
         .get(&port)
         .map_or(
             Err(JoinError::InvalidJoinConstraint(
@@ -113,8 +115,10 @@ pub fn build_join_tree(
         )
         .unwrap()
         .clone();
+    let relation_name = &join_tables.relation.0;
+    let mut left_extended_schema = extend_schema_source_def(&left_schema, relation_name);
 
-    let mut left_join_table = JoinSource::Table(JoinTable::new(port, left_schema.clone()));
+    let mut left_join_table = JoinSource::Table(JoinTable::new(port, left_extended_schema.clone()));
 
     let mut join_tree_root = left_join_table.clone();
 
@@ -127,9 +131,11 @@ pub fn build_join_tree(
             Ok,
         )?;
 
-        let right_join_table = JoinSource::Table(JoinTable::new(right_port, right_schema.clone()));
+        let right_extended_schema = extend_schema_source_def(right_schema, relation_name);
+        let right_join_table =
+            JoinSource::Table(JoinTable::new(right_port, right_extended_schema.clone()));
 
-        let join_schema = append_schema(left_schema.clone(), right_schema);
+        let join_schema = append_schema(left_extended_schema.clone(), &right_extended_schema);
 
         let (join_type, join_constraint) = match &join.join_operator {
             sqlparser::ast::JoinOperator::Inner(constraint) => {
@@ -175,7 +181,7 @@ pub fn build_join_tree(
 
         join_tree_root = JoinSource::Join(join_op.clone());
 
-        left_schema = join_schema;
+        left_extended_schema = join_schema;
         left_join_table = JoinSource::Join(join_op);
     }
 

@@ -49,7 +49,6 @@ fn join_alias_query() {
 }
 
 #[test]
-#[ignore = "Multiple joins dont work yet"]
 fn multi_join_query() {
     let queries = vec![
         r#" 
