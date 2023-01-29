@@ -34,7 +34,7 @@ impl Snapshotter {
         );
         let result = client.exec_stream_creation(&conn, query)?;
 
-        if result == false {
+        if !result {
             let query = format!(
                 "CREATE STREAM IF NOT EXISTS {snapshot_table} ON VIEW {table_name} SHOW_INITIAL_ROWS = TRUE;"
             );

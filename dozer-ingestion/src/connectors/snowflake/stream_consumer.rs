@@ -52,10 +52,9 @@ impl StreamConsumer {
             Snapshotter::get_snapshot_table_name(table_name)
         );
 
-        let result = client
-            .exec_stream_creation(&conn, query)?;
+        let result = client.exec_stream_creation(&conn, query)?;
 
-        if result == false {
+        if !result {
             let query = format!(
                 "CREATE STREAM {} on view {} at(stream => '{}')",
                 Self::get_stream_table_name(table_name),

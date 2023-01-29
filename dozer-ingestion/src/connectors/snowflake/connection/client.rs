@@ -251,7 +251,7 @@ impl Client {
                     Err(QueryError(Box::new(e)))
                 }
             },
-            |_| Ok(true)
+            |_| Ok(true),
         )
     }
 
