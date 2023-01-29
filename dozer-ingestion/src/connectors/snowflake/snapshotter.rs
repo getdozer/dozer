@@ -32,7 +32,14 @@ impl Snapshotter {
         let query = format!(
             "CREATE STREAM IF NOT EXISTS {snapshot_table} ON TABLE {table_name} SHOW_INITIAL_ROWS = TRUE;"
         );
-        client.exec(&conn, query)?;
+        let result = client.exec_stream_creation(&conn, query)?;
+
+        if result == false {
+            let query = format!(
+                "CREATE STREAM IF NOT EXISTS {snapshot_table} ON VIEW {table_name} SHOW_INITIAL_ROWS = TRUE;"
+            );
+            client.exec(&conn, query)?;
+        }
 
         let mut idx = offset;
         let result = client.fetch(&conn, format!("SELECT * EXCLUDE (\"METADATA$ACTION\", \"METADATA$ISUPDATE\", \"METADATA$ROW_ID\") FROM {snapshot_table};"))?;
