@@ -8,10 +8,7 @@ use dozer_core::dag::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
 
-use crate::pipeline::{
-    builder::SchemaSQLContext,
-    expression::builder::{extend_schema_source_def, NameOrAlias},
-};
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -29,7 +26,6 @@ use super::{
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
-    name: NameOrAlias,
     select: Vec<SelectItem>,
     groupby: Vec<SqlExpr>,
     stateful: bool,
@@ -37,14 +33,8 @@ pub struct AggregationProcessorFactory {
 
 impl AggregationProcessorFactory {
     /// Creates a new [`AggregationProcessorFactory`].
-    pub fn new(
-        name: NameOrAlias,
-        select: Vec<SelectItem>,
-        groupby: Vec<SqlExpr>,
-        stateful: bool,
-    ) -> Self {
+    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>, stateful: bool) -> Self {
         Self {
-            name,
             select,
             groupby,
             stateful,
@@ -101,7 +91,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =
-            get_aggregation_rules(&self.select, &self.groupby, &input_schema).unwrap();
+            get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
         if is_aggregation(&self.groupby, &output_field_rules) {
             return Ok(Box::new(AggregationProcessor::new(
@@ -124,14 +114,14 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                         })
                         .collect();
                     for f in fields {
-                        let res = parse_sql_select_item(&f, &input_schema);
+                        let res = parse_sql_select_item(&f, input_schema);
                         if let Ok(..) = res {
                             select_expr.push(res.unwrap())
                         }
                     }
                 }
                 _ => {
-                    let res = parse_sql_select_item(s, &input_schema);
+                    let res = parse_sql_select_item(s, input_schema);
                     if let Ok(..) = res {
                         select_expr.push(res.unwrap())
                     }
