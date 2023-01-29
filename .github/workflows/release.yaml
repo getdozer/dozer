@@ -109,7 +109,7 @@ jobs:
             ${{ runner.os }}-cargo-release-
 
       - name: Prepare build package
-        run: cargo build --release
+        run: cargo build --features=snowflake --release
 
       - name: Prepare release assets
         shell: bash
