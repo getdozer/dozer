@@ -230,6 +230,16 @@ impl Source for TestSource {
                 Operation::Insert {
                     new: Record::new(
                         None,
+                        vec![Field::Int(1), Field::String("HR".to_string())],
+                        Some(1),
+                    ),
+                },
+                DEPARTMENT_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
                         vec![
                             Field::Int(10000),
                             Field::String("Alice".to_string()),
@@ -241,16 +251,6 @@ impl Source for TestSource {
                     ),
                 },
                 USER_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::Int(1), Field::String("HR".to_string())],
-                        Some(1),
-                    ),
-                },
-                DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
@@ -309,6 +309,16 @@ impl Source for TestSource {
                     ),
                 },
                 USER_PORT,
+            ),
+            (
+                Operation::Delete {
+                    old: Record::new(
+                        None,
+                        vec![Field::Int(1), Field::String("HR".to_string())],
+                        Some(1),
+                    ),
+                },
+                DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
@@ -373,11 +383,11 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                Operation::Delete {
-                    old: Record::new(
+                Operation::Insert {
+                    new: Record::new(
                         None,
-                        vec![Field::Int(1), Field::String("HR".to_string())],
-                        Some(1),
+                        vec![Field::Int(1), Field::String("RD".to_string())],
+                        Some(2),
                     ),
                 },
                 DEPARTMENT_PORT,

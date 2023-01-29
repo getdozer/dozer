@@ -518,64 +518,6 @@ impl JoinOperator {
     }
 }
 
-// fn encode_composite_lookup_key(left_join_keys: Vec<Field>) -> Vec<u8> {
-//     let mut composite_lookup_key = vec![];
-//     for key in left_join_keys.iter() {
-//         let value = key.encode();
-//         let length = value.len() as u32;
-//         composite_lookup_key.extend_from_slice(&length.to_be_bytes());
-//         composite_lookup_key.extend_from_slice(value.as_slice());
-//     }
-//     composite_lookup_key
-// }
-
-// fn encode_composite_lookup_key_from_record(
-//     record: &Record,
-//     merged_join_keys: Vec<usize>,
-// ) -> Vec<u8> {
-//     let mut composite_lookup_key = vec![];
-//     for key in merged_join_keys.iter() {
-//         let value = &record.values[*key].encode();
-//         let length = value.len() as u32;
-//         composite_lookup_key.extend_from_slice(&length.to_be_bytes());
-//         composite_lookup_key.extend_from_slice(value.as_slice());
-//     }
-//     composite_lookup_key
-// }
-
-// fn decode_composite_lookup_key(
-//     binary_lookup_key: Vec<u8>,
-//     merged_join_keys: Vec<usize>,
-// ) -> Result<Vec<Field>, DeserializationError> {
-//     let mut lookup_key = vec![];
-//     let mut offset = 0;
-//     for _index in merged_join_keys.iter() {
-//         let length = u32::from_be_bytes([
-//             binary_lookup_key[offset],
-//             binary_lookup_key[offset + 1],
-//             binary_lookup_key[offset + 2],
-//             binary_lookup_key[offset + 3],
-//         ]);
-//         offset += 4;
-//         let value = &binary_lookup_key[offset..offset + length as usize];
-//         offset += length as usize;
-//         lookup_key.push(Field::decode(value)?);
-//     }
-//     Ok(lookup_key)
-// }
-
-// fn merge_join_keys(
-//     left_join_key: &[usize],
-//     left_schema_len: &usize,
-//     right_join_key: &[usize],
-// ) -> Vec<usize> {
-//     let mut merged_join_keys = left_join_key.to_vec();
-//     for key in right_join_key.iter() {
-//         merged_join_keys.push(key + left_schema_len);
-//     }
-//     merged_join_keys
-// }
-
 fn join_records(left_record: &Record, right_record: &Record) -> Record {
     let concat_values = [left_record.values.clone(), right_record.values.clone()].concat();
     Record::new(None, concat_values, None)
@@ -591,3 +533,36 @@ fn encode_join_key(record: &Record, join_keys: &[usize]) -> Result<Vec<u8>, Type
     }
     Ok(composite_lookup_key)
 }
+
+// fn join_records(left_record: &Record, right_record: &Record) -> Record {
+//     let concat_values = [left_record.values.clone(), right_record.values.clone()].concat();
+//     let mut left_version = 0;
+//     if let Some(version) = left_record.version {
+//         left_version = version;
+//     }
+//     let mut right_version = 0;
+//     if let Some(version) = right_record.version {
+//         right_version = version;
+//     }
+//     Record::new(
+//         None,
+//         concat_values,
+//         Some((left_version * 100) + right_version),
+//     )
+// }
+
+// fn encode_join_key(record: &Record, join_keys: &[usize]) -> Result<Vec<u8>, TypeError> {
+//     let mut composite_lookup_key = vec![];
+//     let mut version = 0_u32;
+//     if let Some(record_version) = &record.version {
+//         version = *record_version;
+//     }
+//     composite_lookup_key.extend_from_slice(&version.to_be_bytes());
+//     for key in join_keys.iter() {
+//         let value = &record.values[*key].encode();
+//         let length = value.len() as u32;
+//         composite_lookup_key.extend_from_slice(&length.to_be_bytes());
+//         composite_lookup_key.extend_from_slice(value.as_slice());
+//     }
+//     Ok(composite_lookup_key)
+// }
