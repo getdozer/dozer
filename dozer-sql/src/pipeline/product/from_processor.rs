@@ -76,6 +76,7 @@ impl FromProcessor {
         )
     }
 
+    #[allow(clippy::type_complexity)]
     fn update(
         &self,
         from_port: PortHandle,
@@ -90,18 +91,18 @@ impl FromProcessor {
             &JoinAction::Delete,
             from_port,
             old,
-            &database,
-            &transaction,
-            &reader,
+            database,
+            transaction,
+            reader,
         )?;
 
         let new_records = self.operator.execute(
             &JoinAction::Insert,
             from_port,
             new,
-            &database,
-            &transaction,
-            &reader,
+            database,
+            transaction,
+            reader,
         )?;
 
         Ok((old_records, new_records))
