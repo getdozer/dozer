@@ -47,7 +47,7 @@ impl FromProcessor {
     ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
-        self.operator.insert(
+        self.operator.execute(
             &JoinAction::Delete,
             from_port,
             record,
@@ -66,7 +66,7 @@ impl FromProcessor {
     ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
-        self.operator.insert(
+        self.operator.execute(
             &JoinAction::Insert,
             from_port,
             record,
@@ -78,13 +78,33 @@ impl FromProcessor {
 
     fn update(
         &self,
-        _from_port: PortHandle,
-        _old: &Record,
-        _new: &Record,
-        _transaction: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<(Vec<Record>, Vec<Record>), ExecutionError> {
-        todo!()
+        from_port: PortHandle,
+        old: &Record,
+        new: &Record,
+        transaction: &SharedTransaction,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+    ) -> Result<(Vec<(Record, Vec<u8>)>, Vec<(Record, Vec<u8>)>), ExecutionError> {
+        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+
+        let old_records = self.operator.execute(
+            &JoinAction::Delete,
+            from_port,
+            old,
+            &database,
+            &transaction,
+            &reader,
+        )?;
+
+        let new_records = self.operator.execute(
+            &JoinAction::Insert,
+            from_port,
+            new,
+            &database,
+            &transaction,
+            &reader,
+        )?;
+
+        Ok((old_records, new_records))
     }
 }
 
@@ -133,11 +153,11 @@ impl Processor for FromProcessor {
                     self.update(from_port, old, new, transaction, reader)?;
 
                 for old in old_join_records.into_iter() {
-                    let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                    let _ = fw.send(Operation::Delete { old: old.0 }, DEFAULT_PORT_HANDLE);
                 }
 
                 for new in new_join_records.into_iter() {
-                    let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+                    let _ = fw.send(Operation::Insert { new: new.0 }, DEFAULT_PORT_HANDLE);
                 }
             }
         }

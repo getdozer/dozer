@@ -310,16 +310,16 @@ impl Source for TestSource {
                 },
                 USER_PORT,
             ),
-            (
-                Operation::Delete {
-                    old: Record::new(
-                        None,
-                        vec![Field::Int(1), Field::String("HR".to_string())],
-                        Some(1),
-                    ),
-                },
-                DEPARTMENT_PORT,
-            ),
+            // (
+            //     Operation::Delete {
+            //         old: Record::new(
+            //             None,
+            //             vec![Field::Int(1), Field::String("HR".to_string())],
+            //             Some(1),
+            //         ),
+            //     },
+            //     DEPARTMENT_PORT,
+            // ),
             (
                 Operation::Insert {
                     new: Record::new(
@@ -372,9 +372,10 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(10004),
+                            Field::Int(10005),
                             Field::String("Frank".to_string()),
                             Field::Int(1),
+                            Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.5)),
                         ],
                         None,
@@ -383,10 +384,15 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                Operation::Insert {
+                Operation::Update {
+                    old: Record::new(
+                        None,
+                        vec![Field::Int(0), Field::String("IT".to_string())],
+                        Some(1),
+                    ),
                     new: Record::new(
                         None,
-                        vec![Field::Int(1), Field::String("RD".to_string())],
+                        vec![Field::Int(0), Field::String("RD".to_string())],
                         Some(2),
                     ),
                 },
