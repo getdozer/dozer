@@ -63,7 +63,7 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         let input_names = get_input_names(&self.input_tables);
         for (port, _table) in input_names.iter().enumerate() {
             if let Some((current_schema, _)) = input_schemas.get(&(port as PortHandle)) {
-                output_schema = append_schema(output_schema, current_schema);
+                output_schema = append_schema(&output_schema, current_schema);
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
             }
@@ -135,7 +135,7 @@ pub fn build_join_tree(
         let right_join_table =
             JoinSource::Table(JoinTable::new(right_port, right_extended_schema.clone()));
 
-        let join_schema = append_schema(left_extended_schema.clone(), &right_extended_schema);
+        let join_schema = append_schema(&left_extended_schema, &right_extended_schema);
 
         let (join_type, join_constraint) = match &join.join_operator {
             sqlparser::ast::JoinOperator::Inner(constraint) => {
@@ -341,15 +341,25 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>
     field_index.map_or(Ok(None), |(i, _fd)| Ok(Some(i)))
 }
 
-fn append_schema(mut output_schema: Schema, current_schema: &Schema) -> Schema {
-    let current_len = current_schema.fields.len();
+fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {
+    let mut output_schema = Schema::empty();
 
-    for field in current_schema.clone().fields.into_iter() {
-        output_schema.fields.push(field);
+    let left_len = left_schema.fields.len();
+
+    for field in left_schema.fields.iter() {
+        output_schema.fields.push(field.clone());
     }
 
-    for primary_key in current_schema.clone().primary_index.into_iter() {
-        output_schema.primary_index.push(primary_key + current_len);
+    for field in right_schema.fields.iter() {
+        output_schema.fields.push(field.clone());
+    }
+
+    for primary_key in left_schema.clone().primary_index.into_iter() {
+        output_schema.primary_index.push(primary_key);
+    }
+
+    for primary_key in right_schema.clone().primary_index.into_iter() {
+        output_schema.primary_index.push(primary_key + left_len);
     }
 
     output_schema
