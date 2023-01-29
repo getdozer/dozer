@@ -102,7 +102,7 @@ fn query_to_pipeline(
                 &table.query,
                 pipeline,
                 query_ctx,
-                false,
+                true,
             )?;
         }
     };
