@@ -101,10 +101,10 @@ fn multi_join_query() {
 fn join_cte_query() {
     let queries = vec![
         r#" 
-        WITH tbl as (
+        WITH table as (
             SELECT actor_id, first_name, last_name from actor
         ) 
-        SELECT tbl.actor_id, first_name, last_name from tbl as tbl
+        SELECT tbl.actor_id, first_name, last_name from table as tbl
         JOIN film_actor fa on fa.actor_id = tbl.actor_id;
       "#,
     ];
