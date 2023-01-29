@@ -63,8 +63,14 @@ fn multi_join_query() {
     let table_names = vec!["actor", "film_actor", "film"];
     helper::compare_with_sqlite(
         &table_names,
-        queries,
+        queries.clone(),
         TestInstruction::FromCsv("actor", table_names.clone()),
+    );
+
+    helper::compare_with_sqlite(
+        &table_names,
+        queries,
+        TestInstruction::List(get_sample_ops()),
     );
 }
 
@@ -84,7 +90,63 @@ fn join_cte_query() {
     let table_names = vec!["actor", "film_actor", "film"];
     helper::compare_with_sqlite(
         &table_names,
-        queries,
+        queries.clone(),
         TestInstruction::FromCsv("actor", table_names.clone()),
+    );
+    helper::compare_with_sqlite(
+        &table_names,
+        queries,
+        TestInstruction::List(get_sample_ops()),
+    );
+}
+
+#[test]
+#[ignore = "Multiple joins dont work yet"]
+fn include_outer_joins() {
+    let queries = vec![
+        r#" 
+        
+        SELECT a.actor_id, first_name, last_name from actor a 
+        LEFT JOIN film_actor fa on fa.actor_id = a.actor_id
+        LEFT JOIN film f on f.film_id = fa.film_id;
+      "#,
+    ];
+
+    let table_names = vec!["actor", "film_actor", "film"];
+    helper::compare_with_sqlite(
+        &table_names,
+        queries.clone(),
+        TestInstruction::FromCsv("actor", table_names.clone()),
+    );
+
+    helper::compare_with_sqlite(
+        &table_names,
+        queries,
+        TestInstruction::List(get_sample_ops()),
+    );
+}
+
+#[test]
+#[ignore = "Multiple joins dont work yet"]
+fn include_right_joins() {
+    let queries = vec![
+        r#" 
+        
+        SELECT a.actor_id, first_name, last_name from actor a 
+        LEFT JOIN film_actor fa on fa.actor_id = a.actor_id
+        RIGHT JOIN film f on f.film_id = fa.film_id;
+      "#,
+    ];
+
+    let table_names = vec!["actor", "film_actor", "film"];
+    helper::compare_with_sqlite(
+        &table_names,
+        queries.clone(),
+        TestInstruction::FromCsv("actor", table_names.clone()),
+    );
+    helper::compare_with_sqlite(
+        &table_names,
+        queries,
+        TestInstruction::List(get_sample_ops()),
     );
 }
