@@ -156,7 +156,7 @@ pub fn build_join_tree(
             JoinConstraint::On(expression) => expression,
             _ => {
                 return Err(PipelineError::JoinError(
-                    JoinError::UnsupportedJoinConstraint,
+                    JoinError::UnsupportedJoinConstraintType,
                 ))
             }
         };
@@ -229,11 +229,11 @@ fn parse_join_constraint(
                 Ok((left_key_indexes, right_key_indexes))
             }
             _ => Err(PipelineError::JoinError(
-                JoinError::UnsupportedJoinConstraint,
+                JoinError::UnsupportedJoinConstraintOperator(op.to_string()),
             )),
         },
         _ => Err(PipelineError::JoinError(
-            JoinError::UnsupportedJoinConstraint,
+            JoinError::UnsupportedJoinConstraint(expression.to_string()),
         )),
     }
 }
@@ -252,7 +252,7 @@ fn parse_join_eq_expression(
         }
         _ => {
             return Err(PipelineError::JoinError(
-                JoinError::UnsupportedJoinConstraint,
+                JoinError::UnsupportedJoinConstraint(expr.clone().to_string()),
             ))
         }
     }?;
@@ -262,7 +262,7 @@ fn parse_join_eq_expression(
         (None, Some(right_key)) => right_key_indexes.push(right_key),
         _ => {
             return Err(PipelineError::JoinError(
-                JoinError::UnsupportedJoinConstraint,
+                JoinError::UnsupportedJoinConstraint("".to_string()),
             ))
         }
     }
