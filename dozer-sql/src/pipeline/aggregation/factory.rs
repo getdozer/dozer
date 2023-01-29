@@ -5,7 +5,7 @@ use dozer_core::dag::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
-use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
+use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
 
 use crate::pipeline::{
@@ -100,14 +100,13 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
-        let input_schema = extend_schema_source_def(input_schema, &self.name);
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, &input_schema).unwrap();
 
         if is_aggregation(&self.groupby, &output_field_rules) {
             return Ok(Box::new(AggregationProcessor::new(
                 output_field_rules,
-                input_schema,
+                input_schema.clone(),
             )));
         }
 
@@ -141,7 +140,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         }
 
         Ok(Box::new(ProjectionProcessor::new(
-            input_schema,
+            input_schema.clone(),
             select_expr,
         )))
     }
@@ -371,7 +370,7 @@ fn build_projection_schema(
             field_name,
             field_type.return_type,
             field_type.nullable,
-            SourceDefinition::Dynamic,
+            field_type.source,
         ));
     }
     output_schema.fields = fields;

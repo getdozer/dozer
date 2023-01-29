@@ -60,10 +60,12 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let mut output_schema = Schema::empty();
+
         let input_names = get_input_names(&self.input_tables);
         for (port, _table) in input_names.iter().enumerate() {
             if let Some((current_schema, _)) = input_schemas.get(&(port as PortHandle)) {
-                output_schema = append_schema(&output_schema, current_schema);
+                let current_extended_schema = extend_schema_source_def(current_schema, _table);
+                output_schema = append_schema(&output_schema, &current_extended_schema);
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
             }
