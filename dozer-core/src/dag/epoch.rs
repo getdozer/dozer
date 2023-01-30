@@ -278,3 +278,137 @@ impl EpochManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::thread::scope;
+
+    use super::*;
+
+    fn new_node_handle(index: u16) -> NodeHandle {
+        NodeHandle::new(Some(index), format!("node{}", index))
+    }
+
+    fn new_checkpoint(node_checkpoints: Vec<(u16, Option<u64>)>) -> PipelineCheckpoint {
+        let mut checkpoint = PipelineCheckpoint::default();
+        for (node, seq) in node_checkpoints {
+            checkpoint.0.insert(
+                new_node_handle(node),
+                seq.map(|seq| OpIdentifier::new(0, seq)),
+            );
+        }
+        checkpoint
+    }
+
+    #[test]
+    fn test_pipeline_checkpoint_ord() {
+        assert_eq!(new_checkpoint(vec![]), new_checkpoint(vec![]));
+        assert_eq!(
+            new_checkpoint(vec![(1, Some(1))]),
+            new_checkpoint(vec![(1, Some(1))])
+        );
+        assert!(new_checkpoint(vec![(1, None)]) < new_checkpoint(vec![(1, Some(0))]));
+        assert!(new_checkpoint(vec![(1, Some(0))]) > new_checkpoint(vec![(1, None)]));
+        assert_eq!(
+            new_checkpoint(vec![(1, Some(1)), (2, Some(2))]),
+            new_checkpoint(vec![(1, Some(1)), (2, Some(2))])
+        );
+        assert!(
+            new_checkpoint(vec![(1, Some(1)), (2, Some(2))])
+                < new_checkpoint(vec![(1, Some(1)), (2, Some(3))])
+        );
+        assert!(
+            new_checkpoint(vec![(1, Some(1)), (2, Some(2))])
+                > new_checkpoint(vec![(1, Some(1)), (2, Some(1))])
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn compare_pipeline_checkpoint_with_different_number_of_nodes_should_panic() {
+        let checkpoint1 = new_checkpoint(vec![(1, Some(1)), (2, Some(2))]);
+        let checkpoint2 = new_checkpoint(vec![(1, Some(1))]);
+        let _ = checkpoint1.cmp(&checkpoint2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn compare_pipeline_checkpoint_with_different_nodes_should_panic() {
+        let checkpoint1 = new_checkpoint(vec![(1, Some(1))]);
+        let checkpoint2 = new_checkpoint(vec![(2, Some(1))]);
+        let _ = checkpoint1.cmp(&checkpoint2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn compare_pipeline_checkpoint_with_undefined_order_should_panic_1() {
+        let checkpoint1 = new_checkpoint(vec![(1, Some(1)), (2, None)]);
+        let checkpoint2 = new_checkpoint(vec![(1, None), (2, Some(1))]);
+        let _ = checkpoint1.cmp(&checkpoint2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn compare_pipeline_checkpoint_with_undefined_order_should_panic_2() {
+        let checkpoint1 = new_checkpoint(vec![(1, Some(1)), (2, None)]);
+        let checkpoint2 = new_checkpoint(vec![(1, None), (2, Some(1))]);
+        let _ = checkpoint2.cmp(&checkpoint1);
+    }
+
+    const NUM_THREADS: u16 = 10;
+
+    fn run_epoch_manager(
+        op_id_gen: &(impl Fn(u16) -> Option<(u64, u64)> + Sync),
+        termination_gen: &(impl Fn(u16) -> bool + Sync),
+    ) -> (bool, Option<Epoch>) {
+        let epoch_manager = EpochManager::new(NUM_THREADS as usize);
+        let epoch_manager = &epoch_manager;
+        scope(|scope| {
+            let handles = (0..NUM_THREADS)
+                .map(|index| {
+                    scope.spawn(move || {
+                        epoch_manager.wait_for_epoch_close(
+                            new_node_handle(index),
+                            op_id_gen(index),
+                            termination_gen(index),
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+            let results = handles
+                .into_iter()
+                .map(|handle| handle.join().unwrap())
+                .collect::<Vec<_>>();
+            for result in &results {
+                assert_eq!(result, results.first().unwrap());
+            }
+            results.into_iter().next().unwrap()
+        })
+    }
+
+    #[test]
+    fn test_epoch_manager() {
+        // All sources have no new data, epoch should not be closed.
+        let (_, epoch) = run_epoch_manager(&|_| None, &|_| false);
+        assert!(epoch.is_none());
+
+        // One source has new data, epoch should be closed.
+        let (_, epoch) = run_epoch_manager(
+            &|index| if index == 0 { Some((0, 0)) } else { None },
+            &|_| false,
+        );
+        let epoch = epoch.unwrap();
+        assert_eq!(
+            epoch.details.0.get(&new_node_handle(0)).unwrap().unwrap(),
+            OpIdentifier::new(0, 0)
+        );
+
+        // All but one source requests termination, should not terminate.
+        let (terminating, _) = run_epoch_manager(&|_| None, &|index| index != 0);
+        assert!(!terminating);
+
+        // All sources requests termination, should terminate.
+        let (terminating, _) = run_epoch_manager(&|_| None, &|_| true);
+        assert!(terminating);
+    }
+}
