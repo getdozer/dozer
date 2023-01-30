@@ -254,7 +254,7 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         stream_name: &String,
     ) -> Result<bool, SnowflakeError> {
-        let query = format!("DESCRIBE STREAM {stream_name};");
+        let query = format!("SHOW STREAMS LIKE '{stream_name}';");
 
         let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)
