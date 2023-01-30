@@ -25,6 +25,8 @@ use dozer_types::types::SchemaWithChangesType;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
+#[cfg(feature = "snowflake")]
+use dozer_types::log::debug;
 
 pub struct SnowflakeConnector {
     name: String,
