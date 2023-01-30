@@ -440,7 +440,12 @@ mod tests {
         let table = result.get(0).unwrap();
         assert_eq!(table_name, table.table_name.clone());
         assert!(assert_vec_eq(
-            vec!["id".to_string(), "name".to_string(), "description".to_string(), "weight".to_string()],
+            vec![
+                "id".to_string(),
+                "name".to_string(),
+                "description".to_string(),
+                "weight".to_string()
+            ],
             table.columns.clone().unwrap()
         ));
 
