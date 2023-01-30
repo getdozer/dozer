@@ -118,7 +118,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
             match value.0[0] {
                 SOURCE_ID_IDENTIFIER => commits
                     .0
-                    .extend(once(read_source_metadata(value.0, value.1))),
+                    .extend(once(deserialize_source_metadata(value.0, value.1))),
                 OUTPUT_SCHEMA_IDENTIFIER => {
                     let handle: PortHandle = PortHandle::from_be_bytes(
                         (&value.0[1..])
@@ -311,23 +311,32 @@ pub fn write_source_metadata<'a>(
     metadata: &'a mut impl Iterator<Item = (&'a NodeHandle, Option<OpIdentifier>)>,
 ) -> Result<(), StorageError> {
     for (source, op_id) in metadata {
-        let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
-        key.extend(source.to_bytes());
-
-        let mut value: Vec<u8> = Vec::with_capacity(16);
-        if let Some(op_id) = op_id {
-            value.extend(op_id.txid.to_be_bytes());
-            value.extend(op_id.seq_in_tx.to_be_bytes());
-        } else {
-            value.push(EMPTY_METADATA_IDENTIFIER);
-        }
+        let (key, value) = serialize_source_metadata(source, op_id);
 
         txn.put(db, &key, &value)?;
     }
     Ok(())
 }
 
-fn read_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, Option<OpIdentifier>) {
+fn serialize_source_metadata(
+    node_handle: &NodeHandle,
+    op_id: Option<OpIdentifier>,
+) -> (Vec<u8>, Vec<u8>) {
+    let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
+    key.extend(node_handle.to_bytes());
+
+    let mut value: Vec<u8> = Vec::with_capacity(16);
+    if let Some(op_id) = op_id {
+        value.extend(op_id.txid.to_be_bytes());
+        value.extend(op_id.seq_in_tx.to_be_bytes());
+    } else {
+        value.push(EMPTY_METADATA_IDENTIFIER);
+    }
+
+    (key, value)
+}
+
+fn deserialize_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, Option<OpIdentifier>) {
     debug_assert!(key[0] == SOURCE_ID_IDENTIFIER);
     let source = NodeHandle::from_bytes(&key[1..]);
 
@@ -338,5 +347,57 @@ fn read_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, Option<OpIdent
         let txid = u64::from_be_bytes(value[0..8].try_into().unwrap());
         let seq_in_tx = u64::from_be_bytes(value[8..16].try_into().unwrap());
         (source, Some(OpIdentifier { txid, seq_in_tx }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_source_metadata_serialization() {
+        fn check(node_handle: NodeHandle, op_id: Option<OpIdentifier>) {
+            let (key, value) = serialize_source_metadata(&node_handle, op_id);
+            let (node_handle2, op_id2) = deserialize_source_metadata(&key, &value);
+            assert_eq!(node_handle2, node_handle);
+            assert_eq!(op_id2, op_id);
+        }
+
+        check(NodeHandle::new(None, "node".to_string()), None);
+        check(
+            NodeHandle::new(None, "node".to_string()),
+            Some(OpIdentifier::new(0, 0)),
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn source_metadata_deserialization_panics_on_empty_key() {
+        deserialize_source_metadata(&[], &[]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn source_metadata_deserialization_panics_on_invalid_key() {
+        let (mut key, _) =
+            serialize_source_metadata(&NodeHandle::new(None, "node".to_string()), None);
+        key[0] = 1;
+        deserialize_source_metadata(&key, &[]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn source_metadata_deserialization_panics_on_empty_value() {
+        let (key, _) = serialize_source_metadata(&NodeHandle::new(None, "node".to_string()), None);
+        deserialize_source_metadata(&key, &[]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn source_metadata_deserialization_panics_on_invalid_value() {
+        let (key, mut value) =
+            serialize_source_metadata(&NodeHandle::new(None, "node".to_string()), None);
+        value[0] = 1;
+        deserialize_source_metadata(&key, &value);
     }
 }
