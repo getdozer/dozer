@@ -100,7 +100,7 @@ fn multi_join_query() {
     let queries = r#" 
         SELECT a.actor_id from actor a 
         JOIN film_actor fa on fa.actor_id = a.actor_id
-        JOIN film f on f.film_id > fa.film_id;
+        JOIN film f on f.film_id = fa.film_id;
       "#;
 
     let table_names = vec!["actor", "film_actor", "film"];
