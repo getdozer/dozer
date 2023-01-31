@@ -16,7 +16,6 @@ pub struct AvgAggregator {}
 const AGGREGATOR_NAME: &str = "AVG";
 
 impl AvgAggregator {
-    const _AGGREGATOR_ID: u32 = 0x03;
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
@@ -26,10 +25,6 @@ impl AvgAggregator {
             FieldType::UInt => FieldType::Decimal,
             _ => from,
         }
-    }
-
-    pub(crate) fn _get_type() -> u32 {
-        AvgAggregator::_AGGREGATOR_ID
     }
 
     pub(crate) fn insert(

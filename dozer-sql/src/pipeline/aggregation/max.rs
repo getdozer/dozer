@@ -16,7 +16,6 @@ pub struct MaxAggregator {}
 const AGGREGATOR_NAME: &str = "MAX";
 
 impl MaxAggregator {
-    const _AGGREGATOR_ID: u32 = 0x03;
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
@@ -28,10 +27,6 @@ impl MaxAggregator {
             FieldType::Timestamp => FieldType::Timestamp,
             _ => from,
         }
-    }
-
-    pub(crate) fn _get_type() -> u32 {
-        MaxAggregator::_AGGREGATOR_ID
     }
 
     pub(crate) fn insert(

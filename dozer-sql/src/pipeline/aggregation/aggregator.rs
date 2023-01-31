@@ -47,16 +47,6 @@ impl Aggregator {
         }
     }
 
-    pub(crate) fn _get_type(&self) -> u32 {
-        match &self {
-            Aggregator::Avg => AvgAggregator::_get_type(),
-            Aggregator::Count => CountAggregator::_get_type(),
-            Aggregator::Max => MaxAggregator::_get_type(),
-            Aggregator::Min => MinAggregator::_get_type(),
-            Aggregator::Sum => SumAggregator::_get_type(),
-        }
-    }
-
     pub(crate) fn insert(
         &self,
         cur_state: Option<&[u8]>,

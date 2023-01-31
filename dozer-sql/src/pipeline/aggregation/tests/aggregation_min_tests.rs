@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_date_field, get_decimal_field, get_ts_field, init_input_schema,
@@ -9,8 +10,47 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::types::Field;
-use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp, UInt};
+use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Text, Timestamp, UInt};
 use std::collections::HashMap;
+use dozer_types::log::debug;
+use crate::pipeline::aggregation::aggregator::Aggregator;
+use crate::pipeline::errors::PipelineError::InvalidOperandType;
+
+#[test]
+fn test_max_aggregator() {
+    let min_aggr = Aggregator::Min;
+    assert_eq!(Date, min_aggr.get_return_type(Date));
+    assert_eq!(Decimal, min_aggr.get_return_type(Decimal));
+    assert_eq!(Float, min_aggr.get_return_type(Float));
+    assert_eq!(Int, min_aggr.get_return_type(Int));
+    assert_eq!(UInt, min_aggr.get_return_type(UInt));
+    assert_eq!(Timestamp, min_aggr.get_return_type(Timestamp));
+    debug!("{}", min_aggr);
+}
+
+#[test]
+fn failure_min_aggregator() {
+    let schema = init_input_schema(Text, "MIN");
+    let (processor, tx) = init_processor(
+        "SELECT Country, MIN(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+        .unwrap();
+
+    let mut inp = insert_field(ITALY, &Field::Text("test".to_string()));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("MIN".to_string()).type_id(), out.type_id());
+
+    inp = delete_field(ITALY, &Field::Text("test".to_string()));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("MIN".to_string()).type_id(), out.type_id());
+
+    inp = update_field(ITALY, ITALY, &Field::Text("test".to_string()), &Field::Text("test".to_string()));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("MIN".to_string()).type_id(), out.type_id());
+}
 
 #[test]
 fn test_min_aggregation_float() {

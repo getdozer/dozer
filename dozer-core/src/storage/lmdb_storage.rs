@@ -17,7 +17,7 @@ const DEFAULT_MAX_READERS: u32 = 256;
 const DEFAULT_MAX_MAP_SZ: size_t = 1024 * 1024 * 1024;
 
 pub struct LmdbEnvironmentManager {
-    inner: Environment,
+    pub inner: Environment,
 }
 
 impl LmdbEnvironmentManager {

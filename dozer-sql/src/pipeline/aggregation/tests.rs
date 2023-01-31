@@ -14,3 +14,5 @@ mod aggregation_sum_tests;
 mod aggregation_tests_utils;
 #[cfg(test)]
 mod encode_decode;
+#[cfg(test)]
+mod aggregation_tests;

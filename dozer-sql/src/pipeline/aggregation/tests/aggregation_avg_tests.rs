@@ -1,14 +1,46 @@
+use std::any::Any;
 use crate::output;
-use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
-    delete_exp, delete_field, get_decimal_div_field, get_decimal_field, init_input_schema,
-    init_processor, insert_exp, insert_field, update_exp, update_field, FIELD_0_FLOAT,
-    FIELD_100_FLOAT, FIELD_100_INT, FIELD_100_UINT, FIELD_200_FLOAT, FIELD_200_INT, FIELD_200_UINT,
-    FIELD_250_DIV_3_FLOAT, FIELD_350_DIV_3_FLOAT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT,
-    FIELD_75_FLOAT, FIELD_NULL, ITALY, SINGAPORE,
-};
+use crate::pipeline::aggregation::tests::aggregation_tests_utils::{delete_exp, delete_field, get_decimal_div_field, get_decimal_field, init_input_schema, init_processor, insert_exp, insert_field, update_exp, update_field, FIELD_0_FLOAT, FIELD_100_FLOAT, FIELD_100_INT, FIELD_100_UINT, FIELD_200_FLOAT, FIELD_200_INT, FIELD_200_UINT, FIELD_250_DIV_3_FLOAT, FIELD_350_DIV_3_FLOAT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_75_FLOAT, FIELD_NULL, ITALY, SINGAPORE, get_date_field, DATE8};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_types::types::FieldType::{Decimal, Float, Int, UInt};
+use dozer_types::types::FieldType::{Date, Decimal, Float, Int, UInt};
 use std::collections::HashMap;
+use dozer_types::log::debug;
+use crate::pipeline::aggregation::aggregator::Aggregator;
+use crate::pipeline::errors::PipelineError::InvalidOperandType;
+
+#[test]
+fn test_avg_aggregator() {
+    let avg_aggr = Aggregator::Avg;
+    assert_eq!(Decimal, avg_aggr.get_return_type(Int));
+    assert_eq!(Decimal, avg_aggr.get_return_type(UInt));
+    assert_eq!(Float, avg_aggr.get_return_type(Float));
+    assert_eq!(Decimal, avg_aggr.get_return_type(Decimal));
+    debug!("{}", avg_aggr);
+}
+
+#[test]
+fn failure_avg_aggregator() {
+    let schema = init_input_schema(Date, "AVG");
+    let (processor, tx) = init_processor(
+        "SELECT Country, AVG(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    let mut inp = insert_field(ITALY, &get_date_field(DATE8));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("AVG".to_string()).type_id(), out.type_id());
+
+    inp = delete_field(ITALY, &get_date_field(DATE8));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("AVG".to_string()).type_id(), out.type_id());
+
+    inp = update_field(ITALY, ITALY, &get_date_field(DATE8), &get_date_field(DATE8));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("AVG".to_string()).type_id(), out.type_id());
+}
 
 #[test]
 fn test_avg_aggregation_float() {

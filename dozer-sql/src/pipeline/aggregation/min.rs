@@ -16,7 +16,6 @@ pub struct MinAggregator {}
 const AGGREGATOR_NAME: &str = "MIN";
 
 impl MinAggregator {
-    const _AGGREGATOR_ID: u32 = 0x04;
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
@@ -28,10 +27,6 @@ impl MinAggregator {
             FieldType::Timestamp => FieldType::Timestamp,
             _ => from,
         }
-    }
-
-    pub(crate) fn _get_type() -> u32 {
-        MinAggregator::_AGGREGATOR_ID
     }
 
     pub(crate) fn insert(

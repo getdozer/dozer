@@ -8,6 +8,17 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp};
 use std::collections::HashMap;
+use dozer_types::log::debug;
+use crate::pipeline::aggregation::aggregator::Aggregator;
+
+#[test]
+fn test_count_aggregator() {
+    let count_aggr = Aggregator::Count;
+    assert_eq!(Int, count_aggr.get_return_type(Int));
+    assert_eq!(Int, count_aggr.get_return_type(Float));
+    assert_eq!(Int, count_aggr.get_return_type(Decimal));
+    debug!("{}", count_aggr);
+}
 
 #[test]
 fn test_count_aggregation_float() {

@@ -1,4 +1,4 @@
-#![allow(unused_mut)]
+use std::any::Any;
 use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_decimal_field, init_input_schema, init_processor, insert_exp,
@@ -9,8 +9,46 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     SINGAPORE,
 };
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_types::types::FieldType::{Decimal, Float, Int, UInt};
+use dozer_types::types::FieldType::{Decimal, Float, Int, Text, UInt};
 use std::collections::HashMap;
+use dozer_types::log::debug;
+use dozer_types::types::Field;
+use crate::pipeline::aggregation::aggregator::Aggregator;
+use crate::pipeline::errors::PipelineError::InvalidOperandType;
+
+#[test]
+fn test_sum_aggregator() {
+    let sum_aggr = Aggregator::Sum;
+    assert_eq!(Decimal, sum_aggr.get_return_type(Decimal));
+    assert_eq!(Float, sum_aggr.get_return_type(Float));
+    assert_eq!(Int, sum_aggr.get_return_type(Int));
+    assert_eq!(UInt, sum_aggr.get_return_type(UInt));
+    debug!("{}", sum_aggr);
+}
+
+#[test]
+fn failure_min_aggregator() {
+    let schema = init_input_schema(Text, "SUM");
+    let (processor, tx) = init_processor(
+        "SELECT Country, SUM(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+        .unwrap();
+
+    let mut inp = insert_field(ITALY, &Field::Text("test".to_string()));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("SUM".to_string()).type_id(), out.type_id());
+
+    inp = delete_field(ITALY, &Field::Text("test".to_string()));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("SUM".to_string()).type_id(), out.type_id());
+
+    inp = update_field(ITALY, ITALY, &Field::Text("test".to_string()), &Field::Text("test".to_string()));
+    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
+    assert_eq!(InvalidOperandType("SUM".to_string()).type_id(), out.type_id());
+}
 
 #[test]
 fn test_sum_aggregation_float() {

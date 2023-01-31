@@ -1,16 +1,21 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
-
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+use std::path::Path;
 use dozer_core::{
     dag::{channels::ProcessorChannelForwarder, dag::DEFAULT_PORT_HANDLE, node::ProcessorFactory},
-    storage::{lmdb_storage::LmdbEnvironmentManager, transactions::SharedTransaction},
+    storage::lmdb_storage::LmdbEnvironmentManager,
 };
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+
 use dozer_types::{
-    ordered_float::OrderedFloat,
-    parking_lot::RwLock,
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::types::SourceDefinition;
 
-use crate::pipeline::{aggregation::factory::AggregationProcessorFactory, builder::get_select};
+use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
+use crate::pipeline::expression::builder::NameOrAlias;
+use crate::pipeline::tests::utils::get_select;
 
 struct TestChannelForwarder {
     operations: Vec<Operation>,
@@ -38,24 +43,41 @@ fn test_simple_aggregation() {
 
     let schema = Schema::empty()
         .field(
-            FieldDefinition::new(String::from("ID"), FieldType::Int, false),
-            false,
+            FieldDefinition::new(
+                String::from("ID"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("Country"), FieldType::String, false),
-            false,
+            FieldDefinition::new(
+                String::from("Country"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .field(
-            FieldDefinition::new(String::from("Salary"), FieldType::Float, false),
-            false,
+            FieldDefinition::new(
+                String::from("Salary"),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
             false,
         )
         .clone();
 
     let processor_factory =
-        AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
+        AggregationProcessorFactory::new(
+            NameOrAlias("Users".to_string(), None),
+            select.projection.clone(),
+            select.group_by,
+            false,
+        );
 
     let mut processor = processor_factory
         .build(
@@ -68,11 +90,11 @@ fn test_simple_aggregation() {
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     processor
-        .init(storage.as_environment())
+        .init(storage.borrow_mut())
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let binding = Arc::new(RwLock::new(storage.create_txn().unwrap()));
-    let mut tx = SharedTransaction::new(&binding);
+    let binding = LmdbExclusiveTransaction::new(storage.inner).unwrap();
+    let mut tx = SharedTransaction::new(binding);
     let mut fw = TestChannelForwarder { operations: vec![] };
 
     let op = Operation::Insert {
@@ -83,8 +105,9 @@ fn test_simple_aggregation() {
                 Field::String("Italy".to_string()),
                 Field::Float(OrderedFloat(100.5)),
             ],
+            None,
         ),
     };
 
-    _ = processor.process(DEFAULT_PORT_HANDLE, op, &mut fw, &mut tx, &HashMap::new());
+    let _res = processor.process(DEFAULT_PORT_HANDLE, op, &mut fw, &mut tx, &HashMap::new());
 }
