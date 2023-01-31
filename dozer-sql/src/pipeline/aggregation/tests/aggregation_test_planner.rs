@@ -11,7 +11,7 @@ use tempdir::TempDir;
 
 #[test]
 fn test_planner_with_aggregator() {
-    let sql = "SELECT city, SUM(household_count) as headcounts GROUP BY city";
+    let sql = "SELECT CONCAT(city,'/',country), CAST(SUM(adults_count + children_count) AS STRING) as headcounts GROUP BY CONCAT(city,'/',country)";
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(
@@ -39,7 +39,31 @@ fn test_planner_with_aggregator() {
         )
         .field(
             FieldDefinition::new(
-                "household_count".to_string(),
+                "country".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Table {
+                    name: "households".to_string(),
+                    connection: "test".to_string(),
+                },
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "adults_count".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Table {
+                    name: "households".to_string(),
+                    connection: "test".to_string(),
+                },
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "children_count".to_string(),
                 FieldType::Int,
                 false,
                 SourceDefinition::Table {
@@ -59,7 +83,9 @@ fn test_planner_with_aggregator() {
     let mut processor = AggregationProcessor::new(
         projection_planner.groupby,
         projection_planner.aggregation_output,
+        projection_planner.projection_output,
         schema.clone(),
+        projection_planner.post_aggregation_schema,
     )
     .unwrap();
 
@@ -79,8 +105,10 @@ fn test_planner_with_aggregator() {
                     None,
                     vec![
                         Field::String("John Smith".to_string()),
-                        Field::String("Singapore".to_string()),
-                        Field::Int(3),
+                        Field::String("Johor".to_string()),
+                        Field::String("Malaysia".to_string()),
+                        Field::Int(2),
+                        Field::Int(1),
                     ],
                     None,
                 ),
@@ -97,7 +125,9 @@ fn test_planner_with_aggregator() {
                     None,
                     vec![
                         Field::String("Todd Enton".to_string()),
-                        Field::String("Singapore".to_string()),
+                        Field::String("Johor".to_string()),
+                        Field::String("Malaysia".to_string()),
+                        Field::Int(2),
                         Field::Int(2),
                     ],
                     None,
