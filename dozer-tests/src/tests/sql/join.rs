@@ -51,10 +51,11 @@ fn join_query() {
 }
 
 #[test]
-fn join_alias_query() {
+fn multi_join_query() {
     let queries = r#" 
-        SELECT a.actor_id, a.first_name, a.last_name from actor a 
-        JOIN film_actor fa on fa.actor_id = a.actor_id;
+        SELECT a.actor_id from actor a 
+        JOIN film_actor fa on fa.actor_id = a.actor_id
+        JOIN film f on f.film_id = fa.film_id;
       "#;
 
     let table_names = vec!["actor", "film_actor", "film"];
@@ -96,11 +97,10 @@ fn join_alias_query() {
 }
 
 #[test]
-fn multi_join_query() {
+fn join_alias_query() {
     let queries = r#" 
-        SELECT a.actor_id from actor a 
-        JOIN film_actor fa on fa.actor_id = a.actor_id
-        JOIN film f on f.film_id = fa.film_id;
+        SELECT a.actor_id, a.first_name, a.last_name from actor a 
+        JOIN film_actor fa on fa.actor_id = a.actor_id;
       "#;
 
     let table_names = vec!["actor", "film_actor", "film"];
