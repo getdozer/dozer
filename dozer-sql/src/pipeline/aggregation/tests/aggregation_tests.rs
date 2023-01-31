@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::path::Path;
+use lmdb::Environment;
 use dozer_core::{
     dag::{channels::ProcessorChannelForwarder, dag::DEFAULT_PORT_HANDLE, node::ProcessorFactory},
     storage::lmdb_storage::LmdbEnvironmentManager,
@@ -93,7 +94,10 @@ fn test_simple_aggregation() {
         .init(storage.borrow_mut())
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let binding = LmdbExclusiveTransaction::new(storage.inner).unwrap();
+    let binding = LmdbExclusiveTransaction::new(
+        Environment::new().open(Path::new("./")).unwrap()
+    )
+    .unwrap();
     let mut tx = SharedTransaction::new(binding);
     let mut fw = TestChannelForwarder { operations: vec![] };
 
