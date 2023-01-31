@@ -234,6 +234,35 @@ impl Client {
         }
     }
 
+    pub fn exec_stream_creation(
+        &self,
+        conn: &Connection<AutocommitOn>,
+        query: String,
+    ) -> Result<bool, SnowflakeError> {
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
+
+        let result = stmt.exec_direct(&query);
+
+        result.map_or_else(
+            |e| {
+                if e.get_native_error() == 2203 {
+                    Ok(false)
+                } else {
+                    Err(QueryError(Box::new(e)))
+                }
+            },
+            |_| Ok(true),
+        )
+    }
+
+    pub fn parse_stream_creation_error(e: DiagnosticRecord) -> Result<bool, SnowflakeError> {
+        if e.get_native_error() == 2203 {
+            Ok(false)
+        } else {
+            Err(QueryError(Box::new(e)))
+        }
+    }
+
     fn parse_not_exist_error(e: DiagnosticRecord) -> Result<bool, SnowflakeError> {
         if e.get_native_error() == 2003 {
             Ok(false)
