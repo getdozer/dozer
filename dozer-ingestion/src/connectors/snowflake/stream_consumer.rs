@@ -6,7 +6,6 @@ use dozer_types::ingestion_types::IngestionMessage;
 
 use dozer_types::parking_lot::RwLock;
 
-use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 use odbc::create_environment_v3;
@@ -46,20 +45,18 @@ impl StreamConsumer {
             .unwrap();
 
         let query = format!(
-            "CREATE STREAM {} on table {} at(stream => '{}')",
+            "CREATE STREAM {} on table {} SHOW_INITIAL_ROWS = TRUE",
             Self::get_stream_table_name(table_name),
             table_name,
-            Snapshotter::get_snapshot_table_name(table_name)
         );
 
         let result = client.exec_stream_creation(&conn, query)?;
 
         if !result {
             let query = format!(
-                "CREATE STREAM {} on view {} at(stream => '{}')",
+                "CREATE STREAM {} on view {} SHOW_INITIAL_ROWS = TRUE",
                 Self::get_stream_table_name(table_name),
-                table_name,
-                Snapshotter::get_snapshot_table_name(table_name)
+                table_name
             );
             client.exec(&conn, query)?;
         }
