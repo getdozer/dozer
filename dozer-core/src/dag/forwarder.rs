@@ -1,6 +1,4 @@
-#![allow(clippy::too_many_arguments)]
 use crate::dag::channels::ProcessorChannelForwarder;
-use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
 use crate::dag::epoch::{Epoch, EpochManager};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
@@ -18,6 +16,8 @@ use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+use super::dag_metadata::write_source_metadata;
 
 #[derive(Debug)]
 pub(crate) struct StateWriter {
@@ -67,19 +67,15 @@ impl StateWriter {
     }
 
     pub fn store_commit_info(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {
-        //
-        for (source, (txid, seq_in_tx)) in &epoch_details.details {
-            let mut full_key = vec![SOURCE_ID_IDENTIFIER];
-            full_key.extend(source.to_bytes());
-
-            let mut value: Vec<u8> = Vec::with_capacity(16);
-            value.extend(txid.to_be_bytes());
-            value.extend(seq_in_tx.to_be_bytes());
-
-            self.tx
-                .write()
-                .put(self.meta_db, full_key.as_slice(), value.as_slice())?;
-        }
+        write_source_metadata(
+            &mut self.tx.write(),
+            self.meta_db,
+            &mut epoch_details
+                .details
+                .0
+                .iter()
+                .map(|(source, op_id)| (source, *op_id)),
+        )?;
         for record_writer in self.record_writers.values() {
             record_writer.commit()?;
         }
@@ -177,6 +173,7 @@ pub(crate) struct SourceChannelManager {
 }
 
 impl SourceChannelManager {
+    #![allow(clippy::too_many_arguments)]
     pub fn new(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -185,12 +182,11 @@ impl SourceChannelManager {
         commit_sz: u32,
         max_duration_between_commits: Duration,
         epoch_manager: Arc<EpochManager>,
-        start_seq: (u64, u64),
     ) -> Self {
         Self {
             manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
-            curr_txid: start_seq.0,
-            curr_seq_in_tx: start_seq.1,
+            curr_txid: 0,
+            curr_seq_in_tx: 0,
             source_handle: owner,
             commit_sz,
             num_uncommited_ops: 0,
@@ -210,16 +206,24 @@ impl SourceChannelManager {
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         if request_termination || self.should_commit() {
-            let epoch = self.epoch_manager.wait_for_epoch_close(
+            let op_in_this_epoch = if self.num_uncommited_ops > 0 {
+                Some((self.curr_txid, self.curr_seq_in_tx))
+            } else {
+                None
+            };
+
+            let (terminating, epoch) = self.epoch_manager.wait_for_epoch_close(
                 self.source_handle.clone(),
-                (self.curr_txid, self.curr_seq_in_tx),
+                op_in_this_epoch,
                 request_termination,
             );
-            self.manager
-                .store_and_send_commit(&Epoch::new(epoch.id, epoch.details))?;
+            if let Some(epoch) = epoch {
+                self.manager
+                    .store_and_send_commit(&Epoch::new(epoch.id, epoch.details))?;
+            }
             self.num_uncommited_ops = 0;
             self.last_commit_instant = Instant::now();
-            Ok(epoch.terminating)
+            Ok(terminating)
         } else {
             Ok(false)
         }

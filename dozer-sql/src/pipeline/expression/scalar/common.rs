@@ -42,6 +42,7 @@ pub(crate) fn get_scalar_function_type(
             FieldType::Int,
             true,
             dozer_types::types::SourceDefinition::Dynamic,
+            false,
         )),
         ScalarFunctionType::Ucase => {
             validate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, schema)
@@ -51,6 +52,7 @@ pub(crate) fn get_scalar_function_type(
             FieldType::UInt,
             false,
             dozer_types::types::SourceDefinition::Dynamic,
+            false,
         )),
     }
 }

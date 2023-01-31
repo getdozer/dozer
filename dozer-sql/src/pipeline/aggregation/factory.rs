@@ -159,32 +159,11 @@ pub(crate) fn get_aggregation_rules(
     groupby: &[SqlExpr],
     schema: &Schema,
 ) -> Result<Vec<FieldRule>, PipelineError> {
-    let mut select_rules: Vec<FieldRule> = vec![];
-    for s in select {
-        match s {
-            SelectItem::Wildcard(_) => {
-                let fields: Vec<SelectItem> = schema
-                    .fields
-                    .iter()
-                    .map(|col| {
-                        SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name)))
-                    })
-                    .collect();
-                for f in fields {
-                    let res = parse_sql_aggregate_item(&f, schema);
-                    if let Ok(..) = res {
-                        select_rules.push(res.unwrap())
-                    }
-                }
-            }
-            _ => {
-                let res = parse_sql_aggregate_item(s, schema);
-                if let Ok(..) = res {
-                    select_rules.push(res.unwrap())
-                }
-            }
-        }
-    }
+    let mut select_rules = select
+        .iter()
+        .map(|item| parse_sql_aggregate_item(item, schema))
+        .filter(|e| e.is_ok())
+        .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
 
     let mut groupby_rules = groupby
         .iter()

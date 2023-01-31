@@ -77,7 +77,10 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         Authentication::Snowflake(snowflake) => {
             let snowflake_config = snowflake;
 
-            Ok(Box::new(SnowflakeConnector::new(4, snowflake_config)))
+            Ok(Box::new(SnowflakeConnector::new(
+                connection.name,
+                snowflake_config,
+            )))
         }
         Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
     }

@@ -52,10 +52,19 @@ impl StreamConsumer {
             Snapshotter::get_snapshot_table_name(table_name)
         );
 
-        client
-            .exec(&conn, query)
-            .map(|_| ())
-            .map_err(ConnectorError::SnowflakeError)
+        let result = client.exec_stream_creation(&conn, query)?;
+
+        if !result {
+            let query = format!(
+                "CREATE STREAM {} on view {} at(stream => '{}')",
+                Self::get_stream_table_name(table_name),
+                table_name,
+                Snapshotter::get_snapshot_table_name(table_name)
+            );
+            client.exec(&conn, query)?;
+        }
+
+        Ok(())
     }
 
     fn map_record(row: Vec<Field>, table_idx: usize) -> Record {
