@@ -8,7 +8,6 @@ use dozer_core::dag::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
-use crate::pipeline::expression::builder::ConstraintIdentifier;
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::JoinError,
@@ -366,63 +365,4 @@ fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {
     }
 
     output_schema
-}
-
-pub fn get_field_index(
-    ident: &ConstraintIdentifier,
-    schema: &Schema,
-) -> Result<Option<usize>, PipelineError> {
-    let tables_matches = |table_ident: &Ident, fd: &FieldDefinition| -> bool {
-        match fd.source.clone() {
-            dozer_types::types::SourceDefinition::Table {
-                connection: _,
-                name,
-            } => name == table_ident.value,
-            dozer_types::types::SourceDefinition::Alias { name } => name == table_ident.value,
-            dozer_types::types::SourceDefinition::Dynamic => false,
-        }
-    };
-
-    match ident {
-        ConstraintIdentifier::Single(ident) => {
-            let field_index = schema
-                .fields
-                .iter()
-                .enumerate()
-                .find(|(_, f)| f.name == ident.value)
-                .map(|(idx, fd)| (idx, fd.clone()));
-            field_index.map_or(Ok(None), |(i, _fd)| Ok(Some(i)))
-        }
-        ConstraintIdentifier::Compound(comp_ident) => {
-            let field_index = match comp_ident.len() {
-                2 => {
-                    let table_name = comp_ident.first().expect("table_name is expected");
-                    let field_name = comp_ident.last().expect("field_name is expected");
-
-                    let field_index = schema
-                        .fields
-                        .iter()
-                        .enumerate()
-                        .find(|(_, f)| tables_matches(table_name, f) && f.name == field_name.value)
-                        .map(|(idx, fd)| (idx, fd.clone()));
-                    field_index
-                }
-                // 3 => {
-                //     let connection_name = comp_ident.get(0).expect("connection_name is expected");
-                //     let table_name = comp_ident.get(1).expect("table_name is expected");
-                //     let field_name = comp_ident.get(2).expect("field_name is expected");
-                // }
-                _ => {
-                    return Err(PipelineError::IllegalFieldIdentifier(
-                        comp_ident
-                            .iter()
-                            .map(|a| a.value.clone())
-                            .collect::<Vec<String>>()
-                            .join("."),
-                    ));
-                }
-            };
-            field_index.map_or(Ok(None), |(i, _fd)| Ok(Some(i)))
-        }
-    }
 }
