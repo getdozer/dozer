@@ -19,8 +19,6 @@ use dozer_types::types::{
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 use tempdir::TempDir;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
@@ -445,7 +443,7 @@ impl Source for TestSource {
             if !self.running.load(Ordering::Relaxed) {
                 break;
             }
-            thread::sleep(Duration::from_millis(500));
+            // thread::sleep(Duration::from_millis(500));
         }
         Ok(())
     }

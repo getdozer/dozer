@@ -6,6 +6,7 @@ use super::{
 };
 
 #[test]
+#[ignore = "Test framework does not support cuncurrent sources"]
 fn join_query() {
     let queries = r#" 
         SELECT actor.actor_id, first_name, last_name from actor 
@@ -51,6 +52,7 @@ fn join_query() {
 }
 
 #[test]
+#[ignore = "Test framework does not support cuncurrent sources"]
 fn multi_join_query() {
     let queries = r#" 
         SELECT a.actor_id from actor a 
@@ -97,7 +99,7 @@ fn multi_join_query() {
 }
 
 #[test]
-#[ignore]
+#[ignore = "Test framework does not support cuncurrent sources"]
 fn join_alias_query() {
     let queries = r#" 
         SELECT a.actor_id, a.first_name, a.last_name from actor a 
@@ -143,7 +145,7 @@ fn join_alias_query() {
 }
 
 #[test]
-#[ignore = "CTE alias currently not supported with JOIN. Aggregation needs stateful ports and this is currently failing"]
+#[ignore = "Test framework does not support cuncurrent sources"]
 fn join_cte_query() {
     let queries = r#" 
         WITH table as (
