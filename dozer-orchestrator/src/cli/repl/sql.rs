@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 
 use crate::cli::{init_dozer, load_config};
 use crate::errors::OrchestrationError;
-use crate::Orchestrator;
 use crossterm::{cursor, terminal, ExecutableCommand};
 use dozer_cache::cache::index::get_primary_key;
 use dozer_types::crossbeam::channel;
@@ -19,6 +18,7 @@ use dozer_types::prettytable::{Cell, Row, Table};
 use dozer_types::types::{Field, Operation, Schema};
 use rustyline::error::ReadlineError;
 
+use crate::Orchestrator;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 

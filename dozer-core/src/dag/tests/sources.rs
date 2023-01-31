@@ -106,7 +106,7 @@ impl Source for GeneratorSource {
         fw: &mut dyn SourceChannelForwarder,
         from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let start = from_seq.unwrap().0;
+        let start = from_seq.unwrap_or((0, 0)).0;
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(
@@ -376,7 +376,7 @@ impl Source for NoPkGeneratorSource {
         fw: &mut dyn SourceChannelForwarder,
         from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let start = from_seq.unwrap().0;
+        let start = from_seq.unwrap_or((0, 0)).0;
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(

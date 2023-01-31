@@ -20,22 +20,24 @@ use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 #[cfg(feature = "snowflake")]
 use crate::errors::SnowflakeError::ConnectionError;
 
+#[cfg(feature = "snowflake")]
+use dozer_types::log::debug;
 use dozer_types::types::SchemaWithChangesType;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
 
 pub struct SnowflakeConnector {
-    pub id: u64,
+    name: String,
     config: SnowflakeConfig,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
     tables: Option<Vec<TableInfo>>,
 }
 
 impl SnowflakeConnector {
-    pub fn new(id: u64, config: SnowflakeConfig) -> Self {
+    pub fn new(name: String, config: SnowflakeConfig) -> Self {
         Self {
-            id,
+            name,
             config,
             ingestor: None,
             tables: None,
@@ -99,17 +101,23 @@ impl Connector for SnowflakeConnector {
         Ok(())
     }
 
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
-        let _connector_id = self.id;
+    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         let ingestor = self
             .ingestor
             .as_ref()
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
 
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(self.config.clone(), self.tables.clone(), ingestor).await })
+        Runtime::new().unwrap().block_on(async {
+            run(
+                self.name.clone(),
+                self.config.clone(),
+                self.tables.clone(),
+                ingestor,
+                from_seq,
+            )
+            .await
+        })
     }
 
     fn stop(&self) {}
@@ -125,9 +133,11 @@ impl Connector for SnowflakeConnector {
 
 #[cfg(feature = "snowflake")]
 async fn run(
+    name: String,
     config: SnowflakeConfig,
     tables: Option<Vec<TableInfo>>,
     ingestor: Arc<RwLock<Ingestor>>,
+    from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
@@ -139,9 +149,30 @@ async fn run(
                 let is_stream_created =
                     StreamConsumer::is_stream_created(&client, table.table_name.clone())?;
                 if !is_stream_created {
+                    debug!(
+                        "[{}][{}] Table stream not found, starting from snapshot",
+                        name, table.table_name
+                    );
                     let ingestor_snapshot = Arc::clone(&ingestor);
-                    Snapshotter::run(&client, &ingestor_snapshot, table.table_name.clone(), idx)?;
+                    Snapshotter::run(
+                        &client,
+                        &ingestor_snapshot,
+                        table.table_name.clone(),
+                        idx,
+                        from_seq.map_or(0, |(_, offset)| offset as usize),
+                    )?;
+                    debug!("[{}][{}] Snapshot fetch completed", name, table.table_name);
                     StreamConsumer::create_stream(&client, &table.table_name)?;
+
+                    debug!(
+                        "[{}][{}] Changes table stream creation completed",
+                        name, table.table_name
+                    );
+                } else {
+                    debug!(
+                        "[{}][{}] Table stream exist, skipping snapshot",
+                        name, table.table_name
+                    );
                 }
             }
 
@@ -152,6 +183,10 @@ async fn run(
             let mut consumer = StreamConsumer::new();
             loop {
                 for (idx, table) in tables.iter().enumerate() {
+                    debug!(
+                        "[{}][{}] Reading from changes stream",
+                        name, table.table_name
+                    );
                     consumer.consume_stream(
                         &stream_client,
                         &table.table_name,
@@ -170,9 +205,11 @@ async fn run(
 
 #[cfg(not(feature = "snowflake"))]
 async fn run(
+    _name: String,
     _config: SnowflakeConfig,
     _tables: Option<Vec<TableInfo>>,
     _ingestor: Arc<RwLock<Ingestor>>,
+    _from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     Ok(())
 }

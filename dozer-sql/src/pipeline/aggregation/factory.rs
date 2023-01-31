@@ -6,7 +6,7 @@ use dozer_core::dag::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
-use sqlparser::ast::{Expr as SqlExpr, Expr, SelectItem};
+use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
 
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
@@ -100,19 +100,39 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             )));
         }
 
-        // Build a Projection
-        match self
-            .select
-            .iter()
-            .map(|item| parse_sql_select_item(item, input_schema))
-            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
-        {
-            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
-                input_schema.clone(),
-                expressions,
-            ))),
-            Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
+        let mut select_expr: Vec<(String, Expression)> = vec![];
+        for s in self.select.iter() {
+            match s {
+                SelectItem::Wildcard(_) => {
+                    let fields: Vec<SelectItem> = input_schema
+                        .fields
+                        .iter()
+                        .map(|col| {
+                            SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(
+                                col.to_owned().name,
+                            )))
+                        })
+                        .collect();
+                    for f in fields {
+                        let res = parse_sql_select_item(&f, &input_schema);
+                        if let Ok(..) = res {
+                            select_expr.push(res.unwrap())
+                        }
+                    }
+                }
+                _ => {
+                    let res = parse_sql_select_item(s, &input_schema);
+                    if let Ok(..) = res {
+                        select_expr.push(res.unwrap())
+                    }
+                }
+            }
         }
+
+        Ok(Box::new(ProjectionProcessor::new(
+            input_schema,
+            select_expr,
+        )))
     }
 
     fn prepare(
@@ -280,31 +300,49 @@ fn build_projection_schema(
     context: &SchemaSQLContext,
     select: &[SelectItem],
 ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-    match select
-        .iter()
-        .map(|item| parse_sql_select_item(item, input_schema))
-        .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
-    {
-        Ok(expressions) => {
-            let mut output_schema = input_schema.clone();
-            let mut fields = vec![];
-            for e in expressions.iter() {
-                let field_name = e.0.clone();
-                let field_type =
-                    e.1.get_type(input_schema)
-                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-
-                fields.push(FieldDefinition::new(
-                    field_name,
-                    field_type.return_type,
-                    field_type.nullable,
-                    SourceDefinition::Dynamic,
-                ));
+    let mut select_expr: Vec<(String, Expression)> = vec![];
+    for s in select.iter() {
+        match s {
+            SelectItem::Wildcard(_) => {
+                let fields: Vec<SelectItem> = input_schema
+                    .fields
+                    .iter()
+                    .map(|col| {
+                        SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name)))
+                    })
+                    .collect();
+                for f in fields {
+                    let res = parse_sql_select_item(&f, input_schema);
+                    if let Ok(..) = res {
+                        select_expr.push(res.unwrap())
+                    }
+                }
             }
-            output_schema.fields = fields;
-
-            Ok((output_schema, context.clone()))
+            _ => {
+                let res = parse_sql_select_item(s, input_schema);
+                if let Ok(..) = res {
+                    select_expr.push(res.unwrap())
+                }
+            }
         }
-        Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
     }
+
+    let mut output_schema = input_schema.clone();
+    let mut fields = vec![];
+    for e in select_expr.iter() {
+        let field_name = e.0.clone();
+        let field_type =
+            e.1.get_type(input_schema)
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
+        fields.push(FieldDefinition::new(
+            field_name,
+            field_type.return_type,
+            field_type.nullable,
+            SourceDefinition::Dynamic,
+        ));
+    }
+    output_schema.fields = fields;
+
+    Ok((output_schema, context.clone()))
 }

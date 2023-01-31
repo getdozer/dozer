@@ -108,6 +108,8 @@ use sink_node::SinkNode;
 
 use self::source_node::{SourceListenerNode, SourceSenderNode};
 
+use super::epoch::OpIdentifier;
+
 pub struct DagExecutor<'a, T: Clone> {
     dag: &'a Dag<T>,
     schemas: HashMap<NodeHandle, NodeSchemas<T>>,
@@ -116,15 +118,15 @@ pub struct DagExecutor<'a, T: Clone> {
     path: PathBuf,
     options: ExecutorOptions,
     running: Arc<AtomicBool>,
-    consistency_metadata: HashMap<NodeHandle, (u64, u64)>,
+    consistency_metadata: HashMap<NodeHandle, Option<OpIdentifier>>,
 }
 
 impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
     fn check_consistency(
         dag: &'a Dag<T>,
         path: &Path,
-    ) -> Result<HashMap<NodeHandle, (u64, u64)>, ExecutionError> {
-        let mut r: HashMap<NodeHandle, (u64, u64)> = HashMap::new();
+    ) -> Result<HashMap<NodeHandle, Option<OpIdentifier>>, ExecutionError> {
+        let mut r = HashMap::new();
         let meta = DagMetadataManager::new(dag, path)?;
         let chk = meta.get_checkpoint_consistency();
         for (handle, _factory) in &dag.get_sources() {
@@ -146,17 +148,16 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
     ) -> Result<Self, ExecutionError> {
         //
 
-        let consistency_metadata: HashMap<NodeHandle, (u64, u64)> =
-            match Self::check_consistency(dag, path) {
-                Ok(c) => c,
-                Err(_) => {
-                    DagMetadataManager::new(dag, path)?.delete_metadata();
-                    dag.get_sources()
-                        .iter()
-                        .map(|e| (e.0.clone(), (0_u64, 0_u64)))
-                        .collect()
-                }
-            };
+        let consistency_metadata = match Self::check_consistency(dag, path) {
+            Ok(c) => c,
+            Err(_) => {
+                DagMetadataManager::new(dag, path)?.delete_metadata();
+                dag.get_sources()
+                    .iter()
+                    .map(|e| (e.0.clone(), None))
+                    .collect()
+            }
+        };
 
         let schemas = Self::load_or_init_schema(dag, path)?;
 
@@ -326,7 +327,6 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
                 max_duration_between_commits,
                 epoch_manager,
                 output_schemas,
-                start_seq,
                 retention_queue_size,
             )?;
             start_barrier.wait();

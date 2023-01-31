@@ -109,7 +109,7 @@ jobs:
             ${{ runner.os }}-cargo-release-
 
       - name: Prepare build package
-        run: cargo build --release
+        run: cargo build --features=snowflake --release
 
       - name: Prepare release assets
         shell: bash
@@ -172,6 +172,11 @@ jobs:
         run: |
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+#      - name: Clean up Amazon ECR untagged images
+#        run: |
+#          IMAGES_TO_DELETE=$( aws ecr list-images --region us-east-1 --repository-name $ECR_REPOSITORY --filter "tagStatus=UNTAGGED" --query 'imageIds[*]' --output json )
+#          aws ecr batch-delete-image --region us-east-1 --repository-name $ECR_REPOSITORY --image-ids "$IMAGES_TO_DELETE" || true
 
       - name: Trigger BuildKite integration tests
         run: |

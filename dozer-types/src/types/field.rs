@@ -17,7 +17,6 @@ pub enum Field {
     String(String),
     Text(String),
     Binary(Vec<u8>),
-    #[serde(with = "rust_decimal::serde::float")]
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
@@ -34,7 +33,6 @@ pub enum FieldBorrow<'a> {
     String(&'a str),
     Text(&'a str),
     Binary(&'a [u8]),
-    #[serde(with = "rust_decimal::serde::float")]
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),

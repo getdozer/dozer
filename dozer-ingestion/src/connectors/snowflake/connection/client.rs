@@ -142,28 +142,42 @@ pub fn convert_data(
 }
 
 pub struct ResultIterator<'a, 'b> {
-    stmt: Statement<'a, 'b, Executed, HasResult, AutocommitOn>,
+    stmt: Option<Statement<'a, 'b, Executed, HasResult, AutocommitOn>>,
     cols: i16,
     schema: Vec<ColumnDescriptor>,
 }
 
+impl<'a, 'b> ResultIterator<'a, 'b> {
+    pub fn close_cursor(&mut self) -> Result<(), SnowflakeError> {
+        self.stmt
+            .take()
+            .unwrap()
+            .close_cursor()
+            .map_or_else(|e| Err(QueryError(Box::new(e))), |_| Ok(()))
+    }
+}
+
 impl Iterator for ResultIterator<'_, '_> {
-    type Item = Vec<Option<Field>>;
+    type Item = Vec<Field>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.stmt.fetch().unwrap() {
-            None => None,
-            Some(mut cursor) => {
-                let mut values = vec![];
-                for i in 1..(self.cols + 1) {
-                    let descriptor = self.schema.get((i - 1) as usize)?;
-                    let value = convert_data(&mut cursor, i as u16, descriptor).unwrap();
-                    values.push(Some(value));
-                }
+        return if let Some(ref mut stmt) = self.stmt {
+            match stmt.fetch().unwrap() {
+                None => None,
+                Some(mut cursor) => {
+                    let mut values = vec![];
+                    for i in 1..(self.cols + 1) {
+                        let descriptor = self.schema.get((i - 1) as usize)?;
+                        let value = convert_data(&mut cursor, i as u16, descriptor).unwrap();
+                        values.push(value);
+                    }
 
-                Some(values)
+                    Some(values)
+                }
             }
-        }
+        } else {
+            None
+        };
     }
 }
 
@@ -220,6 +234,35 @@ impl Client {
         }
     }
 
+    pub fn exec_stream_creation(
+        &self,
+        conn: &Connection<AutocommitOn>,
+        query: String,
+    ) -> Result<bool, SnowflakeError> {
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
+
+        let result = stmt.exec_direct(&query);
+
+        result.map_or_else(
+            |e| {
+                if e.get_native_error() == 2203 {
+                    Ok(false)
+                } else {
+                    Err(QueryError(Box::new(e)))
+                }
+            },
+            |_| Ok(true),
+        )
+    }
+
+    pub fn parse_stream_creation_error(e: DiagnosticRecord) -> Result<bool, SnowflakeError> {
+        if e.get_native_error() == 2203 {
+            Ok(false)
+        } else {
+            Err(QueryError(Box::new(e)))
+        }
+    }
+
     fn parse_not_exist_error(e: DiagnosticRecord) -> Result<bool, SnowflakeError> {
         if e.get_native_error() == 2003 {
             Ok(false)
@@ -240,7 +283,7 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         stream_name: &String,
     ) -> Result<bool, SnowflakeError> {
-        let query = format!("DESCRIBE STREAM {stream_name};");
+        let query = format!("SHOW STREAMS LIKE '{stream_name}';");
 
         let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)
@@ -311,7 +354,11 @@ impl Client {
                 let schema = schema_result?;
                 Ok(Some((
                     schema.clone(),
-                    ResultIterator { cols, stmt, schema },
+                    ResultIterator {
+                        cols,
+                        stmt: Some(stmt),
+                        schema,
+                    },
                 )))
             }
             NoData(_) => Ok(None),
@@ -386,36 +433,33 @@ impl Client {
                 let mut schemas: HashMap<String, Schema> = HashMap::new();
                 let iterator = ResultIterator {
                     cols,
-                    stmt: data,
+                    stmt: Some(data),
                     schema,
                 };
 
                 for row_data in iterator {
                     let empty = "".to_string();
-                    let table_name =
-                        if let Some(Field::String(table_name)) = &row_data.get(1).unwrap() {
-                            table_name
-                        } else {
-                            &empty
-                        };
-                    let field_name =
-                        if let Some(Field::String(field_name)) = &row_data.get(2).unwrap() {
-                            field_name
-                        } else {
-                            &empty
-                        };
-                    let type_name =
-                        if let Some(Field::String(type_name)) = &row_data.get(3).unwrap() {
-                            type_name
-                        } else {
-                            &empty
-                        };
-                    let nullable = if let Some(Field::Boolean(b)) = &row_data.get(4).unwrap() {
+                    let table_name = if let Field::String(table_name) = &row_data.get(1).unwrap() {
+                        table_name
+                    } else {
+                        &empty
+                    };
+                    let field_name = if let Field::String(field_name) = &row_data.get(2).unwrap() {
+                        field_name
+                    } else {
+                        &empty
+                    };
+                    let type_name = if let Field::String(type_name) = &row_data.get(3).unwrap() {
+                        type_name
+                    } else {
+                        &empty
+                    };
+                    let nullable = if let Field::Boolean(b) = &row_data.get(4).unwrap() {
                         b
                     } else {
                         &false
                     };
-                    let scale = if let Some(Field::Int(scale)) = &row_data.get(5).unwrap() {
+                    let scale = if let Field::Int(scale) = &row_data.get(5).unwrap() {
                         Some(*scale)
                     } else {
                         None
@@ -497,23 +541,19 @@ impl Client {
                 let mut keys: HashMap<String, Vec<String>> = HashMap::new();
                 let iterator = ResultIterator {
                     cols,
-                    stmt: data,
+                    stmt: Some(data),
                     schema,
                 };
 
                 for row_data in iterator {
                     let empty = "".to_string();
-                    let table_name = row_data.get(3).map_or(empty.clone(), |v| {
-                        v.as_ref().map_or(empty.clone(), |field| match field {
-                            Field::String(v) => v.clone(),
-                            _ => empty.clone(),
-                        })
+                    let table_name = row_data.get(3).map_or(empty.clone(), |v| match v {
+                        Field::String(v) => v.clone(),
+                        _ => empty.clone(),
                     });
-                    let column_name = row_data.get(4).map_or(empty.clone(), |v| {
-                        v.as_ref().map_or(empty.clone(), |field| match field {
-                            Field::String(v) => v.clone(),
-                            _ => empty.clone(),
-                        })
+                    let column_name = row_data.get(4).map_or(empty.clone(), |v| match v {
+                        Field::String(v) => v.clone(),
+                        _ => empty.clone(),
                     });
 
                     keys.entry(table_name).or_default().push(column_name);
