@@ -43,8 +43,8 @@ impl<'a> AggregationData<'a> {
 
 #[derive(Debug)]
 pub struct AggregationProcessor {
-    dimensions: Vec<Box<Expression>>,
-    measures: Vec<(Box<Expression>, Box<Aggregator>)>,
+    dimensions: Vec<Expression>,
+    measures: Vec<(Expression, Aggregator)>,
     pub db: Option<Database>,
     meta_db: Option<Database>,
     aggregators_db: Option<Database>,
@@ -64,15 +64,17 @@ const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
     pub fn new(
-        dimensions: Vec<Box<Expression>>,
-        measures: Vec<Box<Expression>>,
+        dimensions: Vec<Expression>,
+        measures: Vec<Expression>,
         input_schema: Schema,
     ) -> Result<Self, PipelineError> {
         //
-        let mut aggregators: Vec<(Box<Expression>, Box<Aggregator>)> = Vec::new();
+        let mut aggregators: Vec<(Expression, Aggregator)> = Vec::new();
         for measure in measures {
-            let aggregator = get_aggregator_from_aggregation_expression(&measure, &input_schema)?;
-            aggregators.push((measure, Box::new(aggregator)))
+            aggregators.push(get_aggregator_from_aggregation_expression(
+                &measure,
+                &input_schema,
+            )?)
         }
 
         Ok(Self {
@@ -484,7 +486,7 @@ impl AggregationProcessor {
 fn get_key(
     schema: &Schema,
     record: &Record,
-    dimensions: &[Box<Expression>],
+    dimensions: &[Expression],
 ) -> Result<Vec<u8>, PipelineError> {
     let mut tot_size = 0_usize;
     let mut buffers = Vec::<Vec<u8>>::with_capacity(dimensions.len());
