@@ -166,6 +166,10 @@ impl Record {
         self.values[idx] = value;
     }
 
+    pub fn push_value(&mut self, value: Field) {
+        self.values.push(value);
+    }
+
     pub fn get_value(&self, idx: usize) -> Result<&Field, TypeError> {
         match self.values.get(idx) {
             Some(f) => Ok(f),

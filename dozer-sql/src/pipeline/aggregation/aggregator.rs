@@ -5,9 +5,11 @@ use crate::pipeline::aggregation::min::MinAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
 
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
+use crate::pipeline::expression::execution::Expression;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
@@ -17,6 +19,35 @@ pub enum Aggregator {
     Max,
     Min,
     Sum,
+}
+
+pub fn get_aggregator_from_aggregation_expression(
+    e: &Expression,
+    schema: &Schema,
+) -> Result<Aggregator, PipelineError> {
+    match e {
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Sum,
+            args: _,
+        } => Ok(Aggregator::Sum),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Min,
+            args: _,
+        } => Ok(Aggregator::Min),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Max,
+            args: _,
+        } => Ok(Aggregator::Max),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Avg,
+            args: _,
+        } => Ok(Aggregator::Avg),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Count,
+            args: _,
+        } => Ok(Aggregator::Count),
+        _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
+    }
 }
 
 impl Display for Aggregator {
