@@ -143,7 +143,7 @@ impl<'de> Deserialize<'de> for Config {
                     .enumerate()
                     .map(|(idx, endpoint_value)| -> Result<ApiEndpoint, A::Error> {
                         let source_ref = endpoint_value["source"].to_owned();
-                        let source = if source_ref.is_null() == false {
+                        let source = if !source_ref.is_null() {
                             let source_ref: super::api_endpoint::Value = serde_yaml::from_value(
                                 endpoint_value["source"].to_owned(),
                             )
@@ -174,7 +174,7 @@ impl<'de> Deserialize<'de> for Config {
                                 de::Error::custom(format!("api_endpoints[{idx:}]: {err:} "))
                             })?;
 
-                        if endpoint.sql == None && source == None {
+                        if endpoint.sql.is_none() && source.is_none() {
                             return Err(de::Error::custom(format!("api_endpoints[{idx:}]: SQL or Source expected")))
                         }
 

@@ -53,6 +53,7 @@ pub fn init_endpoint() -> ApiEndpoint {
         name: "films".to_string(),
         path: "/films".to_string(),
         sql: Some("SELECT film_name FROM film WHERE 1=1".to_string()),
+        source: None,
         index: Some(ApiIndex {
             primary_key: vec!["film_id".to_string()],
         }),

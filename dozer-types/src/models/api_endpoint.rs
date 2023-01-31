@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use serde::ser::SerializeStruct;
 use crate::models::source::Source;
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct ApiIndex {
@@ -33,8 +33,8 @@ pub struct ApiEndpoint {
 
 impl Serialize for ApiEndpoint {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
+    where
+        S: serde::Serializer,
     {
         let mut state = serializer.serialize_struct("ApiEndpoint", 3)?;
         state.serialize_field("name", &self.name)?;
