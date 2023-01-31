@@ -1,18 +1,14 @@
 use crate::output;
-use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
+
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, init_input_schema, init_processor, insert_exp, insert_field,
     FIELD_100_INT, FIELD_1_INT, ITALY,
 };
-use crate::pipeline::builder::SchemaSQLContext;
-use crate::pipeline::expression::builder::NameOrAlias;
-use crate::pipeline::tests::utils::get_select;
+
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::ProcessorFactory;
+
 use dozer_types::types::FieldType::Int;
-use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
-};
+use dozer_types::types::{Field, Operation, Record};
 use std::collections::HashMap;
 
 #[test]

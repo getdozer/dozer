@@ -118,7 +118,7 @@ impl ExpressionBuilder {
             SqlExpr::Cast { expr, data_type } => {
                 Self::parse_sql_cast_operator(context, parse_aggregations, expr, data_type, schema)
             }
-            _ => Err(InvalidExpression(format!("{:?}", expression))),
+            _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
 
@@ -314,19 +314,19 @@ impl ExpressionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => Err(InvalidArgument(format!("{:?}", argument))),
+            } => Err(InvalidArgument(format!("{argument:?}"))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 Self::parse_sql_expression(context, parse_aggregations, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                Err(InvalidArgument(format!("{:?}", argument)))
+                Err(InvalidArgument(format!("{argument:?}")))
             }
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::QualifiedWildcard(_),
-            } => Err(InvalidArgument(format!("{:?}", argument))),
+            } => Err(InvalidArgument(format!("{argument:?}"))),
             FunctionArg::Unnamed(FunctionArgExpr::QualifiedWildcard(_)) => {
-                Err(InvalidArgument(format!("{:?}", argument)))
+                Err(InvalidArgument(format!("{argument:?}")))
             }
         }
     }
@@ -343,7 +343,7 @@ impl ExpressionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => return Err(InvalidOperator(format!("{:?}", op))),
+            _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
         Ok(Box::new(Expression::UnaryOperator { operator, arg }))
@@ -374,7 +374,7 @@ impl ExpressionBuilder {
             SqlBinaryOperator::Modulo => BinaryOperatorType::Mod,
             SqlBinaryOperator::And => BinaryOperatorType::And,
             SqlBinaryOperator::Or => BinaryOperatorType::Or,
-            _ => return Err(InvalidOperator(format!("{:?}", op))),
+            _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
         Ok(Box::new(Expression::BinaryOperator {
@@ -446,14 +446,12 @@ impl ExpressionBuilder {
                     CastOperatorType::Bson
                 } else {
                     Err(PipelineError::InvalidFunction(format!(
-                        "Unsupported Cast type {}",
-                        name
+                        "Unsupported Cast type {name}"
                     )))?
                 }
             }
             _ => Err(PipelineError::InvalidFunction(format!(
-                "Unsupported Cast type {}",
-                data_type
+                "Unsupported Cast type {data_type}"
             )))?,
         };
         Ok(Box::new(Expression::Cast {

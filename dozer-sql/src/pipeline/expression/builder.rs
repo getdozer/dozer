@@ -127,7 +127,7 @@ impl ExpressionBuilder {
             SqlExpr::Cast { expr, data_type } => {
                 self.parse_sql_cast_operator(expression_type, expr, data_type, schema)
             }
-            _ => Err(InvalidExpression(format!("{:?}", expression))),
+            _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
 
@@ -191,7 +191,7 @@ impl ExpressionBuilder {
             let r = self.parse_sql_function_arg(expression_type, arg, schema)?;
             return Ok((r.0, false)); // switch bypass to true, since the argument of this Aggregation must be the final result
         };
-        Err(InvalidExpression(format!("{:?}", expression)))
+        Err(InvalidExpression(format!("{expression:?}")))
     }
 
     fn parse_sql_function_pre_aggregation(
@@ -234,7 +234,7 @@ impl ExpressionBuilder {
             let r = self.parse_sql_function_arg(expression_type, arg, schema)?;
             return Ok((r.0, true)); // switch bypass to true, since the argument of this Aggregation must be the final result
         };
-        Err(InvalidExpression(format!("{:?}", expression)))
+        Err(InvalidExpression(format!("{expression:?}")))
     }
 
     fn parse_sql_function_aggregation(
@@ -301,8 +301,7 @@ impl ExpressionBuilder {
         };
 
         Err(InvalidExpression(format!(
-            "Unsupported Expression: {:?}",
-            expression
+            "Unsupported Expression: {expression:?}"
         )))
     }
 
@@ -347,7 +346,7 @@ impl ExpressionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => return Err(InvalidOperator(format!("{:?}", op))),
+            _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
         Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
