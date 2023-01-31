@@ -13,7 +13,6 @@ use dozer_types::types::SourceDefinition;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
-use crate::pipeline::expression::builder::NameOrAlias;
 use crate::pipeline::tests::utils::get_select;
 
 struct TestChannelForwarder {
