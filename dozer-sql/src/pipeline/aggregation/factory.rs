@@ -114,14 +114,14 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                         })
                         .collect();
                     for f in fields {
-                        let res = parse_sql_select_item(&f, &input_schema);
+                        let res = parse_sql_select_item(&f, input_schema);
                         if let Ok(..) = res {
                             select_expr.push(res.unwrap())
                         }
                     }
                 }
                 _ => {
-                    let res = parse_sql_select_item(s, &input_schema);
+                    let res = parse_sql_select_item(s, input_schema);
                     if let Ok(..) = res {
                         select_expr.push(res.unwrap())
                     }
@@ -130,7 +130,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         }
 
         Ok(Box::new(ProjectionProcessor::new(
-            input_schema,
+            input_schema.clone(),
             select_expr,
         )))
     }
