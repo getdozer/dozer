@@ -440,6 +440,7 @@ mod tests {
     use dozer_cache::cache::{index, Cache};
 
     use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+    use dozer_core::dag::epoch::{OpIdentifier, PipelineCheckpoint};
     use dozer_core::dag::node::{NodeHandle, Sink};
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 
@@ -506,12 +507,14 @@ mod tests {
         sink.commit(
             &dozer_core::dag::epoch::Epoch::new(
                 0,
-                [(
-                    NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
-                    (0_u64, 0_u64),
-                )]
-                .into_iter()
-                .collect(),
+                PipelineCheckpoint(
+                    [(
+                        NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+                        None,
+                    )]
+                    .into_iter()
+                    .collect(),
+                ),
             ),
             &txn,
         )
@@ -526,12 +529,14 @@ mod tests {
             .unwrap();
         let epoch1 = dozer_core::dag::epoch::Epoch::new(
             0,
-            [(
-                NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
-                (0_u64, 1_u64),
-            )]
-            .into_iter()
-            .collect(),
+            PipelineCheckpoint(
+                [(
+                    NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+                    Some(OpIdentifier::new(0_u64, 1_u64)),
+                )]
+                .into_iter()
+                .collect(),
+            ),
         );
         sink.commit(&epoch1, &txn).unwrap();
 
