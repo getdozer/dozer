@@ -2,44 +2,37 @@ use crate::pipeline::aggregation::processor_new::AggregationProcessor;
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::Expression;
+use crate::pipeline::planner::projection::ProjectionPlanner;
+use crate::pipeline::projection::processor::ProjectionProcessor;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
 use dozer_types::types::Schema;
+use sqlparser::ast::Select;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
-    dimensions: Vec<Expression>,
-    measures: Vec<Expression>,
-    projections: Vec<Expression>,
-    input_schema: Schema,
-    aggregation_schema: Schema,
-    projection_schema: Schema,
+    projection: Select,
     stateful: bool,
 }
 
 impl AggregationProcessorFactory {
-    pub fn new(
-        dimensions: Vec<Expression>,
-        measures: Vec<Expression>,
-        projections: Vec<Expression>,
-        input_schema: Schema,
-        aggregation_schema: Schema,
-        projection_schema: Schema,
-        stateful: bool,
-    ) -> Self {
+    pub fn new(projection: Select, stateful: bool) -> Self {
         Self {
-            dimensions,
-            measures,
-            projections,
-            input_schema,
-            aggregation_schema,
-            projection_schema,
+            projection,
             stateful,
         }
+    }
+
+    fn get_planner(&self, input_schema: Schema) -> Result<ProjectionPlanner, ExecutionError> {
+        let mut projection_planner = ProjectionPlanner::new(input_schema);
+        let _ = projection_planner
+            .plan(self.projection.clone())
+            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        Ok(projection_planner)
     }
 }
 
@@ -73,7 +66,9 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         let (input_schema, ctx) = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
-        Ok((self.projection_schema.clone(), ctx.clone()))
+
+        let planner = self.get_planner(input_schema.clone())?;
+        Ok((planner.post_projection_schema, ctx.clone()))
     }
 
     fn build(
@@ -85,14 +80,18 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        let processor = AggregationProcessor::new(
-            self.dimensions.clone(),
-            self.measures.clone(),
-            self.projections.clone(),
-            input_schema.clone(),
-            self.aggregation_schema.clone(),
-        )
-        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        let planner = self.get_planner(input_schema.clone())?;
+
+        let processor = match planner.aggregation_output.len() {
+            _ => AggregationProcessor::new(
+                planner.groupby,
+                planner.aggregation_output,
+                planner.projection_output,
+                input_schema.clone(),
+                planner.post_aggregation_schema.clone(),
+            )
+            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
+        };
 
         Ok(Box::new(processor))
     }
