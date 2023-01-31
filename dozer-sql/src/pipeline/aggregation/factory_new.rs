@@ -82,18 +82,24 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
 
         let planner = self.get_planner(input_schema.clone())?;
 
-        let processor = match planner.aggregation_output.len() {
-            _ => AggregationProcessor::new(
-                planner.groupby,
-                planner.aggregation_output,
-                planner.projection_output,
+        let processor: Box<dyn Processor> = match planner.aggregation_output.len() {
+            0 => Box::new(ProjectionProcessor::new(
                 input_schema.clone(),
-                planner.post_aggregation_schema.clone(),
-            )
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
+                planner.projection_output,
+            )),
+            _ => Box::new(
+                AggregationProcessor::new(
+                    planner.groupby,
+                    planner.aggregation_output,
+                    planner.projection_output,
+                    input_schema.clone(),
+                    planner.post_aggregation_schema.clone(),
+                )
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
+            ),
         };
 
-        Ok(Box::new(processor))
+        Ok(processor)
     }
 
     fn prepare(

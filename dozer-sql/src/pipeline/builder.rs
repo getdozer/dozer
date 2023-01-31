@@ -1,4 +1,4 @@
-use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
+use crate::pipeline::aggregation::factory_new::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use crate::pipeline::{errors::PipelineError, product::factory::ProductProcessorFactory};
@@ -167,8 +167,7 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation =
-        AggregationProcessorFactory::new(select.projection.clone(), select.group_by, stateful);
+    let aggregation = AggregationProcessorFactory::new(select.clone(), stateful);
 
     pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
 

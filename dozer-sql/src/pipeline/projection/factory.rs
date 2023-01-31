@@ -119,7 +119,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
                 schema.clone(),
-                expressions,
+                expressions.into_iter().map(|e| e.1).collect(),
             ))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }

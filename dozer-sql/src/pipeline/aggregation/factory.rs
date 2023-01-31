@@ -131,7 +131,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
 
         Ok(Box::new(ProjectionProcessor::new(
             input_schema.clone(),
-            select_expr,
+            select_expr.into_iter().map(|e| e.1).collect(),
         )))
     }
 
