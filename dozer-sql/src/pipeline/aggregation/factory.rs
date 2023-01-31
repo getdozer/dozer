@@ -100,14 +100,13 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
-        let input_schema = extend_schema_source_def(input_schema, &self.name);
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, &input_schema).unwrap();
 
         if is_aggregation(&self.groupby, &output_field_rules) {
             return Ok(Box::new(AggregationProcessor::new(
                 output_field_rules,
-                input_schema,
+                input_schema.clone(),
             )));
         }
 
@@ -119,7 +118,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
         {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
-                input_schema,
+                input_schema.clone(),
                 expressions,
             ))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
