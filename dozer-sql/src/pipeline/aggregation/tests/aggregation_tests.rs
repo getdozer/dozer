@@ -71,7 +71,6 @@ fn test_simple_aggregation() {
         .clone();
 
     let processor_factory = AggregationProcessorFactory::new(
-        NameOrAlias("Users".to_string(), None),
         select.projection.clone(),
         select.group_by,
         false,
