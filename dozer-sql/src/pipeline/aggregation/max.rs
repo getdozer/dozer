@@ -16,7 +16,6 @@ pub struct MaxAggregator {}
 const AGGREGATOR_NAME: &str = "MAX";
 
 impl MaxAggregator {
-
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
             FieldType::Date => FieldType::Date,

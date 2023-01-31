@@ -1,4 +1,5 @@
 use crate::output;
+use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_date_field, get_decimal_field, get_ts_field, init_input_schema,
     init_processor, insert_exp, insert_field, update_exp, update_field, DATE8, FIELD_100_FLOAT,
@@ -6,10 +7,9 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_50_FLOAT, FIELD_50_INT, FIELD_NULL, ITALY, SINGAPORE,
 };
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_types::log::debug;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp};
 use std::collections::HashMap;
-use dozer_types::log::debug;
-use crate::pipeline::aggregation::aggregator::Aggregator;
 
 #[test]
 fn test_count_aggregator() {

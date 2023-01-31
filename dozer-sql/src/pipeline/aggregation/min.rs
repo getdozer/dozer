@@ -16,7 +16,6 @@ pub struct MinAggregator {}
 const AGGREGATOR_NAME: &str = "MIN";
 
 impl MinAggregator {
-
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
             FieldType::Date => FieldType::Date,

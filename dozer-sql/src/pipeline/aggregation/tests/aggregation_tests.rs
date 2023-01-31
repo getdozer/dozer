@@ -1,18 +1,16 @@
-use std::borrow::BorrowMut;
-use std::collections::HashMap;
-use std::path::Path;
-use lmdb::Environment;
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::{
     dag::{channels::ProcessorChannelForwarder, dag::DEFAULT_PORT_HANDLE, node::ProcessorFactory},
     storage::lmdb_storage::LmdbEnvironmentManager,
 };
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use lmdb::Environment;
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+use std::path::Path;
 
-use dozer_types::{
-    types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
-};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::SourceDefinition;
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::expression::builder::NameOrAlias;
@@ -72,13 +70,12 @@ fn test_simple_aggregation() {
         )
         .clone();
 
-    let processor_factory =
-        AggregationProcessorFactory::new(
-            NameOrAlias("Users".to_string(), None),
-            select.projection.clone(),
-            select.group_by,
-            false,
-        );
+    let processor_factory = AggregationProcessorFactory::new(
+        NameOrAlias("Users".to_string(), None),
+        select.projection.clone(),
+        select.group_by,
+        false,
+    );
 
     let mut processor = processor_factory
         .build(
@@ -94,10 +91,8 @@ fn test_simple_aggregation() {
         .init(storage.borrow_mut())
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let binding = LmdbExclusiveTransaction::new(
-        Environment::new().open(Path::new("./")).unwrap()
-    )
-    .unwrap();
+    let binding =
+        LmdbExclusiveTransaction::new(Environment::new().open(Path::new("./")).unwrap()).unwrap();
     let mut tx = SharedTransaction::new(binding);
     let mut fw = TestChannelForwarder { operations: vec![] };
 

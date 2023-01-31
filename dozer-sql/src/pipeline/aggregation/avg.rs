@@ -16,7 +16,6 @@ pub struct AvgAggregator {}
 const AGGREGATOR_NAME: &str = "AVG";
 
 impl AvgAggregator {
-
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
             FieldType::Decimal => FieldType::Decimal,

@@ -1,5 +1,5 @@
-use std::any::Any;
 use crate::output;
+use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_decimal_field, init_input_schema, init_processor, insert_exp,
     insert_field, update_exp, update_field, FIELD_0_FLOAT, FIELD_0_INT, FIELD_100_FLOAT,
@@ -8,13 +8,13 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_350_INT, FIELD_350_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_NULL, ITALY,
     SINGAPORE,
 };
+use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_types::types::FieldType::{Decimal, Float, Int, Text, UInt};
-use std::collections::HashMap;
 use dozer_types::log::debug;
 use dozer_types::types::Field;
-use crate::pipeline::aggregation::aggregator::Aggregator;
-use crate::pipeline::errors::PipelineError::InvalidOperandType;
+use dozer_types::types::FieldType::{Decimal, Float, Int, Text, UInt};
+use std::any::Any;
+use std::collections::HashMap;
 
 #[test]
 fn test_sum_aggregator() {
@@ -35,19 +35,39 @@ fn failure_min_aggregator() {
         WHERE Salary >= 1 GROUP BY Country",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
-        .unwrap();
+    .unwrap();
 
     let mut inp = insert_field(ITALY, &Field::Text("test".to_string()));
-    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
-    assert_eq!(InvalidOperandType("SUM".to_string()).type_id(), out.type_id());
+    let out = processor
+        .aggregate(&mut tx.write(), processor.db.unwrap(), inp)
+        .unwrap_err();
+    assert_eq!(
+        InvalidOperandType("SUM".to_string()).type_id(),
+        out.type_id()
+    );
 
     inp = delete_field(ITALY, &Field::Text("test".to_string()));
-    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
-    assert_eq!(InvalidOperandType("SUM".to_string()).type_id(), out.type_id());
+    let out = processor
+        .aggregate(&mut tx.write(), processor.db.unwrap(), inp)
+        .unwrap_err();
+    assert_eq!(
+        InvalidOperandType("SUM".to_string()).type_id(),
+        out.type_id()
+    );
 
-    inp = update_field(ITALY, ITALY, &Field::Text("test".to_string()), &Field::Text("test".to_string()));
-    let out = processor.aggregate(&mut tx.write(), processor.db.unwrap(), inp).unwrap_err();
-    assert_eq!(InvalidOperandType("SUM".to_string()).type_id(), out.type_id());
+    inp = update_field(
+        ITALY,
+        ITALY,
+        &Field::Text("test".to_string()),
+        &Field::Text("test".to_string()),
+    );
+    let out = processor
+        .aggregate(&mut tx.write(), processor.db.unwrap(), inp)
+        .unwrap_err();
+    assert_eq!(
+        InvalidOperandType("SUM".to_string()).type_id(),
+        out.type_id()
+    );
 }
 
 #[test]

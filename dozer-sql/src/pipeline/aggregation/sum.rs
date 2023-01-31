@@ -12,7 +12,6 @@ pub struct SumAggregator {}
 const AGGREGATOR_NAME: &str = "SUM";
 
 impl SumAggregator {
-
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
             FieldType::Decimal => FieldType::Decimal,

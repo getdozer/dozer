@@ -8,7 +8,6 @@ use dozer_types::types::{Field, FieldType};
 pub struct CountAggregator {}
 
 impl CountAggregator {
-
     pub(crate) fn get_return_type() -> FieldType {
         FieldType::Int
     }
