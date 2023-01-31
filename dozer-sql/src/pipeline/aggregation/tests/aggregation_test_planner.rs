@@ -11,7 +11,7 @@ use tempdir::TempDir;
 
 #[test]
 fn test_planner_with_aggregator() {
-    let sql = "SELECT CONCAT(city,'/',country), CAST(SUM(adults_count + children_count) AS STRING) as headcounts GROUP BY CONCAT(city,'/',country)";
+    let sql = "SELECT CONCAT(city,'/',country), CONCAT('Total: ', CAST(SUM(adults_count + children_count) AS STRING), ' people') as headcounts GROUP BY CONCAT(city,'/',country)";
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(
