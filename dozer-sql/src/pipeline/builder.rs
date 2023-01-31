@@ -167,12 +167,8 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation = AggregationProcessorFactory::new(
-        input_tables.relation.0,
-        select.projection.clone(),
-        select.group_by,
-        stateful,
-    );
+    let aggregation =
+        AggregationProcessorFactory::new(select.projection.clone(), select.group_by, stateful);
 
     pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
 
