@@ -13,10 +13,8 @@ fn test_field_serialize_roundtrip() {
 fn test_field_bincode_serialize_roundtrip() {
     for field in field_test_cases() {
         let bytes = bincode::serialize(&field).unwrap();
-        let deserialized = bincode::deserialize::<Field>(&bytes).expect(&format!(
-            "Failed to deserialize field: {:?} from bytes: {:?}",
-            field, bytes
-        ));
+        let deserialized = bincode::deserialize::<Field>(&bytes).unwrap_or_else(|_| panic!("Failed to deserialize field: {:?} from bytes: {:?}",
+            field, bytes));
         assert_eq!(field, deserialized);
     }
 }
