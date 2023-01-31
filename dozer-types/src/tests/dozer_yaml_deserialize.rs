@@ -74,7 +74,7 @@ fn error_missing_field_general() {
     assert!(error
         .unwrap()
         .to_string()
-        .starts_with("endpoints[0]: missing field `name`"));
+        .starts_with("sources[0]: missing field `name`"));
 }
 #[test]
 fn error_missing_field_in_source() {
