@@ -286,7 +286,7 @@ mod tests {
     use super::*;
 
     fn new_node_handle(index: u16) -> NodeHandle {
-        NodeHandle::new(Some(index), format!("node{}", index))
+        NodeHandle::new(Some(index), format!("node{index}"))
     }
 
     fn new_checkpoint(node_checkpoints: Vec<(u16, Option<u64>)>) -> PipelineCheckpoint {
