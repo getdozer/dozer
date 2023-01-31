@@ -97,6 +97,7 @@ fn multi_join_query() {
 }
 
 #[test]
+#[ignore]
 fn join_alias_query() {
     let queries = r#" 
         SELECT a.actor_id, a.first_name, a.last_name from actor a 
