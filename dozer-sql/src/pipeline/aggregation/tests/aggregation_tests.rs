@@ -1,17 +1,15 @@
+use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
+use crate::pipeline::tests::utils::get_select;
 use dozer_core::{
     dag::{channels::ProcessorChannelForwarder, dag::DEFAULT_PORT_HANDLE, node::ProcessorFactory},
     storage::lmdb_storage::LmdbEnvironmentManager,
 };
-use std::borrow::BorrowMut;
-use std::collections::HashMap;
-use std::path::Path;
-
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::SourceDefinition;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-
-use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
-use crate::pipeline::tests::utils::get_select;
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+use std::path::Path;
 
 struct TestChannelForwarder {
     operations: Vec<Operation>,

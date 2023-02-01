@@ -1,3 +1,8 @@
+use crate::pipeline::{
+    aggregation::{factory::get_aggregation_rules, processor::AggregationProcessor},
+    errors::PipelineError,
+    tests::utils::get_select,
+};
 use dozer_core::{
     dag::{
         dag::DEFAULT_PORT_HANDLE,
@@ -5,20 +10,13 @@ use dozer_core::{
     },
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
 };
+use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, DATE_FORMAT,
 };
 use std::collections::HashMap;
-
-use crate::pipeline::{
-    aggregation::{factory::get_aggregation_rules, processor::AggregationProcessor},
-    errors::PipelineError,
-    tests::utils::get_select,
-};
-
-use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
-use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
 use std::path::Path;
 
