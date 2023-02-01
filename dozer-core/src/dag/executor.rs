@@ -4,9 +4,7 @@ use crate::dag::dag::Dag;
 use crate::dag::dag_metadata::{Consistency, DagMetadata, DagMetadataManager};
 use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{
-    IncompatibleSchemas, InconsistentCheckpointMetadata, InvalidNodeHandle,
-};
+use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InconsistentCheckpointMetadata};
 use crate::dag::executor_utils::index_edges;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
@@ -225,27 +223,25 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         let schema_manager = DagSchemaManager::new(dag)?;
         let meta_manager = DagMetadataManager::new(dag, path)?;
 
-        let compatible = match meta_manager.get_metadata() {
+        let current_schemas = schema_manager.get_all_schemas();
+        match meta_manager.get_metadata() {
             Ok(existing_schemas) => {
-                for (handle, current) in schema_manager.get_all_schemas() {
-                    let existing = existing_schemas
-                        .get(handle)
-                        .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
-                    Self::validate_schemas(current, existing)?;
+                for (handle, current) in current_schemas {
+                    if let Some(existing) = existing_schemas.get(handle) {
+                        Self::validate_schemas(current, existing)?;
+                    } else {
+                        meta_manager.delete_metadata();
+                        meta_manager.init_metadata(current_schemas)?;
+                    }
                 }
-                Ok(schema_manager.get_all_schemas().clone())
             }
-            Err(_) => Err(IncompatibleSchemas()),
-        };
-
-        match compatible {
-            Ok(schema) => Ok(schema),
             Err(_) => {
                 meta_manager.delete_metadata();
-                meta_manager.init_metadata(schema_manager.get_all_schemas())?;
-                Ok(schema_manager.get_all_schemas().clone())
+                meta_manager.init_metadata(current_schemas)?;
             }
-        }
+        };
+
+        Ok(current_schemas.clone())
     }
 
     fn start_source(

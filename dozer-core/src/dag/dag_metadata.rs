@@ -1,9 +1,7 @@
 use crate::dag::dag::{Dag, Edge, NodeType};
 use crate::dag::dag_schemas::NodeSchemas;
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{
-    InvalidCheckpointState, InvalidNodeHandle, MetadataAlreadyExists,
-};
+use crate::dag::errors::ExecutionError::{InvalidNodeHandle, MetadataAlreadyExists};
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::common::Seek;
 use crate::storage::errors::StorageError;
@@ -88,12 +86,13 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     fn get_node_checkpoint_metadata(
         path: &Path,
         name: &NodeHandle,
-    ) -> Result<DagMetadata, ExecutionError> {
-        if !LmdbEnvironmentManager::exists(path, format!("{name}").as_str()) {
-            return Err(InvalidCheckpointState(name.clone()));
+    ) -> Result<Option<DagMetadata>, ExecutionError> {
+        let env_name = metadata_environment_name(name);
+        if !LmdbEnvironmentManager::exists(path, &env_name) {
+            return Ok(None);
         }
 
-        let mut env = LmdbEnvironmentManager::create(path, format!("{name}").as_str())?;
+        let mut env = LmdbEnvironmentManager::create(path, &env_name)?;
         let db = env.open_database(METADATA_DB_NAME, false)?;
         let txn = env.create_txn()?;
         let txn = SharedTransaction::try_unwrap(txn)
@@ -155,11 +154,11 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
             }
         }
 
-        Ok(DagMetadata {
+        Ok(Some(DagMetadata {
             commits,
             input_schemas,
             output_schemas,
-        })
+        }))
     }
 
     fn get_checkpoint_metadata(
@@ -167,12 +166,9 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         dag: &Dag<T>,
     ) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
         let mut all = HashMap::<NodeHandle, DagMetadata>::new();
-        for node in &dag.nodes {
-            match DagMetadataManager::<T>::get_node_checkpoint_metadata(path, node.0) {
-                Ok(r) => {
-                    all.insert(node.0.clone(), r);
-                }
-                Err(_e) => LmdbEnvironmentManager::remove(path, format!("{}", node.0).as_str()),
+        for node in dag.nodes.keys() {
+            if let Some(metadata) = Self::get_node_checkpoint_metadata(path, node)? {
+                all.insert(node.clone(), metadata);
             }
         }
         Ok(all)
@@ -240,35 +236,30 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     }
 
     pub(crate) fn delete_metadata(&self) {
-        for node in &self.dag.nodes {
-            LmdbEnvironmentManager::remove(self.path, format!("{}", node.0).as_str());
+        for node in self.dag.nodes.keys() {
+            LmdbEnvironmentManager::remove(self.path, &metadata_environment_name(node));
         }
     }
 
     pub(crate) fn get_metadata(&self) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
-        let mut all_meta = HashMap::<NodeHandle, DagMetadata>::new();
-        for node in &self.dag.nodes {
-            let metadata = Self::get_node_checkpoint_metadata(self.path, node.0)?;
-            all_meta.insert(node.0.clone(), metadata);
-        }
-        Ok(all_meta)
+        Self::get_checkpoint_metadata(self.path, self.dag)
     }
 
     pub(crate) fn init_metadata(
         &self,
         schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
     ) -> Result<(), ExecutionError> {
-        for node in &self.dag.nodes {
+        for node in self.dag.nodes.keys() {
             let curr_node_schema = schemas
-                .get(node.0)
-                .ok_or_else(|| InvalidNodeHandle(node.0.clone()))?;
+                .get(node)
+                .ok_or_else(|| InvalidNodeHandle(node.clone()))?;
 
-            if LmdbEnvironmentManager::exists(self.path, format!("{}", node.0).as_str()) {
-                return Err(MetadataAlreadyExists(node.0.clone()));
+            let env_name = metadata_environment_name(node);
+            if LmdbEnvironmentManager::exists(self.path, &env_name) {
+                return Err(MetadataAlreadyExists(node.clone()));
             }
 
-            let mut env =
-                LmdbEnvironmentManager::create(self.path, format!("{}", node.0).as_str())?;
+            let mut env = LmdbEnvironmentManager::create(self.path, &env_name)?;
             let db = env.open_database(METADATA_DB_NAME, false)?;
             let txn = env.create_txn()?;
             let mut txn = SharedTransaction::try_unwrap(txn)
@@ -298,6 +289,10 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         }
         Ok(())
     }
+}
+
+fn metadata_environment_name(node_handle: &NodeHandle) -> String {
+    format!("{node_handle}")
 }
 
 pub fn write_source_metadata<'a>(
