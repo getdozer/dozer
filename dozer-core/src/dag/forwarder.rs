@@ -72,7 +72,6 @@ impl StateWriter {
             self.meta_db,
             &mut epoch_details
                 .details
-                .0
                 .iter()
                 .map(|(source, op_id)| (source, *op_id)),
         )?;
@@ -185,6 +184,7 @@ impl SourceChannelManager {
     ) -> Self {
         Self {
             manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
+            // FIXME: Read curr_txid and curr_seq_in_tx from persisted state.
             curr_txid: 0,
             curr_seq_in_tx: 0,
             source_handle: owner,
@@ -206,20 +206,16 @@ impl SourceChannelManager {
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         if request_termination || self.should_commit() {
-            let op_in_this_epoch = if self.num_uncommited_ops > 0 {
-                Some((self.curr_txid, self.curr_seq_in_tx))
-            } else {
-                None
-            };
-
-            let (terminating, epoch) = self.epoch_manager.wait_for_epoch_close(
-                self.source_handle.clone(),
-                op_in_this_epoch,
-                request_termination,
-            );
-            if let Some(epoch) = epoch {
-                self.manager
-                    .store_and_send_commit(&Epoch::new(epoch.id, epoch.details))?;
+            let (terminating, epoch) = self
+                .epoch_manager
+                .wait_for_epoch_close(request_termination, self.num_uncommited_ops > 0);
+            if let Some(epoch_id) = epoch {
+                self.manager.store_and_send_commit(&Epoch::from(
+                    epoch_id,
+                    self.source_handle.clone(),
+                    self.curr_txid,
+                    self.curr_seq_in_tx,
+                ))?;
             }
             self.num_uncommited_ops = 0;
             self.last_commit_instant = Instant::now();
