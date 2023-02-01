@@ -32,7 +32,7 @@ async-trait = "0.1.61"
 tracing-actix-web = "0.7.2"
 tower = "0.4.13"
 hyper = "0.14.23"
-actix-http = "3.2.2"
+actix-http = "3.3.0"
 
 
 [build-dependencies]
