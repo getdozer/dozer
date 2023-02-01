@@ -42,15 +42,15 @@ pub enum JoinSource {
 impl JoinSource {
     pub fn execute(
         &self,
-        action: &JoinAction,
+        action: JoinAction,
         from_port: PortHandle,
         record: &Record,
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         match self {
-            JoinSource::Table(table) => table.execute(from_port, record),
+            JoinSource::Table(table) => table.execute(action, from_port, record),
             JoinSource::Join(join) => {
                 join.execute(action, from_port, record, database, transaction, readers)
             }
@@ -103,12 +103,13 @@ impl JoinTable {
 
     fn execute(
         &self,
+        action: JoinAction,
         from_port: PortHandle,
         record: &Record,
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         if self.port == from_port {
             let lookup_key = self.encode_lookup_key(record, &self.schema)?;
-            Ok(vec![(record.clone(), lookup_key)])
+            Ok(vec![(action, record.clone(), lookup_key)])
         } else {
             Err(ExecutionError::InvalidPortHandle(self.port))
         }
@@ -209,20 +210,20 @@ impl JoinOperator {
 
     pub fn execute(
         &self,
-        action: &JoinAction,
+        action: JoinAction,
         from_port: PortHandle,
         record: &Record,
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         // if the source port is under the left branch of the join
         if self.left_source.get_sources().contains(&from_port) {
             let mut output_records = vec![];
 
             // forward the record and the current join constraints to the left source
             let mut left_records = self.left_source.execute(
-                action,
+                action.clone(),
                 from_port,
                 record,
                 database,
@@ -231,10 +232,10 @@ impl JoinOperator {
             )?;
 
             // update left join index
-            for (left_record, left_lookup_key) in left_records.iter_mut() {
+            for (_join_action, left_record, left_lookup_key) in left_records.iter_mut() {
                 let left_join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key)?;
                 self.update_index(
-                    action,
+                    action.clone(),
                     &left_join_key,
                     left_lookup_key,
                     self.left_lookup_index,
@@ -245,6 +246,7 @@ impl JoinOperator {
                 let join_records = match self._operator {
                     JoinOperatorType::Inner | JoinOperatorType::RightOuter => self
                         .inner_join_right(
+                            action.clone(),
                             left_join_key,
                             database,
                             transaction,
@@ -252,7 +254,8 @@ impl JoinOperator {
                             left_record,
                             left_lookup_key,
                         )?,
-                    JoinOperatorType::LeftOuter => self.left_join_right(
+                    JoinOperatorType::LeftOuter => self.left_join(
+                        action.clone(),
                         left_join_key,
                         database,
                         transaction,
@@ -271,7 +274,7 @@ impl JoinOperator {
 
             // forward the record and the current join constraints to the left source
             let mut right_records = self.right_source.execute(
-                action,
+                action.clone(),
                 from_port,
                 record,
                 database,
@@ -280,10 +283,10 @@ impl JoinOperator {
             )?;
 
             // update right join index
-            for (right_record, right_lookup_key) in right_records.iter_mut() {
+            for (_join_action, right_record, right_lookup_key) in right_records.iter_mut() {
                 let right_join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key)?;
                 self.update_index(
-                    action,
+                    action.clone(),
                     &right_join_key,
                     right_lookup_key,
                     self.right_lookup_index,
@@ -293,6 +296,7 @@ impl JoinOperator {
 
                 let join_records = match self._operator {
                     JoinOperatorType::Inner | JoinOperatorType::LeftOuter => self.inner_join_left(
+                        action.clone(),
                         right_join_key,
                         database,
                         transaction,
@@ -301,6 +305,7 @@ impl JoinOperator {
                         right_lookup_key,
                     )?,
                     JoinOperatorType::RightOuter => self.right_join_left(
+                        action.clone(),
                         right_join_key,
                         database,
                         transaction,
@@ -318,15 +323,17 @@ impl JoinOperator {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn inner_join_right(
         &self,
+        action: JoinAction,
         left_join_key: Vec<u8>,
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         left_record: &mut Record,
         left_lookup_key: &mut [u8],
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         let right_lookup_keys = self.read_index(
             &left_join_key,
             self.right_lookup_index,
@@ -346,21 +353,23 @@ impl JoinOperator {
                 let join_lookup_key =
                     self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
 
-                output_records.push((join_record, join_lookup_key));
+                output_records.push((action.clone(), join_record, join_lookup_key));
             }
         }
         Ok(output_records)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn inner_join_left(
         &self,
+        action: JoinAction,
         right_join_key: Vec<u8>,
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         right_record: &mut Record,
         right_lookup_key: &mut [u8],
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         let left_lookup_keys = self.read_index(
             &right_join_key,
             self.left_lookup_index,
@@ -380,21 +389,23 @@ impl JoinOperator {
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
                     self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
-                output_records.push((join_record, join_lookup_key));
+                output_records.push((action.clone(), join_record, join_lookup_key));
             }
         }
         Ok(output_records)
     }
 
-    fn left_join_right(
+    #[allow(clippy::too_many_arguments)]
+    fn left_join(
         &self,
+        action: JoinAction,
         left_join_key: Vec<u8>,
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         left_record: &mut Record,
         left_lookup_key: &mut [u8],
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         let right_lookup_keys = self.read_index(
             &left_join_key,
             self.right_lookup_index,
@@ -408,7 +419,7 @@ impl JoinOperator {
             let right_record = Record::from_schema(&self.right_source.get_output_schema());
             let join_record = join_records(left_record, &right_record);
             let join_lookup_key = self.encode_join_lookup_key(left_lookup_key, &[0, 0, 0, 0]);
-            output_records.push((join_record, join_lookup_key));
+            output_records.push((action, join_record, join_lookup_key));
 
             return Ok(output_records);
         }
@@ -424,21 +435,23 @@ impl JoinOperator {
                 let join_lookup_key =
                     self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
 
-                output_records.push((join_record, join_lookup_key));
+                output_records.push((action.clone(), join_record, join_lookup_key));
             }
         }
         Ok(output_records)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn right_join_left(
         &self,
+        action: JoinAction,
         right_join_key: Vec<u8>,
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         right_record: &mut Record,
         right_lookup_key: &mut [u8],
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         let left_lookup_keys = self.read_index(
             &right_join_key,
             self.left_lookup_index,
@@ -453,7 +466,7 @@ impl JoinOperator {
             let left_record = Record::from_schema(&self.left_source.get_output_schema());
             let join_record = join_records(&left_record, right_record);
             let join_lookup_key = self.encode_join_lookup_key(right_lookup_key, &[0, 0, 0, 0]);
-            output_records.push((join_record, join_lookup_key));
+            output_records.push((action, join_record, join_lookup_key));
 
             return Ok(output_records);
         }
@@ -469,7 +482,7 @@ impl JoinOperator {
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
                     self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
-                output_records.push((join_record, join_lookup_key));
+                output_records.push((action.clone(), join_record, join_lookup_key));
             }
         }
         Ok(output_records)
@@ -509,7 +522,7 @@ impl JoinOperator {
 
     pub fn update_index(
         &self,
-        action: &JoinAction,
+        action: JoinAction,
         key: &[u8],
         value: &[u8],
         prefix: u32,
@@ -519,15 +532,13 @@ impl JoinOperator {
         let mut exclusive_transaction = transaction.write();
         let mut prefix_transaction = PrefixTransaction::new(&mut exclusive_transaction, prefix);
 
-        match *action {
+        match action {
             JoinAction::Insert => {
                 prefix_transaction.put(*database, key, value)?;
             }
             JoinAction::Delete => {
                 prefix_transaction.del(*database, key, Some(value))?;
-            } // JoinAction::Update => {
-              //     todo!()
-              // }
+            }
         }
 
         Ok(())

@@ -44,11 +44,11 @@ impl FromProcessor {
         record: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
         self.operator.execute(
-            &JoinAction::Delete,
+            JoinAction::Delete,
             from_port,
             record,
             database,
@@ -63,11 +63,11 @@ impl FromProcessor {
         record: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
         self.operator.execute(
-            &JoinAction::Insert,
+            JoinAction::Insert,
             from_port,
             record,
             database,
@@ -84,11 +84,17 @@ impl FromProcessor {
         new: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<(Vec<(Record, Vec<u8>)>, Vec<(Record, Vec<u8>)>), ExecutionError> {
+    ) -> Result<
+        (
+            Vec<(JoinAction, Record, Vec<u8>)>,
+            Vec<(JoinAction, Record, Vec<u8>)>,
+        ),
+        ExecutionError,
+    > {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
         let old_records = self.operator.execute(
-            &JoinAction::Delete,
+            JoinAction::Delete,
             from_port,
             old,
             database,
@@ -97,7 +103,7 @@ impl FromProcessor {
         )?;
 
         let new_records = self.operator.execute(
-            &JoinAction::Insert,
+            JoinAction::Insert,
             from_port,
             new,
             database,
@@ -138,27 +144,34 @@ impl Processor for FromProcessor {
             Operation::Delete { ref old } => {
                 let records = self.delete(from_port, old, transaction, reader)?;
 
-                for (record, _lookup_key) in records.into_iter() {
+                for (_action, record, _key) in records.into_iter() {
                     let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
                 let records = self.insert(from_port, new, transaction, reader)?;
 
-                for (record, _lookup_key) in records.into_iter() {
-                    let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                for (action, record, _key) in records.into_iter() {
+                    match action {
+                        JoinAction::Insert => {
+                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                        }
+                        JoinAction::Delete => {
+                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                        }
+                    }
                 }
             }
             Operation::Update { ref old, ref new } => {
                 let (old_join_records, new_join_records) =
                     self.update(from_port, old, new, transaction, reader)?;
 
-                for old in old_join_records.into_iter() {
-                    let _ = fw.send(Operation::Delete { old: old.0 }, DEFAULT_PORT_HANDLE);
+                for (_action, old, _key) in old_join_records.into_iter() {
+                    let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
                 }
 
-                for new in new_join_records.into_iter() {
-                    let _ = fw.send(Operation::Insert { new: new.0 }, DEFAULT_PORT_HANDLE);
+                for (_action, new, _key) in new_join_records.into_iter() {
+                    let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
                 }
             }
         }
