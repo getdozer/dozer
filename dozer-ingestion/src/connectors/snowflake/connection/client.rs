@@ -5,9 +5,10 @@ use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::connectors::TableInfo;
-use crate::errors::SnowflakeError::QueryError;
+use crate::errors::SnowflakeError::{QueryError, SnowflakeStreamError};
 use crate::errors::SnowflakeSchemaError::DecimalConvertError;
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
+use crate::errors::SnowflakeStreamError::TimeTravelNotAvailableError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::*;
@@ -247,6 +248,8 @@ impl Client {
             |e| {
                 if e.get_native_error() == 2203 {
                     Ok(false)
+                } else if e.get_native_error() == 707 {
+                    Err(SnowflakeStreamError(TimeTravelNotAvailableError))
                 } else {
                     Err(QueryError(Box::new(e)))
                 }
