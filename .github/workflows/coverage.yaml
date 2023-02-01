@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 concurrency:
-  group: coverage/${{ github.ref }}
+  group: coverage/${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
