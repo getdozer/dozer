@@ -293,7 +293,7 @@ impl Processor for RecordReaderProcessor {
 }
 
 #[test]
-fn test_run_dag_reacord_reader_from_src() {
+fn test_run_dag_record_reader_from_src() {
     const TOT: u64 = 30_000;
 
     let sync = Arc::new(AtomicBool::new(true));

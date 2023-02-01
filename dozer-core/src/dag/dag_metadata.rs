@@ -1,9 +1,7 @@
 use crate::dag::dag::{Dag, Edge, NodeType};
 use crate::dag::dag_schemas::NodeSchemas;
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{
-    InvalidCheckpointState, InvalidNodeHandle, MetadataAlreadyExists,
-};
+use crate::dag::errors::ExecutionError::{InvalidNodeHandle, MetadataAlreadyExists};
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::common::Seek;
 use crate::storage::errors::StorageError;
@@ -19,11 +17,10 @@ use std::collections::{HashMap, HashSet};
 use std::iter::once;
 use std::path::Path;
 
-use super::epoch::{OpIdentifier, PipelineCheckpoint};
+use super::epoch::{OpIdentifier, SourceStates};
 
 pub(crate) const METADATA_DB_NAME: &str = "__META__";
 const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
-const EMPTY_METADATA_IDENTIFIER: u8 = 0_u8;
 pub(crate) const OUTPUT_SCHEMA_IDENTIFIER: u8 = 1_u8;
 pub(crate) const INPUT_SCHEMA_IDENTIFIER: u8 = 2_u8;
 
@@ -47,7 +44,7 @@ impl DependencyTreeNode {
 }
 
 pub(crate) struct DagMetadata {
-    pub commits: PipelineCheckpoint,
+    pub commits: SourceStates,
     pub input_schemas: HashMap<PortHandle, Schema>,
     pub output_schemas: HashMap<PortHandle, Schema>,
 }
@@ -89,12 +86,13 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     fn get_node_checkpoint_metadata(
         path: &Path,
         name: &NodeHandle,
-    ) -> Result<DagMetadata, ExecutionError> {
-        if !LmdbEnvironmentManager::exists(path, format!("{name}").as_str()) {
-            return Err(InvalidCheckpointState(name.clone()));
+    ) -> Result<Option<DagMetadata>, ExecutionError> {
+        let env_name = metadata_environment_name(name);
+        if !LmdbEnvironmentManager::exists(path, &env_name) {
+            return Ok(None);
         }
 
-        let mut env = LmdbEnvironmentManager::create(path, format!("{name}").as_str())?;
+        let mut env = LmdbEnvironmentManager::create(path, &env_name)?;
         let db = env.open_database(METADATA_DB_NAME, false)?;
         let txn = env.create_txn()?;
         let txn = SharedTransaction::try_unwrap(txn)
@@ -107,7 +105,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
             ));
         }
 
-        let mut commits = PipelineCheckpoint::default();
+        let mut commits = SourceStates::default();
         let mut input_schemas: HashMap<PortHandle, Schema> = HashMap::new();
         let mut output_schemas: HashMap<PortHandle, Schema> = HashMap::new();
 
@@ -116,9 +114,9 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
                 StorageError::InvalidRecord,
             ))?;
             match value.0[0] {
-                SOURCE_ID_IDENTIFIER => commits
-                    .0
-                    .extend(once(deserialize_source_metadata(value.0, value.1))),
+                SOURCE_ID_IDENTIFIER => {
+                    commits.extend(once(deserialize_source_metadata(value.0, value.1)))
+                }
                 OUTPUT_SCHEMA_IDENTIFIER => {
                     let handle: PortHandle = PortHandle::from_be_bytes(
                         (&value.0[1..])
@@ -156,11 +154,11 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
             }
         }
 
-        Ok(DagMetadata {
+        Ok(Some(DagMetadata {
             commits,
             input_schemas,
             output_schemas,
-        })
+        }))
     }
 
     fn get_checkpoint_metadata(
@@ -168,12 +166,9 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         dag: &Dag<T>,
     ) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
         let mut all = HashMap::<NodeHandle, DagMetadata>::new();
-        for node in &dag.nodes {
-            match DagMetadataManager::<T>::get_node_checkpoint_metadata(path, node.0) {
-                Ok(r) => {
-                    all.insert(node.0.clone(), r);
-                }
-                Err(_e) => LmdbEnvironmentManager::remove(path, format!("{}", node.0).as_str()),
+        for node in dag.nodes.keys() {
+            if let Some(metadata) = Self::get_node_checkpoint_metadata(path, node)? {
+                all.insert(node.clone(), metadata);
             }
         }
         Ok(all)
@@ -213,7 +208,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         res: &mut HashMap<Option<OpIdentifier>, Vec<NodeHandle>>,
     ) {
         let seq = match self.metadata.get(&tree_node.handle) {
-            Some(v) => *v.commits.0.get(source_handle).unwrap_or(&None),
+            Some(v) => v.commits.get(source_handle).copied(),
             None => None,
         };
         res.entry(seq).or_insert_with(Vec::new);
@@ -241,35 +236,30 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     }
 
     pub(crate) fn delete_metadata(&self) {
-        for node in &self.dag.nodes {
-            LmdbEnvironmentManager::remove(self.path, format!("{}", node.0).as_str());
+        for node in self.dag.nodes.keys() {
+            LmdbEnvironmentManager::remove(self.path, &metadata_environment_name(node));
         }
     }
 
     pub(crate) fn get_metadata(&self) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
-        let mut all_meta = HashMap::<NodeHandle, DagMetadata>::new();
-        for node in &self.dag.nodes {
-            let metadata = Self::get_node_checkpoint_metadata(self.path, node.0)?;
-            all_meta.insert(node.0.clone(), metadata);
-        }
-        Ok(all_meta)
+        Self::get_checkpoint_metadata(self.path, self.dag)
     }
 
     pub(crate) fn init_metadata(
         &self,
         schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
     ) -> Result<(), ExecutionError> {
-        for node in &self.dag.nodes {
+        for node in self.dag.nodes.keys() {
             let curr_node_schema = schemas
-                .get(node.0)
-                .ok_or_else(|| InvalidNodeHandle(node.0.clone()))?;
+                .get(node)
+                .ok_or_else(|| InvalidNodeHandle(node.clone()))?;
 
-            if LmdbEnvironmentManager::exists(self.path, format!("{}", node.0).as_str()) {
-                return Err(MetadataAlreadyExists(node.0.clone()));
+            let env_name = metadata_environment_name(node);
+            if LmdbEnvironmentManager::exists(self.path, &env_name) {
+                return Err(MetadataAlreadyExists(node.clone()));
             }
 
-            let mut env =
-                LmdbEnvironmentManager::create(self.path, format!("{}", node.0).as_str())?;
+            let mut env = LmdbEnvironmentManager::create(self.path, &env_name)?;
             let db = env.open_database(METADATA_DB_NAME, false)?;
             let txn = env.create_txn()?;
             let mut txn = SharedTransaction::try_unwrap(txn)
@@ -295,20 +285,20 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
                 txn.put(db, &key, &value)?;
             }
 
-            let sources = self.dag.get_sources();
-            let mut metadata = sources.iter().map(|(source, _)| (source, None));
-            write_source_metadata(&mut txn, db, &mut metadata)?;
-
             txn.commit_and_renew()?;
         }
         Ok(())
     }
 }
 
+fn metadata_environment_name(node_handle: &NodeHandle) -> String {
+    format!("{node_handle}")
+}
+
 pub fn write_source_metadata<'a>(
     txn: &mut LmdbExclusiveTransaction,
     db: Database,
-    metadata: &'a mut impl Iterator<Item = (&'a NodeHandle, Option<OpIdentifier>)>,
+    metadata: &'a mut impl Iterator<Item = (&'a NodeHandle, OpIdentifier)>,
 ) -> Result<(), StorageError> {
     for (source, op_id) in metadata {
         let (key, value) = serialize_source_metadata(source, op_id);
@@ -318,36 +308,24 @@ pub fn write_source_metadata<'a>(
     Ok(())
 }
 
-fn serialize_source_metadata(
-    node_handle: &NodeHandle,
-    op_id: Option<OpIdentifier>,
-) -> (Vec<u8>, Vec<u8>) {
+fn serialize_source_metadata(node_handle: &NodeHandle, op_id: OpIdentifier) -> (Vec<u8>, Vec<u8>) {
     let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
     key.extend(node_handle.to_bytes());
 
     let mut value: Vec<u8> = Vec::with_capacity(16);
-    if let Some(op_id) = op_id {
-        value.extend(op_id.txid.to_be_bytes());
-        value.extend(op_id.seq_in_tx.to_be_bytes());
-    } else {
-        value.push(EMPTY_METADATA_IDENTIFIER);
-    }
+    value.extend(op_id.txid.to_be_bytes());
+    value.extend(op_id.seq_in_tx.to_be_bytes());
 
     (key, value)
 }
 
-fn deserialize_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, Option<OpIdentifier>) {
+fn deserialize_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, OpIdentifier) {
     debug_assert!(key[0] == SOURCE_ID_IDENTIFIER);
     let source = NodeHandle::from_bytes(&key[1..]);
 
-    if value.len() == 1 {
-        debug_assert!(value[0] == EMPTY_METADATA_IDENTIFIER);
-        (source, None)
-    } else {
-        let txid = u64::from_be_bytes(value[0..8].try_into().unwrap());
-        let seq_in_tx = u64::from_be_bytes(value[8..16].try_into().unwrap());
-        (source, Some(OpIdentifier { txid, seq_in_tx }))
-    }
+    let txid = u64::from_be_bytes(value[0..8].try_into().unwrap());
+    let seq_in_tx = u64::from_be_bytes(value[8..16].try_into().unwrap());
+    (source, OpIdentifier { txid, seq_in_tx })
 }
 
 #[cfg(test)]
@@ -356,17 +334,16 @@ mod tests {
 
     #[test]
     fn test_source_metadata_serialization() {
-        fn check(node_handle: NodeHandle, op_id: Option<OpIdentifier>) {
+        fn check(node_handle: NodeHandle, op_id: OpIdentifier) {
             let (key, value) = serialize_source_metadata(&node_handle, op_id);
             let (node_handle2, op_id2) = deserialize_source_metadata(&key, &value);
             assert_eq!(node_handle2, node_handle);
             assert_eq!(op_id2, op_id);
         }
 
-        check(NodeHandle::new(None, "node".to_string()), None);
         check(
             NodeHandle::new(None, "node".to_string()),
-            Some(OpIdentifier::new(0, 0)),
+            OpIdentifier::new(0, 0),
         );
     }
 
@@ -379,8 +356,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn source_metadata_deserialization_panics_on_invalid_key() {
-        let (mut key, _) =
-            serialize_source_metadata(&NodeHandle::new(None, "node".to_string()), None);
+        let (mut key, _) = serialize_source_metadata(
+            &NodeHandle::new(None, "node".to_string()),
+            OpIdentifier::default(),
+        );
         key[0] = 1;
         deserialize_source_metadata(&key, &[]);
     }
@@ -388,16 +367,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn source_metadata_deserialization_panics_on_empty_value() {
-        let (key, _) = serialize_source_metadata(&NodeHandle::new(None, "node".to_string()), None);
+        let (key, _) = serialize_source_metadata(
+            &NodeHandle::new(None, "node".to_string()),
+            OpIdentifier::default(),
+        );
         deserialize_source_metadata(&key, &[]);
-    }
-
-    #[test]
-    #[should_panic]
-    fn source_metadata_deserialization_panics_on_invalid_value() {
-        let (key, mut value) =
-            serialize_source_metadata(&NodeHandle::new(None, "node".to_string()), None);
-        value[0] = 1;
-        deserialize_source_metadata(&key, &value);
     }
 }
