@@ -1,9 +1,7 @@
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::{
     dag::{channels::ProcessorChannelForwarder, dag::DEFAULT_PORT_HANDLE, node::ProcessorFactory},
     storage::lmdb_storage::LmdbEnvironmentManager,
 };
-use lmdb::Environment;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::path::Path;
