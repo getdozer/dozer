@@ -20,6 +20,7 @@ use crate::errors::SnowflakeError::ConnectionError;
 
 #[cfg(feature = "snowflake")]
 use dozer_types::log::{debug, info};
+
 use dozer_types::types::SchemaWithChangesType;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
@@ -138,7 +139,7 @@ async fn run(
     config: SnowflakeConfig,
     tables: Option<Vec<TableInfo>>,
     ingestor: Arc<RwLock<Ingestor>>,
-    _from_seq: Option<(u64, u64)>,
+    from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
@@ -151,48 +152,53 @@ async fn run(
             let mut interval = time::interval(Duration::from_secs(5));
 
             let mut consumer = StreamConsumer::new();
+            let mut iteration = 1;
             loop {
                 for (idx, table) in tables.iter().enumerate() {
-                    let is_stream_created =
-                        StreamConsumer::is_stream_created(&client, table.table_name.clone())?;
-                    if !is_stream_created {
-                        let result = StreamConsumer::create_stream(&client, &table.table_name);
-
-                        if let Err(e) = result {
-                            match e {
-                                ConnectorError::SnowflakeError(
-                                    SnowflakeError::SnowflakeStreamError(
-                                        SnowflakeStreamError::TimeTravelNotAvailableError,
-                                    ),
-                                ) => {
-                                    info!(
-                                        "[{}][{}] Time travel data not available. Stream creation will be retried in 5 seconds",
-                                        name, table.table_name
-                                    );
-                                }
-                                _ => return Err(e),
+                    // We only check stream status on first iteration
+                    if iteration == 1 {
+                        match from_seq {
+                            None | Some((0, _)) => {
+                                info!("[{}][{}] Creating new stream", name, table.table_name);
+                                StreamConsumer::drop_stream(&client, &table.table_name)?;
+                                StreamConsumer::create_stream(&client, &table.table_name)?;
                             }
-                        } else {
-                            debug!(
-                                "[{}][{}] Changes table stream creation completed",
-                                name, table.table_name
-                            );
+                            Some((lsn, seq)) => {
+                                info!(
+                                    "[{}][{}] Continuing ingestion from {}/{}",
+                                    name, table.table_name, lsn, seq
+                                );
+                                iteration = lsn;
+                                if let Ok(false) =
+                                    StreamConsumer::is_stream_created(&client, &table.table_name)
+                                {
+                                    return Err(ConnectorError::SnowflakeError(
+                                        SnowflakeError::SnowflakeStreamError(
+                                            SnowflakeStreamError::StreamNotFound,
+                                        ),
+                                    ));
+                                }
+                            }
                         }
-                    } else {
-                        debug!(
-                            "[{}][{}] Reading from changes stream",
-                            name, table.table_name
-                        );
-
-                        consumer.consume_stream(
-                            &stream_client,
-                            &table.table_name,
-                            &ingestor_stream,
-                            idx,
-                        )?;
                     }
+
+                    debug!(
+                        "[{}][{}] Reading from changes stream",
+                        name, table.table_name
+                    );
+
+                    consumer.consume_stream(
+                        &stream_client,
+                        &table.table_name,
+                        &ingestor_stream,
+                        idx,
+                        iteration,
+                    )?;
+
                     interval.tick().await;
                 }
+
+                iteration += 1;
             }
         }
     };

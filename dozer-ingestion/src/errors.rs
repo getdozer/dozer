@@ -230,6 +230,9 @@ pub enum SnowflakeStreamError {
 
     #[error("Cannot determine action")]
     CannotDetermineAction,
+
+    #[error("Stream not found")]
+    StreamNotFound,
 }
 
 #[derive(Error, Debug)]

@@ -17,7 +17,7 @@ use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransactio
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use dozer_types::log::debug;
+use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
@@ -389,6 +389,7 @@ impl Sink for CacheSink {
                     })?;
             }
             Operation::Insert { mut new } => {
+                info!("NEW RECORD: {:?}", new);
                 new.schema_id = schema.identifier;
                 self.cache
                     .insert_with_txn(txn, &new, schema, secondary_indexes)
