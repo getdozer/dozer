@@ -242,30 +242,27 @@ impl JoinOperator {
                     transaction,
                 )?;
 
-                let right_lookup_keys = self.read_index(
-                    &left_join_key,
-                    self.right_lookup_index,
-                    database,
-                    transaction,
-                )?;
-
-                for right_lookup_key in right_lookup_keys.iter() {
-                    // lookup on the right branch to find matching records
-                    let mut right_records = self.right_source.lookup(
-                        right_lookup_key,
+                let join_records = match self._operator {
+                    JoinOperatorType::Inner | JoinOperatorType::RightOuter => self
+                        .inner_join_right(
+                            left_join_key,
+                            database,
+                            transaction,
+                            readers,
+                            left_record,
+                            left_lookup_key,
+                        )?,
+                    JoinOperatorType::LeftOuter => self.left_join_right(
+                        left_join_key,
                         database,
                         transaction,
                         readers,
-                    )?;
+                        left_record,
+                        left_lookup_key,
+                    )?,
+                };
 
-                    for (right_record, right_lookup_key) in right_records.iter_mut() {
-                        let join_record = join_records(left_record, right_record);
-                        let join_lookup_key =
-                            self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
-
-                        output_records.push((join_record, join_lookup_key));
-                    }
-                }
+                output_records.extend(join_records);
             }
 
             Ok(output_records)
@@ -294,33 +291,188 @@ impl JoinOperator {
                     transaction,
                 )?;
 
-                let left_lookup_keys = self.read_index(
-                    &right_join_key,
-                    self.left_lookup_index,
-                    database,
-                    transaction,
-                )?;
-
-                for left_lookup_key in left_lookup_keys.iter() {
-                    // lookup on the left branch to find matching records
-                    let mut left_records =
-                        self.left_source
-                            .lookup(left_lookup_key, database, transaction, readers)?;
-
-                    for (left_record, left_lookup_key) in left_records.iter_mut() {
-                        // join the records
-                        let join_record = join_records(left_record, right_record);
-                        let join_lookup_key =
-                            self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
-                        output_records.push((join_record, join_lookup_key));
-                    }
-                }
+                let join_records = match self._operator {
+                    JoinOperatorType::Inner | JoinOperatorType::LeftOuter => self.inner_join_left(
+                        right_join_key,
+                        database,
+                        transaction,
+                        readers,
+                        right_record,
+                        right_lookup_key,
+                    )?,
+                    JoinOperatorType::RightOuter => self.right_join_left(
+                        right_join_key,
+                        database,
+                        transaction,
+                        readers,
+                        right_record,
+                        right_lookup_key,
+                    )?,
+                };
+                output_records.extend(join_records);
             }
 
             return Ok(output_records);
         } else {
             return Err(ExecutionError::InvalidPortHandle(from_port));
         }
+    }
+
+    fn inner_join_right(
+        &self,
+        left_join_key: Vec<u8>,
+        database: &Database,
+        transaction: &SharedTransaction,
+        readers: &HashMap<u16, Box<dyn RecordReader>>,
+        left_record: &mut Record,
+        left_lookup_key: &mut [u8],
+    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+        let right_lookup_keys = self.read_index(
+            &left_join_key,
+            self.right_lookup_index,
+            database,
+            transaction,
+        )?;
+        let mut output_records = vec![];
+
+        for right_lookup_key in right_lookup_keys.iter() {
+            // lookup on the right branch to find matching records
+            let mut right_records =
+                self.right_source
+                    .lookup(right_lookup_key, database, transaction, readers)?;
+
+            for (right_record, right_lookup_key) in right_records.iter_mut() {
+                let join_record = join_records(left_record, right_record);
+                let join_lookup_key =
+                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+
+                output_records.push((join_record, join_lookup_key));
+            }
+        }
+        Ok(output_records)
+    }
+
+    fn inner_join_left(
+        &self,
+        right_join_key: Vec<u8>,
+        database: &Database,
+        transaction: &SharedTransaction,
+        readers: &HashMap<u16, Box<dyn RecordReader>>,
+        right_record: &mut Record,
+        right_lookup_key: &mut [u8],
+    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+        let left_lookup_keys = self.read_index(
+            &right_join_key,
+            self.left_lookup_index,
+            database,
+            transaction,
+        )?;
+
+        let mut output_records = vec![];
+        for left_lookup_key in left_lookup_keys.iter() {
+            // lookup on the left branch to find matching records
+            let mut left_records =
+                self.left_source
+                    .lookup(left_lookup_key, database, transaction, readers)?;
+
+            for (left_record, left_lookup_key) in left_records.iter_mut() {
+                // join the records
+                let join_record = join_records(left_record, right_record);
+                let join_lookup_key =
+                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                output_records.push((join_record, join_lookup_key));
+            }
+        }
+        Ok(output_records)
+    }
+
+    fn left_join_right(
+        &self,
+        left_join_key: Vec<u8>,
+        database: &Database,
+        transaction: &SharedTransaction,
+        readers: &HashMap<u16, Box<dyn RecordReader>>,
+        left_record: &mut Record,
+        left_lookup_key: &mut [u8],
+    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+        let right_lookup_keys = self.read_index(
+            &left_join_key,
+            self.right_lookup_index,
+            database,
+            transaction,
+        )?;
+        let mut output_records = vec![];
+
+        if right_lookup_keys.is_empty() {
+            // no matching records on the right branch
+            let right_record = Record::from_schema(&self.right_source.get_output_schema());
+            let join_record = join_records(left_record, &right_record);
+            let join_lookup_key = self.encode_join_lookup_key(left_lookup_key, &[0, 0, 0, 0]);
+            output_records.push((join_record, join_lookup_key));
+
+            return Ok(output_records);
+        }
+
+        for right_lookup_key in right_lookup_keys.iter() {
+            // lookup on the right branch to find matching records
+            let mut right_records =
+                self.right_source
+                    .lookup(right_lookup_key, database, transaction, readers)?;
+
+            for (right_record, right_lookup_key) in right_records.iter_mut() {
+                let join_record = join_records(left_record, right_record);
+                let join_lookup_key =
+                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+
+                output_records.push((join_record, join_lookup_key));
+            }
+        }
+        Ok(output_records)
+    }
+
+    fn right_join_left(
+        &self,
+        right_join_key: Vec<u8>,
+        database: &Database,
+        transaction: &SharedTransaction,
+        readers: &HashMap<u16, Box<dyn RecordReader>>,
+        right_record: &mut Record,
+        right_lookup_key: &mut [u8],
+    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+        let left_lookup_keys = self.read_index(
+            &right_join_key,
+            self.left_lookup_index,
+            database,
+            transaction,
+        )?;
+
+        let mut output_records = vec![];
+
+        if left_lookup_keys.is_empty() {
+            // no matching records on the right branch
+            let left_record = Record::from_schema(&self.left_source.get_output_schema());
+            let join_record = join_records(&left_record, right_record);
+            let join_lookup_key = self.encode_join_lookup_key(right_lookup_key, &[0, 0, 0, 0]);
+            output_records.push((join_record, join_lookup_key));
+
+            return Ok(output_records);
+        }
+
+        for left_lookup_key in left_lookup_keys.iter() {
+            // lookup on the left branch to find matching records
+            let mut left_records =
+                self.left_source
+                    .lookup(left_lookup_key, database, transaction, readers)?;
+
+            for (left_record, left_lookup_key) in left_records.iter_mut() {
+                // join the records
+                let join_record = join_records(left_record, right_record);
+                let join_lookup_key =
+                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                output_records.push((join_record, join_lookup_key));
+            }
+        }
+        Ok(output_records)
     }
 
     fn lookup(
