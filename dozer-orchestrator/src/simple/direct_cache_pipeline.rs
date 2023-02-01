@@ -11,7 +11,7 @@ use crate::simple::basic_processor_factory::BasicProcessorFactory;
 pub fn source_to_pipeline(
     api_endpoint: &ApiEndpoint,
 ) -> (AppPipeline<SchemaSQLContext>, (String, u16)) {
-    let api_endpoint_name = api_endpoint.name.clone();
+    let source_name = api_endpoint.source.as_ref().unwrap().name.clone();
 
     let p = BasicProcessorFactory::new();
 
@@ -22,7 +22,7 @@ pub fn source_to_pipeline(
         &processor_name,
         vec![PipelineEntryPoint::new(
             AppSourceId {
-                id: api_endpoint_name,
+                id: source_name,
                 connection: None,
             },
             DEFAULT_PORT_HANDLE,
