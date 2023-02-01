@@ -31,6 +31,7 @@ impl EndpointService {
             name: request.name.to_owned(),
             path: request.path.to_owned(),
             sql: Some(request.sql),
+            source: None,
             index: request.index,
         };
         endpoint_info
