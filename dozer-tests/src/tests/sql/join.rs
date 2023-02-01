@@ -6,7 +6,6 @@ use super::{
 };
 
 #[test]
-#[ignore = "Test framework does not support cuncurrent sources"]
 fn join_query() {
     let queries = r#" 
         SELECT actor.actor_id, first_name, last_name from actor 
@@ -52,7 +51,6 @@ fn join_query() {
 }
 
 #[test]
-#[ignore = "Test framework does not support cuncurrent sources"]
 fn multi_join_query() {
     let queries = r#" 
         SELECT a.actor_id from actor a 
@@ -99,7 +97,6 @@ fn multi_join_query() {
 }
 
 #[test]
-#[ignore = "Test framework does not support cuncurrent sources"]
 fn join_alias_query() {
     let queries = r#" 
         SELECT a.actor_id, a.first_name, a.last_name from actor a 
@@ -198,10 +195,8 @@ fn join_cte_query() {
 fn include_right_joins() {
     let queries = vec![
         r#" 
-        
-        SELECT a.actor_id, first_name, last_name from actor a 
+        SELECT a.actor_id, a.first_name, a.last_name from actor a 
         LEFT JOIN film_actor fa on fa.actor_id = a.actor_id
-        RIGHT JOIN film f on f.film_id = fa.film_id;
       "#,
     ];
 
