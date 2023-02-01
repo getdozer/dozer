@@ -144,7 +144,7 @@ impl Source for TestSource {
             let port = self.name_to_port.get(&schema_name).expect("port not found");
             fw.send(idx, 0, op, *port).unwrap();
         }
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(500));
 
         self.running
             .store(false, std::sync::atomic::Ordering::Relaxed);

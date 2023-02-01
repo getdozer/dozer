@@ -5,7 +5,7 @@ use dozer_core::dag::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
-use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
+use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
 
 use crate::pipeline::builder::SchemaSQLContext;
@@ -339,7 +339,7 @@ fn build_projection_schema(
             field_name,
             field_type.return_type,
             field_type.nullable,
-            SourceDefinition::Dynamic,
+            field_type.source,
         ));
     }
     output_schema.fields = fields;

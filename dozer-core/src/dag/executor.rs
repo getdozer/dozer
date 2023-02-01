@@ -253,8 +253,8 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         epoch_manager: Arc<EpochManager>,
         start_barrier: Arc<Barrier>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
-        // let (sender, receiver) = bounded(self.options.channel_buffer_sz);
-        let (sender, receiver) = bounded(1);
+        let (sender, receiver) = bounded(self.options.channel_buffer_sz);
+        // let (sender, receiver) = bounded(1);
 
         let start_seq = *self
             .consistency_metadata

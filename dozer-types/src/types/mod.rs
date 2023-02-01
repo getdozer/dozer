@@ -150,6 +150,15 @@ impl Record {
             version,
         }
     }
+
+    pub fn from_schema(schema: &Schema) -> Record {
+        Record {
+            schema_id: schema.identifier,
+            values: vec![Field::Null; schema.fields.len()],
+            version: None,
+        }
+    }
+
     pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize, version: Option<u32>) -> Record {
         Record {
             schema_id,
