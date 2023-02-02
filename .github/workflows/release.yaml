@@ -10,10 +10,6 @@ env:
   ECR_REGISTRY: public.ecr.aws/k7k6x1d4
   ECR_REPOSITORY: dozer
 
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: write # This is required for actions/checkout

@@ -292,6 +292,10 @@ fn build_output_schema(
             }
         }
     }
+
+    // remove primary index as already defined in the sink
+    // the Planner will compute the primary index properly
+    output_schema.primary_index = vec![];
     Ok(output_schema)
 }
 
@@ -344,5 +348,8 @@ fn build_projection_schema(
     }
     output_schema.fields = fields;
 
+    // remove primary index as already defined in the sink
+    // the Planner will compute the primary index properly
+    output_schema.primary_index = vec![];
     Ok((output_schema, context.clone()))
 }

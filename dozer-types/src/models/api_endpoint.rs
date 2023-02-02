@@ -39,10 +39,11 @@ impl Serialize for ApiEndpoint {
         let mut state = serializer.serialize_struct("ApiEndpoint", 3)?;
         state.serialize_field("name", &self.name)?;
         state.serialize_field("path", &self.path)?;
-        state.serialize_field(
-            "source",
-            &Value::Ref(self.source.to_owned().unwrap_or_default().name),
-        )?;
+        state.serialize_field("sql", &self.sql)?;
+        state.serialize_field("index", &self.index)?;
+        if let Some(source) = &self.source {
+            state.serialize_field("source", &Value::Ref(source.name.clone()))?;
+        }
         state.end()
     }
 }

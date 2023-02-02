@@ -12,4 +12,4 @@ RUN apt-get install docker-ce-cli docker-compose-plugin -y
 # Install protoc
 RUN apt install protobuf-compiler -y
 
-CMD cargo build --package dozer-tests --bin dozer-tests --bin dozer-test-client && ./target/debug/dozer-tests -r buildkite postgres
+CMD cargo build --package dozer-tests --bin dozer-tests --bin dozer-test-client && ./target/debug/dozer-tests -r buildkite
