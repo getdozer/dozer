@@ -157,10 +157,6 @@ pub trait Processor: Debug {
 }
 
 pub trait SinkFactory<T>: Send + Sync + Debug {
-    fn set_input_schema(
-        &self,
-        input_schemas: &HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn prepare(
         &self,

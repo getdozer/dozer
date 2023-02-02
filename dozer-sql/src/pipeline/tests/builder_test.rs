@@ -148,13 +148,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
         self.input_ports.clone()
     }
 
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,

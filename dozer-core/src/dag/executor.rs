@@ -2,7 +2,7 @@
 
 use crate::dag::dag::Dag;
 use crate::dag::dag_metadata::{Consistency, DagMetadata, DagMetadataManager};
-use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
+use crate::dag::dag_schemas::{DagSchemas, NodeSchemas};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InconsistentCheckpointMetadata};
 use crate::dag::executor_utils::index_edges;
@@ -206,10 +206,10 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         dag: &'a Dag<T>,
         path: &Path,
     ) -> Result<HashMap<NodeHandle, NodeSchemas<T>>, ExecutionError> {
-        let schema_manager = DagSchemaManager::new(dag)?;
+        let dag_schemas = DagSchemas::new(dag)?;
         let meta_manager = DagMetadataManager::new(dag, path)?;
 
-        let current_schemas = schema_manager.get_all_schemas();
+        let current_schemas = dag_schemas.get_all_schemas();
         match meta_manager.get_metadata() {
             Ok(existing_schemas) => {
                 for (handle, current) in current_schemas {

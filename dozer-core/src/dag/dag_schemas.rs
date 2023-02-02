@@ -2,10 +2,10 @@ use crate::dag::dag::{Dag, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
 
-use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
+use crate::dag::node::{NodeHandle, OutputPortType, PortHandle};
 use crate::dag::record_store::AutogenRowKeyLookupRecordWriter;
 use dozer_types::types::Schema;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct NodeSchemas<T> {
@@ -37,150 +37,14 @@ impl<T> NodeSchemas<T> {
     }
 }
 
-pub struct DagSchemaManager<'a, T: Clone> {
-    dag: &'a Dag<T>,
+pub struct DagSchemas<T: Clone> {
     schemas: HashMap<NodeHandle, NodeSchemas<T>>,
 }
 
-impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
-    fn get_port_output_schema(
-        node: &NodeType<T>,
-        output_port: &OutputPortDef,
-        input_schemas: &HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<Option<(Schema, T)>, ExecutionError> {
-        Ok(match node {
-            NodeType::Source(src) => match output_port.typ {
-                OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
-                    Some(src.get_output_schema(&output_port.handle)?)
-                }
-                OutputPortType::AutogenRowKeyLookup => {
-                    let (schema, ctx) = src.get_output_schema(&output_port.handle)?;
-                    Some((AutogenRowKeyLookupRecordWriter::prepare_schema(schema), ctx))
-                }
-            },
-            NodeType::Processor(proc) => match output_port.typ {
-                OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
-                    Some(proc.get_output_schema(&output_port.handle, input_schemas)?)
-                }
-                OutputPortType::AutogenRowKeyLookup => {
-                    let (schema, ctx) =
-                        proc.get_output_schema(&output_port.handle, input_schemas)?;
-                    Some((AutogenRowKeyLookupRecordWriter::prepare_schema(schema), ctx))
-                }
-            },
-            NodeType::Sink(proc) => {
-                proc.set_input_schema(input_schemas)?;
-                None
-            }
-        })
-    }
-
-    fn get_node_input_ports(node: &NodeType<T>) -> Vec<PortHandle> {
-        match node {
-            NodeType::Source(_src) => vec![],
-            NodeType::Processor(proc) => proc.get_input_ports(),
-            NodeType::Sink(proc) => proc.get_input_ports(),
-        }
-    }
-
-    fn get_node_output_ports(node: &NodeType<T>) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        match node {
-            NodeType::Source(src) => src.get_output_ports(),
-            NodeType::Processor(proc) => Ok(proc.get_output_ports()),
-            NodeType::Sink(_proc) => Ok(vec![]),
-        }
-    }
-
-    fn fill_node_output_schemas(
-        dag: &Dag<T>,
-        handle: &NodeHandle,
-        all_schemas: &mut HashMap<NodeHandle, NodeSchemas<T>>,
-    ) -> Result<(), ExecutionError> {
-        // Get the current node
-        let node = dag.node_from_handle(handle);
-
-        // Get all input schemas available for this node
-        let node_input_schemas_available = HashSet::<&PortHandle>::from_iter(
-            all_schemas
-                .get(handle)
-                .expect("BUG in DagSchemaManager")
-                .input_schemas
-                .iter()
-                .map(|e| e.0),
-        );
-
-        // get all input schemas required for this node
-        let input_ports = Self::get_node_input_ports(node);
-        let node_input_schemas_required = HashSet::<&PortHandle>::from_iter(&input_ports);
-
-        // If we have all input schemas required
-        if node_input_schemas_available == node_input_schemas_required {
-            match node {
-                NodeType::Sink(s) => {
-                    let node_schemas = all_schemas
-                        .get_mut(handle)
-                        .expect("BUG in DagSchemaManager");
-                    let _ = s.set_input_schema(&node_schemas.input_schemas);
-                }
-                _ => {
-                    // Calculate the output schema for each port and insert it in the global schemas map
-                    for port in &Self::get_node_output_ports(node)? {
-                        let schema = {
-                            let node_schemas = all_schemas
-                                .get_mut(handle)
-                                .expect("BUG in DagSchemaManager");
-                            let schema = Self::get_port_output_schema(
-                                node,
-                                port,
-                                &node_schemas.input_schemas,
-                            )?;
-                            if let Some(schema) = &schema {
-                                node_schemas
-                                    .output_schemas
-                                    .insert(port.handle, schema.clone());
-                            }
-                            schema
-                        };
-
-                        // Retrieve all next nodes connected to this port
-                        for (next_node_handle, next_node_port) in
-                            dag.edges_from_endpoint(handle, port.handle)
-                        {
-                            let next_node_schemas = all_schemas
-                                .get_mut(next_node_handle)
-                                .expect("BUG in DagSchemaManager");
-                            if let Some(schema) = &schema {
-                                next_node_schemas
-                                    .input_schemas
-                                    .insert(next_node_port, schema.clone());
-                            }
-                        }
-                    }
-                }
-            }
-
-            for next_node in dag.edges_from_handle(handle) {
-                Self::fill_node_output_schemas(dag, next_node, all_schemas)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn new(dag: &'a Dag<T>) -> Result<Self, ExecutionError> {
-        let sources = dag.sources().map(|(handle, _)| handle).collect::<Vec<_>>();
-
-        let mut schemas: HashMap<NodeHandle, NodeSchemas<T>> = dag
-            .node_handles()
-            .iter()
-            .map(|handle| (handle.clone(), NodeSchemas::new()))
-            .collect();
-
-        for source in sources {
-            Self::fill_node_output_schemas(dag, source, &mut schemas)?;
-        }
-
-        Ok(Self { dag, schemas })
+impl<T: Clone> DagSchemas<T> {
+    pub fn new(dag: &Dag<T>) -> Result<Self, ExecutionError> {
+        let schemas = populate_schemas(dag)?;
+        Ok(Self { schemas })
     }
 
     pub fn get_node_input_schemas(
@@ -208,23 +72,132 @@ impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
     pub fn get_all_schemas(&self) -> &HashMap<NodeHandle, NodeSchemas<T>> {
         &self.schemas
     }
+}
 
-    pub fn prepare(&self) -> Result<(), ExecutionError> {
-        for (handle, node) in self.dag.nodes() {
-            let schemas = self
-                .schemas
-                .get(handle)
-                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+pub fn prepare_dag<T: Clone>(
+    dag: &Dag<T>,
+    dag_schemas: &DagSchemas<T>,
+) -> Result<(), ExecutionError> {
+    for (handle, node) in dag.nodes() {
+        let schemas = dag_schemas
+            .get_all_schemas()
+            .get(handle)
+            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
-            match node {
-                NodeType::Source(s) => s.prepare(schemas.output_schemas.clone())?,
-                NodeType::Sink(s) => s.prepare(schemas.input_schemas.clone())?,
-                NodeType::Processor(p) => p.prepare(
-                    schemas.input_schemas.clone(),
-                    schemas.output_schemas.clone(),
-                )?,
+        match node {
+            NodeType::Source(s) => s.prepare(schemas.output_schemas.clone())?,
+            NodeType::Sink(s) => s.prepare(schemas.input_schemas.clone())?,
+            NodeType::Processor(p) => p.prepare(
+                schemas.input_schemas.clone(),
+                schemas.output_schemas.clone(),
+            )?,
+        }
+    }
+    Ok(())
+}
+
+/// In topological order, pass output schemas to downstream nodes' input schemas.
+fn populate_schemas<T: Clone>(
+    dag: &Dag<T>,
+) -> Result<HashMap<NodeHandle, NodeSchemas<T>>, ExecutionError> {
+    let mut dag_schemas = dag
+        .node_handles()
+        .iter()
+        .map(|node_handle| (node_handle.clone(), NodeSchemas::<T>::new()))
+        .collect::<HashMap<_, _>>();
+
+    for node_handle in dag.topo() {
+        match dag.node_from_handle(node_handle) {
+            NodeType::Source(source) => {
+                let ports = source.get_output_ports()?;
+                for port in ports {
+                    let (schema, ctx) = source.get_output_schema(&port.handle)?;
+                    let schema = prepare_schema_based_on_output_type(schema, port.typ);
+                    populate_output_schema(
+                        dag,
+                        &mut dag_schemas,
+                        node_handle,
+                        port.handle,
+                        (schema, ctx),
+                    );
+                }
+            }
+
+            NodeType::Processor(processor) => {
+                let input_schemas =
+                    validate_input_schemas(&dag_schemas, node_handle, processor.get_input_ports())?;
+
+                let ports = processor.get_output_ports();
+                for port in ports {
+                    let (schema, ctx) =
+                        processor.get_output_schema(&port.handle, &input_schemas)?;
+                    let schema = prepare_schema_based_on_output_type(schema, port.typ);
+                    populate_output_schema(
+                        dag,
+                        &mut dag_schemas,
+                        node_handle,
+                        port.handle,
+                        (schema, ctx),
+                    );
+                }
+            }
+
+            NodeType::Sink(sink) => {
+                validate_input_schemas(&dag_schemas, node_handle, sink.get_input_ports())?;
             }
         }
-        Ok(())
     }
+
+    Ok(dag_schemas)
+}
+
+fn prepare_schema_based_on_output_type(schema: Schema, typ: OutputPortType) -> Schema {
+    match typ {
+        OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => schema,
+        OutputPortType::AutogenRowKeyLookup => {
+            AutogenRowKeyLookupRecordWriter::prepare_schema(schema)
+        }
+    }
+}
+
+fn populate_output_schema<T: Clone>(
+    dag: &Dag<T>,
+    dag_schemas: &mut HashMap<NodeHandle, NodeSchemas<T>>,
+    node_handle: &NodeHandle,
+    port: PortHandle,
+    schema: (Schema, T),
+) {
+    dag_schemas
+        .get_mut(node_handle)
+        .expect("BUG")
+        .output_schemas
+        .insert(port, schema.clone());
+
+    for (next_node_handle, next_node_port) in dag.edges_from_endpoint(node_handle, port) {
+        let next_node_schemas = dag_schemas.get_mut(next_node_handle).expect("BUG");
+        next_node_schemas
+            .input_schemas
+            .insert(next_node_port, schema.clone());
+    }
+}
+
+fn validate_input_schemas<T: Clone>(
+    dag_schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
+    node_handle: &NodeHandle,
+    input_ports: Vec<PortHandle>,
+) -> Result<HashMap<PortHandle, (Schema, T)>, ExecutionError> {
+    let input_schemas = &dag_schemas.get(node_handle).expect("BUG").input_schemas;
+    if !eq_ignore_order(input_schemas.keys().copied(), input_ports) {
+        return Err(ExecutionError::MissingInput {
+            node: node_handle.clone(),
+        });
+    }
+    Ok(input_schemas.clone())
+}
+
+fn eq_ignore_order<I: PartialEq + Ord>(a: impl Iterator<Item = I>, mut b: Vec<I>) -> bool {
+    let mut a = a.collect::<Vec<_>>();
+    a.sort();
+    b.sort();
+    a == b
 }

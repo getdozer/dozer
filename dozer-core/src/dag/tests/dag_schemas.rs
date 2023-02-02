@@ -1,5 +1,5 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
-use crate::dag::dag_schemas::DagSchemaManager;
+use crate::dag::dag_schemas::DagSchemas;
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
@@ -194,13 +194,6 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
 struct TestSinkFactory {}
 
 impl SinkFactory<NoneContext> for TestSinkFactory {
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -259,9 +252,9 @@ fn test_extract_dag_schemas() {
         Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
-    let sm = chk!(DagSchemaManager::new(&dag));
+    let dag_schemas = chk!(DagSchemas::new(&dag));
 
-    let users_output = chk!(sm.get_node_output_schemas(&users_handle));
+    let users_output = chk!(dag_schemas.get_node_output_schemas(&users_handle));
     assert_eq!(
         users_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -272,7 +265,7 @@ fn test_extract_dag_schemas() {
         3
     );
 
-    let countries_output = chk!(sm.get_node_output_schemas(&countries_handle));
+    let countries_output = chk!(dag_schemas.get_node_output_schemas(&countries_handle));
     assert_eq!(
         countries_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -283,11 +276,11 @@ fn test_extract_dag_schemas() {
         2
     );
 
-    let join_input = chk!(sm.get_node_input_schemas(&join_handle));
+    let join_input = chk!(dag_schemas.get_node_input_schemas(&join_handle));
     assert_eq!(join_input.get(&1).unwrap().0.fields.len(), 3);
     assert_eq!(join_input.get(&2).unwrap().0.fields.len(), 2);
 
-    let join_output = chk!(sm.get_node_output_schemas(&join_handle));
+    let join_output = chk!(dag_schemas.get_node_output_schemas(&join_handle));
     assert_eq!(
         join_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -298,7 +291,7 @@ fn test_extract_dag_schemas() {
         5
     );
 
-    let sink_input = chk!(sm.get_node_input_schemas(&sink_handle));
+    let sink_input = chk!(dag_schemas.get_node_input_schemas(&sink_handle));
     assert_eq!(
         sink_input.get(&DEFAULT_PORT_HANDLE).unwrap().0.fields.len(),
         5

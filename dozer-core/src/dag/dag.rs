@@ -1,4 +1,4 @@
-use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges};
+use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges, Topo};
 use daggy::Walker;
 
 use crate::dag::errors::ExecutionError;
@@ -221,6 +221,13 @@ impl<T> Dag<T> {
         let start = self.node_index(start);
 
         Bfs::new(self.graph.graph(), start)
+            .iter(self.graph.graph())
+            .map(|node_index| &self.node_handles[node_index.index()])
+    }
+
+    /// Returns an iterator over all node handles in topological order.
+    pub fn topo(&self) -> impl Iterator<Item = &NodeHandle> {
+        Topo::new(self.graph.graph())
             .iter(self.graph.graph())
             .map(|node_index| &self.node_handles[node_index.index()])
     }
