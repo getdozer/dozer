@@ -223,7 +223,7 @@ impl JoinOperator {
 
             // forward the record and the current join constraints to the left source
             let mut left_records = self.left_source.execute(
-                action.clone(),
+                action,
                 from_port,
                 record,
                 database,
@@ -282,7 +282,7 @@ impl JoinOperator {
 
             // forward the record and the current join constraints to the left source
             let mut right_records = self.right_source.execute(
-                action.clone(),
+                action,
                 from_port,
                 record,
                 database,
@@ -577,15 +577,8 @@ impl JoinOperator {
                                 new_join_lookup_key,
                             ));
                         }
-                        _ => {
-                            Err(ExecutionError::InternalStringError(
-                                "Shoud not be here".to_owned(),
-                            ))?;
-                        }
                     }
                 }
-
-                //output_records.push((action.clone(), join_record, join_lookup_key));
             }
         }
         Ok(output_records)

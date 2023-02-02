@@ -9,7 +9,6 @@ use dozer_core::storage::common::Database;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::internal_err;
 
-use dozer_types::tracing::info;
 use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
 
@@ -133,13 +132,13 @@ impl Processor for FromProcessor {
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        match op.clone() {
-            Operation::Delete { old } => info!("p{from_port}: - {:?}", old.values),
-            Operation::Insert { new } => info!("p{from_port}: + {:?}", new.values),
-            Operation::Update { old, new } => {
-                info!("p{from_port}: - {:?}, + {:?}", old.values, new.values)
-            }
-        }
+        // match op.clone() {
+        //     Operation::Delete { old } => info!("p{from_port}: - {:?}", old.values),
+        //     Operation::Insert { new } => info!("p{from_port}: + {:?}", new.values),
+        //     Operation::Update { old, new } => {
+        //         info!("p{from_port}: - {:?}, + {:?}", old.values, new.values)
+        //     }
+        // }
 
         match op {
             Operation::Delete { ref old } => {
