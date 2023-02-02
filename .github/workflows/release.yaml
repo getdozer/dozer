@@ -153,6 +153,7 @@ jobs:
           aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
 
       - name: Build, tag, and push image to Amazon ECR
+        id: build_push_ecr
         if: matrix.os == 'ubuntu-20.04'
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
@@ -180,4 +181,4 @@ jobs:
         run: |
           curl -X POST "https://api.buildkite.com/v2/organizations/dozer-data-pte-ltd/pipelines/integration-tests/builds" \
             --header 'Authorization: Bearer ${{ secrets.BUILDKITE_API_ACCESS_TOKEN_WRITE_BUILDS }}' \
-            -d '{ "commit": "${{ github.sha }}", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ steps.vars.outputs.SHORT_GITHUB_SHA }}" }, "ignore_pipeline_branch_filters": true }'
+            -d '{ "commit": "${{ github.sha }}", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ steps.build_push_ecr.outputs.SHORT_GITHUB_SHA }}" }, "ignore_pipeline_branch_filters": true }'
