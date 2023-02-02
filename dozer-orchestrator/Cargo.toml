@@ -15,7 +15,7 @@ dozer-types = {path = "../dozer-types"}
 dozer-tracing = {path = "../dozer-tracing"}
 dotenvy = "0.15.3"
 serde_json = "1.0.91"
-serde = "1.0.144"
+serde = "1.0.152"
 uuid = { version = "1.2.2", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }
 tempdir = "0.3.7"
