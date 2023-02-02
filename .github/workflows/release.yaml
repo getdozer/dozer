@@ -158,9 +158,9 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
-          SHORT_GITHUB_SHA=${GITHUB_SHA::7}
+          echo "SHORT_GITHUB_SHA=`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_GITHUB_SHA .
+          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.vars.outputs.SHORT_GITHUB_SHA }} .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
 
       - name: Update latest image if releasing
