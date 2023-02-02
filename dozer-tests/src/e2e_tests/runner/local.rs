@@ -49,8 +49,8 @@ impl Runner {
                     }
 
                     // Start dozer.
-                    cleanups.extend(spawn_dozer(&self.dozer_bin, &case.dozer_config_path));
                     cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
+                    cleanups.extend(spawn_dozer(&self.dozer_bin, &case.dozer_config_path));
 
                     // Run test case.
                     run_test_client(case.dozer_config.clone(), expectations).await;

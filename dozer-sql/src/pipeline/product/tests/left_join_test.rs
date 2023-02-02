@@ -224,16 +224,16 @@ impl Source for TestSource {
                 },
                 DEPARTMENT_PORT,
             ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::Int(1), Field::String("HR".to_string())],
-                        Some(1),
-                    ),
-                },
-                DEPARTMENT_PORT,
-            ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![Field::Int(1), Field::String("HR".to_string())],
+            //             Some(1),
+            //         ),
+            //     },
+            //     DEPARTMENT_PORT,
+            // ),
             (
                 Operation::Insert {
                     new: Record::new(
@@ -266,32 +266,32 @@ impl Source for TestSource {
                 },
                 USER_PORT,
             ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String("UK".to_string()),
-                            Field::String("United Kingdom".to_string()),
-                        ],
-                        Some(1),
-                    ),
-                },
-                COUNTRY_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String("SG".to_string()),
-                            Field::String("Singapore".to_string()),
-                        ],
-                        Some(1),
-                    ),
-                },
-                COUNTRY_PORT,
-            ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![
+            //                 Field::String("UK".to_string()),
+            //                 Field::String("United Kingdom".to_string()),
+            //             ],
+            //             Some(1),
+            //         ),
+            //     },
+            //     COUNTRY_PORT,
+            // ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![
+            //                 Field::String("SG".to_string()),
+            //                 Field::String("Singapore".to_string()),
+            //             ],
+            //             Some(1),
+            //         ),
+            //     },
+            //     COUNTRY_PORT,
+            // ),
             (
                 Operation::Insert {
                     new: Record::new(
@@ -545,8 +545,8 @@ fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
     let (mut pipeline, (node, port)) = statement_to_pipeline(
-        "SELECT  name, dname, salary \
-        FROM user JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
+        "SELECT  name, dname, cname, salary \
+        FROM user LEFT JOIN department ON user.department_id = department.did LEFT JOIN country ON user.country_id = country.cid ",
     )
     .unwrap();
 

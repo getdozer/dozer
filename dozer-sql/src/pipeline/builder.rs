@@ -1,7 +1,7 @@
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
-use crate::pipeline::{errors::PipelineError, product::factory::ProductProcessorFactory};
 use dozer_core::dag::app::AppPipeline;
 use dozer_core::dag::app::PipelineEntryPoint;
 use dozer_core::dag::appsource::AppSourceId;
@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
 use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
+use super::product::factory::FromProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
@@ -101,7 +102,7 @@ fn query_to_pipeline(
                 &table.query,
                 pipeline,
                 query_ctx,
-                false,
+                true,
             )?;
         }
     };
@@ -146,7 +147,7 @@ fn select_to_pipeline(
 
     let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx)?;
 
-    let product = ProductProcessorFactory::new(input_tables.clone());
+    let product = FromProcessorFactory::new(input_tables.clone());
 
     let input_endpoints = get_entry_points(&input_tables, &mut query_ctx.pipeline_map)?;
 

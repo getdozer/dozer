@@ -120,8 +120,16 @@ pub enum JoinError {
     AmbiguousField(String),
     #[error("Invalid Field specified in join : {0}")]
     InvalidFieldSpecified(String),
-    #[error("Unsupported Join constraint")]
-    UnsupportedJoinConstraint,
+    #[error("Unsupported Join constraint {0} only comparison of fields with \'=\' and \'AND\' operators are allowed in the JOIN ON constraint")]
+    UnsupportedJoinConstraint(String),
+    #[error(
+        "Unsupported Join constraint operator {0}, only \'=\' and \'AND\' operators are allowed in the JOIN ON constraint"
+    )]
+    UnsupportedJoinConstraintOperator(String),
+    #[error(
+        "Unsupported Join constraint, only ON is allowed as the JOIN constraint using \'=\' and \'AND\' operators"
+    )]
+    UnsupportedJoinConstraintType,
     #[error("Unsupported Join type")]
     UnsupportedJoinType,
     #[error("Invalid Table name specified")]

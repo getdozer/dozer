@@ -206,7 +206,7 @@ impl Processor for RecordReaderProcessor {
 }
 
 #[test]
-fn test_run_dag_reacord_reader() {
+fn test_run_dag_record_reader() {
     const TOT: u64 = 10_000;
 
     let sync = Arc::new(AtomicBool::new(true));
@@ -274,7 +274,7 @@ fn test_run_dag_reacord_reader() {
 }
 
 #[test]
-fn test_run_dag_reacord_reader_from_src() {
+fn test_run_dag_record_reader_from_src() {
     const TOT: u64 = 1_000;
 
     let sync = Arc::new(AtomicBool::new(true));
@@ -411,7 +411,7 @@ impl Processor for NoPkRecordReaderProcessor {
 }
 
 #[test]
-fn test_run_dag_reacord_reader_from_rowkey_autogen_src() {
+fn test_run_dag_record_reader_from_rowkey_autogen_src() {
     const TOT: u64 = 1_000;
 
     let sync = Arc::new(AtomicBool::new(true));
