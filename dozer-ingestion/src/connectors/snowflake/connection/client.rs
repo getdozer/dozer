@@ -478,7 +478,7 @@ impl Client {
                                 version: 0,
                             }),
                             fields: vec![],
-                            primary_index: vec![0],
+                            primary_index: vec![],
                         })
                         .fields
                         .push(FieldDefinition {
@@ -501,9 +501,15 @@ impl Client {
                             });
                         });
 
+                        let replication_type = if indexes.is_empty() {
+                            ReplicationChangesTrackingType::Nothing
+                        } else {
+                            ReplicationChangesTrackingType::FullChanges
+                        };
+
                         schema.primary_index = indexes;
 
-                        (name, schema, ReplicationChangesTrackingType::FullChanges)
+                        (name, schema, replication_type)
                     })
                     .collect())
             }
