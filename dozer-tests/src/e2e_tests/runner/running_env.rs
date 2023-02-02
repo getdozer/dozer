@@ -266,7 +266,7 @@ fn add_connection_services(
         connections_healthy_service_name.to_string(),
         Service {
             container_name: None,
-            image: Some(get_dozer_tests_image()),
+            image: Some("alpine".to_string()),
             build: None,
             ports: vec![],
             environment: vec![],
