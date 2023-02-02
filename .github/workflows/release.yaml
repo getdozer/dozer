@@ -9,7 +9,7 @@ env:
   BUCKET_NAME: "dozer-releases"
   ECR_REGISTRY: public.ecr.aws/k7k6x1d4
   ECR_REPOSITORY: dozer
-  SHORT_GITHUB_SHA: ${{ github.sha }}::7
+  SHORT_GITHUB_SHA: ${{ github.sha::7 }}
 
 permissions:
   id-token: write # This is required for requesting the JWT
