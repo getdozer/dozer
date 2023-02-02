@@ -2,7 +2,7 @@ use dozer_core::dag::app::App;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::{Dag, DEFAULT_PORT_HANDLE};
-use dozer_core::dag::dag_schemas::DagSchemaManager;
+use dozer_core::dag::dag_schemas::{prepare_dag, DagSchemas};
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
@@ -173,9 +173,13 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
-    fn set_input_schema(
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        self.input_ports.clone()
+    }
+
+    fn prepare(
         &self,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         let (schema, _) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
 
@@ -185,17 +189,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
             .create_tables(vec![("results", &get_table_create_sql("results", schema))])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
-        Ok(())
-    }
-
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -327,10 +320,11 @@ impl TestPipeline {
 
         let dag = app.get_dag().unwrap();
 
-        let schema_manager = DagSchemaManager::new(&dag)?;
-        let streaming_sink_handle = dag.get_sinks().get(0).expect("Sink is expected").clone().0;
-        let (schema, _) = schema_manager
-            .get_node_input_schemas(&streaming_sink_handle)?
+        let dag_schemas = DagSchemas::new(&dag)?;
+        prepare_dag(&dag, &dag_schemas)?;
+        let streaming_sink_handle = dag.sinks().next().expect("Sink is expected").0;
+        let (schema, _) = dag_schemas
+            .get_node_input_schemas(streaming_sink_handle)?
             .values()
             .next()
             .expect("schema is expected")

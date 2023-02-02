@@ -32,13 +32,6 @@ impl SinkFactory<SchemaSQLContext> for StreamingSinkFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,

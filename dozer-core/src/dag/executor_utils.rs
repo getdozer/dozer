@@ -2,7 +2,6 @@
 use crate::dag::dag::{Dag, Edge, Endpoint};
 use crate::dag::dag_metadata::METADATA_DB_NAME;
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
 use crate::dag::record_store::{
@@ -11,9 +10,11 @@ use crate::dag::record_store::{
 use crate::storage::common::Database;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
-use dozer_types::types::{Operation, Schema};
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::Path;
+
+use super::hash_map_to_vec::insert_vec_element;
 
 pub(crate) struct StorageMetadata {
     pub env: LmdbEnvironmentManager,
@@ -48,36 +49,6 @@ pub(crate) fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Selec
     sel
 }
 
-pub(crate) fn requires_schema_update(
-    _new: Schema,
-    _port_handle: &PortHandle,
-    input_schemas: &mut HashMap<PortHandle, Schema>,
-    input_ports: &[PortHandle],
-) -> bool {
-    let count = input_ports
-        .iter()
-        .filter(|e| !input_schemas.contains_key(*e))
-        .count();
-    count == 0
-}
-
-pub(crate) fn map_to_op(op: ExecutorOperation) -> Result<Operation, ExecutionError> {
-    match op {
-        ExecutorOperation::Delete { old } => Ok(Operation::Delete { old }),
-        ExecutorOperation::Insert { new } => Ok(Operation::Insert { new }),
-        ExecutorOperation::Update { old, new } => Ok(Operation::Update { old, new }),
-        _ => Err(InvalidOperation(op.to_string())),
-    }
-}
-
-pub(crate) fn map_to_exec_op(op: Operation) -> ExecutorOperation {
-    match op {
-        Operation::Update { old, new } => ExecutorOperation::Update { old, new },
-        Operation::Delete { old } => ExecutorOperation::Delete { old },
-        Operation::Insert { new } => ExecutorOperation::Insert { new },
-    }
-}
-
 pub(crate) fn index_edges<T: Clone>(
     dag: &Dag<T>,
     channel_buf_sz: usize,
@@ -85,65 +56,38 @@ pub(crate) fn index_edges<T: Clone>(
     HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
     HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
 ) {
-    let mut senders: HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>> =
-        HashMap::new();
-    let mut receivers: HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>> =
-        HashMap::new();
+    let mut senders = HashMap::new();
+    let mut receivers = HashMap::new();
 
-    for edge in dag.edges.iter() {
-        if !senders.contains_key(&edge.from.node) {
-            senders.insert(edge.from.node.clone(), HashMap::new());
-        }
-        if !receivers.contains_key(&edge.to.node) {
-            receivers.insert(edge.to.node.clone(), HashMap::new());
-        }
-
+    for edge in dag.edges() {
         let (tx, rx) = bounded(channel_buf_sz);
         // let (tx, rx) = match dag.nodes.get(&edge.from.node).unwrap() {
         //     NodeType::Source(_) => bounded(1),
         //     _ => bounded(channel_buf_sz),
         // };
 
-        let rcv_port: PortHandle = edge.to.port;
-        if receivers
-            .get(&edge.to.node)
-            .unwrap()
-            .contains_key(&rcv_port)
-        {
-            receivers
-                .get_mut(&edge.to.node)
-                .unwrap()
-                .get_mut(&rcv_port)
-                .unwrap()
-                .push(rx);
-        } else {
-            receivers
-                .get_mut(&edge.to.node)
-                .unwrap()
-                .insert(rcv_port, vec![rx]);
-        }
-
-        let snd_port: PortHandle = edge.from.port;
-        if senders
-            .get(&edge.from.node)
-            .unwrap()
-            .contains_key(&snd_port)
-        {
-            senders
-                .get_mut(&edge.from.node)
-                .unwrap()
-                .get_mut(&snd_port)
-                .unwrap()
-                .push(tx);
-        } else {
-            senders
-                .get_mut(&edge.from.node)
-                .unwrap()
-                .insert(snd_port, vec![tx]);
-        }
+        insert_sender_or_receiver(&mut senders, edge.from.clone(), tx);
+        insert_sender_or_receiver(&mut receivers, edge.to.clone(), rx);
     }
 
     (senders, receivers)
+}
+
+fn insert_sender_or_receiver<T>(
+    map: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<T>>>,
+    endpoint: Endpoint,
+    value: T,
+) {
+    match map.entry(endpoint.node) {
+        Entry::Occupied(mut entry) => {
+            insert_vec_element(entry.get_mut(), endpoint.port, value);
+        }
+        Entry::Vacant(entry) => {
+            let mut port_map = HashMap::new();
+            port_map.insert(endpoint.port, vec![value]);
+            entry.insert(port_map);
+        }
+    }
 }
 
 pub(crate) fn build_receivers_lists(

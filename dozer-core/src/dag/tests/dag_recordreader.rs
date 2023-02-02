@@ -331,9 +331,6 @@ impl NoPkRecordReaderProcessorFactory {
     }
 }
 
-pub(crate) const NOPK_RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
-pub(crate) const NOPK_RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
-
 impl ProcessorFactory<NoneContext> for NoPkRecordReaderProcessorFactory {
     fn get_output_schema(
         &self,
