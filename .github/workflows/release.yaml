@@ -9,6 +9,7 @@ env:
   BUCKET_NAME: "dozer-releases"
   ECR_REGISTRY: public.ecr.aws/k7k6x1d4
   ECR_REPOSITORY: dozer
+  SHORT_GITHUB_SHA: ${{GITHUB_SHA::7}}
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -66,8 +67,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: prepare
     timeout-minutes: 60
-    variables:
-      SHORT_GITHUB_SHA: ${GITHUB_SHA::7}
     strategy:
       matrix:
         os: [ubuntu-20.04]
