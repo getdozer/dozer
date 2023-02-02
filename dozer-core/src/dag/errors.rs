@@ -9,6 +9,8 @@ use dozer_types::thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ExecutionError {
+    #[error("Adding this edge would have created a cycle")]
+    WouldCycle,
     #[error("Invalid port handle: {0}")]
     InvalidPortHandle(PortHandle),
     #[error("Invalid node handle: {0}")]
@@ -21,8 +23,6 @@ pub enum ExecutionError {
     MissingNodeInput(NodeHandle),
     #[error("The node {0} does not have any output")]
     MissingNodeOutput(NodeHandle),
-    #[error("The node type is invalid")]
-    InvalidNodeType,
     #[error("The database is invalid")]
     InvalidDatabase,
     #[error("Field not found at position {0}")]
@@ -97,6 +97,12 @@ pub enum ExecutionError {
 
     #[error(transparent)]
     SourceError(SourceError),
+}
+
+impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
+    fn from(_: daggy::WouldCycle<T>) -> Self {
+        ExecutionError::WouldCycle
+    }
 }
 
 #[derive(Error, Debug)]

@@ -273,9 +273,9 @@ impl Orchestrator for SimpleOrchestrator {
 
         let dag = executor.query(sql, sender)?;
         let schema_manager = DagSchemaManager::new(&dag)?;
-        let streaming_sink_handle = dag.get_sinks().get(0).expect("Sink is expected").clone().0;
+        let streaming_sink_handle = dag.sinks().next().expect("Sink is expected").0;
         let (schema, _ctx) = schema_manager
-            .get_node_input_schemas(&streaming_sink_handle)?
+            .get_node_input_schemas(streaming_sink_handle)?
             .values()
             .next()
             .expect("schema is expected")

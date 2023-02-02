@@ -97,16 +97,13 @@ impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
         all_schemas: &mut HashMap<NodeHandle, NodeSchemas<T>>,
     ) -> Result<(), ExecutionError> {
         // Get the current node
-        let node = dag
-            .nodes
-            .get(handle)
-            .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
+        let node = dag.node_from_handle(handle);
 
         // Get all input schemas available for this node
         let node_input_schemas_available = HashSet::<&PortHandle>::from_iter(
             all_schemas
                 .get(handle)
-                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?
+                .expect("BUG in DagSchemaManager")
                 .input_schemas
                 .iter()
                 .map(|e| e.0),
@@ -122,7 +119,7 @@ impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
                 NodeType::Sink(s) => {
                     let node_schemas = all_schemas
                         .get_mut(handle)
-                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                        .expect("BUG in DagSchemaManager");
                     let _ = s.set_input_schema(&node_schemas.input_schemas);
                 }
                 _ => {
@@ -131,7 +128,7 @@ impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
                         let schema = {
                             let node_schemas = all_schemas
                                 .get_mut(handle)
-                                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                                .expect("BUG in DagSchemaManager");
                             let schema = Self::get_port_output_schema(
                                 node,
                                 port,
@@ -146,34 +143,24 @@ impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
                         };
 
                         // Retrieve all next nodes connected to this port
-                        let next_in_chain = dag
-                            .edges
-                            .iter()
-                            .filter(|e| &e.from.node == handle && e.from.port == port.handle)
-                            .map(|e| e.to.clone());
-
-                        for next_node_port_input in next_in_chain {
-                            let next_node_schemas =
-                                all_schemas.get_mut(&next_node_port_input.node).ok_or_else(
-                                    || InvalidNodeHandle(next_node_port_input.node.clone()),
-                                )?;
+                        for (next_node_handle, next_node_port) in
+                            dag.edges_from_endpoint(handle, port.handle)
+                        {
+                            let next_node_schemas = all_schemas
+                                .get_mut(next_node_handle)
+                                .expect("BUG in DagSchemaManager");
                             if let Some(schema) = &schema {
                                 next_node_schemas
                                     .input_schemas
-                                    .insert(next_node_port_input.port, schema.clone());
+                                    .insert(next_node_port, schema.clone());
                             }
                         }
                     }
                 }
             }
 
-            for next_node in HashSet::<NodeHandle>::from_iter(
-                dag.edges
-                    .iter()
-                    .filter(|e| &e.from.node == handle)
-                    .map(|e| e.to.node.clone()),
-            ) {
-                Self::fill_node_output_schemas(dag, &next_node, all_schemas)?;
+            for next_node in dag.edges_from_handle(handle) {
+                Self::fill_node_output_schemas(dag, next_node, all_schemas)?;
             }
         }
 
@@ -181,16 +168,11 @@ impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
     }
 
     pub fn new(dag: &'a Dag<T>) -> Result<Self, ExecutionError> {
-        let sources: Vec<&NodeHandle> = dag
-            .nodes
-            .iter()
-            .filter(|(_h, n)| matches!(n, NodeType::Source(_)))
-            .map(|e| e.0)
-            .collect();
+        let sources = dag.sources().map(|(handle, _)| handle).collect::<Vec<_>>();
 
         let mut schemas: HashMap<NodeHandle, NodeSchemas<T>> = dag
-            .nodes
-            .keys()
+            .node_handles()
+            .iter()
             .map(|handle| (handle.clone(), NodeSchemas::new()))
             .collect();
 
@@ -228,7 +210,7 @@ impl<'a, T: Clone + 'a> DagSchemaManager<'a, T> {
     }
 
     pub fn prepare(&self) -> Result<(), ExecutionError> {
-        for (handle, node) in &self.dag.nodes {
+        for (handle, node) in self.dag.nodes() {
             let schemas = self
                 .schemas
                 .get(handle)

@@ -1,4 +1,4 @@
-use crate::dag::dag::{Dag, Edge, NodeType};
+use crate::dag::dag::Dag;
 use crate::dag::dag_schemas::NodeSchemas;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InvalidNodeHandle, MetadataAlreadyExists};
@@ -12,12 +12,13 @@ use crate::storage::lmdb_storage::{
 use dozer_types::bincode;
 use dozer_types::types::Schema;
 use lmdb::Database;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use std::iter::once;
 use std::path::Path;
 
 use super::epoch::{OpIdentifier, SourceStates};
+use super::hash_map_to_vec::insert_vec_element;
 
 pub(crate) const METADATA_DB_NAME: &str = "__META__";
 const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
@@ -27,20 +28,6 @@ pub(crate) const INPUT_SCHEMA_IDENTIFIER: u8 = 2_u8;
 pub(crate) enum Consistency {
     FullyConsistent(Option<OpIdentifier>),
     PartiallyConsistent(HashMap<Option<OpIdentifier>, Vec<NodeHandle>>),
-}
-
-struct DependencyTreeNode {
-    pub handle: NodeHandle,
-    pub children: Vec<DependencyTreeNode>,
-}
-
-impl DependencyTreeNode {
-    pub fn new(handle: NodeHandle) -> Self {
-        Self {
-            handle,
-            children: Vec::new(),
-        }
-    }
 }
 
 pub(crate) struct DagMetadata {
@@ -53,7 +40,6 @@ pub(crate) struct DagMetadataManager<'a, T: Clone> {
     dag: &'a Dag<T>,
     path: &'a Path,
     metadata: HashMap<NodeHandle, DagMetadata>,
-    deps_trees: HashMap<NodeHandle, DependencyTreeNode>,
 }
 
 impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
@@ -62,24 +48,11 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         path: &'a Path,
     ) -> Result<DagMetadataManager<'a, T>, ExecutionError> {
         let metadata = DagMetadataManager::get_checkpoint_metadata(path, dag)?;
-        let mut deps_trees: HashMap<NodeHandle, DependencyTreeNode> = HashMap::new();
-
-        for src in dag
-            .nodes
-            .iter()
-            .filter(|e| matches!(e.1, NodeType::Source(_)))
-            .map(|e| e.0)
-        {
-            let mut root = DependencyTreeNode::new(src.clone());
-            Self::get_source_dependency_tree(&mut root, dag);
-            deps_trees.insert(src.clone(), root);
-        }
 
         Ok(Self {
             path,
             dag,
             metadata,
-            deps_trees,
         })
     }
 
@@ -166,7 +139,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         dag: &Dag<T>,
     ) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
         let mut all = HashMap::<NodeHandle, DagMetadata>::new();
-        for node in dag.nodes.keys() {
+        for node in dag.node_handles() {
             if let Some(metadata) = Self::get_node_checkpoint_metadata(path, node)? {
                 all.insert(node.clone(), metadata);
             }
@@ -174,69 +147,46 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         Ok(all)
     }
 
-    fn get_source_dependency_tree(curr: &mut DependencyTreeNode, dag: &Dag<T>) {
-        let children: Vec<&Edge> = dag
-            .edges
-            .iter()
-            .filter(|e| e.from.node == curr.handle)
-            .collect();
-
-        for child in children {
-            let mut new_node = DependencyTreeNode::new(child.to.node.clone());
-            Self::get_source_dependency_tree(&mut new_node, dag);
-            curr.children.push(new_node);
-        }
-    }
-
-    fn get_sources_for_namespace(&self, ns: u16) -> HashSet<NodeHandle> {
-        let mut handles = HashSet::<NodeHandle>::new();
-        for (src_handle, src_node) in self.deps_trees.iter() {
-            if src_node.children.iter().any(|e| match e.handle.ns {
-                Some(node_ns) => ns == node_ns,
-                _ => false,
-            }) {
-                handles.insert(src_handle.clone());
-            }
-        }
-        handles
-    }
-
-    fn get_dependency_tree_consistency_rec(
+    fn get_dependency_tree_consistency(
         &self,
-        source_handle: &NodeHandle,
-        tree_node: &DependencyTreeNode,
-        res: &mut HashMap<Option<OpIdentifier>, Vec<NodeHandle>>,
-    ) {
-        let seq = match self.metadata.get(&tree_node.handle) {
-            Some(v) => v.commits.get(source_handle).copied(),
-            None => None,
-        };
-        res.entry(seq).or_insert_with(Vec::new);
-        res.get_mut(&seq).unwrap().push(tree_node.handle.clone());
+        root_node: &NodeHandle,
+    ) -> HashMap<Option<OpIdentifier>, Vec<NodeHandle>> {
+        let mut result = HashMap::new();
 
-        for child in &tree_node.children {
-            self.get_dependency_tree_consistency_rec(source_handle, child, res);
+        for node_handle in self.dag.bfs(root_node) {
+            let seq = self
+                .metadata
+                .get(node_handle)
+                .and_then(|dag_meta_data| dag_meta_data.commits.get(root_node).copied());
+
+            insert_vec_element(&mut result, seq, node_handle.clone());
         }
+
+        result
     }
 
     pub(crate) fn get_checkpoint_consistency(&self) -> HashMap<NodeHandle, Consistency> {
         let mut r: HashMap<NodeHandle, Consistency> = HashMap::new();
-        for e in &self.deps_trees {
-            let mut res: HashMap<Option<OpIdentifier>, Vec<NodeHandle>> = HashMap::new();
-            self.get_dependency_tree_consistency_rec(&e.1.handle, e.1, &mut res);
-            match res.len() {
-                1 => r.insert(
-                    e.0.clone(),
-                    Consistency::FullyConsistent(*res.iter().next().unwrap().0),
-                ),
-                _ => r.insert(e.0.clone(), Consistency::PartiallyConsistent(res)),
-            };
+        for node_handle in self.dag.node_handles() {
+            let consistency = self.get_dependency_tree_consistency(node_handle);
+            debug_assert!(!consistency.is_empty());
+            if consistency.len() == 1 {
+                r.insert(
+                    node_handle.clone(),
+                    Consistency::FullyConsistent(*consistency.iter().next().unwrap().0),
+                );
+            } else {
+                r.insert(
+                    node_handle.clone(),
+                    Consistency::PartiallyConsistent(consistency),
+                );
+            }
         }
         r
     }
 
     pub(crate) fn delete_metadata(&self) {
-        for node in self.dag.nodes.keys() {
+        for node in self.dag.node_handles() {
             LmdbEnvironmentManager::remove(self.path, &metadata_environment_name(node));
         }
     }
@@ -249,7 +199,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         &self,
         schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
     ) -> Result<(), ExecutionError> {
-        for node in self.dag.nodes.keys() {
+        for node in self.dag.node_handles() {
             let curr_node_schema = schemas
                 .get(node)
                 .ok_or_else(|| InvalidNodeHandle(node.clone()))?;

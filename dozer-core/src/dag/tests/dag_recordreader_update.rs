@@ -240,13 +240,13 @@ impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        Ok(Box::new(RecordReaderProcessor { ctr: 1 }))
+        Ok(Box::new(RecordReaderProcessor { _ctr: 1 }))
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct RecordReaderProcessor {
-    ctr: u64,
+    _ctr: u64,
 }
 
 impl Processor for RecordReaderProcessor {
