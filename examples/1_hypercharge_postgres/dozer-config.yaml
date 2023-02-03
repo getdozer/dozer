@@ -41,14 +41,14 @@ sources:
 endpoints:
   - name: stocks
     path: /stocks
-    sql: select id, ticker, date, open, high, low, close, adj_close, volume from stocks where 1=1;
+    sql: select id, ticker, date, open, high, low, close, adj_close, volume from stocks;
     index:
       primary_key:
         - id
   - id: null
     name: stocks_meta
     path: /stocks-meta
-    sql: select symbol, security_name from stocks_meta where 1=1;
+    sql: select symbol, security_name from stocks_meta;
     index:
       primary_key:
         - symbol

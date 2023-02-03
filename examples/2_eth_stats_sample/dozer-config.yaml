@@ -23,11 +23,11 @@ connections:
     name: eth_conn
 
 sources:
-  - name: PunkOffered
+  - name: punks_PunkOffered
     table_name: punks_PunkOffered
     connection: !Ref eth_conn
     columns:
-  - name: Transfer
+  - name: apes_Transfer
     table_name: apes_Transfer
     connection: !Ref eth_conn
     columns:
