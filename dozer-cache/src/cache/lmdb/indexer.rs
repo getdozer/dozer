@@ -3,9 +3,9 @@ use dozer_types::{
     parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
+use itertools::Itertools;
 use lmdb::{RwTransaction, Transaction};
 use std::sync::Arc;
-use itertools::Itertools;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cache::index::{self, get_full_text_secondary_index};
@@ -221,9 +221,10 @@ mod tests {
             .insert_schema("sample", &schema, &secondary_indexes)
             .unwrap();
 
-        let items = vec![
-            (Some("another test".to_string()), Some("regular test regular".to_string())),
-        ];
+        let items = vec![(
+            Some("another test".to_string()),
+            Some("regular test regular".to_string()),
+        )];
 
         for val in items.clone() {
             lmdb_utils::insert_full_text(&cache, &schema, val);
