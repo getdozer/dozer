@@ -150,7 +150,6 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
             schemas,
             record_stores: Arc::new(RwLock::new(
                 dag.node_handles()
-                    .iter()
                     .map(|node_handle| {
                         (
                             node_handle.clone(),
@@ -282,7 +281,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         let timeout = self.options.commit_time_threshold;
         let base_path = self.path.clone();
         let record_readers = self.record_stores.clone();
-        let edges = self.dag.edges().cloned().collect::<Vec<_>>();
+        let edges = self.dag.edge_handles().cloned().collect::<Vec<_>>();
         let running = self.running.clone();
         let running_listener = running.clone();
         let commit_sz = self.options.commit_sz;
@@ -335,7 +334,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
     ) -> Result<JoinHandle<()>, ExecutionError> {
         let base_path = self.path.clone();
         let record_readers = self.record_stores.clone();
-        let edges = self.dag.edges().cloned().collect::<Vec<_>>();
+        let edges = self.dag.edge_handles().cloned().collect::<Vec<_>>();
         let input_schemas: HashMap<PortHandle, Schema> = schemas
             .input_schemas
             .clone()

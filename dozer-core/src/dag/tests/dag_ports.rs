@@ -1,4 +1,4 @@
-use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
+use crate::dag::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source,
@@ -115,8 +115,8 @@ macro_rules! test_ports {
 
             let mut dag = Dag::new();
 
-            dag.add_node(NodeType::Source(Arc::new(src)), source_handle.clone());
-            dag.add_node(NodeType::Processor(Arc::new(proc)), proc_handle.clone());
+            dag.add_source(source_handle.clone(), Arc::new(src));
+            dag.add_processor(proc_handle.clone(), Arc::new(proc));
 
             let res = dag.connect(
                 Endpoint::new(source_handle, $from_port),

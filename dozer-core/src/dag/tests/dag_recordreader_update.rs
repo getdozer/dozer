@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::dag::dag::{Dag, Endpoint, NodeType};
+use crate::dag::dag::{Dag, Endpoint};
 use crate::dag::epoch::Epoch;
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
@@ -308,12 +308,9 @@ fn test_run_dag_record_reader_from_src() {
     let RECORD_READER_ID: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
     let SINK_ID: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
 
-    dag.add_node(NodeType::Source(Arc::new(src)), SOURCE_ID.clone());
-    dag.add_node(
-        NodeType::Processor(Arc::new(record_reader)),
-        RECORD_READER_ID.clone(),
-    );
-    dag.add_node(NodeType::Sink(Arc::new(sink)), SINK_ID.clone());
+    dag.add_source(SOURCE_ID.clone(), Arc::new(src));
+    dag.add_processor(RECORD_READER_ID.clone(), Arc::new(record_reader));
+    dag.add_sink(SINK_ID.clone(), Arc::new(sink));
 
     assert!(dag
         .connect(

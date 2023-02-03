@@ -59,7 +59,7 @@ pub(crate) fn index_edges<T: Clone>(
     let mut senders = HashMap::new();
     let mut receivers = HashMap::new();
 
-    for edge in dag.edges() {
+    for edge in dag.edge_handles() {
         let (tx, rx) = bounded(channel_buf_sz);
         // let (tx, rx) = match dag.nodes.get(&edge.from.node).unwrap() {
         //     NodeType::Source(_) => bounded(1),
