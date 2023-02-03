@@ -1,4 +1,4 @@
-use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges, Topo};
+use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges, IntoNodeReferences};
 use daggy::Walker;
 
 use crate::dag::errors::ExecutionError;
@@ -33,14 +33,14 @@ impl Edge {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeKind<T> {
     Source(Arc<dyn SourceFactory<T>>),
     Processor(Arc<dyn ProcessorFactory<T>>),
     Sink(Arc<dyn SinkFactory<T>>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NodeType<T> {
     pub handle: NodeHandle,
     pub kind: NodeKind<T>,
@@ -84,19 +84,36 @@ impl<T> Dag<T> {
         }
     }
 
+    /// Returns the underlying daggy graph.
+    pub fn graph(&self) -> &daggy::Dag<NodeType<T>, EdgeType> {
+        &self.graph
+    }
+
     /// Adds a source. Panics if the `handle` exists in the `Dag`.
-    pub fn add_source(&mut self, handle: NodeHandle, source: Arc<dyn SourceFactory<T>>) {
-        self.add_node(handle, NodeKind::Source(source));
+    pub fn add_source(
+        &mut self,
+        handle: NodeHandle,
+        source: Arc<dyn SourceFactory<T>>,
+    ) -> daggy::NodeIndex {
+        self.add_node(handle, NodeKind::Source(source))
     }
 
     /// Adds a processor. Panics if the `handle` exists in the `Dag`.
-    pub fn add_processor(&mut self, handle: NodeHandle, processor: Arc<dyn ProcessorFactory<T>>) {
-        self.add_node(handle, NodeKind::Processor(processor));
+    pub fn add_processor(
+        &mut self,
+        handle: NodeHandle,
+        processor: Arc<dyn ProcessorFactory<T>>,
+    ) -> daggy::NodeIndex {
+        self.add_node(handle, NodeKind::Processor(processor))
     }
 
     /// Adds a sink. Panics if the `handle` exists in the `Dag`.
-    pub fn add_sink(&mut self, handle: NodeHandle, sink: Arc<dyn SinkFactory<T>>) {
-        self.add_node(handle, NodeKind::Sink(sink));
+    pub fn add_sink(
+        &mut self,
+        handle: NodeHandle,
+        sink: Arc<dyn SinkFactory<T>>,
+    ) -> daggy::NodeIndex {
+        self.add_node(handle, NodeKind::Sink(sink))
     }
 
     /// Adds an edge. Panics if there's already an edge from `from` to `to`.
@@ -189,6 +206,16 @@ impl<T> Dag<T> {
         })
     }
 
+    pub fn sink_identifiers(&self) -> impl Iterator<Item = daggy::NodeIndex> + '_ {
+        self.graph.node_references().flat_map(|(node_index, node)| {
+            if let NodeKind::Sink(_) = node.kind {
+                Some(node_index)
+            } else {
+                None
+            }
+        })
+    }
+
     /// Returns an iterator over all edge handles.
     pub fn edge_handles(&self) -> impl Iterator<Item = &Edge> {
         self.edge_handles.iter()
@@ -196,7 +223,7 @@ impl<T> Dag<T> {
 
     /// Finds the node by its handle.
     pub fn node_kind_from_handle(&self, handle: &NodeHandle) -> &NodeKind<T> {
-        &self.node_weight(self.node_index(handle)).kind
+        &self.graph[self.node_index(handle)].kind
     }
 
     /// Returns an iterator over node handles that are connected to the given node handle.
@@ -204,7 +231,7 @@ impl<T> Dag<T> {
         let node_index = self.node_index(handle);
         self.graph
             .edges(node_index)
-            .map(|edge| &self.node_weight(edge.target()).handle)
+            .map(|edge| &self.graph[edge.target()].handle)
     }
 
     /// Returns an iterator over endpoints that are connected to the given endpoint.
@@ -216,7 +243,7 @@ impl<T> Dag<T> {
         self.graph
             .edges(self.node_index(node_handle))
             .filter(move |edge| edge.weight().from == port_handle)
-            .map(|edge| (&self.node_weight(edge.target()).handle, edge.weight().to))
+            .map(|edge| (&self.graph[edge.target()].handle, edge.weight().to))
     }
 
     /// Returns an iterator over all node handles reachable from `start` in a breadth-first search.
@@ -225,19 +252,12 @@ impl<T> Dag<T> {
 
         Bfs::new(self.graph.graph(), start)
             .iter(self.graph.graph())
-            .map(|node_index| &self.node_weight(node_index).handle)
-    }
-
-    /// Returns an iterator over all node handles in topological order.
-    pub fn topo(&self) -> impl Iterator<Item = &NodeHandle> {
-        Topo::new(self.graph.graph())
-            .iter(self.graph.graph())
-            .map(|node_index| &self.node_weight(node_index).handle)
+            .map(|node_index| &self.graph[node_index].handle)
     }
 }
 
 impl<T> Dag<T> {
-    fn add_node(&mut self, handle: NodeHandle, kind: NodeKind<T>) {
+    fn add_node(&mut self, handle: NodeHandle, kind: NodeKind<T>) -> daggy::NodeIndex {
         let node_index = self.graph.add_node(NodeType {
             handle: handle.clone(),
             kind,
@@ -245,6 +265,7 @@ impl<T> Dag<T> {
         if let Some(node_index) = self.node_lookup_table.insert(handle, node_index) {
             panic!("A node {node_index:?} has already been inserted using specified node handle");
         }
+        node_index
     }
 
     fn node_index(&self, node_handle: &NodeHandle) -> daggy::NodeIndex {
@@ -252,10 +273,6 @@ impl<T> Dag<T> {
             .node_lookup_table
             .get(node_handle)
             .unwrap_or_else(|| panic!("Node handle {node_handle:?} not found in dag"))
-    }
-
-    fn node_weight(&self, node_index: daggy::NodeIndex) -> &NodeType<T> {
-        self.graph.node_weight(node_index).expect("BUG in DAG")
     }
 }
 
@@ -271,7 +288,7 @@ fn validate_endpoint<T>(
     direction: PortDirection,
 ) -> Result<daggy::NodeIndex, ExecutionError> {
     let node_index = dag.node_index(&endpoint.node);
-    let node = dag.graph.node_weight(node_index).expect("BUG in DAG");
+    let node = &dag.graph[node_index];
     if !contains_port(&node.kind, direction, endpoint.port)? {
         return Err(ExecutionError::InvalidPortHandle(endpoint.port));
     }
