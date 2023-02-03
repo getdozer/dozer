@@ -56,7 +56,7 @@ fn single_source_sink_impl(schema: Schema) {
             id: Some("1".to_string()),
             name: table_name.to_string(),
             path: "/events".to_string(),
-            sql: "select a, b from events group by a,b;".to_string(),
+            sql: Some("select a, b from events group by a,b;".to_string()),
             index: Some(ApiIndex {
                 primary_key: vec!["a".to_string()],
             }),
@@ -144,5 +144,5 @@ fn test_query(schema_name: String, query: Value, count: usize, cache: &LmdbCache
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     let records = cache.query(&schema_name, &query).unwrap();
 
-    assert_eq!(records.len(), count, "Count must be equal : {:?}", query);
+    assert_eq!(records.len(), count, "Count must be equal : {query:?}");
 }

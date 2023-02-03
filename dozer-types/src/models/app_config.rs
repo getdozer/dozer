@@ -64,7 +64,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut flags: Option<Flags> = Some(Flags::default());
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
-                let mut endpoints: Vec<ApiEndpoint> = vec![];
+                let mut endpoints_value: Vec<serde_yaml::Value> = vec![];
                 let mut app_name = "".to_owned();
                 let mut id: Option<String> = None;
                 let mut home_dir: String = default_home_dir();
@@ -89,7 +89,7 @@ impl<'de> Deserialize<'de> for Config {
                             sources_value = access.next_value::<Vec<serde_yaml::Value>>()?;
                         }
                         "endpoints" => {
-                            endpoints = access.next_value::<Vec<ApiEndpoint>>()?;
+                            endpoints_value = access.next_value::<Vec<serde_yaml::Value>>()?;
                         }
                         "home_dir" => {
                             home_dir = access.next_value::<String>()?;
@@ -107,8 +107,7 @@ impl<'de> Deserialize<'de> for Config {
                         let connection_ref = source_value["connection"].to_owned();
                         if connection_ref.is_null() {
                             return Err(de::Error::custom(format!(
-                                "sources[{:}]: missing connection ref",
-                                idx
+                                "sources[{idx:}]: missing connection ref"
                             )));
                         }
                         let connection_ref: super::source::Value = serde_yaml::from_value(
@@ -116,29 +115,75 @@ impl<'de> Deserialize<'de> for Config {
                         )
                         .map_err(|err| {
                             de::Error::custom(format!(
-                                "sources[{:}]: connection ref - {:} ",
-                                idx, err
+                                "sources[{idx:}]: connection ref - {err:} "
                             ))
                         })?;
                         let super::source::Value::Ref(connection_name) = connection_ref;
                         let mut source: Source = serde_yaml::from_value(source_value.to_owned())
                             .map_err(|err| {
-                                de::Error::custom(format!("sources[{:}]: {:} ", idx, err))
+                                de::Error::custom(format!("sources[{idx:}]: {err:} "))
                             })?;
                         let connection = connections
                             .iter()
                             .find(|c| c.name == connection_name)
                             .ok_or_else(|| {
                                 de::Error::custom(format!(
-                                    "sources[{:}]: Cannot find Ref connection name: {:}",
-                                    idx, connection_name
+                                    "sources[{idx:}]: Cannot find Ref connection name: {connection_name:}"
                                 ))
                             })?;
                         source.connection = Some(connection.to_owned());
                         Ok(source)
                     })
                     .collect();
+
                 let sources = result_sources?;
+
+                let result_endpoints: Result<Vec<ApiEndpoint>, A::Error> = endpoints_value
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, endpoint_value)| -> Result<ApiEndpoint, A::Error> {
+                        let source_ref = endpoint_value["source"].to_owned();
+                        let source = if !source_ref.is_null() {
+                            let source_ref: super::api_endpoint::Value = serde_yaml::from_value(
+                                endpoint_value["source"].to_owned(),
+                            )
+                                .map_err(|err| {
+                                    de::Error::custom(format!(
+                                        "api_endpoints[{idx:}]: source ref - {err:} "
+                                    ))
+                                })?;
+
+                            let super::api_endpoint::Value::Ref(source_name) = source_ref;
+
+                            let source = sources
+                                .iter()
+                                .find(|s| s.name == source_name)
+                                .ok_or_else(|| {
+                                    de::Error::custom(format!(
+                                        "api_endpoints[{idx:}]: Cannot find Ref source name: {source_name:}"
+                                    ))
+                                })?;
+
+                            Some(source.clone())
+                        } else {
+                            None
+                        };
+
+                        let mut endpoint: ApiEndpoint = serde_yaml::from_value(endpoint_value.to_owned())
+                            .map_err(|err| {
+                                de::Error::custom(format!("api_endpoints[{idx:}]: {err:} "))
+                            })?;
+
+                        if endpoint.sql.is_none() && source.is_none() {
+                            return Err(de::Error::custom(format!("api_endpoints[{idx:}]: SQL or Source expected")))
+                        }
+
+                        endpoint.source = source;
+                        Ok(endpoint)
+                    })
+                    .collect();
+                let endpoints = result_endpoints?;
+
                 Ok(Config {
                     id,
                     app_name,

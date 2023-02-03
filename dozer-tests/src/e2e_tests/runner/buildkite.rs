@@ -15,7 +15,7 @@ impl Runner {
             } => {
                 let docker_compose_path = docker_compose_path
                     .to_str()
-                    .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", docker_compose_path));
+                    .unwrap_or_else(|| panic!("Non-UTF8 path: {docker_compose_path:?}"));
                 // TODO: Upload buildkite pipeline.
                 run_command(
                     "docker",
@@ -46,7 +46,7 @@ impl Runner {
                 };
                 let docker_compose_path = docker_compose_path
                     .to_str()
-                    .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", docker_compose_path));
+                    .unwrap_or_else(|| panic!("Non-UTF8 path: {docker_compose_path:?}"));
                 run_command(
                     "docker",
                     &["compose", "-f", docker_compose_path, "pull", "dozer"],

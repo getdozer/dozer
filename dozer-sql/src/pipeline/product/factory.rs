@@ -5,38 +5,39 @@ use dozer_core::dag::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
-use dozer_types::types::{Schema, SourceDefinition};
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, JoinConstraint};
+use dozer_types::types::{FieldDefinition, Schema};
+use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
 use crate::pipeline::{
     builder::SchemaSQLContext,
-    errors::{JoinError, PipelineError},
-    expression::builder::{extend_schema_source_def, get_field_index, ConstraintIdentifier},
+    errors::JoinError,
+    expression::builder::{extend_schema_source_def, fullname_from_ident},
+    product::join::JoinBranch,
 };
 use crate::pipeline::{
     builder::{get_input_names, IndexedTabelWithJoins},
-    expression::builder::NameOrAlias,
+    errors::PipelineError,
 };
-use sqlparser::ast::Expr;
+use sqlparser::ast::Expr as SqlExpr;
 
 use super::{
-    join::{JoinOperator, JoinOperatorType, JoinTable},
-    processor::ProductProcessor,
+    join::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},
+    processor::FromProcessor,
 };
 
 #[derive(Debug)]
-pub struct ProductProcessorFactory {
+pub struct FromProcessorFactory {
     input_tables: IndexedTabelWithJoins,
 }
 
-impl ProductProcessorFactory {
-    /// Creates a new [`ProductProcessorFactory`].
+impl FromProcessorFactory {
+    /// Creates a new [`FromProcessorFactory`].
     pub fn new(input_tables: IndexedTabelWithJoins) -> Self {
         Self { input_tables }
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         let input_names = get_input_names(&self.input_tables);
         input_names
@@ -59,10 +60,12 @@ impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let mut output_schema = Schema::empty();
+
         let input_names = get_input_names(&self.input_tables);
-        for (port, table) in input_names.iter().enumerate() {
+        for (port, _table) in input_names.iter().enumerate() {
             if let Some((current_schema, _)) = input_schemas.get(&(port as PortHandle)) {
-                output_schema = append_schema(output_schema, table, current_schema);
+                let current_extended_schema = extend_schema_source_def(current_schema, _table);
+                output_schema = append_schema(&output_schema, &current_extended_schema);
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
             }
@@ -76,8 +79,8 @@ impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        match build_join_chain(&self.input_tables, input_schemas) {
-            Ok(join_tables) => Ok(Box::new(ProductProcessor::new(join_tables))),
+        match build_join_tree(&self.input_tables, input_schemas) {
+            Ok(join_operator) => Ok(Box::new(FromProcessor::new(join_operator))),
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
     }
@@ -97,77 +100,100 @@ impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
 /// # Errors
 ///
 /// This function will return an error if.
-pub fn build_join_chain(
+pub fn build_join_tree(
     join_tables: &IndexedTabelWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
-) -> Result<HashMap<PortHandle, JoinTable>, PipelineError> {
-    let mut input_tables = HashMap::new();
+) -> Result<JoinSource, PipelineError> {
+    const RIGHT_JOIN_FLAG: u32 = 0x80000000;
 
-    let port = 0;
-    let input_schema = input_schemas.get(&(port as PortHandle)).map_or(
-        Err(JoinError::InvalidJoinConstraint(
-            join_tables.relation.0.clone().0,
-        )),
-        Ok,
-    )?;
-
-    let input_schema = extend_schema_source_def(input_schema, &join_tables.relation.0);
-
-    let mut left_join_table = JoinTable::from(&input_schema);
-    input_tables.insert(port as PortHandle, left_join_table.clone());
-
-    for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
-        let input_schema = input_schemas.get(&((index + 1) as PortHandle)).map_or(
+    let port = 0 as PortHandle;
+    let left_schema = input_schemas
+        .get(&port)
+        .map_or(
             Err(JoinError::InvalidJoinConstraint(
                 join_tables.relation.0.clone().0,
             )),
             Ok,
+        )
+        .unwrap()
+        .clone();
+    let relation_name = &join_tables.relation.0;
+    let mut left_extended_schema = extend_schema_source_def(&left_schema, relation_name);
+
+    let mut left_join_table = JoinSource::Table(JoinTable::new(port, left_extended_schema.clone()));
+
+    let mut join_tree_root = left_join_table.clone();
+
+    for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
+        let right_port = (index + 1) as PortHandle;
+        let right_schema = input_schemas.get(&right_port).map_or(
+            Err(JoinError::InvalidJoinConstraint(
+                relation_name.0.to_string(),
+            )),
+            Ok,
         )?;
-        let input_schema = extend_schema_source_def(input_schema, relation_name);
-        let mut right_join_table = JoinTable::from(&input_schema);
 
-        let join_op = match &join.join_operator {
-            sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {
-                JoinConstraint::On(expression) => {
-                    let (left_keys, right_keys) =
-                        parse_join_constraint(expression, &left_join_table, &right_join_table)?;
+        let right_extended_schema = extend_schema_source_def(right_schema, relation_name);
+        let right_join_table =
+            JoinSource::Table(JoinTable::new(right_port, right_extended_schema.clone()));
 
-                    JoinOperator::new(
-                        JoinOperatorType::Inner,
-                        (index + 1) as PortHandle,
-                        left_keys,
-                        (index) as PortHandle,
-                        right_keys,
-                    )
-                }
-                _ => {
-                    return Err(PipelineError::JoinError(
-                        JoinError::UnsupportedJoinConstraint,
-                    ))
-                }
-            },
+        let join_schema = append_schema(&left_extended_schema, &right_extended_schema);
+
+        let (join_type, join_constraint) = match &join.join_operator {
+            sqlparser::ast::JoinOperator::Inner(constraint) => {
+                (JoinOperatorType::Inner, constraint)
+            }
+            sqlparser::ast::JoinOperator::LeftOuter(constraint) => {
+                (JoinOperatorType::LeftOuter, constraint)
+            }
+            sqlparser::ast::JoinOperator::RightOuter(constraint) => {
+                (JoinOperatorType::RightOuter, constraint)
+            }
             _ => return Err(PipelineError::JoinError(JoinError::UnsupportedJoinType)),
         };
 
-        input_tables.get_mut(&(index as PortHandle)).unwrap().right = Some(join_op.clone());
+        let expression = match join_constraint {
+            JoinConstraint::On(expression) => expression,
+            _ => {
+                return Err(PipelineError::JoinError(
+                    JoinError::UnsupportedJoinConstraintType,
+                ))
+            }
+        };
 
-        right_join_table.left = Some(join_op);
+        let (left_keys, right_keys) = parse_join_constraint(
+            expression,
+            &left_join_table.get_output_schema(),
+            &right_join_table.get_output_schema(),
+        )?;
+        let join_op = JoinOperator::new(
+            join_type,
+            join_schema.clone(),
+            JoinBranch {
+                join_key: left_keys,
+                source: Box::new(left_join_table),
+                lookup_index: index as u32,
+            },
+            JoinBranch {
+                join_key: right_keys,
+                source: Box::new(right_join_table),
+                lookup_index: (index + 1) as u32 | RIGHT_JOIN_FLAG,
+            },
+        );
 
-        input_tables.insert((index + 1) as PortHandle, right_join_table.clone());
+        join_tree_root = JoinSource::Join(join_op.clone());
 
-        left_join_table = input_tables
-            .get_mut(&((index + 1) as PortHandle))
-            .unwrap()
-            .clone();
+        left_extended_schema = join_schema;
+        left_join_table = JoinSource::Join(join_op);
     }
 
-    Ok(input_tables)
+    Ok(join_tree_root)
 }
 
 fn parse_join_constraint(
     expression: &sqlparser::ast::Expr,
-    left_join_table: &JoinTable,
-    right_join_table: &JoinTable,
+    left_join_table: &Schema,
+    right_join_table: &Schema,
 ) -> Result<(Vec<usize>, Vec<usize>), PipelineError> {
     match expression {
         SqlExpr::BinaryOp {
@@ -203,36 +229,30 @@ fn parse_join_constraint(
                 Ok((left_key_indexes, right_key_indexes))
             }
             _ => Err(PipelineError::JoinError(
-                JoinError::UnsupportedJoinConstraint,
+                JoinError::UnsupportedJoinConstraintOperator(op.to_string()),
             )),
         },
         _ => Err(PipelineError::JoinError(
-            JoinError::UnsupportedJoinConstraint,
+            JoinError::UnsupportedJoinConstraint(expression.to_string()),
         )),
     }
 }
 
 fn parse_join_eq_expression(
-    expr: &Expr,
-    left_join_table: &JoinTable,
-    right_join_table: &JoinTable,
+    expr: &SqlExpr,
+    left_join_table: &Schema,
+    right_join_table: &Schema,
 ) -> Result<(Vec<usize>, Vec<usize>), PipelineError> {
     let mut left_key_indexes = vec![];
     let mut right_key_indexes = vec![];
     let (left_keys, right_keys) = match expr.clone() {
-        SqlExpr::Identifier(ident) => parse_identifier(
-            &ConstraintIdentifier::Single(ident),
-            left_join_table,
-            right_join_table,
-        ),
-        SqlExpr::CompoundIdentifier(ident) => parse_identifier(
-            &ConstraintIdentifier::Compound(ident),
-            left_join_table,
-            right_join_table,
-        ),
+        SqlExpr::Identifier(ident) => parse_identifier(&[ident], left_join_table, right_join_table),
+        SqlExpr::CompoundIdentifier(ident) => {
+            parse_identifier(&ident, left_join_table, right_join_table)
+        }
         _ => {
             return Err(PipelineError::JoinError(
-                JoinError::UnsupportedJoinConstraint,
+                JoinError::UnsupportedJoinConstraint(expr.clone().to_string()),
             ))
         }
     }?;
@@ -242,7 +262,7 @@ fn parse_join_eq_expression(
         (None, Some(right_key)) => right_key_indexes.push(right_key),
         _ => {
             return Err(PipelineError::JoinError(
-                JoinError::UnsupportedJoinConstraint,
+                JoinError::UnsupportedJoinConstraint("".to_string()),
             ))
         }
     }
@@ -251,50 +271,97 @@ fn parse_join_eq_expression(
 }
 
 fn parse_identifier(
-    ident: &ConstraintIdentifier,
-    left_join_table: &JoinTable,
-    right_join_table: &JoinTable,
+    ident: &[Ident],
+    left_join_schema: &Schema,
+    right_join_schema: &Schema,
 ) -> Result<(Option<usize>, Option<usize>), PipelineError> {
-    let is_compound = |ident: &ConstraintIdentifier| -> bool {
-        match ident {
-            ConstraintIdentifier::Single(_) => false,
-            ConstraintIdentifier::Compound(_) => true,
-        }
-    };
+    let left_idx = get_field_index(ident, left_join_schema)?;
 
-    let left_idx = get_field_index(ident, &left_join_table.schema)?;
-    let right_idx = get_field_index(ident, &right_join_table.schema)?;
+    let right_idx = get_field_index(ident, right_join_schema)?;
 
     match (left_idx, right_idx) {
         (None, None) => Err(PipelineError::JoinError(JoinError::InvalidFieldSpecified(
-            ident.to_string(),
+            fullname_from_ident(ident),
         ))),
         (None, Some(idx)) => Ok((None, Some(idx))),
         (Some(idx), None) => Ok((Some(idx), None)),
-        (Some(_), Some(_)) => match is_compound(ident) {
-            true => Err(PipelineError::JoinError(JoinError::InvalidJoinConstraint(
-                ident.to_string(),
-            ))),
-            false => Err(PipelineError::JoinError(JoinError::AmbiguousField(
-                ident.to_string(),
-            ))),
-        },
+        (Some(_), Some(_)) => Err(PipelineError::JoinError(JoinError::InvalidJoinConstraint(
+            fullname_from_ident(ident),
+        ))),
     }
 }
 
-fn append_schema(
-    mut output_schema: Schema,
-    table: &NameOrAlias,
-    current_schema: &Schema,
-) -> Schema {
-    for mut field in current_schema.clone().fields.into_iter() {
-        if let Some(alias) = &table.1 {
-            field.source = SourceDefinition::Alias {
-                name: alias.to_string(),
-            };
+pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>, PipelineError> {
+    let tables_matches = |table_ident: &Ident, fd: &FieldDefinition| -> bool {
+        match fd.source.clone() {
+            dozer_types::types::SourceDefinition::Table {
+                connection: _,
+                name,
+            } => name == table_ident.value,
+            dozer_types::types::SourceDefinition::Alias { name } => name == table_ident.value,
+            dozer_types::types::SourceDefinition::Dynamic => false,
         }
+    };
 
-        output_schema.fields.push(field);
+    let field_index = match ident.len() {
+        1 => {
+            let field_index = schema
+                .fields
+                .iter()
+                .enumerate()
+                .find(|(_, f)| f.name == ident[0].value)
+                .map(|(idx, fd)| (idx, fd.clone()));
+            field_index
+        }
+        2 => {
+            let table_name = ident.first().expect("table_name is expected");
+            let field_name = ident.last().expect("field_name is expected");
+
+            let index = schema
+                .fields
+                .iter()
+                .enumerate()
+                .find(|(_, f)| tables_matches(table_name, f) && f.name == field_name.value)
+                .map(|(idx, fd)| (idx, fd.clone()));
+            index
+        }
+        // 3 => {
+        //     let connection_name = comp_ident.get(0).expect("connection_name is expected");
+        //     let table_name = comp_ident.get(1).expect("table_name is expected");
+        //     let field_name = comp_ident.get(2).expect("field_name is expected");
+        // }
+        _ => {
+            return Err(PipelineError::JoinError(JoinError::NameSpaceTooLong(
+                ident
+                    .iter()
+                    .map(|a| a.value.clone())
+                    .collect::<Vec<String>>()
+                    .join("."),
+            )));
+        }
+    };
+    field_index.map_or(Ok(None), |(i, _fd)| Ok(Some(i)))
+}
+
+fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {
+    let mut output_schema = Schema::empty();
+
+    let left_len = left_schema.fields.len();
+
+    for field in left_schema.fields.iter() {
+        output_schema.fields.push(field.clone());
+    }
+
+    for field in right_schema.fields.iter() {
+        output_schema.fields.push(field.clone());
+    }
+
+    for primary_key in left_schema.clone().primary_index.into_iter() {
+        output_schema.primary_index.push(primary_key);
+    }
+
+    for primary_key in right_schema.clone().primary_index.into_iter() {
+        output_schema.primary_index.push(primary_key + left_len);
     }
 
     output_schema

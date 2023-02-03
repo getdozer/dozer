@@ -102,7 +102,7 @@ impl OutputPortDef {
     }
 }
 
-pub trait SourceFactory<T: Clone>: Send + Sync + Debug {
+pub trait SourceFactory<T>: Send + Sync + Debug {
     fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), ExecutionError>;
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError>;
     fn prepare(
@@ -123,7 +123,7 @@ pub trait Source: Debug {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait ProcessorFactory<T: Clone>: Send + Sync + Debug {
+pub trait ProcessorFactory<T>: Send + Sync + Debug {
     fn get_output_schema(
         &self,
         output_port: &PortHandle,
@@ -156,11 +156,7 @@ pub trait Processor: Debug {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait SinkFactory<T: Clone>: Send + Sync + Debug {
-    fn set_input_schema(
-        &self,
-        input_schemas: &HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(), ExecutionError>;
+pub trait SinkFactory<T>: Send + Sync + Debug {
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn prepare(
         &self,

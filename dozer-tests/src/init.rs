@@ -6,12 +6,12 @@ use dozer_types::log::{debug, error};
 fn download(folder_name: &str) {
     let path = std::env::current_dir()
         .unwrap()
-        .join(format!("../target/debug/{}-data", folder_name));
+        .join(format!("./target/debug/{folder_name}-data"));
     let exists = Path::new(&path).is_dir();
     if !exists {
         let exit_status = Command::new("bash")
             .arg("-C")
-            .arg(format!("./scripts/download_{}.sh", folder_name))
+            .arg(format!("./scripts/download_{folder_name}.sh"))
             .spawn()
             .expect("sh command failed to start")
             .wait()

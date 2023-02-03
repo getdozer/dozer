@@ -115,12 +115,12 @@ where
                     .descriptor
                     .services()
                     .find(|s| s.full_name() == service_name)
-                    .unwrap_or_else(|| panic!("gRPC Service not defined: {}", service_name));
+                    .unwrap_or_else(|| panic!("gRPC Service not defined: {service_name}"));
 
                 let method_desc = service_desc
                     .methods()
                     .find(|m| m.name() == method_name)
-                    .unwrap_or_else(|| panic!("gRPC method not defined: {}", method_name));
+                    .unwrap_or_else(|| panic!("gRPC method not defined: {method_name}"));
 
                 let desc = self.descriptor.clone();
                 let accept_compression_encodings = self.accept_compression_encodings;

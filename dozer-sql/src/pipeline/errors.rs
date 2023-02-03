@@ -61,11 +61,16 @@ pub enum PipelineError {
     InvalidFunctionArgumentType(String, FieldType, FieldTypes, usize),
     #[error("Invalid cast: from: {from}, to: {to}")]
     InvalidCast { from: Field, to: FieldType },
-    #[error("{0}() is invoked from another aggregation function. Nesting of aggregation functions is not possible.")]
+    #[error("{0}() cannot be called frome here. Aggregations can only be used in SELECT and HAVING and cannot be nested within other aggregations.")]
     InvalidNestedAggregationFunction(String),
-
-    #[error("Currently join supports two level of namespacing. For example, `connection1.field1` is valid, but `connection1.n1.field1` is not.")]
-    NameSpaceTooLong(String),
+    #[error("Field {0} is not present in teh source schema")]
+    UnknownFieldIdentifier(String),
+    #[error(
+        "Field {0} is ambiguous. Specify a fully qualified name such as [connection.]source.field"
+    )]
+    AmbiguousFieldIdentifier(String),
+    #[error("The field identifier {0} is invalid. Correct format is: [[connection.]source.]field")]
+    IllegalFieldIdentifier(String),
 
     // Error forwarding
     #[error(transparent)]
@@ -115,8 +120,16 @@ pub enum JoinError {
     AmbiguousField(String),
     #[error("Invalid Field specified in join : {0}")]
     InvalidFieldSpecified(String),
-    #[error("Unsupported Join constraint")]
-    UnsupportedJoinConstraint,
+    #[error("Unsupported Join constraint {0} only comparison of fields with \'=\' and \'AND\' operators are allowed in the JOIN ON constraint")]
+    UnsupportedJoinConstraint(String),
+    #[error(
+        "Unsupported Join constraint operator {0}, only \'=\' and \'AND\' operators are allowed in the JOIN ON constraint"
+    )]
+    UnsupportedJoinConstraintOperator(String),
+    #[error(
+        "Unsupported Join constraint, only ON is allowed as the JOIN constraint using \'=\' and \'AND\' operators"
+    )]
+    UnsupportedJoinConstraintType,
     #[error("Unsupported Join type")]
     UnsupportedJoinType,
     #[error("Invalid Table name specified")]

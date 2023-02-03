@@ -155,7 +155,7 @@ pub fn get_table_name(contract_tuple: &ContractTuple, event_name: &str) -> Strin
 
 pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
     match f {
-        web3::ethabi::Token::Address(f) => Field::String(format!("{:?}", f)),
+        web3::ethabi::Token::Address(f) => Field::String(format!("{f:?}")),
         web3::ethabi::Token::FixedBytes(f) => Field::Binary(f),
         web3::ethabi::Token::Bytes(f) => Field::Binary(f),
         // TODO: Convert i64 appropriately

@@ -27,29 +27,28 @@ impl TestPostgresClient {
 
     pub fn create_simple_table(&mut self, schema: &str, table_name: &str) {
         self.execute_query(&format!(
-            "CREATE TABLE {}.{}
+            "CREATE TABLE {schema}.{table_name}
 (
     id          SERIAL
         PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
     description VARCHAR(512),
     weight      DOUBLE PRECISION
-);",
-            schema, table_name
+);"
         ));
     }
 
     pub fn drop_schema(&mut self, schema: &str) {
-        self.execute_query(&format!("DROP SCHEMA IF EXISTS {} CASCADE", schema));
+        self.execute_query(&format!("DROP SCHEMA IF EXISTS {schema} CASCADE"));
     }
 
     pub fn drop_table(&mut self, schema: &str, table_name: &str) {
-        self.execute_query(&format!("DROP TABLE IF EXISTS {}.{}", schema, table_name));
+        self.execute_query(&format!("DROP TABLE IF EXISTS {schema}.{table_name}"));
     }
 
     pub fn create_schema(&mut self, schema: &str) {
         self.drop_schema(schema);
-        self.execute_query(&format!("CREATE SCHEMA {}", schema));
+        self.execute_query(&format!("CREATE SCHEMA {schema}"));
     }
 
     pub fn insert_rows(&mut self, table_name: &str, count: u64) {
@@ -67,10 +66,7 @@ impl TestPostgresClient {
             .unwrap();
         }
 
-        let query = format!(
-            "insert into {}(name, description, weight) values {}",
-            table_name, buf,
-        );
+        let query = format!("insert into {table_name}(name, description, weight) values {buf}",);
 
         self.execute_query(&query);
     }

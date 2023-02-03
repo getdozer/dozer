@@ -10,6 +10,17 @@ fn test_field_serialize_roundtrip() {
 }
 
 #[test]
+fn test_field_bincode_serialize_roundtrip() {
+    for field in field_test_cases() {
+        let bytes = bincode::serialize(&field).unwrap();
+        let deserialized = bincode::deserialize::<Field>(&bytes).unwrap_or_else(|_| {
+            panic!("Failed to deserialize field: {field:?} from bytes: {bytes:?}")
+        });
+        assert_eq!(field, deserialized);
+    }
+}
+
+#[test]
 fn field_serialization_should_never_be_empty() {
     for field in field_test_cases() {
         let bytes = field.encode();

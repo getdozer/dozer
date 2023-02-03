@@ -5,13 +5,10 @@ use dozer_core::dag::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
-use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
-use sqlparser::ast::{Expr as SqlExpr, Expr, SelectItem};
+use dozer_types::types::{FieldDefinition, Schema};
+use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
 
-use crate::pipeline::{
-    builder::SchemaSQLContext,
-    expression::builder::{extend_schema_source_def, NameOrAlias},
-};
+use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -29,7 +26,6 @@ use super::{
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
-    name: NameOrAlias,
     select: Vec<SelectItem>,
     groupby: Vec<SqlExpr>,
     stateful: bool,
@@ -37,14 +33,8 @@ pub struct AggregationProcessorFactory {
 
 impl AggregationProcessorFactory {
     /// Creates a new [`AggregationProcessorFactory`].
-    pub fn new(
-        name: NameOrAlias,
-        select: Vec<SelectItem>,
-        groupby: Vec<SqlExpr>,
-        stateful: bool,
-    ) -> Self {
+    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>, stateful: bool) -> Self {
         Self {
-            name,
             select,
             groupby,
             stateful,
@@ -100,30 +90,49 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
-        let input_schema = extend_schema_source_def(input_schema, &self.name);
         let output_field_rules =
-            get_aggregation_rules(&self.select, &self.groupby, &input_schema).unwrap();
+            get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
         if is_aggregation(&self.groupby, &output_field_rules) {
             return Ok(Box::new(AggregationProcessor::new(
                 output_field_rules,
-                input_schema,
+                input_schema.clone(),
             )));
         }
 
-        // Build a Projection
-        match self
-            .select
-            .iter()
-            .map(|item| parse_sql_select_item(item, &input_schema))
-            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
-        {
-            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
-                input_schema,
-                expressions,
-            ))),
-            Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
+        let mut select_expr: Vec<(String, Expression)> = vec![];
+        for s in self.select.iter() {
+            match s {
+                SelectItem::Wildcard(_) => {
+                    let fields: Vec<SelectItem> = input_schema
+                        .fields
+                        .iter()
+                        .map(|col| {
+                            SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(
+                                col.to_owned().name,
+                            )))
+                        })
+                        .collect();
+                    for f in fields {
+                        let res = parse_sql_select_item(&f, input_schema);
+                        if let Ok(..) = res {
+                            select_expr.push(res.unwrap())
+                        }
+                    }
+                }
+                _ => {
+                    let res = parse_sql_select_item(s, input_schema);
+                    if let Ok(..) = res {
+                        select_expr.push(res.unwrap())
+                    }
+                }
+            }
         }
+
+        Ok(Box::new(ProjectionProcessor::new(
+            input_schema.clone(),
+            select_expr,
+        )))
     }
 
     fn prepare(
@@ -236,14 +245,12 @@ fn get_aggregator(
                 (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
                 (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                 _ => Err(PipelineError::InvalidExpression(format!(
-                    "Not implemented Aggregation function: {:?}",
-                    fun
+                    "Not implemented Aggregation function: {fun:?}"
                 ))),
             }
         }
         _ => Err(PipelineError::InvalidExpression(format!(
-            "Not an Aggregation function: {:?}",
-            expression
+            "Not an Aggregation function: {expression:?}"
         ))),
     }
 }
@@ -285,6 +292,10 @@ fn build_output_schema(
             }
         }
     }
+
+    // remove primary index as already defined in the sink
+    // the Planner will compute the primary index properly
+    output_schema.primary_index = vec![];
     Ok(output_schema)
 }
 
@@ -293,31 +304,52 @@ fn build_projection_schema(
     context: &SchemaSQLContext,
     select: &[SelectItem],
 ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-    match select
-        .iter()
-        .map(|item| parse_sql_select_item(item, input_schema))
-        .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
-    {
-        Ok(expressions) => {
-            let mut output_schema = input_schema.clone();
-            let mut fields = vec![];
-            for e in expressions.iter() {
-                let field_name = e.0.clone();
-                let field_type =
-                    e.1.get_type(input_schema)
-                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-
-                fields.push(FieldDefinition::new(
-                    field_name,
-                    field_type.return_type,
-                    field_type.nullable,
-                    SourceDefinition::Dynamic,
-                ));
+    let mut select_expr: Vec<(String, Expression)> = vec![];
+    for s in select.iter() {
+        match s {
+            SelectItem::Wildcard(_) => {
+                let fields: Vec<SelectItem> = input_schema
+                    .fields
+                    .iter()
+                    .map(|col| {
+                        SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name)))
+                    })
+                    .collect();
+                for f in fields {
+                    let res = parse_sql_select_item(&f, input_schema);
+                    if let Ok(..) = res {
+                        select_expr.push(res.unwrap())
+                    }
+                }
             }
-            output_schema.fields = fields;
-
-            Ok((output_schema, context.clone()))
+            _ => {
+                let res = parse_sql_select_item(s, input_schema);
+                if let Ok(..) = res {
+                    select_expr.push(res.unwrap())
+                }
+            }
         }
-        Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
     }
+
+    let mut output_schema = input_schema.clone();
+    let mut fields = vec![];
+    for e in select_expr.iter() {
+        let field_name = e.0.clone();
+        let field_type =
+            e.1.get_type(input_schema)
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
+        fields.push(FieldDefinition::new(
+            field_name,
+            field_type.return_type,
+            field_type.nullable,
+            field_type.source,
+        ));
+    }
+    output_schema.fields = fields;
+
+    // remove primary index as already defined in the sink
+    // the Planner will compute the primary index properly
+    output_schema.primary_index = vec![];
+    Ok((output_schema, context.clone()))
 }

@@ -148,13 +148,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
         self.input_ports.clone()
     }
 
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -246,7 +239,7 @@ fn test_pipeline_builder() {
 
     executor
         .start()
-        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
+        .unwrap_or_else(|e| panic!("Unable to start the Executor: {e}"));
     assert!(executor.join().is_ok());
 
     let elapsed = now.elapsed();

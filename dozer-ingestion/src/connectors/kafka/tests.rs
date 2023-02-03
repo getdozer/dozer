@@ -118,7 +118,7 @@ fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
 fn connector_disabled_test_e2e_connect_debezium_json_and_get_schema() {
     let mut rng = rand::thread_rng();
     let table_name = format!("products_test_{}", rng.gen::<u32>());
-    let topic = format!("dbserver1.public.{}", table_name);
+    let topic = format!("dbserver1.public.{table_name}");
     let config = get_debezium_config("test.debezium.yaml");
 
     let client =
@@ -170,7 +170,7 @@ fn connector_disabled_test_e2e_connect_debezium_json_and_get_schema() {
 fn connector_disabled_test_e2e_connect_debezium_avro_and_get_schema() {
     let mut rng = rand::thread_rng();
     let table_name = format!("products_test_{}", rng.gen::<u32>());
-    let topic = format!("dbserver1.public.{}", table_name);
+    let topic = format!("dbserver1.public.{table_name}");
     let config = get_debezium_config("test.debezium-with-schema-registry.yaml");
 
     let client =

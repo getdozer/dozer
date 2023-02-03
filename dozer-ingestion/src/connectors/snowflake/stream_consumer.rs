@@ -6,7 +6,6 @@ use dozer_types::ingestion_types::IngestionMessage;
 
 use dozer_types::parking_lot::RwLock;
 
-use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 use odbc::create_environment_v3;
@@ -21,22 +20,36 @@ impl StreamConsumer {
     }
 
     pub fn get_stream_table_name(table_name: &str) -> String {
-        format!("dozer_{}_stream", table_name)
+        format!("dozer_{table_name}_stream")
     }
 
     pub fn get_stream_temp_table_name(table_name: &str) -> String {
-        format!("dozer_{}_stream_temp", table_name)
+        format!("dozer_{table_name}_stream_temp")
     }
 
-    pub fn is_stream_created(client: &Client, table_name: String) -> Result<bool, ConnectorError> {
+    pub fn is_stream_created(client: &Client, table_name: &str) -> Result<bool, ConnectorError> {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
             .connect_with_connection_string(&client.get_conn_string())
             .unwrap();
 
         client
-            .stream_exist(&conn, &Self::get_stream_table_name(&table_name))
+            .stream_exist(&conn, &Self::get_stream_table_name(table_name))
             .map_err(ConnectorError::SnowflakeError)
+    }
+
+    pub fn drop_stream(client: &Client, table_name: &str) -> Result<Option<bool>, SnowflakeError> {
+        let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
+        let conn = env
+            .connect_with_connection_string(&client.get_conn_string())
+            .unwrap();
+
+        let query = format!(
+            "DROP STREAM IF EXISTS {}",
+            Self::get_stream_table_name(table_name),
+        );
+
+        client.exec(&conn, query)
     }
 
     pub fn create_stream(client: &Client, table_name: &String) -> Result<(), ConnectorError> {
@@ -46,63 +59,57 @@ impl StreamConsumer {
             .unwrap();
 
         let query = format!(
-            "CREATE STREAM {} on table {} at(stream => '{}')",
+            "CREATE STREAM {} on table {} SHOW_INITIAL_ROWS = TRUE",
             Self::get_stream_table_name(table_name),
             table_name,
-            Snapshotter::get_snapshot_table_name(table_name)
         );
 
-        client
-            .exec(&conn, query)
-            .map(|_| ())
-            .map_err(ConnectorError::SnowflakeError)
+        let result = client.exec_stream_creation(&conn, query)?;
+
+        if !result {
+            let query = format!(
+                "CREATE STREAM {} on view {} SHOW_INITIAL_ROWS = TRUE",
+                Self::get_stream_table_name(table_name),
+                table_name
+            );
+            client.exec(&conn, query)?;
+        }
+
+        Ok(())
     }
 
-    fn map_record(row: Vec<Option<Field>>, table_idx: usize) -> Record {
+    fn map_record(row: Vec<Field>, table_idx: usize) -> Record {
         Record {
             schema_id: Some(SchemaIdentifier {
                 id: table_idx as u32,
                 version: 1,
             }),
-            values: row
-                .iter()
-                .map(|v| match v.clone() {
-                    None => Field::Null,
-                    Some(s) => s,
-                })
-                .collect(),
+            values: row,
             version: None,
         }
     }
 
     fn get_ingestion_message(
-        row: Vec<Option<Field>>,
+        row: Vec<Field>,
         action_idx: usize,
         used_columns_for_schema: usize,
         table_idx: usize,
     ) -> Result<IngestionMessage, ConnectorError> {
-        if let Some(action) = row.get(action_idx).unwrap() {
+        if let Field::String(action) = row.get(action_idx).unwrap() {
             let mut row_mut = row.clone();
+            let insert_action = &"INSERT";
+            let delete_action = &"DELETE";
 
-            let insert_action = "INSERT".to_string();
-            let delete_action = "DELETE".to_string();
+            row_mut.truncate(used_columns_for_schema);
 
-            let action_value = match action {
-                Field::String(value) => value.clone(),
-                _ => "".to_string(),
-            };
-
-            if insert_action == action_value {
-                row_mut.truncate(used_columns_for_schema);
+            if insert_action == action {
                 Ok(IngestionMessage::OperationEvent(OperationEvent {
                     seq_no: 0,
                     operation: Operation::Insert {
                         new: Self::map_record(row_mut, table_idx),
                     },
                 }))
-            } else if delete_action == action_value {
-                row_mut.truncate(used_columns_for_schema);
-
+            } else if delete_action == action {
                 Ok(IngestionMessage::OperationEvent(OperationEvent {
                     seq_no: 0,
                     operation: Operation::Delete {
@@ -111,7 +118,7 @@ impl StreamConsumer {
                 }))
             } else {
                 Err(ConnectorError::SnowflakeError(
-                    SnowflakeError::SnowflakeStreamError(UnsupportedActionInStream(action_value)),
+                    SnowflakeError::SnowflakeStreamError(UnsupportedActionInStream(action.clone())),
                 ))
             }
         } else {
@@ -127,6 +134,7 @@ impl StreamConsumer {
         table_name: &str,
         ingestor: &Arc<RwLock<Ingestor>>,
         table_idx: usize,
+        iteration: u64,
     ) -> Result<(), ConnectorError> {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
@@ -139,15 +147,14 @@ impl StreamConsumer {
 
         if !temp_table_exist {
             let query = format!(
-                "CREATE OR REPLACE TEMP TABLE {} AS
-                    SELECT * FROM {} ORDER BY METADATA$ACTION;",
-                temp_table_name, stream_name
+                "CREATE OR REPLACE TEMP TABLE {temp_table_name} AS
+                    SELECT * FROM {stream_name} ORDER BY METADATA$ACTION;"
             );
 
             client.exec(&conn, query)?;
         }
 
-        let result = client.fetch(&conn, format!("SELECT * FROM {};", temp_table_name))?;
+        let result = client.fetch(&conn, format!("SELECT * FROM {temp_table_name};"))?;
         if let Some((schema, iterator)) = result {
             let mut truncated_schema = schema.clone();
             truncated_schema.truncate(schema.len() - 3);
@@ -165,12 +172,12 @@ impl StreamConsumer {
                 )?;
                 ingestor
                     .write()
-                    .handle_message(((1, idx as u64), ingestion_message))
+                    .handle_message(((iteration, idx as u64), ingestion_message))
                     .map_err(ConnectorError::IngestorError)?;
             }
         }
 
-        let query = format!("DROP TABLE {};", temp_table_name);
+        let query = format!("DROP TABLE {temp_table_name};");
 
         client
             .exec(&conn, query)

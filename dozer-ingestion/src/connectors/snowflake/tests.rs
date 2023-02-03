@@ -79,29 +79,26 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     client
         .execute_query(
             &conn,
-            &format!(
-                "CREATE TABLE {} LIKE SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.NATION;",
-                table_name
-            ),
+            &format!("CREATE TABLE {table_name} LIKE SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.NATION;"),
         )
         .unwrap();
     client
         .execute_query(
             &conn,
-            &format!("CREATE STREAM {} ON TABLE {}", stream_name, table_name),
+            &format!("CREATE STREAM {stream_name} ON TABLE {table_name}"),
         )
         .unwrap();
 
     // Create new stream
     let mut consumer = StreamConsumer::new();
     consumer
-        .consume_stream(&client, &table_name, &ingestor, 0)
+        .consume_stream(&client, &table_name, &ingestor, 0, 1)
         .unwrap();
 
     // Insert single record
-    client.execute_query(&conn, &format!("INSERT INTO {} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME) VALUES (1, 'TEST Country 1', 0, 'country name 1');", table_name)).unwrap();
+    client.execute_query(&conn, &format!("INSERT INTO {table_name} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME) VALUES (1, 'TEST Country 1', 0, 'country name 1');")).unwrap();
     consumer
-        .consume_stream(&client, &table_name, &ingestor, 0)
+        .consume_stream(&client, &table_name, &ingestor, 0, 1)
         .unwrap();
     assert!(matches!(
         iterator.write().next().unwrap().1,
@@ -112,13 +109,13 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     client
         .execute_query(
             &conn,
-            &format!("ALTER TABLE {} ADD TEST_COLUMN INTEGER;", table_name),
+            &format!("ALTER TABLE {table_name} ADD TEST_COLUMN INTEGER;"),
         )
         .unwrap();
-    client.execute_query(&conn, &format!("INSERT INTO {} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME, TEST_COLUMN) VALUES (2, 'TEST Country 2', 0, 'country name 2', null);", table_name)).unwrap();
+    client.execute_query(&conn, &format!("INSERT INTO {table_name} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME, TEST_COLUMN) VALUES (2, 'TEST Country 2', 0, 'country name 2', null);")).unwrap();
 
     consumer
-        .consume_stream(&client, &table_name, &ingestor, 0)
+        .consume_stream(&client, &table_name, &ingestor, 0, 1)
         .unwrap();
     assert!(matches!(
         iterator.write().next().unwrap().1,
@@ -126,7 +123,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     ));
 
     client
-        .execute_query(&conn, &format!("DROP TABLE {};", table_name))
+        .execute_query(&conn, &format!("DROP TABLE {table_name};"))
         .unwrap();
 }
 
@@ -151,7 +148,7 @@ fn connector_disabled_test_e2e_connect_snowflake_get_schemas_test() {
         .execute_query(
             &conn,
             &format!(
-                "create table {}
+                "create table {table_name}
         (
             integer_column  integer,
             float_column    float,
@@ -164,8 +161,7 @@ fn connector_disabled_test_e2e_connect_snowflake_get_schemas_test() {
         )
             data_retention_time_in_days = 0;
 
-        ",
-                table_name
+        "
             ),
         )
         .unwrap();
@@ -201,6 +197,6 @@ fn connector_disabled_test_e2e_connect_snowflake_get_schemas_test() {
     }
 
     client
-        .execute_query(&conn, &format!("DROP TABLE {};", table_name))
+        .execute_query(&conn, &format!("DROP TABLE {table_name};"))
         .unwrap();
 }

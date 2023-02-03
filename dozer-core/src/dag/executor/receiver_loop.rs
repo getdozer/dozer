@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::borrow::Cow;
 
 use crossbeam::channel::Receiver;
 use dozer_types::log::debug;
@@ -56,7 +56,7 @@ pub trait ReceiverLoop: Name {
         let mut port_states = vec![InputPortState::Open; receivers.len()];
 
         let mut commits_received: usize = 0;
-        let mut common_epoch = Epoch::new(0, HashMap::new());
+        let mut common_epoch = Epoch::new(0, Default::default());
 
         let mut sel = init_select(&receivers);
         loop {
@@ -73,7 +73,7 @@ pub trait ReceiverLoop: Name {
 
                     if commits_received == receivers.len() {
                         self.on_commit(&common_epoch)?;
-                        common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
+                        common_epoch = Epoch::new(common_epoch.id + 1, Default::default());
                         commits_received = 0;
                         sel = init_select(&receivers);
                     }
@@ -104,7 +104,10 @@ mod tests {
     use crossbeam::channel::{unbounded, Sender};
     use dozer_types::types::{Field, Record};
 
-    use crate::dag::node::NodeHandle;
+    use crate::dag::{
+        epoch::{OpIdentifier, SourceStates},
+        node::NodeHandle,
+    };
 
     use super::*;
 
@@ -112,7 +115,7 @@ mod tests {
     fn test_map_executor_operation() {
         let old = Record::new(None, vec![Field::Int(1)], None);
         let new = Record::new(None, vec![Field::Int(2)], None);
-        let epoch = Epoch::new(1, HashMap::new());
+        let epoch = Epoch::new(1, Default::default());
         assert_eq!(
             map_executor_operation(ExecutorOperation::Insert { new: new.clone() }),
             MappedExecutorOperation::Data {
@@ -170,7 +173,7 @@ mod tests {
         }
 
         fn receiver_name(&self, index: usize) -> Cow<str> {
-            Cow::Owned(format!("receiver_{}", index))
+            Cow::Owned(format!("receiver_{index}"))
         }
 
         fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {
@@ -231,11 +234,17 @@ mod tests {
     #[test]
     fn receiver_loop_merges_commit_epoch_and_increases_epoch_id() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let mut details = HashMap::new();
-        details.insert(NodeHandle::new(None, "0".to_string()), (0, 0));
+        let mut details = SourceStates::default();
+        details.insert(
+            NodeHandle::new(None, "0".to_string()),
+            OpIdentifier::new(0, 0),
+        );
         let mut epoch0 = Epoch::new(0, details);
-        let mut details = HashMap::new();
-        details.insert(NodeHandle::new(None, "1".to_string()), (0, 0));
+        let mut details = SourceStates::default();
+        details.insert(
+            NodeHandle::new(None, "1".to_string()),
+            OpIdentifier::new(0, 0),
+        );
         let mut epoch1 = Epoch::new(0, details);
         senders[0]
             .send(ExecutorOperation::Commit {
@@ -263,7 +272,7 @@ mod tests {
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop().unwrap();
 
-        let mut details = HashMap::new();
+        let mut details = SourceStates::new();
         details.extend(epoch0.details);
         details.extend(epoch1.details);
         assert_eq!(
@@ -276,11 +285,17 @@ mod tests {
     #[should_panic]
     fn receiver_loop_panics_on_inconsistent_commit_epoch() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let mut details = HashMap::new();
-        details.insert(NodeHandle::new(None, "0".to_string()), (0, 0));
+        let mut details = SourceStates::new();
+        details.insert(
+            NodeHandle::new(None, "0".to_string()),
+            OpIdentifier::new(0, 0),
+        );
         let epoch0 = Epoch::new(0, details);
-        let mut details = HashMap::new();
-        details.insert(NodeHandle::new(None, "1".to_string()), (0, 0));
+        let mut details = SourceStates::new();
+        details.insert(
+            NodeHandle::new(None, "1".to_string()),
+            OpIdentifier::new(0, 0),
+        );
         let epoch1 = Epoch::new(1, details);
         senders[0]
             .send(ExecutorOperation::Commit { epoch: epoch0 })

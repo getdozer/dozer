@@ -395,8 +395,8 @@ impl Source for ErrGeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -467,13 +467,6 @@ impl ErrSinkFactory {
 }
 
 impl SinkFactory<NoneContext> for ErrSinkFactory {
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
     }

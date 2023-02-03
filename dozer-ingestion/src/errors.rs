@@ -222,11 +222,17 @@ pub enum SnowflakeSchemaError {
 
 #[derive(Error, Debug)]
 pub enum SnowflakeStreamError {
+    #[error("Time travel not available for table")]
+    TimeTravelNotAvailableError,
+
     #[error("Unsupported \"{0}\" action in stream")]
     UnsupportedActionInStream(String),
 
     #[error("Cannot determine action")]
     CannotDetermineAction,
+
+    #[error("Stream not found")]
+    StreamNotFound,
 }
 
 #[derive(Error, Debug)]

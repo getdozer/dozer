@@ -30,7 +30,8 @@ impl EndpointService {
             app_id: Some(request.app_id.to_owned()),
             name: request.name.to_owned(),
             path: request.path.to_owned(),
-            sql: request.sql,
+            sql: Some(request.sql),
+            source: None,
             index: request.index,
         };
         endpoint_info
@@ -115,7 +116,7 @@ impl EndpointService {
             endpoint_by_id.path = path;
         }
         if let Some(sql) = request.sql {
-            endpoint_by_id.sql = sql;
+            endpoint_by_id.sql = Some(sql);
         }
         if let Some(index) = request.index {
             endpoint_by_id.index = Some(index);

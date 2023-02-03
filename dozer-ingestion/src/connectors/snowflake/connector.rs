@@ -14,28 +14,32 @@ use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::parking_lot::RwLock;
 
 #[cfg(feature = "snowflake")]
-use crate::connectors::snowflake::snapshotter::Snapshotter;
-#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 #[cfg(feature = "snowflake")]
 use crate::errors::SnowflakeError::ConnectionError;
+
+#[cfg(feature = "snowflake")]
+use dozer_types::log::{debug, info};
 
 use dozer_types::types::SchemaWithChangesType;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
 
+#[cfg(feature = "snowflake")]
+use crate::errors::{SnowflakeError, SnowflakeStreamError};
+
 pub struct SnowflakeConnector {
-    pub id: u64,
+    name: String,
     config: SnowflakeConfig,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
     tables: Option<Vec<TableInfo>>,
 }
 
 impl SnowflakeConnector {
-    pub fn new(id: u64, config: SnowflakeConfig) -> Self {
+    pub fn new(name: String, config: SnowflakeConfig) -> Self {
         Self {
-            id,
+            name,
             config,
             ingestor: None,
             tables: None,
@@ -99,17 +103,23 @@ impl Connector for SnowflakeConnector {
         Ok(())
     }
 
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
-        let _connector_id = self.id;
+    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         let ingestor = self
             .ingestor
             .as_ref()
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
 
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(self.config.clone(), self.tables.clone(), ingestor).await })
+        Runtime::new().unwrap().block_on(async {
+            run(
+                self.name.clone(),
+                self.config.clone(),
+                self.tables.clone(),
+                ingestor,
+                from_seq,
+            )
+            .await
+        })
     }
 
     fn stop(&self) {}
@@ -125,9 +135,11 @@ impl Connector for SnowflakeConnector {
 
 #[cfg(feature = "snowflake")]
 async fn run(
+    name: String,
     config: SnowflakeConfig,
     tables: Option<Vec<TableInfo>>,
     ingestor: Arc<RwLock<Ingestor>>,
+    from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
@@ -135,32 +147,58 @@ async fn run(
     match tables {
         None => {}
         Some(tables) => {
-            for (idx, table) in tables.iter().enumerate() {
-                let is_stream_created =
-                    StreamConsumer::is_stream_created(&client, table.table_name.clone())?;
-                if !is_stream_created {
-                    let ingestor_snapshot = Arc::clone(&ingestor);
-                    Snapshotter::run(&client, &ingestor_snapshot, table.table_name.clone(), idx)?;
-                    StreamConsumer::create_stream(&client, &table.table_name)?;
-                }
-            }
-
             let stream_client = Client::new(&config);
             let ingestor_stream = Arc::clone(&ingestor);
             let mut interval = time::interval(Duration::from_secs(5));
 
             let mut consumer = StreamConsumer::new();
+            let mut iteration = 1;
             loop {
                 for (idx, table) in tables.iter().enumerate() {
+                    // We only check stream status on first iteration
+                    if iteration == 1 {
+                        match from_seq {
+                            None | Some((0, _)) => {
+                                info!("[{}][{}] Creating new stream", name, table.table_name);
+                                StreamConsumer::drop_stream(&client, &table.table_name)?;
+                                StreamConsumer::create_stream(&client, &table.table_name)?;
+                            }
+                            Some((lsn, seq)) => {
+                                info!(
+                                    "[{}][{}] Continuing ingestion from {}/{}",
+                                    name, table.table_name, lsn, seq
+                                );
+                                iteration = lsn;
+                                if let Ok(false) =
+                                    StreamConsumer::is_stream_created(&client, &table.table_name)
+                                {
+                                    return Err(ConnectorError::SnowflakeError(
+                                        SnowflakeError::SnowflakeStreamError(
+                                            SnowflakeStreamError::StreamNotFound,
+                                        ),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+
+                    debug!(
+                        "[{}][{}] Reading from changes stream",
+                        name, table.table_name
+                    );
+
                     consumer.consume_stream(
                         &stream_client,
                         &table.table_name,
                         &ingestor_stream,
                         idx,
+                        iteration,
                     )?;
 
                     interval.tick().await;
                 }
+
+                iteration += 1;
             }
         }
     };
@@ -170,9 +208,11 @@ async fn run(
 
 #[cfg(not(feature = "snowflake"))]
 async fn run(
+    _name: String,
     _config: SnowflakeConfig,
     _tables: Option<Vec<TableInfo>>,
     _ingestor: Arc<RwLock<Ingestor>>,
+    _from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     Ok(())
 }

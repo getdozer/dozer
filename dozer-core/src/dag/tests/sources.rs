@@ -106,7 +106,7 @@ impl Source for GeneratorSource {
         fw: &mut dyn SourceChannelForwarder,
         from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let start = from_seq.unwrap().0;
+        let start = from_seq.unwrap_or((0, 0)).0;
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(
@@ -116,8 +116,8 @@ impl Source for GeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -252,8 +252,8 @@ impl Source for DualPortGeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -267,8 +267,8 @@ impl Source for DualPortGeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -285,8 +285,6 @@ impl Source for DualPortGeneratorSource {
         Ok(())
     }
 }
-
-pub(crate) const NOPK_GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
 #[derive(Debug)]
 pub(crate) struct NoPkGeneratorSourceFactory {
@@ -376,7 +374,7 @@ impl Source for NoPkGeneratorSource {
         fw: &mut dyn SourceChannelForwarder,
         from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let start = from_seq.unwrap().0;
+        let start = from_seq.unwrap_or((0, 0)).0;
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(
@@ -386,8 +384,8 @@ impl Source for NoPkGeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),

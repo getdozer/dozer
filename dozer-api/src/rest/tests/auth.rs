@@ -79,7 +79,7 @@ async fn check_status(
     let req = actix_web::test::TestRequest::get().uri(&endpoint.path);
 
     let req = match token {
-        Some(token) => req.append_header(("Authorization", format!("Bearer {}", token))),
+        Some(token) => req.append_header(("Authorization", format!("Bearer {token}"))),
         None => req,
     };
     let req = req.to_request();
@@ -105,7 +105,7 @@ async fn _call_auth_token_api(
     let req = actix_web::test::TestRequest::post().uri("/auth/token");
 
     let req = match token {
-        Some(token) => req.append_header(("Authorization", format!("Bearer {}", token))),
+        Some(token) => req.append_header(("Authorization", format!("Bearer {token}"))),
         None => req,
     };
 

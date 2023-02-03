@@ -125,8 +125,8 @@ impl Source for GeneratorSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -144,16 +144,16 @@ impl Source for GeneratorSource {
                     old: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
                     new: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -171,8 +171,8 @@ impl Source for GeneratorSource {
                     old: Record::new(
                         None,
                         vec![
-                            Field::String(format!("key_{}", n)),
-                            Field::String(format!("value_{}", n)),
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
                         ],
                         None,
                     ),
@@ -240,13 +240,13 @@ impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        Ok(Box::new(RecordReaderProcessor { ctr: 1 }))
+        Ok(Box::new(RecordReaderProcessor { _ctr: 1 }))
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct RecordReaderProcessor {
-    ctr: u64,
+    _ctr: u64,
 }
 
 impl Processor for RecordReaderProcessor {
@@ -293,7 +293,7 @@ impl Processor for RecordReaderProcessor {
 }
 
 #[test]
-fn test_run_dag_reacord_reader_from_src() {
+fn test_run_dag_record_reader_from_src() {
     const TOT: u64 = 30_000;
 
     let sync = Arc::new(AtomicBool::new(true));

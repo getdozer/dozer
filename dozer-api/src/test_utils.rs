@@ -63,8 +63,8 @@ pub fn get_endpoint() -> ApiEndpoint {
     ApiEndpoint {
         name: "films".to_string(),
         path: "/films".to_string(),
-        sql: "select film_id, description, rental_rate, release_year, updated_at from film where 1=1;"
-            .to_string(),
+        sql: Some("select film_id, description, rental_rate, release_year, updated_at from film where 1=1;"
+            .to_string()),
         index: Some(ApiIndex {
             primary_key: vec!["film_id".to_string()],
         }),
@@ -93,7 +93,7 @@ fn get_films() -> Vec<Value> {
     for film_id in 1..=50 {
         result.push(json!({
             "film_id": film_id,
-            "description": format!("Film {}", film_id),
+            "description": format!("Film {film_id}"),
             "rental_rate": null,
             "release_year": 2006,
             "updated_at": null

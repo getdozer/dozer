@@ -19,14 +19,13 @@ use dozer_types::types::{
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 use tempdir::TempDir;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
 const USER_PORT: u16 = 0 as PortHandle;
 const DEPARTMENT_PORT: u16 = 1 as PortHandle;
+const COUNTRY_PORT: u16 = 2 as PortHandle;
 
 #[derive(Debug)]
 pub struct TestSourceFactory {
@@ -56,6 +55,13 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     retr_old_records_for_deletes: true,
                 },
             ),
+            OutputPortDef::new(
+                COUNTRY_PORT,
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                },
+            ),
         ])
     }
 
@@ -64,6 +70,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         if port == &USER_PORT {
+            let source_id = SourceDefinition::Table {
+                connection: "connection".to_string(),
+                name: "user".to_string(),
+            };
             Ok((
                 Schema::empty()
                     .field(
@@ -71,7 +81,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("id"),
                             FieldType::Int,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         true,
                     )
@@ -80,7 +90,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("name"),
                             FieldType::String,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         false,
                     )
@@ -89,7 +99,16 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("department_id"),
                             FieldType::Int,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
+                        ),
+                        false,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("country_id"),
+                            FieldType::String,
+                            false,
+                            source_id.clone(),
                         ),
                         false,
                     )
@@ -98,7 +117,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("salary"),
                             FieldType::Float,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id,
                         ),
                         false,
                     )
@@ -106,23 +125,55 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 SchemaSQLContext::default(),
             ))
         } else if port == &DEPARTMENT_PORT {
+            let source_id = SourceDefinition::Table {
+                connection: "connection".to_string(),
+                name: "department".to_string(),
+            };
             Ok((
                 Schema::empty()
                     .field(
                         FieldDefinition::new(
-                            String::from("id"),
+                            String::from("did"),
                             FieldType::Int,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id.clone(),
                         ),
                         true,
                     )
                     .field(
                         FieldDefinition::new(
-                            String::from("name"),
+                            String::from("dname"),
                             FieldType::String,
                             false,
-                            SourceDefinition::Dynamic,
+                            source_id,
+                        ),
+                        false,
+                    )
+                    .clone(),
+                SchemaSQLContext::default(),
+            ))
+        } else if port == &COUNTRY_PORT {
+            let source_id = SourceDefinition::Table {
+                connection: "connection".to_string(),
+                name: "country".to_string(),
+            };
+            Ok((
+                Schema::empty()
+                    .field(
+                        FieldDefinition::new(
+                            String::from("cid"),
+                            FieldType::String,
+                            false,
+                            source_id.clone(),
+                        ),
+                        true,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("cname"),
+                            FieldType::String,
+                            false,
+                            source_id,
                         ),
                         false,
                     )
@@ -130,7 +181,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 SchemaSQLContext::default(),
             ))
         } else {
-            panic!("Invalid Port Handle {}", port);
+            panic!("Invalid Port Handle {port}");
         }
     }
 
@@ -168,7 +219,7 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![Field::Int(0), Field::String("IT".to_string())],
-                        None,
+                        Some(1),
                     ),
                 },
                 DEPARTMENT_PORT,
@@ -178,7 +229,7 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![Field::Int(1), Field::String("HR".to_string())],
-                        None,
+                        Some(1),
                     ),
                 },
                 DEPARTMENT_PORT,
@@ -191,22 +242,13 @@ impl Source for TestSource {
                             Field::Int(10000),
                             Field::String("Alice".to_string()),
                             Field::Int(0),
+                            Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        None,
+                        Some(1),
                     ),
                 },
                 USER_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::Int(1), Field::String("HR".to_string())],
-                        None,
-                    ),
-                },
-                DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
@@ -216,12 +258,39 @@ impl Source for TestSource {
                             Field::Int(10001),
                             Field::String("Bob".to_string()),
                             Field::Int(0),
+                            Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        None,
+                        Some(1),
                     ),
                 },
                 USER_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String("UK".to_string()),
+                            Field::String("United Kingdom".to_string()),
+                        ],
+                        Some(1),
+                    ),
+                },
+                COUNTRY_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String("SG".to_string()),
+                            Field::String("Singapore".to_string()),
+                        ],
+                        Some(1),
+                    ),
+                },
+                COUNTRY_PORT,
             ),
             (
                 Operation::Insert {
@@ -231,13 +300,24 @@ impl Source for TestSource {
                             Field::Int(10002),
                             Field::String("Craig".to_string()),
                             Field::Int(1),
+                            Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        None,
+                        Some(1),
                     ),
                 },
                 USER_PORT,
             ),
+            // (
+            //     Operation::Delete {
+            //         old: Record::new(
+            //             None,
+            //             vec![Field::Int(1), Field::String("HR".to_string())],
+            //             Some(1),
+            //         ),
+            //     },
+            //     DEPARTMENT_PORT,
+            // ),
             (
                 Operation::Insert {
                     new: Record::new(
@@ -246,9 +326,10 @@ impl Source for TestSource {
                             Field::Int(10003),
                             Field::String("Dan".to_string()),
                             Field::Int(0),
+                            Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        None,
+                        Some(1),
                     ),
                 },
                 USER_PORT,
@@ -261,36 +342,38 @@ impl Source for TestSource {
                             Field::Int(10004),
                             Field::String("Eve".to_string()),
                             Field::Int(1),
+                            Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        None,
+                        Some(1),
                     ),
                 },
                 USER_PORT,
             ),
-            (
-                Operation::Delete {
-                    old: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10002),
-                            Field::String("Craig".to_string()),
-                            Field::Int(1),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                        None,
-                    ),
-                },
-                USER_PORT,
-            ),
+            // (
+            //     Operation::Delete {
+            //         old: Record::new(
+            //             None,
+            //             vec![
+            //                 Field::Int(10002),
+            //                 Field::String("Craig".to_string()),
+            //                 Field::Int(1),
+            //                 Field::Float(OrderedFloat(1.1)),
+            //             ],
+            //             None,
+            //         ),
+            //     },
+            //     USER_PORT,
+            // ),
             (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(10004),
+                            Field::Int(10005),
                             Field::String("Frank".to_string()),
                             Field::Int(1),
+                            Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.5)),
                         ],
                         None,
@@ -303,31 +386,50 @@ impl Source for TestSource {
                     old: Record::new(
                         None,
                         vec![Field::Int(0), Field::String("IT".to_string())],
-                        None,
+                        Some(1),
                     ),
                     new: Record::new(
                         None,
-                        vec![Field::Int(0), Field::String("XX".to_string())],
-                        None,
+                        vec![Field::Int(0), Field::String("RD".to_string())],
+                        Some(2),
                     ),
                 },
                 DEPARTMENT_PORT,
             ),
+            // (
+            //     Operation::Update {
+            //         old: Record::new(
+            //             None,
+            //             vec![Field::Int(0), Field::String("IT".to_string())],
+            //             None,
+            //         ),
+            //         new: Record::new(
+            //             None,
+            //             vec![Field::Int(0), Field::String("XX".to_string())],
+            //             None,
+            //         ),
+            //     },
+            //     DEPARTMENT_PORT,
+            // ),
         ];
 
         for operation in operations.iter().enumerate() {
-            match operation.1.clone().0 {
-                Operation::Delete { old } => info!("{}: - {:?}", operation.1.clone().1, old.values),
-                Operation::Insert { new } => info!("{}: + {:?}", operation.1.clone().1, new.values),
-                Operation::Update { old, new } => {
-                    info!(
-                        "{}: - {:?}, + {:?}",
-                        operation.1.clone().1,
-                        old.values,
-                        new.values
-                    )
-                }
-            }
+            // match operation.1.clone().0 {
+            //     Operation::Delete { old } => {
+            //         info!("s{}: - {:?}", operation.1.clone().1, old.values)
+            //     }
+            //     Operation::Insert { new } => {
+            //         info!("s{}: + {:?}", operation.1.clone().1, new.values)
+            //     }
+            //     Operation::Update { old, new } => {
+            //         info!(
+            //             "s{}: - {:?}, + {:?}",
+            //             operation.1.clone().1,
+            //             old.values,
+            //             new.values
+            //         )
+            //     }
+            // }
             fw.send(
                 operation.0.try_into().unwrap(),
                 0,
@@ -341,7 +443,7 @@ impl Source for TestSource {
             if !self.running.load(Ordering::Relaxed) {
                 break;
             }
-            thread::sleep(Duration::from_millis(500));
+            // thread::sleep(Duration::from_millis(500));
         }
         Ok(())
     }
@@ -365,13 +467,6 @@ impl TestSinkFactory {
 impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
-    }
-
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 
     fn build(
@@ -414,10 +509,10 @@ impl Sink for TestSink {
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match _op {
-            Operation::Delete { old } => info!("s: - {:?}", old.values),
-            Operation::Insert { new } => info!("s: + {:?}", new.values),
+            Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
+            Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
             Operation::Update { old, new } => {
-                info!("s: - {:?}, + {:?}", old.values, new.values)
+                info!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
         }
 
@@ -443,9 +538,8 @@ fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
     let (mut pipeline, (node, port)) = statement_to_pipeline(
-        "SELECT  department.name, SUM(user.salary) \
-        FROM user JOIN department ON user.department_id = department.id \
-        GROUP BY department.name",
+        "SELECT  name, dname, salary \
+        FROM user JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
     )
     .unwrap();
 
@@ -453,11 +547,12 @@ fn test_pipeline_builder() {
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
-        "conn1".to_string(),
+        "conn".to_string(),
         Arc::new(TestSourceFactory::new(latch.clone())),
         vec![
             ("user".to_string(), USER_PORT),
             ("department".to_string(), DEPARTMENT_PORT),
+            ("country".to_string(), COUNTRY_PORT),
         ]
         .into_iter()
         .collect(),
@@ -496,7 +591,7 @@ fn test_pipeline_builder() {
 
     executor
         .start()
-        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
+        .unwrap_or_else(|e| panic!("Unable to start the Executor: {e}"));
     assert!(executor.join().is_ok());
 
     let elapsed = now.elapsed();

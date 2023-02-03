@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -11,6 +9,9 @@ use sqlparser::ast::{
 };
 
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::PipelineError::{
+    AmbiguousFieldIdentifier, IllegalFieldIdentifier, UnknownFieldIdentifier,
+};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
 use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
@@ -35,19 +36,6 @@ pub enum BuilderExpressionType {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct NameOrAlias(pub String, pub Option<String>);
 
-pub enum ConstraintIdentifier {
-    Single(Ident),
-    Compound(Vec<Ident>),
-}
-
-impl Display for ConstraintIdentifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConstraintIdentifier::Single(ident) => f.write_fmt(format_args!("{}", ident)),
-            ConstraintIdentifier::Compound(ident) => f.write_fmt(format_args!("{:?}", ident)),
-        }
-    }
-}
 pub struct ExpressionBuilder;
 
 impl ExpressionBuilder {
@@ -74,23 +62,8 @@ impl ExpressionBuilder {
                 trim_where,
                 trim_what,
             } => self.parse_sql_trim_function(expression_type, expr, trim_where, trim_what, schema),
-            SqlExpr::Identifier(ident) => {
-                let idx = get_field_index(&ConstraintIdentifier::Single(ident.clone()), schema);
-
-                let idx = idx?.map_or(
-                    Err(PipelineError::InvalidExpression(ident.value.to_string())),
-                    Ok,
-                )?;
-                Ok((Box::new(Expression::Column { index: idx }), false))
-            }
-            SqlExpr::CompoundIdentifier(ident) => {
-                let idx = get_field_index(&ConstraintIdentifier::Compound(ident.clone()), schema)?
-                    .map_or(
-                        Err(PipelineError::InvalidExpression(format!("{:?}", ident))),
-                        Ok,
-                    )?;
-                Ok((Box::new(Expression::Column { index: idx }), false))
-            }
+            SqlExpr::Identifier(ident) => Ok((parse_sql_column(&[ident.clone()], schema)?, false)),
+            SqlExpr::CompoundIdentifier(ident) => Ok((parse_sql_column(ident, schema)?, false)),
             SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
             SqlExpr::Value(SqlValue::Null) => {
                 Ok((Box::new(Expression::Literal(Field::Null)), false))
@@ -139,7 +112,7 @@ impl ExpressionBuilder {
             SqlExpr::Cast { expr, data_type } => {
                 self.parse_sql_cast_operator(expression_type, expr, data_type, schema)
             }
-            _ => Err(InvalidExpression(format!("{:?}", expression))),
+            _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
 
@@ -203,7 +176,7 @@ impl ExpressionBuilder {
             let r = self.parse_sql_function_arg(expression_type, arg, schema)?;
             return Ok((r.0, false)); // switch bypass to true, since the argument of this Aggregation must be the final result
         };
-        Err(InvalidExpression(format!("{:?}", expression)))
+        Err(InvalidExpression(format!("{expression:?}")))
     }
 
     fn parse_sql_function_pre_aggregation(
@@ -246,7 +219,7 @@ impl ExpressionBuilder {
             let r = self.parse_sql_function_arg(expression_type, arg, schema)?;
             return Ok((r.0, true)); // switch bypass to true, since the argument of this Aggregation must be the final result
         };
-        Err(InvalidExpression(format!("{:?}", expression)))
+        Err(InvalidExpression(format!("{expression:?}")))
     }
 
     fn parse_sql_function_aggregation(
@@ -313,8 +286,7 @@ impl ExpressionBuilder {
         };
 
         Err(InvalidExpression(format!(
-            "Unsupported Expression: {:?}",
-            expression
+            "Unsupported Expression: {expression:?}"
         )))
     }
 
@@ -332,14 +304,14 @@ impl ExpressionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => Err(InvalidArgument(format!("{:?}", argument))),
+            } => Err(InvalidArgument(format!("{argument:?}"))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 self.parse_sql_expression(expression_type, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                Err(InvalidArgument(format!("{:?}", argument)))
+                Err(InvalidArgument(format!("{argument:?}")))
             }
-            _ => Err(InvalidArgument(format!("{:?}", argument))),
+            _ => Err(InvalidArgument(format!("{argument:?}"))),
         }
     }
 
@@ -359,7 +331,7 @@ impl ExpressionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => return Err(InvalidOperator(format!("{:?}", op))),
+            _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
         Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
@@ -402,7 +374,7 @@ impl ExpressionBuilder {
             // BinaryOperator::BitwiseAnd => ...
             // BinaryOperator::BitwiseOr => ...
             // BinaryOperator::StringConcat => ...
-            _ => return Err(InvalidOperator(format!("{:?}", op))),
+            _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
         Ok((
@@ -483,14 +455,12 @@ impl ExpressionBuilder {
                     CastOperatorType::Bson
                 } else {
                     Err(PipelineError::InvalidFunction(format!(
-                        "Unsupported Cast type {}",
-                        name
+                        "Unsupported Cast type {name}"
                     )))?
                 }
             }
             _ => Err(PipelineError::InvalidFunction(format!(
-                "Unsupported Cast type {}",
-                data_type
+                "Unsupported Cast type {data_type}"
             )))?,
         };
         Ok((
@@ -542,58 +512,106 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
     output_schema
 }
 
-pub fn get_field_index(
-    ident: &ConstraintIdentifier,
-    schema: &Schema,
-) -> Result<Option<usize>, PipelineError> {
-    let get_field_idx = |ident: &Ident, schema: &Schema| -> Option<(usize, FieldDefinition)> {
-        schema
-            .fields
-            .iter()
-            .enumerate()
-            .find(|(_, f)| f.name == ident.value)
-            .map(|(idx, fd)| (idx, fd.clone()))
-    };
-
-    let tables_matches = |table_ident: &Ident, fd: FieldDefinition| -> bool {
-        match fd.source {
-            dozer_types::types::SourceDefinition::Table {
-                connection: _,
-                name,
-            } => name == table_ident.value,
-            dozer_types::types::SourceDefinition::Alias { name } => name == table_ident.value,
-            dozer_types::types::SourceDefinition::Dynamic => false,
+fn parse_sql_column(ident: &[Ident], schema: &Schema) -> Result<Box<Expression>, PipelineError> {
+    let (src_field, src_table_or_alias, src_connection) = match ident.len() {
+        1 => (&ident[0].value, None, None),
+        2 => (&ident[1].value, Some(&ident[0].value), None),
+        3 => (
+            &ident[2].value,
+            Some(&ident[1].value),
+            Some(&ident[0].value),
+        ),
+        _ => {
+            return Err(IllegalFieldIdentifier(
+                ident
+                    .iter()
+                    .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+            ))
         }
     };
 
-    match ident {
-        ConstraintIdentifier::Single(ident) => {
-            let field_idx = get_field_idx(ident, schema);
-            field_idx.map_or(
-                Err(PipelineError::InvalidExpression(ident.value.to_string())),
-                |t| Ok(Some(t.0)),
-            )
-        }
-        ConstraintIdentifier::Compound(comp_ident) => {
-            if comp_ident.len() > 2 {
-                return Err(PipelineError::NameSpaceTooLong(
-                    comp_ident
-                        .iter()
-                        .map(|a| a.value.clone())
-                        .collect::<Vec<String>>()
-                        .join("."),
-                ));
-            }
-            let table_name = comp_ident.first().expect("table_name is expected");
-            let field_name = comp_ident.last().expect("field_name is expected");
+    let matching_by_field: Vec<(usize, &FieldDefinition)> = schema
+        .fields
+        .iter()
+        .enumerate()
+        .filter(|(_idx, f)| &f.name == src_field)
+        .collect();
 
-            let field_idx = get_field_idx(field_name, schema);
-            if let Some((idx, fd)) = field_idx {
-                if tables_matches(table_name, fd) {
-                    return Ok(Some(idx));
+    match matching_by_field.len() {
+        0 => Err(UnknownFieldIdentifier(
+            ident
+                .iter()
+                .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+        )),
+        1 => Ok(Box::new(Expression::Column {
+            index: matching_by_field[0].0,
+        })),
+        _ => match src_table_or_alias {
+            None => Err(AmbiguousFieldIdentifier(
+                ident
+                    .iter()
+                    .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+            )),
+            Some(src_table_or_alias) => {
+                let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> = matching_by_field
+                    .into_iter()
+                    .filter(|(_idx, field)| match &field.source {
+                        SourceDefinition::Alias { name } => name == src_table_or_alias,
+                        SourceDefinition::Table {
+                            name,
+                            connection: _,
+                        } => name == src_table_or_alias,
+                        _ => false,
+                    })
+                    .collect();
+
+                match matching_by_table_or_alias.len() {
+                    0 => Err(UnknownFieldIdentifier(
+                        ident
+                            .iter()
+                            .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                    )),
+                    1 => Ok(Box::new(Expression::Column {
+                        index: matching_by_table_or_alias[0].0,
+                    })),
+                    _ => match src_connection {
+                        None => Err(InvalidExpression(
+                            ident
+                                .iter()
+                                .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                        )),
+                        Some(src_connection) => {
+                            let matching_by_connection: Vec<(usize, &FieldDefinition)> =
+                                matching_by_table_or_alias
+                                    .into_iter()
+                                    .filter(|(_idx, field)| match &field.source {
+                                        SourceDefinition::Table {
+                                            name: _,
+                                            connection,
+                                        } => connection == src_connection,
+                                        _ => false,
+                                    })
+                                    .collect();
+
+                            match matching_by_connection.len() {
+                                0 => Err(UnknownFieldIdentifier(
+                                    ident
+                                        .iter()
+                                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                                )),
+                                1 => Ok(Box::new(Expression::Column {
+                                    index: matching_by_connection[0].0,
+                                })),
+                                _ => Err(InvalidExpression(
+                                    ident
+                                        .iter()
+                                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                                )),
+                            }
+                        }
+                    },
                 }
             }
-            Ok(None)
-        }
+        },
     }
 }

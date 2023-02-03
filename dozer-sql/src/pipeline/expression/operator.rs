@@ -4,13 +4,23 @@ use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::logical::*;
 use crate::pipeline::expression::mathematical::*;
 use dozer_types::types::{Field, Record, Schema};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum UnaryOperatorType {
     Not,
-
     Plus,
     Minus,
+}
+
+impl Display for UnaryOperatorType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnaryOperatorType::Not => f.write_str("!"),
+            UnaryOperatorType::Plus => f.write_str("+"),
+            UnaryOperatorType::Minus => f.write_str("-"),
+        }
+    }
 }
 
 impl UnaryOperatorType {
@@ -48,6 +58,26 @@ pub enum BinaryOperatorType {
     Mul,
     Div,
     Mod,
+}
+
+impl Display for BinaryOperatorType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOperatorType::Eq => f.write_str("="),
+            BinaryOperatorType::Ne => f.write_str("!="),
+            BinaryOperatorType::Gt => f.write_str(">"),
+            BinaryOperatorType::Gte => f.write_str(">="),
+            BinaryOperatorType::Lt => f.write_str("<"),
+            BinaryOperatorType::Lte => f.write_str("<="),
+            BinaryOperatorType::And => f.write_str(" AND "),
+            BinaryOperatorType::Or => f.write_str(" OR "),
+            BinaryOperatorType::Add => f.write_str("+"),
+            BinaryOperatorType::Sub => f.write_str("-"),
+            BinaryOperatorType::Mul => f.write_str("*"),
+            BinaryOperatorType::Div => f.write_str("/"),
+            BinaryOperatorType::Mod => f.write_str("%"),
+        }
+    }
 }
 
 impl BinaryOperatorType {

@@ -1,6 +1,7 @@
 use crate::chk;
 use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
+use crate::dag::epoch::OpIdentifier;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::NodeHandle;
 use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
@@ -92,35 +93,39 @@ fn test_checkpoint_consistency() {
 
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r, &(SRC1_MSG_COUNT, 0)),
+        Consistency::FullyConsistent(r) => {
+            assert_eq!(r.unwrap(), OpIdentifier::new(SRC1_MSG_COUNT, 0))
+        }
     }
 
     match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r, &(SRC2_MSG_COUNT, 0)),
+        Consistency::FullyConsistent(r) => {
+            assert_eq!(r.unwrap(), OpIdentifier::new(SRC2_MSG_COUNT, 0))
+        }
     }
 
-    LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{}", proc_handle).as_str());
+    LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{proc_handle}").as_str());
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
     let c = r.get_checkpoint_consistency();
 
-    let mut expected: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
+    let mut expected = HashMap::new();
     expected.insert(
-        (SRC1_MSG_COUNT, 0),
+        Some(OpIdentifier::new(SRC1_MSG_COUNT, 0)),
         vec![source1_handle.clone(), sink_handle.clone()],
     );
-    expected.insert((0_u64, 0), vec![proc_handle.clone()]);
+    expected.insert(None, vec![proc_handle.clone()]);
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
         Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
     }
 
-    let mut expected: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
+    let mut expected = HashMap::new();
     expected.insert(
-        (SRC2_MSG_COUNT, 0),
+        Some(OpIdentifier::new(SRC2_MSG_COUNT, 0)),
         vec![source2_handle.clone(), sink_handle],
     );
-    expected.insert((0_u64, 0), vec![proc_handle]);
+    expected.insert(None, vec![proc_handle]);
     match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
         Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
@@ -194,12 +199,12 @@ fn test_checkpoint_consistency_resume() {
 
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r, &(25_000, 0)),
+        Consistency::FullyConsistent(r) => assert_eq!(r.unwrap(), OpIdentifier::new(25_000, 0)),
     }
 
     match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r, &(50_000, 0)),
+        Consistency::FullyConsistent(r) => assert_eq!(r.unwrap(), OpIdentifier::new(50_000, 0)),
     }
 
     let mut dag = Dag::new();
@@ -265,11 +270,11 @@ fn test_checkpoint_consistency_resume() {
 
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r, &(50_000, 0)),
+        Consistency::FullyConsistent(r) => assert_eq!(r.unwrap(), OpIdentifier::new(50_000, 0)),
     }
 
     match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r, &(100_000, 0)),
+        Consistency::FullyConsistent(r) => assert_eq!(r.unwrap(), OpIdentifier::new(100_000, 0)),
     }
 }
