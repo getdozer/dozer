@@ -1,6 +1,4 @@
-#![allow(non_snake_case)]
 use crate::dag::channels::ProcessorChannelForwarder;
-use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
@@ -11,6 +9,7 @@ use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{
     GeneratorSourceFactory, NoPkGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT,
 };
+use crate::dag::{Dag, Endpoint};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 
@@ -218,40 +217,34 @@ fn test_run_dag_record_reader() {
 
     let mut dag = Dag::new();
 
-    let SOURCE_ID: NodeHandle = NodeHandle::new(None, 1.to_string());
-    let PASSTHROUGH_ID: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
-    let RECORD_READER_ID: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
-    let SINK_ID: NodeHandle = NodeHandle::new(Some(1), 3.to_string());
+    let source_id: NodeHandle = NodeHandle::new(None, 1.to_string());
+    let passthrough_id: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
+    let record_reader_id: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
+    let sink_id: NodeHandle = NodeHandle::new(Some(1), 3.to_string());
 
-    dag.add_node(NodeType::Source(Arc::new(src)), SOURCE_ID.clone());
-    dag.add_node(
-        NodeType::Processor(Arc::new(passthrough)),
-        PASSTHROUGH_ID.clone(),
-    );
-    dag.add_node(
-        NodeType::Processor(Arc::new(record_reader)),
-        RECORD_READER_ID.clone(),
-    );
-    dag.add_node(NodeType::Sink(Arc::new(sink)), SINK_ID.clone());
+    dag.add_source(source_id.clone(), Arc::new(src));
+    dag.add_processor(passthrough_id.clone(), Arc::new(passthrough));
+    dag.add_processor(record_reader_id.clone(), Arc::new(record_reader));
+    dag.add_sink(sink_id.clone(), Arc::new(sink));
 
     assert!(dag
         .connect(
-            Endpoint::new(SOURCE_ID, GENERATOR_SOURCE_OUTPUT_PORT),
-            Endpoint::new(PASSTHROUGH_ID.clone(), PASSTHROUGH_PROCESSOR_INPUT_PORT),
+            Endpoint::new(source_id, GENERATOR_SOURCE_OUTPUT_PORT),
+            Endpoint::new(passthrough_id.clone(), PASSTHROUGH_PROCESSOR_INPUT_PORT),
         )
         .is_ok());
 
     assert!(dag
         .connect(
-            Endpoint::new(PASSTHROUGH_ID, PASSTHROUGH_PROCESSOR_OUTPUT_PORT),
-            Endpoint::new(RECORD_READER_ID.clone(), RECORD_READER_PROCESSOR_INPUT_PORT),
+            Endpoint::new(passthrough_id, PASSTHROUGH_PROCESSOR_OUTPUT_PORT),
+            Endpoint::new(record_reader_id.clone(), RECORD_READER_PROCESSOR_INPUT_PORT),
         )
         .is_ok());
 
     assert!(dag
         .connect(
-            Endpoint::new(RECORD_READER_ID, RECORD_READER_PROCESSOR_OUTPUT_PORT),
-            Endpoint::new(SINK_ID, COUNTING_SINK_INPUT_PORT),
+            Endpoint::new(record_reader_id, RECORD_READER_PROCESSOR_OUTPUT_PORT),
+            Endpoint::new(sink_id, COUNTING_SINK_INPUT_PORT),
         )
         .is_ok());
 
@@ -285,28 +278,25 @@ fn test_run_dag_record_reader_from_src() {
 
     let mut dag = Dag::new();
 
-    let SOURCE_ID: NodeHandle = NodeHandle::new(None, 1.to_string());
-    let RECORD_READER_ID: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
-    let SINK_ID: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
+    let source_id: NodeHandle = NodeHandle::new(None, 1.to_string());
+    let record_reader_id: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
+    let sink_id: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
 
-    dag.add_node(NodeType::Source(Arc::new(src)), SOURCE_ID.clone());
-    dag.add_node(
-        NodeType::Processor(Arc::new(record_reader)),
-        RECORD_READER_ID.clone(),
-    );
-    dag.add_node(NodeType::Sink(Arc::new(sink)), SINK_ID.clone());
+    dag.add_source(source_id.clone(), Arc::new(src));
+    dag.add_processor(record_reader_id.clone(), Arc::new(record_reader));
+    dag.add_sink(sink_id.clone(), Arc::new(sink));
 
     assert!(dag
         .connect(
-            Endpoint::new(SOURCE_ID, GENERATOR_SOURCE_OUTPUT_PORT),
-            Endpoint::new(RECORD_READER_ID.clone(), RECORD_READER_PROCESSOR_INPUT_PORT),
+            Endpoint::new(source_id, GENERATOR_SOURCE_OUTPUT_PORT),
+            Endpoint::new(record_reader_id.clone(), RECORD_READER_PROCESSOR_INPUT_PORT),
         )
         .is_ok());
 
     assert!(dag
         .connect(
-            Endpoint::new(RECORD_READER_ID, RECORD_READER_PROCESSOR_OUTPUT_PORT),
-            Endpoint::new(SINK_ID, COUNTING_SINK_INPUT_PORT),
+            Endpoint::new(record_reader_id, RECORD_READER_PROCESSOR_OUTPUT_PORT),
+            Endpoint::new(sink_id, COUNTING_SINK_INPUT_PORT),
         )
         .is_ok());
 
@@ -419,28 +409,25 @@ fn test_run_dag_record_reader_from_rowkey_autogen_src() {
 
     let mut dag = Dag::new();
 
-    let SOURCE_ID: NodeHandle = NodeHandle::new(None, 1.to_string());
-    let RECORD_READER_ID: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
-    let SINK_ID: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
+    let source_id: NodeHandle = NodeHandle::new(None, 1.to_string());
+    let record_reader_id: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
+    let sink_id: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
 
-    dag.add_node(NodeType::Source(Arc::new(src)), SOURCE_ID.clone());
-    dag.add_node(
-        NodeType::Processor(Arc::new(record_reader)),
-        RECORD_READER_ID.clone(),
-    );
-    dag.add_node(NodeType::Sink(Arc::new(sink)), SINK_ID.clone());
+    dag.add_source(source_id.clone(), Arc::new(src));
+    dag.add_processor(record_reader_id.clone(), Arc::new(record_reader));
+    dag.add_sink(sink_id.clone(), Arc::new(sink));
 
     assert!(dag
         .connect(
-            Endpoint::new(SOURCE_ID, GENERATOR_SOURCE_OUTPUT_PORT),
-            Endpoint::new(RECORD_READER_ID.clone(), RECORD_READER_PROCESSOR_INPUT_PORT),
+            Endpoint::new(source_id, GENERATOR_SOURCE_OUTPUT_PORT),
+            Endpoint::new(record_reader_id.clone(), RECORD_READER_PROCESSOR_INPUT_PORT),
         )
         .is_ok());
 
     assert!(dag
         .connect(
-            Endpoint::new(RECORD_READER_ID, RECORD_READER_PROCESSOR_OUTPUT_PORT),
-            Endpoint::new(SINK_ID, COUNTING_SINK_INPUT_PORT),
+            Endpoint::new(record_reader_id, RECORD_READER_PROCESSOR_OUTPUT_PORT),
+            Endpoint::new(sink_id, COUNTING_SINK_INPUT_PORT),
         )
         .is_ok());
 

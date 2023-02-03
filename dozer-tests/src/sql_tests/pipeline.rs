@@ -1,12 +1,12 @@
 use dozer_core::dag::app::App;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag::{Dag, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::dag_schemas::{prepare_dag, DagSchemas};
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
+use dozer_core::dag::{Dag, DEFAULT_PORT_HANDLE};
 
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;

@@ -33,19 +33,28 @@ impl Edge {
     }
 }
 
-pub enum NodeType<T> {
+#[derive(Debug)]
+pub enum NodeKind<T> {
     Source(Arc<dyn SourceFactory<T>>),
     Processor(Arc<dyn ProcessorFactory<T>>),
     Sink(Arc<dyn SinkFactory<T>>),
 }
 
-struct EdgeType {
-    from: PortHandle,
-    to: PortHandle,
+#[derive(Debug)]
+pub struct NodeType<T> {
+    pub handle: NodeHandle,
+    pub kind: NodeKind<T>,
+}
+
+#[derive(Debug, Clone, Copy)]
+/// The edge type of the description DAG.
+pub struct EdgeType {
+    pub from: PortHandle,
+    pub to: PortHandle,
 }
 
 impl EdgeType {
-    fn new(from: PortHandle, to: PortHandle) -> Self {
+    pub fn new(from: PortHandle, to: PortHandle) -> Self {
         Self { from, to }
     }
 }
@@ -55,8 +64,6 @@ pub struct Dag<T> {
     graph: daggy::Dag<NodeType<T>, EdgeType>,
     /// Map from node handle to node index.
     node_lookup_table: HashMap<NodeHandle, daggy::NodeIndex>,
-    /// Map from node index to node handle.
-    node_handles: Vec<NodeHandle>,
     /// All edge handles.
     edge_handles: HashSet<Edge>,
 }
@@ -73,18 +80,23 @@ impl<T> Dag<T> {
         Self {
             graph: daggy::Dag::new(),
             node_lookup_table: HashMap::new(),
-            node_handles: vec![],
             edge_handles: HashSet::new(),
         }
     }
 
-    /// Adds a node. Panics if the `handle` exists in the `Dag`.
-    pub fn add_node(&mut self, node_builder: NodeType<T>, handle: NodeHandle) {
-        let node_index = self.graph.add_node(node_builder);
-        self.node_handles.push(handle.clone());
-        if let Some(node_index) = self.node_lookup_table.insert(handle, node_index) {
-            panic!("A node {node_index:?} has already been inserted using specified node handle");
-        }
+    /// Adds a source. Panics if the `handle` exists in the `Dag`.
+    pub fn add_source(&mut self, handle: NodeHandle, source: Arc<dyn SourceFactory<T>>) {
+        self.add_node(handle, NodeKind::Source(source));
+    }
+
+    /// Adds a processor. Panics if the `handle` exists in the `Dag`.
+    pub fn add_processor(&mut self, handle: NodeHandle, processor: Arc<dyn ProcessorFactory<T>>) {
+        self.add_node(handle, NodeKind::Processor(processor));
+    }
+
+    /// Adds a sink. Panics if the `handle` exists in the `Dag`.
+    pub fn add_sink(&mut self, handle: NodeHandle, sink: Arc<dyn SinkFactory<T>>) {
+        self.add_node(handle, NodeKind::Sink(sink));
     }
 
     /// Adds an edge. Panics if there's already an edge from `from` to `to`.
@@ -112,13 +124,12 @@ impl<T> Dag<T> {
 
         // Insert nodes.
         let mut other_node_handle_to_self_node_handle = HashMap::new();
-        for (other_node, other_node_handle) in
-            other_nodes.into_iter().zip(other.node_handles.into_iter())
-        {
+        for other_node in other_nodes.into_iter() {
+            let other_node = other_node.weight;
             let self_node_handle =
-                NodeHandle::new(ns.or(other_node_handle.ns), other_node_handle.id.clone());
-            self.add_node(other_node.weight, self_node_handle.clone());
-            other_node_handle_to_self_node_handle.insert(other_node_handle, self_node_handle);
+                NodeHandle::new(ns.or(other_node.handle.ns), other_node.handle.id.clone());
+            self.add_node(self_node_handle.clone(), other_node.kind);
+            other_node_handle_to_self_node_handle.insert(other_node.handle, self_node_handle);
         }
 
         // Insert edges.
@@ -136,27 +147,20 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over all node handles.
-    pub fn node_handles(&self) -> &[NodeHandle] {
-        &self.node_handles
+    pub fn node_handles(&self) -> impl Iterator<Item = &NodeHandle> {
+        self.nodes().map(|node| &node.handle)
     }
 
     /// Returns an iterator over all nodes.
-    pub fn nodes(&self) -> impl Iterator<Item = (&NodeHandle, &NodeType<T>)> {
-        self.node_lookup_table
-            .iter()
-            .map(|(node_handle, node_index)| {
-                (
-                    node_handle,
-                    self.graph.node_weight(*node_index).expect("BUG in DAG"),
-                )
-            })
+    pub fn nodes(&self) -> impl Iterator<Item = &NodeType<T>> {
+        self.graph.raw_nodes().iter().map(|node| &node.weight)
     }
 
     /// Returns an iterator over source handles and sources.
     pub fn sources(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn SourceFactory<T>>)> {
-        self.nodes().flat_map(|(node_handle, node)| {
-            if let NodeType::Source(source) = node {
-                Some((node_handle, source))
+        self.nodes().flat_map(|node| {
+            if let NodeKind::Source(source) = &node.kind {
+                Some((&node.handle, source))
             } else {
                 None
             }
@@ -165,9 +169,9 @@ impl<T> Dag<T> {
 
     /// Returns an iterator over processor handles and processors.
     pub fn processors(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn ProcessorFactory<T>>)> {
-        self.nodes().flat_map(|(node_handle, node)| {
-            if let NodeType::Processor(processor) = node {
-                Some((node_handle, processor))
+        self.nodes().flat_map(|node| {
+            if let NodeKind::Processor(processor) = &node.kind {
+                Some((&node.handle, processor))
             } else {
                 None
             }
@@ -176,9 +180,9 @@ impl<T> Dag<T> {
 
     /// Returns an iterator over sink handles and sinks.
     pub fn sinks(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn SinkFactory<T>>)> {
-        self.nodes().flat_map(|(node_handle, node)| {
-            if let NodeType::Sink(sink) = node {
-                Some((node_handle, sink))
+        self.nodes().flat_map(|node| {
+            if let NodeKind::Sink(sink) = &node.kind {
+                Some((&node.handle, sink))
             } else {
                 None
             }
@@ -186,14 +190,13 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over all edge handles.
-    pub fn edges(&self) -> impl Iterator<Item = &Edge> {
+    pub fn edge_handles(&self) -> impl Iterator<Item = &Edge> {
         self.edge_handles.iter()
     }
 
     /// Finds the node by its handle.
-    pub fn node_from_handle(&self, handle: &NodeHandle) -> &NodeType<T> {
-        let node_index = self.node_index(handle);
-        self.graph.node_weight(node_index).expect("BUG in DAG")
+    pub fn node_kind_from_handle(&self, handle: &NodeHandle) -> &NodeKind<T> {
+        &self.node_weight(self.node_index(handle)).kind
     }
 
     /// Returns an iterator over node handles that are connected to the given node handle.
@@ -201,7 +204,7 @@ impl<T> Dag<T> {
         let node_index = self.node_index(handle);
         self.graph
             .edges(node_index)
-            .map(|edge| &self.node_handles[edge.target().index()])
+            .map(|edge| &self.node_weight(edge.target()).handle)
     }
 
     /// Returns an iterator over endpoints that are connected to the given endpoint.
@@ -213,7 +216,7 @@ impl<T> Dag<T> {
         self.graph
             .edges(self.node_index(node_handle))
             .filter(move |edge| edge.weight().from == port_handle)
-            .map(|edge| (&self.node_handles[edge.target().index()], edge.weight().to))
+            .map(|edge| (&self.node_weight(edge.target()).handle, edge.weight().to))
     }
 
     /// Returns an iterator over all node handles reachable from `start` in a breadth-first search.
@@ -222,23 +225,37 @@ impl<T> Dag<T> {
 
         Bfs::new(self.graph.graph(), start)
             .iter(self.graph.graph())
-            .map(|node_index| &self.node_handles[node_index.index()])
+            .map(|node_index| &self.node_weight(node_index).handle)
     }
 
     /// Returns an iterator over all node handles in topological order.
     pub fn topo(&self) -> impl Iterator<Item = &NodeHandle> {
         Topo::new(self.graph.graph())
             .iter(self.graph.graph())
-            .map(|node_index| &self.node_handles[node_index.index()])
+            .map(|node_index| &self.node_weight(node_index).handle)
     }
 }
 
 impl<T> Dag<T> {
+    fn add_node(&mut self, handle: NodeHandle, kind: NodeKind<T>) {
+        let node_index = self.graph.add_node(NodeType {
+            handle: handle.clone(),
+            kind,
+        });
+        if let Some(node_index) = self.node_lookup_table.insert(handle, node_index) {
+            panic!("A node {node_index:?} has already been inserted using specified node handle");
+        }
+    }
+
     fn node_index(&self, node_handle: &NodeHandle) -> daggy::NodeIndex {
         *self
             .node_lookup_table
             .get(node_handle)
             .unwrap_or_else(|| panic!("Node handle {node_handle:?} not found in dag"))
+    }
+
+    fn node_weight(&self, node_index: daggy::NodeIndex) -> &NodeType<T> {
+        self.graph.node_weight(node_index).expect("BUG in DAG")
     }
 }
 
@@ -255,33 +272,33 @@ fn validate_endpoint<T>(
 ) -> Result<daggy::NodeIndex, ExecutionError> {
     let node_index = dag.node_index(&endpoint.node);
     let node = dag.graph.node_weight(node_index).expect("BUG in DAG");
-    if !contains_port(node, direction, endpoint.port)? {
+    if !contains_port(&node.kind, direction, endpoint.port)? {
         return Err(ExecutionError::InvalidPortHandle(endpoint.port));
     }
     Ok(node_index)
 }
 
 fn contains_port<T>(
-    node: &NodeType<T>,
+    node: &NodeKind<T>,
     direction: PortDirection,
     port: PortHandle,
 ) -> Result<bool, ExecutionError> {
     Ok(match node {
-        NodeType::Processor(p) => {
+        NodeKind::Processor(p) => {
             if direction == PortDirection::Output {
                 p.get_output_ports().iter().any(|e| e.handle == port)
             } else {
                 p.get_input_ports().contains(&port)
             }
         }
-        NodeType::Sink(s) => {
+        NodeKind::Sink(s) => {
             if direction == PortDirection::Output {
                 false
             } else {
                 s.get_input_ports().contains(&port)
             }
         }
-        NodeType::Source(s) => {
+        NodeKind::Source(s) => {
             if direction == PortDirection::Output {
                 s.get_output_ports()?.iter().any(|e| e.handle == port)
             } else {

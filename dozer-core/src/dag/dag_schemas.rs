@@ -1,6 +1,6 @@
-use crate::dag::dag::{Dag, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
+use crate::dag::{Dag, NodeKind};
 
 use crate::dag::node::{NodeHandle, OutputPortType, PortHandle};
 use crate::dag::record_store::AutogenRowKeyLookupRecordWriter;
@@ -78,16 +78,16 @@ pub fn prepare_dag<T: Clone>(
     dag: &Dag<T>,
     dag_schemas: &DagSchemas<T>,
 ) -> Result<(), ExecutionError> {
-    for (handle, node) in dag.nodes() {
+    for node in dag.nodes() {
         let schemas = dag_schemas
             .get_all_schemas()
-            .get(handle)
-            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+            .get(&node.handle)
+            .ok_or_else(|| ExecutionError::InvalidNodeHandle(node.handle.clone()))?;
 
-        match node {
-            NodeType::Source(s) => s.prepare(schemas.output_schemas.clone())?,
-            NodeType::Sink(s) => s.prepare(schemas.input_schemas.clone())?,
-            NodeType::Processor(p) => p.prepare(
+        match &node.kind {
+            NodeKind::Source(s) => s.prepare(schemas.output_schemas.clone())?,
+            NodeKind::Sink(s) => s.prepare(schemas.input_schemas.clone())?,
+            NodeKind::Processor(p) => p.prepare(
                 schemas.input_schemas.clone(),
                 schemas.output_schemas.clone(),
             )?,
@@ -102,13 +102,12 @@ fn populate_schemas<T: Clone>(
 ) -> Result<HashMap<NodeHandle, NodeSchemas<T>>, ExecutionError> {
     let mut dag_schemas = dag
         .node_handles()
-        .iter()
         .map(|node_handle| (node_handle.clone(), NodeSchemas::<T>::new()))
         .collect::<HashMap<_, _>>();
 
     for node_handle in dag.topo() {
-        match dag.node_from_handle(node_handle) {
-            NodeType::Source(source) => {
+        match dag.node_kind_from_handle(node_handle) {
+            NodeKind::Source(source) => {
                 let ports = source.get_output_ports()?;
                 for port in ports {
                     let (schema, ctx) = source.get_output_schema(&port.handle)?;
@@ -123,7 +122,7 @@ fn populate_schemas<T: Clone>(
                 }
             }
 
-            NodeType::Processor(processor) => {
+            NodeKind::Processor(processor) => {
                 let input_schemas =
                     validate_input_schemas(&dag_schemas, node_handle, processor.get_input_ports())?;
 
@@ -142,7 +141,7 @@ fn populate_schemas<T: Clone>(
                 }
             }
 
-            NodeType::Sink(sink) => {
+            NodeKind::Sink(sink) => {
                 validate_input_schemas(&dag_schemas, node_handle, sink.get_input_ports())?;
             }
         }

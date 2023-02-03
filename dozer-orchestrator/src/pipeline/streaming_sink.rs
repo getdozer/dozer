@@ -1,10 +1,10 @@
 use dozer_core::{
     dag::{
-        dag::DEFAULT_PORT_HANDLE,
         epoch::Epoch,
         errors::ExecutionError,
         node::{PortHandle, Sink, SinkFactory},
         record_store::RecordReader,
+        DEFAULT_PORT_HANDLE,
     },
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
 };

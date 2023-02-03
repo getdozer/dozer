@@ -5,8 +5,8 @@ use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::dag::app::AppPipeline;
 use dozer_core::dag::app::PipelineEntryPoint;
 use dozer_core::dag::appsource::AppSourceId;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::PortHandle;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use sqlparser::ast::{Join, TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},

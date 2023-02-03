@@ -1,8 +1,8 @@
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{Field, Operation, Record, Schema};
 use std::collections::HashMap;

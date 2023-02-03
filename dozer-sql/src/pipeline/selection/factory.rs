@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use crate::pipeline::builder::SchemaSQLContext;
 use dozer_core::dag::{
-    dag::DEFAULT_PORT_HANDLE,
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::Schema;
 use sqlparser::ast::Expr as SqlExpr;

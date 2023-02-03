@@ -6,7 +6,6 @@ use dozer_types::types::Schema;
 
 use crate::{
     dag::{
-        dag::Edge,
         errors::ExecutionError,
         executor_utils::{
             build_receivers_lists, create_ports_databases_and_fill_downstream_record_readers,
@@ -15,6 +14,7 @@ use crate::{
         forwarder::{ProcessorChannelManager, StateWriter},
         node::{NodeHandle, PortHandle, Processor, ProcessorFactory},
         record_store::RecordReader,
+        Edge,
     },
     storage::lmdb_storage::SharedTransaction,
 };

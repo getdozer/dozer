@@ -1,5 +1,5 @@
 use crate::chk;
-use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::NodeHandle;
@@ -29,13 +29,13 @@ fn test_checkpoint_consistency_ns() {
     let latch = Arc::new(AtomicBool::new(true));
 
     for src_handle in &sources {
-        dag.add_node(
-            NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+        dag.add_source(
+            src_handle.clone(),
+            Arc::new(GeneratorSourceFactory::new(
                 MESSAGES_COUNT,
                 latch.clone(),
                 true,
-            ))),
-            src_handle.clone(),
+            )),
         );
     }
 
@@ -46,16 +46,10 @@ fn test_checkpoint_consistency_ns() {
         let proc_handle = NodeHandle::new(None, "proc".to_string());
         let sink_handle = NodeHandle::new(None, "sink".to_string());
 
-        child_dag.add_node(
-            NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
-            proc_handle.clone(),
-        );
-        child_dag.add_node(
-            NodeType::Sink(Arc::new(CountingSinkFactory::new(
-                MESSAGES_COUNT * 2,
-                latch.clone(),
-            ))),
+        child_dag.add_processor(proc_handle.clone(), Arc::new(NoopJoinProcessorFactory {}));
+        child_dag.add_sink(
             sink_handle.clone(),
+            Arc::new(CountingSinkFactory::new(MESSAGES_COUNT * 2, latch.clone())),
         );
         chk!(child_dag.connect(
             Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),

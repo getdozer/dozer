@@ -1,4 +1,3 @@
-use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::dag_schemas::DagSchemas;
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
@@ -6,6 +5,7 @@ use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
     SinkFactory, Source, SourceFactory,
 };
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
@@ -222,22 +222,13 @@ fn test_extract_dag_schemas() {
     let join_handle = NodeHandle::new(Some(1), 3.to_string());
     let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Source(Arc::new(TestCountriesSourceFactory {})),
+    dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
+    dag.add_source(
         countries_handle.clone(),
+        Arc::new(TestCountriesSourceFactory {}),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(TestSinkFactory {})),
-        sink_handle.clone(),
-    );
+    dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
+    dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
 
     chk!(dag.connect(
         Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
@@ -306,22 +297,13 @@ fn test_init_metadata() {
     let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
     let mut dag = Dag::new();
-    dag.add_node(
-        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Source(Arc::new(TestCountriesSourceFactory {})),
+    dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
+    dag.add_source(
         countries_handle.clone(),
+        Arc::new(TestCountriesSourceFactory {}),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(TestSinkFactory {})),
-        sink_handle.clone(),
-    );
+    dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
+    dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
 
     chk!(dag.connect(
         Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
@@ -351,22 +333,13 @@ fn test_init_metadata() {
     ));
 
     let mut dag = Dag::new();
-    dag.add_node(
-        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
+    dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
+    dag.add_source(
         countries_handle.clone(),
+        Arc::new(TestUsersSourceFactory {}),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(TestSinkFactory {})),
-        sink_handle.clone(),
-    );
+    dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
+    dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
 
     chk!(dag.connect(
         Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),

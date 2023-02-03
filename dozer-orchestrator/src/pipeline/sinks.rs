@@ -432,8 +432,8 @@ mod tests {
     use crate::test_utils;
     use dozer_cache::cache::{index, Cache};
 
-    use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::{NodeHandle, Sink};
+    use dozer_core::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
