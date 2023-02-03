@@ -1,7 +1,6 @@
 use crate::chk;
 use crate::dag::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::dag::appsource::{AppSource, AppSourceId, AppSourceManager};
-use crate::dag::dag::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{NodeHandle, OutputPortDef, PortHandle, Source, SourceFactory};
@@ -14,6 +13,7 @@ use crate::dag::tests::sources::{
     DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1, DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
+use crate::dag::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::types::Schema;
 
 use std::collections::HashMap;

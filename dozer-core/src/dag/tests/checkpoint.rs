@@ -1,5 +1,4 @@
 use crate::chk;
-use crate::dag::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
 use crate::dag::epoch::OpIdentifier;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
@@ -7,6 +6,7 @@ use crate::dag::node::NodeHandle;
 use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
 use std::collections::HashMap;

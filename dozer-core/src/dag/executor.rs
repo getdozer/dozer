@@ -1,6 +1,5 @@
 #![allow(clippy::type_complexity)]
 
-use crate::dag::dag::Dag;
 use crate::dag::dag_metadata::{Consistency, DagMetadata, DagMetadataManager};
 use crate::dag::dag_schemas::{DagSchemas, NodeSchemas};
 use crate::dag::errors::ExecutionError;
@@ -8,6 +7,7 @@ use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InconsistentCheckp
 use crate::dag::executor_utils::index_edges;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
+use crate::dag::Dag;
 
 use crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::parking_lot::RwLock;

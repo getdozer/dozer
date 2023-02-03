@@ -1,5 +1,5 @@
 use crate::chk;
-use crate::dag::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::NodeHandle;

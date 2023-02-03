@@ -1,6 +1,5 @@
 use crate::chk;
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::dag::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
@@ -11,6 +10,7 @@ use crate::dag::record_store::RecordReader;
 use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,

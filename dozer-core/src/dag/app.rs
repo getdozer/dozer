@@ -1,7 +1,7 @@
 use crate::dag::appsource::{AppSourceId, AppSourceManager};
-use crate::dag::dag::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory};
+use crate::dag::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
 
 use std::sync::Arc;
 

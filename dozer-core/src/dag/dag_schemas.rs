@@ -1,6 +1,6 @@
-use crate::dag::dag::{Dag, NodeKind};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
+use crate::dag::{Dag, NodeKind};
 
 use crate::dag::node::{NodeHandle, OutputPortType, PortHandle};
 use crate::dag::record_store::AutogenRowKeyLookupRecordWriter;

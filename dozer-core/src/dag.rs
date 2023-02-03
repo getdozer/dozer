@@ -1,9 +1,8 @@
-#![allow(clippy::module_inception)]
-
 pub mod app;
 pub mod appsource;
 pub mod channels;
-pub mod dag;
+mod dag_impl;
+pub use dag_impl::*;
 mod dag_metadata;
 pub mod dag_schemas;
 pub mod epoch;

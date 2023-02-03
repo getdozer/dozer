@@ -1,5 +1,4 @@
 use crate::dag::channels::ProcessorChannelForwarder;
-use crate::dag::dag::{Dag, Endpoint};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
@@ -10,6 +9,7 @@ use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{
     GeneratorSourceFactory, NoPkGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT,
 };
+use crate::dag::{Dag, Endpoint};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 

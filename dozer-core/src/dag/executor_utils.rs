@@ -1,5 +1,4 @@
 #![allow(clippy::type_complexity)]
-use crate::dag::dag::{Dag, Edge, Endpoint};
 use crate::dag::dag_metadata::METADATA_DB_NAME;
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::ExecutorOperation;
@@ -7,6 +6,7 @@ use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
 use crate::dag::record_store::{
     AutogenRowKeyLookupRecordReader, PrimaryKeyValueLookupRecordReader, RecordReader,
 };
+use crate::dag::{Dag, Edge, Endpoint};
 use crate::storage::common::Database;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};

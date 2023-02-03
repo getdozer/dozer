@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use dozer_core::dag::{
-    dag::DEFAULT_PORT_HANDLE,
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};

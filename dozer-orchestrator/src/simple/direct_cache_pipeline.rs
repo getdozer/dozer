@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use dozer_core::dag::app::{AppPipeline, PipelineEntryPoint};
 use dozer_core::dag::appsource::AppSourceId;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 

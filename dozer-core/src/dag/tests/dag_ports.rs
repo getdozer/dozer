@@ -1,10 +1,10 @@
-use crate::dag::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source,
     SourceFactory,
 };
 use crate::dag::tests::app::NoneContext;
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
