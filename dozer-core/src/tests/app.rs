@@ -286,8 +286,9 @@ fn test_app_dag() {
     app.add_pipeline(p2);
 
     let dag = app.get_dag().unwrap();
+    let edges = dag.edge_handles();
 
-    assert!(dag.edge_handles().any(|e| *e
+    assert!(edges.iter().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, "postgres".to_string()),
@@ -299,7 +300,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edge_handles().any(|e| *e
+    assert!(edges.iter().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, "postgres".to_string()),
@@ -311,7 +312,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edge_handles().any(|e| *e
+    assert!(edges.iter().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, "snowflake".to_string()),
@@ -323,7 +324,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edge_handles().any(|e| *e
+    assert!(edges.iter().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, "postgres".to_string()),
@@ -335,7 +336,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edge_handles().any(|e| *e
+    assert!(edges.iter().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(Some(1), "join".to_string()),
@@ -347,7 +348,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edge_handles().any(|e| *e
+    assert!(edges.iter().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(Some(2), "join".to_string()),
@@ -359,7 +360,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert_eq!(dag.edge_handles().count(), 6);
+    assert_eq!(edges.len(), 6);
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(

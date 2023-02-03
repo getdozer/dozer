@@ -1,6 +1,6 @@
 use crate::record_store::{
-    AutogenRowKeyLookupRecordReader, AutogenRowKeyLookupRecordWriter, PrimaryKeyLookupRecordWriter,
-    PrimaryKeyValueLookupRecordReader, RecordReader, RecordWriter,
+    AutogenRowKeyLookupRecordReader, AutogenRowKeyLookupRecordWriter, PrimaryKeyLookupRecordReader,
+    PrimaryKeyLookupRecordWriter, RecordReader, RecordWriter,
 };
 use dozer_storage::{
     lmdb::DatabaseFlags,
@@ -251,7 +251,7 @@ fn test_read_write_kv() {
     let lookup_record = Record::new(None, vec![Field::Int(1), Field::Null], None);
     let lookup_key = lookup_record.get_key(&schema.primary_index);
 
-    let reader = PrimaryKeyValueLookupRecordReader::new(tx, master_db);
+    let reader = PrimaryKeyLookupRecordReader::new(tx, master_db);
     let r = reader.get(&lookup_key, 1).unwrap();
     assert_eq!(
         r,

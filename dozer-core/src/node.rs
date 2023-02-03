@@ -115,7 +115,7 @@ pub trait SourceFactory<T>: Send + Sync + Debug {
     ) -> Result<Box<dyn Source>, ExecutionError>;
 }
 
-pub trait Source: Debug {
+pub trait Source: Send + Sync + Debug {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -143,7 +143,7 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
     ) -> Result<Box<dyn Processor>, ExecutionError>;
 }
 
-pub trait Processor: Debug {
+pub trait Processor: Send + Sync + Debug {
     fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError>;
     fn commit(&self, epoch_details: &Epoch, tx: &SharedTransaction) -> Result<(), ExecutionError>;
     fn process(
@@ -168,7 +168,7 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
     ) -> Result<Box<dyn Sink>, ExecutionError>;
 }
 
-pub trait Sink: Debug {
+pub trait Sink: Send + Sync + Debug {
     fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError>;
     fn commit(
         &mut self,

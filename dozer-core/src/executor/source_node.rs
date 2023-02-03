@@ -1,6 +1,4 @@
 use std::{
-    collections::HashMap,
-    path::Path,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -8,37 +6,23 @@ use std::{
     time::Duration,
 };
 
-use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
+use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::log::debug;
-use dozer_types::{
-    internal_err,
-    parking_lot::RwLock,
-    types::{Operation, Schema},
-};
+use dozer_types::{internal_err, types::Operation};
 
 use crate::{
     channels::SourceChannelForwarder,
-    epoch::{EpochManager, OpIdentifier},
+    epoch::OpIdentifier,
     errors::ExecutionError::{self, InternalError},
-    executor_utils::{create_ports_databases_and_fill_downstream_record_readers, init_component},
     forwarder::{SourceChannelManager, StateWriter},
-    node::{NodeHandle, OutputPortDef, PortHandle, Source, SourceFactory},
-    record_store::RecordReader,
-    Edge,
+    node::{NodeHandle, PortHandle, Source},
 };
 
-use super::{node::Node, ExecutorOperation};
-
-#[derive(Debug)]
-struct InternalChannelSourceForwarder {
-    sender: Sender<(PortHandle, u64, u64, Operation)>,
-}
-
-impl InternalChannelSourceForwarder {
-    pub fn new(sender: Sender<(PortHandle, u64, u64, Operation)>) -> Self {
-        Self { sender }
-    }
-}
+use super::{
+    execution_dag::{ExecutionDag, NodeKind},
+    node::Node,
+    ExecutorOptions,
+};
 
 impl SourceChannelForwarder for InternalChannelSourceForwarder {
     fn send(
@@ -68,31 +52,12 @@ pub struct SourceSenderNode {
 }
 
 impl SourceSenderNode {
-    /// # Arguments
-    ///
-    /// - `node_handle`: Node handle in description DAG.
-    /// - `source_factory`: Source factory in description DAG.
-    /// - `output_schemas`: Output data schemas.
-    /// - `last_checkpoint`: Last checkpointed output of this source.
-    /// - `sender`: Channel to send data to.
-    /// - `running`: If the execution DAG should still be running.
-    pub fn new<T: Clone>(
-        node_handle: NodeHandle,
-        source_factory: &dyn SourceFactory<T>,
-        output_schemas: HashMap<PortHandle, Schema>,
-        last_checkpoint: Option<OpIdentifier>,
-        sender: Sender<(PortHandle, u64, u64, Operation)>,
-        running: Arc<AtomicBool>,
-    ) -> Result<Self, ExecutionError> {
-        let source = source_factory.build(output_schemas)?;
-        let forwarder = InternalChannelSourceForwarder::new(sender);
-        Ok(Self {
-            node_handle,
-            source,
-            last_checkpoint,
-            forwarder,
-            running,
-        })
+    pub fn handle(&self) -> &NodeHandle {
+        &self.node_handle
+    }
+
+    pub fn running(&self) -> &Arc<AtomicBool> {
+        &self.running
     }
 }
 
@@ -122,74 +87,6 @@ pub struct SourceListenerNode {
     running: Arc<AtomicBool>,
     /// This node's output channel manager, for communicating to other sources to coordinate terminate and commit, forwarding data, writing metadata and writing port state.
     channel_manager: SourceChannelManager,
-}
-
-impl SourceListenerNode {
-    /// # Arguments
-    ///
-    /// - `node_handle`: Node handle in description DAG.
-    /// - `receiver`: Channel that the data comes in.
-    /// - `timeout`: `Listener timeout. After this timeout, listener will check if commit or terminate need to happen.
-    /// - `base_path`: Base path of persisted data for the last execution of the description DAG.
-    /// - `output_ports`: Output port definition of the source in description DAG.
-    /// - `record_readers`: Record readers of all stateful ports.
-    /// - `senders`: Output channels from this processor.
-    /// - `edges`: All edges in the description DAG, used for creating record readers for input ports which is connected to this processor's stateful output ports.
-    /// - `running`: If the execution DAG should still be running.
-    /// - `epoch_manager`: Used for coordinating commit and terminate between sources. Shared by all sources.
-    /// - `output_schemas`: Output data schemas.
-    /// - `retention_queue_size`: Size of retention queue (used by RecordWriter)
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        node_handle: NodeHandle,
-        receiver: Receiver<(PortHandle, u64, u64, Operation)>,
-        timeout: Duration,
-        base_path: &Path,
-        output_ports: &[OutputPortDef],
-        record_readers: Arc<
-            RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>,
-        >,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        edges: &[Edge],
-        running: Arc<AtomicBool>,
-        commit_sz: u32,
-        max_duration_between_commits: Duration,
-        epoch_manager: Arc<EpochManager>,
-        output_schemas: HashMap<PortHandle, Schema>,
-        retention_queue_size: usize,
-    ) -> Result<Self, ExecutionError> {
-        let state_meta = init_component(&node_handle, base_path, |_| Ok(()))?;
-        let (master_tx, port_databases) =
-            create_ports_databases_and_fill_downstream_record_readers(
-                &node_handle,
-                edges,
-                state_meta.env,
-                output_ports,
-                &mut record_readers.write(),
-            )?;
-        let channel_manager = SourceChannelManager::new(
-            node_handle.clone(),
-            senders,
-            StateWriter::new(
-                state_meta.meta_db,
-                port_databases,
-                master_tx,
-                output_schemas,
-                retention_queue_size,
-            )?,
-            true,
-            commit_sz,
-            max_duration_between_commits,
-            epoch_manager,
-        );
-        Ok(Self {
-            node_handle,
-            receiver,
-            timeout,
-            running,
-            channel_manager,
-        })
-    }
 }
 
 impl SourceListenerNode {
@@ -236,4 +133,66 @@ impl Node for SourceListenerNode {
             }
         }
     }
+}
+
+#[derive(Debug)]
+struct InternalChannelSourceForwarder {
+    sender: Sender<(PortHandle, u64, u64, Operation)>,
+}
+
+impl InternalChannelSourceForwarder {
+    pub fn new(sender: Sender<(PortHandle, u64, u64, Operation)>) -> Self {
+        Self { sender }
+    }
+}
+
+pub fn create_source_nodes(
+    dag: &mut ExecutionDag,
+    node_index: daggy::NodeIndex,
+    options: &ExecutorOptions,
+    last_checkpoint: Option<OpIdentifier>,
+    running: Arc<AtomicBool>,
+) -> (SourceSenderNode, SourceListenerNode) {
+    // Get the source node.
+    let node = &mut dag.graph_mut()[node_index];
+    let (node_storage, Some(NodeKind::Source(source))) = (node.storage.clone(), node.kind.take()) else {
+        panic!("Must pass in a source node");
+    };
+
+    // Create channel between source sender and source listener.
+    let (source_sender, source_receiver) = bounded(options.channel_buffer_sz);
+    // let (source_sender, source_receiver) = bounded(1);
+
+    // Create source listener.
+    let forwarder = InternalChannelSourceForwarder::new(source_sender);
+    let source_sender_node = SourceSenderNode {
+        node_handle: node_storage.handle.clone(),
+        source,
+        last_checkpoint,
+        forwarder,
+        running: running.clone(),
+    };
+
+    // Create source sender node.
+    let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
+    let state_writer =
+        StateWriter::new(node_storage.meta_db, record_writers, node_storage.master_tx);
+    let channel_manager = SourceChannelManager::new(
+        node_storage.handle.clone(),
+        senders,
+        state_writer,
+        true,
+        options.commit_sz,
+        options.commit_time_threshold,
+        dag.epoch_manager().clone(),
+    );
+    let source_listener_node = SourceListenerNode {
+        node_handle: node_storage.handle,
+        receiver: source_receiver,
+        timeout: options.commit_time_threshold,
+        running,
+        channel_manager,
+    };
+
+    (source_sender_node, source_listener_node)
 }

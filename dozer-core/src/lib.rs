@@ -15,6 +15,6 @@ pub mod node;
 pub mod record_store;
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 pub use dozer_storage as storage;

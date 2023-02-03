@@ -1,4 +1,3 @@
-#![allow(unused_mut)]
 use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_decimal_field, init_input_schema, init_processor, insert_exp,

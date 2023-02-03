@@ -1,7 +1,7 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::dag_schemas::DagSchemas;
+use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
