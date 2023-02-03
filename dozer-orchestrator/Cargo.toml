@@ -27,7 +27,7 @@ include_dir = "0.7.3"
 handlebars = "4.3.6"
 rustyline = "10.1.1"
 rustyline-derive = "0.7.0"
-crossterm = "0.25.0"
+crossterm = "0.26.0"
 futures = "0.3.23"
 
 [[bin]]
