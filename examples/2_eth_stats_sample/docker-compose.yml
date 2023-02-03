@@ -1,0 +1,16 @@
+version: '3.9'
+services:
+  dozer:
+    image: public.ecr.aws/k7k6x1d4/dozer:latest
+    environment:
+      - ETH_WSS_URL
+    ports:
+      # REST APIs are published on port 8080
+      - "8080:8080"
+      # gRPC are available over 50051
+      - "50051:50051"
+    volumes:
+      - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
+      - ./.dozer:/usr/dozer/.dozer
+    stdin_open: true 
+    tty: true
