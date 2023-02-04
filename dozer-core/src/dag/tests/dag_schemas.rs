@@ -222,30 +222,30 @@ fn test_extract_dag_schemas() {
     let join_handle = NodeHandle::new(Some(1), 3.to_string());
     let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
-    dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
-    dag.add_source(
+    let users_index = dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
+    let countries_index = dag.add_source(
         countries_handle.clone(),
         Arc::new(TestCountriesSourceFactory {}),
     );
-    dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
-    dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
+    let join_index = dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
+    let sink_index = dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
 
     chk!(dag.connect(
-        Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(join_handle.clone(), 1),
     ));
     chk!(dag.connect(
-        Endpoint::new(countries_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(countries_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(join_handle.clone(), 2),
     ));
     chk!(dag.connect(
-        Endpoint::new(join_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
     ));
 
     let dag_schemas = chk!(DagSchemas::new(&dag));
 
-    let users_output = chk!(dag_schemas.get_node_output_schemas(&users_handle));
+    let users_output = dag_schemas.get_node_output_schemas(users_index);
     assert_eq!(
         users_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -256,7 +256,7 @@ fn test_extract_dag_schemas() {
         3
     );
 
-    let countries_output = chk!(dag_schemas.get_node_output_schemas(&countries_handle));
+    let countries_output = dag_schemas.get_node_output_schemas(countries_index);
     assert_eq!(
         countries_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -267,11 +267,11 @@ fn test_extract_dag_schemas() {
         2
     );
 
-    let join_input = chk!(dag_schemas.get_node_input_schemas(&join_handle));
+    let join_input = dag_schemas.get_node_input_schemas(join_index);
     assert_eq!(join_input.get(&1).unwrap().0.fields.len(), 3);
     assert_eq!(join_input.get(&2).unwrap().0.fields.len(), 2);
 
-    let join_output = chk!(dag_schemas.get_node_output_schemas(&join_handle));
+    let join_output = dag_schemas.get_node_output_schemas(join_index);
     assert_eq!(
         join_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -282,7 +282,7 @@ fn test_extract_dag_schemas() {
         5
     );
 
-    let sink_input = chk!(dag_schemas.get_node_input_schemas(&sink_handle));
+    let sink_input = dag_schemas.get_node_input_schemas(sink_index);
     assert_eq!(
         sink_input.get(&DEFAULT_PORT_HANDLE).unwrap().0.fields.len(),
         5

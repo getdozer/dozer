@@ -1,13 +1,20 @@
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::InvalidNodeHandle;
 use crate::dag::{Dag, NodeKind};
 
 use crate::dag::node::{NodeHandle, OutputPortType, PortHandle};
 use crate::dag::record_store::AutogenRowKeyLookupRecordWriter;
+use daggy::petgraph::graph::EdgeReference;
+use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeReferences, Topo};
+use daggy::petgraph::Direction;
+use daggy::{NodeIndex, Walker};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
-#[derive(Clone)]
+use super::node::OutputPortDef;
+use super::{EdgeType as DagEdgeType, NodeType};
+
+#[derive(Debug, Clone)]
 pub struct NodeSchemas<T> {
     pub input_schemas: HashMap<PortHandle, (Schema, T)>,
     pub output_schemas: HashMap<PortHandle, (Schema, T)>,
@@ -37,117 +44,175 @@ impl<T> NodeSchemas<T> {
     }
 }
 
-pub struct DagSchemas<T: Clone> {
-    schemas: HashMap<NodeHandle, NodeSchemas<T>>,
+#[derive(Debug, Clone)]
+pub struct OutputPort<T> {
+    pub handle: PortHandle,
+    pub typ: OutputPortType,
+    pub schema: Schema,
+    pub context: T,
 }
 
-impl<T: Clone> DagSchemas<T> {
+#[derive(Debug, Clone)]
+pub struct InputPort<T> {
+    pub handle: PortHandle,
+    pub schema: Schema,
+    pub context: T,
+}
+
+#[derive(Debug, Clone)]
+pub struct EdgeType<T> {
+    pub output_port: OutputPort<T>,
+    pub input_port: InputPort<T>,
+}
+
+impl<T> EdgeType<T> {
+    pub fn new(output_port: OutputPort<T>, input_port: InputPort<T>) -> Self {
+        Self {
+            output_port,
+            input_port,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+/// `DagSchemas` is a `Dag` with validated schema on the edge.
+pub struct DagSchemas<T: Clone> {
+    pub graph: daggy::Dag<NodeType<T>, EdgeType<T>>,
+}
+
+impl<T: Clone + Debug> DagSchemas<T> {
+    /// Validate and populate the schemas, the resultant DAG will have the exact same structure as the input DAG,
+    /// with validated schema information on the edges.
     pub fn new(dag: &Dag<T>) -> Result<Self, ExecutionError> {
-        let schemas = populate_schemas(dag)?;
-        Ok(Self { schemas })
+        let graph = populate_schemas(dag.graph())?;
+        Ok(Self { graph })
     }
 
     pub fn get_node_input_schemas(
         &self,
-        handle: &NodeHandle,
-    ) -> Result<&HashMap<PortHandle, (Schema, T)>, ExecutionError> {
-        let node = self
-            .schemas
-            .get(handle)
-            .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
-        Ok(&node.input_schemas)
+        node_index: NodeIndex,
+    ) -> HashMap<PortHandle, (Schema, T)> {
+        let mut schemas = HashMap::new();
+
+        for edge in self.graph.edges_directed(node_index, Direction::Incoming) {
+            let port = &edge.weight().input_port;
+            schemas.insert(port.handle, (port.schema.clone(), port.context.clone()));
+        }
+
+        schemas
     }
 
     pub fn get_node_output_schemas(
         &self,
-        handle: &NodeHandle,
-    ) -> Result<&HashMap<PortHandle, (Schema, T)>, ExecutionError> {
-        let node = self
-            .schemas
-            .get(handle)
-            .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
-        Ok(&node.output_schemas)
-    }
+        node_index: NodeIndex,
+    ) -> HashMap<PortHandle, (Schema, T)> {
+        let mut schemas = HashMap::new();
 
-    pub fn get_all_schemas(&self) -> &HashMap<NodeHandle, NodeSchemas<T>> {
-        &self.schemas
-    }
-}
-
-pub fn prepare_dag<T: Clone>(
-    dag: &Dag<T>,
-    dag_schemas: &DagSchemas<T>,
-) -> Result<(), ExecutionError> {
-    for node in dag.nodes() {
-        let schemas = dag_schemas
-            .get_all_schemas()
-            .get(&node.handle)
-            .ok_or_else(|| ExecutionError::InvalidNodeHandle(node.handle.clone()))?;
-
-        match &node.kind {
-            NodeKind::Source(s) => s.prepare(schemas.output_schemas.clone())?,
-            NodeKind::Sink(s) => s.prepare(schemas.input_schemas.clone())?,
-            NodeKind::Processor(p) => p.prepare(
-                schemas.input_schemas.clone(),
-                schemas.output_schemas.clone(),
-            )?,
+        for edge in self.graph.edges(node_index) {
+            let port = &edge.weight().output_port;
+            schemas.insert(port.handle, (port.schema.clone(), port.context.clone()));
         }
+
+        schemas
     }
-    Ok(())
+
+    pub fn get_all_schemas(&self) -> HashMap<NodeHandle, NodeSchemas<T>> {
+        let mut schemas = HashMap::new();
+
+        for (node_index, node) in self.graph.node_references() {
+            let node_handle = node.handle.clone();
+            let input_schemas = self.get_node_input_schemas(node_index);
+            let output_schemas = self.get_node_output_schemas(node_index);
+            schemas.insert(
+                node_handle,
+                NodeSchemas::from(input_schemas, output_schemas),
+            );
+        }
+
+        schemas
+    }
+
+    pub fn prepare(&self) -> Result<(), ExecutionError> {
+        for (node_index, node) in self.graph.node_references() {
+            match &node.kind {
+                NodeKind::Source(source) => {
+                    let output_schemas = self.get_node_output_schemas(node_index);
+                    source.prepare(output_schemas)?;
+                }
+                NodeKind::Processor(processor) => {
+                    let input_schemas = self.get_node_input_schemas(node_index);
+                    let output_schemas = self.get_node_output_schemas(node_index);
+                    processor.prepare(input_schemas, output_schemas)?;
+                }
+                NodeKind::Sink(sink) => {
+                    let input_schemas = self.get_node_input_schemas(node_index);
+                    sink.prepare(input_schemas)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// In topological order, pass output schemas to downstream nodes' input schemas.
-fn populate_schemas<T: Clone>(
-    dag: &Dag<T>,
-) -> Result<HashMap<NodeHandle, NodeSchemas<T>>, ExecutionError> {
-    let mut dag_schemas = dag
-        .node_handles()
-        .map(|node_handle| (node_handle.clone(), NodeSchemas::<T>::new()))
-        .collect::<HashMap<_, _>>();
+fn populate_schemas<T: Clone + Debug>(
+    dag: &daggy::Dag<NodeType<T>, DagEdgeType>,
+) -> Result<daggy::Dag<NodeType<T>, EdgeType<T>>, ExecutionError> {
+    let mut edges = vec![None; dag.graph().edge_count()];
 
-    for node_handle in dag.topo() {
-        match dag.node_kind_from_handle(node_handle) {
+    for node_index in Topo::new(dag).iter(dag) {
+        let node = &dag.graph()[node_index];
+
+        match &node.kind {
             NodeKind::Source(source) => {
                 let ports = source.get_output_ports()?;
-                for port in ports {
+
+                for edge in dag.graph().edges(node_index) {
+                    let port = find_output_port_def(&ports, edge);
                     let (schema, ctx) = source.get_output_schema(&port.handle)?;
                     let schema = prepare_schema_based_on_output_type(schema, port.typ);
-                    populate_output_schema(
-                        dag,
-                        &mut dag_schemas,
-                        node_handle,
-                        port.handle,
-                        (schema, ctx),
-                    );
+                    create_edge(&mut edges, edge, port, schema, ctx);
                 }
             }
 
             NodeKind::Processor(processor) => {
                 let input_schemas =
-                    validate_input_schemas(&dag_schemas, node_handle, processor.get_input_ports())?;
+                    validate_input_schemas(dag, &edges, node_index, processor.get_input_ports())?;
 
                 let ports = processor.get_output_ports();
-                for port in ports {
+
+                for edge in dag.graph().edges(node_index) {
+                    let port = find_output_port_def(&ports, edge);
                     let (schema, ctx) =
                         processor.get_output_schema(&port.handle, &input_schemas)?;
                     let schema = prepare_schema_based_on_output_type(schema, port.typ);
-                    populate_output_schema(
-                        dag,
-                        &mut dag_schemas,
-                        node_handle,
-                        port.handle,
-                        (schema, ctx),
-                    );
+                    create_edge(&mut edges, edge, port, schema, ctx);
                 }
             }
 
             NodeKind::Sink(sink) => {
-                validate_input_schemas(&dag_schemas, node_handle, sink.get_input_ports())?;
+                validate_input_schemas(dag, &edges, node_index, sink.get_input_ports())?;
             }
         }
     }
 
-    Ok(dag_schemas)
+    Ok(dag.map(
+        |_, node| node.clone(),
+        |edge, _| edges[edge.index()].take().expect("We traversed every edge"),
+    ))
+}
+
+fn find_output_port_def<'a>(
+    ports: &'a [OutputPortDef],
+    edge: EdgeReference<DagEdgeType>,
+) -> &'a OutputPortDef {
+    let handle = edge.weight().from;
+    for port in ports {
+        if port.handle == handle {
+            return port;
+        }
+    }
+    panic!("BUG: port {handle} not found")
 }
 
 fn prepare_schema_based_on_output_type(schema: Schema, typ: OutputPortType) -> Schema {
@@ -159,44 +224,72 @@ fn prepare_schema_based_on_output_type(schema: Schema, typ: OutputPortType) -> S
     }
 }
 
-fn populate_output_schema<T: Clone>(
-    dag: &Dag<T>,
-    dag_schemas: &mut HashMap<NodeHandle, NodeSchemas<T>>,
-    node_handle: &NodeHandle,
-    port: PortHandle,
-    schema: (Schema, T),
+fn create_edge<T: Clone>(
+    edges: &mut [Option<EdgeType<T>>],
+    edge: EdgeReference<DagEdgeType>,
+    port: &OutputPortDef,
+    schema: Schema,
+    ctx: T,
 ) {
-    dag_schemas
-        .get_mut(node_handle)
-        .expect("BUG")
-        .output_schemas
-        .insert(port, schema.clone());
-
-    for (next_node_handle, next_node_port) in dag.edges_from_endpoint(node_handle, port) {
-        let next_node_schemas = dag_schemas.get_mut(next_node_handle).expect("BUG");
-        next_node_schemas
-            .input_schemas
-            .insert(next_node_port, schema.clone());
-    }
+    debug_assert!(port.handle == edge.weight().from);
+    let edge_ref = &mut edges[edge.id().index()];
+    debug_assert!(edge_ref.is_none());
+    *edge_ref = Some(EdgeType::new(
+        OutputPort {
+            handle: port.handle,
+            typ: port.typ,
+            schema: schema.clone(),
+            context: ctx.clone(),
+        },
+        InputPort {
+            handle: edge.weight().to,
+            schema,
+            context: ctx,
+        },
+    ));
 }
 
 fn validate_input_schemas<T: Clone>(
-    dag_schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
-    node_handle: &NodeHandle,
+    dag: &daggy::Dag<NodeType<T>, DagEdgeType>,
+    edges: &[Option<EdgeType<T>>],
+    node_index: NodeIndex,
     input_ports: Vec<PortHandle>,
 ) -> Result<HashMap<PortHandle, (Schema, T)>, ExecutionError> {
-    let input_schemas = &dag_schemas.get(node_handle).expect("BUG").input_schemas;
-    if !eq_ignore_order(input_schemas.keys().copied(), input_ports) {
-        return Err(ExecutionError::MissingInput {
-            node: node_handle.clone(),
-        });
-    }
-    Ok(input_schemas.clone())
-}
+    let node_handle = &dag.graph()[node_index].handle;
 
-fn eq_ignore_order<I: PartialEq + Ord>(a: impl Iterator<Item = I>, mut b: Vec<I>) -> bool {
-    let mut a = a.collect::<Vec<_>>();
-    a.sort();
-    b.sort();
-    a == b
+    let mut input_schemas = HashMap::new();
+    for edge in dag.graph().edges_directed(node_index, Direction::Incoming) {
+        let port_handle = edge.weight().to;
+
+        let edge = edges[edge.id().index()].as_ref().expect(
+            "This edge has been created from the source node because we traverse in topological order"
+        );
+        debug_assert_eq!(edge.output_port.schema, edge.input_port.schema);
+
+        if input_schemas
+            .insert(
+                port_handle,
+                (
+                    edge.input_port.schema.clone(),
+                    edge.input_port.context.clone(),
+                ),
+            )
+            .is_some()
+        {
+            return Err(ExecutionError::DuplicateInput {
+                node: node_handle.clone(),
+                port: port_handle,
+            });
+        }
+    }
+
+    for port in input_ports {
+        if !input_schemas.contains_key(&port) {
+            return Err(ExecutionError::MissingInput {
+                node: node_handle.clone(),
+                port,
+            });
+        }
+    }
+    Ok(input_schemas)
 }

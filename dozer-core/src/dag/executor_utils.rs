@@ -140,7 +140,7 @@ pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
                 Some(StateOptions {
                     db,
                     meta_db,
-                    typ: typ.clone(),
+                    typ: *typ,
                 })
             }
         };

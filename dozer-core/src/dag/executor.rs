@@ -16,7 +16,7 @@ use dozer_types::types::{Operation, Record, Schema};
 use crate::dag::epoch::{Epoch, EpochManager};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::panic::panic_any;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -106,7 +106,7 @@ pub struct DagExecutor<'a, T: Clone> {
     consistency_metadata: HashMap<NodeHandle, Option<OpIdentifier>>,
 }
 
-impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
+impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
     fn check_consistency(
         dag: &'a Dag<T>,
         path: &Path,
@@ -211,22 +211,22 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         let current_schemas = dag_schemas.get_all_schemas();
         match meta_manager.get_metadata() {
             Ok(existing_schemas) => {
-                for (handle, current) in current_schemas {
+                for (handle, current) in &current_schemas {
                     if let Some(existing) = existing_schemas.get(handle) {
                         Self::validate_schemas(current, existing)?;
                     } else {
                         meta_manager.delete_metadata();
-                        meta_manager.init_metadata(current_schemas)?;
+                        meta_manager.init_metadata(&current_schemas)?;
                     }
                 }
             }
             Err(_) => {
                 meta_manager.delete_metadata();
-                meta_manager.init_metadata(current_schemas)?;
+                meta_manager.init_metadata(&current_schemas)?;
             }
         };
 
-        Ok(current_schemas.clone())
+        Ok(current_schemas)
     }
 
     fn start_source(

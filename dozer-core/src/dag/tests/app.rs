@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use tempdir::TempDir;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct NoneContext {}
 
 #[derive(Debug)]

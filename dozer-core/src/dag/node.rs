@@ -68,7 +68,7 @@ impl Display for NodeHandle {
 
 pub type PortHandle = u16;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum OutputPortType {
     Stateless,
     StatefulWithPrimaryKeyLookup {

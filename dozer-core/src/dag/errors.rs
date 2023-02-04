@@ -15,8 +15,10 @@ pub enum ExecutionError {
     InvalidPortHandle(PortHandle),
     #[error("Invalid node handle: {0}")]
     InvalidNodeHandle(NodeHandle),
-    #[error("Missing input for node {node}")]
-    MissingInput { node: NodeHandle },
+    #[error("Missing input for node {node} on port {port}")]
+    MissingInput { node: NodeHandle, port: PortHandle },
+    #[error("Duplicate input for node {node} on port {port}")]
+    DuplicateInput { node: NodeHandle, port: PortHandle },
     #[error("Invalid operation: {0}")]
     InvalidOperation(String),
     #[error("Schema not initialized")]

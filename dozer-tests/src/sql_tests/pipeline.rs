@@ -1,7 +1,7 @@
 use dozer_core::dag::app::App;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag_schemas::{prepare_dag, DagSchemas};
+use dozer_core::dag::dag_schemas::DagSchemas;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
@@ -321,10 +321,10 @@ impl TestPipeline {
         let dag = app.get_dag().unwrap();
 
         let dag_schemas = DagSchemas::new(&dag)?;
-        prepare_dag(&dag, &dag_schemas)?;
-        let streaming_sink_handle = dag.sinks().next().expect("Sink is expected").0;
+        dag_schemas.prepare()?;
+        let streaming_sink_index = dag.sink_identifiers().next().expect("Sink is expected");
         let (schema, _) = dag_schemas
-            .get_node_input_schemas(streaming_sink_handle)?
+            .get_node_input_schemas(streaming_sink_index)
             .values()
             .next()
             .expect("schema is expected")

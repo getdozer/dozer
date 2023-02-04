@@ -36,19 +36,16 @@ impl StateWriter {
     ) -> Result<Self, ExecutionError> {
         let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
         for (port, options) in dbs {
-            let schema = output_schemas
-                .get(&port)
-                .ok_or(ExecutionError::InvalidPortHandle(port))?
-                .clone();
-
-            let writer = RecordWriterUtils::create_writer(
-                options.typ,
-                options.db,
-                options.meta_db,
-                schema,
-                retention_queue_size,
-            )?;
-            record_writers.insert(port, writer);
+            if let Some(schema) = output_schemas.get(&port) {
+                let writer = RecordWriterUtils::create_writer(
+                    options.typ,
+                    options.db,
+                    options.meta_db,
+                    schema.clone(),
+                    retention_queue_size,
+                )?;
+                record_writers.insert(port, writer);
+            }
         }
 
         Ok(Self {
