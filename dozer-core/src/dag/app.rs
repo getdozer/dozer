@@ -21,6 +21,7 @@ impl PipelineEntryPoint {
     }
 }
 
+#[derive(Clone)]
 pub struct AppPipeline<T> {
     edges: Vec<Edge>,
     processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory<T>>)>,
@@ -43,6 +44,21 @@ impl<T> AppPipeline<T> {
     ) {
         let handle = NodeHandle::new(None, id.to_string());
         self.processors.push((handle.clone(), proc.clone()));
+
+        for p in entry_point {
+            self.entry_points.push((handle.clone(), p));
+        }
+    }
+
+    // When a sink is added as a direct sink without any transformation
+    pub fn add_direct_sink(
+        &mut self,
+        sink: Arc<dyn SinkFactory<T>>,
+        id: &str,
+        entry_point: Vec<PipelineEntryPoint>,
+    ) {
+        let handle = NodeHandle::new(None, id.to_string());
+        self.sinks.push((handle.clone(), sink));
 
         for p in entry_point {
             self.entry_points.push((handle.clone(), p));

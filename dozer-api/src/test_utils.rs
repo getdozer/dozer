@@ -63,11 +63,12 @@ pub fn get_endpoint() -> ApiEndpoint {
     ApiEndpoint {
         name: "films".to_string(),
         path: "/films".to_string(),
-        sql: Some("select film_id, description, rental_rate, release_year, updated_at from film where 1=1;"
-            .to_string()),
+        // sql: Some("select film_id, description, rental_rate, release_year, updated_at from film where 1=1;"
+        //     .to_string()),
         index: Some(ApiIndex {
             primary_key: vec!["film_id".to_string()],
         }),
+        table_name: "film".to_string(),
         ..Default::default()
     }
 }

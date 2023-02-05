@@ -157,6 +157,7 @@ mod tests {
                 },
             ],
             endpoints: vec![],
+            transforms: None,
             home_dir: "test".to_string(),
         }
     }

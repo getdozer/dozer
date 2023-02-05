@@ -1,4 +1,4 @@
-use dozer_core::dag::app::App;
+use dozer_core::dag::app::{App, AppPipeline};
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
@@ -189,12 +189,20 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let (mut pipeline, (node, node_port)) = statement_to_pipeline(
+    let mut pipeline = AppPipeline::new();
+    let transform_response = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
-    FROM users \
+        INTO sink_filtered \
+        FROM users \
     WHERE Spending >= 1",
+        &mut pipeline,
     )
     .unwrap();
+
+    let table_info = transform_response
+        .output_tables_map
+        .get("sink_filtered")
+        .unwrap();
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
@@ -211,7 +219,12 @@ fn test_pipeline_builder() {
         "sink",
     );
     pipeline
-        .connect_nodes(&node, Some(node_port), "sink", Some(DEFAULT_PORT_HANDLE))
+        .connect_nodes(
+            &table_info.node,
+            Some(table_info.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+        )
         .unwrap();
 
     let mut app = App::new(asm);

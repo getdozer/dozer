@@ -23,9 +23,7 @@ use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -96,12 +94,10 @@ impl CacheSinkFactory {
 
     fn get_output_schema(
         &self,
+        schema_id: u16,
         schema: &Schema,
     ) -> Result<(Schema, Vec<IndexDefinition>), ExecutionError> {
         let mut schema = schema.clone();
-
-        // Get hash of schema
-        let hash = self.get_schema_hash();
 
         // Generated Cache index based on api_index
         let configured_index = create_primary_indexes(
@@ -130,7 +126,7 @@ impl CacheSinkFactory {
         schema.primary_index = index;
 
         schema.identifier = Some(SchemaIdentifier {
-            id: hash as u32,
+            id: schema_id as u32,
             version: 1,
         });
 
@@ -164,19 +160,6 @@ impl CacheSinkFactory {
             .collect();
         Ok((schema, secondary_indexes))
     }
-
-    fn get_schema_hash(&self) -> u64 {
-        // Get hash of SQL
-        let mut hasher = DefaultHasher::new();
-        let name = self
-            .api_endpoint
-            .sql
-            .as_ref()
-            .map_or(self.api_endpoint.name.clone(), |sql| sql.clone());
-        hasher.write(name.as_bytes());
-
-        hasher.finish()
-    }
 }
 
 impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
@@ -194,12 +177,13 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
             "SinkFactory: Initialising CacheSinkFactory: {}",
             self.api_endpoint.name
         );
-        for (_, (schema, _ctx)) in input_schemas.iter() {
+        for (schema_id, (schema, _ctx)) in input_schemas.iter() {
             stdinfo!(
                 "SINK: Initializing output schema: {}",
                 self.api_endpoint.name
             );
-            let (pipeline_schema, secondary_indexes) = self.get_output_schema(schema)?;
+            let (pipeline_schema, secondary_indexes) =
+                self.get_output_schema(*schema_id, schema)?;
             pipeline_schema.print().printstd();
 
             if self
@@ -247,7 +231,7 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
         let mut sink_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)> = HashMap::new();
         // Insert schemas into cache
         for (k, schema) in input_schemas {
-            let (schema, secondary_indexes) = self.get_output_schema(&schema)?;
+            let (schema, secondary_indexes) = self.get_output_schema(k, &schema)?;
             sink_schemas.insert(k, (schema, secondary_indexes));
         }
         Ok(Box::new(CacheSink::new(

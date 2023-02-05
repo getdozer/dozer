@@ -1,4 +1,4 @@
-use dozer_core::dag::app::App;
+use dozer_core::dag::app::{App, AppPipeline};
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::epoch::Epoch;
@@ -537,12 +537,18 @@ impl Sink for TestSink {
 fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
-    let (mut pipeline, (node, port)) = statement_to_pipeline(
+    let mut pipeline = AppPipeline::new();
+
+    let transform_response = statement_to_pipeline(
         "SELECT  name, dname, cname, salary \
         FROM user LEFT JOIN department ON user.department_id = department.did LEFT JOIN country ON user.country_id = country.cid ",
-    )
+    &mut pipeline)
     .unwrap();
 
+    let table_info = transform_response
+        .output_tables_map
+        .get("user_departments")
+        .unwrap();
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
@@ -561,7 +567,12 @@ fn test_pipeline_builder() {
 
     pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
     pipeline
-        .connect_nodes(&node, Some(port), "sink", Some(DEFAULT_PORT_HANDLE))
+        .connect_nodes(
+            &table_info.node,
+            Some(table_info.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+        )
         .unwrap();
 
     let mut app = App::new(asm);

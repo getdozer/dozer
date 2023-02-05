@@ -19,11 +19,13 @@ use dozer_api::{
 };
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
+use dozer_core::dag::app::AppPipeline;
 use dozer_core::dag::dag_schemas::DagSchemas;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::log::{info, warn};
 use dozer_types::models::api_config::ApiConfig;
@@ -208,10 +210,8 @@ impl Orchestrator for SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        let sources = self.config.sources.clone();
-
         let executor = Executor::new(
-            sources,
+            self.config.clone(),
             cache_endpoints,
             ingestor,
             iterator,
@@ -258,12 +258,10 @@ impl Orchestrator for SimpleOrchestrator {
         // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
-        let sources = self.config.sources.clone();
-
         let pipeline_dir = tempdir::TempDir::new("query4")
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         let executor = Executor::new(
-            sources,
+            self.config.clone(),
             vec![],
             ingestor,
             iterator,
@@ -320,10 +318,8 @@ impl Orchestrator for SimpleOrchestrator {
 
         let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
 
-        let sources = self.config.sources.clone();
-
         let builder = PipelineBuilder::new(
-            sources,
+            self.config.clone(),
             cache_endpoints,
             ingestor,
             iterator,
@@ -404,45 +400,28 @@ impl SimpleOrchestrator {
     }
 }
 
-pub fn validate_endpoints(endpoints: &Vec<ApiEndpoint>) -> Result<(), OrchestrationError> {
-    let mut is_all_valid = true;
-    for endpoint in endpoints {
-        endpoint.sql.as_ref().map_or_else(
-            || {
-                info!(
-                    "[Endpoints][{}] {} Endpoint validation completed",
-                    endpoint.name,
-                    get_colored_text("✓", "32")
-                );
-            },
-            |sql| {
-                statement_to_pipeline(sql).map_or_else(
-                    |e| {
-                        is_all_valid = false;
-                        error!(
-                            "[Endpoints][{}] {} Endpoint validation error: {}",
-                            endpoint.name,
-                            get_colored_text("X", "31"),
-                            e
-                        );
-                    },
-                    |_| {
-                        info!(
-                            "[Endpoints][{}] {} Endpoint validation completed",
-                            endpoint.name,
-                            get_colored_text("✓", "32")
-                        );
-                    },
-                );
-            },
-        );
-    }
+pub fn validate_transforms(sql: String) -> Result<(), PipelineError> {
+    statement_to_pipeline(&sql, &mut AppPipeline::new()).map_or_else(
+        |e| {
+            error!(
+                "[transforms][{}] Transforms validation error: {}",
+                get_colored_text("X", "31"),
+                e
+            );
+            Err(e)
+        },
+        |_| {
+            info!(
+                "[Endpoints][{}]  Transforms validation completed",
+                get_colored_text("✓", "32")
+            );
+            Ok(())
+        },
+    )
+}
 
-    if is_all_valid {
-        Ok(())
-    } else {
-        Err(OrchestrationError::PipelineValidationError)
-    }
+pub fn validate_endpoints(_endpoints: &Vec<ApiEndpoint>) -> Result<(), OrchestrationError> {
+    Ok(())
 }
 
 fn print_api_config(api_config: &ApiConfig) {
@@ -467,11 +446,7 @@ fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
 
     table_parent.add_row(row!["Path", "Name", "Sql"]);
     for endpoint in endpoints {
-        let sql = endpoint
-            .sql
-            .as_ref()
-            .map_or("-".to_string(), |sql| sql.clone());
-        table_parent.add_row(row![endpoint.path, endpoint.name, sql]);
+        table_parent.add_row(row![endpoint.path, endpoint.name]);
     }
 
     table_parent.printstd();

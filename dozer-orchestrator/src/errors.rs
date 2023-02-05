@@ -48,6 +48,8 @@ pub enum OrchestrationError {
     SourceValidationError,
     #[error("Pipeline validation failed")]
     PipelineValidationError,
+    #[error("Table name specified in endpoint not found: {0:?}")]
+    EndpointTableNotFound(String),
 }
 
 #[derive(Error, Debug)]

@@ -1,4 +1,3 @@
-use crate::models::source::Source;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 
@@ -13,22 +12,16 @@ pub struct ApiEndpoint {
     #[prost(string, optional, tag = "1")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    #[prost(string, optional, tag = "2")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_id: Option<String>,
     #[prost(string, tag = "3")]
     pub name: String,
     #[prost(string, tag = "4")]
     /// path of endpoint - e.g: /stocks
     pub path: String,
-    #[prost(string, optional, tag = "5")]
-    pub sql: Option<String>,
-    #[prost(message, tag = "6")]
+    #[prost(message, tag = "5")]
     pub index: Option<ApiIndex>,
-    #[prost(message, tag = "7")]
-    #[serde(skip_deserializing)]
-    /// reference to pre-defined source name - syntax: `!Ref <source_name>`; Type: `Ref!` tag
-    pub source: Option<Source>,
+    #[prost(string, tag = "6")]
+    /// name of the table in source database; Type: String
+    pub table_name: String,
 }
 
 impl Serialize for ApiEndpoint {
@@ -39,11 +32,9 @@ impl Serialize for ApiEndpoint {
         let mut state = serializer.serialize_struct("ApiEndpoint", 3)?;
         state.serialize_field("name", &self.name)?;
         state.serialize_field("path", &self.path)?;
-        state.serialize_field("sql", &self.sql)?;
         state.serialize_field("index", &self.index)?;
-        if let Some(source) = &self.source {
-            state.serialize_field("source", &Value::Ref(source.name.clone()))?;
-        }
+        state.serialize_field("table_name", &self.table_name)?;
+
         state.end()
     }
 }

@@ -17,6 +17,7 @@ use dozer_types::{
     models::{
         self,
         api_endpoint::{ApiEndpoint, ApiIndex},
+        app_config::Config,
         connection::EventsAuthentication,
         flags::Flags,
     },
@@ -56,7 +57,7 @@ fn single_source_sink_impl(schema: Schema) {
             id: Some("1".to_string()),
             name: table_name.to_string(),
             path: "/events".to_string(),
-            sql: Some("select a, b from events group by a,b;".to_string()),
+            // sql: Some("select a, b from events group by a,b;".to_string()),
             index: Some(ApiIndex {
                 primary_key: vec!["a".to_string()],
             }),
@@ -90,7 +91,10 @@ fn single_source_sink_impl(schema: Schema) {
     let tmp_path = tmp_dir.path().to_owned();
     let _thread = thread::spawn(move || {
         let executor = Executor::new(
-            vec![source],
+            Config {
+                sources: vec![source],
+                ..Config::default()
+            },
             vec![cache_endpoint],
             ingestor,
             iterator,

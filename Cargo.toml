@@ -1,7 +1,7 @@
 [workspace]
 members = [
   "dozer-api",
-  "dozer-admin",
+  # "dozer-admin",
   "dozer-ingestion",
   "dozer-types",
   "dozer-core",

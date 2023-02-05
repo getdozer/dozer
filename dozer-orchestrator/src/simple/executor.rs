@@ -1,6 +1,7 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
-use dozer_core::dag::app::App;
+use dozer_core::dag::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_types::models::app_config::Config;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -28,7 +29,7 @@ use crate::errors::OrchestrationError;
 use crate::pipeline::source_builder::SourceBuilder;
 
 pub struct Executor {
-    sources: Vec<Source>,
+    config: Config,
     cache_endpoints: Vec<CacheEndpoint>,
     pipeline_dir: PathBuf,
     ingestor: Arc<RwLock<Ingestor>>,
@@ -37,7 +38,7 @@ pub struct Executor {
 }
 impl Executor {
     pub fn new(
-        sources: Vec<Source>,
+        config: Config,
         cache_endpoints: Vec<CacheEndpoint>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
@@ -45,7 +46,7 @@ impl Executor {
         pipeline_dir: PathBuf,
     ) -> Self {
         Self {
-            sources,
+            config,
             cache_endpoints,
             pipeline_dir,
             ingestor,
@@ -55,7 +56,7 @@ impl Executor {
     }
 
     pub fn get_connection_groups(&self) -> HashMap<String, Vec<Source>> {
-        SourceBuilder::group_connections(self.sources.clone())
+        SourceBuilder::group_connections(self.config.sources.clone())
     }
 
     // This function is used to run a query using a temporary pipeline
@@ -66,16 +67,23 @@ impl Executor {
     ) -> Result<dozer_core::dag::Dag<SchemaSQLContext>, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
-        let (mut pipeline, (query_name, query_port)) =
-            statement_to_pipeline(&sql).map_err(OrchestrationError::PipelineError)?;
+        let mut pipeline = AppPipeline::new();
+        let transform_response = statement_to_pipeline(&sql, &mut pipeline)
+            .map_err(OrchestrationError::PipelineError)?;
         pipeline.add_sink(
             Arc::new(StreamingSinkFactory::new(sender)),
             "streaming_sink",
         );
+
+        let table_info = transform_response
+            .output_tables_map
+            .values()
+            .next()
+            .unwrap();
         pipeline
             .connect_nodes(
-                &query_name,
-                Some(query_port),
+                &table_info.node,
+                Some(table_info.port),
                 "streaming_sink",
                 Some(DEFAULT_PORT_HANDLE),
             )
@@ -129,7 +137,7 @@ impl Executor {
         let running_wait = self.running.clone();
 
         let builder = PipelineBuilder::new(
-            self.sources.clone(),
+            self.config.clone(),
             self.cache_endpoints.clone(),
             self.ingestor.clone(),
             self.iterator.clone(),

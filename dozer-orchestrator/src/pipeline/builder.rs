@@ -1,37 +1,34 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use dozer_core::dag::app::{AppPipeline, PipelineEntryPoint};
-use dozer_core::dag::appsource::AppSourceId;
+use dozer_core::dag::app::AppPipeline;
 use dozer_core::dag::executor::DagExecutor;
 use dozer_core::dag::DEFAULT_PORT_HANDLE;
-use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_sql::pipeline::builder::{QueryTableInfo, SchemaSQLContext};
 
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::indicatif::MultiProgress;
+use dozer_types::models::app_config::Config;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
 use dozer_api::CacheEndpoint;
-use dozer_types::models::source::Source;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
+use super::source_builder::SourceBuilder;
+use super::validate::validate_grouped_connections;
 use crate::errors::OrchestrationError;
 use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
 use dozer_types::parking_lot::RwLock;
 use OrchestrationError::ExecutionError;
 
-use super::basic_processor_factory::BasicProcessorFactory;
-use super::source_builder::SourceBuilder;
-use super::validate::validate_grouped_connections;
-
 pub struct PipelineBuilder {
-    sources: Vec<Source>,
+    config: Config,
     cache_endpoints: Vec<CacheEndpoint>,
     pipeline_dir: PathBuf,
     ingestor: Arc<RwLock<Ingestor>>,
@@ -41,7 +38,7 @@ pub struct PipelineBuilder {
 }
 impl PipelineBuilder {
     pub fn new(
-        sources: Vec<Source>,
+        config: Config,
         cache_endpoints: Vec<CacheEndpoint>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
@@ -49,7 +46,7 @@ impl PipelineBuilder {
         pipeline_dir: PathBuf,
     ) -> Self {
         Self {
-            sources,
+            config,
             cache_endpoints,
             pipeline_dir,
             ingestor,
@@ -66,27 +63,51 @@ impl PipelineBuilder {
         api_dir: PathBuf,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::dag::Dag<SchemaSQLContext>, OrchestrationError> {
-        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
+        let sources = self.config.sources.clone();
+
+        let grouped_connections = SourceBuilder::group_connections(sources.clone());
 
         validate_grouped_connections(&grouped_connections)?;
 
         let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
         let mut used_sources = vec![];
+
+        let mut pipeline = AppPipeline::new();
+
+        let mut output_tables: HashMap<String, QueryTableInfo> = HashMap::new();
+        for source in self.config.sources.clone() {
+            output_tables.insert(
+                source.name.clone(),
+                QueryTableInfo {
+                    node: source.name.clone(),
+                    port: DEFAULT_PORT_HANDLE,
+                    is_source: true,
+                },
+            );
+        }
+
+        if let Some(sql) = self.config.transforms.clone() {
+            let transform_response = statement_to_pipeline(&sql, &mut pipeline)
+                .map_err(OrchestrationError::PipelineError)?;
+
+            for (name, table_info) in transform_response.output_tables_map {
+                output_tables.insert(name.clone(), table_info);
+            }
+        }
+
+        let pipeline_ref = &mut pipeline;
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
             let api_endpoint = cache_endpoint.endpoint.clone();
-            let _api_endpoint_name = api_endpoint.name.clone();
+
             let cache = cache_endpoint.cache;
 
-            // let mut pipeline = PipelineBuilder {}
-            //     .build_pipeline(&api_endpoint.sql)
-            //     .map_err(OrchestrationError::PipelineError)?;
+            let table_name = api_endpoint.table_name.clone();
 
-            let (mut pipeline, (query_name, query_port)) = api_endpoint.sql.as_ref().map_or_else(
-                || Ok(source_to_pipeline(&api_endpoint)),
-                |sql| statement_to_pipeline(sql).map_err(OrchestrationError::PipelineError),
-            )?;
+            let table_info = output_tables
+                .get(&table_name)
+                .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            pipeline.add_sink(
+            pipeline_ref.add_sink(
                 Arc::new(CacheSinkFactory::new(
                     vec![DEFAULT_PORT_HANDLE],
                     cache,
@@ -99,21 +120,21 @@ impl PipelineBuilder {
                 cache_endpoint.endpoint.name.as_str(),
             );
 
-            pipeline
+            pipeline_ref
                 .connect_nodes(
-                    &query_name,
-                    Some(query_port),
+                    &table_info.node,
+                    Some(table_info.port),
                     cache_endpoint.endpoint.name.as_str(),
                     Some(DEFAULT_PORT_HANDLE),
                 )
                 .map_err(ExecutionError)?;
 
-            for name in pipeline.get_entry_points_sources_names() {
+            for name in pipeline_ref.get_entry_points_sources_names() {
                 used_sources.push(name);
             }
-
-            pipelines.push(pipeline);
         }
+
+        pipelines.push(pipeline);
 
         let asm = SourceBuilder::build_source_manager(
             used_sources,
@@ -141,28 +162,4 @@ impl PipelineBuilder {
 
         Ok(dag)
     }
-}
-
-pub fn source_to_pipeline(
-    api_endpoint: &ApiEndpoint,
-) -> (AppPipeline<SchemaSQLContext>, (String, u16)) {
-    let source_name = api_endpoint.source.as_ref().unwrap().name.clone();
-
-    let p = BasicProcessorFactory::new();
-
-    let processor_name = "direct_sink".to_string();
-    let mut pipeline = AppPipeline::new();
-    pipeline.add_processor(
-        Arc::new(p),
-        &processor_name,
-        vec![PipelineEntryPoint::new(
-            AppSourceId {
-                id: source_name,
-                connection: None,
-            },
-            DEFAULT_PORT_HANDLE,
-        )],
-    );
-
-    (pipeline, (processor_name, DEFAULT_PORT_HANDLE))
 }

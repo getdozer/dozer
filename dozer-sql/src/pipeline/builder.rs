@@ -23,10 +23,24 @@ use super::product::factory::FromProcessorFactory;
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
 
+#[derive(Debug, Clone)]
+pub struct QueryTableInfo {
+    // Name to connect in dag
+    pub node: String,
+    // Port to connect in dag
+    pub port: PortHandle,
+    // If this table is originally from a source or created in transforms
+    pub is_source: bool,
+    // TODO add:indexes to the tables
+}
+
 /// The struct contains some contexts during query to pipeline.
 #[derive(Debug, Clone, Default)]
 pub struct QueryContext {
+    // Internal tables map, used to store the tables that are created by the queries
     pub pipeline_map: HashMap<String, (String, PortHandle)>,
+    // Output tables map that are marked with "INTO" used to store the tables, these can be exposed to sinks.
+    pub output_tables_map: HashMap<String, QueryTableInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -35,26 +49,36 @@ pub struct IndexedTabelWithJoins {
     pub joins: Vec<(NameOrAlias, Join)>,
 }
 
+pub struct TransformResponse {
+    pub output_tables_map: HashMap<String, QueryTableInfo>,
+}
+
 pub fn statement_to_pipeline(
     sql: &str,
-) -> Result<(AppPipeline<SchemaSQLContext>, (String, PortHandle)), PipelineError> {
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
+) -> Result<TransformResponse, PipelineError> {
     let dialect = AnsiDialect {};
     let mut ctx = QueryContext::default();
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
     let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
-    let statement = ast.get(0).expect("First statement is missing").to_owned();
 
-    let mut pipeline = AppPipeline::new();
-    if let Statement::Query(query) = statement {
-        query_to_pipeline(&query_name, &query, &mut pipeline, &mut ctx, false)?;
-    };
-    let node = ctx
-        .pipeline_map
-        .get(&query_name.0)
-        .expect("query should have been initialized")
-        .to_owned();
-    Ok((pipeline, node))
+    for statement in ast {
+        match statement {
+            Statement::Query(query) => {
+                query_to_pipeline(&query_name, &query, pipeline, &mut ctx, false)?;
+            }
+            s => {
+                return Err(PipelineError::UnsupportedSqlError(
+                    UnsupportedSqlError::GenericError(s.to_string()),
+                ))
+            }
+        }
+    }
+
+    Ok(TransformResponse {
+        output_tables_map: ctx.output_tables_map.clone(),
+    })
 }
 
 fn query_to_pipeline(
@@ -145,6 +169,12 @@ fn select_to_pipeline(
         ));
     }
 
+    let output_table_name = select
+        .into
+        .map_or(Err(UnsupportedSqlError::IntoError), |into| {
+            Ok(into.name.to_string())
+        })?;
+
     let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx)?;
 
     let product = FromProcessorFactory::new(input_tables.clone());
@@ -203,7 +233,16 @@ fn select_to_pipeline(
 
     query_ctx.pipeline_map.insert(
         processor_name.0.clone(),
-        (gen_agg_name, DEFAULT_PORT_HANDLE),
+        (gen_agg_name.clone(), DEFAULT_PORT_HANDLE),
+    );
+
+    query_ctx.output_tables_map.insert(
+        output_table_name,
+        QueryTableInfo {
+            node: gen_agg_name,
+            port: DEFAULT_PORT_HANDLE,
+            is_source: false,
+        },
     );
 
     Ok(())
@@ -305,6 +344,8 @@ pub fn get_from_source(
 
 #[cfg(test)]
 mod tests {
+    use dozer_core::dag::app::AppPipeline;
+
     use super::statement_to_pipeline;
 
     #[test]
@@ -360,7 +401,7 @@ mod tests {
             "#,
         ];
         for sql in statements {
-            let _pipeline = statement_to_pipeline(sql).unwrap();
+            let _pipeline = statement_to_pipeline(sql, &mut AppPipeline::new()).unwrap();
         }
     }
 }
