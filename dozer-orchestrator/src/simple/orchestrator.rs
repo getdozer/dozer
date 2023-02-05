@@ -1,7 +1,7 @@
 use super::executor::Executor;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
-use crate::pipeline::CacheSinkSettings;
+use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
 use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_flags, get_grpc_config,
     get_pipeline_config, get_pipeline_dir, get_rest_config,
@@ -282,6 +282,7 @@ impl Orchestrator for SimpleOrchestrator {
             .clone();
         Ok(schema)
     }
+
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
         self.write_internal_config()
             .map_err(|e| InternalError(Box::new(e)))?;
@@ -321,7 +322,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let sources = self.config.sources.clone();
 
-        let executor = Executor::new(
+        let builder = PipelineBuilder::new(
             sources,
             cache_endpoints,
             ingestor,
@@ -346,7 +347,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
-        let dag = executor.build_pipeline(None, generated_path.clone(), settings)?;
+        let dag = builder.build(None, generated_path.clone(), settings)?;
         let dag_schemas = DagSchemas::new(&dag)?;
         // Every sink will initialize its schema in sink and also in a proto file.
         dag_schemas.prepare()?;
