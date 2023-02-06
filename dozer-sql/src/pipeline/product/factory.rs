@@ -11,7 +11,7 @@ use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::JoinError,
-    expression::builder::{extend_schema_source_def, fullname_from_ident},
+    expression::builder::extend_schema_source_def,
     product::join::JoinBranch,
 };
 use crate::pipeline::{
@@ -19,6 +19,7 @@ use crate::pipeline::{
     errors::PipelineError,
 };
 use sqlparser::ast::Expr as SqlExpr;
+use crate::pipeline::expression::builder::ExpressionBuilder;
 
 use super::{
     join::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},
@@ -281,12 +282,12 @@ fn parse_identifier(
 
     match (left_idx, right_idx) {
         (None, None) => Err(PipelineError::JoinError(JoinError::InvalidFieldSpecified(
-            fullname_from_ident(ident),
+            ExpressionBuilder::fullname_from_ident(ident),
         ))),
         (None, Some(idx)) => Ok((None, Some(idx))),
         (Some(idx), None) => Ok((Some(idx), None)),
         (Some(_), Some(_)) => Err(PipelineError::JoinError(JoinError::InvalidJoinConstraint(
-            fullname_from_ident(ident),
+            ExpressionBuilder::fullname_from_ident(ident),
         ))),
     }
 }

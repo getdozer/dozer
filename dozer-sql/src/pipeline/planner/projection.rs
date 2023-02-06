@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder_new::{ExpressionBuilder, ExpressionContext};
+use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionContext};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Select, SelectItem};

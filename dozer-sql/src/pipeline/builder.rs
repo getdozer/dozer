@@ -15,9 +15,9 @@ use sqlparser::{
 };
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 
 use super::errors::UnsupportedSqlError;
-use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
 use super::product::factory::FromProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
@@ -272,12 +272,12 @@ pub fn get_from_source(
             let input_name = name
                 .0
                 .iter()
-                .map(normalize_ident)
+                .map(ExpressionBuilder::normalize_ident)
                 .collect::<Vec<String>>()
                 .join(".");
             let alias_name = alias
                 .as_ref()
-                .map(|a| fullname_from_ident(&[a.name.clone()]));
+                .map(|a| ExpressionBuilder::fullname_from_ident(&[a.name.clone()]));
 
             Ok(NameOrAlias(input_name, alias_name))
         }
@@ -289,7 +289,7 @@ pub fn get_from_source(
             let name = format!("derived_{}", uuid::Uuid::new_v4());
             let alias_name = alias
                 .as_ref()
-                .map(|alias_ident| fullname_from_ident(&[alias_ident.name.clone()]));
+                .map(|alias_ident| ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()]));
 
             let name_or = NameOrAlias(name, alias_name);
             query_to_pipeline(&name_or, subquery, pipeline, query_ctx, false)?;

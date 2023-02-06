@@ -12,11 +12,12 @@ use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
-        builder::{BuilderExpressionType, ExpressionBuilder},
+        builder::ExpressionBuilder,
         execution::Expression,
         execution::ExpressionExecutor,
     },
 };
+use crate::pipeline::expression::builder::ExpressionContext;
 
 use super::processor::ProjectionProcessor;
 
@@ -138,22 +139,26 @@ pub(crate) fn parse_sql_select_item(
     sql: &SelectItem,
     schema: &Schema,
 ) -> Result<(String, Expression), PipelineError> {
-    let builder = ExpressionBuilder {};
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
-            match builder.parse_sql_expression(
-                &BuilderExpressionType::FullExpression,
+            match ExpressionBuilder::parse_sql_expression(
+                &mut ExpressionContext::new(0),
+                true,
                 sql_expr,
                 schema,
             ) {
-                Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
+                Ok(expr) => Ok((sql_expr.to_string(), *expr)),
                 Err(error) => Err(error),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => {
-            match builder.parse_sql_expression(&BuilderExpressionType::FullExpression, expr, schema)
-            {
-                Ok(expr) => Ok((alias.value.clone(), *expr.0)),
+            match ExpressionBuilder::parse_sql_expression(
+                &mut ExpressionContext::new(0),
+                true,
+                expr,
+                schema
+            ) {
+                Ok(expr) => Ok((alias.value.clone(), *expr)),
                 Err(error) => Err(error),
             }
         }
