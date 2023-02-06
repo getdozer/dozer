@@ -45,31 +45,28 @@ impl<T> NodeSchemas<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct OutputPort<T> {
-    pub handle: PortHandle,
-    pub typ: OutputPortType,
-    pub schema: Schema,
-    pub context: T,
-}
-
-#[derive(Debug, Clone)]
-pub struct InputPort<T> {
-    pub handle: PortHandle,
-    pub schema: Schema,
-    pub context: T,
-}
-
-#[derive(Debug, Clone)]
 pub struct EdgeType<T> {
-    pub output_port: OutputPort<T>,
-    pub input_port: InputPort<T>,
+    pub output_port: PortHandle,
+    pub output_port_type: OutputPortType,
+    pub input_port: PortHandle,
+    pub schema: Schema,
+    pub context: T,
 }
 
 impl<T> EdgeType<T> {
-    pub fn new(output_port: OutputPort<T>, input_port: InputPort<T>) -> Self {
+    pub fn new(
+        output_port: PortHandle,
+        output_port_type: OutputPortType,
+        input_port: PortHandle,
+        schema: Schema,
+        context: T,
+    ) -> Self {
         Self {
             output_port,
+            output_port_type,
             input_port,
+            schema,
+            context,
         }
     }
 }
@@ -95,8 +92,8 @@ impl<T: Clone + Debug> DagSchemas<T> {
         let mut schemas = HashMap::new();
 
         for edge in self.graph.edges_directed(node_index, Direction::Incoming) {
-            let port = &edge.weight().input_port;
-            schemas.insert(port.handle, (port.schema.clone(), port.context.clone()));
+            let edge = edge.weight();
+            schemas.insert(edge.input_port, (edge.schema.clone(), edge.context.clone()));
         }
 
         schemas
@@ -109,8 +106,11 @@ impl<T: Clone + Debug> DagSchemas<T> {
         let mut schemas = HashMap::new();
 
         for edge in self.graph.edges(node_index) {
-            let port = &edge.weight().output_port;
-            schemas.insert(port.handle, (port.schema.clone(), port.context.clone()));
+            let edge = edge.weight();
+            schemas.insert(
+                edge.output_port,
+                (edge.schema.clone(), edge.context.clone()),
+            );
         }
 
         schemas
@@ -235,17 +235,11 @@ fn create_edge<T: Clone>(
     let edge_ref = &mut edges[edge.id().index()];
     debug_assert!(edge_ref.is_none());
     *edge_ref = Some(EdgeType::new(
-        OutputPort {
-            handle: port.handle,
-            typ: port.typ,
-            schema: schema.clone(),
-            context: ctx.clone(),
-        },
-        InputPort {
-            handle: edge.weight().to,
-            schema,
-            context: ctx,
-        },
+        port.handle,
+        port.typ,
+        edge.weight().to,
+        schema,
+        ctx,
     ));
 }
 
@@ -264,16 +258,9 @@ fn validate_input_schemas<T: Clone>(
         let edge = edges[edge.id().index()].as_ref().expect(
             "This edge has been created from the source node because we traverse in topological order"
         );
-        debug_assert_eq!(edge.output_port.schema, edge.input_port.schema);
 
         if input_schemas
-            .insert(
-                port_handle,
-                (
-                    edge.input_port.schema.clone(),
-                    edge.input_port.context.clone(),
-                ),
-            )
+            .insert(port_handle, (edge.schema.clone(), edge.context.clone()))
             .is_some()
         {
             return Err(ExecutionError::DuplicateInput {
