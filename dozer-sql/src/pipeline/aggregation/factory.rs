@@ -1,44 +1,36 @@
-use std::collections::HashMap;
-
-use dozer_core::dag::{
-    errors::ExecutionError,
-    node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
-    DEFAULT_PORT_HANDLE,
-};
-use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
-
+use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::builder::SchemaSQLContext;
-use crate::pipeline::{
-    errors::PipelineError,
-    expression::{
-        aggregate::AggregateFunctionType,
-        builder::{BuilderExpressionType, ExpressionBuilder},
-        execution::{Expression, ExpressionExecutor},
-    },
-    projection::{factory::parse_sql_select_item, processor::ProjectionProcessor},
+use crate::pipeline::planner::projection::CommonPlanner;
+use crate::pipeline::projection::processor::ProjectionProcessor;
+use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::node::{
+    OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
-
-use super::{
-    aggregator::Aggregator,
-    processor::{AggregationProcessor, FieldRule},
-};
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_types::types::Schema;
+use sqlparser::ast::Select;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
-    select: Vec<SelectItem>,
-    groupby: Vec<SqlExpr>,
+    projection: Select,
     stateful: bool,
 }
 
 impl AggregationProcessorFactory {
-    /// Creates a new [`AggregationProcessorFactory`].
-    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>, stateful: bool) -> Self {
+    pub fn new(projection: Select, stateful: bool) -> Self {
         Self {
-            select,
-            groupby,
+            projection,
             stateful,
         }
+    }
+
+    fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, ExecutionError> {
+        let mut projection_planner = CommonPlanner::new(input_schema);
+        projection_planner
+            .plan(self.projection.clone())
+            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        Ok(projection_planner)
     }
 }
 
@@ -72,14 +64,9 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         let (input_schema, ctx) = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
-        let output_field_rules =
-            get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
-        if is_aggregation(&self.groupby, &output_field_rules) {
-            let output_schema = build_output_schema(input_schema, output_field_rules)?;
-            return Ok((output_schema, ctx.clone()));
-        }
-        build_projection_schema(input_schema, ctx, &self.select)
+        let planner = self.get_planner(input_schema.clone())?;
+        Ok((planner.post_projection_schema, ctx.clone()))
     }
 
     fn build(
@@ -90,49 +77,27 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
-        let output_field_rules =
-            get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
 
-        if is_aggregation(&self.groupby, &output_field_rules) {
-            return Ok(Box::new(AggregationProcessor::new(
-                output_field_rules,
+        let planner = self.get_planner(input_schema.clone())?;
+
+        let processor: Box<dyn Processor> = match planner.aggregation_output.len() {
+            0 => Box::new(ProjectionProcessor::new(
                 input_schema.clone(),
-            )));
-        }
+                planner.projection_output,
+            )),
+            _ => Box::new(
+                AggregationProcessor::new(
+                    planner.groupby,
+                    planner.aggregation_output,
+                    planner.projection_output,
+                    input_schema.clone(),
+                    planner.post_aggregation_schema.clone(),
+                )
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
+            ),
+        };
 
-        let mut select_expr: Vec<(String, Expression)> = vec![];
-        for s in self.select.iter() {
-            match s {
-                SelectItem::Wildcard(_) => {
-                    let fields: Vec<SelectItem> = input_schema
-                        .fields
-                        .iter()
-                        .map(|col| {
-                            SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(
-                                col.to_owned().name,
-                            )))
-                        })
-                        .collect();
-                    for f in fields {
-                        let res = parse_sql_select_item(&f, input_schema);
-                        if let Ok(..) = res {
-                            select_expr.push(res.unwrap())
-                        }
-                    }
-                }
-                _ => {
-                    let res = parse_sql_select_item(s, input_schema);
-                    if let Ok(..) = res {
-                        select_expr.push(res.unwrap())
-                    }
-                }
-            }
-        }
-
-        Ok(Box::new(ProjectionProcessor::new(
-            input_schema.clone(),
-            select_expr.into_iter().map(|e| e.1).collect(),
-        )))
+        Ok(processor)
     }
 
     fn prepare(
@@ -142,214 +107,4 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
-}
-
-fn is_aggregation(groupby: &[SqlExpr], output_field_rules: &[FieldRule]) -> bool {
-    if !groupby.is_empty() {
-        return true;
-    }
-
-    output_field_rules
-        .iter()
-        .any(|rule| matches!(rule, FieldRule::Measure(_, _, _)))
-}
-
-pub(crate) fn get_aggregation_rules(
-    select: &[SelectItem],
-    groupby: &[SqlExpr],
-    schema: &Schema,
-) -> Result<Vec<FieldRule>, PipelineError> {
-    let mut select_rules = select
-        .iter()
-        .map(|item| parse_sql_aggregate_item(item, schema))
-        .filter(|e| e.is_ok())
-        .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
-
-    let mut groupby_rules = groupby
-        .iter()
-        .map(|expr| parse_sql_groupby_item(expr, schema))
-        .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
-
-    select_rules.append(&mut groupby_rules);
-
-    Ok(select_rules)
-}
-
-fn build_field_rule(
-    sql_expr: &Expr,
-    schema: &Schema,
-    name: String,
-) -> Result<FieldRule, PipelineError> {
-    let builder = ExpressionBuilder {};
-    let expression =
-        builder.parse_sql_expression(&BuilderExpressionType::Aggregation, sql_expr, schema)?;
-
-    match get_aggregator(expression.0.clone(), schema) {
-        Ok(aggregator) => Ok(FieldRule::Measure(
-            ExpressionBuilder {}
-                .parse_sql_expression(&BuilderExpressionType::PreAggregation, sql_expr, schema)?
-                .0,
-            aggregator,
-            name,
-        )),
-        Err(_) => Ok(FieldRule::Dimension(expression.0, true, name)),
-    }
-}
-
-fn parse_sql_aggregate_item(
-    item: &SelectItem,
-    schema: &Schema,
-) -> Result<FieldRule, PipelineError> {
-    match item {
-        SelectItem::UnnamedExpr(sql_expr) => {
-            build_field_rule(sql_expr, schema, sql_expr.to_string())
-        }
-        SelectItem::ExprWithAlias { expr, alias } => {
-            build_field_rule(expr, schema, alias.value.clone())
-        }
-        SelectItem::Wildcard(_) => Err(PipelineError::InvalidExpression(
-            "Wildcard Operator is not supported".to_string(),
-        )),
-        SelectItem::QualifiedWildcard(..) => Err(PipelineError::InvalidExpression(
-            "Qualified Wildcard Operator is not supported".to_string(),
-        )),
-    }
-}
-
-fn parse_sql_groupby_item(
-    sql_expression: &SqlExpr,
-    schema: &Schema,
-) -> Result<FieldRule, PipelineError> {
-    Ok(FieldRule::Dimension(
-        ExpressionBuilder {}.build(
-            &BuilderExpressionType::FullExpression,
-            sql_expression,
-            schema,
-        )?,
-        false,
-        sql_expression.to_string(),
-    ))
-}
-
-fn get_aggregator(
-    expression: Box<Expression>,
-    schema: &Schema,
-) -> Result<Aggregator, PipelineError> {
-    match *expression {
-        Expression::AggregateFunction { fun, args } => {
-            let arg_type = args[0].get_type(schema);
-            match (&fun, arg_type) {
-                (AggregateFunctionType::Avg, _) => Ok(Aggregator::Avg),
-                (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
-                (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
-                (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
-                (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
-                _ => Err(PipelineError::InvalidExpression(format!(
-                    "Not implemented Aggregation function: {fun:?}"
-                ))),
-            }
-        }
-        _ => Err(PipelineError::InvalidExpression(format!(
-            "Not an Aggregation function: {expression:?}"
-        ))),
-    }
-}
-
-fn build_output_schema(
-    input_schema: &Schema,
-    output_field_rules: Vec<FieldRule>,
-) -> Result<Schema, ExecutionError> {
-    let mut output_schema = Schema::empty();
-    for e in output_field_rules.iter().enumerate() {
-        match e.1 {
-            FieldRule::Measure(pre_aggr, aggr, name) => {
-                let res = pre_aggr
-                    .get_type(input_schema)
-                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-
-                output_schema.fields.push(FieldDefinition::new(
-                    name.clone(),
-                    aggr.get_return_type(res.return_type),
-                    res.nullable,
-                    res.source,
-                ));
-            }
-
-            FieldRule::Dimension(expression, is_value, name) => {
-                if *is_value {
-                    let res = expression
-                        .get_type(input_schema)
-                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-
-                    output_schema.fields.push(FieldDefinition::new(
-                        name.clone(),
-                        res.return_type,
-                        res.nullable,
-                        res.source,
-                    ));
-                    output_schema.primary_index.push(e.0);
-                }
-            }
-        }
-    }
-
-    // remove primary index as already defined in the sink
-    // the Planner will compute the primary index properly
-    output_schema.primary_index = vec![];
-    Ok(output_schema)
-}
-
-fn build_projection_schema(
-    input_schema: &Schema,
-    context: &SchemaSQLContext,
-    select: &[SelectItem],
-) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-    let mut select_expr: Vec<(String, Expression)> = vec![];
-    for s in select.iter() {
-        match s {
-            SelectItem::Wildcard(_) => {
-                let fields: Vec<SelectItem> = input_schema
-                    .fields
-                    .iter()
-                    .map(|col| {
-                        SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(col.to_owned().name)))
-                    })
-                    .collect();
-                for f in fields {
-                    let res = parse_sql_select_item(&f, input_schema);
-                    if let Ok(..) = res {
-                        select_expr.push(res.unwrap())
-                    }
-                }
-            }
-            _ => {
-                let res = parse_sql_select_item(s, input_schema);
-                if let Ok(..) = res {
-                    select_expr.push(res.unwrap())
-                }
-            }
-        }
-    }
-
-    let mut output_schema = input_schema.clone();
-    let mut fields = vec![];
-    for e in select_expr.iter() {
-        let field_name = e.0.clone();
-        let field_type =
-            e.1.get_type(input_schema)
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-
-        fields.push(FieldDefinition::new(
-            field_name,
-            field_type.return_type,
-            field_type.nullable,
-            field_type.source,
-        ));
-    }
-    output_schema.fields = fields;
-
-    // remove primary index as already defined in the sink
-    // the Planner will compute the primary index properly
-    output_schema.primary_index = vec![];
-    Ok((output_schema, context.clone()))
 }

@@ -1,4 +1,4 @@
-use crate::pipeline::aggregation::factory_new::AggregationProcessorFactory;
+use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
