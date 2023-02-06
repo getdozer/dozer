@@ -1,3 +1,4 @@
+use daggy::petgraph::dot;
 use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges, IntoNodeReferences};
 use daggy::Walker;
 
@@ -5,6 +6,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 use std::sync::Arc;
 
 pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
@@ -46,6 +48,12 @@ pub struct NodeType<T> {
     pub kind: NodeKind<T>,
 }
 
+impl<T> Display for NodeType<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.handle)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 /// The edge type of the description DAG.
 pub struct EdgeType {
@@ -56,6 +64,11 @@ pub struct EdgeType {
 impl EdgeType {
     pub fn new(from: PortHandle, to: PortHandle) -> Self {
         Self { from, to }
+    }
+}
+impl Display for EdgeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} -> {:?}", self.from, self.to)
     }
 }
 
@@ -87,6 +100,11 @@ impl<T> Dag<T> {
     /// Returns the underlying daggy graph.
     pub fn graph(&self) -> &daggy::Dag<NodeType<T>, EdgeType> {
         &self.graph
+    }
+
+    pub fn print_dot(&self) {
+        use std::println as info;
+        info!("{}", dot::Dot::new(&self.graph));
     }
 
     /// Adds a source. Panics if the `handle` exists in the `Dag`.
