@@ -73,7 +73,7 @@ pub fn get_aggregator_from_aggregation_expression(
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Count,
             args: _,
-        } => Ok((Expression::Literal(Field::Null), Aggregator::Count)),
+        } => Ok((Expression::Literal(Field::Int(0)), Aggregator::Count)),
         _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
     }
 }

@@ -191,17 +191,22 @@ impl ExpressionExecutor for Expression {
     fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError> {
         match self {
             Expression::Literal(field) => {
-                let r = get_field_type(field).ok_or_else(|| {
-                    PipelineError::InvalidExpression(
-                        "literal expression cannot be null".to_string(),
-                    )
-                })?;
-                Ok(ExpressionType::new(
-                    r,
-                    false,
-                    SourceDefinition::Dynamic,
-                    false,
-                ))
+                let field_type = get_field_type(field);
+                match field_type {
+                    Some(f) => {
+                        Ok(ExpressionType::new(
+                            f,
+                            false,
+                            SourceDefinition::Dynamic,
+                            false,
+                        ))
+                    },
+                    None => {
+                        Err(PipelineError::InvalidExpression(
+                            "literal expression cannot be null".to_string(),
+                        ))
+                    },
+                }
             }
             Expression::Column { index } => {
                 let t = schema.fields.get(*index).unwrap();
