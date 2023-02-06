@@ -163,10 +163,27 @@ impl SnowflakeConfig {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
-pub struct DataFusionConfig {}
+pub struct DataFusionConfig {
+    #[prost(string, tag = "1")]
+    pub access_key_id: String,
+    #[prost(string, tag = "2")]
+    pub secret_access_key: String,
+    #[prost(string, tag = "3")]
+    pub region: String,
+    #[prost(string, tag = "4")]
+    pub bucket_name: String,
+    #[prost(string, tag = "5")]
+    pub path: String,
+}
 
 impl DataFusionConfig {
     pub fn convert_to_table(&self) -> Table {
-        table!()
+        table!(
+            ["access_key_id", self.access_key_id],
+            ["secret_access_key", self.secret_access_key],
+            ["region", self.region],
+            ["bucket_name", self.bucket_name],
+            ["filepath", self.path]
+        )
     }
 }
