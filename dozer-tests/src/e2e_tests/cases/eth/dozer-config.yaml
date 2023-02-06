@@ -12,13 +12,13 @@ connections:
     name: eth_logs
 sql: |
   -- Eth stats table
-  select block_number, sum(id) from eth_logs 
-  into eth_stats
+  select block_number, sum(id) into eth_stats
+  from eth_logs
   group by block_number;
 
   -- Eth block stats
-  select block_number, id  from eth_logs 
-  into eth_block_stats
+  select block_number, id into eth_block_stats
+  from eth_logs
   group by block_number, id;
 
 sources:
