@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use dozer_core::dag::{
-    dag::DEFAULT_PORT_HANDLE,
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    DEFAULT_PORT_HANDLE,
 };
-use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
+use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
 
 use crate::pipeline::builder::SchemaSQLContext;
@@ -292,6 +292,10 @@ fn build_output_schema(
             }
         }
     }
+
+    // remove primary index as already defined in the sink
+    // the Planner will compute the primary index properly
+    output_schema.primary_index = vec![];
     Ok(output_schema)
 }
 
@@ -339,10 +343,13 @@ fn build_projection_schema(
             field_name,
             field_type.return_type,
             field_type.nullable,
-            SourceDefinition::Dynamic,
+            field_type.source,
         ));
     }
     output_schema.fields = fields;
 
+    // remove primary index as already defined in the sink
+    // the Planner will compute the primary index properly
+    output_schema.primary_index = vec![];
     Ok((output_schema, context.clone()))
 }

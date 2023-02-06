@@ -1,7 +1,7 @@
 use crate::dag::appsource::{AppSourceId, AppSourceManager};
-use crate::dag::dag::{Dag, Edge, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory};
+use crate::dag::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
 
 use std::sync::Arc;
 
@@ -117,15 +117,15 @@ impl<T: Clone> App<T> {
 
         for (pipeline_id, pipeline) in &self.pipelines {
             for (handle, proc) in &pipeline.processors {
-                dag.add_node(
-                    NodeType::Processor(proc.clone()),
+                dag.add_processor(
                     NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
+                    proc.clone(),
                 );
             }
             for (handle, sink) in &pipeline.sinks {
-                dag.add_node(
-                    NodeType::Sink(sink.clone()),
+                dag.add_sink(
                     NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
+                    sink.clone(),
                 );
             }
             for edge in &pipeline.edges {
@@ -158,10 +158,7 @@ impl<T: Clone> App<T> {
 
         for mapping in &mappings {
             let node_handle = NodeHandle::new(None, mapping.source.connection.clone());
-            dag.add_node(
-                NodeType::Source(mapping.source.source.clone()),
-                node_handle.clone(),
-            );
+            dag.add_source(node_handle.clone(), mapping.source.source.clone());
             for entry in &entry_points {
                 if let Some(e) = mapping.mappings.get(&entry.0) {
                     dag.connect(Endpoint::new(node_handle.clone(), *e), entry.1.clone())?;

@@ -10,12 +10,19 @@
                             {
                                 "name": "block_number",
                                 "typ": "UInt",
-                                "nullable": true
+                                "nullable": true,
+                                "source": {
+                                    "Table": {
+                                        "connection": "eth_logs",
+                                        "name": "name"
+                                    }
+                                }
                             },
                             {
                                 "name": "sum(id)",
-                                "typ": "Int",
-                                "nullable": false
+                                "typ": "UInt",
+                                "nullable": false,
+                                "source": "Dynamic"
                             }
                         ]
                     }
@@ -33,12 +40,14 @@
                             {
                                 "name": "block_number",
                                 "typ": "UInt",
-                                "nullable": true
+                                "nullable": true,
+                                "source": "Dynamic"
                             },
                             {
                                 "name": "id",
-                                "typ": "Int",
-                                "nullable": false
+                                "typ": "UInt",
+                                "nullable": false,
+                                "source": "Dynamic"
                             }
                         ]
                     }

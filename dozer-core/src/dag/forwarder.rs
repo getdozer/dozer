@@ -36,19 +36,16 @@ impl StateWriter {
     ) -> Result<Self, ExecutionError> {
         let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
         for (port, options) in dbs {
-            let schema = output_schemas
-                .get(&port)
-                .ok_or(ExecutionError::InvalidPortHandle(port))?
-                .clone();
-
-            let writer = RecordWriterUtils::create_writer(
-                options.typ,
-                options.db,
-                options.meta_db,
-                schema,
-                retention_queue_size,
-            )?;
-            record_writers.insert(port, writer);
+            if let Some(schema) = output_schemas.get(&port) {
+                let writer = RecordWriterUtils::create_writer(
+                    options.typ,
+                    options.db,
+                    options.meta_db,
+                    schema.clone(),
+                    retention_queue_size,
+                )?;
+                record_writers.insert(port, writer);
+            }
         }
 
         Ok(Self {
@@ -72,7 +69,6 @@ impl StateWriter {
             self.meta_db,
             &mut epoch_details
                 .details
-                .0
                 .iter()
                 .map(|(source, op_id)| (source, *op_id)),
         )?;
@@ -185,6 +181,7 @@ impl SourceChannelManager {
     ) -> Self {
         Self {
             manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
+            // FIXME: Read curr_txid and curr_seq_in_tx from persisted state.
             curr_txid: 0,
             curr_seq_in_tx: 0,
             source_handle: owner,
@@ -206,23 +203,19 @@ impl SourceChannelManager {
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         if request_termination || self.should_commit() {
-            let op_in_this_epoch = if self.num_uncommited_ops > 0 {
-                Some((self.curr_txid, self.curr_seq_in_tx))
-            } else {
-                None
-            };
-
-            let (terminating, epoch) = self.epoch_manager.wait_for_epoch_close(
-                self.source_handle.clone(),
-                op_in_this_epoch,
-                request_termination,
-            );
-            if let Some(epoch) = epoch {
-                self.manager
-                    .store_and_send_commit(&Epoch::new(epoch.id, epoch.details))?;
+            let (terminating, epoch, decision_instant) = self
+                .epoch_manager
+                .wait_for_epoch_close(request_termination, self.num_uncommited_ops > 0);
+            if let Some(epoch_id) = epoch {
+                self.manager.store_and_send_commit(&Epoch::from(
+                    epoch_id,
+                    self.source_handle.clone(),
+                    self.curr_txid,
+                    self.curr_seq_in_tx,
+                ))?;
             }
             self.num_uncommited_ops = 0;
-            self.last_commit_instant = Instant::now();
+            self.last_commit_instant = decision_instant;
             Ok(terminating)
         } else {
             Ok(false)

@@ -18,13 +18,13 @@ use dozer_types::{
 
 use crate::dag::{
     channels::SourceChannelForwarder,
-    dag::Edge,
     epoch::{EpochManager, OpIdentifier},
     errors::ExecutionError::{self, InternalError},
     executor_utils::{create_ports_databases_and_fill_downstream_record_readers, init_component},
     forwarder::{SourceChannelManager, StateWriter},
     node::{NodeHandle, OutputPortDef, PortHandle, Source, SourceFactory},
     record_store::RecordReader,
+    Edge,
 };
 
 use super::{node::Node, ExecutorOperation};

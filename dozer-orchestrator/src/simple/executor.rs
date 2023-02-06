@@ -12,8 +12,8 @@ use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings, StreamingSinkFactory};
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table, TableInfo};
 
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -161,7 +161,7 @@ impl Executor {
         &self,
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
-    ) -> Result<dozer_core::dag::dag::Dag<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<dozer_core::dag::Dag<SchemaSQLContext>, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
         let (mut pipeline, (query_name, query_port)) =
@@ -210,7 +210,7 @@ impl Executor {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
         settings: CacheSinkSettings,
-    ) -> Result<dozer_core::dag::dag::Dag<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<dozer_core::dag::Dag<SchemaSQLContext>, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
         Self::validate_grouped_connections(&grouped_connections)?;

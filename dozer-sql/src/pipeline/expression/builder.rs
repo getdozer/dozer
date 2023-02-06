@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -39,19 +37,6 @@ pub enum BuilderExpressionType {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct NameOrAlias(pub String, pub Option<String>);
 
-pub enum ConstraintIdentifier {
-    Single(Ident),
-    Compound(Vec<Ident>),
-}
-
-impl Display for ConstraintIdentifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConstraintIdentifier::Single(ident) => f.write_fmt(format_args!("{ident}")),
-            ConstraintIdentifier::Compound(ident) => f.write_fmt(format_args!("{ident:?}")),
-        }
-    }
-}
 pub struct ExpressionBuilder;
 
 impl ExpressionBuilder {

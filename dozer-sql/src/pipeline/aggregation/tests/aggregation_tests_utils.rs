@@ -1,7 +1,7 @@
 use dozer_core::{
     dag::{
-        dag::DEFAULT_PORT_HANDLE,
         node::{PortHandle, Processor},
+        DEFAULT_PORT_HANDLE,
     },
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
 };

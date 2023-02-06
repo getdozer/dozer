@@ -286,8 +286,6 @@ impl Source for DualPortGeneratorSource {
     }
 }
 
-pub(crate) const NOPK_GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
-
 #[derive(Debug)]
 pub(crate) struct NoPkGeneratorSourceFactory {
     count: u64,

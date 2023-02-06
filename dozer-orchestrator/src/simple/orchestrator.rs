@@ -19,7 +19,7 @@ use dozer_api::{
 };
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
-use dozer_core::dag::dag_schemas::DagSchemaManager;
+use dozer_core::dag::dag_schemas::DagSchemas;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
@@ -272,10 +272,10 @@ impl Orchestrator for SimpleOrchestrator {
         );
 
         let dag = executor.query(sql, sender)?;
-        let schema_manager = DagSchemaManager::new(&dag)?;
-        let streaming_sink_handle = dag.get_sinks().get(0).expect("Sink is expected").clone().0;
-        let (schema, _ctx) = schema_manager
-            .get_node_input_schemas(&streaming_sink_handle)?
+        let dag_schemas = DagSchemas::new(&dag)?;
+        let streaming_sink_index = dag.sink_identifiers().next().expect("Sink is expected");
+        let (schema, _ctx) = dag_schemas
+            .get_node_input_schemas(streaming_sink_index)
             .values()
             .next()
             .expect("schema is expected")
@@ -347,9 +347,9 @@ impl Orchestrator for SimpleOrchestrator {
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
         let dag = executor.build_pipeline(None, generated_path.clone(), settings)?;
-        let schema_manager = DagSchemaManager::new(&dag)?;
+        let dag_schemas = DagSchemas::new(&dag)?;
         // Every sink will initialize its schema in sink and also in a proto file.
-        schema_manager.prepare()?;
+        dag_schemas.prepare()?;
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {

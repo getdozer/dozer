@@ -180,13 +180,6 @@ impl CacheSinkFactory {
 }
 
 impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -439,9 +432,8 @@ mod tests {
     use crate::test_utils;
     use dozer_cache::cache::{index, Cache};
 
-    use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-    use dozer_core::dag::epoch::{OpIdentifier, PipelineCheckpoint};
     use dozer_core::dag::node::{NodeHandle, Sink};
+    use dozer_core::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
@@ -505,16 +497,11 @@ mod tests {
         sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn, &HashMap::new())
             .unwrap();
         sink.commit(
-            &dozer_core::dag::epoch::Epoch::new(
+            &dozer_core::dag::epoch::Epoch::from(
                 0,
-                PipelineCheckpoint(
-                    [(
-                        NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
-                        None,
-                    )]
-                    .into_iter()
-                    .collect(),
-                ),
+                NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+                0,
+                0,
             ),
             &txn,
         )
@@ -527,16 +514,11 @@ mod tests {
 
         sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn, &HashMap::new())
             .unwrap();
-        let epoch1 = dozer_core::dag::epoch::Epoch::new(
+        let epoch1 = dozer_core::dag::epoch::Epoch::from(
             0,
-            PipelineCheckpoint(
-                [(
-                    NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
-                    Some(OpIdentifier::new(0_u64, 1_u64)),
-                )]
-                .into_iter()
-                .collect(),
-            ),
+            NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+            0,
+            1,
         );
         sink.commit(&epoch1, &txn).unwrap();
 

@@ -10,10 +10,6 @@ env:
   ECR_REGISTRY: public.ecr.aws/k7k6x1d4
   ECR_REPOSITORY: dozer
 
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: write # This is required for actions/checkout
@@ -157,13 +153,16 @@ jobs:
           aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
 
       - name: Build, tag, and push image to Amazon ECR
+        id: build_push_ecr
         if: matrix.os == 'ubuntu-20.04'
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
+          SHORT_GITHUB_SHA=$(echo ${GITHUB_SHA} | cut -c1-8)
+          echo "SHORT_GITHUB_SHA=$SHORT_GITHUB_SHA" >> $GITHUB_OUTPUT
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_GITHUB_SHA .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
 
       - name: Update latest image if releasing
         if: (!needs.prepare.outputs.prerelease) && (matrix.os == 'ubuntu-20.04')
@@ -182,4 +181,4 @@ jobs:
         run: |
           curl -X POST "https://api.buildkite.com/v2/organizations/dozer-data-pte-ltd/pipelines/integration-tests/builds" \
             --header 'Authorization: Bearer ${{ secrets.BUILDKITE_API_ACCESS_TOKEN_WRITE_BUILDS }}' \
-            -d '{ "commit": "HEAD", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ env.VERSION }}" }, "ignore_pipeline_branch_filters": true }'
+            -d '{ "commit": "${{ github.sha }}", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ steps.build_push_ecr.outputs.SHORT_GITHUB_SHA }}" }, "ignore_pipeline_branch_filters": true }'

@@ -25,7 +25,7 @@
 <br>
 
 ## Quick Start
-Refer to our [getting started](https://getdozer.io/docs/category/getting-started) and [examples section](https://getdozer.io/docs/category/getting-started) for more details.
+Refer to our [getting started](https://getdozer.io/docs/category/getting-started) and [examples section](https://getdozer.io/docs/category/what-can-you-build-with-dozer) for more details.
 #### 1) End-to-end hypercharge postgres example
 ```bash
 docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up

@@ -1,7 +1,6 @@
 use crate::chk;
 use crate::dag::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::dag::appsource::{AppSource, AppSourceId, AppSourceManager};
-use crate::dag::dag::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{NodeHandle, OutputPortDef, PortHandle, Source, SourceFactory};
@@ -14,6 +13,7 @@ use crate::dag::tests::sources::{
     DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1, DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
+use crate::dag::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::types::Schema;
 
 use std::collections::HashMap;
@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use tempdir::TempDir;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct NoneContext {}
 
 #[derive(Debug)]
@@ -287,7 +287,7 @@ fn test_app_dag() {
 
     let dag = app.get_dag().unwrap();
 
-    assert!(dag.edges.iter().any(|e| *e
+    assert!(dag.edge_handles().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, "postgres".to_string()),
@@ -299,7 +299,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edges.iter().any(|e| *e
+    assert!(dag.edge_handles().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, "postgres".to_string()),
@@ -311,7 +311,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edges.iter().any(|e| *e
+    assert!(dag.edge_handles().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, "snowflake".to_string()),
@@ -323,7 +323,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edges.iter().any(|e| *e
+    assert!(dag.edge_handles().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, "postgres".to_string()),
@@ -335,7 +335,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edges.iter().any(|e| *e
+    assert!(dag.edge_handles().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(Some(1), "join".to_string()),
@@ -347,7 +347,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert!(dag.edges.iter().any(|e| *e
+    assert!(dag.edge_handles().any(|e| *e
         == Edge::new(
             Endpoint::new(
                 NodeHandle::new(Some(2), "join".to_string()),
@@ -359,7 +359,7 @@ fn test_app_dag() {
             )
         )));
 
-    assert_eq!(dag.edges.len(), 6);
+    assert_eq!(dag.edge_handles().count(), 6);
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(

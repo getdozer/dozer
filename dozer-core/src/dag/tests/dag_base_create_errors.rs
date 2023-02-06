@@ -1,12 +1,12 @@
 use crate::chk;
 
-use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source,
     SourceFactory,
 };
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -93,17 +93,14 @@ fn test_create_src_err() {
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(CreateErrSourceFactory::new(false))),
+    dag.add_source(
         source_handle.clone(),
+        Arc::new(CreateErrSourceFactory::new(false)),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(NoopProcessorFactory {})),
-        proc_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch))),
+    dag.add_processor(proc_handle.clone(), Arc::new(NoopProcessorFactory {}));
+    dag.add_sink(
         sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
     chk!(dag.connect(
@@ -140,17 +137,14 @@ fn test_create_src_panic() {
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(CreateErrSourceFactory::new(true))),
+    dag.add_source(
         source_handle.clone(),
+        Arc::new(CreateErrSourceFactory::new(true)),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(NoopProcessorFactory {})),
-        proc_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch))),
+    dag.add_processor(proc_handle.clone(), Arc::new(NoopProcessorFactory {}));
+    dag.add_sink(
         sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
     chk!(dag.connect(
@@ -254,21 +248,17 @@ fn test_create_proc_err() {
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            count,
-            latch.clone(),
-            false,
-        ))),
+    dag.add_source(
         source_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(CreateErrProcessorFactory::new(false))),
+    dag.add_processor(
         proc_handle.clone(),
+        Arc::new(CreateErrProcessorFactory::new(false)),
     );
-    dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch))),
+    dag.add_sink(
         sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
     chk!(dag.connect(
@@ -305,21 +295,17 @@ fn test_create_proc_panic() {
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            count,
-            latch.clone(),
-            false,
-        ))),
+    dag.add_source(
         source_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(CreateErrProcessorFactory::new(true))),
+    dag.add_processor(
         proc_handle.clone(),
+        Arc::new(CreateErrProcessorFactory::new(true)),
     );
-    dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch))),
+    dag.add_sink(
         sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
     chk!(dag.connect(

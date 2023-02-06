@@ -9,10 +9,16 @@ use dozer_types::thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ExecutionError {
+    #[error("Adding this edge would have created a cycle")]
+    WouldCycle,
     #[error("Invalid port handle: {0}")]
     InvalidPortHandle(PortHandle),
     #[error("Invalid node handle: {0}")]
     InvalidNodeHandle(NodeHandle),
+    #[error("Missing input for node {node} on port {port}")]
+    MissingInput { node: NodeHandle, port: PortHandle },
+    #[error("Duplicate input for node {node} on port {port}")]
+    DuplicateInput { node: NodeHandle, port: PortHandle },
     #[error("Invalid operation: {0}")]
     InvalidOperation(String),
     #[error("Schema not initialized")]
@@ -21,8 +27,6 @@ pub enum ExecutionError {
     MissingNodeInput(NodeHandle),
     #[error("The node {0} does not have any output")]
     MissingNodeOutput(NodeHandle),
-    #[error("The node type is invalid")]
-    InvalidNodeType,
     #[error("The database is invalid")]
     InvalidDatabase,
     #[error("Field not found at position {0}")]
@@ -33,8 +37,6 @@ pub enum ExecutionError {
     ReplicationTypeNotFound,
     #[error("Record not found")]
     RecordNotFound(),
-    #[error("Invalid checkpoint state for node: {0}")]
-    InvalidCheckpointState(NodeHandle),
     #[error("Already exists: {0}")]
     MetadataAlreadyExists(NodeHandle),
     #[error("Incompatible schemas")]
@@ -99,6 +101,12 @@ pub enum ExecutionError {
 
     #[error(transparent)]
     SourceError(SourceError),
+}
+
+impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
+    fn from(_: daggy::WouldCycle<T>) -> Self {
+        ExecutionError::WouldCycle
+    }
 }
 
 #[derive(Error, Debug)]

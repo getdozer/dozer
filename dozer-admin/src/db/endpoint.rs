@@ -84,6 +84,7 @@ impl TryFrom<DbEndpoint> for dozer_types::models::api_endpoint::ApiEndpoint {
             name: input.name,
             path: input.path,
             sql: Some(input.sql),
+            source: None,
             index: Some(ApiIndex {
                 primary_key: primary_keys_arr,
             }),

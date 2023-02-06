@@ -1,13 +1,12 @@
 use crate::dag::node::NodeHandle;
 use dozer_types::parking_lot::Mutex;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Barrier};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct OpIdentifier {
     pub txid: u64,
     pub seq_in_tx: u64,
@@ -19,81 +18,25 @@ impl OpIdentifier {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct PipelineCheckpoint(pub HashMap<NodeHandle, Option<OpIdentifier>>);
-
-impl PartialEq for PipelineCheckpoint {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
-    }
-}
-
-impl Eq for PipelineCheckpoint {}
-
-impl PartialOrd for PipelineCheckpoint {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for PipelineCheckpoint {
-    fn cmp(&self, other: &Self) -> Ordering {
-        if self.0.len() != other.0.len() {
-            panic!("Cannot compare two checkpoints with different number of sources");
-        }
-
-        let mut result = Ordering::Equal;
-        for (key, value) in &self.0 {
-            match value.cmp(
-                other
-                    .0
-                    .get(key)
-                    .expect("Cannot compare two checkpoints with different sources"),
-            ) {
-                Ordering::Equal => {}
-                Ordering::Less => {
-                    if result == Ordering::Greater {
-                        panic!("Cannot compare two checkpoints with inconsistent source ordering");
-                    }
-                    result = Ordering::Less;
-                }
-                Ordering::Greater => {
-                    if result == Ordering::Less {
-                        panic!("Cannot compare two checkpoints with inconsistent source ordering");
-                    }
-                    result = Ordering::Greater;
-                }
-            }
-        }
-        result
-    }
-}
-
-impl PipelineCheckpoint {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
+pub type SourceStates = HashMap<NodeHandle, OpIdentifier>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Epoch {
     pub id: u64,
-    pub details: PipelineCheckpoint,
+    pub details: SourceStates,
 }
 
 impl Epoch {
-    pub fn new(id: u64, details: PipelineCheckpoint) -> Self {
+    pub fn new(id: u64, details: SourceStates) -> Self {
         Self { id, details }
     }
 
     pub fn from(id: u64, node_handle: NodeHandle, txid: u64, seq_in_tx: u64) -> Self {
         Self {
             id,
-            details: PipelineCheckpoint(
-                [(node_handle, Some(OpIdentifier::new(txid, seq_in_tx)))]
-                    .into_iter()
-                    .collect(),
-            ),
+            details: [(node_handle, OpIdentifier::new(txid, seq_in_tx))]
+                .into_iter()
+                .collect(),
         }
     }
 }
@@ -102,15 +45,8 @@ impl Display for Epoch {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let details_str = self
             .details
-            .0
             .iter()
-            .map(|e| {
-                if let Some(op_id) = e.1 {
-                    format!("{} -> {}:{}", e.0, op_id.txid, op_id.seq_in_tx)
-                } else {
-                    format!("{} -> None", e.0)
-                }
-            })
+            .map(|e| format!("{} -> {}:{}", e.0, e.1.txid, e.1.seq_in_tx))
             .fold(String::new(), |a, b| a + ", " + b.as_str());
         f.write_str(format!("epoch: {}, details: {}", self.id, details_str).as_str())
     }
@@ -119,77 +55,75 @@ impl Display for Epoch {
 #[derive(Debug)]
 enum EpochManagerState {
     Closing {
-        /// Last epoch, if any.
-        last_epoch: Option<Epoch>,
-        /// Current epoch. Details of this epoch get inserted as participants wait for the epoch to close.
-        epoch: Epoch,
-        /// Whether we should tell the participants to terminate when this epoch closes.
+        /// Current epoch id.
+        epoch_id: u64,
+        /// Whether we should tell the sources to terminate when this epoch closes.
         should_terminate: bool,
-        /// Participants wait on this barrier to synchronize an epoch close.
+        /// Whether we should tell the sources to commit when this epoch closes.
+        should_commit: bool,
+        /// Sources wait on this barrier to synchronize an epoch close.
         barrier: Arc<Barrier>,
     },
     Closed {
-        /// Whether participants should terminate.
+        /// Whether sources should terminate.
         terminating: bool,
-        /// Whether participants should commit.
+        /// Whether sources should commit.
         committing: bool,
-        /// Up-to-date details of all participants. Participants will commit with details from this epoch if they're committing.
-        epoch: Epoch,
-        /// Number of participants that have confirmed the epoch close.
-        num_participant_confirmations: usize,
+        /// Closed epoch id.
+        epoch_id: u64,
+        /// Instant when the epoch was closed.
+        instant: Instant,
+        /// Number of sources that have confirmed the epoch close.
+        num_source_confirmations: usize,
     },
 }
 
 #[derive(Debug)]
 pub(crate) struct EpochManager {
-    num_participants: usize,
+    num_sources: usize,
     state: Mutex<EpochManagerState>,
 }
 
 impl EpochManager {
-    pub fn new(num_participants: usize) -> Self {
+    pub fn new(num_sources: usize) -> Self {
+        debug_assert!(num_sources > 0);
         Self {
-            num_participants,
+            num_sources,
             state: Mutex::new(EpochManagerState::Closing {
-                last_epoch: None,
-                epoch: Epoch::new(0, PipelineCheckpoint::default()),
+                epoch_id: 0,
                 should_terminate: true,
-                barrier: Arc::new(Barrier::new(num_participants)),
+                should_commit: false,
+                barrier: Arc::new(Barrier::new(num_sources)),
             }),
         }
     }
 
-    /// Waits for the epoch to close until all participants do so.
+    /// Waits for the epoch to close until all sources do so.
     ///
-    /// Returns whether the participant should terminate and the epoch details if the participant should commit.
+    /// Returns whether the participant should terminate, the epoch id if the source should commit, and the instant when the decision was made.
     ///
     /// # Arguments
     ///
-    /// - `participant`: The participant identifier.
-    /// - `txn_id_and_seq_number`: The transaction ID and sequence number of the last operation processed by the participant in this epoch.
-    /// - `request_termination`: Whether the participant wants to terminate. The `EpochManager` checks if all participants want to terminate and returns `true` if so.
+    /// - `request_termination`: Whether the source wants to terminate. The `EpochManager` checks if all sources want to terminate and returns `true` if so.
+    /// - `request_commit`: Whether the source wants to commit. The `EpochManager` checks if any source wants to commit and returns `Some` if so.
     pub fn wait_for_epoch_close(
         &self,
-        participant: NodeHandle,
-        txn_id_and_seq_number: Option<(u64, u64)>,
         request_termination: bool,
-    ) -> (bool, Option<Epoch>) {
+        request_commit: bool,
+    ) -> (bool, Option<u64>, Instant) {
         let barrier = loop {
             let mut state = self.state.lock();
             match &mut *state {
                 EpochManagerState::Closing {
-                    epoch,
                     should_terminate,
+                    should_commit,
                     barrier,
                     ..
                 } => {
-                    epoch.details.0.insert(
-                        participant,
-                        txn_id_and_seq_number
-                            .map(|(txid, seq_in_tx)| OpIdentifier::new(txid, seq_in_tx)),
-                    );
                     // If anyone doesn't want to terminate, we don't terminate.
                     *should_terminate = *should_terminate && request_termination;
+                    // If anyone wants to commit, we commit.
+                    *should_commit = *should_commit || request_commit;
                     break barrier.clone();
                 }
                 EpochManagerState::Closed { .. } => {
@@ -205,43 +139,18 @@ impl EpochManager {
 
         let mut state = self.state.lock();
         if let EpochManagerState::Closing {
-            last_epoch,
-            epoch,
+            epoch_id,
             should_terminate,
+            should_commit,
             ..
         } = &mut *state
         {
-            // This thread is the first one in this critical area.
-            debug_assert!(epoch.details.0.len() == self.num_participants);
-
-            let terminating = *should_terminate;
-
-            let committing = epoch.details.0.values().any(|value| value.is_some());
-
-            let mut up_to_date_details = HashMap::new();
-            for (key, mut value) in epoch.details.0.drain() {
-                if value.is_none() {
-                    // This participant doesn't have new op in this epoch.
-                    if let Some(last_epoch) = last_epoch.as_mut() {
-                        // Copy the last epoch's details.
-                        value = last_epoch
-                            .details
-                            .0
-                            .remove(&key)
-                            .expect("All epoch should contain all participant details");
-                    }
-                }
-                up_to_date_details.insert(key, value);
-            }
-
             *state = EpochManagerState::Closed {
-                terminating,
-                committing,
-                epoch: Epoch {
-                    id: epoch.id,
-                    details: PipelineCheckpoint(up_to_date_details),
-                },
-                num_participant_confirmations: 0,
+                terminating: *should_terminate,
+                committing: *should_commit,
+                epoch_id: *epoch_id,
+                instant: Instant::now(),
+                num_source_confirmations: 0,
             };
         }
 
@@ -249,31 +158,35 @@ impl EpochManager {
             EpochManagerState::Closed {
                 terminating,
                 committing,
-                epoch,
-                num_participant_confirmations,
+                epoch_id,
+                instant,
+                num_source_confirmations,
             } => {
-                let result = if *committing {
-                    (*terminating, Some(epoch.clone()))
-                } else {
-                    (*terminating, None)
-                };
+                let result = (
+                    *terminating,
+                    if *committing { Some(*epoch_id) } else { None },
+                    *instant,
+                );
 
-                *num_participant_confirmations += 1;
-                if *num_participant_confirmations == self.num_participants {
+                *num_source_confirmations += 1;
+                if *num_source_confirmations == self.num_sources {
                     // This thread is the last one in this critical area.
-                    let next_epoch_id = if *committing { epoch.id + 1 } else { epoch.id };
                     *state = EpochManagerState::Closing {
-                        last_epoch: Some(epoch.clone()),
-                        epoch: Epoch::new(next_epoch_id, Default::default()),
+                        epoch_id: if *committing {
+                            *epoch_id + 1
+                        } else {
+                            *epoch_id
+                        },
                         should_terminate: true,
-                        barrier: Arc::new(Barrier::new(self.num_participants)),
+                        should_commit: false,
+                        barrier: Arc::new(Barrier::new(self.num_sources)),
                     };
                 }
 
                 result
             }
             EpochManagerState::Closing { .. } => {
-                unreachable!("We just modified `EpochManagerstate` to `Closed`")
+                unreachable!("We just modified `EpochManagerState` to `Closed`")
             }
         }
     }
@@ -285,93 +198,20 @@ mod tests {
 
     use super::*;
 
-    fn new_node_handle(index: u16) -> NodeHandle {
-        NodeHandle::new(Some(index), format!("node{index}"))
-    }
-
-    fn new_checkpoint(node_checkpoints: Vec<(u16, Option<u64>)>) -> PipelineCheckpoint {
-        let mut checkpoint = PipelineCheckpoint::default();
-        for (node, seq) in node_checkpoints {
-            checkpoint.0.insert(
-                new_node_handle(node),
-                seq.map(|seq| OpIdentifier::new(0, seq)),
-            );
-        }
-        checkpoint
-    }
-
-    #[test]
-    fn test_pipeline_checkpoint_ord() {
-        assert_eq!(new_checkpoint(vec![]), new_checkpoint(vec![]));
-        assert_eq!(
-            new_checkpoint(vec![(1, Some(1))]),
-            new_checkpoint(vec![(1, Some(1))])
-        );
-        assert!(new_checkpoint(vec![(1, None)]) < new_checkpoint(vec![(1, Some(0))]));
-        assert!(new_checkpoint(vec![(1, Some(0))]) > new_checkpoint(vec![(1, None)]));
-        assert_eq!(
-            new_checkpoint(vec![(1, Some(1)), (2, Some(2))]),
-            new_checkpoint(vec![(1, Some(1)), (2, Some(2))])
-        );
-        assert!(
-            new_checkpoint(vec![(1, Some(1)), (2, Some(2))])
-                < new_checkpoint(vec![(1, Some(1)), (2, Some(3))])
-        );
-        assert!(
-            new_checkpoint(vec![(1, Some(1)), (2, Some(2))])
-                > new_checkpoint(vec![(1, Some(1)), (2, Some(1))])
-        );
-    }
-
-    #[test]
-    #[should_panic]
-    fn compare_pipeline_checkpoint_with_different_number_of_nodes_should_panic() {
-        let checkpoint1 = new_checkpoint(vec![(1, Some(1)), (2, Some(2))]);
-        let checkpoint2 = new_checkpoint(vec![(1, Some(1))]);
-        let _ = checkpoint1.cmp(&checkpoint2);
-    }
-
-    #[test]
-    #[should_panic]
-    fn compare_pipeline_checkpoint_with_different_nodes_should_panic() {
-        let checkpoint1 = new_checkpoint(vec![(1, Some(1))]);
-        let checkpoint2 = new_checkpoint(vec![(2, Some(1))]);
-        let _ = checkpoint1.cmp(&checkpoint2);
-    }
-
-    #[test]
-    #[should_panic]
-    fn compare_pipeline_checkpoint_with_undefined_order_should_panic_1() {
-        let checkpoint1 = new_checkpoint(vec![(1, Some(1)), (2, None)]);
-        let checkpoint2 = new_checkpoint(vec![(1, None), (2, Some(1))]);
-        let _ = checkpoint1.cmp(&checkpoint2);
-    }
-
-    #[test]
-    #[should_panic]
-    fn compare_pipeline_checkpoint_with_undefined_order_should_panic_2() {
-        let checkpoint1 = new_checkpoint(vec![(1, Some(1)), (2, None)]);
-        let checkpoint2 = new_checkpoint(vec![(1, None), (2, Some(1))]);
-        let _ = checkpoint2.cmp(&checkpoint1);
-    }
-
     const NUM_THREADS: u16 = 10;
 
     fn run_epoch_manager(
-        op_id_gen: &(impl Fn(u16) -> Option<(u64, u64)> + Sync),
         termination_gen: &(impl Fn(u16) -> bool + Sync),
-    ) -> (bool, Option<Epoch>) {
+        commit_gen: &(impl Fn(u16) -> bool + Sync),
+    ) -> (bool, Option<u64>, Instant) {
         let epoch_manager = EpochManager::new(NUM_THREADS as usize);
         let epoch_manager = &epoch_manager;
         scope(|scope| {
             let handles = (0..NUM_THREADS)
                 .map(|index| {
                     scope.spawn(move || {
-                        epoch_manager.wait_for_epoch_close(
-                            new_node_handle(index),
-                            op_id_gen(index),
-                            termination_gen(index),
-                        )
+                        epoch_manager
+                            .wait_for_epoch_close(termination_gen(index), commit_gen(index))
                     })
                 })
                 .collect::<Vec<_>>();
@@ -389,26 +229,19 @@ mod tests {
     #[test]
     fn test_epoch_manager() {
         // All sources have no new data, epoch should not be closed.
-        let (_, epoch) = run_epoch_manager(&|_| None, &|_| false);
+        let (_, epoch, _) = run_epoch_manager(&|_| false, &|_| false);
         assert!(epoch.is_none());
 
         // One source has new data, epoch should be closed.
-        let (_, epoch) = run_epoch_manager(
-            &|index| if index == 0 { Some((0, 0)) } else { None },
-            &|_| false,
-        );
-        let epoch = epoch.unwrap();
-        assert_eq!(
-            epoch.details.0.get(&new_node_handle(0)).unwrap().unwrap(),
-            OpIdentifier::new(0, 0)
-        );
+        let (_, epoch, _) = run_epoch_manager(&|_| false, &|index| index == 0);
+        assert_eq!(epoch.unwrap(), 0);
 
         // All but one source requests termination, should not terminate.
-        let (terminating, _) = run_epoch_manager(&|_| None, &|index| index != 0);
+        let (terminating, _, _) = run_epoch_manager(&|index| index != 0, &|_| false);
         assert!(!terminating);
 
         // All sources requests termination, should terminate.
-        let (terminating, _) = run_epoch_manager(&|_| None, &|_| true);
+        let (terminating, _, _) = run_epoch_manager(&|_| true, &|_| false);
         assert!(terminating);
     }
 }

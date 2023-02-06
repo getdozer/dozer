@@ -1,10 +1,10 @@
 use dozer_core::{
     dag::{
-        dag::DEFAULT_PORT_HANDLE,
         epoch::Epoch,
         errors::ExecutionError,
         node::{PortHandle, Sink, SinkFactory},
         record_store::RecordReader,
+        DEFAULT_PORT_HANDLE,
     },
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
 };
@@ -30,13 +30,6 @@ impl StreamingSinkFactory {
 impl SinkFactory<SchemaSQLContext> for StreamingSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
-    }
-
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 
     fn build(

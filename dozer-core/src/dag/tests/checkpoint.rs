@@ -1,5 +1,4 @@
 use crate::chk;
-use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
 use crate::dag::epoch::OpIdentifier;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
@@ -7,6 +6,7 @@ use crate::dag::node::NodeHandle;
 use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
 use std::collections::HashMap;
@@ -34,32 +34,29 @@ fn test_checkpoint_consistency() {
     let proc_handle = NodeHandle::new(Some(1), PROC_HANDLE_ID.to_string());
     let sink_handle = NodeHandle::new(Some(1), SINK_HANDLE_ID.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+    dag.add_source(
+        source1_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(
             SRC1_MSG_COUNT,
             latch.clone(),
             true,
-        ))),
-        source1_handle.clone(),
+        )),
     );
-    dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+    dag.add_source(
+        source2_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(
             SRC2_MSG_COUNT,
             latch.clone(),
             true,
-        ))),
-        source2_handle.clone(),
+        )),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
-        proc_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(
+    dag.add_processor(proc_handle.clone(), Arc::new(NoopJoinProcessorFactory {}));
+    dag.add_sink(
+        sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(
             SRC1_MSG_COUNT + SRC2_MSG_COUNT,
             latch,
-        ))),
-        sink_handle.clone(),
+        )),
     );
 
     chk!(dag.connect(
@@ -143,29 +140,18 @@ fn test_checkpoint_consistency_resume() {
     let proc_handle = NodeHandle::new(Some(1), 3.to_string());
     let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            25_000,
-            latch.clone(),
-            true,
-        ))),
+    dag.add_source(
         source1_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(25_000, latch.clone(), true)),
     );
-    dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            50_000,
-            latch.clone(),
-            true,
-        ))),
+    dag.add_source(
         source2_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(50_000, latch.clone(), true)),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
-        proc_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch))),
+    dag.add_processor(proc_handle.clone(), Arc::new(NoopJoinProcessorFactory {}));
+    dag.add_sink(
         sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch)),
     );
 
     chk!(dag.connect(
@@ -215,29 +201,18 @@ fn test_checkpoint_consistency_resume() {
     let proc_handle = NodeHandle::new(Some(1), 3.to_string());
     let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            25_000,
-            latch.clone(),
-            true,
-        ))),
+    dag.add_source(
         source1_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(25_000, latch.clone(), true)),
     );
-    dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            50_000,
-            latch.clone(),
-            true,
-        ))),
+    dag.add_source(
         source2_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(50_000, latch.clone(), true)),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
-        proc_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch))),
+    dag.add_processor(proc_handle.clone(), Arc::new(NoopJoinProcessorFactory {}));
+    dag.add_sink(
         sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch)),
     );
 
     chk!(dag.connect(

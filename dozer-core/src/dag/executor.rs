@@ -1,17 +1,13 @@
 #![allow(clippy::type_complexity)]
 
-use crate::dag::dag::Dag;
 use crate::dag::dag_metadata::{Consistency, DagMetadata, DagMetadataManager};
-use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
+use crate::dag::dag_schemas::{DagSchemas, NodeSchemas};
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{
-    IncompatibleSchemas, InconsistentCheckpointMetadata, InvalidNodeHandle,
-};
+use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InconsistentCheckpointMetadata};
 use crate::dag::executor_utils::index_edges;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::Database;
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
+use crate::dag::Dag;
 
 use crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
@@ -20,7 +16,7 @@ use dozer_types::types::{Operation, Record, Schema};
 use crate::dag::epoch::{Epoch, EpochManager};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::panic::panic_any;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -84,17 +80,6 @@ impl Display for ExecutorOperation {
     }
 }
 
-pub(crate) struct StorageMetadata {
-    pub env: LmdbEnvironmentManager,
-    pub meta_db: Database,
-}
-
-impl StorageMetadata {
-    pub fn new(env: LmdbEnvironmentManager, meta_db: Database) -> Self {
-        Self { env, meta_db }
-    }
-}
-
 mod name;
 mod node;
 mod processor_node;
@@ -121,7 +106,7 @@ pub struct DagExecutor<'a, T: Clone> {
     consistency_metadata: HashMap<NodeHandle, Option<OpIdentifier>>,
 }
 
-impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
+impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
     fn check_consistency(
         dag: &'a Dag<T>,
         path: &Path,
@@ -129,7 +114,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         let mut r = HashMap::new();
         let meta = DagMetadataManager::new(dag, path)?;
         let chk = meta.get_checkpoint_consistency();
-        for (handle, _factory) in &dag.get_sources() {
+        for (handle, _factory) in dag.sources() {
             match chk.get(handle) {
                 Some(Consistency::FullyConsistent(c)) => {
                     r.insert(handle.clone(), *c);
@@ -152,9 +137,8 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
             Ok(c) => c,
             Err(_) => {
                 DagMetadataManager::new(dag, path)?.delete_metadata();
-                dag.get_sources()
-                    .iter()
-                    .map(|e| (e.0.clone(), None))
+                dag.sources()
+                    .map(|(handle, _)| (handle.clone(), None))
                     .collect()
             }
         };
@@ -165,11 +149,10 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
             dag,
             schemas,
             record_stores: Arc::new(RwLock::new(
-                dag.nodes
-                    .iter()
-                    .map(|e| {
+                dag.node_handles()
+                    .map(|node_handle| {
                         (
-                            e.0.clone(),
+                            node_handle.clone(),
                             HashMap::<PortHandle, Box<dyn RecordReader>>::new(),
                         )
                     })
@@ -222,30 +205,28 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         dag: &'a Dag<T>,
         path: &Path,
     ) -> Result<HashMap<NodeHandle, NodeSchemas<T>>, ExecutionError> {
-        let schema_manager = DagSchemaManager::new(dag)?;
+        let dag_schemas = DagSchemas::new(dag)?;
         let meta_manager = DagMetadataManager::new(dag, path)?;
 
-        let compatible = match meta_manager.get_metadata() {
+        let current_schemas = dag_schemas.get_all_schemas();
+        match meta_manager.get_metadata() {
             Ok(existing_schemas) => {
-                for (handle, current) in schema_manager.get_all_schemas() {
-                    let existing = existing_schemas
-                        .get(handle)
-                        .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
-                    Self::validate_schemas(current, existing)?;
+                for (handle, current) in &current_schemas {
+                    if let Some(existing) = existing_schemas.get(handle) {
+                        Self::validate_schemas(current, existing)?;
+                    } else {
+                        meta_manager.delete_metadata();
+                        meta_manager.init_metadata(&current_schemas)?;
+                    }
                 }
-                Ok(schema_manager.get_all_schemas().clone())
             }
-            Err(_) => Err(IncompatibleSchemas()),
-        };
-
-        match compatible {
-            Ok(schema) => Ok(schema),
             Err(_) => {
                 meta_manager.delete_metadata();
-                meta_manager.init_metadata(schema_manager.get_all_schemas())?;
-                Ok(schema_manager.get_all_schemas().clone())
+                meta_manager.init_metadata(&current_schemas)?;
             }
-        }
+        };
+
+        Ok(current_schemas)
     }
 
     fn start_source(
@@ -257,8 +238,8 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         epoch_manager: Arc<EpochManager>,
         start_barrier: Arc<Barrier>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
-        // let (sender, receiver) = bounded(self.options.channel_buffer_sz);
-        let (sender, receiver) = bounded(1);
+        let (sender, receiver) = bounded(self.options.channel_buffer_sz);
+        // let (sender, receiver) = bounded(1);
 
         let start_seq = *self
             .consistency_metadata
@@ -300,7 +281,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
         let timeout = self.options.commit_time_threshold;
         let base_path = self.path.clone();
         let record_readers = self.record_stores.clone();
-        let edges = self.dag.edges.clone();
+        let edges = self.dag.edge_handles().cloned().collect::<Vec<_>>();
         let running = self.running.clone();
         let running_listener = running.clone();
         let commit_sz = self.options.commit_sz;
@@ -353,7 +334,7 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
     ) -> Result<JoinHandle<()>, ExecutionError> {
         let base_path = self.path.clone();
         let record_readers = self.record_stores.clone();
-        let edges = self.dag.edges.clone();
+        let edges = self.dag.edge_handles().cloned().collect::<Vec<_>>();
         let input_schemas: HashMap<PortHandle, Schema> = schemas
             .input_schemas
             .clone()
@@ -430,52 +411,43 @@ impl<'a, T: Clone + 'a + 'static> DagExecutor<'a, T> {
     pub fn start(&mut self) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
 
-        for (handle, factory) in self.dag.get_sinks() {
+        for (handle, factory) in self.dag.sinks() {
             let join_handle = self.start_sink(
                 handle.clone(),
                 factory.clone(),
-                receivers
-                    .remove(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                receivers.remove(handle).expect("BUG in DagExecutor"),
                 self.schemas
-                    .get(&handle)
+                    .get(handle)
                     .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
 
-        for (handle, factory) in self.dag.get_processors() {
+        for (handle, factory) in self.dag.processors() {
             let join_handle = self.start_processor(
                 handle.clone(),
                 factory.clone(),
-                senders
-                    .remove(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-                receivers
-                    .remove(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                senders.remove(handle).expect("BUG in DagExecutor"),
+                receivers.remove(handle).expect("BUG in DagExecutor"),
                 self.schemas
-                    .get(&handle)
+                    .get(handle)
                     .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
 
-        let epoch_manager: Arc<EpochManager> =
-            Arc::new(EpochManager::new(self.dag.get_sources().len()));
+        let num_sources = self.dag.sources().count();
+        let epoch_manager: Arc<EpochManager> = Arc::new(EpochManager::new(num_sources));
 
-        let sources = self.dag.get_sources();
-        let start_barrier = Arc::new(Barrier::new(sources.len()));
+        let start_barrier = Arc::new(Barrier::new(num_sources));
 
-        for (handle, factory) in sources {
+        for (handle, factory) in self.dag.sources() {
             let join_handle = self.start_source(
                 handle.clone(),
                 factory.clone(),
-                senders
-                    .remove(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                senders.remove(handle).expect("BUG in DagExecutor"),
                 self.schemas
-                    .get(&handle)
+                    .get(handle)
                     .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
                 epoch_manager.clone(),
                 start_barrier.clone(),

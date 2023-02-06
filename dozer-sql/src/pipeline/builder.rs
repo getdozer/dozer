@@ -1,12 +1,12 @@
 use crate::pipeline::aggregation::factory_new::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
-use crate::pipeline::{errors::PipelineError, product::factory::ProductProcessorFactory};
 use dozer_core::dag::app::AppPipeline;
 use dozer_core::dag::app::PipelineEntryPoint;
 use dozer_core::dag::appsource::AppSourceId;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::PortHandle;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use sqlparser::ast::{Join, TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
@@ -15,9 +15,10 @@ use sqlparser::{
 };
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::pipeline::expression::builder::{fullname_from_ident, NameOrAlias, normalize_ident};
 
 use super::errors::UnsupportedSqlError;
+use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
+use super::product::factory::FromProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
@@ -101,7 +102,7 @@ fn query_to_pipeline(
                 &table.query,
                 pipeline,
                 query_ctx,
-                false,
+                true,
             )?;
         }
     };
@@ -146,7 +147,7 @@ fn select_to_pipeline(
 
     let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx)?;
 
-    let product = ProductProcessorFactory::new(input_tables.clone());
+    let product = FromProcessorFactory::new(input_tables.clone());
 
     let input_endpoints = get_entry_points(&input_tables, &mut query_ctx.pipeline_map)?;
 

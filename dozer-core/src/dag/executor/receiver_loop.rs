@@ -69,7 +69,7 @@ pub trait ReceiverLoop: Name {
                     assert_eq!(epoch.id, common_epoch.id);
                     commits_received += 1;
                     sel.remove(index);
-                    common_epoch.details.0.extend(epoch.details.0);
+                    common_epoch.details.extend(epoch.details);
 
                     if commits_received == receivers.len() {
                         self.on_commit(&common_epoch)?;
@@ -105,7 +105,7 @@ mod tests {
     use dozer_types::types::{Field, Record};
 
     use crate::dag::{
-        epoch::{OpIdentifier, PipelineCheckpoint},
+        epoch::{OpIdentifier, SourceStates},
         node::NodeHandle,
     };
 
@@ -234,16 +234,16 @@ mod tests {
     #[test]
     fn receiver_loop_merges_commit_epoch_and_increases_epoch_id() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let mut details = PipelineCheckpoint::default();
-        details.0.insert(
+        let mut details = SourceStates::default();
+        details.insert(
             NodeHandle::new(None, "0".to_string()),
-            Some(OpIdentifier::new(0, 0)),
+            OpIdentifier::new(0, 0),
         );
         let mut epoch0 = Epoch::new(0, details);
-        let mut details = PipelineCheckpoint::default();
-        details.0.insert(
+        let mut details = SourceStates::default();
+        details.insert(
             NodeHandle::new(None, "1".to_string()),
-            Some(OpIdentifier::new(0, 0)),
+            OpIdentifier::new(0, 0),
         );
         let mut epoch1 = Epoch::new(0, details);
         senders[0]
@@ -272,9 +272,9 @@ mod tests {
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop().unwrap();
 
-        let mut details = PipelineCheckpoint::new();
-        details.0.extend(epoch0.details.0);
-        details.0.extend(epoch1.details.0);
+        let mut details = SourceStates::new();
+        details.extend(epoch0.details);
+        details.extend(epoch1.details);
         assert_eq!(
             test_loop.commits,
             vec![Epoch::new(0, details.clone()), Epoch::new(1, details)]
@@ -285,16 +285,16 @@ mod tests {
     #[should_panic]
     fn receiver_loop_panics_on_inconsistent_commit_epoch() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let mut details = PipelineCheckpoint::new();
-        details.0.insert(
+        let mut details = SourceStates::new();
+        details.insert(
             NodeHandle::new(None, "0".to_string()),
-            Some(OpIdentifier::new(0, 0)),
+            OpIdentifier::new(0, 0),
         );
         let epoch0 = Epoch::new(0, details);
-        let mut details = PipelineCheckpoint::new();
-        details.0.insert(
+        let mut details = SourceStates::new();
+        details.insert(
             NodeHandle::new(None, "1".to_string()),
-            Some(OpIdentifier::new(0, 0)),
+            OpIdentifier::new(0, 0),
         );
         let epoch1 = Epoch::new(1, details);
         senders[0]

@@ -14,18 +14,20 @@ use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::parking_lot::RwLock;
 
 #[cfg(feature = "snowflake")]
-use crate::connectors::snowflake::snapshotter::Snapshotter;
-#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 #[cfg(feature = "snowflake")]
 use crate::errors::SnowflakeError::ConnectionError;
 
 #[cfg(feature = "snowflake")]
-use dozer_types::log::debug;
+use dozer_types::log::{debug, info};
+
 use dozer_types::types::SchemaWithChangesType;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
+
+#[cfg(feature = "snowflake")]
+use crate::errors::{SnowflakeError, SnowflakeStreamError};
 
 pub struct SnowflakeConnector {
     name: String,
@@ -145,57 +147,58 @@ async fn run(
     match tables {
         None => {}
         Some(tables) => {
-            for (idx, table) in tables.iter().enumerate() {
-                let is_stream_created =
-                    StreamConsumer::is_stream_created(&client, table.table_name.clone())?;
-                if !is_stream_created {
-                    debug!(
-                        "[{}][{}] Table stream not found, starting from snapshot",
-                        name, table.table_name
-                    );
-                    let ingestor_snapshot = Arc::clone(&ingestor);
-                    Snapshotter::run(
-                        &client,
-                        &ingestor_snapshot,
-                        table.table_name.clone(),
-                        idx,
-                        from_seq.map_or(0, |(_, offset)| offset as usize),
-                    )?;
-                    debug!("[{}][{}] Snapshot fetch completed", name, table.table_name);
-                    StreamConsumer::create_stream(&client, &table.table_name)?;
-
-                    debug!(
-                        "[{}][{}] Changes table stream creation completed",
-                        name, table.table_name
-                    );
-                } else {
-                    debug!(
-                        "[{}][{}] Table stream exist, skipping snapshot",
-                        name, table.table_name
-                    );
-                }
-            }
-
             let stream_client = Client::new(&config);
             let ingestor_stream = Arc::clone(&ingestor);
             let mut interval = time::interval(Duration::from_secs(5));
 
             let mut consumer = StreamConsumer::new();
+            let mut iteration = 1;
             loop {
                 for (idx, table) in tables.iter().enumerate() {
+                    // We only check stream status on first iteration
+                    if iteration == 1 {
+                        match from_seq {
+                            None | Some((0, _)) => {
+                                info!("[{}][{}] Creating new stream", name, table.table_name);
+                                StreamConsumer::drop_stream(&client, &table.table_name)?;
+                                StreamConsumer::create_stream(&client, &table.table_name)?;
+                            }
+                            Some((lsn, seq)) => {
+                                info!(
+                                    "[{}][{}] Continuing ingestion from {}/{}",
+                                    name, table.table_name, lsn, seq
+                                );
+                                iteration = lsn;
+                                if let Ok(false) =
+                                    StreamConsumer::is_stream_created(&client, &table.table_name)
+                                {
+                                    return Err(ConnectorError::SnowflakeError(
+                                        SnowflakeError::SnowflakeStreamError(
+                                            SnowflakeStreamError::StreamNotFound,
+                                        ),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+
                     debug!(
                         "[{}][{}] Reading from changes stream",
                         name, table.table_name
                     );
+
                     consumer.consume_stream(
                         &stream_client,
                         &table.table_name,
                         &ingestor_stream,
                         idx,
+                        iteration,
                     )?;
 
                     interval.tick().await;
                 }
+
+                iteration += 1;
             }
         }
     };

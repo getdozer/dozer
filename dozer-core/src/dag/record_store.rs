@@ -78,7 +78,7 @@ const RECORD_DELETED_FLAG: u8 = 0x00;
 #[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
     db: Database,
-    meta_db: Database,
+    _meta_db: Database,
     schema: Schema,
     retr_old_records_for_deletes: bool,
     retr_old_records_for_updates: bool,
@@ -97,7 +97,7 @@ impl PrimaryKeyLookupRecordWriter {
     ) -> Self {
         Self {
             db,
-            meta_db,
+            _meta_db: meta_db,
             schema,
             retr_old_records_for_deletes,
             retr_old_records_for_updates,
