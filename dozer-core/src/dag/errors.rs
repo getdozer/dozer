@@ -39,8 +39,8 @@ pub enum ExecutionError {
     RecordNotFound(),
     #[error("Already exists: {0}")]
     MetadataAlreadyExists(NodeHandle),
-    #[error("Incompatible schemas")]
-    IncompatibleSchemas(),
+    #[error("Incompatible schemas: {0:?}")]
+    IncompatibleSchemas(String),
     #[error("Channel disconnected")]
     ChannelDisconnected,
     #[error("Cannot spawn worker thread: {0}")]
