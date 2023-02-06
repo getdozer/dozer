@@ -23,10 +23,33 @@ use super::product::factory::FromProcessorFactory;
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
 
+#[derive(Debug, Clone)]
+pub struct QueryTableInfo {
+    // Name to connect in dag
+    pub node: String,
+    // Port to connect in dag
+    pub port: PortHandle,
+    // If this table is originally from a source or created in transforms
+    pub is_derived: bool,
+    // TODO add:indexes to the tables
+}
+
+pub struct TableInfo {
+    pub name: NameOrAlias,
+    pub override_name: Option<String>,
+    pub is_derived: bool,
+}
 /// The struct contains some contexts during query to pipeline.
 #[derive(Debug, Clone, Default)]
 pub struct QueryContext {
-    pub pipeline_map: HashMap<String, (String, PortHandle)>,
+    // Internal tables map, used to store the tables that are created by the queries
+    pub pipeline_map: HashMap<(usize, String), QueryTableInfo>,
+
+    // Output tables map that are marked with "INTO" used to store the tables, these can be exposed to sinks.
+    pub output_tables_map: HashMap<String, QueryTableInfo>,
+
+    // Used Sources
+    pub used_sources: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -37,32 +60,49 @@ pub struct IndexedTableWithJoins {
 
 pub fn statement_to_pipeline(
     sql: &str,
-) -> Result<(AppPipeline<SchemaSQLContext>, (String, PortHandle)), PipelineError> {
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    override_name: Option<String>,
+) -> Result<QueryContext, PipelineError> {
     let dialect = AnsiDialect {};
     let mut ctx = QueryContext::default();
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
     let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
-    let statement = ast.get(0).expect("First statement is missing").to_owned();
 
-    let mut pipeline = AppPipeline::new();
-    if let Statement::Query(query) = statement {
-        query_to_pipeline(&query_name, &query, &mut pipeline, &mut ctx, false)?;
-    };
-    let node = ctx
-        .pipeline_map
-        .get(&query_name.0)
-        .expect("query should have been initialized")
-        .to_owned();
-    Ok((pipeline, node))
+    for (idx, statement) in ast.iter().enumerate() {
+        match statement {
+            Statement::Query(query) => {
+                query_to_pipeline(
+                    &TableInfo {
+                        name: query_name.clone(),
+                        is_derived: false,
+                        override_name: override_name.clone(),
+                    },
+                    query,
+                    pipeline,
+                    &mut ctx,
+                    false,
+                    idx,
+                )?;
+            }
+            s => {
+                return Err(PipelineError::UnsupportedSqlError(
+                    UnsupportedSqlError::GenericError(s.to_string()),
+                ))
+            }
+        }
+    }
+
+    Ok(ctx)
 }
 
 fn query_to_pipeline(
-    processor_name: &NameOrAlias,
+    table_info: &TableInfo,
     query: &Query,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
     stateful: bool,
+    pipeline_idx: usize,
 ) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
@@ -92,34 +132,54 @@ fn query_to_pipeline(
                 ));
             }
             let table_name = table.alias.name.to_string();
-            if query_ctx.pipeline_map.contains_key(&table_name) {
+            if query_ctx
+                .pipeline_map
+                .contains_key(&(pipeline_idx, table_name.clone()))
+            {
                 return Err(InvalidQuery(format!(
                     "WITH query name {table_name:?} specified more than once"
                 )));
             }
             query_to_pipeline(
-                &NameOrAlias(table_name.clone(), Some(table_name)),
+                &TableInfo {
+                    name: NameOrAlias(table_name.clone(), Some(table_name)),
+                    is_derived: true,
+                    override_name: None,
+                },
                 &table.query,
                 pipeline,
                 query_ctx,
                 true,
+                pipeline_idx,
             )?;
         }
     };
 
     match *query.body.clone() {
         SetExpr::Select(select) => {
-            select_to_pipeline(processor_name, *select, pipeline, query_ctx, stateful)?;
+            select_to_pipeline(
+                table_info,
+                *select,
+                pipeline,
+                query_ctx,
+                stateful,
+                pipeline_idx,
+            )?;
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", uuid::Uuid::new_v4());
             let mut ctx = QueryContext::default();
             query_to_pipeline(
-                &NameOrAlias(query_name, None),
+                &TableInfo {
+                    name: NameOrAlias(query_name, None),
+                    is_derived: true,
+                    override_name: None,
+                },
                 &query,
                 pipeline,
                 &mut ctx,
                 stateful,
+                pipeline_idx,
             )?
         }
         _ => {
@@ -132,11 +192,12 @@ fn query_to_pipeline(
 }
 
 fn select_to_pipeline(
-    processor_name: &NameOrAlias,
+    table_info: &TableInfo,
     select: Select,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
     stateful: bool,
+    pipeline_idx: usize,
 ) -> Result<(), PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
@@ -145,11 +206,12 @@ fn select_to_pipeline(
         ));
     }
 
-    let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx)?;
+    let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
 
     let product = FromProcessorFactory::new(input_tables.clone());
 
-    let input_endpoints = get_entry_points(&input_tables, &mut query_ctx.pipeline_map)?;
+    let input_endpoints =
+        get_entry_points(&input_tables, &mut query_ctx.pipeline_map, pipeline_idx)?;
 
     let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
@@ -158,13 +220,20 @@ fn select_to_pipeline(
 
     let input_names = get_input_names(&input_tables);
     for (port_index, table_name) in input_names.iter().enumerate() {
-        if let Some((processor_name, processor_port)) = query_ctx.pipeline_map.get(&table_name.0) {
+        if let Some(table_info) = query_ctx
+            .pipeline_map
+            .get(&(pipeline_idx, table_name.0.clone()))
+        {
             pipeline.connect_nodes(
-                processor_name,
-                Some(*processor_port),
+                &table_info.node,
+                Some(table_info.port),
                 &gen_product_name,
                 Some(port_index as PortHandle),
+                true,
             )?;
+            // If not present in pipeline_map, insert into used_sources as this is coming from source
+        } else {
+            query_ctx.used_sources.push(table_name.0.clone());
         }
     }
 
@@ -183,6 +252,7 @@ fn select_to_pipeline(
             Some(DEFAULT_PORT_HANDLE),
             &gen_selection_name,
             Some(DEFAULT_PORT_HANDLE),
+            true,
         )?;
 
         pipeline.connect_nodes(
@@ -190,6 +260,7 @@ fn select_to_pipeline(
             Some(DEFAULT_PORT_HANDLE),
             &gen_agg_name,
             Some(DEFAULT_PORT_HANDLE),
+            true,
         )?;
     } else {
         pipeline.connect_nodes(
@@ -197,13 +268,34 @@ fn select_to_pipeline(
             Some(DEFAULT_PORT_HANDLE),
             &gen_agg_name,
             Some(DEFAULT_PORT_HANDLE),
+            true,
         )?;
     }
 
     query_ctx.pipeline_map.insert(
-        processor_name.0.clone(),
-        (gen_agg_name, DEFAULT_PORT_HANDLE),
+        (pipeline_idx, table_info.name.0.to_string()),
+        QueryTableInfo {
+            node: gen_agg_name.clone(),
+            port: DEFAULT_PORT_HANDLE,
+            is_derived: table_info.is_derived,
+        },
     );
+
+    let output_table_name = if let Some(into) = select.into {
+        Some(into.name.to_string())
+    } else {
+        table_info.override_name.clone()
+    };
+    if let Some(table_name) = output_table_name {
+        query_ctx.output_tables_map.insert(
+            table_name,
+            QueryTableInfo {
+                node: gen_agg_name,
+                port: DEFAULT_PORT_HANDLE,
+                is_derived: false,
+            },
+        );
+    }
 
     Ok(())
 }
@@ -217,12 +309,13 @@ pub fn get_input_tables(
     from: &TableWithJoins,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
+    pipeline_idx: usize,
 ) -> Result<IndexedTableWithJoins, PipelineError> {
-    let name = get_from_source(&from.relation, pipeline, query_ctx)?;
+    let name = get_from_source(&from.relation, pipeline, query_ctx, pipeline_idx)?;
     let mut joins = vec![];
 
     for join in from.joins.iter() {
-        let input_name = get_from_source(&join.relation, pipeline, query_ctx)?;
+        let input_name = get_from_source(&join.relation, pipeline, query_ctx, pipeline_idx)?;
         joins.push((input_name.clone(), join.clone()));
     }
 
@@ -243,7 +336,8 @@ pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias>
 }
 pub fn get_entry_points(
     input_tables: &IndexedTableWithJoins,
-    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+    pipeline_map: &mut HashMap<(usize, String), QueryTableInfo>,
+    pipeline_idx: usize,
 ) -> Result<Vec<PipelineEntryPoint>, PipelineError> {
     let mut endpoints = vec![];
 
@@ -251,7 +345,7 @@ pub fn get_entry_points(
 
     for (input_port, table) in input_names.iter().enumerate() {
         let name = table.0.clone();
-        if !pipeline_map.contains_key(&name) {
+        if !pipeline_map.contains_key(&(pipeline_idx, name.clone())) {
             endpoints.push(PipelineEntryPoint::new(
                 AppSourceId::new(name, None),
                 input_port as PortHandle,
@@ -266,6 +360,7 @@ pub fn get_from_source(
     relation: &TableFactor,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
+    pipeline_idx: usize,
 ) -> Result<NameOrAlias, PipelineError> {
     match relation {
         TableFactor::Table { name, alias, .. } => {
@@ -292,7 +387,18 @@ pub fn get_from_source(
             });
 
             let name_or = NameOrAlias(name, alias_name);
-            query_to_pipeline(&name_or, subquery, pipeline, query_ctx, false)?;
+            query_to_pipeline(
+                &TableInfo {
+                    name: name_or.clone(),
+                    is_derived: true,
+                    override_name: None,
+                },
+                subquery,
+                pipeline,
+                query_ctx,
+                false,
+                pipeline_idx,
+            )?;
 
             Ok(name_or)
         }
@@ -304,15 +410,17 @@ pub fn get_from_source(
 
 #[cfg(test)]
 mod tests {
+    use dozer_core::dag::app::AppPipeline;
+
     use super::statement_to_pipeline;
 
     #[test]
     fn parse_sql_pipeline() {
-        let statements: Vec<&str> = vec![
-            r#"
+        let sql = r#"
                 SELECT
                     a.name as "Genre",
                     SUM(amount) as "Gross Revenue(in $)"
+                INTO gross_revenue_stats
                 FROM
                 (
                     SELECT
@@ -332,38 +440,51 @@ mod tests {
                         ON p.rental_id = r.rental_id
                     WHERE p.amount IS NOT NULL
                 ) a
-
                 GROUP BY name;
-            "#,
-            r#"
+
                 SELECT
-                    c.name,
-                    f.title,
-                    p.amount
+                f.name, f.title, p.amount
+                INTO film_amounts
                 FROM film f
-                LEFT JOIN film_category fc
-                    "#,
-            r#"
+                LEFT JOIN film_category fc;
+
                 WITH tbl as (select id from a)
-                select id from tbl
-                    "#,
-            r#"
+                select id
+                into cte_table
+                from tbl;
+
                 WITH tbl as (select id from  a),
                 tbl2 as (select id from tbl)
-                select id from tbl2
-                    "#,
-            r#"
+                select id
+                into nested_cte_table
+                from tbl2;
+
                 WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
                 cte_table2 as (select id_ct1 from cte_table1)
-                select id_ct2 from cte_table2
-            "#,
-            r#"
+                select id_ct2
+                into nested_derived_table
+                from cte_table2;
+
                 with tbl as (select id, ticker from stocks)
-                select tbl.id from  stocks join tbl on tbl.id = stocks.id;
-            "#,
+                select tbl.id
+                into nested_stocks_table
+                from  stocks join tbl on tbl.id = stocks.id;
+            "#;
+
+        let context = statement_to_pipeline(sql, &mut AppPipeline::new(), None).unwrap();
+
+        // Should create as many output tables as into statements
+        let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();
+        output_keys.sort();
+        let mut expected_keys = vec![
+            "gross_revenue_stats",
+            "film_amounts",
+            "cte_table",
+            "nested_cte_table",
+            "nested_derived_table",
+            "nested_stocks_table",
         ];
-        for sql in statements {
-            let _pipeline = statement_to_pipeline(sql).unwrap();
-        }
+        expected_keys.sort();
+        assert_eq!(output_keys, expected_keys);
     }
 }

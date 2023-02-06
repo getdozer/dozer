@@ -13,8 +13,8 @@ use std::str::from_utf8;
 //pub type NodeHandle = String;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NodeHandle {
-    pub(crate) ns: Option<u16>,
-    pub(crate) id: String,
+    pub ns: Option<u16>,
+    pub id: String,
 }
 
 impl NodeHandle {

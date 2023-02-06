@@ -82,7 +82,13 @@ impl<T> AppSourceManager<T> {
         self.sources.push(src);
         Ok(())
     }
-
+    pub fn get_sources(&self) -> Vec<(String, Arc<dyn SourceFactory<T>>)> {
+        let mut sources = vec![];
+        for source in &self.sources {
+            sources.push((source.connection.clone(), source.source.clone()));
+        }
+        sources
+    }
     pub fn get(&self, ls: Vec<AppSourceId>) -> Result<Vec<AppSourceMappings<T>>, ExecutionError> {
         let mut res: HashMap<usize, HashMap<AppSourceId, PortHandle>> = HashMap::new();
 

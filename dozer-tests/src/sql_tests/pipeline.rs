@@ -1,4 +1,4 @@
-use dozer_core::dag::app::App;
+use dozer_core::dag::app::{App, AppPipeline};
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag_schemas::DagSchemas;
@@ -276,8 +276,12 @@ impl TestPipeline {
         ops: Vec<(&'static str, Operation)>,
         mapper: Arc<Mutex<SqlMapper>>,
     ) -> Result<TestPipeline, ExecutionError> {
-        let (mut pipeline, (pipe_node, pipe_port)) = statement_to_pipeline(&sql).unwrap();
+        let mut pipeline = AppPipeline::new();
 
+        let transform_response =
+            statement_to_pipeline(&sql, &mut pipeline, Some("results".to_string())).unwrap();
+
+        let output_table = transform_response.output_tables_map.get("results").unwrap();
         let (sender, receiver) =
             dozer_types::crossbeam::channel::bounded::<Option<(String, Operation)>>(10);
         let mut port_to_schemas = HashMap::new();
@@ -308,10 +312,11 @@ impl TestPipeline {
 
         pipeline
             .connect_nodes(
-                &pipe_node,
-                Some(pipe_port),
+                &output_table.node,
+                Some(output_table.port),
                 "sink",
                 Some(DEFAULT_PORT_HANDLE),
+                true,
             )
             .unwrap();
         let used_schemas = pipeline.get_entry_points_sources_names();

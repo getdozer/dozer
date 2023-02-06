@@ -10,14 +10,41 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-pub struct SourceBuilder {}
+pub struct SourceBuilder {
+    used_sources: Vec<String>,
+    grouped_connections: HashMap<String, Vec<Source>>,
+}
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
 impl SourceBuilder {
-    pub fn build_source_manager(
+    pub fn new(
         used_sources: Vec<String>,
         grouped_connections: HashMap<String, Vec<Source>>,
+    ) -> Self {
+        Self {
+            used_sources,
+            grouped_connections,
+        }
+    }
+
+    pub fn get_ports(&self) -> HashMap<(String, String), u16> {
+        let mut port: u16 = SOURCE_PORTS_RANGE_START;
+
+        let mut ports = HashMap::new();
+        for (conn, sources_group) in self.grouped_connections.clone() {
+            for source in &sources_group {
+                if self.used_sources.contains(&source.name) {
+                    ports.insert((conn.clone(), source.name.clone()), port);
+                    port += 1;
+                }
+            }
+        }
+        ports
+    }
+
+    pub fn build_source_manager(
+        &self,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
         running: Arc<AtomicBool>,
@@ -26,14 +53,14 @@ impl SourceBuilder {
 
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
 
-        for (conn, sources_group) in grouped_connections {
+        for (conn, sources_group) in self.grouped_connections.clone() {
             let first_source = sources_group.get(0).unwrap();
 
             if let Some(connection) = &first_source.connection {
                 let mut ports = HashMap::new();
                 let mut tables = vec![];
                 for source in &sources_group {
-                    if used_sources.contains(&source.name) {
+                    if self.used_sources.contains(&source.name) {
                         ports.insert(source.name.clone(), port);
 
                         tables.push(TableInfo {
@@ -157,6 +184,7 @@ mod tests {
                 },
             ],
             endpoints: vec![],
+            sql: None,
             home_dir: "test".to_string(),
         }
     }
@@ -174,14 +202,14 @@ mod tests {
             .iter()
             .map(|s| s.table_name.clone())
             .collect();
-        let asm = SourceBuilder::build_source_manager(
+
+        let source_builder = SourceBuilder::new(
             tables,
             SourceBuilder::group_connections(config.sources.clone()),
-            ingestor,
-            iterator_ref,
-            Arc::new(AtomicBool::new(true)),
-        )
-        .unwrap();
+        );
+        let asm = source_builder
+            .build_source_manager(ingestor, iterator_ref, Arc::new(AtomicBool::new(true)))
+            .unwrap();
 
         let conn_name_1 = config.connections.get(0).unwrap().name.clone();
         let conn_name_2 = config.connections.get(1).unwrap().name.clone();
@@ -211,14 +239,13 @@ mod tests {
 
         let only_used_table_name = vec![config.sources.get(0).unwrap().table_name.clone()];
         let conn_name = config.connections.get(0).unwrap().name.clone();
-        let asm = SourceBuilder::build_source_manager(
+        let source_builder = SourceBuilder::new(
             only_used_table_name,
             SourceBuilder::group_connections(config.sources.clone()),
-            ingestor,
-            iterator_ref,
-            Arc::new(AtomicBool::new(true)),
-        )
-        .unwrap();
+        );
+        let asm = source_builder
+            .build_source_manager(ingestor, iterator_ref, Arc::new(AtomicBool::new(true)))
+            .unwrap();
 
         let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![AppSourceId::new(

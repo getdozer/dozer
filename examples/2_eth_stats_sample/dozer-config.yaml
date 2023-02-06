@@ -22,33 +22,51 @@ connections:
 
     name: eth_conn
 
+sql: |
+  select punkIndex, minValue, toAddress
+  INTO punk_offered from punks_PunkOffered;
+
+  select from, to  INTO transfers from apes_Transfer;
+
+  select id, address, block_hash, block_number  
+  INTO filtered_logs from eth_logs;
+
 sources:
   - name: punks_PunkOffered
     table_name: punks_PunkOffered
     connection: !Ref eth_conn
     columns:
+      - punkIndex
+      - minValue
+      - toAddress
   - name: apes_Transfer
     table_name: apes_Transfer
     connection: !Ref eth_conn
     columns:
+      - from
+      - to
   - name: eth_logs
     table_name: eth_logs
     connection: !Ref eth_conn
     columns:
+      - id
+      - address
+      - block_hash
+      - block_number
 
 endpoints:
   - name: punkoffered
     path: /punk_offered
-    sql: select punkIndex, minValue, toAddress from punks_PunkOffered;
+    table_name: punk_offered
     index:
       primary_key:
   - name: transfers
     path: /transfers
-    sql: select from, to from apes_Transfer;
+    table_name: transfers
     index:
       primary_key:
   - name: eth_logs
     path: /eth/logs
-    sql: select id, address, block_hash, block_number  from eth_logs;
+    table_name: filtered_logs
     index:
       primary_key:
