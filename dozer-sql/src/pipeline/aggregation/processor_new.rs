@@ -4,10 +4,10 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };

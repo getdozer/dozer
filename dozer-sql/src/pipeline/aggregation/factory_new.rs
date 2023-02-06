@@ -2,11 +2,11 @@ use crate::pipeline::aggregation::processor_new::AggregationProcessor;
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::projection::processor::ProjectionProcessor;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::types::Schema;
 use sqlparser::ast::Select;
 use std::collections::HashMap;

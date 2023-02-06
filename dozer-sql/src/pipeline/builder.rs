@@ -343,16 +343,16 @@ mod tests {
                 FROM film f
                 LEFT JOIN film_category fc
                     "#,
-                    r#"
+            r#"
                 WITH tbl as (select id from a)
                 select id from tbl
                     "#,
-                    r#"
+            r#"
                 WITH tbl as (select id from  a),
                 tbl2 as (select id from tbl)
                 select id from tbl2
                     "#,
-                    r#"
+            r#"
                 WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
                 cte_table2 as (select id_ct1 from cte_table1)
                 select id_ct2 from cte_table2

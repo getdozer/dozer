@@ -10,16 +10,15 @@ use dozer_types::types::{
 };
 use std::collections::HashMap;
 
-
+use crate::pipeline::aggregation::processor_new::AggregationProcessor;
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::planner::projection::CommonPlanner;
+use crate::pipeline::tests::utils::get_select;
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
 use tempdir::TempDir;
-use crate::pipeline::aggregation::processor_new::AggregationProcessor;
-use crate::pipeline::errors::PipelineError;
-use crate::pipeline::planner::projection::CommonPlanner;
-use crate::pipeline::tests::utils::get_select;
 
 pub(crate) fn init_processor(
     sql: &str,
