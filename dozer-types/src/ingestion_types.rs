@@ -161,3 +161,12 @@ impl SnowflakeConfig {
         )
     }
 }
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct DataFusionConfig {}
+
+impl DataFusionConfig {
+    pub fn convert_to_table(&self) -> Table {
+        table!()
+    }
+}

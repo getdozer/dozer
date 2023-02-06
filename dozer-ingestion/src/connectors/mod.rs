@@ -1,3 +1,4 @@
+pub mod datafusion;
 pub mod ethereum;
 pub mod events;
 pub mod kafka;
