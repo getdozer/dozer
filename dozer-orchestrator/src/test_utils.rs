@@ -1,5 +1,5 @@
 use crate::pipeline::CacheSink;
-use dozer_cache::cache::{CacheOptions, LmdbCache};
+use dozer_cache::cache::{LmdbRwCache, RwCache};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::types::{
@@ -32,19 +32,14 @@ pub fn get_schema() -> Schema {
 pub fn init_sink(
     schema: &Schema,
     secondary_indexes: Vec<IndexDefinition>,
-) -> (Arc<LmdbCache>, CacheSink) {
-    let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
+) -> (Arc<dyn RwCache>, CacheSink) {
+    let cache: Arc<dyn RwCache> =
+        Arc::new(LmdbRwCache::new(Default::default(), Default::default()).unwrap());
 
     let mut input_schemas = HashMap::new();
     input_schemas.insert(DEFAULT_PORT_HANDLE, (schema.clone(), secondary_indexes));
 
-    let sink = CacheSink::new(
-        Arc::clone(&cache),
-        init_endpoint(),
-        input_schemas,
-        None,
-        None,
-    );
+    let sink = CacheSink::new(cache.clone(), init_endpoint(), input_schemas, None, None);
     (cache, sink)
 }
 pub fn init_endpoint() -> ApiEndpoint {

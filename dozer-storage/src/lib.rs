@@ -7,3 +7,4 @@ pub mod prefix_transaction;
 mod tests;
 
 pub use lmdb;
+pub use lmdb_sys;

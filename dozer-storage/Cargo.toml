@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 dozer-types = { version = "0.1.6", path = "../dozer-types" }
-libc = "0.2.139"
 lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
 

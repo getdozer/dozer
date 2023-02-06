@@ -14,7 +14,7 @@ use dozer_types::models::app_config::Config;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
-use dozer_api::CacheEndpoint;
+use dozer_api::RwCacheEndpoint;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 
@@ -37,7 +37,7 @@ pub struct OriginalTableInfo {
 
 pub struct PipelineBuilder {
     config: Config,
-    cache_endpoints: Vec<CacheEndpoint>,
+    cache_endpoints: Vec<RwCacheEndpoint>,
     pipeline_dir: PathBuf,
     running: Arc<AtomicBool>,
     progress: MultiProgress,
@@ -45,7 +45,7 @@ pub struct PipelineBuilder {
 impl PipelineBuilder {
     pub fn new(
         config: Config,
-        cache_endpoints: Vec<CacheEndpoint>,
+        cache_endpoints: Vec<RwCacheEndpoint>,
         running: Arc<AtomicBool>,
         pipeline_dir: PathBuf,
     ) -> Self {

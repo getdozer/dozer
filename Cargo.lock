@@ -1292,11 +1292,10 @@ name = "dozer-cache"
 version = "0.1.6"
 dependencies = [
  "criterion",
+ "dozer-storage",
  "dozer-types",
  "futures",
  "itertools",
- "lmdb-rkv",
- "lmdb-rkv-sys",
  "rand 0.8.5",
  "roaring",
  "tempdir",
@@ -1360,6 +1359,7 @@ dependencies = [
  "dozer-core",
  "dozer-ingestion",
  "dozer-sql",
+ "dozer-storage",
  "dozer-tracing",
  "dozer-types",
  "futures",
@@ -1398,7 +1398,6 @@ name = "dozer-storage"
 version = "0.1.0"
 dependencies = [
  "dozer-types",
- "libc",
  "lmdb-rkv",
  "lmdb-rkv-sys",
  "tempdir",

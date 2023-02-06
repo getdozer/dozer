@@ -9,7 +9,10 @@ use crate::record_store::{
 use crate::{Dag, Edge, Endpoint};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_storage::common::Database;
-use dozer_storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_storage::lmdb::DatabaseFlags;
+use dozer_storage::lmdb_storage::{
+    LmdbEnvironmentManager, LmdbEnvironmentOptions, SharedTransaction,
+};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::Path;
@@ -35,8 +38,12 @@ pub(crate) fn init_component<F>(
 where
     F: FnMut(&mut LmdbEnvironmentManager) -> Result<(), ExecutionError>,
 {
-    let mut env = LmdbEnvironmentManager::create(base_path, format!("{node_handle}").as_str())?;
-    let db = env.open_database(METADATA_DB_NAME, false)?;
+    let mut env = LmdbEnvironmentManager::create(
+        base_path,
+        format!("{node_handle}").as_str(),
+        LmdbEnvironmentOptions::default(),
+    )?;
+    let db = env.create_database(Some(METADATA_DB_NAME), Some(DatabaseFlags::empty()))?;
     init_f(&mut env)?;
     Ok(StorageMetadata::new(env, db))
 }
@@ -133,10 +140,14 @@ pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
         let opt = match &port.typ {
             OutputPortType::Stateless => None,
             typ => {
-                let db =
-                    env.open_database(&format!("{}_{}", PORT_STATE_KEY, port.handle), false)?;
-                let meta_db =
-                    env.open_database(&format!("{}_{}_META", PORT_STATE_KEY, port.handle), false)?;
+                let db = env.create_database(
+                    Some(&format!("{}_{}", PORT_STATE_KEY, port.handle)),
+                    Some(DatabaseFlags::empty()),
+                )?;
+                let meta_db = env.create_database(
+                    Some(&format!("{}_{}_META", PORT_STATE_KEY, port.handle)),
+                    Some(DatabaseFlags::empty()),
+                )?;
                 Some(StateOptions {
                     db,
                     meta_db,

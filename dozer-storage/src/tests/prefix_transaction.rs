@@ -1,9 +1,10 @@
 use std::fs;
 
+use lmdb::DatabaseFlags;
 use tempdir::TempDir;
 
 use crate::{
-    lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
+    lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions, SharedTransaction},
     prefix_transaction::PrefixTransaction,
 };
 
@@ -15,8 +16,12 @@ fn test_prefix_tx() {
     }
     fs::create_dir(tmp_dir.path()).unwrap();
 
-    let mut env = LmdbEnvironmentManager::create(tmp_dir.path(), "test").unwrap();
-    let db = env.open_database("test_db", false).unwrap();
+    let mut env =
+        LmdbEnvironmentManager::create(tmp_dir.path(), "test", LmdbEnvironmentOptions::default())
+            .unwrap();
+    let db = env
+        .create_database(Some("test_db"), Some(DatabaseFlags::empty()))
+        .unwrap();
     let tx = env.create_txn().unwrap();
     let mut tx = SharedTransaction::try_unwrap(tx).unwrap();
 

@@ -1,10 +1,9 @@
-use crate::{errors::GenerationError, PipelineDetails};
-use dozer_cache::cache::RoCache;
+use crate::errors::GenerationError;
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use dozer_types::serde::{self, Deserialize, Serialize};
-use dozer_types::types::FieldType;
+use dozer_types::types::{FieldType, Schema};
 use handlebars::Handlebars;
 use inflector::Inflector;
 use prost_reflect::DescriptorPool;
@@ -55,18 +54,13 @@ fn safe_name(name: &str) -> String {
 }
 impl<'a> ProtoGenerator<'a> {
     pub fn new(
-        pipeline_details: PipelineDetails,
+        schema_name: &str,
+        schema: Schema,
         folder_path: &'a Path,
         security: &'a Option<ApiSecurity>,
         flags: &'a Option<Flags>,
     ) -> Result<Self, GenerationError> {
-        let cache = pipeline_details.cache_endpoint.cache.clone();
-        let schema_name = safe_name(&pipeline_details.cache_endpoint.endpoint.name);
-        let schema = cache
-            .get_schema_and_indexes_by_name(&schema_name)
-            .unwrap()
-            .0;
-
+        let schema_name = safe_name(schema_name);
         let mut generator = Self {
             handlebars: Handlebars::new(),
             schema,
@@ -202,11 +196,12 @@ impl<'a> ProtoGenerator<'a> {
 
     pub fn generate(
         folder_path: &Path,
-        details: PipelineDetails,
+        schema_name: &str,
+        schema: Schema,
         security: &Option<ApiSecurity>,
         flags: &Option<Flags>,
     ) -> Result<(), GenerationError> {
-        let generator = ProtoGenerator::new(details, folder_path, security, flags)?;
+        let generator = ProtoGenerator::new(schema_name, schema, folder_path, security, flags)?;
         generator._generate_proto()?;
         Ok(())
     }

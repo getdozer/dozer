@@ -10,6 +10,7 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::internal_err;
 
 use dozer_types::types::{Operation, Record};
+use lmdb::DatabaseFlags;
 use std::collections::HashMap;
 
 use dozer_core::errors::ExecutionError::InternalError;
@@ -33,7 +34,7 @@ impl FromProcessor {
     }
 
     fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
-        self.db = Some(env.open_database("product", true)?);
+        self.db = Some(env.create_database(Some("product"), Some(DatabaseFlags::DUP_SORT))?);
 
         Ok(())
     }

@@ -2,7 +2,10 @@ use crate::record_store::{
     AutogenRowKeyLookupRecordReader, AutogenRowKeyLookupRecordWriter, PrimaryKeyLookupRecordWriter,
     PrimaryKeyValueLookupRecordReader, RecordReader, RecordWriter,
 };
-use dozer_storage::lmdb_storage::LmdbEnvironmentManager;
+use dozer_storage::{
+    lmdb::DatabaseFlags,
+    lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions},
+};
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -11,10 +14,18 @@ use tempdir::TempDir;
 #[test]
 fn test_pk_record_writer() {
     let tmp_path = TempDir::new("rw");
-    let mut env =
-        LmdbEnvironmentManager::create(tmp_path.expect("UNKNOWN").path(), "test").unwrap();
-    let master_db = env.open_database("master", false).unwrap();
-    let meta_db = env.open_database("meta", false).unwrap();
+    let mut env = LmdbEnvironmentManager::create(
+        tmp_path.expect("UNKNOWN").path(),
+        "test",
+        LmdbEnvironmentOptions::default(),
+    )
+    .unwrap();
+    let master_db = env
+        .create_database(Some("master"), Some(DatabaseFlags::empty()))
+        .unwrap();
+    let meta_db = env
+        .create_database(Some("meta"), Some(DatabaseFlags::empty()))
+        .unwrap();
     let tx = env.create_txn().unwrap();
 
     let schema = Schema::empty()
@@ -126,10 +137,18 @@ fn test_pk_record_writer() {
 #[test]
 fn test_read_write_kv() {
     let tmp_path = TempDir::new("rw");
-    let mut env =
-        LmdbEnvironmentManager::create(tmp_path.expect("UNKNOWN").path(), "test").unwrap();
-    let master_db = env.open_database("master", false).unwrap();
-    let meta_db = env.open_database("meta", false).unwrap();
+    let mut env = LmdbEnvironmentManager::create(
+        tmp_path.expect("UNKNOWN").path(),
+        "test",
+        LmdbEnvironmentOptions::default(),
+    )
+    .unwrap();
+    let master_db = env
+        .create_database(Some("master"), Some(DatabaseFlags::empty()))
+        .unwrap();
+    let meta_db = env
+        .create_database(Some("meta"), Some(DatabaseFlags::empty()))
+        .unwrap();
     let tx = env.create_txn().unwrap();
 
     let schema = Schema::empty()
@@ -250,10 +269,18 @@ fn test_read_write_kv() {
 #[test]
 fn test_read_write_incr() {
     let tmp_path = TempDir::new("rw");
-    let mut env =
-        LmdbEnvironmentManager::create(tmp_path.expect("UNKNOWN").path(), "test").unwrap();
-    let master_db = env.open_database("master", false).unwrap();
-    let meta_db = env.open_database("meta", false).unwrap();
+    let mut env = LmdbEnvironmentManager::create(
+        tmp_path.expect("UNKNOWN").path(),
+        "test",
+        LmdbEnvironmentOptions::default(),
+    )
+    .unwrap();
+    let master_db = env
+        .create_database(Some("master"), Some(DatabaseFlags::empty()))
+        .unwrap();
+    let meta_db = env
+        .create_database(Some("meta"), Some(DatabaseFlags::empty()))
+        .unwrap();
     let tx = env.create_txn().unwrap();
 
     let schema = Schema::empty()

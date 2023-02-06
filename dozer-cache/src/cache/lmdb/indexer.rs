@@ -1,10 +1,10 @@
 use crate::errors::{CacheError, IndexError};
+use dozer_storage::lmdb::{RwTransaction, Transaction};
 use dozer_types::{
     parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
 use itertools::Itertools;
-use lmdb::{RwTransaction, Transaction};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -30,10 +30,10 @@ impl Indexer {
 
         let mut txn = parent_txn
             .begin_nested_txn()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+            .map_err(|e| CacheError::Internal(Box::new(e)))?;
 
         if secondary_indexes.is_empty() {
-            return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
+            return Err(CacheError::Index(IndexError::MissingSecondaryIndexes));
         }
         for (idx, index) in secondary_indexes.iter().enumerate() {
             let db = *self
@@ -57,7 +57,7 @@ impl Indexer {
             }
         }
         txn.commit()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+            .map_err(|e| CacheError::Internal(Box::new(e)))?;
         Ok(())
     }
 
@@ -112,7 +112,7 @@ impl Indexer {
         values: &[Field],
     ) -> Result<Vec<Vec<u8>>, CacheError> {
         let Some(field) = values.get(field_index) else {
-            return Err(CacheError::IndexError(IndexError::FieldIndexOutOfRange));
+            return Err(CacheError::Index(IndexError::FieldIndexOutOfRange));
         };
 
         let string = match field {
@@ -120,7 +120,7 @@ impl Indexer {
             Field::Text(string) => string,
             Field::Null => "",
             _ => {
-                return Err(CacheError::IndexError(IndexError::FieldNotCompatibleIndex(
+                return Err(CacheError::Index(IndexError::FieldNotCompatibleIndex(
                     field_index,
                 )))
             }
@@ -136,15 +136,13 @@ impl Indexer {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::{
-        lmdb::tests::utils as lmdb_utils, lmdb::CacheOptions, test_utils, LmdbCache, RwCache,
-    };
+    use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, LmdbRwCache, RwCache};
 
     use super::*;
 
     #[test]
     fn test_secondary_indexes() {
-        let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+        let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
         let (schema, secondary_indexes) = test_utils::schema_1();
 
         cache
@@ -214,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_full_text_secondary_index_with_duplicated_words() {
-        let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+        let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
         let (schema, secondary_indexes) = test_utils::schema_full_text();
 
         cache

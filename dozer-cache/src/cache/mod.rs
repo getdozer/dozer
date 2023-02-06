@@ -1,16 +1,18 @@
 mod lmdb;
+use std::fmt::Debug;
+
 use self::expression::QueryExpression;
-pub use self::lmdb::{
-    cache::lmdb as lmdb_rs, cache::LmdbCache, CacheCommonOptions, CacheOptions, CacheOptionsKind,
-    CacheReadOptions, CacheWriteOptions,
-};
 use crate::errors::CacheError;
 use dozer_types::types::{IndexDefinition, Record, Schema, SchemaIdentifier};
+pub use lmdb::{
+    cache::{LmdbRoCache, LmdbRwCache},
+    CacheCommonOptions, CacheOptions, CacheOptionsKind, CacheReadOptions, CacheWriteOptions,
+};
 pub mod expression;
 pub mod index;
 mod plan;
 pub mod test_utils;
-pub trait RoCache {
+pub trait RoCache: Send + Sync + Debug {
     // Schema Operations
     fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> Result<Schema, CacheError>;
     fn get_schema_and_indexes_by_name(
@@ -37,4 +39,5 @@ pub trait RwCache: RoCache {
     fn insert(&self, record: &Record) -> Result<(), CacheError>;
     fn delete(&self, key: &[u8]) -> Result<(), CacheError>;
     fn update(&self, key: &[u8], record: &Record) -> Result<(), CacheError>;
+    fn commit(&self) -> Result<(), CacheError>;
 }

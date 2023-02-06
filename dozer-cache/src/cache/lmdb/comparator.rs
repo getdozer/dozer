@@ -1,13 +1,14 @@
-use lmdb::{Database, Environment, Result, Transaction};
-use lmdb_sys::{mdb_set_compare, MDB_cmp_func, MDB_val, MDB_SUCCESS};
+use dozer_storage::errors::StorageError;
+use dozer_storage::lmdb::{Database, Transaction};
+use dozer_storage::lmdb_sys::{mdb_set_compare, MDB_cmp_func, MDB_val, MDB_SUCCESS};
 
 use crate::cache::index::compare_composite_secondary_index;
 
-pub fn set_sorted_inverted_comparator(
-    env: &Environment,
+pub fn set_sorted_inverted_comparator<T: Transaction>(
+    txn: &T,
     db: Database,
     fields: &[usize],
-) -> Result<()> {
+) -> Result<(), StorageError> {
     let comparator: MDB_cmp_func = if fields.len() == 1 {
         None
     } else {
@@ -15,17 +16,14 @@ pub fn set_sorted_inverted_comparator(
     };
 
     if let Some(comparator) = comparator {
-        let txn = env.begin_ro_txn()?;
         unsafe {
             assert_eq!(
                 mdb_set_compare(txn.txn(), db.dbi(), Some(comparator)),
                 MDB_SUCCESS
             );
         }
-        txn.commit()
-    } else {
-        Ok(())
     }
+    Ok(())
 }
 
 unsafe fn mdb_val_to_slice(val: &MDB_val) -> &[u8] {
@@ -49,23 +47,21 @@ unsafe extern "C" fn compare_composite_key(
 mod tests {
     use std::cmp::Ordering::{self, Equal, Greater, Less};
 
+    use dozer_storage::{
+        lmdb::DatabaseFlags, lmdb_storage::LmdbEnvironmentManager, lmdb_sys::mdb_cmp,
+    };
     use dozer_types::{
         chrono::{DateTime, NaiveDate, TimeZone, Utc},
         ordered_float::OrderedFloat,
         rust_decimal::Decimal,
         types::Field,
     };
-    use lmdb_sys::mdb_cmp;
 
-    use crate::cache::{
-        index::get_secondary_index,
-        lmdb::utils::{self, DatabaseCreateOptions},
-        CacheOptions,
-    };
+    use crate::cache::{index::get_secondary_index, lmdb::utils, CacheOptions};
 
     use super::*;
 
-    fn check_test_cases(checker: impl Fn(&[i64], &[i64], Ordering)) {
+    fn check_test_cases(mut checker: impl FnMut(&[i64], &[i64], Ordering)) {
         checker(&[1, 1], &[1, 1], Equal);
         checker(&[1, 1], &[1, 2], Less);
         checker(&[1, 1], &[2, 1], Less);
@@ -130,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_set_sorted_inverted_comparator() {
-        let check_single = get_single_key_checker();
+        let mut check_single = get_single_key_checker();
         check_single(Some(1), Some(1), Equal);
         check_single(Some(1), Some(2), Less);
         check_single(Some(2), Some(1), Greater);
@@ -142,25 +138,21 @@ mod tests {
         check_test_cases(check_composite);
     }
 
-    fn setup(num_fields: usize) -> (Environment, Database) {
+    fn setup(num_fields: usize) -> (LmdbEnvironmentManager, Database) {
         let options = CacheOptions::default();
-        let env = utils::init_env(&options).unwrap();
-        let db = utils::init_db(
-            &env,
-            Some("test"),
-            Some(DatabaseCreateOptions {
-                allow_dup: true,
-                fixed_length_key: false,
-            }),
-        )
-        .unwrap();
+        let mut env = utils::init_env(&options).unwrap();
+        let db = env
+            .create_database(Some("test"), Some(DatabaseFlags::DUP_SORT))
+            .unwrap();
         let fields = (0..num_fields).into_iter().collect::<Vec<_>>();
-        set_sorted_inverted_comparator(&env, db, &fields).unwrap();
+        let txn = env.begin_ro_txn().unwrap();
+        set_sorted_inverted_comparator(&txn, db, &fields).unwrap();
+        txn.commit().unwrap();
         (env, db)
     }
 
-    fn get_single_key_checker() -> impl Fn(Option<i64>, Option<i64>, Ordering) {
-        let (env, db) = setup(1);
+    fn get_single_key_checker() -> impl FnMut(Option<i64>, Option<i64>, Ordering) {
+        let (mut env, db) = setup(1);
         move |a: Option<i64>, b: Option<i64>, expected: Ordering| {
             let serialize =
                 |a: Option<i64>| get_secondary_index(&[&a.map_or(Field::Null, Field::Int)], true);
@@ -182,8 +174,10 @@ mod tests {
         }
     }
 
-    fn get_composite_key_checker<'a>(num_fields: usize) -> impl Fn(&[i64], &[i64], Ordering) + 'a {
-        let (env, db) = setup(num_fields);
+    fn get_composite_key_checker<'a>(
+        num_fields: usize,
+    ) -> impl FnMut(&[i64], &[i64], Ordering) + 'a {
+        let (mut env, db) = setup(num_fields);
         move |a: &[i64], b: &[i64], expected: Ordering| {
             let serialize = |a: &[i64]| {
                 let fields = a.iter().map(|a| Field::Int(*a)).collect::<Vec<_>>();
@@ -210,7 +204,7 @@ mod tests {
 
     #[test]
     fn null_is_greater_than_other_thing() {
-        let (env, db) = setup(1);
+        let (mut env, db) = setup(1);
         let txn = env.begin_ro_txn().unwrap();
         let check = |field: &Field| {
             let serialize = |a| get_secondary_index(&[a], true);

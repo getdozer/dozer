@@ -1,10 +1,10 @@
-use lmdb::{Database, Environment, RwTransaction, Transaction, WriteFlags};
+use dozer_storage::{
+    lmdb::{Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags},
+    lmdb_storage::LmdbEnvironmentManager,
+};
 
 use crate::{
-    cache::lmdb::{
-        query::helper,
-        utils::{self, DatabaseCreateOptions},
-    },
+    cache::lmdb::query::helper,
     errors::{CacheError, QueryError},
 };
 
@@ -12,16 +12,16 @@ use crate::{
 pub struct IdDatabase(Database);
 
 impl IdDatabase {
-    pub fn new(env: &Environment, create_if_not_exist: bool) -> Result<Self, CacheError> {
-        let options = if create_if_not_exist {
-            Some(DatabaseCreateOptions {
-                allow_dup: false,
-                fixed_length_key: false,
-            })
+    pub fn new(
+        env: &mut LmdbEnvironmentManager,
+        create_if_not_exist: bool,
+    ) -> Result<Self, CacheError> {
+        let flags = if create_if_not_exist {
+            Some(DatabaseFlags::empty())
         } else {
             None
         };
-        let db = utils::init_db(env, Some("primary_index"), options)?;
+        let db = env.create_database(Some("primary_index"), flags)?;
         Ok(Self(db))
     }
 
@@ -35,8 +35,8 @@ impl IdDatabase {
                 Ok(id) => Ok(id
                     .try_into()
                     .expect("All values must be u64 ids in this database")),
-                Err(lmdb::Error::NotFound) => self.generate_id(txn, Some(key)),
-                Err(e) => Err(CacheError::QueryError(QueryError::InsertValue(e))),
+                Err(dozer_storage::lmdb::Error::NotFound) => self.generate_id(txn, Some(key)),
+                Err(e) => Err(CacheError::Query(QueryError::InsertValue(e))),
             }
         } else {
             self.generate_id(txn, None)
@@ -49,21 +49,21 @@ impl IdDatabase {
         key: Option<&[u8]>,
     ) -> Result<[u8; 8], CacheError> {
         let id = helper::lmdb_stat(txn, self.0)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?
+            .map_err(|e| CacheError::Internal(Box::new(e)))?
             .ms_entries as u64;
-        let id = id.to_be_bytes();
+        let id: [u8; 8] = id.to_be_bytes();
 
         let key = key.unwrap_or(&id);
 
         txn.put(self.0, &key, &id, WriteFlags::NO_OVERWRITE)
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+            .map_err(|e| CacheError::Query(QueryError::InsertValue(e)))?;
 
         Ok(id)
     }
 
     pub fn get<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<[u8; 8], CacheError> {
         txn.get(self.0, &key)
-            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))
+            .map_err(|e| CacheError::Query(QueryError::GetValue(e)))
             .map(|id| {
                 id.try_into()
                     .expect("All values must be u64 ids in this database")
@@ -73,26 +73,28 @@ impl IdDatabase {
 
 #[cfg(test)]
 mod tests {
+    use dozer_storage::lmdb_storage::LmdbTransaction;
+
     use crate::cache::{lmdb::utils::init_env, CacheOptions};
 
     use super::*;
 
     #[test]
     fn test_id_database() {
-        let env = init_env(&CacheOptions::default()).unwrap();
-        let writer = IdDatabase::new(&env, true).unwrap();
-        let reader = IdDatabase::new(&env, false).unwrap();
+        let mut env = init_env(&CacheOptions::default()).unwrap();
+        let writer = IdDatabase::new(&mut env, true).unwrap();
+        let reader = IdDatabase::new(&mut env, false).unwrap();
 
         let key = b"key";
 
-        let mut txn = env.begin_rw_txn().unwrap();
-        let id = writer.get_or_generate(&mut txn, Some(key)).unwrap();
-        writer.get_or_generate(&mut txn, None).unwrap();
-        txn.commit().unwrap();
+        let txn = env.create_txn().unwrap();
+        let mut txn = txn.write();
+        let id = writer.get_or_generate(txn.txn_mut(), Some(key)).unwrap();
+        writer.get_or_generate(txn.txn_mut(), None).unwrap();
+        txn.commit_and_renew().unwrap();
 
-        let txn = env.begin_ro_txn().unwrap();
-        assert_eq!(writer.get(&txn, key).unwrap(), id);
-        assert_eq!(reader.get(&txn, key).unwrap(), id);
-        txn.commit().unwrap();
+        assert_eq!(writer.get(txn.txn(), key).unwrap(), id);
+        assert_eq!(reader.get(txn.txn(), key).unwrap(), id);
+        txn.commit_and_renew().unwrap();
     }
 }

@@ -11,30 +11,30 @@ use crate::cache::{
     plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
 use crate::errors::{CacheError, IndexError};
+use dozer_storage::lmdb::Transaction;
 use dozer_types::{
     bincode,
     parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
 use itertools::Either;
-use lmdb::RoTransaction;
 
-pub struct LmdbQueryHandler<'a> {
+pub struct LmdbQueryHandler<'a, T: Transaction> {
     db: RecordDatabase,
     secondary_index_databases: Arc<RwLock<SecondaryIndexDatabases>>,
-    txn: &'a RoTransaction<'a>,
-    schema: &'a Schema,
-    secondary_indexes: &'a [IndexDefinition],
+    txn: &'a T,
+    schema: Schema,
+    secondary_indexes: Vec<IndexDefinition>,
     query: &'a QueryExpression,
     intersection_chunk_size: usize,
 }
-impl<'a> LmdbQueryHandler<'a> {
+impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     pub fn new(
         db: RecordDatabase,
         secondary_index_databases: Arc<RwLock<SecondaryIndexDatabases>>,
-        txn: &'a RoTransaction,
-        schema: &'a Schema,
-        secondary_indexes: &'a [IndexDefinition],
+        txn: &'a T,
+        schema: Schema,
+        secondary_indexes: Vec<IndexDefinition>,
         query: &'a QueryExpression,
         intersection_chunk_size: usize,
     ) -> Self {
@@ -50,7 +50,7 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     pub fn count(&self) -> Result<usize, CacheError> {
-        let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
+        let planner = QueryPlanner::new(&self.schema, &self.secondary_indexes, self.query);
         let execution = planner.plan()?;
         match execution {
             Plan::IndexScans(index_scans) => Ok(self.build_index_scan(index_scans)?.count()),
@@ -64,7 +64,7 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     pub fn query(&self) -> Result<Vec<Record>, CacheError> {
-        let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
+        let planner = QueryPlanner::new(&self.schema, &self.secondary_indexes, self.query);
         let execution = planner.plan()?;
         match execution {
             Plan::IndexScans(index_scans) => {
@@ -262,7 +262,7 @@ fn get_range_spec(
                 let token = match &filter.val {
                     Field::String(token) => token,
                     Field::Text(token) => token,
-                    _ => return Err(CacheError::IndexError(IndexError::ExpectedStringFullText)),
+                    _ => return Err(CacheError::Index(IndexError::ExpectedStringFullText)),
                 };
                 let key = index::get_full_text_secondary_index(token);
                 Ok(RangeSpec {

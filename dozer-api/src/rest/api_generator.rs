@@ -49,7 +49,7 @@ pub async fn list(
     {
         Ok(res) => Ok(res),
         Err(e) => match e {
-            CacheError::QueryError(_) => {
+            CacheError::Query(_) => {
                 let res: Vec<String> = vec![];
                 info!("No records found.");
                 Ok(HttpResponse::Ok().json(res))
@@ -82,9 +82,9 @@ pub async fn count(
         .get_records_count(query_expression)
         .map(|count| HttpResponse::Ok().json(count))
         .map_err(|e| match e {
-            CacheError::QueryValidationError(e) => ApiError::InvalidQuery(e),
-            CacheError::TypeError(e) => ApiError::TypeError(e),
-            CacheError::InternalError(e) => ApiError::InternalError(e),
+            CacheError::QueryValidation(e) => ApiError::InvalidQuery(e),
+            CacheError::Type(e) => ApiError::TypeError(e),
+            CacheError::Internal(e) => ApiError::InternalError(e),
             e => ApiError::InternalError(Box::new(e)),
         })
 }
@@ -108,9 +108,9 @@ pub async fn query(
         .get_records_map(query_expression)
         .map(|maps| HttpResponse::Ok().json(maps))
         .map_err(|e| match e {
-            CacheError::QueryValidationError(e) => ApiError::InvalidQuery(e),
-            CacheError::TypeError(e) => ApiError::TypeError(e),
-            CacheError::InternalError(e) => ApiError::InternalError(e),
+            CacheError::QueryValidation(e) => ApiError::InvalidQuery(e),
+            CacheError::Type(e) => ApiError::TypeError(e),
+            CacheError::Internal(e) => ApiError::InternalError(e),
             e => ApiError::InternalError(Box::new(e)),
         })
 }

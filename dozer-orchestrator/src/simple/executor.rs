@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use dozer_api::CacheEndpoint;
+use dozer_api::RwCacheEndpoint;
 use dozer_types::models::source::Source;
 
 use crate::pipeline::validate::validate;
@@ -27,14 +27,14 @@ use crate::pipeline::source_builder::{IngestorVec, SourceBuilder};
 
 pub struct Executor {
     config: Config,
-    cache_endpoints: Vec<CacheEndpoint>,
+    cache_endpoints: Vec<RwCacheEndpoint>,
     pipeline_dir: PathBuf,
     running: Arc<AtomicBool>,
 }
 impl Executor {
     pub fn new(
         config: Config,
-        cache_endpoints: Vec<CacheEndpoint>,
+        cache_endpoints: Vec<RwCacheEndpoint>,
         running: Arc<AtomicBool>,
         pipeline_dir: PathBuf,
     ) -> Self {

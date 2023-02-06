@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::cache::{expression::QueryExpression, LmdbCache, RoCache};
+use crate::cache::{expression::QueryExpression, RoCache};
 
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
@@ -24,7 +24,7 @@ pub struct AccessFilter {
 
 /// CacheReader dynamically attaches permissions on top of queries
 pub struct CacheReader {
-    pub cache: Arc<LmdbCache>,
+    pub cache: Arc<dyn RoCache>,
     pub access: AccessFilter,
 }
 

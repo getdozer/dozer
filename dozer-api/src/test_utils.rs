@@ -6,7 +6,7 @@ use dozer_types::{
 };
 use std::sync::Arc;
 
-use dozer_cache::cache::{CacheOptions, LmdbCache, RwCache};
+use dozer_cache::cache::{LmdbRwCache, RwCache};
 
 pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![
@@ -104,8 +104,8 @@ fn get_films() -> Vec<Value> {
 pub fn initialize_cache(
     schema_name: &str,
     schema: Option<(dozer_types::types::Schema, Vec<IndexDefinition>)>,
-) -> Arc<LmdbCache> {
-    let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
+) -> Arc<LmdbRwCache> {
+    let cache = Arc::new(LmdbRwCache::new(Default::default(), Default::default()).unwrap());
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     cache
         .insert_schema(schema_name, &schema, &secondary_indexes)

@@ -1,7 +1,7 @@
 use crate::errors::{CacheError, QueryError};
+use dozer_storage::lmdb::{Database, Transaction};
+use dozer_storage::lmdb_sys as ffi;
 use dozer_types::{bincode, serde};
-use lmdb::{Database, Transaction};
-use lmdb_sys as ffi;
 use std::{cmp::Ordering, ffi::c_void};
 pub fn get<T>(txn: &impl Transaction, db: Database, id: &[u8]) -> Result<T, CacheError>
 where
@@ -9,7 +9,7 @@ where
 {
     let rec = txn
         .get(db, &id)
-        .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
+        .map_err(|e| CacheError::Query(QueryError::GetValue(e)))?;
     bincode::deserialize(rec).map_err(CacheError::map_deserialization_error)
 }
 
@@ -22,11 +22,14 @@ pub fn lmdb_cmp<T: Transaction>(txn: &T, db: Database, a: &[u8], b: &[u8]) -> Or
         mv_size: b.len(),
         mv_data: b.as_ptr() as *mut c_void,
     };
-    let result = unsafe { lmdb_sys::mdb_cmp(txn.txn(), db.dbi(), &a, &b) };
+    let result = unsafe { dozer_storage::lmdb_sys::mdb_cmp(txn.txn(), db.dbi(), &a, &b) };
     result.cmp(&0)
 }
 
-pub fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<ffi::MDB_stat, lmdb::Error> {
+pub fn lmdb_stat<T: Transaction>(
+    txn: &T,
+    db: Database,
+) -> Result<ffi::MDB_stat, dozer_storage::lmdb::Error> {
     let mut stat = ffi::MDB_stat {
         ms_psize: 0,
         ms_depth: 0,
@@ -35,10 +38,10 @@ pub fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<ffi::MDB_stat,
         ms_overflow_pages: 0,
         ms_entries: 0,
     };
-    let code = unsafe { lmdb_sys::mdb_stat(txn.txn(), db.dbi(), &mut stat) };
+    let code = unsafe { dozer_storage::lmdb_sys::mdb_stat(txn.txn(), db.dbi(), &mut stat) };
     if code == ffi::MDB_SUCCESS {
         Ok(stat)
     } else {
-        Err(lmdb::Error::from_err_code(code))
+        Err(dozer_storage::lmdb::Error::from_err_code(code))
     }
 }

@@ -6,9 +6,10 @@ use crate::Dag;
 use dozer_storage::common::Seek;
 use dozer_storage::errors::StorageError;
 use dozer_storage::errors::StorageError::{DeserializationError, SerializationError};
-use dozer_storage::lmdb::Database;
+use dozer_storage::lmdb::{Database, DatabaseFlags};
 use dozer_storage::lmdb_storage::{
-    LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
+    LmdbEnvironmentManager, LmdbEnvironmentOptions, LmdbExclusiveTransaction, LmdbTransaction,
+    SharedTransaction,
 };
 use dozer_types::bincode;
 use dozer_types::types::Schema;
@@ -58,8 +59,9 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
             return Ok(None);
         }
 
-        let mut env = LmdbEnvironmentManager::create(path, &env_name)?;
-        let db = env.open_database(METADATA_DB_NAME, false)?;
+        let mut env =
+            LmdbEnvironmentManager::create(path, &env_name, LmdbEnvironmentOptions::default())?;
+        let db = env.create_database(Some(METADATA_DB_NAME), Some(DatabaseFlags::empty()))?;
         let txn = env.create_txn()?;
         let txn = SharedTransaction::try_unwrap(txn)
             .expect("We just created this `SharedTransaction`. It's not shared.");
@@ -205,8 +207,12 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
                 return Err(MetadataAlreadyExists(node.clone()));
             }
 
-            let mut env = LmdbEnvironmentManager::create(self.path, &env_name)?;
-            let db = env.open_database(METADATA_DB_NAME, false)?;
+            let mut env = LmdbEnvironmentManager::create(
+                self.path,
+                &env_name,
+                LmdbEnvironmentOptions::default(),
+            )?;
+            let db = env.create_database(Some(METADATA_DB_NAME), Some(DatabaseFlags::empty()))?;
             let txn = env.create_txn()?;
             let mut txn = SharedTransaction::try_unwrap(txn)
                 .expect("We just created this `SharedTransaction`. It's not shared.");

@@ -8,7 +8,7 @@ use dozer_core::errors::ExecutionError;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::storage::lmdb_storage::{
-    LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
+    LmdbEnvironmentManager, LmdbExclusiveTransaction, LmdbTransaction, SharedTransaction,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::types::TypeError;
@@ -20,6 +20,7 @@ use dozer_core::record_store::RecordReader;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
+use lmdb::DatabaseFlags;
 use std::{collections::HashMap, mem::size_of_val};
 
 pub enum FieldRule {
@@ -97,10 +98,11 @@ impl AggregationProcessor {
         }
     }
 
-    fn init_store(&mut self, txn: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
-        self.db = Some(txn.open_database("aggr", false)?);
-        self.aggregators_db = Some(txn.open_database("aggr_data", false)?);
-        self.meta_db = Some(txn.open_database("meta", false)?);
+    fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
+        self.db = Some(env.create_database(Some("aggr"), Some(DatabaseFlags::empty()))?);
+        self.aggregators_db =
+            Some(env.create_database(Some("aggr_data"), Some(DatabaseFlags::empty()))?);
+        self.meta_db = Some(env.create_database(Some("meta"), Some(DatabaseFlags::empty()))?);
         Ok(())
     }
 

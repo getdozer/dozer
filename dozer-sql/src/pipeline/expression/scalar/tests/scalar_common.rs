@@ -46,7 +46,9 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
         .unwrap();
 
     let tmp_dir = TempDir::new("test").unwrap();
-    let mut storage = LmdbEnvironmentManager::create(tmp_dir.path(), "projection_test").unwrap();
+    let mut storage =
+        LmdbEnvironmentManager::create(tmp_dir.path(), "projection_test", Default::default())
+            .unwrap();
 
     processor.init(&mut storage).unwrap();
 

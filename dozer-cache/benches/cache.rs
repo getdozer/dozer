@@ -1,12 +1,12 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
+use dozer_cache::cache::LmdbRwCache;
 use dozer_cache::cache::{index, test_utils, RoCache, RwCache};
-use dozer_cache::cache::{CacheOptions, LmdbCache};
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record, Schema};
 use std::sync::Arc;
 
-fn insert(cache: &LmdbCache, schema: &Schema, n: usize) {
+fn insert(cache: &LmdbRwCache, schema: &Schema, n: usize) {
     let val = format!("bar_{n}");
 
     let record = Record::new(schema.identifier, vec![Field::String(val.clone())], None);
@@ -17,19 +17,19 @@ fn insert(cache: &LmdbCache, schema: &Schema, n: usize) {
     let _get_record = cache.get(&key).unwrap();
 }
 
-fn delete(cache: &LmdbCache, n: usize) {
+fn delete(cache: &LmdbRwCache, n: usize) {
     let val = format!("bar_{n}");
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
     let _ = cache.delete(&key);
 }
 
-fn get(cache: &LmdbCache, n: usize) {
+fn get(cache: &LmdbRwCache, n: usize) {
     let val = format!("bar_{n}");
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
     let _get_record = cache.get(&key).unwrap();
 }
 
-fn query(cache: &LmdbCache, _n: usize) {
+fn query(cache: &LmdbRwCache, _n: usize) {
     let exp = QueryExpression::new(
         Some(FilterExpression::Simple(
             "foo".to_string(),
@@ -46,7 +46,7 @@ fn query(cache: &LmdbCache, _n: usize) {
 
 fn cache(c: &mut Criterion) {
     let (schema, secondary_indexes) = test_utils::schema_0();
-    let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
+    let cache = Arc::new(LmdbRwCache::new(Default::default(), Default::default()).unwrap());
 
     cache
         .insert_schema("benches", &schema, &secondary_indexes)
