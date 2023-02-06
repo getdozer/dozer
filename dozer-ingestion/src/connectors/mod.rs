@@ -21,6 +21,7 @@ use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::SchemaWithChangesType;
 use std::sync::Arc;
+use crate::connectors::datafusion::connector::DataFusionConnector;
 
 pub mod snowflake;
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
@@ -84,6 +85,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             )))
         }
         Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
+        Authentication::DataFusion(data_fusion_config) => Ok(Box::new(DataFusionConnector::new(5, data_fusion_config))),
     }
 }
 
@@ -93,6 +95,7 @@ pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
         Some(Authentication::Ethereum(config)) => Some(config.convert_to_table()),
         Some(Authentication::Snowflake(config)) => Some(config.convert_to_table()),
         Some(Authentication::Kafka(config)) => Some(config.convert_to_table()),
+        Some(Authentication::DataFusion(config)) => Some(config.convert_to_table()),
         _ => None,
     }
 }
