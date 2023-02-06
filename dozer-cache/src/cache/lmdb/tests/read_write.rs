@@ -1,7 +1,9 @@
 use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use crate::cache::lmdb::{CacheCommonOptions, CacheOptionsKind, CacheWriteOptions};
 use crate::cache::CacheReadOptions;
-use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, Cache, CacheOptions, LmdbCache};
+use crate::cache::{
+    lmdb::tests::utils as lmdb_utils, test_utils, CacheOptions, LmdbCache, RoCache, RwCache,
+};
 use dozer_types::serde_json::Value;
 use dozer_types::types::Field;
 use tempdir::TempDir;

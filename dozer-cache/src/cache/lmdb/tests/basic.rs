@@ -2,7 +2,7 @@ use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
     index,
     lmdb::CacheOptions,
-    test_utils, Cache,
+    test_utils, RoCache, RwCache,
 };
 use dozer_types::{
     serde_json::Value,

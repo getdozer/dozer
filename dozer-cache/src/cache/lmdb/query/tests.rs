@@ -1,7 +1,7 @@
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
     lmdb::{cache::LmdbCache, tests::utils, CacheOptions},
-    test_utils, Cache,
+    test_utils, RoCache, RwCache,
 };
 use dozer_types::{
     serde_json::{self, json, Value},

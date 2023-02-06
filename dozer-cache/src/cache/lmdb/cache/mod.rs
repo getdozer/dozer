@@ -8,7 +8,7 @@ use lmdb::{Environment, RoTransaction, RwTransaction, Transaction};
 use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
 
-use super::super::Cache;
+use super::super::{RoCache, RwCache};
 use super::indexer::Indexer;
 use super::query::handler::LmdbQueryHandler;
 use super::{utils, CacheOptions, CacheOptionsKind};
@@ -158,35 +158,7 @@ impl LmdbCache {
     }
 }
 
-impl Cache for LmdbCache {
-    fn insert(&self, record: &Record) -> Result<(), CacheError> {
-        let mut txn: RwTransaction = self
-            .env
-            .begin_rw_txn()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&txn, record)?;
-
-        self.insert_with_txn(&mut txn, record, &schema, &secondary_indexes)?;
-        txn.commit()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        Ok(())
-    }
-
-    fn delete(&self, key: &[u8]) -> Result<(), CacheError> {
-        let mut txn: RwTransaction = self
-            .env
-            .begin_rw_txn()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-
-        let record = self.get_with_txn(&txn, key)?;
-        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&txn, &record)?;
-        self.delete_with_txn(&mut txn, key, &record, &schema, &secondary_indexes)?;
-
-        txn.commit()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        Ok(())
-    }
-
+impl RoCache for LmdbCache {
     fn get(&self, key: &[u8]) -> Result<Record, CacheError> {
         let txn: RoTransaction = self
             .env
@@ -234,27 +206,6 @@ impl Cache for LmdbCache {
         Ok(records)
     }
 
-    fn update(&self, key: &[u8], record: &Record) -> Result<(), CacheError> {
-        let mut txn: RwTransaction = self
-            .env
-            .begin_rw_txn()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let old_record = self.get_with_txn(&txn, key)?;
-        let (schema, secondary_indexes) =
-            self.get_schema_and_indexes_from_record(&txn, &old_record)?;
-        self.update_with_txn(
-            &mut txn,
-            key,
-            &old_record,
-            record,
-            &schema,
-            &secondary_indexes,
-        )?;
-        txn.commit()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        Ok(())
-    }
-
     fn get_schema_and_indexes_by_name(
         &self,
         name: &str,
@@ -276,6 +227,58 @@ impl Cache for LmdbCache {
             .get_schema(&txn, *schema_identifier)
             .map(|(schema, _)| schema)
     }
+}
+
+impl RwCache for LmdbCache {
+    fn insert(&self, record: &Record) -> Result<(), CacheError> {
+        let mut txn: RwTransaction = self
+            .env
+            .begin_rw_txn()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&txn, record)?;
+
+        self.insert_with_txn(&mut txn, record, &schema, &secondary_indexes)?;
+        txn.commit()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        Ok(())
+    }
+
+    fn delete(&self, key: &[u8]) -> Result<(), CacheError> {
+        let mut txn: RwTransaction = self
+            .env
+            .begin_rw_txn()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+
+        let record = self.get_with_txn(&txn, key)?;
+        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&txn, &record)?;
+        self.delete_with_txn(&mut txn, key, &record, &schema, &secondary_indexes)?;
+
+        txn.commit()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        Ok(())
+    }
+
+    fn update(&self, key: &[u8], record: &Record) -> Result<(), CacheError> {
+        let mut txn: RwTransaction = self
+            .env
+            .begin_rw_txn()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        let old_record = self.get_with_txn(&txn, key)?;
+        let (schema, secondary_indexes) =
+            self.get_schema_and_indexes_from_record(&txn, &old_record)?;
+        self.update_with_txn(
+            &mut txn,
+            key,
+            &old_record,
+            record,
+            &schema,
+            &secondary_indexes,
+        )?;
+        txn.commit()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        Ok(())
+    }
+
     fn insert_schema(
         &self,
         name: &str,

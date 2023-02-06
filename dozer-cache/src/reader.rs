@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::cache::{expression::QueryExpression, Cache, LmdbCache};
+use crate::cache::{expression::QueryExpression, LmdbCache, RoCache};
 
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;

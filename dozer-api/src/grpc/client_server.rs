@@ -15,7 +15,7 @@ use crate::grpc::{common, typed};
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
-use dozer_cache::cache::Cache;
+use dozer_cache::cache::RoCache;
 use dozer_types::{
     log::{info, warn},
     models::{

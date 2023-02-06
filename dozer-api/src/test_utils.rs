@@ -6,7 +6,7 @@ use dozer_types::{
 };
 use std::sync::Arc;
 
-use dozer_cache::cache::{Cache, CacheOptions, LmdbCache};
+use dozer_cache::cache::{CacheOptions, LmdbCache, RwCache};
 
 pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![

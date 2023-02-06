@@ -1,5 +1,5 @@
 use crate::{errors::GenerationError, PipelineDetails};
-use dozer_cache::cache::Cache;
+use dozer_cache::cache::RoCache;
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;

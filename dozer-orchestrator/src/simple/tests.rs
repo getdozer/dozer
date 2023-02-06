@@ -9,7 +9,9 @@ use std::{
 };
 
 use dozer_api::CacheEndpoint;
-use dozer_cache::cache::{expression::QueryExpression, test_utils, Cache, CacheOptions, LmdbCache};
+use dozer_cache::cache::{
+    expression::QueryExpression, test_utils, CacheOptions, LmdbCache, RoCache,
+};
 use dozer_types::{
     ingestion_types::IngestionMessage,
     log::warn,

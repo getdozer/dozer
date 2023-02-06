@@ -7,7 +7,7 @@ use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::{
     lmdb_rs::{self, Transaction},
-    Cache, LmdbCache,
+    LmdbCache, RoCache, RwCache,
 };
 use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::errors::{ExecutionError, SinkError};
@@ -414,7 +414,7 @@ impl CacheSink {
 mod tests {
 
     use crate::test_utils;
-    use dozer_cache::cache::{index, Cache};
+    use dozer_cache::cache::{index, RoCache, RwCache};
 
     use dozer_core::dag::node::{NodeHandle, Sink};
     use dozer_core::dag::DEFAULT_PORT_HANDLE;

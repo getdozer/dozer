@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
-use dozer_cache::cache::{index, test_utils, Cache};
+use dozer_cache::cache::{index, test_utils, RoCache, RwCache};
 use dozer_cache::cache::{CacheOptions, LmdbCache};
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record, Schema};
