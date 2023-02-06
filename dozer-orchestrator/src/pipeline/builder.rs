@@ -75,7 +75,7 @@ impl PipelineBuilder {
     ) -> Result<dozer_core::dag::Dag<SchemaSQLContext>, OrchestrationError> {
         let sources = self.config.sources.clone();
 
-        let grouped_connections = SourceBuilder::group_connections(sources.clone());
+        let grouped_connections = SourceBuilder::group_connections(sources);
 
         validate_grouped_connections(&grouped_connections)?;
 

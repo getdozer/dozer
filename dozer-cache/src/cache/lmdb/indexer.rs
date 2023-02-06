@@ -226,11 +226,12 @@ mod tests {
             Some("regular test regular".to_string()),
         )];
 
-        for val in items.clone() {
+        for val in items {
             lmdb_utils::insert_full_text(&cache, &schema, val);
         }
 
-        for a in ["another test".to_string()] {
+        {
+            let a = "another test".to_string();
             cache.delete(&Field::String(a).encode()).unwrap();
         }
 

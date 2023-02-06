@@ -420,7 +420,7 @@ pub fn validate_transforms(sql: String) -> Result<(), PipelineError> {
     )
 }
 
-pub fn validate_endpoints(_endpoints: &Vec<ApiEndpoint>) -> Result<(), OrchestrationError> {
+pub fn validate_endpoints(_endpoints: &[ApiEndpoint]) -> Result<(), OrchestrationError> {
     Ok(())
 }
 

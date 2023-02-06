@@ -75,7 +75,7 @@ pub fn statement_to_pipeline(
                         name: query_name.clone(),
                         is_derived: false,
                     },
-                    &query,
+                    query,
                     pipeline,
                     &mut ctx,
                     false,
@@ -463,17 +463,17 @@ mod tests {
         let context = statement_to_pipeline(sql, &mut AppPipeline::new()).unwrap();
 
         // Should create as many output tables as into statements
-        assert_eq!(
-            context.output_tables_map.keys().collect::<Vec<_>>().sort(),
-            vec![
-                "gross_revenue_stats",
-                "film_amounts",
-                "cte_table",
-                "nested_cte_table",
-                "nested_derived_table",
-                "nested_stocks_table"
-            ]
-            .sort()
-        );
+        let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();
+        output_keys.sort();
+        let mut expected_keys = vec![
+            "gross_revenue_stats",
+            "film_amounts",
+            "cte_table",
+            "nested_cte_table",
+            "nested_derived_table",
+            "nested_stocks_table",
+        ];
+        expected_keys.sort();
+        assert_eq!(output_keys, expected_keys);
     }
 }
