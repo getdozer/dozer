@@ -10,44 +10,45 @@ use dozer_types::types::{
 };
 use std::collections::HashMap;
 
-use crate::pipeline::{
-    aggregation::{factory::get_aggregation_rules, processor::AggregationProcessor},
-    errors::PipelineError,
-    tests::utils::get_select,
-};
 
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
-use std::path::Path;
+use tempdir::TempDir;
+use crate::pipeline::aggregation::processor_new::AggregationProcessor;
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::planner::projection::CommonPlanner;
+use crate::pipeline::tests::utils::get_select;
 
 pub(crate) fn init_processor(
     sql: &str,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<(AggregationProcessor, SharedTransaction), PipelineError> {
-    let select = get_select(sql)?;
-
     let input_schema = input_schemas
         .get(&DEFAULT_PORT_HANDLE)
         .unwrap_or_else(|| panic!("Error getting Input Schema"));
 
-    let output_field_rules = get_aggregation_rules(
-        &select.projection.clone(),
-        &select.group_by.clone(),
-        input_schema,
-    )?;
+    let mut projection_planner = CommonPlanner::new(input_schema.clone());
+    let statement = get_select(sql).unwrap();
 
-    let mut processor = AggregationProcessor::new(output_field_rules, input_schema.clone());
+    projection_planner.plan(*statement).unwrap();
 
-    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    let mut processor = AggregationProcessor::new(
+        projection_planner.groupby,
+        projection_planner.aggregation_output,
+        projection_planner.projection_output,
+        input_schema.clone(),
+        projection_planner.post_aggregation_schema,
+    )
+    .unwrap();
 
-    processor
-        .init(&mut storage)
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    let mut storage =
+        LmdbEnvironmentManager::create(TempDir::new("dozer").unwrap().path(), "aggregation_test")
+            .unwrap();
 
-    let tx = storage.create_txn().unwrap();
+    processor.init(&mut storage).unwrap();
+    let mut tx = storage.create_txn().unwrap();
 
     Ok((processor, tx))
 }

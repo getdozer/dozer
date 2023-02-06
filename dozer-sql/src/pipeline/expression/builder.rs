@@ -29,6 +29,7 @@ use super::cast::CastOperatorType;
 
 pub type Bypass = bool;
 
+#[allow(dead_code)]
 pub enum BuilderExpressionType {
     PreAggregation,
     Aggregation,

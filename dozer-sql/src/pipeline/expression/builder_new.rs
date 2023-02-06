@@ -28,22 +28,22 @@ pub struct ExpressionBuilder;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionContext {
-    // Must be an aggregate function
-    pub aggrgeations: Vec<Expression>,
+    // Must be an aggregation function
+    pub aggregations: Vec<Expression>,
     pub offset: usize,
 }
 
 impl ExpressionContext {
     pub fn new(offset: usize) -> Self {
         Self {
-            aggrgeations: Vec::new(),
+            aggregations: Vec::new(),
             offset,
         }
     }
 
-    pub fn from(offset: usize, aggrgeations: Vec<Expression>) -> Self {
+    pub fn from(offset: usize, aggregations: Vec<Expression>) -> Self {
         Self {
-            aggrgeations,
+            aggregations,
             offset,
         }
     }
@@ -264,15 +264,15 @@ impl ExpressionBuilder {
                     args: arg_expr,
                 };
                 let index = match context
-                    .aggrgeations
+                    .aggregations
                     .iter()
                     .enumerate()
                     .find(|e| e.1 == &measure)
                 {
                     Some((index, _existing)) => index,
                     _ => {
-                        context.aggrgeations.push(measure);
-                        context.aggrgeations.len() - 1
+                        context.aggregations.push(measure);
+                        context.aggregations.len() - 1
                     }
                 };
                 Ok(Box::new(Expression::Column {
@@ -462,5 +462,13 @@ impl ExpressionBuilder {
 
     fn parse_sql_string(s: &str) -> Result<Box<Expression>, PipelineError> {
         Ok(Box::new(Expression::Literal(Field::String(s.to_owned()))))
+    }
+
+    pub fn fullname_from_ident(ident: &[Ident]) -> String {
+        let mut ident_tokens = vec![];
+        for token in ident.iter() {
+            ident_tokens.push(token.value.clone());
+        }
+        ident_tokens.join(".")
     }
 }

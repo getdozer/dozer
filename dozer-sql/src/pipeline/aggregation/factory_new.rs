@@ -1,8 +1,6 @@
 use crate::pipeline::aggregation::processor_new::AggregationProcessor;
 use crate::pipeline::builder::SchemaSQLContext;
-use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::planner::projection::ProjectionPlanner;
+use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::projection::processor::ProjectionProcessor;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
@@ -27,8 +25,8 @@ impl AggregationProcessorFactory {
         }
     }
 
-    fn get_planner(&self, input_schema: Schema) -> Result<ProjectionPlanner, ExecutionError> {
-        let mut projection_planner = ProjectionPlanner::new(input_schema);
+    fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, ExecutionError> {
+        let mut projection_planner = CommonPlanner::new(input_schema);
         let _ = projection_planner
             .plan(self.projection.clone())
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;

@@ -1,12 +1,11 @@
 use crate::pipeline::aggregation::processor_new::AggregationProcessor;
-use crate::pipeline::planner::projection::ProjectionPlanner;
+use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
 use dozer_core::dag::node::Processor;
 use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
-use std::path::Path;
 use tempdir::TempDir;
 
 #[test]
@@ -75,7 +74,7 @@ fn test_planner_with_aggregator() {
         )
         .clone();
 
-    let mut projection_planner = ProjectionPlanner::new(schema.clone());
+    let mut projection_planner = CommonPlanner::new(schema.clone());
     let statement = get_select(sql).unwrap();
 
     projection_planner.plan(*statement).unwrap();
@@ -96,7 +95,7 @@ fn test_planner_with_aggregator() {
     processor.init(&mut storage).unwrap();
     let mut tx = storage.create_txn().unwrap();
 
-    let r = processor
+    let _r = processor
         .aggregate(
             &mut tx.write(),
             processor.db.unwrap(),
@@ -116,7 +115,7 @@ fn test_planner_with_aggregator() {
         )
         .unwrap();
 
-    let r = processor
+    let _r = processor
         .aggregate(
             &mut tx.write(),
             processor.db.unwrap(),
@@ -135,6 +134,4 @@ fn test_planner_with_aggregator() {
             },
         )
         .unwrap();
-
-    println!("aaa");
 }

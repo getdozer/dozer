@@ -44,7 +44,7 @@ fn test_simple_function() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![]
+            aggregations: vec![]
         }
     );
     assert_eq!(
@@ -86,7 +86,7 @@ fn test_simple_aggr_function() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![Expression::AggregateFunction {
+            aggregations: vec![Expression::AggregateFunction {
                 fun: AggregateFunctionType::Sum,
                 args: vec![Expression::Column { index: 0 }]
             }]
@@ -131,7 +131,7 @@ fn test_2_nested_aggr_function() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![Expression::AggregateFunction {
+            aggregations: vec![Expression::AggregateFunction {
                 fun: AggregateFunctionType::Sum,
                 args: vec![Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
@@ -182,7 +182,7 @@ fn test_3_nested_aggr_function() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![Expression::AggregateFunction {
+            aggregations: vec![Expression::AggregateFunction {
                 fun: AggregateFunctionType::Sum,
                 args: vec![Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
@@ -239,7 +239,7 @@ fn test_3_nested_aggr_function_dup() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![Expression::AggregateFunction {
+            aggregations: vec![Expression::AggregateFunction {
                 fun: AggregateFunctionType::Sum,
                 args: vec![Expression::ScalarFunction {
                     fun: ScalarFunctionType::Round,
@@ -299,7 +299,7 @@ fn test_3_nested_aggr_function_and_sum() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![
+            aggregations: vec![
                 Expression::AggregateFunction {
                     fun: AggregateFunctionType::Sum,
                     args: vec![Expression::ScalarFunction {
@@ -366,7 +366,7 @@ fn test_3_nested_aggr_function_and_sum_3() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![
+            aggregations: vec![
                 Expression::AggregateFunction {
                     fun: AggregateFunctionType::Sum,
                     args: vec![Expression::ScalarFunction {
@@ -468,7 +468,7 @@ fn test_name_resolution() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![]
+            aggregations: vec![]
         }
     );
     assert_eq!(
@@ -513,7 +513,7 @@ fn test_alias_resolution() {
         context,
         ExpressionContext {
             offset: schema.fields.len(),
-            aggrgeations: vec![]
+            aggregations: vec![]
         }
     );
     assert_eq!(

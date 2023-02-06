@@ -15,9 +15,9 @@ use sqlparser::{
 };
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::pipeline::expression::builder::{fullname_from_ident, NameOrAlias, normalize_ident};
 
 use super::errors::UnsupportedSqlError;
-use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
 
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
@@ -29,7 +29,7 @@ pub struct QueryContext {
 }
 
 #[derive(Debug, Clone)]
-pub struct IndexedTabelWithJoins {
+pub struct IndexedTableWithJoins {
     pub relation: (NameOrAlias, TableFactor),
     pub joins: Vec<(NameOrAlias, Join)>,
 }
@@ -216,7 +216,7 @@ pub fn get_input_tables(
     from: &TableWithJoins,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
-) -> Result<IndexedTabelWithJoins, PipelineError> {
+) -> Result<IndexedTableWithJoins, PipelineError> {
     let name = get_from_source(&from.relation, pipeline, query_ctx)?;
     let mut joins = vec![];
 
@@ -225,13 +225,13 @@ pub fn get_input_tables(
         joins.push((input_name.clone(), join.clone()));
     }
 
-    Ok(IndexedTabelWithJoins {
+    Ok(IndexedTableWithJoins {
         relation: (name, from.relation.clone()),
         joins,
     })
 }
 
-pub fn get_input_names(input_tables: &IndexedTabelWithJoins) -> Vec<NameOrAlias> {
+pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias> {
     let mut input_names = vec![];
     input_names.push(input_tables.relation.0.clone());
 
@@ -241,7 +241,7 @@ pub fn get_input_names(input_tables: &IndexedTabelWithJoins) -> Vec<NameOrAlias>
     input_names
 }
 pub fn get_entry_points(
-    input_tables: &IndexedTabelWithJoins,
+    input_tables: &IndexedTableWithJoins,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<Vec<PipelineEntryPoint>, PipelineError> {
     let mut endpoints = vec![];
@@ -310,47 +310,51 @@ mod tests {
         let statements: Vec<&str> = vec![
             r#"
                 SELECT
-                a.name as "Genre",
+                    a.name as "Genre",
                     SUM(amount) as "Gross Revenue(in $)"
                 FROM
                 (
                     SELECT
-                    c.name, f.title, p.amount
-                FROM film f
-                LEFT JOIN film_category fc
-                ON fc.film_id = f.film_id
-                LEFT JOIN category c
-                ON fc.category_id = c.category_id
-                LEFT JOIN inventory i
-                ON i.film_id = f.film_id
-                LEFT JOIN rental r
-                ON r.inventory_id = i.inventory_id
-                LEFT JOIN payment p
-                ON p.rental_id = r.rental_id
-                WHERE p.amount IS NOT NULL
+                        c.name,
+                        f.title,
+                        p.amount
+                    FROM film f
+                    LEFT JOIN film_category fc
+                        ON fc.film_id = f.film_id
+                    LEFT JOIN category c
+                        ON fc.category_id = c.category_id
+                    LEFT JOIN inventory i
+                        ON i.film_id = f.film_id
+                    LEFT JOIN rental r
+                        ON r.inventory_id = i.inventory_id
+                    LEFT JOIN payment p
+                        ON p.rental_id = r.rental_id
+                    WHERE p.amount IS NOT NULL
                 ) a
 
                 GROUP BY name;
             "#,
             r#"
                 SELECT
-                c.name, f.title, p.amount
-            FROM film f
-            LEFT JOIN film_category fc
-            "#,
-            r#"
-            WITH tbl as (select id from a)
-            select id from tbl
-            "#,
-            r#"
-            WITH tbl as (select id from  a),
-            tbl2 as (select id from tbl)
-            select id from tbl2
-            "#,
-            r#"
-            WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
-            cte_table2 as (select id_ct1 from cte_table1)
-            select id_ct2 from cte_table2
+                    c.name,
+                    f.title,
+                    p.amount
+                FROM film f
+                LEFT JOIN film_category fc
+                    "#,
+                    r#"
+                WITH tbl as (select id from a)
+                select id from tbl
+                    "#,
+                    r#"
+                WITH tbl as (select id from  a),
+                tbl2 as (select id from tbl)
+                select id from tbl2
+                    "#,
+                    r#"
+                WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
+                cte_table2 as (select id_ct1 from cte_table1)
+                select id_ct2 from cte_table2
             "#,
             r#"
                 with tbl as (select id, ticker from stocks)

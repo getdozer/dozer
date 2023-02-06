@@ -102,16 +102,6 @@ impl AggregationResult {
 }
 
 impl Aggregator {
-    pub(crate) fn get_return_type(&self, from: FieldType) -> FieldType {
-        match (&self, from) {
-            (Aggregator::Avg, _) => AvgAggregator::get_return_type(from),
-            (Aggregator::Count, _) => CountAggregator::get_return_type(),
-            (Aggregator::Max, from) => MaxAggregator::get_return_type(from),
-            (Aggregator::Min, from) => MinAggregator::get_return_type(from),
-            (Aggregator::Sum, from) => SumAggregator::get_return_type(from),
-        }
-    }
-
     pub(crate) fn _get_type(&self) -> u32 {
         match &self {
             Aggregator::Avg => AvgAggregator::_get_type(),

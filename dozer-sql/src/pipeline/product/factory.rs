@@ -15,7 +15,7 @@ use crate::pipeline::{
     expression::builder::extend_schema_source_def,
 };
 use crate::pipeline::{
-    builder::{get_input_names, IndexedTabelWithJoins},
+    builder::{get_input_names, IndexedTableWithJoins},
     expression::builder::NameOrAlias,
 };
 use sqlparser::ast::Expr;
@@ -27,12 +27,12 @@ use super::{
 
 #[derive(Debug)]
 pub struct ProductProcessorFactory {
-    input_tables: IndexedTabelWithJoins,
+    input_tables: IndexedTableWithJoins,
 }
 
 impl ProductProcessorFactory {
     /// Creates a new [`ProductProcessorFactory`].
-    pub fn new(input_tables: IndexedTabelWithJoins) -> Self {
+    pub fn new(input_tables: IndexedTableWithJoins) -> Self {
         Self { input_tables }
     }
 }
@@ -99,7 +99,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
 ///
 /// This function will return an error if.
 pub fn build_join_chain(
-    join_tables: &IndexedTabelWithJoins,
+    join_tables: &IndexedTableWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<HashMap<PortHandle, JoinTable>, PipelineError> {
     let mut input_tables = HashMap::new();
