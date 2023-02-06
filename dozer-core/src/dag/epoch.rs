@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Barrier};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct OpIdentifier {
@@ -71,6 +71,8 @@ enum EpochManagerState {
         committing: bool,
         /// Closed epoch id.
         epoch_id: u64,
+        /// Instant when the epoch was closed.
+        instant: Instant,
         /// Number of sources that have confirmed the epoch close.
         num_source_confirmations: usize,
     },
@@ -98,17 +100,17 @@ impl EpochManager {
 
     /// Waits for the epoch to close until all sources do so.
     ///
-    /// Returns whether the participant should terminate and the epoch id if the source should commit.
+    /// Returns whether the participant should terminate, the epoch id if the source should commit, and the instant when the decision was made.
     ///
     /// # Arguments
     ///
     /// - `request_termination`: Whether the source wants to terminate. The `EpochManager` checks if all sources want to terminate and returns `true` if so.
-    /// - `request_commit`: Whether the source wants to commit. The `EpochManager` checks if any source wants to commit and returns `true` if so.
+    /// - `request_commit`: Whether the source wants to commit. The `EpochManager` checks if any source wants to commit and returns `Some` if so.
     pub fn wait_for_epoch_close(
         &self,
         request_termination: bool,
         request_commit: bool,
-    ) -> (bool, Option<u64>) {
+    ) -> (bool, Option<u64>, Instant) {
         let barrier = loop {
             let mut state = self.state.lock();
             match &mut *state {
@@ -147,6 +149,7 @@ impl EpochManager {
                 terminating: *should_terminate,
                 committing: *should_commit,
                 epoch_id: *epoch_id,
+                instant: Instant::now(),
                 num_source_confirmations: 0,
             };
         }
@@ -156,11 +159,13 @@ impl EpochManager {
                 terminating,
                 committing,
                 epoch_id,
+                instant,
                 num_source_confirmations,
             } => {
                 let result = (
                     *terminating,
                     if *committing { Some(*epoch_id) } else { None },
+                    *instant,
                 );
 
                 *num_source_confirmations += 1;
@@ -198,7 +203,7 @@ mod tests {
     fn run_epoch_manager(
         termination_gen: &(impl Fn(u16) -> bool + Sync),
         commit_gen: &(impl Fn(u16) -> bool + Sync),
-    ) -> (bool, Option<u64>) {
+    ) -> (bool, Option<u64>, Instant) {
         let epoch_manager = EpochManager::new(NUM_THREADS as usize);
         let epoch_manager = &epoch_manager;
         scope(|scope| {
@@ -224,19 +229,19 @@ mod tests {
     #[test]
     fn test_epoch_manager() {
         // All sources have no new data, epoch should not be closed.
-        let (_, epoch) = run_epoch_manager(&|_| false, &|_| false);
+        let (_, epoch, _) = run_epoch_manager(&|_| false, &|_| false);
         assert!(epoch.is_none());
 
         // One source has new data, epoch should be closed.
-        let (_, epoch) = run_epoch_manager(&|_| false, &|index| index == 0);
+        let (_, epoch, _) = run_epoch_manager(&|_| false, &|index| index == 0);
         assert_eq!(epoch.unwrap(), 0);
 
         // All but one source requests termination, should not terminate.
-        let (terminating, _) = run_epoch_manager(&|index| index != 0, &|_| false);
+        let (terminating, _, _) = run_epoch_manager(&|index| index != 0, &|_| false);
         assert!(!terminating);
 
         // All sources requests termination, should terminate.
-        let (terminating, _) = run_epoch_manager(&|_| true, &|_| false);
+        let (terminating, _, _) = run_epoch_manager(&|_| true, &|_| false);
         assert!(terminating);
     }
 }
