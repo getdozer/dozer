@@ -83,7 +83,7 @@ fn test_planner_with_aggregator() {
         projection_planner.groupby,
         projection_planner.aggregation_output,
         projection_planner.projection_output,
-        schema.clone(),
+        schema,
         projection_planner.post_aggregation_schema,
     )
     .unwrap();
@@ -93,7 +93,7 @@ fn test_planner_with_aggregator() {
             .unwrap();
 
     processor.init(&mut storage).unwrap();
-    let mut tx = storage.create_txn().unwrap();
+    let tx = storage.create_txn().unwrap();
 
     let _r = processor
         .aggregate(

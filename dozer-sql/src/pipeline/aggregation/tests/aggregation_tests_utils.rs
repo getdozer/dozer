@@ -47,7 +47,7 @@ pub(crate) fn init_processor(
             .unwrap();
 
     processor.init(&mut storage).unwrap();
-    let mut tx = storage.create_txn().unwrap();
+    let tx = storage.create_txn().unwrap();
 
     Ok((processor, tx))
 }
