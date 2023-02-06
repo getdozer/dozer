@@ -192,7 +192,6 @@ fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new();
     let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
-        INTO sink_filtered \
         FROM users \
     WHERE Spending >= 1",
         &mut pipeline,
