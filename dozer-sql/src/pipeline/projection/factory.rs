@@ -9,15 +9,13 @@ use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Ident, SelectItem};
 
 use crate::pipeline::builder::SchemaSQLContext;
+use crate::pipeline::expression::builder::ExpressionContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
-        builder::ExpressionBuilder,
-        execution::Expression,
-        execution::ExpressionExecutor,
+        builder::ExpressionBuilder, execution::Expression, execution::ExpressionExecutor,
     },
 };
-use crate::pipeline::expression::builder::ExpressionContext;
 
 use super::processor::ProjectionProcessor;
 
@@ -156,7 +154,7 @@ pub(crate) fn parse_sql_select_item(
                 &mut ExpressionContext::new(0),
                 true,
                 expr,
-                schema
+                schema,
             ) {
                 Ok(expr) => Ok((alias.value.clone(), *expr)),
                 Err(error) => Err(error),

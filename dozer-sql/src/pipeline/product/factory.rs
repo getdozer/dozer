@@ -8,10 +8,9 @@ use dozer_core::dag::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
+use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{
-    builder::SchemaSQLContext,
-    errors::JoinError,
-    expression::builder::extend_schema_source_def,
+    builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
     product::join::JoinBranch,
 };
 use crate::pipeline::{
@@ -19,7 +18,6 @@ use crate::pipeline::{
     errors::PipelineError,
 };
 use sqlparser::ast::Expr as SqlExpr;
-use crate::pipeline::expression::builder::ExpressionBuilder;
 
 use super::{
     join::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},

@@ -1,6 +1,7 @@
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::dag::app::AppPipeline;
 use dozer_core::dag::app::PipelineEntryPoint;
@@ -15,7 +16,6 @@ use sqlparser::{
 };
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 
 use super::errors::UnsupportedSqlError;
 use super::product::factory::FromProcessorFactory;
@@ -287,9 +287,9 @@ pub fn get_from_source(
             alias,
         } => {
             let name = format!("derived_{}", uuid::Uuid::new_v4());
-            let alias_name = alias
-                .as_ref()
-                .map(|alias_ident| ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()]));
+            let alias_name = alias.as_ref().map(|alias_ident| {
+                ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()])
+            });
 
             let name_or = NameOrAlias(name, alias_name);
             query_to_pipeline(&name_or, subquery, pipeline, query_ctx, false)?;
