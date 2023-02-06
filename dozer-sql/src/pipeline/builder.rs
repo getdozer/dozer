@@ -284,11 +284,7 @@ fn select_to_pipeline(
 
     let output_table_name = if let Some(into) = select.into {
         Some(into.name.to_string())
-    } else if let Some(name) = table_info.override_name.clone() {
-        Some(name)
-    } else {
-        None
-    };
+    } else { table_info.override_name.clone() };
     if let Some(table_name) = output_table_name {
         query_ctx.output_tables_map.insert(
             table_name,
