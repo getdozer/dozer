@@ -67,7 +67,7 @@ impl Field {
             Field::String(s) => Cow::Borrowed(s.as_bytes()),
             Field::Text(s) => Cow::Borrowed(s.as_bytes()),
             Field::Binary(b) => Cow::Borrowed(b.as_slice()),
-            Field::Decimal(d) => Cow::Owned(d.normalize().serialize().into()),
+            Field::Decimal(d) => Cow::Owned(d.serialize().into()),
             Field::Timestamp(t) => Cow::Owned(t.timestamp_millis().to_be_bytes().into()),
             Field::Date(t) => Cow::Owned(t.to_string().into()),
             Field::Bson(b) => Cow::Borrowed(b),
