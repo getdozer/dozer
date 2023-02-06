@@ -203,7 +203,7 @@ impl SourceChannelManager {
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         if request_termination || self.should_commit() {
-            let (terminating, epoch) = self
+            let (terminating, epoch, decision_instant) = self
                 .epoch_manager
                 .wait_for_epoch_close(request_termination, self.num_uncommited_ops > 0);
             if let Some(epoch_id) = epoch {
@@ -215,7 +215,7 @@ impl SourceChannelManager {
                 ))?;
             }
             self.num_uncommited_ops = 0;
-            self.last_commit_instant = Instant::now();
+            self.last_commit_instant = decision_instant;
             Ok(terminating)
         } else {
             Ok(false)
