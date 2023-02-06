@@ -1,9 +1,7 @@
 use dozer_core::{
-    dag::{
-        node::{PortHandle, Processor},
-        DEFAULT_PORT_HANDLE,
-    },
+    node::{PortHandle, Processor},
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
+    DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, DATE_FORMAT,

@@ -1,5 +1,5 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
-use dozer_core::dag::app::{App, AppPipeline};
+use dozer_core::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::models::app_config::Config;
 use dozer_types::types::{Operation, SchemaWithChangesType};
@@ -13,8 +13,8 @@ use dozer_types::models::source::Source;
 
 use crate::pipeline::validate::validate;
 use crate::pipeline::{CacheSinkSettings, PipelineBuilder, StreamingSinkFactory};
-use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::get_connector;
 
 use dozer_types::crossbeam;
@@ -55,7 +55,7 @@ impl Executor {
         &self,
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
-    ) -> Result<dozer_core::dag::Dag<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
         let mut pipeline = AppPipeline::new();

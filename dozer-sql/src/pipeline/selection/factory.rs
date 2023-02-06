@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::pipeline::builder::SchemaSQLContext;
-use dozer_core::dag::{
+use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,

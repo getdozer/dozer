@@ -3,20 +3,20 @@ use crate::deserialize;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
-use dozer_core::dag::channels::ProcessorChannelForwarder;
-use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_core::dag::node::{PortHandle, Processor};
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::errors::ExecutionError;
+use dozer_core::errors::ExecutionError::InternalError;
+use dozer_core::node::{PortHandle, Processor};
 use dozer_core::storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::types::TypeError;
 use dozer_types::internal_err;
 use dozer_types::types::{Field, Operation, Record, Schema};
 
-use dozer_core::dag::epoch::Epoch;
-use dozer_core::dag::record_store::RecordReader;
+use dozer_core::epoch::Epoch;
+use dozer_core::record_store::RecordReader;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;

@@ -4,7 +4,7 @@ pub mod pipeline;
 pub mod simple;
 pub use dozer_api::grpc::internal_grpc;
 pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
-use dozer_core::dag::errors::ExecutionError;
+use dozer_core::errors::ExecutionError;
 use dozer_types::{
     crossbeam::channel::Sender,
     log::debug,

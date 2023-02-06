@@ -9,10 +9,10 @@ use dozer_cache::cache::{
     lmdb_rs::{self, Transaction},
     LmdbCache, RoCache, RwCache,
 };
-use dozer_core::dag::epoch::Epoch;
-use dozer_core::dag::errors::{ExecutionError, SinkError};
-use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
-use dozer_core::dag::record_store::RecordReader;
+use dozer_core::epoch::Epoch;
+use dozer_core::errors::{ExecutionError, SinkError};
+use dozer_core::node::{PortHandle, Sink, SinkFactory};
+use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
@@ -416,9 +416,9 @@ mod tests {
     use crate::test_utils;
     use dozer_cache::cache::{index, RoCache, RwCache};
 
-    use dozer_core::dag::node::{NodeHandle, Sink};
-    use dozer_core::dag::DEFAULT_PORT_HANDLE;
+    use dozer_core::node::{NodeHandle, Sink};
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
+    use dozer_core::DEFAULT_PORT_HANDLE;
 
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
@@ -481,7 +481,7 @@ mod tests {
         sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn, &HashMap::new())
             .unwrap();
         sink.commit(
-            &dozer_core::dag::epoch::Epoch::from(
+            &dozer_core::epoch::Epoch::from(
                 0,
                 NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
                 0,
@@ -498,7 +498,7 @@ mod tests {
 
         sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn, &HashMap::new())
             .unwrap();
-        let epoch1 = dozer_core::dag::epoch::Epoch::from(
+        let epoch1 = dozer_core::epoch::Epoch::from(
             0,
             NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
             0,

@@ -19,9 +19,9 @@ use dozer_api::{
 };
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
-use dozer_core::dag::app::AppPipeline;
-use dozer_core::dag::dag_schemas::DagSchemas;
-use dozer_core::dag::errors::ExecutionError::InternalError;
+use dozer_core::app::AppPipeline;
+use dozer_core::dag_schemas::DagSchemas;
+use dozer_core::errors::ExecutionError::InternalError;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
