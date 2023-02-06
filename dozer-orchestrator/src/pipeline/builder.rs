@@ -99,7 +99,7 @@ impl PipelineBuilder {
             }
         }
 
-        if let Some(sql) = self.config.transforms.clone() {
+        if let Some(sql) = self.config.sql.clone() {
             let query_context = statement_to_pipeline(&sql, &mut pipeline)
                 .map_err(OrchestrationError::PipelineError)?;
 

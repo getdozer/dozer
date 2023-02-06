@@ -33,7 +33,7 @@ pub struct Config {
     #[prost(string, optional, tag = "7")]
     #[serde(skip_serializing_if = "Option::is_none")]
     /// transformations to apply to source data in SQL format as multiple queries
-    pub transforms: Option<String>,
+    pub sql: Option<String>,
 
     #[prost(string, tag = "8")]
     #[serde(default = "default_home_dir")]
@@ -73,7 +73,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut endpoints_value: Vec<serde_yaml::Value> = vec![];
 
                 let mut app_name = "".to_owned();
-                let mut transforms = None;
+                let mut sql = None;
                 let mut id: Option<String> = None;
                 let mut home_dir: String = default_home_dir();
                 while let Some(key) = access.next_key()? {
@@ -96,8 +96,8 @@ impl<'de> Deserialize<'de> for Config {
                         "sources" => {
                             sources_value = access.next_value::<Vec<serde_yaml::Value>>()?;
                         }
-                        "transforms" => {
-                            transforms = access.next_value::<Option<String>>()?;
+                        "sql" => {
+                            sql = access.next_value::<Option<String>>()?;
                         }
                         "endpoints" => {
                             endpoints_value = access.next_value::<Vec<serde_yaml::Value>>()?;
@@ -169,7 +169,7 @@ impl<'de> Deserialize<'de> for Config {
                     connections,
                     sources,
                     endpoints,
-                    transforms,
+                    sql,
                     home_dir,
                     flags,
                 })

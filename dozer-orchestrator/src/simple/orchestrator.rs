@@ -400,11 +400,11 @@ impl SimpleOrchestrator {
     }
 }
 
-pub fn validate_transforms(sql: String) -> Result<(), PipelineError> {
+pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
     statement_to_pipeline(&sql, &mut AppPipeline::new()).map_or_else(
         |e| {
             error!(
-                "[transforms][{}] Transforms validation error: {}",
+                "[sql][{}] Transforms validation error: {}",
                 get_colored_text("X", "31"),
                 e
             );
@@ -412,7 +412,7 @@ pub fn validate_transforms(sql: String) -> Result<(), PipelineError> {
         },
         |_| {
             info!(
-                "[Endpoints][{}]  Transforms validation completed",
+                "[sql][{}]  Transforms validation completed",
                 get_colored_text("✓", "32")
             );
             Ok(())
