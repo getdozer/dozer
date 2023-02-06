@@ -10,8 +10,9 @@ connections:
     db_type: Ethereum
     name: eth_logs
 sql: |
-  select block_number, sum(id) from eth_logs 
+  select block_number, sum(id) 
   into eth_stats
+  from eth_logs 
   group by block_number;
 sources:
   - name: eth_logs
