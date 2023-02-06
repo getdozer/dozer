@@ -10,7 +10,7 @@ use dozer_types::types::{
 };
 use std::collections::HashMap;
 
-use crate::pipeline::aggregation::processor_new::AggregationProcessor;
+use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;

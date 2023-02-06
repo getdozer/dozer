@@ -1,4 +1,4 @@
-use crate::pipeline::aggregation::processor_new::AggregationProcessor;
+use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::projection::processor::ProjectionProcessor;
@@ -27,7 +27,7 @@ impl AggregationProcessorFactory {
 
     fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, ExecutionError> {
         let mut projection_planner = CommonPlanner::new(input_schema);
-        let _ = projection_planner
+        projection_planner
             .plan(self.projection.clone())
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         Ok(projection_planner)

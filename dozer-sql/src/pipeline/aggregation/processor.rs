@@ -15,35 +15,13 @@ use dozer_types::errors::types::TypeError;
 use dozer_types::internal_err;
 use dozer_types::types::{Field, Operation, Record, Schema};
 
+use crate::pipeline::aggregation::aggregator::get_aggregator_from_aggregation_expression;
 use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use std::{collections::HashMap, mem::size_of_val};
-
-pub enum FieldRule {
-    /// Represents a dimension field, generally used in the GROUP BY clause
-    Dimension(
-        /// Expression for this dimension
-        Box<Expression>,
-        /// true of this field should be included in the list of values of the
-        /// output schema, otherwise false. Generally, this value is true if the field appears
-        /// in the output results in addition to being in the list of the GROUP BY fields
-        bool,
-        /// Name of the field, if renaming is required. If `None` the original name is retained
-        String,
-    ),
-    /// Represents an aggregated field that will be calculated using the appropriate aggregator
-    Measure(
-        /// Argument of the Aggregator
-        Box<Expression>,
-        /// Aggregator implementation for this measure
-        Aggregator,
-        /// Name of the field, if renaming is required. If `None` the original name is retained
-        String,
-    ),
-}
 
 const COUNTER_KEY: u8 = 1_u8;
 
@@ -65,12 +43,14 @@ impl<'a> AggregationData<'a> {
 
 #[derive(Debug)]
 pub struct AggregationProcessor {
-    out_dimensions: Vec<(Box<Expression>, usize)>,
-    out_measures: Vec<(Box<Expression>, Box<Aggregator>, usize)>,
+    dimensions: Vec<Expression>,
+    measures: Vec<(Expression, Aggregator)>,
+    projections: Vec<Expression>,
     pub db: Option<Database>,
     meta_db: Option<Database>,
     aggregators_db: Option<Database>,
     input_schema: Schema,
+    aggregation_schema: Schema,
 }
 
 enum AggregatorOperation {
@@ -85,29 +65,38 @@ const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
 const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
-    pub fn new(output_field_rules: Vec<FieldRule>, input_schema: Schema) -> Self {
-        let (out_measures, out_dimensions) = populate_rules(&output_field_rules).unwrap();
-        Self {
-            out_dimensions,
-            out_measures,
+    pub fn new(
+        dimensions: Vec<Expression>,
+        measures: Vec<Expression>,
+        projections: Vec<Expression>,
+        input_schema: Schema,
+        aggregation_schema: Schema,
+    ) -> Result<Self, PipelineError> {
+        //
+        let mut aggregators: Vec<(Expression, Aggregator)> = Vec::new();
+        for measure in measures {
+            aggregators.push(get_aggregator_from_aggregation_expression(
+                &measure,
+                &input_schema,
+            )?)
+        }
+
+        Ok(Self {
+            dimensions,
+            measures: aggregators,
+            projections,
             db: None,
             meta_db: None,
             aggregators_db: None,
             input_schema,
-        }
+            aggregation_schema,
+        })
     }
 
     fn init_store(&mut self, txn: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
         self.db = Some(txn.open_database("aggr", false)?);
         self.aggregators_db = Some(txn.open_database("aggr_data", false)?);
         self.meta_db = Some(txn.open_database("meta", false)?);
-        Ok(())
-    }
-
-    fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> Result<(), PipelineError> {
-        for v in &self.out_dimensions {
-            out_rec.set_value(v.1, v.0.evaluate(in_rec, &self.input_schema)?.clone());
-        }
         Ok(())
     }
 
@@ -187,15 +176,15 @@ impl AggregationProcessor {
         cur_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
-        out_rec_delete: &mut Record,
-        out_rec_insert: &mut Record,
+        out_rec_delete: &mut Vec<Field>,
+        out_rec_insert: &mut Vec<Field>,
         op: AggregatorOperation,
     ) -> Result<Vec<u8>, PipelineError> {
         // array holding the list of states for all measures
         let mut next_state = Vec::<u8>::new();
         let mut offset: usize = 0;
 
-        for measure in &self.out_measures {
+        for measure in &self.measures {
             let curr_agg_data = match cur_state {
                 Some(ref e) => {
                     let (len, res) = Self::decode_buffer(&e[offset..])?;
@@ -211,7 +200,7 @@ impl AggregationProcessor {
                         .0
                         .evaluate(inserted_record.unwrap(), &self.input_schema)?;
                     if let Some(curr) = curr_agg_data {
-                        out_rec_delete.set_value(measure.2, curr.value);
+                        out_rec_delete.push(curr.value);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.insert(
                             curr.state,
@@ -239,7 +228,7 @@ impl AggregationProcessor {
                         .0
                         .evaluate(deleted_record.unwrap(), &self.input_schema)?;
                     if let Some(curr) = curr_agg_data {
-                        out_rec_delete.set_value(measure.2, curr.value);
+                        out_rec_delete.push(curr.value);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.delete(
                             curr.state,
@@ -271,7 +260,7 @@ impl AggregationProcessor {
                         .evaluate(inserted_record.unwrap(), &self.input_schema)?;
 
                     if let Some(curr) = curr_agg_data {
-                        out_rec_delete.set_value(measure.2, curr.value);
+                        out_rec_delete.push(curr.value);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.update(
                             curr.state,
@@ -301,7 +290,7 @@ impl AggregationProcessor {
             next_state.extend(
                 &Self::encode_buffer(prefix, &next_state_slice.value, &next_state_slice.state)?.1,
             );
-            out_rec_insert.set_value(measure.2, next_state_slice.value);
+            out_rec_insert.push(next_state_slice.value);
         }
 
         Ok(next_state)
@@ -340,15 +329,13 @@ impl AggregationProcessor {
         &self,
         txn: &mut LmdbExclusiveTransaction,
         db: Database,
-        old: &Record,
+        old: &mut Record,
     ) -> Result<Operation, PipelineError> {
-        let size = self.out_measures.len() + self.out_dimensions.len();
-        let mut out_rec_insert = Record::nulls(None, size, None);
-        let mut out_rec_delete = Record::nulls(None, size, None);
+        let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
+        let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
-        let record_hash = if !self.out_dimensions.is_empty() {
-            get_key(&self.input_schema, old, &self.out_dimensions)?
-            //old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())
+        let record_hash = if !self.dimensions.is_empty() {
+            get_key(&self.input_schema, old, &self.dimensions)?
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -370,16 +357,13 @@ impl AggregationProcessor {
         )?;
 
         let res = if prev_count == 1 {
-            self.fill_dimensions(old, &mut out_rec_delete)?;
             Operation::Delete {
-                old: out_rec_delete,
+                old: self.build_projection(old, out_rec_delete)?,
             }
         } else {
-            self.fill_dimensions(old, &mut out_rec_insert)?;
-            self.fill_dimensions(old, &mut out_rec_delete)?;
             Operation::Update {
-                new: out_rec_insert,
-                old: out_rec_delete,
+                new: self.build_projection(old, out_rec_insert)?,
+                old: self.build_projection(old, out_rec_delete)?,
             }
         };
 
@@ -395,15 +379,13 @@ impl AggregationProcessor {
         &self,
         txn: &mut LmdbExclusiveTransaction,
         db: Database,
-        new: &Record,
+        new: &mut Record,
     ) -> Result<Operation, PipelineError> {
-        let size = self.out_measures.len() + self.out_dimensions.len();
-        let mut out_rec_insert = Record::nulls(None, size, None);
-        let mut out_rec_delete = Record::nulls(None, size, None);
+        let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
+        let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
-        let record_hash = if !self.out_dimensions.is_empty() {
-            get_key(&self.input_schema, new, &self.out_dimensions)?
-            //new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())
+        let record_hash = if !self.dimensions.is_empty() {
+            get_key(&self.input_schema, new, &self.dimensions)?
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -425,21 +407,17 @@ impl AggregationProcessor {
         )?;
 
         let res = if cur_state.is_none() {
-            self.fill_dimensions(new, &mut out_rec_insert)?;
             Operation::Insert {
-                new: out_rec_insert,
+                new: self.build_projection(new, out_rec_insert)?,
             }
         } else {
-            self.fill_dimensions(new, &mut out_rec_insert)?;
-            self.fill_dimensions(new, &mut out_rec_delete)?;
             Operation::Update {
-                new: out_rec_insert,
-                old: out_rec_delete,
+                new: self.build_projection(new, out_rec_insert)?,
+                old: self.build_projection(new, out_rec_delete)?,
             }
         };
 
         txn.put(db, record_key.as_slice(), new_state.as_slice())?;
-
         Ok(res)
     }
 
@@ -447,13 +425,12 @@ impl AggregationProcessor {
         &self,
         txn: &mut LmdbExclusiveTransaction,
         db: Database,
-        old: &Record,
-        new: &Record,
+        old: &mut Record,
+        new: &mut Record,
         record_hash: Vec<u8>,
     ) -> Result<Operation, PipelineError> {
-        let size = self.out_measures.len() + self.out_dimensions.len();
-        let mut out_rec_insert = Record::nulls(None, size, None);
-        let mut out_rec_delete = Record::nulls(None, size, None);
+        let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
+        let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
@@ -467,12 +444,9 @@ impl AggregationProcessor {
             AggregatorOperation::Update,
         )?;
 
-        self.fill_dimensions(new, &mut out_rec_insert)?;
-        self.fill_dimensions(old, &mut out_rec_delete)?;
-
         let res = Operation::Update {
-            new: out_rec_insert,
-            old: out_rec_delete,
+            new: self.build_projection(new, out_rec_insert)?,
+            old: self.build_projection(old, out_rec_delete)?,
         };
 
         txn.put(db, record_key.as_slice(), new_state.as_slice())?;
@@ -480,28 +454,44 @@ impl AggregationProcessor {
         Ok(res)
     }
 
+    pub fn build_projection(
+        &self,
+        original: &mut Record,
+        measures: Vec<Field>,
+    ) -> Result<Record, PipelineError> {
+        let original_len = original.values.len();
+        original.values.extend(measures);
+        let mut output = Vec::<Field>::with_capacity(self.projections.len());
+        for exp in &self.projections {
+            output.push(exp.evaluate(original, &self.aggregation_schema)?);
+        }
+        original.values.drain(original_len..);
+        Ok(Record::new(None, output, None))
+    }
+
     pub fn aggregate(
         &self,
         txn: &mut LmdbExclusiveTransaction,
         db: Database,
-        op: Operation,
+        mut op: Operation,
     ) -> Result<Vec<Operation>, PipelineError> {
         match op {
-            Operation::Insert { ref new } => Ok(vec![self.agg_insert(txn, db, new)?]),
-            Operation::Delete { ref old } => Ok(vec![self.agg_delete(txn, db, old)?]),
-            Operation::Update { ref old, ref new } => {
-                let (old_record_hash, new_record_hash) = if self.out_dimensions.is_empty() {
+            Operation::Insert { ref mut new } => Ok(vec![self.agg_insert(txn, db, new)?]),
+            Operation::Delete { ref mut old } => Ok(vec![self.agg_delete(txn, db, old)?]),
+            Operation::Update {
+                ref mut old,
+                ref mut new,
+            } => {
+                let (old_record_hash, new_record_hash) = if self.dimensions.is_empty() {
                     (
                         vec![AGG_DEFAULT_DIMENSION_ID],
                         vec![AGG_DEFAULT_DIMENSION_ID],
                     )
                 } else {
                     (
-                        get_key(&self.input_schema, old, &self.out_dimensions)?,
-                        get_key(&self.input_schema, new, &self.out_dimensions)?,
+                        get_key(&self.input_schema, old, &self.dimensions)?,
+                        get_key(&self.input_schema, new, &self.dimensions)?,
                     )
-                    //let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
-                    //(old.get_key(&record_keys), new.get_key(&record_keys))
                 };
 
                 if old_record_hash == new_record_hash {
@@ -520,13 +510,13 @@ impl AggregationProcessor {
 fn get_key(
     schema: &Schema,
     record: &Record,
-    out_dimensions: &[(Box<Expression>, usize)],
+    dimensions: &[Expression],
 ) -> Result<Vec<u8>, PipelineError> {
     let mut tot_size = 0_usize;
-    let mut buffers = Vec::<Vec<u8>>::with_capacity(out_dimensions.len());
+    let mut buffers = Vec::<Vec<u8>>::with_capacity(dimensions.len());
 
-    for dimension in out_dimensions.iter() {
-        let value = dimension.0.evaluate(record, schema)?;
+    for dimension in dimensions.iter() {
+        let value = dimension.evaluate(record, schema)?;
         let bytes = value.encode();
         tot_size += bytes.len();
         buffers.push(bytes);
@@ -567,29 +557,4 @@ impl Processor for AggregationProcessor {
             _ => Err(ExecutionError::InvalidDatabase),
         }
     }
-}
-
-type OutputRules = (
-    Vec<(Box<Expression>, Box<Aggregator>, usize)>,
-    Vec<(Box<Expression>, usize)>,
-);
-
-fn populate_rules(output_field_rules: &[FieldRule]) -> Result<OutputRules, PipelineError> {
-    let mut out_measures: Vec<(Box<Expression>, Box<Aggregator>, usize)> = Vec::new();
-    let mut out_dimensions: Vec<(Box<Expression>, usize)> = Vec::new();
-
-    for rule in output_field_rules.iter().enumerate() {
-        match rule.1 {
-            FieldRule::Measure(pre_aggr, aggr, _name) => {
-                out_measures.push((pre_aggr.clone(), Box::new(aggr.clone()), rule.0));
-            }
-            FieldRule::Dimension(expression, is_value, _name) => {
-                if *is_value {
-                    out_dimensions.push((expression.clone(), rule.0));
-                }
-            }
-        }
-    }
-
-    Ok((out_measures, out_dimensions))
 }

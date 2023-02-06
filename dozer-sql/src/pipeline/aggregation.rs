@@ -4,6 +4,6 @@ mod count;
 pub mod factory_new;
 mod max;
 mod min;
-pub mod processor_new;
+pub mod processor;
 mod sum;
 mod tests;
