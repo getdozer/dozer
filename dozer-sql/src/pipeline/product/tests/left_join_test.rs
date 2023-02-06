@@ -539,16 +539,13 @@ fn test_pipeline_builder() {
 
     let mut pipeline = AppPipeline::new();
 
-    let transform_response = statement_to_pipeline(
+    let context = statement_to_pipeline(
         "SELECT  name, dname, cname, salary \
         FROM user LEFT JOIN department ON user.department_id = department.did LEFT JOIN country ON user.country_id = country.cid ",
-    &mut pipeline)
+    &mut pipeline, Some("results".to_string()))
     .unwrap();
 
-    let table_info = transform_response
-        .output_tables_map
-        .get("user_departments")
-        .unwrap();
+    let table_info = context.output_tables_map.get("results").unwrap();
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();

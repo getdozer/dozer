@@ -36,6 +36,7 @@ pub struct QueryTableInfo {
 
 pub struct TableInfo {
     pub name: NameOrAlias,
+    pub override_name: Option<String>,
     pub is_derived: bool,
 }
 /// The struct contains some contexts during query to pipeline.
@@ -60,6 +61,7 @@ pub struct IndexedTabelWithJoins {
 pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
+    override_name: Option<String>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = AnsiDialect {};
     let mut ctx = QueryContext::default();
@@ -74,6 +76,7 @@ pub fn statement_to_pipeline(
                     &TableInfo {
                         name: query_name.clone(),
                         is_derived: false,
+                        override_name: override_name.clone(),
                     },
                     query,
                     pipeline,
@@ -141,6 +144,7 @@ fn query_to_pipeline(
                 &TableInfo {
                     name: NameOrAlias(table_name.clone(), Some(table_name)),
                     is_derived: true,
+                    override_name: None,
                 },
                 &table.query,
                 pipeline,
@@ -169,6 +173,7 @@ fn query_to_pipeline(
                 &TableInfo {
                     name: NameOrAlias(query_name, None),
                     is_derived: true,
+                    override_name: None,
                 },
                 &query,
                 pipeline,
@@ -277,10 +282,16 @@ fn select_to_pipeline(
         },
     );
 
-    if let Some(into) = select.into {
-        let output_table_name = into.name.to_string();
+    let output_table_name = if let Some(into) = select.into {
+        Some(into.name.to_string())
+    } else if let Some(name) = table_info.override_name.clone() {
+        Some(name)
+    } else {
+        None
+    };
+    if let Some(table_name) = output_table_name {
         query_ctx.output_tables_map.insert(
-            output_table_name,
+            table_name,
             QueryTableInfo {
                 node: gen_agg_name,
                 port: DEFAULT_PORT_HANDLE,
@@ -383,6 +394,7 @@ pub fn get_from_source(
                 &TableInfo {
                     name: name_or.clone(),
                     is_derived: true,
+                    override_name: None,
                 },
                 subquery,
                 pipeline,
@@ -460,7 +472,7 @@ mod tests {
                 from  stocks join tbl on tbl.id = stocks.id;
             "#;
 
-        let context = statement_to_pipeline(sql, &mut AppPipeline::new()).unwrap();
+        let context = statement_to_pipeline(sql, &mut AppPipeline::new(), None).unwrap();
 
         // Should create as many output tables as into statements
         let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();

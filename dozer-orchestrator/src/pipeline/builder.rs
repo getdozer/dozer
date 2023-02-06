@@ -100,7 +100,7 @@ impl PipelineBuilder {
         }
 
         if let Some(sql) = self.config.sql.clone() {
-            let query_context = statement_to_pipeline(&sql, &mut pipeline)
+            let query_context = statement_to_pipeline(&sql, &mut pipeline, None)
                 .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {

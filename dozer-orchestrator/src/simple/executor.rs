@@ -68,7 +68,7 @@ impl Executor {
         let grouped_connections = self.get_connection_groups();
 
         let mut pipeline = AppPipeline::new();
-        let transform_response = statement_to_pipeline(&sql, &mut pipeline)
+        let transform_response = statement_to_pipeline(&sql, &mut pipeline, None)
             .map_err(OrchestrationError::PipelineError)?;
         pipeline.add_sink(
             Arc::new(StreamingSinkFactory::new(sender)),

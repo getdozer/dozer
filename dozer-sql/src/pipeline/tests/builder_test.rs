@@ -190,19 +190,17 @@ impl Sink for TestSink {
 #[test]
 fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new();
-    let transform_response = statement_to_pipeline(
+    let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
         INTO sink_filtered \
         FROM users \
     WHERE Spending >= 1",
         &mut pipeline,
+        Some("results".to_string()),
     )
     .unwrap();
 
-    let table_info = transform_response
-        .output_tables_map
-        .get("sink_filtered")
-        .unwrap();
+    let table_info = context.output_tables_map.get("results").unwrap();
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
