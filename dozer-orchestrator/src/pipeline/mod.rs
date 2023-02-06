@@ -7,4 +7,3 @@ pub mod validate;
 pub use builder::PipelineBuilder;
 pub use sinks::{CacheSink, CacheSinkFactory, CacheSinkSettings};
 pub(crate) use streaming_sink::StreamingSinkFactory;
-mod basic_processor_factory;

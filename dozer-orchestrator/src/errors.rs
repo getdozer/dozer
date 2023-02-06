@@ -50,6 +50,8 @@ pub enum OrchestrationError {
     PipelineValidationError,
     #[error("Table name specified in endpoint not found: {0:?}")]
     EndpointTableNotFound(String),
+    #[error("Duplicate table name found: {0:?}")]
+    DuplicateTable(String),
 }
 
 #[derive(Error, Debug)]

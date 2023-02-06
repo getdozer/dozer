@@ -86,14 +86,14 @@ impl Executor {
                 Some(table_info.port),
                 "streaming_sink",
                 Some(DEFAULT_PORT_HANDLE),
+                true,
             )
             .map_err(OrchestrationError::ExecutionError)?;
 
         let used_sources: Vec<String> = pipeline.get_entry_points_sources_names();
 
-        let asm = SourceBuilder::build_source_manager(
-            used_sources,
-            grouped_connections,
+        let source_builder = SourceBuilder::new(used_sources, grouped_connections);
+        let asm = source_builder.build_source_manager(
             self.ingestor.clone(),
             self.iterator.clone(),
             self.running.clone(),

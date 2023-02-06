@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use dozer_types::types::ReplicationChangesTrackingType;
@@ -81,6 +82,6 @@ impl Connector for EventsConnector {
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        todo!()
+        Ok(HashMap::new())
     }
 }

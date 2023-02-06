@@ -20,10 +20,14 @@ impl PipelineEntryPoint {
         &self.id
     }
 }
-
+#[derive(Clone)]
+pub struct NamespacedEdge {
+    edge: Edge,
+    namespaced: bool,
+}
 #[derive(Clone)]
 pub struct AppPipeline<T> {
-    edges: Vec<Edge>,
+    edges: Vec<NamespacedEdge>,
     processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory<T>>)>,
     sinks: Vec<(NodeHandle, Arc<dyn SinkFactory<T>>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
@@ -50,21 +54,6 @@ impl<T> AppPipeline<T> {
         }
     }
 
-    // When a sink is added as a direct sink without any transformation
-    pub fn add_direct_sink(
-        &mut self,
-        sink: Arc<dyn SinkFactory<T>>,
-        id: &str,
-        entry_point: Vec<PipelineEntryPoint>,
-    ) {
-        let handle = NodeHandle::new(None, id.to_string());
-        self.sinks.push((handle.clone(), sink));
-
-        for p in entry_point {
-            self.entry_points.push((handle.clone(), p));
-        }
-    }
-
     pub fn add_sink(&mut self, sink: Arc<dyn SinkFactory<T>>, id: &str) {
         let handle = NodeHandle::new(None, id.to_string());
         self.sinks.push((handle, sink));
@@ -76,8 +65,9 @@ impl<T> AppPipeline<T> {
         from_port: Option<PortHandle>,
         to: &str,
         to_port: Option<PortHandle>,
+        namespaced: bool,
     ) -> Result<(), ExecutionError> {
-        self.edges.push(Edge::new(
+        let edge = Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, from.to_string()),
                 if let Some(port) = from_port {
@@ -94,7 +84,8 @@ impl<T> AppPipeline<T> {
                     DEFAULT_PORT_HANDLE
                 },
             ),
-        ));
+        );
+        self.edges.push(NamespacedEdge { edge, namespaced });
         Ok(())
     }
 
@@ -131,6 +122,11 @@ impl<T: Clone> App<T> {
         let mut dag = Dag::new();
         let mut entry_points: Vec<(AppSourceId, Endpoint)> = Vec::new();
 
+        for (connection, source) in self.sources.get_sources() {
+            let node_handle = NodeHandle::new(None, connection.clone());
+            dag.add_source(node_handle.clone(), source.clone());
+        }
+
         for (pipeline_id, pipeline) in &self.pipelines {
             for (handle, proc) in &pipeline.processors {
                 dag.add_processor(
@@ -144,10 +140,18 @@ impl<T: Clone> App<T> {
                     sink.clone(),
                 );
             }
-            for edge in &pipeline.edges {
+            for ne in &pipeline.edges {
+                let edge = &ne.edge;
+                let ns = if ne.namespaced {
+                    Some(*pipeline_id)
+                } else {
+                    None
+                };
+
                 dag.connect(
                     Endpoint::new(
-                        NodeHandle::new(Some(*pipeline_id), edge.from.node.id.clone()),
+                        // NodeHandle::new(Some(*pipeline_id), edge.from.node.id.clone()),
+                        NodeHandle::new(ns, edge.from.node.id.clone()),
                         edge.from.port,
                     ),
                     Endpoint::new(
@@ -172,6 +176,7 @@ impl<T: Clone> App<T> {
             .sources
             .get(entry_points.iter().map(|e| e.0.clone()).collect())?;
 
+        // Connect to all pipelines
         for mapping in &mappings {
             let node_handle = NodeHandle::new(None, mapping.source.connection.clone());
             dag.add_source(node_handle.clone(), mapping.source.source.clone());

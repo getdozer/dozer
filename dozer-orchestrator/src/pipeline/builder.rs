@@ -27,6 +27,16 @@ use dozer_types::log::{error, info};
 use dozer_types::parking_lot::RwLock;
 use OrchestrationError::ExecutionError;
 
+pub enum OutputTableInfo {
+    Transformed(QueryTableInfo),
+    Original(OriginalTableInfo),
+}
+
+pub struct OriginalTableInfo {
+    pub table_name: String,
+    pub connection_name: String,
+}
+
 pub struct PipelineBuilder {
     config: Config,
     cache_endpoints: Vec<CacheEndpoint>,
@@ -74,28 +84,61 @@ impl PipelineBuilder {
 
         let mut pipeline = AppPipeline::new();
 
-        let mut output_tables: HashMap<String, QueryTableInfo> = HashMap::new();
-        for source in self.config.sources.clone() {
-            output_tables.insert(
-                source.name.clone(),
-                QueryTableInfo {
-                    node: source.name.clone(),
-                    port: DEFAULT_PORT_HANDLE,
-                    is_source: true,
-                },
-            );
-        }
+        let mut available_output_tables: HashMap<String, OutputTableInfo> = HashMap::new();
 
-        if let Some(sql) = self.config.transforms.clone() {
-            let transform_response = statement_to_pipeline(&sql, &mut pipeline)
-                .map_err(OrchestrationError::PipelineError)?;
-
-            for (name, table_info) in transform_response.output_tables_map {
-                output_tables.insert(name.clone(), table_info);
+        // Add all source tables to available output tables
+        for (connection_name, sources) in grouped_connections.clone() {
+            for source in sources {
+                available_output_tables.insert(
+                    source.name.clone(),
+                    OutputTableInfo::Original(OriginalTableInfo {
+                        connection_name: connection_name.clone(),
+                        table_name: source.name.clone(),
+                    }),
+                );
             }
         }
 
+        if let Some(sql) = self.config.transforms.clone() {
+            let query_context = statement_to_pipeline(&sql, &mut pipeline)
+                .map_err(OrchestrationError::PipelineError)?;
+
+            for (name, table_info) in query_context.output_tables_map {
+                if available_output_tables.contains_key(name.as_str()) {
+                    return Err(OrchestrationError::DuplicateTable(name));
+                }
+                available_output_tables
+                    .insert(name.clone(), OutputTableInfo::Transformed(table_info));
+            }
+
+            for name in query_context.used_sources {
+                // Add all source tables to input tables
+                if !available_output_tables.contains_key(&name) {
+                    used_sources.push(name.clone());
+                }
+            }
+        }
+        // Add Used Souces if direct from source
+        for cache_endpoint in self.cache_endpoints.iter().cloned() {
+            let api_endpoint = cache_endpoint.endpoint.clone();
+
+            let table_name = api_endpoint.table_name.clone();
+
+            let table_info = available_output_tables
+                .get(&table_name)
+                .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
+
+            if let OutputTableInfo::Original(table_info) = table_info {
+                used_sources.push(table_info.table_name.clone());
+            }
+        }
+
+        let source_builder = SourceBuilder::new(used_sources, grouped_connections);
+
+        let conn_ports = source_builder.get_ports();
+
         let pipeline_ref = &mut pipeline;
+
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
             let api_endpoint = cache_endpoint.endpoint.clone();
 
@@ -103,42 +146,60 @@ impl PipelineBuilder {
 
             let table_name = api_endpoint.table_name.clone();
 
-            let table_info = output_tables
+            let table_info = available_output_tables
                 .get(&table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            pipeline_ref.add_sink(
-                Arc::new(CacheSinkFactory::new(
-                    vec![DEFAULT_PORT_HANDLE],
-                    cache,
-                    api_endpoint,
-                    notifier.clone(),
-                    api_dir.clone(),
-                    self.progress.clone(),
-                    settings.to_owned(),
-                )),
-                cache_endpoint.endpoint.name.as_str(),
-            );
+            let snk_factory = Arc::new(CacheSinkFactory::new(
+                vec![DEFAULT_PORT_HANDLE],
+                cache,
+                api_endpoint,
+                notifier.clone(),
+                api_dir.clone(),
+                self.progress.clone(),
+                settings.to_owned(),
+            ));
 
-            pipeline_ref
-                .connect_nodes(
-                    &table_info.node,
-                    Some(table_info.port),
-                    cache_endpoint.endpoint.name.as_str(),
-                    Some(DEFAULT_PORT_HANDLE),
-                )
-                .map_err(ExecutionError)?;
+            match table_info {
+                OutputTableInfo::Transformed(table_info) => {
+                    pipeline_ref.add_sink(snk_factory, cache_endpoint.endpoint.name.as_str());
 
-            for name in pipeline_ref.get_entry_points_sources_names() {
-                used_sources.push(name);
+                    pipeline_ref
+                        .connect_nodes(
+                            &table_info.node,
+                            Some(table_info.port),
+                            cache_endpoint.endpoint.name.as_str(),
+                            Some(DEFAULT_PORT_HANDLE),
+                            true,
+                        )
+                        .map_err(ExecutionError)?;
+                }
+                OutputTableInfo::Original(table_info) => {
+                    pipeline_ref.add_sink(snk_factory, cache_endpoint.endpoint.name.as_str());
+
+                    let conn_port = conn_ports
+                        .get(&(
+                            table_info.connection_name.clone(),
+                            table_info.table_name.clone(),
+                        ))
+                        .expect("port should be present based on source mapping");
+
+                    pipeline_ref
+                        .connect_nodes(
+                            &table_info.connection_name,
+                            Some(*conn_port),
+                            cache_endpoint.endpoint.name.as_str(),
+                            Some(DEFAULT_PORT_HANDLE),
+                            false,
+                        )
+                        .map_err(ExecutionError)?;
+                }
             }
         }
 
         pipelines.push(pipeline);
 
-        let asm = SourceBuilder::build_source_manager(
-            used_sources,
-            grouped_connections,
+        let asm = source_builder.build_source_manager(
             self.ingestor.clone(),
             self.iterator.clone(),
             self.running.clone(),
