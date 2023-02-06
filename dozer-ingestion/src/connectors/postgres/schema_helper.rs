@@ -11,7 +11,7 @@ use crate::connectors::{TableInfo, ValidationResults};
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
 use crate::errors::PostgresSchemaError::{
-    InvalidColumnType, SchemaReplicationIdentityError, ValueConversionError,
+    InvalidColumnType, PrimaryKeyIsMissingInSchema, ValueConversionError,
 };
 
 use postgres_types::Type;
@@ -173,7 +173,7 @@ impl SchemaHelper {
             .find(|(_table_name, schema, _)| schema.primary_index.is_empty());
 
         match table_without_primary_index {
-            Some((table_name, _, _)) => Err(SchemaReplicationIdentityError(table_name.clone())),
+            Some((table_name, _, _)) => Err(PrimaryKeyIsMissingInSchema(table_name.clone())),
             None => Ok(()),
         }
     }
