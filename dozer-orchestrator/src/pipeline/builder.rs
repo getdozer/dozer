@@ -113,9 +113,7 @@ impl PipelineBuilder {
 
             for name in query_context.used_sources {
                 // Add all source tables to input tables
-                if !available_output_tables.contains_key(&name) {
-                    used_sources.push(name.clone());
-                }
+                used_sources.push(name.clone());
             }
         }
         // Add Used Souces if direct from source

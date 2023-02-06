@@ -179,7 +179,6 @@ impl<T: Clone> App<T> {
         // Connect to all pipelines
         for mapping in &mappings {
             let node_handle = NodeHandle::new(None, mapping.source.connection.clone());
-            dag.add_source(node_handle.clone(), mapping.source.source.clone());
             for entry in &entry_points {
                 if let Some(e) = mapping.mappings.get(&entry.0) {
                     dag.connect(Endpoint::new(node_handle.clone(), *e), entry.1.clone())?;
