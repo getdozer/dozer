@@ -224,6 +224,51 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
         Ok(())
     }
 
+    fn print_dag(
+        dag: &'a Dag<T>,
+        current_schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
+        existing_schemas: &HashMap<NodeHandle, DagMetadata>,
+    ) {
+        use std::println as info;
+        dag.print_dot();
+
+        info!("--------------------------------------------");
+        info!("-------------   Current   ----------------");
+        info!("--------------------------------------------");
+        for (handle, node_schemas) in current_schemas.iter() {
+            info!("Node: {:?}", handle);
+            info!("-----INPUT-----");
+            for (k, (schema, _)) in node_schemas.input_schemas.iter() {
+                info!("Port: {:?}", k);
+                schema.print().printstd();
+            }
+
+            info!("------Output---");
+            for (k, (schema, _)) in node_schemas.output_schemas.iter() {
+                info!("Port: {:?}", k);
+                schema.print().printstd();
+            }
+        }
+
+        info!("--------------------------------------------");
+        info!("-------------   Existing   ----------------");
+        info!("--------------------------------------------");
+        for (handle, metadata) in existing_schemas.iter() {
+            info!("Node: {:?}", handle);
+            info!("--Input--");
+            for (k, schema) in metadata.input_schemas.iter() {
+                info!("Port: {:?}", k);
+                schema.print().printstd();
+            }
+
+            info!("--Output--");
+            for (k, schema) in metadata.output_schemas.iter() {
+                info!("Port: {:?}", k);
+                schema.print().printstd();
+            }
+        }
+    }
+
     fn load_or_init_schema(
         dag: &'a Dag<T>,
         path: &Path,
@@ -237,7 +282,7 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
                 for (handle, current) in &current_schemas {
                     if let Some(existing) = existing_schemas.get(handle) {
                         if let Err(e) = Self::validate_schemas(current, existing) {
-                            dag.print_dot();
+                            Self::print_dag(dag, &current_schemas, &existing_schemas);
                             return Err(e);
                         }
                     } else {
@@ -436,6 +481,8 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
+
+        self.dag.print_dot();
 
         for (handle, factory) in self.dag.sinks() {
             let join_handle = self.start_sink(
