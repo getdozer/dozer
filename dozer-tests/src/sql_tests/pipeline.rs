@@ -1,12 +1,12 @@
-use dozer_core::dag::app::App;
+use dozer_core::dag::app::{App, AppPipeline};
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag::{Dag, DEFAULT_PORT_HANDLE};
-use dozer_core::dag::dag_schemas::DagSchemaManager;
+use dozer_core::dag::dag_schemas::DagSchemas;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
+use dozer_core::dag::{Dag, DEFAULT_PORT_HANDLE};
 
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
@@ -173,9 +173,13 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
-    fn set_input_schema(
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        self.input_ports.clone()
+    }
+
+    fn prepare(
         &self,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         let (schema, _) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
 
@@ -185,17 +189,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
             .create_tables(vec![("results", &get_table_create_sql("results", schema))])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
-        Ok(())
-    }
-
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -283,8 +276,12 @@ impl TestPipeline {
         ops: Vec<(&'static str, Operation)>,
         mapper: Arc<Mutex<SqlMapper>>,
     ) -> Result<TestPipeline, ExecutionError> {
-        let (mut pipeline, (pipe_node, pipe_port)) = statement_to_pipeline(&sql).unwrap();
+        let mut pipeline = AppPipeline::new();
 
+        let transform_response =
+            statement_to_pipeline(&sql, &mut pipeline, Some("results".to_string())).unwrap();
+
+        let output_table = transform_response.output_tables_map.get("results").unwrap();
         let (sender, receiver) =
             dozer_types::crossbeam::channel::bounded::<Option<(String, Operation)>>(10);
         let mut port_to_schemas = HashMap::new();
@@ -315,10 +312,11 @@ impl TestPipeline {
 
         pipeline
             .connect_nodes(
-                &pipe_node,
-                Some(pipe_port),
+                &output_table.node,
+                Some(output_table.port),
                 "sink",
                 Some(DEFAULT_PORT_HANDLE),
+                true,
             )
             .unwrap();
         let used_schemas = pipeline.get_entry_points_sources_names();
@@ -327,10 +325,11 @@ impl TestPipeline {
 
         let dag = app.get_dag().unwrap();
 
-        let schema_manager = DagSchemaManager::new(&dag)?;
-        let streaming_sink_handle = dag.get_sinks().get(0).expect("Sink is expected").clone().0;
-        let (schema, _) = schema_manager
-            .get_node_input_schemas(&streaming_sink_handle)?
+        let dag_schemas = DagSchemas::new(&dag)?;
+        dag_schemas.prepare()?;
+        let streaming_sink_index = dag.sink_identifiers().next().expect("Sink is expected");
+        let (schema, _) = dag_schemas
+            .get_node_input_schemas(streaming_sink_index)
             .values()
             .next()
             .expect("schema is expected")

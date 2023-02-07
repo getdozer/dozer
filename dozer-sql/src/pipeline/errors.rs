@@ -106,6 +106,11 @@ pub enum UnsupportedSqlError {
     OrderByError,
     #[error("Limit and Offset are not supported in SQL. You could achieve the same by using the LIMIT and OFFSET operators in the cache and APIs")]
     LimitOffsetError,
+    #[error("Select statements should specify INTO for creating output tables")]
+    IntoError,
+
+    #[error("Unsupported SQL statement {0}")]
+    GenericError(String),
 }
 
 #[derive(Error, Debug)]

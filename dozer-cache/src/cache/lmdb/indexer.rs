@@ -3,6 +3,7 @@ use dozer_types::{
     parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
+use itertools::Itertools;
 use lmdb::{RwTransaction, Transaction};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
@@ -128,6 +129,7 @@ impl Indexer {
         Ok(string
             .unicode_words()
             .map(get_full_text_secondary_index)
+            .unique()
             .collect())
     }
 }
@@ -207,6 +209,39 @@ mod tests {
                 get_full_text_secondary_index("good"),
                 get_full_text_secondary_index("day"),
             ]
+        );
+    }
+
+    #[test]
+    fn test_full_text_secondary_index_with_duplicated_words() {
+        let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+        let (schema, secondary_indexes) = test_utils::schema_full_text();
+
+        cache
+            .insert_schema("sample", &schema, &secondary_indexes)
+            .unwrap();
+
+        let items = vec![(
+            Some("another test".to_string()),
+            Some("regular test regular".to_string()),
+        )];
+
+        for val in items {
+            lmdb_utils::insert_full_text(&cache, &schema, val);
+        }
+
+        {
+            let a = "another test".to_string();
+            cache.delete(&Field::String(a).encode()).unwrap();
+        }
+
+        assert_eq!(
+            lmdb_utils::get_indexes(&cache)
+                .into_iter()
+                .flatten()
+                .count(),
+            0,
+            "Must delete every index"
         );
     }
 }

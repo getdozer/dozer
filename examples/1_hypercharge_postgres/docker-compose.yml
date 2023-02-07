@@ -8,7 +8,7 @@ services:
 
     links:
       - postgres
-    
+
     image: public.ecr.aws/k7k6x1d4/dozer:latest
     ports:
       # REST APIs are published on port 8080
@@ -19,7 +19,7 @@ services:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
     command: "dozer -c /usr/dozer/dozer-config.yaml"
-    stdin_open: true 
+    stdin_open: true
     tty: true
 
   postgres:
@@ -34,10 +34,14 @@ services:
     ports:
       - '5434:5432'
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready  -h 0.0.0.0 -U postgres -d stocks" ]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres  -h 0.0.0.0 -d stocks"
+        ]
       interval: 5s
       timeout: 5s
-      retries: 5  
+      retries: 5
 
 volumes:
   sample-data:

@@ -3,7 +3,7 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, init_input_schema, init_processor, insert_exp, insert_field,
     FIELD_100_INT, FIELD_1_INT, ITALY,
 };
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::types::FieldType::Int;
 use dozer_types::types::{Field, Operation, Record};
 use std::collections::HashMap;

@@ -1,13 +1,13 @@
-use dozer_core::dag::app::App;
+use dozer_core::dag::app::{App, AppPipeline};
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::dag::record_store::RecordReader;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
@@ -148,13 +148,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
         self.input_ports.clone()
     }
 
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -196,12 +189,17 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let (mut pipeline, (node, node_port)) = statement_to_pipeline(
+    let mut pipeline = AppPipeline::new();
+    let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
-    FROM users \
+        FROM users \
     WHERE Spending >= 1",
+        &mut pipeline,
+        Some("results".to_string()),
     )
     .unwrap();
+
+    let table_info = context.output_tables_map.get("results").unwrap();
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
@@ -218,7 +216,13 @@ fn test_pipeline_builder() {
         "sink",
     );
     pipeline
-        .connect_nodes(&node, Some(node_port), "sink", Some(DEFAULT_PORT_HANDLE))
+        .connect_nodes(
+            &table_info.node,
+            Some(table_info.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        )
         .unwrap();
 
     let mut app = App::new(asm);

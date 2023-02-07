@@ -20,6 +20,22 @@ pub fn insert_rec_1(
     cache.insert(&record).unwrap();
 }
 
+pub fn insert_full_text(
+    cache: &LmdbCache,
+    schema: &Schema,
+    (a, b): (Option<String>, Option<String>),
+) {
+    let record = Record::new(
+        schema.identifier,
+        vec![
+            a.map_or(Field::Null, Field::String),
+            b.map_or(Field::Null, Field::Text),
+        ],
+        None,
+    );
+    cache.insert(&record).unwrap();
+}
+
 pub fn get_indexes(cache: &LmdbCache) -> Vec<Vec<(&[u8], &[u8])>> {
     let (env, secondary_indexes) = cache.get_env_and_secondary_indexes();
     let txn: RoTransaction = env.begin_ro_txn().unwrap();

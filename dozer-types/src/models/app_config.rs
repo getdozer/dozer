@@ -29,12 +29,18 @@ pub struct Config {
     #[prost(message, repeated, tag = "6")]
     /// api endpoints to expose
     pub endpoints: Vec<ApiEndpoint>,
-    #[prost(string, tag = "7")]
+
+    #[prost(string, optional, tag = "7")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// transformations to apply to source data in SQL format as multiple queries
+    pub sql: Option<String>,
+
+    #[prost(string, tag = "8")]
     #[serde(default = "default_home_dir")]
     ///directory for all process; Default: ~/.dozer
     pub home_dir: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(message, tag = "8")]
+    #[prost(message, tag = "9")]
     /// flags to enable/disable features
     pub flags: Option<Flags>,
 }
@@ -65,7 +71,9 @@ impl<'de> Deserialize<'de> for Config {
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints_value: Vec<serde_yaml::Value> = vec![];
+
                 let mut app_name = "".to_owned();
+                let mut sql = None;
                 let mut id: Option<String> = None;
                 let mut home_dir: String = default_home_dir();
                 while let Some(key) = access.next_key()? {
@@ -87,6 +95,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "sources" => {
                             sources_value = access.next_value::<Vec<serde_yaml::Value>>()?;
+                        }
+                        "sql" => {
+                            sql = access.next_value::<Option<String>>()?;
                         }
                         "endpoints" => {
                             endpoints_value = access.next_value::<Vec<serde_yaml::Value>>()?;
@@ -142,43 +153,10 @@ impl<'de> Deserialize<'de> for Config {
                     .iter()
                     .enumerate()
                     .map(|(idx, endpoint_value)| -> Result<ApiEndpoint, A::Error> {
-                        let source_ref = endpoint_value["source"].to_owned();
-                        let source = if !source_ref.is_null() {
-                            let source_ref: super::api_endpoint::Value = serde_yaml::from_value(
-                                endpoint_value["source"].to_owned(),
-                            )
-                                .map_err(|err| {
-                                    de::Error::custom(format!(
-                                        "api_endpoints[{idx:}]: source ref - {err:} "
-                                    ))
-                                })?;
-
-                            let super::api_endpoint::Value::Ref(source_name) = source_ref;
-
-                            let source = sources
-                                .iter()
-                                .find(|s| s.name == source_name)
-                                .ok_or_else(|| {
-                                    de::Error::custom(format!(
-                                        "api_endpoints[{idx:}]: Cannot find Ref source name: {source_name:}"
-                                    ))
-                                })?;
-
-                            Some(source.clone())
-                        } else {
-                            None
-                        };
-
-                        let mut endpoint: ApiEndpoint = serde_yaml::from_value(endpoint_value.to_owned())
-                            .map_err(|err| {
+                        let endpoint: ApiEndpoint =
+                            serde_yaml::from_value(endpoint_value.to_owned()).map_err(|err| {
                                 de::Error::custom(format!("api_endpoints[{idx:}]: {err:} "))
                             })?;
-
-                        if endpoint.sql.is_none() && source.is_none() {
-                            return Err(de::Error::custom(format!("api_endpoints[{idx:}]: SQL or Source expected")))
-                        }
-
-                        endpoint.source = source;
                         Ok(endpoint)
                     })
                     .collect();
@@ -191,6 +169,7 @@ impl<'de> Deserialize<'de> for Config {
                     connections,
                     sources,
                     endpoints,
+                    sql,
                     home_dir,
                     flags,
                 })

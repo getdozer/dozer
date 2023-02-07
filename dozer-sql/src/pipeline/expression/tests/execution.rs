@@ -4,8 +4,8 @@ use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorTyp
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::projection::factory::ProjectionProcessorFactory;
 use crate::pipeline::tests::utils::get_select;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
 #[test]

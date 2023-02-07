@@ -6,8 +6,7 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_100_INT, FIELD_1_INT, FIELD_200_FLOAT, FIELD_200_INT, FIELD_2_INT, FIELD_3_INT,
     FIELD_50_FLOAT, FIELD_50_INT, FIELD_NULL, ITALY, SINGAPORE,
 };
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_types::log::debug;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp};
 use std::collections::HashMap;
 

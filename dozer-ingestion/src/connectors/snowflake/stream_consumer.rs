@@ -27,15 +27,29 @@ impl StreamConsumer {
         format!("dozer_{table_name}_stream_temp")
     }
 
-    pub fn is_stream_created(client: &Client, table_name: String) -> Result<bool, ConnectorError> {
+    pub fn is_stream_created(client: &Client, table_name: &str) -> Result<bool, ConnectorError> {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
             .connect_with_connection_string(&client.get_conn_string())
             .unwrap();
 
         client
-            .stream_exist(&conn, &Self::get_stream_table_name(&table_name))
+            .stream_exist(&conn, &Self::get_stream_table_name(table_name))
             .map_err(ConnectorError::SnowflakeError)
+    }
+
+    pub fn drop_stream(client: &Client, table_name: &str) -> Result<Option<bool>, SnowflakeError> {
+        let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
+        let conn = env
+            .connect_with_connection_string(&client.get_conn_string())
+            .unwrap();
+
+        let query = format!(
+            "DROP STREAM IF EXISTS {}",
+            Self::get_stream_table_name(table_name),
+        );
+
+        client.exec(&conn, query)
     }
 
     pub fn create_stream(client: &Client, table_name: &String) -> Result<(), ConnectorError> {
@@ -86,21 +100,20 @@ impl StreamConsumer {
             let insert_action = &"INSERT";
             let delete_action = &"DELETE";
 
+            row_mut.truncate(used_columns_for_schema);
+
             if insert_action == action {
-                row_mut.truncate(used_columns_for_schema);
                 Ok(IngestionMessage::OperationEvent(OperationEvent {
                     seq_no: 0,
                     operation: Operation::Insert {
-                        new: Self::map_record(row, table_idx),
+                        new: Self::map_record(row_mut, table_idx),
                     },
                 }))
             } else if delete_action == action {
-                row_mut.truncate(used_columns_for_schema);
-
                 Ok(IngestionMessage::OperationEvent(OperationEvent {
                     seq_no: 0,
                     operation: Operation::Delete {
-                        old: Self::map_record(row, table_idx),
+                        old: Self::map_record(row_mut, table_idx),
                     },
                 }))
             } else {
@@ -121,6 +134,7 @@ impl StreamConsumer {
         table_name: &str,
         ingestor: &Arc<RwLock<Ingestor>>,
         table_idx: usize,
+        iteration: u64,
     ) -> Result<(), ConnectorError> {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
@@ -158,7 +172,7 @@ impl StreamConsumer {
                 )?;
                 ingestor
                     .write()
-                    .handle_message(((1, idx as u64), ingestion_message))
+                    .handle_message(((iteration, idx as u64), ingestion_message))
                     .map_err(ConnectorError::IngestorError)?;
             }
         }

@@ -1,11 +1,11 @@
-use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
-use crate::dag::dag_schemas::DagSchemaManager;
+use crate::dag::dag_schemas::DagSchemas;
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
     SinkFactory, Source, SourceFactory,
 };
+use crate::dag::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
@@ -194,13 +194,6 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
 struct TestSinkFactory {}
 
 impl SinkFactory<NoneContext> for TestSinkFactory {
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -229,39 +222,30 @@ fn test_extract_dag_schemas() {
     let join_handle = NodeHandle::new(Some(1), 3.to_string());
     let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
-    dag.add_node(
-        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Source(Arc::new(TestCountriesSourceFactory {})),
+    let users_index = dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
+    let countries_index = dag.add_source(
         countries_handle.clone(),
+        Arc::new(TestCountriesSourceFactory {}),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(TestSinkFactory {})),
-        sink_handle.clone(),
-    );
+    let join_index = dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
+    let sink_index = dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
 
     chk!(dag.connect(
-        Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(join_handle.clone(), 1),
     ));
     chk!(dag.connect(
-        Endpoint::new(countries_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(countries_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(join_handle.clone(), 2),
     ));
     chk!(dag.connect(
-        Endpoint::new(join_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
     ));
 
-    let sm = chk!(DagSchemaManager::new(&dag));
+    let dag_schemas = chk!(DagSchemas::new(&dag));
 
-    let users_output = chk!(sm.get_node_output_schemas(&users_handle));
+    let users_output = dag_schemas.get_node_output_schemas(users_index);
     assert_eq!(
         users_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -272,7 +256,7 @@ fn test_extract_dag_schemas() {
         3
     );
 
-    let countries_output = chk!(sm.get_node_output_schemas(&countries_handle));
+    let countries_output = dag_schemas.get_node_output_schemas(countries_index);
     assert_eq!(
         countries_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -283,11 +267,11 @@ fn test_extract_dag_schemas() {
         2
     );
 
-    let join_input = chk!(sm.get_node_input_schemas(&join_handle));
+    let join_input = dag_schemas.get_node_input_schemas(join_index);
     assert_eq!(join_input.get(&1).unwrap().0.fields.len(), 3);
     assert_eq!(join_input.get(&2).unwrap().0.fields.len(), 2);
 
-    let join_output = chk!(sm.get_node_output_schemas(&join_handle));
+    let join_output = dag_schemas.get_node_output_schemas(join_index);
     assert_eq!(
         join_output
             .get(&DEFAULT_PORT_HANDLE)
@@ -298,7 +282,7 @@ fn test_extract_dag_schemas() {
         5
     );
 
-    let sink_input = chk!(sm.get_node_input_schemas(&sink_handle));
+    let sink_input = dag_schemas.get_node_input_schemas(sink_index);
     assert_eq!(
         sink_input.get(&DEFAULT_PORT_HANDLE).unwrap().0.fields.len(),
         5
@@ -313,22 +297,13 @@ fn test_init_metadata() {
     let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
     let mut dag = Dag::new();
-    dag.add_node(
-        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Source(Arc::new(TestCountriesSourceFactory {})),
+    dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
+    dag.add_source(
         countries_handle.clone(),
+        Arc::new(TestCountriesSourceFactory {}),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(TestSinkFactory {})),
-        sink_handle.clone(),
-    );
+    dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
+    dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
 
     chk!(dag.connect(
         Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
@@ -358,22 +333,13 @@ fn test_init_metadata() {
     ));
 
     let mut dag = Dag::new();
-    dag.add_node(
-        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
+    dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
+    dag.add_source(
         countries_handle.clone(),
+        Arc::new(TestUsersSourceFactory {}),
     );
-    dag.add_node(
-        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle.clone(),
-    );
-    dag.add_node(
-        NodeType::Sink(Arc::new(TestSinkFactory {})),
-        sink_handle.clone(),
-    );
+    dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
+    dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
 
     chk!(dag.connect(
         Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),

@@ -8,12 +8,8 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_350_INT, FIELD_350_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_NULL, ITALY,
     SINGAPORE,
 };
-use crate::pipeline::errors::PipelineError::InvalidOperandType;
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_types::log::debug;
-use dozer_types::types::Field;
-use dozer_types::types::FieldType::{Decimal, Float, Int, Text, UInt};
-use std::any::Any;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_types::types::FieldType::{Decimal, Float, Int, UInt};
 use std::collections::HashMap;
 
 #[test]

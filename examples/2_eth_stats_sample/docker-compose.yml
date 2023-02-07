@@ -12,5 +12,5 @@ services:
     volumes:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
-    stdin_open: true 
+    stdin_open: true
     tty: true

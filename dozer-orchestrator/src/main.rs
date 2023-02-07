@@ -85,7 +85,12 @@ fn run() -> Result<(), OrchestrationError> {
         }
     } else {
         render_logo();
+
         let mut dozer = init_dozer(cli.config_path)?;
+
+        // TODO: remove this after checkpointing
+        dozer.clean()?;
+
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();

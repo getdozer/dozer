@@ -36,19 +36,16 @@ impl StateWriter {
     ) -> Result<Self, ExecutionError> {
         let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
         for (port, options) in dbs {
-            let schema = output_schemas
-                .get(&port)
-                .ok_or(ExecutionError::InvalidPortHandle(port))?
-                .clone();
-
-            let writer = RecordWriterUtils::create_writer(
-                options.typ,
-                options.db,
-                options.meta_db,
-                schema,
-                retention_queue_size,
-            )?;
-            record_writers.insert(port, writer);
+            if let Some(schema) = output_schemas.get(&port) {
+                let writer = RecordWriterUtils::create_writer(
+                    options.typ,
+                    options.db,
+                    options.meta_db,
+                    schema.clone(),
+                    retention_queue_size,
+                )?;
+                record_writers.insert(port, writer);
+            }
         }
 
         Ok(Self {
@@ -206,7 +203,7 @@ impl SourceChannelManager {
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         if request_termination || self.should_commit() {
-            let (terminating, epoch) = self
+            let (terminating, epoch, decision_instant) = self
                 .epoch_manager
                 .wait_for_epoch_close(request_termination, self.num_uncommited_ops > 0);
             if let Some(epoch_id) = epoch {
@@ -218,7 +215,7 @@ impl SourceChannelManager {
                 ))?;
             }
             self.num_uncommited_ops = 0;
-            self.last_commit_instant = Instant::now();
+            self.last_commit_instant = decision_instant;
             Ok(terminating)
         } else {
             Ok(false)

@@ -1,6 +1,6 @@
 use crate::pipeline::CacheSink;
 use dozer_cache::cache::{CacheOptions, LmdbCache};
-use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::types::{
     FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
@@ -52,11 +52,10 @@ pub fn init_endpoint() -> ApiEndpoint {
         id: None,
         name: "films".to_string(),
         path: "/films".to_string(),
-        sql: Some("SELECT film_name FROM film WHERE 1=1".to_string()),
-        source: None,
         index: Some(ApiIndex {
             primary_key: vec!["film_id".to_string()],
         }),
-        app_id: None,
+        table_name: "films".to_string(),
+        // sql: Some("SELECT film_name FROM film WHERE 1=1".to_string()),
     }
 }
