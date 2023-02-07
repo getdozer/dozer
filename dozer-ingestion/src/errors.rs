@@ -11,6 +11,7 @@ use base64::DecodeError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 use std::str::Utf8Error;
+use datafusion::error::DataFusionError;
 
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
@@ -48,6 +49,9 @@ pub enum ConnectorError {
 
     #[error(transparent)]
     DebeziumError(#[from] DebeziumError),
+
+    #[error(transparent)]
+    DataFusionConnectorError(#[from] DataFusionConnectorError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -310,4 +314,17 @@ pub enum DebeziumSchemaError {
     // InvalidTimeError,
     #[error("Invalid timestamp")]
     InvalidTimestampError,
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum DataFusionConnectorError {
+    #[error(transparent)]
+    DataFusionSchemaError(#[from] DataFusionSchemaError),
+}
+
+
+#[derive(Error, Debug, PartialEq)]
+pub enum DataFusionSchemaError {
+    #[error("Unsupported type of \"{0}\" field")]
+    FieldTypeNotSupported(String)
 }
