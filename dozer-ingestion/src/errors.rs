@@ -165,8 +165,8 @@ pub enum PostgresConnectorError {
 
 #[derive(Error, Debug, Eq, PartialEq)]
 pub enum PostgresSchemaError {
-    #[error("Schema's '{0}' replication identity settings is not correct. It is either not set or NOTHING")]
-    SchemaReplicationIdentityError(String),
+    #[error("Schema's '{0}' doesnt have primary key")]
+    PrimaryKeyIsMissingInSchema(String),
 
     #[error("Column type {0} not supported")]
     ColumnTypeNotSupported(String),
