@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use dozer_storage::common::Database;
 use dozer_storage::errors::StorageError;
 use dozer_storage::errors::StorageError::{DeserializationError, SerializationError};
-use dozer_storage::lmdb_storage::{LmdbTransaction, SharedTransaction};
+use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_storage::prefix_transaction::PrefixTransaction;
 use dozer_types::bincode;
 use dozer_types::types::{

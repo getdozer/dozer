@@ -139,7 +139,6 @@ fn get_schema_reverse_key(name: &str) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use dozer_storage::lmdb_storage::LmdbTransaction;
     use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 
     use crate::cache::{lmdb::utils::init_env, CacheOptions};

@@ -65,8 +65,6 @@ impl RecordDatabase {
 
 #[cfg(test)]
 mod tests {
-    use dozer_storage::lmdb_storage::LmdbTransaction;
-
     use crate::cache::{lmdb::utils::init_env, CacheOptions};
 
     use super::*;

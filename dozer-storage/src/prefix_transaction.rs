@@ -2,7 +2,6 @@ use lmdb::RoCursor;
 
 use crate::common::Database;
 use crate::errors::StorageError;
-use crate::lmdb_storage::LmdbTransaction;
 
 use super::common::Seek;
 use super::lmdb_storage::LmdbExclusiveTransaction;

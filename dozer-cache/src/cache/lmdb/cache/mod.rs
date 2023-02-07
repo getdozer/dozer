@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::ops::Deref;
 use std::sync::Arc;
 
 use dozer_storage::lmdb::{RoTransaction, RwTransaction, Transaction};
 use dozer_storage::lmdb_storage::{
-    LmdbEnvironmentManager, LmdbExclusiveRoTransaction, LmdbExclusiveTransaction, LmdbTransaction,
-    SharedRoTransaction, SharedTransaction,
+    LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
-use dozer_types::parking_lot::{RwLock, RwLockWriteGuard};
+use dozer_types::parking_lot::{RwLock, RwLockReadGuard};
 
 use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
@@ -38,7 +36,7 @@ pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), SecondaryI
 #[derive(Debug)]
 pub struct LmdbRoCache {
     common: LmdbCacheCommon,
-    txn: SharedRoTransaction,
+    env: LmdbEnvironmentManager,
 }
 
 impl LmdbRoCache {
@@ -48,8 +46,7 @@ impl LmdbRoCache {
             kind: CacheOptionsKind::ReadOnly(CacheReadOptions {}),
         })?;
         let common = LmdbCacheCommon::new(&mut env, options, true)?;
-        let txn = env.create_ro_txn()?;
-        Ok(Self { common, txn })
+        Ok(Self { common, env })
     }
 }
 
@@ -74,104 +71,23 @@ impl LmdbRwCache {
     }
 }
 
-pub trait LmdbCache: Send + Sync + Debug {
-    type Transaction: Transaction + 'static;
-    type LmdbExclusiveTransaction: LmdbTransaction<Self::Transaction>;
-    type LmdbExclusiveTransactionPointer<'a>: Deref<Target = Self::LmdbExclusiveTransaction>
-    where
-        Self: 'a;
-
-    fn common(&self) -> &LmdbCacheCommon;
-    fn txn(&self) -> Self::LmdbExclusiveTransactionPointer<'_>;
-
-    fn create_query_handler<'a>(
-        &self,
-        txn: &'a Self::Transaction,
-        schema_name: &str,
-        query: &'a QueryExpression,
-    ) -> Result<LmdbQueryHandler<'a, Self::Transaction>, CacheError>
-    where
-        Self: Sized,
-    {
-        let (schema, secondary_indexes) = self
-            .common()
-            .schema_db
-            .get_schema_from_name(txn, schema_name)?;
-
-        Ok(LmdbQueryHandler::new(
-            self.common().db,
-            self.common().secondary_indexes.clone(),
-            txn,
-            schema,
-            secondary_indexes,
-            query,
-            self.common().cache_options.intersection_chunk_size,
-        ))
-    }
-
-    fn get_schema_and_indexes_from_record(
-        &self,
-        record: &Record,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
-        let schema_identifier = record
-            .schema_id
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
-        let (schema, secondary_indexes) = self
-            .common()
-            .schema_db
-            .get_schema(self.txn().txn(), schema_identifier)?;
-
-        debug_check_schema_record_consistency(&schema, record);
-
-        Ok((schema, secondary_indexes))
-    }
-}
-
-impl LmdbCache for LmdbRoCache {
-    type Transaction = RoTransaction<'static>;
-    type LmdbExclusiveTransaction = LmdbExclusiveRoTransaction;
-    type LmdbExclusiveTransactionPointer<'a> = &'a LmdbExclusiveRoTransaction;
-
-    fn common(&self) -> &LmdbCacheCommon {
-        &self.common
-    }
-
-    fn txn(&self) -> Self::LmdbExclusiveTransactionPointer<'_> {
-        self.txn.get()
-    }
-}
-
-impl LmdbCache for LmdbRwCache {
-    type Transaction = RwTransaction<'static>;
-    type LmdbExclusiveTransaction = LmdbExclusiveTransaction;
-    type LmdbExclusiveTransactionPointer<'a> = RwLockWriteGuard<'a, LmdbExclusiveTransaction>;
-
-    fn common(&self) -> &LmdbCacheCommon {
-        &self.common
-    }
-
-    fn txn(&self) -> Self::LmdbExclusiveTransactionPointer<'_> {
-        self.txn.write()
-    }
-}
-
 impl<C: LmdbCache> RoCache for C {
     fn get(&self, key: &[u8]) -> Result<Record, CacheError> {
-        let txn = self.txn();
-        let txn = txn.txn();
+        let txn = self.begin_txn()?;
+        let txn = txn.as_txn();
         self.common().db.get(txn, self.common().id.get(txn, key)?)
     }
 
     fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError> {
-        let txn = self.txn();
-        let txn = txn.txn();
+        let txn = self.begin_txn()?;
+        let txn = txn.as_txn();
         let handler = self.create_query_handler(txn, schema_name, query)?;
         handler.count()
     }
 
     fn query(&self, schema_name: &str, query: &QueryExpression) -> Result<Vec<Record>, CacheError> {
-        let txn = self.txn();
-        let txn = txn.txn();
+        let txn = self.begin_txn()?;
+        let txn = txn.as_txn();
         let handler = self.create_query_handler(txn, schema_name, query)?;
         handler.query()
     }
@@ -180,15 +96,15 @@ impl<C: LmdbCache> RoCache for C {
         &self,
         name: &str,
     ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
-        let txn = self.txn();
-        let txn = txn.txn();
+        let txn = self.begin_txn()?;
+        let txn = txn.as_txn();
         let schema = self.common().schema_db.get_schema_from_name(txn, name)?;
         Ok(schema)
     }
 
     fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> Result<Schema, CacheError> {
-        let txn = self.txn();
-        let txn = txn.txn();
+        let txn = self.begin_txn()?;
+        let txn = txn.as_txn();
         self.common()
             .schema_db
             .get_schema(txn, *schema_identifier)
@@ -200,7 +116,7 @@ impl RwCache for LmdbRwCache {
     fn insert(&self, record: &Record) -> Result<(), CacheError> {
         let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(record)?;
 
-        let mut txn = self.txn();
+        let mut txn = self.txn.write();
         let txn = txn.txn_mut();
 
         let id = if schema.primary_index.is_empty() {
@@ -222,7 +138,7 @@ impl RwCache for LmdbRwCache {
         let record = self.get(key)?;
         let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&record)?;
 
-        let mut txn = self.txn();
+        let mut txn = self.txn.write();
         let txn = txn.txn_mut();
 
         let id = self.common.id.get(txn, key)?;
@@ -270,6 +186,105 @@ impl RwCache for LmdbRwCache {
     fn commit(&self) -> Result<(), CacheError> {
         self.txn.write().commit_and_renew()?;
         Ok(())
+    }
+}
+
+/// This trait abstracts the behavior of getting a transaction from a `LmdbExclusiveTransaction` or a `lmdb::Transaction`.
+trait AsTransaction {
+    type Transaction<'a>: Transaction
+    where
+        Self: 'a;
+
+    fn as_txn(&self) -> &Self::Transaction<'_>;
+}
+
+impl<'a> AsTransaction for RoTransaction<'a> {
+    type Transaction<'env> = RoTransaction<'env> where Self: 'env;
+
+    fn as_txn(&self) -> &Self::Transaction<'_> {
+        self
+    }
+}
+
+impl<'a> AsTransaction for RwLockReadGuard<'a, LmdbExclusiveTransaction> {
+    type Transaction<'env> = RwTransaction<'env> where Self: 'env;
+
+    fn as_txn(&self) -> &Self::Transaction<'_> {
+        self.txn()
+    }
+}
+
+/// This trait abstracts the behavior of locking a `SharedTransaction` for reading
+/// and beginning a `RoTransaction` from `LmdbEnvironmentManager`.
+trait LmdbCache: Send + Sync + Debug {
+    type AsTransaction<'a>: AsTransaction
+    where
+        Self: 'a;
+
+    fn common(&self) -> &LmdbCacheCommon;
+    fn begin_txn(&self) -> Result<Self::AsTransaction<'_>, CacheError>;
+
+    fn create_query_handler<'a, T: Transaction>(
+        &'a self,
+        txn: &'a T,
+        schema_name: &str,
+        query: &'a QueryExpression,
+    ) -> Result<LmdbQueryHandler<'a, T>, CacheError> {
+        let (schema, secondary_indexes) = self
+            .common()
+            .schema_db
+            .get_schema_from_name(txn, schema_name)?;
+
+        Ok(LmdbQueryHandler::new(
+            self.common().db,
+            self.common().secondary_indexes.clone(),
+            txn,
+            schema,
+            secondary_indexes,
+            query,
+            self.common().cache_options.intersection_chunk_size,
+        ))
+    }
+
+    fn get_schema_and_indexes_from_record(
+        &self,
+        record: &Record,
+    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
+        let schema_identifier = record
+            .schema_id
+            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+        let (schema, secondary_indexes) = self
+            .common()
+            .schema_db
+            .get_schema(self.begin_txn()?.as_txn(), schema_identifier)?;
+
+        debug_check_schema_record_consistency(&schema, record);
+
+        Ok((schema, secondary_indexes))
+    }
+}
+
+impl LmdbCache for LmdbRoCache {
+    type AsTransaction<'a> = RoTransaction<'a>;
+
+    fn common(&self) -> &LmdbCacheCommon {
+        &self.common
+    }
+
+    fn begin_txn(&self) -> Result<Self::AsTransaction<'_>, CacheError> {
+        Ok(self.env.begin_ro_txn()?)
+    }
+}
+
+impl LmdbCache for LmdbRwCache {
+    type AsTransaction<'a> = RwLockReadGuard<'a, LmdbExclusiveTransaction>;
+
+    fn common(&self) -> &LmdbCacheCommon {
+        &self.common
+    }
+
+    fn begin_txn(&self) -> Result<Self::AsTransaction<'_>, CacheError> {
+        Ok(self.txn.read())
     }
 }
 

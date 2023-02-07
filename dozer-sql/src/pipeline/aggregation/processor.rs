@@ -8,7 +8,7 @@ use dozer_core::errors::ExecutionError;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::storage::lmdb_storage::{
-    LmdbEnvironmentManager, LmdbExclusiveTransaction, LmdbTransaction, SharedTransaction,
+    LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::types::TypeError;

@@ -62,10 +62,7 @@ pub fn init_env(options: &CacheOptions) -> Result<LmdbEnvironmentManager, CacheE
 
 #[cfg(test)]
 mod tests {
-    use dozer_storage::{
-        lmdb::{Cursor, DatabaseFlags, RoCursor, Transaction, WriteFlags},
-        lmdb_storage::LmdbTransaction,
-    };
+    use dozer_storage::lmdb::{Cursor, DatabaseFlags, RoCursor, Transaction, WriteFlags};
     use dozer_types::types::Field;
 
     use crate::cache::lmdb::{utils::init_env, CacheOptions};

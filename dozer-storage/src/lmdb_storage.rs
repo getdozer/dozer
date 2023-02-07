@@ -5,7 +5,6 @@ use lmdb::{
     Database, DatabaseFlags, Environment, EnvironmentFlags, RoCursor, RoTransaction, RwCursor,
     RwTransaction, Transaction, WriteFlags,
 };
-use lmdb_sys::{mdb_set_compare, MDB_cmp_func, MDB_SUCCESS};
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -49,9 +48,10 @@ impl Default for LmdbEnvironmentOptions {
     }
 }
 
+#[derive(Debug)]
 /// This is a safe wrapper around `lmdb::Environment` that is opened with `NO_TLS` and `NO_LOCK`.
 ///
-/// All its methods that uses `Environment` take `&mut self` to avoid race between transactions.
+/// All write related methods that use `Environment` take `&mut self` to avoid race between transactions.
 pub struct LmdbEnvironmentManager {
     inner: Environment,
 }
@@ -95,12 +95,6 @@ impl LmdbEnvironmentManager {
         ))))
     }
 
-    pub fn create_ro_txn(self) -> Result<SharedRoTransaction, StorageError> {
-        Ok(SharedRoTransaction(LmdbExclusiveRoTransaction::new(
-            self.inner,
-        )?))
-    }
-
     pub fn create_database(
         &mut self,
         name: Option<&str>,
@@ -113,23 +107,8 @@ impl LmdbEnvironmentManager {
         }
     }
 
-    pub fn begin_ro_txn(&mut self) -> Result<RoTransaction, StorageError> {
+    pub fn begin_ro_txn(&self) -> Result<RoTransaction, StorageError> {
         Ok(self.inner.begin_ro_txn()?)
-    }
-
-    pub fn set_comparator(
-        &mut self,
-        db: Database,
-        comparator: MDB_cmp_func,
-    ) -> Result<(), StorageError> {
-        let txn = self.inner.begin_ro_txn()?;
-        unsafe {
-            assert_eq!(
-                mdb_set_compare(txn.txn(), db.dbi(), comparator),
-                MDB_SUCCESS
-            );
-        }
-        txn.commit().map_err(InternalDbError)
     }
 }
 
@@ -158,66 +137,35 @@ impl SharedTransaction {
 // - Inner `lmdb::RwTransaction` is protected by `RwLock`.
 unsafe impl Send for SharedTransaction {}
 unsafe impl Sync for SharedTransaction {}
-
 #[derive(Debug)]
-pub struct SharedRoTransaction(LmdbExclusiveRoTransaction);
-
-impl SharedRoTransaction {
-    pub fn get(&self) -> &LmdbExclusiveRoTransaction {
-        &self.0
-    }
-}
-
-// SAFETY:
-// - `SharedRoTransaction` can only be created from `LmdbEnvironmentManager::create_ro_txn`.
-// - `LmdbEnvironmentManager` is opened with `NO_TLS`.
-unsafe impl Send for SharedRoTransaction {}
-unsafe impl Sync for SharedRoTransaction {}
-
-pub trait LmdbTransaction<T: Transaction + 'static> {
-    fn txn(&self) -> &T;
-    fn txn_mut(&mut self) -> &mut T;
-
-    #[inline]
-    fn get(&self, db: Database, key: &[u8]) -> Result<Option<&[u8]>, StorageError> {
-        match self.txn().get(db, &key) {
-            Ok(value) => Ok(Some(value)),
-            Err(lmdb::Error::NotFound) => Ok(None),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    #[inline]
-    fn open_ro_cursor(&self, db: Database) -> Result<RoCursor, StorageError> {
-        let cursor = self.txn().open_ro_cursor(db)?;
-        Ok(cursor)
-    }
-}
-
-#[derive(Debug)]
-pub struct LmdbExclusiveTransactionImpl<T: Transaction + 'static> {
-    inner: Option<T>,
+pub struct LmdbExclusiveTransaction {
+    inner: Option<RwTransaction<'static>>,
     env: Environment,
 }
 
-impl<T: Transaction + 'static> LmdbTransaction<T> for LmdbExclusiveTransactionImpl<T> {
-    fn txn(&self) -> &T {
-        self.inner.as_ref().expect(PANIC_MESSAGE)
-    }
-
-    fn txn_mut(&mut self) -> &mut T {
-        self.inner.as_mut().expect(PANIC_MESSAGE)
-    }
-}
-
-pub type LmdbExclusiveTransaction = LmdbExclusiveTransactionImpl<RwTransaction<'static>>;
+const PANIC_MESSAGE: &str =
+    "LmdbExclusiveTransaction cannot be used after `commit_and_renew` fails.";
 
 impl LmdbExclusiveTransaction {
+    pub fn new(env: Environment) -> Result<Self, StorageError> {
+        let inner = env.begin_rw_txn()?;
+        // SAFETY:
+        // - `inner` does not reference data in `env`, it only has to be outlived by `env`.
+        // - When we return `inner` to outside, it's always bound to lifetime of `self`, so no one can observe its `'static` lifetime.
+        // - `inner` is dropped before `env`, guaranteed by `Rust` drop order.
+        let inner =
+            unsafe { std::mem::transmute::<RwTransaction<'_>, RwTransaction<'static>>(inner) };
+        Ok(Self {
+            inner: Some(inner),
+            env,
+        })
+    }
+
     /// If this method fails, following calls to `self` will panic.
     pub fn commit_and_renew(&mut self) -> Result<(), StorageError> {
         self.inner.take().expect(PANIC_MESSAGE).commit()?;
         let inner = self.env.begin_rw_txn()?;
-        // SAFETY: Same as `new_rw`.
+        // SAFETY: Same as `new`.
         let inner =
             unsafe { std::mem::transmute::<RwTransaction<'_>, RwTransaction<'static>>(inner) };
         self.inner = Some(inner);
@@ -243,9 +191,26 @@ impl LmdbExclusiveTransaction {
         Ok(db)
     }
 
+    pub fn txn(&self) -> &RwTransaction {
+        self.inner.as_ref().expect(PANIC_MESSAGE)
+    }
+
+    pub fn txn_mut<'a>(&'a mut self) -> &mut RwTransaction {
+        // SAFETY:
+        // - Only lifetime is transmuted.
+        // - `RwTransaction`'s actual lifetime is `'a`, which is the lifetime of the environment.
+        unsafe {
+            std::mem::transmute::<&'a mut RwTransaction<'static>, &'a mut RwTransaction<'a>>(
+                self.inner.as_mut().expect(PANIC_MESSAGE),
+            )
+        }
+    }
+
     #[inline]
     pub fn put(&mut self, db: Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
-        self.txn_mut()
+        self.inner
+            .as_mut()
+            .expect(PANIC_MESSAGE)
             .put(db, &key, &value, WriteFlags::default())
             .map_err(InternalDbError)
     }
@@ -257,7 +222,12 @@ impl LmdbExclusiveTransaction {
         key: &[u8],
         value: Option<&[u8]>,
     ) -> Result<bool, StorageError> {
-        match self.txn_mut().del(db, &key, value) {
+        match self
+            .inner
+            .as_mut()
+            .expect(PANIC_MESSAGE)
+            .del(db, &key, value)
+        {
             Ok(()) => Ok(true),
             Err(lmdb::Error::NotFound) => Ok(false),
             Err(err) => Err(err.into()),
@@ -266,54 +236,30 @@ impl LmdbExclusiveTransaction {
 
     #[inline]
     pub fn open_cursor(&mut self, db: Database) -> Result<RwCursor, StorageError> {
-        let cursor = self.txn_mut().open_rw_cursor(db)?;
+        let cursor = self
+            .inner
+            .as_mut()
+            .expect(PANIC_MESSAGE)
+            .open_rw_cursor(db)?;
         Ok(cursor)
     }
-}
 
-pub type LmdbExclusiveRoTransaction = LmdbExclusiveTransactionImpl<RoTransaction<'static>>;
-
-// impl LmdbExclusiveRoTransaction {
-//     /// If this method fails, following calls to `self` will panic.
-//     pub fn commit_and_renew(&mut self) -> Result<(), StorageError> {
-//         self.inner.take().expect(PANIC_MESSAGE).commit()?;
-//         let inner = self.env.begin_ro_txn()?;
-//         // SAFETY: Same as `new_ro`.
-//         let inner =
-//             unsafe { std::mem::transmute::<RoTransaction<'_>, RoTransaction<'static>>(inner) };
-//         self.inner = Some(inner);
-//         Ok(())
-//     }
-// }
-
-const PANIC_MESSAGE: &str =
-    "LmdbExclusiveTransactionImpl cannot be used after `commit_and_renew` fails.";
-
-impl LmdbExclusiveTransactionImpl<RwTransaction<'static>> {
-    fn new(env: Environment) -> Result<Self, StorageError> {
-        let inner = env.begin_rw_txn()?;
-        // SAFETY:
-        // - `inner` does not reference data in `env`, it only has to be outlived by `env`.
-        // - We never expose `inner` to outside, so no one can observe its `'static` lifetime.
-        // - `inner` is dropped before `env`, guaranteed by `Rust` drop order.
-        let inner =
-            unsafe { std::mem::transmute::<RwTransaction<'_>, RwTransaction<'static>>(inner) };
-        Ok(Self {
-            inner: Some(inner),
-            env,
-        })
+    #[inline]
+    pub fn get(&self, db: Database, key: &[u8]) -> Result<Option<&[u8]>, StorageError> {
+        match self.inner.as_ref().expect(PANIC_MESSAGE).get(db, &key) {
+            Ok(value) => Ok(Some(value)),
+            Err(lmdb::Error::NotFound) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
     }
-}
 
-impl LmdbExclusiveTransactionImpl<RoTransaction<'static>> {
-    fn new(env: Environment) -> Result<Self, StorageError> {
-        let inner = env.begin_ro_txn()?;
-        // SAFETY: Same as `new_rw`.
-        let inner =
-            unsafe { std::mem::transmute::<RoTransaction<'_>, RoTransaction<'static>>(inner) };
-        Ok(Self {
-            inner: Some(inner),
-            env,
-        })
+    #[inline]
+    pub fn open_ro_cursor(&self, db: Database) -> Result<RoCursor, StorageError> {
+        let cursor = self
+            .inner
+            .as_ref()
+            .expect(PANIC_MESSAGE)
+            .open_ro_cursor(db)?;
+        Ok(cursor)
     }
 }

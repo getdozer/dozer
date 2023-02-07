@@ -128,10 +128,7 @@ impl<'txn, C: Cursor<'txn>> CacheIterator<'txn, C> {
 
 #[cfg(test)]
 mod tests {
-    use dozer_storage::{
-        lmdb::{DatabaseFlags, Transaction, WriteFlags},
-        lmdb_storage::LmdbTransaction,
-    };
+    use dozer_storage::lmdb::{DatabaseFlags, Transaction, WriteFlags};
 
     use crate::cache::{
         expression::SortDirection,

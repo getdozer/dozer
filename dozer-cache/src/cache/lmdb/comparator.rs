@@ -152,7 +152,7 @@ mod tests {
     }
 
     fn get_single_key_checker() -> impl FnMut(Option<i64>, Option<i64>, Ordering) {
-        let (mut env, db) = setup(1);
+        let (env, db) = setup(1);
         move |a: Option<i64>, b: Option<i64>, expected: Ordering| {
             let serialize =
                 |a: Option<i64>| get_secondary_index(&[&a.map_or(Field::Null, Field::Int)], true);
@@ -177,7 +177,7 @@ mod tests {
     fn get_composite_key_checker<'a>(
         num_fields: usize,
     ) -> impl FnMut(&[i64], &[i64], Ordering) + 'a {
-        let (mut env, db) = setup(num_fields);
+        let (env, db) = setup(num_fields);
         move |a: &[i64], b: &[i64], expected: Ordering| {
             let serialize = |a: &[i64]| {
                 let fields = a.iter().map(|a| Field::Int(*a)).collect::<Vec<_>>();
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn null_is_greater_than_other_thing() {
-        let (mut env, db) = setup(1);
+        let (env, db) = setup(1);
         let txn = env.begin_ro_txn().unwrap();
         let check = |field: &Field| {
             let serialize = |a| get_secondary_index(&[a], true);

@@ -8,8 +8,7 @@ use dozer_storage::errors::StorageError;
 use dozer_storage::errors::StorageError::{DeserializationError, SerializationError};
 use dozer_storage::lmdb::{Database, DatabaseFlags};
 use dozer_storage::lmdb_storage::{
-    LmdbEnvironmentManager, LmdbEnvironmentOptions, LmdbExclusiveTransaction, LmdbTransaction,
-    SharedTransaction,
+    LmdbEnvironmentManager, LmdbEnvironmentOptions, LmdbExclusiveTransaction, SharedTransaction,
 };
 use dozer_types::bincode;
 use dozer_types::types::Schema;

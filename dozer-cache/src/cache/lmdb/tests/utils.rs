@@ -1,4 +1,4 @@
-use dozer_storage::{lmdb::Cursor, lmdb_storage::LmdbTransaction};
+use dozer_storage::lmdb::Cursor;
 use dozer_types::types::{Field, Record, Schema};
 
 use crate::cache::{LmdbRwCache, RwCache};

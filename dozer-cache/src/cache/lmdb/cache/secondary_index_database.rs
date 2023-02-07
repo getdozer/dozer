@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use dozer_storage::{
     errors::StorageError,
     lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags},
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction, LmdbTransaction},
+    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
 };
 use dozer_types::types::{IndexDefinition, SchemaIdentifier};
 
