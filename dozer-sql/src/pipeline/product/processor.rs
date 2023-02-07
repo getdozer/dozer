@@ -9,7 +9,6 @@ use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransactio
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::internal_err;
 
-use dozer_types::tracing::info;
 use dozer_types::types::{Operation, Record};
 use lmdb::DatabaseFlags;
 use std::collections::HashMap;
