@@ -1405,6 +1405,7 @@ dependencies = [
  "dozer-api",
  "dozer-cache",
  "dozer-core",
+ "dozer-orchestrator",
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",

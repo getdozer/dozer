@@ -53,6 +53,10 @@ pub trait ReceiverLoop: Name {
     /// The loop implementation, calls [`on_op`], [`on_commit`] and [`on_terminate`] at appropriate times.
     fn receiver_loop(&mut self) -> Result<(), ExecutionError> {
         let receivers = self.receivers();
+        debug_assert!(
+            !receivers.is_empty(),
+            "Processor or sink must have at least 1 incoming edge"
+        );
         let mut port_states = vec![InputPortState::Open; receivers.len()];
 
         let mut commits_received: usize = 0;
