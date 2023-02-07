@@ -110,8 +110,13 @@ impl JoinTable {
         record: &Record,
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         if self.port == from_port {
-            let lookup_key = self.encode_lookup_key(record, &self.schema)?;
-            Ok(vec![(action, record.clone(), lookup_key)])
+            if self.schema.primary_index.is_empty() {
+                let lookup_key = self.encode_record(record)?;
+                Ok(vec![(action, record.clone(), lookup_key)])
+            } else {
+                let lookup_key = self.encode_lookup_key(record, &self.schema)?;
+                Ok(vec![(action, record.clone(), lookup_key)])
+            }
         } else {
             Err(ExecutionError::InvalidPortHandle(self.port))
         }
@@ -143,10 +148,6 @@ impl JoinTable {
     }
 
     fn encode_lookup_key(&self, record: &Record, schema: &Schema) -> Result<Vec<u8>, TypeError> {
-        if schema.primary_index.is_empty() {
-            return self.encode_record(record);
-        }
-
         let mut lookup_key = Vec::with_capacity(64);
         if let Some(version) = record.version {
             lookup_key.extend_from_slice(&version.to_be_bytes());

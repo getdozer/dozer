@@ -138,7 +138,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             false,
                             source_id.clone(),
                         ),
-                        true,
+                        false,
                     )
                     .field(
                         FieldDefinition::new(
