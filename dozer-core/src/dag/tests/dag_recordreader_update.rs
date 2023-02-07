@@ -329,7 +329,7 @@ fn test_run_dag_record_reader_from_src() {
     let tmp_dir = TempDir::new("test").unwrap();
     let options = ExecutorOptions::default();
     let mut executor = DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         options,
         Arc::new(AtomicBool::new(true)),

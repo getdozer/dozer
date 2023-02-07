@@ -241,7 +241,7 @@ fn test_pipeline_builder() {
 
     let tmp_dir = TempDir::new("test").unwrap();
     let mut executor = DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true)),

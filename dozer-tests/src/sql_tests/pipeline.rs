@@ -350,7 +350,7 @@ impl TestPipeline {
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
         let mut exec = DagExecutor::new(
-            &self.dag,
+            self.dag.clone(),
             tmp_dir.path(),
             ExecutorOptions::default(),
             self.running.clone(),

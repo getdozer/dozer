@@ -22,8 +22,6 @@ use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
 use dozer_core::dag::app::AppPipeline;
 use dozer_core::dag::dag_schemas::DagSchemas;
 use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_ingestion::ingestion::IngestionConfig;
-use dozer_ingestion::ingestion::Ingestor;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
@@ -198,8 +196,7 @@ impl Orchestrator for SimpleOrchestrator {
             }
             warn!("Shutting down internal pipeline server");
         });
-        // Ingestion channel
-        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
         let cache_dir = get_cache_dir(self.config.to_owned());
 
         let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
@@ -213,15 +210,14 @@ impl Orchestrator for SimpleOrchestrator {
         let executor = Executor::new(
             self.config.clone(),
             cache_endpoints,
-            ingestor,
-            iterator,
             running,
             pipeline_home_dir,
         );
         let flags = get_flags(self.config.clone());
         let api_security = get_api_security_config(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
-        executor.run(Some(sender), settings)
+        let dag_executor = executor.create_dag_executor(Some(sender), settings)?.0;
+        Executor::run_dag_executor(dag_executor)
     }
 
     fn list_connectors(
@@ -255,16 +251,11 @@ impl Orchestrator for SimpleOrchestrator {
         sender: Sender<Operation>,
         running: Arc<AtomicBool>,
     ) -> Result<Schema, OrchestrationError> {
-        // Ingestion channel
-        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
         let pipeline_dir = tempdir::TempDir::new("query4")
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         let executor = Executor::new(
             self.config.clone(),
             vec![],
-            ingestor,
-            iterator,
             running,
             pipeline_dir.into_path(),
         );
@@ -313,16 +304,11 @@ impl Orchestrator for SimpleOrchestrator {
         print_api_endpoints(&self.config.endpoints);
         validate_endpoints(&self.config.endpoints)?;
 
-        // Ingestion channel
-        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
         let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
 
         let builder = PipelineBuilder::new(
             self.config.clone(),
             cache_endpoints,
-            ingestor,
-            iterator,
             Arc::new(AtomicBool::new(true)),
             pipeline_home_dir.clone(),
         );
@@ -343,7 +329,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
-        let dag = builder.build(None, generated_path.clone(), settings)?;
+        let dag = builder.build(None, generated_path.clone(), settings)?.0;
         let dag_schemas = DagSchemas::new(&dag)?;
         // Every sink will initialize its schema in sink and also in a proto file.
         dag_schemas.prepare()?;

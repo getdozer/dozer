@@ -320,13 +320,13 @@ fn test_init_metadata() {
 
     let tmp_dir = chk!(TempDir::new("example"));
     let _exec = chk!(DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
     ));
     let _exec = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -355,7 +355,7 @@ fn test_init_metadata() {
     ));
 
     let exec = DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true)),
