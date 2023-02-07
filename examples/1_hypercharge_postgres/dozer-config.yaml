@@ -4,8 +4,8 @@ connections:
     authentication: !Postgres
       user: postgres
       password: postgres
-      host: localhost
-      port: 5432
+      host: host.docker.internal
+      port: 5434
       database: stocks
     name: stocks
 sources:
