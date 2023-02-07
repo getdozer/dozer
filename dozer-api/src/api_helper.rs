@@ -79,12 +79,12 @@ impl<'a> ApiHelper<'a> {
 
         let key = if schema.primary_index.is_empty() {
             json_str_to_field(key, dozer_types::types::FieldType::UInt, false)
-                .map_err(CacheError::TypeError)
+                .map_err(CacheError::Type)
         } else if schema.primary_index.len() == 1 {
             let field = &schema.fields[schema.primary_index[0]];
-            json_str_to_field(key, field.typ, field.nullable).map_err(CacheError::TypeError)
+            json_str_to_field(key, field.typ, field.nullable).map_err(CacheError::Type)
         } else {
-            Err(CacheError::QueryError(
+            Err(CacheError::Query(
                 dozer_cache::errors::QueryError::MultiIndexFetch(key.to_string()),
             ))
         }?;
@@ -92,7 +92,7 @@ impl<'a> ApiHelper<'a> {
         let key = index::get_primary_key(&[0], &[key]);
         let rec = self.reader.get(&key)?;
 
-        record_to_map(&rec, &schema).map_err(CacheError::TypeError)
+        record_to_map(&rec, &schema).map_err(CacheError::Type)
     }
 
     pub fn get_records_count(&self, mut exp: QueryExpression) -> Result<usize, CacheError> {

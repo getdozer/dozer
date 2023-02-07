@@ -8,8 +8,8 @@ use std::{
     time::Duration,
 };
 
-use dozer_api::CacheEndpoint;
-use dozer_cache::cache::{expression::QueryExpression, test_utils, Cache, CacheOptions, LmdbCache};
+use dozer_api::RwCacheEndpoint;
+use dozer_cache::cache::{expression::QueryExpression, test_utils, LmdbRwCache, RoCache};
 use dozer_types::{
     ingestion_types::IngestionMessage,
     log::warn,
@@ -49,8 +49,8 @@ fn single_source_sink_impl(schema: Schema) {
     };
 
     let table_name = "events";
-    let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
-    let cache_endpoint = CacheEndpoint {
+    let cache = Arc::new(LmdbRwCache::new(Default::default(), Default::default()).unwrap());
+    let cache_endpoint = RwCacheEndpoint {
         cache: cache.clone(),
         endpoint: ApiEndpoint {
             id: Some("1".to_string()),
@@ -129,7 +129,7 @@ fn single_source_sink_impl(schema: Schema) {
     // Shutdown the thread
     r.store(false, Ordering::SeqCst);
 
-    test_query("events".to_string(), json!({}), 7, &cache);
+    test_query("events".to_string(), json!({}), 7, &*cache);
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn single_source_sink() {
     single_source_sink_impl(schema);
 }
 
-fn test_query(schema_name: String, query: Value, count: usize, cache: &LmdbCache) {
+fn test_query(schema_name: String, query: Value, count: usize, cache: &impl RoCache) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     let records = cache.query(&schema_name, &query).unwrap();
 

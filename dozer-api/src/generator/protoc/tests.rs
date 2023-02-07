@@ -1,35 +1,31 @@
 use super::generator::ProtoGenerator;
 use crate::generator::protoc::utils::{create_descriptor_set, get_proto_descriptor};
-use crate::{test_utils, CacheEndpoint, PipelineDetails};
+use crate::test_utils;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use prost_reflect::{MethodDescriptor, ServiceDescriptor};
-use std::collections::HashMap;
 use tempdir::TempDir;
 
 #[test]
 fn test_generate_proto_and_descriptor() {
-    let schema_name = "films".to_string();
-    let schema = test_utils::get_schema();
+    let schema_name = "films";
+    let schema = test_utils::get_schema().0;
 
     let endpoint = test_utils::get_endpoint();
-
-    let mut map = HashMap::new();
-    let details = PipelineDetails {
-        schema_name: schema_name.clone(),
-        cache_endpoint: CacheEndpoint {
-            cache: test_utils::initialize_cache(&schema_name, Some(schema)),
-            endpoint: endpoint.clone(),
-        },
-    };
-    map.insert(schema_name, details.clone());
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();
     let api_security: Option<ApiSecurity> = None;
     let flags = Flags::default();
 
-    ProtoGenerator::generate(tmp_dir_path, details, &api_security, &Some(flags)).unwrap();
+    ProtoGenerator::generate(
+        tmp_dir_path,
+        schema_name,
+        schema,
+        &api_security,
+        &Some(flags),
+    )
+    .unwrap();
 
     let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
     let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
@@ -51,27 +47,24 @@ fn test_generate_proto_and_descriptor() {
 
 #[test]
 fn test_generate_proto_and_descriptor_with_security() {
-    let schema_name = "films".to_string();
-    let schema = test_utils::get_schema();
+    let schema_name = "films";
+    let schema = test_utils::get_schema().0;
 
     let endpoint = test_utils::get_endpoint();
-
-    let mut map = HashMap::new();
-    let details = PipelineDetails {
-        schema_name: schema_name.clone(),
-        cache_endpoint: CacheEndpoint {
-            cache: test_utils::initialize_cache(&schema_name, Some(schema)),
-            endpoint: endpoint.clone(),
-        },
-    };
-    map.insert(schema_name, details.clone());
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();
 
     let api_security = Some(ApiSecurity::Jwt("vDKrSDOrVY".to_owned()));
     let flags = Flags::default();
-    ProtoGenerator::generate(tmp_dir_path, details, &api_security, &Some(flags)).unwrap();
+    ProtoGenerator::generate(
+        tmp_dir_path,
+        schema_name,
+        schema,
+        &api_security,
+        &Some(flags),
+    )
+    .unwrap();
 
     let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
     let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
@@ -92,24 +85,22 @@ fn test_generate_proto_and_descriptor_with_security() {
 
 #[test]
 fn test_generate_proto_and_descriptor_with_push_event_off() {
-    let schema_name = "films".to_string();
-    let schema = test_utils::get_schema();
+    let schema_name = "films";
+    let schema = test_utils::get_schema().0;
 
     let endpoint = test_utils::get_endpoint();
 
-    let mut map = HashMap::new();
-    let details = PipelineDetails {
-        schema_name: schema_name.clone(),
-        cache_endpoint: CacheEndpoint {
-            cache: test_utils::initialize_cache(&schema_name, Some(schema)),
-            endpoint: endpoint.clone(),
-        },
-    };
-    map.insert(schema_name, details.clone());
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();
     let api_security = ApiSecurity::Jwt("vDKrSDOrVY".to_owned());
-    ProtoGenerator::generate(tmp_dir_path, details, &Some(api_security), &None).unwrap();
+    ProtoGenerator::generate(
+        tmp_dir_path,
+        schema_name,
+        schema,
+        &Some(api_security),
+        &None,
+    )
+    .unwrap();
     let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
     let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
 

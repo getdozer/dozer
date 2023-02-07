@@ -1,6 +1,6 @@
 // use std::collections::HashMap;
 
-// use dozer_core::dag::node::{PortHandle, ProcessorFactory};
+// use dozer_core::node::{PortHandle, ProcessorFactory};
 // use dozer_types::types::{FieldDefinition, FieldType, Schema};
 
 // use crate::pipeline::{

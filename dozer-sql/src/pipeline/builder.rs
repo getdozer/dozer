@@ -2,11 +2,11 @@ use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
-use dozer_core::dag::app::AppPipeline;
-use dozer_core::dag::app::PipelineEntryPoint;
-use dozer_core::dag::appsource::AppSourceId;
-use dozer_core::dag::node::PortHandle;
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::app::AppPipeline;
+use dozer_core::app::PipelineEntryPoint;
+use dozer_core::appsource::AppSourceId;
+use dozer_core::node::PortHandle;
+use dozer_core::DEFAULT_PORT_HANDLE;
 use sqlparser::ast::{Join, TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
@@ -411,7 +411,7 @@ pub fn get_from_source(
 
 #[cfg(test)]
 mod tests {
-    use dozer_core::dag::app::AppPipeline;
+    use dozer_core::app::AppPipeline;
 
     use super::statement_to_pipeline;
 

@@ -1,15 +1,15 @@
-use dozer_core::dag::app::{App, AppPipeline};
-use dozer_core::dag::appsource::{AppSource, AppSourceManager};
-use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag_schemas::DagSchemas;
-use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::node::{
+use dozer_core::app::{App, AppPipeline};
+use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::channels::SourceChannelForwarder;
+use dozer_core::dag_schemas::DagSchemas;
+use dozer_core::errors::ExecutionError;
+use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::dag::{Dag, DEFAULT_PORT_HANDLE};
+use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
 
-use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::dag::record_store::RecordReader;
+use dozer_core::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
@@ -23,7 +23,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use dozer_core::dag::epoch::Epoch;
+use dozer_core::epoch::Epoch;
 
 use std::time::Duration;
 use tempdir::TempDir;

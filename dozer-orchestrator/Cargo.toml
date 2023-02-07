@@ -29,6 +29,7 @@ rustyline = "10.1.1"
 rustyline-derive = "0.7.0"
 crossterm = "0.26.0"
 futures = "0.3.23"
+dozer-storage = { version = "0.1.0", path = "../dozer-storage" }
 
 [[bin]]
 edition = "2021"

@@ -1,6 +1,6 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
-use dozer_core::dag::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -119,7 +119,7 @@ mod tests {
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
 
-    use dozer_core::dag::appsource::{AppSourceId, AppSourceMappings};
+    use dozer_core::appsource::{AppSourceId, AppSourceMappings};
     use dozer_sql::pipeline::builder::SchemaSQLContext;
     use dozer_types::models::connection::{
         Authentication, Connection, DBType, EventsAuthentication,

@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use dozer_core::dag::app::AppPipeline;
-use dozer_core::dag::executor::DagExecutor;
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::app::AppPipeline;
+use dozer_core::executor::DagExecutor;
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::{QueryTableInfo, SchemaSQLContext};
 
 use dozer_api::grpc::internal_grpc::PipelineResponse;
-use dozer_core::dag::app::App;
+use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::app_config::Config;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
-use dozer_api::CacheEndpoint;
+use dozer_api::RwCacheEndpoint;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 
@@ -37,7 +37,7 @@ pub struct OriginalTableInfo {
 
 pub struct PipelineBuilder {
     config: Config,
-    cache_endpoints: Vec<CacheEndpoint>,
+    cache_endpoints: Vec<RwCacheEndpoint>,
     pipeline_dir: PathBuf,
     running: Arc<AtomicBool>,
     progress: MultiProgress,
@@ -45,7 +45,7 @@ pub struct PipelineBuilder {
 impl PipelineBuilder {
     pub fn new(
         config: Config,
-        cache_endpoints: Vec<CacheEndpoint>,
+        cache_endpoints: Vec<RwCacheEndpoint>,
         running: Arc<AtomicBool>,
         pipeline_dir: PathBuf,
     ) -> Self {
@@ -64,7 +64,7 @@ impl PipelineBuilder {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
         settings: CacheSinkSettings,
-    ) -> Result<(dozer_core::dag::Dag<SchemaSQLContext>, IngestorVec), OrchestrationError> {
+    ) -> Result<(dozer_core::Dag<SchemaSQLContext>, IngestorVec), OrchestrationError> {
         let sources = self.config.sources.clone();
 
         let grouped_connections = SourceBuilder::group_connections(sources);

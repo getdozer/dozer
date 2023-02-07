@@ -9,19 +9,21 @@ use crate::utils::{
 use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
+use dozer_api::RwCacheEndpoint;
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{
         self, internal::internal_pipeline_server::start_internal_pipeline_server,
         internal_grpc::PipelineResponse,
     },
-    rest, CacheEndpoint,
+    rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
-use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
-use dozer_core::dag::app::AppPipeline;
-use dozer_core::dag::dag_schemas::DagSchemas;
-use dozer_core::dag::errors::ExecutionError::InternalError;
+use dozer_cache::cache::{
+    CacheCommonOptions, CacheReadOptions, CacheWriteOptions, LmdbRoCache, LmdbRwCache,
+};
+use dozer_core::app::AppPipeline;
+use dozer_core::dag_schemas::DagSchemas;
+use dozer_core::errors::ExecutionError::InternalError;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
@@ -96,14 +98,11 @@ impl Orchestrator for SimpleOrchestrator {
         let mut cache_endpoints = vec![];
         for ce in &self.config.endpoints {
             let mut cache_common_options = self.cache_common_options.clone();
-            cache_common_options.set_path(cache_dir.join(ce.name.clone()));
-            cache_endpoints.push(CacheEndpoint {
+            cache_common_options.set_path(cache_dir.clone(), ce.name.clone());
+            cache_endpoints.push(RoCacheEndpoint {
                 cache: Arc::new(
-                    LmdbCache::new(CacheOptions {
-                        common: cache_common_options,
-                        kind: CacheOptionsKind::ReadOnly(self.cache_read_options.clone()),
-                    })
-                    .map_err(OrchestrationError::CacheInitFailed)?,
+                    LmdbRoCache::new(cache_common_options)
+                        .map_err(OrchestrationError::CacheInitFailed)?,
                 ),
                 endpoint: ce.to_owned(),
             });
@@ -199,7 +198,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let cache_dir = get_cache_dir(self.config.to_owned());
 
-        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
+        let cache_endpoints = self.get_rw_cache_endpoints(cache_dir)?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -304,7 +303,7 @@ impl Orchestrator for SimpleOrchestrator {
         print_api_endpoints(&self.config.endpoints);
         validate_endpoints(&self.config.endpoints)?;
 
-        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
+        let cache_endpoints = self.get_rw_cache_endpoints(cache_dir)?;
 
         let builder = PipelineBuilder::new(
             self.config.clone(),
@@ -363,21 +362,18 @@ impl Orchestrator for SimpleOrchestrator {
 }
 
 impl SimpleOrchestrator {
-    fn get_cache_endpoints(
+    fn get_rw_cache_endpoints(
         &self,
         cache_dir: PathBuf,
-    ) -> Result<Vec<CacheEndpoint>, OrchestrationError> {
+    ) -> Result<Vec<RwCacheEndpoint>, OrchestrationError> {
         let mut cache_endpoints = Vec::new();
         for e in &self.config.endpoints {
             let mut cache_common_options = self.cache_common_options.clone();
-            cache_common_options.set_path(cache_dir.join(e.name.clone()));
-            cache_endpoints.push(CacheEndpoint {
+            cache_common_options.set_path(cache_dir.clone(), e.name.clone());
+            cache_endpoints.push(RwCacheEndpoint {
                 cache: Arc::new(
-                    LmdbCache::new(CacheOptions {
-                        common: cache_common_options,
-                        kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
-                    })
-                    .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?,
+                    LmdbRwCache::new(cache_common_options, self.cache_write_options.clone())
+                        .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?,
                 ),
                 endpoint: e.to_owned(),
             })

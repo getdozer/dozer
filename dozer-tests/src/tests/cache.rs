@@ -1,4 +1,4 @@
-use dozer_cache::cache::{expression::QueryExpression, LmdbCache};
+use dozer_cache::cache::{expression::QueryExpression, LmdbRwCache};
 use dozer_types::{
     serde_json::{self, json, Value},
     types::IndexDefinition,
@@ -167,7 +167,7 @@ async fn test_cache_query() {
 }
 
 async fn validate_query(
-    cache: &LmdbCache,
+    cache: &LmdbRwCache,
     schema_name: &str,
     collection: &Collection<Film>,
     query: Value,

@@ -1,7 +1,7 @@
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
-    lmdb::{cache::LmdbCache, tests::utils, CacheOptions},
-    test_utils, Cache,
+    lmdb::{cache::LmdbRwCache, tests::utils},
+    test_utils, RoCache, RwCache,
 };
 use dozer_types::{
     serde_json::{self, json, Value},
@@ -10,7 +10,7 @@ use dozer_types::{
 
 #[test]
 fn query_secondary() {
-    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
     let (schema, seconary_indexes) = test_utils::schema_1();
     let record = Record::new(
         schema.identifier,
@@ -85,7 +85,7 @@ fn query_secondary() {
 
 #[test]
 fn query_secondary_vars() {
-    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
     let (schema, seconary_indexes) = test_utils::schema_1();
 
     cache
@@ -193,7 +193,7 @@ fn query_secondary_vars() {
 
 #[test]
 fn query_secondary_multi_indices() {
-    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
     let (schema, seconary_indexes) = test_utils::schema_multi_indices();
 
     cache
@@ -255,21 +255,21 @@ fn query_secondary_multi_indices() {
     );
 }
 
-fn test_query_err(query: Value, cache: &LmdbCache) {
+fn test_query_err(query: Value, cache: &LmdbRwCache) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     let count_result = cache.count("sample", &query);
     let result = cache.query("sample", &query);
 
     assert!(matches!(
         count_result.unwrap_err(),
-        crate::errors::CacheError::PlanError(_)
+        crate::errors::CacheError::Plan(_)
     ),);
     assert!(matches!(
         result.unwrap_err(),
-        crate::errors::CacheError::PlanError(_)
+        crate::errors::CacheError::Plan(_)
     ),);
 }
-fn test_query(query: Value, count: usize, cache: &LmdbCache) {
+fn test_query(query: Value, count: usize, cache: &LmdbRwCache) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     assert_eq!(cache.count("sample", &query).unwrap(), count);
     let records = cache.query("sample", &query).unwrap();
@@ -281,7 +281,7 @@ fn test_query_record(
     query: Value,
     expected: Vec<(i64, String, i64)>,
     schema: &Schema,
-    cache: &LmdbCache,
+    cache: &LmdbRwCache,
 ) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     assert_eq!(cache.count("sample", &query).unwrap(), expected.len());
