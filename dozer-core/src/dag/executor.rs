@@ -312,9 +312,7 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
             .name(format!("{handle}-sender"))
             .spawn(move || {
                 if let Err(e) = source_fn(st_node_handle) {
-                    if running_source.load(Ordering::Relaxed) {
-                        std::panic::panic_any(e);
-                    }
+                    std::panic::panic_any(e);
                 }
             })?;
 
