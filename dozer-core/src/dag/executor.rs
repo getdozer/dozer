@@ -184,16 +184,14 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
                 .output_schemas
                 .get(port)
                 .ok_or(IncompatibleSchemas(format!(
-                    "Cannot find output schema on port {0:?}",
-                    port
+                    "Cannot find output schema on port {port:?}"
                 )))?;
             if schema != other_schema {
                 schema.print().printstd();
 
                 other_schema.print().printstd();
                 return Err(IncompatibleSchemas(format!(
-                    "Schema mismatch for port {:?}:",
-                    port
+                    "Schema mismatch for port {port:?}:"
                 )));
             }
         }
@@ -208,16 +206,14 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
                     .input_schemas
                     .get(port)
                     .ok_or(IncompatibleSchemas(format!(
-                        "Cannot find input schema on port {0:?}",
-                        port
+                        "Cannot find input schema on port {port:?}"
                     )))?;
             if schema != other_schema {
                 schema.print().printstd();
 
                 other_schema.print().printstd();
                 return Err(IncompatibleSchemas(format!(
-                    "Schema mismatch for port {:?}:",
-                    port
+                    "Schema mismatch for port {port:?}:"
                 )));
             }
         }
