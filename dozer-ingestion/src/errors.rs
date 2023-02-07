@@ -185,6 +185,9 @@ pub enum PostgresSchemaError {
 
     #[error("Unsupported replication type - '{0}'")]
     UnsupportedReplicationType(String),
+
+    #[error("Primary key is missing in schema - '{0}'")]
+    PrimaryKeyIsMissingInSchema(String),
 }
 
 #[cfg(feature = "snowflake")]
