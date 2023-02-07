@@ -270,7 +270,7 @@ pub fn get_columns_idx(
             default_columns
                 .iter()
                 .position(|f| f == c)
-                .expect(&format!("column not found: {}", c))
+                .unwrap_or_else(|| panic!("column not found: {c}"))
         })
         .collect::<Vec<usize>>()
 }
