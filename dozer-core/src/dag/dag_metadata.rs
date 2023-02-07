@@ -140,7 +140,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     ) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
         let mut all = HashMap::<NodeHandle, DagMetadata>::new();
         for node in dag.node_handles() {
-            if let Some(metadata) = Self::get_node_checkpoint_metadata(path, node)? {
+            if let Ok(Some(metadata)) = Self::get_node_checkpoint_metadata(path, node) {
                 all.insert(node.clone(), metadata);
             }
         }

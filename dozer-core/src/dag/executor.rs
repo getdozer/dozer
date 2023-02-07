@@ -175,27 +175,50 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
         existing: &DagMetadata,
     ) -> Result<(), ExecutionError> {
         if existing.output_schemas.len() != current.output_schemas.len() {
-            return Err(IncompatibleSchemas());
+            return Err(IncompatibleSchemas(
+                "Output Schemas length mismatch".to_string(),
+            ));
         }
         for (port, (schema, _ctx)) in &current.output_schemas {
             let other_schema = existing
                 .output_schemas
                 .get(port)
-                .ok_or(IncompatibleSchemas())?;
+                .ok_or(IncompatibleSchemas(format!(
+                    "Cannot find output schema on port {0:?}",
+                    port
+                )))?;
             if schema != other_schema {
-                return Err(IncompatibleSchemas());
+                schema.print().printstd();
+
+                other_schema.print().printstd();
+                return Err(IncompatibleSchemas(format!(
+                    "Schema mismatch for port {:?}:",
+                    port
+                )));
             }
         }
         if existing.input_schemas.len() != current.input_schemas.len() {
-            return Err(IncompatibleSchemas());
+            return Err(IncompatibleSchemas(
+                "Input Schemas length mismatch".to_string(),
+            ));
         }
-        for (port, (schema, _ctx)) in &current.output_schemas {
-            let other_schema = existing
-                .output_schemas
-                .get(port)
-                .ok_or(IncompatibleSchemas())?;
+        for (port, (schema, _ctx)) in &current.input_schemas {
+            let other_schema =
+                existing
+                    .input_schemas
+                    .get(port)
+                    .ok_or(IncompatibleSchemas(format!(
+                        "Cannot find input schema on port {0:?}",
+                        port
+                    )))?;
             if schema != other_schema {
-                return Err(IncompatibleSchemas());
+                schema.print().printstd();
+
+                other_schema.print().printstd();
+                return Err(IncompatibleSchemas(format!(
+                    "Schema mismatch for port {:?}:",
+                    port
+                )));
             }
         }
         Ok(())
@@ -213,7 +236,10 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
             Ok(existing_schemas) => {
                 for (handle, current) in &current_schemas {
                     if let Some(existing) = existing_schemas.get(handle) {
-                        Self::validate_schemas(current, existing)?;
+                        if let Err(e) = Self::validate_schemas(current, existing) {
+                            dag.print_dot();
+                            return Err(e);
+                        }
                     } else {
                         meta_manager.delete_metadata();
                         meta_manager.init_metadata(&current_schemas)?;
