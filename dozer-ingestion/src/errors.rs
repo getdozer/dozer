@@ -165,6 +165,9 @@ pub enum PostgresConnectorError {
 
 #[derive(Error, Debug, Eq, PartialEq)]
 pub enum PostgresSchemaError {
+    #[error("Schema's '{0}' doesn't have primary key")]
+    PrimaryKeyIsMissingInSchema(String),
+
     #[error("Table: '{0}' replication identity settings are not correct. It is either not set or NOTHING. Missing a primary key ?")]
     SchemaReplicationIdentityError(String),
 
@@ -185,9 +188,6 @@ pub enum PostgresSchemaError {
 
     #[error("Unsupported replication type - '{0}'")]
     UnsupportedReplicationType(String),
-
-    #[error("Primary key is missing in schema - '{0}'")]
-    PrimaryKeyIsMissingInSchema(String),
 }
 
 #[cfg(feature = "snowflake")]

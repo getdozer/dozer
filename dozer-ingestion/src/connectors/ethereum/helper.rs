@@ -110,7 +110,6 @@ pub fn decode_event(
                 tables.iter().any(|t| t.table_name == table_name)
             });
             if is_table_required {
-                // let event = contract.event(&name_str).unwrap();
                 let parsed_event = event
                     .parse_log(RawLog {
                         topics: log.topics,
@@ -124,6 +123,7 @@ pub fn decode_event(
                         )
                     });
 
+                // let columns_idx = get_columns_idx(&table_name, default_columns, tables.clone());
                 let values = parsed_event
                     .params
                     .into_iter()
@@ -244,6 +244,37 @@ pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
 
     (idx, values)
 }
+
+pub fn get_columns_idx(
+    table_name: &str,
+    default_columns: Vec<String>,
+    tables: Option<Vec<TableInfo>>,
+) -> Vec<usize> {
+    let columns = tables.as_ref().map_or(vec![], |tables| {
+        tables
+            .iter()
+            .find(|t| t.table_name == table_name)
+            .map_or(vec![], |t| {
+                t.columns.as_ref().map_or(vec![], |cols| cols.clone())
+            })
+    });
+    let columns = if columns.is_empty() {
+        default_columns.clone()
+    } else {
+        columns
+    };
+
+    columns
+        .iter()
+        .map(|c| {
+            default_columns
+                .iter()
+                .position(|f| f == c)
+                .expect(&format!("column not found: {}", c))
+        })
+        .collect::<Vec<usize>>()
+}
+
 pub fn get_eth_schema() -> Schema {
     Schema {
         identifier: Some(SchemaIdentifier { id: 1, version: 1 }),

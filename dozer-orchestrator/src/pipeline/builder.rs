@@ -17,14 +17,12 @@ use std::sync::atomic::AtomicBool;
 use dozer_api::CacheEndpoint;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
-use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
-use super::source_builder::SourceBuilder;
+use super::source_builder::{IngestorVec, SourceBuilder};
 use super::validate::validate_grouped_connections;
 use crate::errors::OrchestrationError;
 use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
-use dozer_types::parking_lot::RwLock;
 use OrchestrationError::ExecutionError;
 
 pub enum OutputTableInfo {
@@ -41,8 +39,6 @@ pub struct PipelineBuilder {
     config: Config,
     cache_endpoints: Vec<CacheEndpoint>,
     pipeline_dir: PathBuf,
-    ingestor: Arc<RwLock<Ingestor>>,
-    iterator: Arc<RwLock<IngestionIterator>>,
     running: Arc<AtomicBool>,
     progress: MultiProgress,
 }
@@ -50,8 +46,6 @@ impl PipelineBuilder {
     pub fn new(
         config: Config,
         cache_endpoints: Vec<CacheEndpoint>,
-        ingestor: Arc<RwLock<Ingestor>>,
-        iterator: Arc<RwLock<IngestionIterator>>,
         running: Arc<AtomicBool>,
         pipeline_dir: PathBuf,
     ) -> Self {
@@ -59,8 +53,6 @@ impl PipelineBuilder {
             config,
             cache_endpoints,
             pipeline_dir,
-            ingestor,
-            iterator,
             running,
             progress: MultiProgress::new(),
         }
@@ -72,7 +64,7 @@ impl PipelineBuilder {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
         settings: CacheSinkSettings,
-    ) -> Result<dozer_core::dag::Dag<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<(dozer_core::dag::Dag<SchemaSQLContext>, IngestorVec), OrchestrationError> {
         let sources = self.config.sources.clone();
 
         let grouped_connections = SourceBuilder::group_connections(sources);
@@ -197,11 +189,7 @@ impl PipelineBuilder {
 
         pipelines.push(pipeline);
 
-        let asm = source_builder.build_source_manager(
-            self.ingestor.clone(),
-            self.iterator.clone(),
-            self.running.clone(),
-        )?;
+        let (asm, ingestors) = source_builder.build_source_manager(self.running.clone())?;
         let mut app = App::new(asm);
 
         Vec::into_iter(pipelines).for_each(|p| {
@@ -219,6 +207,6 @@ impl PipelineBuilder {
                 OrchestrationError::PipelineValidationError
             })?;
 
-        Ok(dag)
+        Ok((dag, ingestors))
     }
 }

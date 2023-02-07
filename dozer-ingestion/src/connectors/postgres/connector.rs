@@ -67,7 +67,7 @@ impl PostgresConnector {
     ) -> Option<(PgLsn, u64)> {
         from_seq.map_or_else(
             || {
-                info!("[{}] Starting replication from empty database", conn_name);
+                info!("[{}] Starting replication", conn_name);
                 None
             },
             |(lsn, checkpoint)| {

@@ -256,7 +256,7 @@ fn test_run_dag_record_reader() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         options,
         Arc::new(AtomicBool::new(true))
@@ -302,7 +302,7 @@ fn test_run_dag_record_reader_from_src() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -433,7 +433,7 @@ fn test_run_dag_record_reader_from_rowkey_autogen_src() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))

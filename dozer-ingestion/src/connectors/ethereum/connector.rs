@@ -219,7 +219,7 @@ impl Connector for EthConnector {
     fn stop(&self) {}
 
     fn test_connection(&self) -> Result<(), ConnectorError> {
-        todo!()
+        Ok(())
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
