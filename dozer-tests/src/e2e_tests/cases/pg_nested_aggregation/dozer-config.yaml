@@ -9,10 +9,20 @@ connections:
       database: stocks
     name: stocks
 sql: |
-  select id, (ROUND(SUM(ROUND(open, 2))) + SUM(close)) 
-  into stocks_data
-  from stocks
-  group by id;
+  SELECT
+    id,
+    (ROUND(SUM(ROUND(open, 2))) + SUM(close)) 
+  INTO stocks_data
+  FROM stocks
+  GROUP BY id;
+  
+  SELECT
+    symbol,
+    security_name, 
+    listing_exchange,
+    financial_status
+  INTO stocks_meta_data
+  FROM stocks_meta;
 
 sources:
   - name: stocks
@@ -56,7 +66,7 @@ endpoints:
     name: stocks_meta
     path: /stocks-meta
     # Direct from source
-    table_name: stocks_meta
+    table_name: stocks_meta_data
     index:
       primary_key:
         - symbol
