@@ -23,7 +23,7 @@ use dozer_types::models::connection::Connection;
 use OrchestrationError::ExecutionError;
 
 use crate::errors::OrchestrationError;
-use crate::pipeline::source_builder::{SourceBuilder, IngestorVec};
+use crate::pipeline::source_builder::{IngestorVec, SourceBuilder};
 
 pub struct Executor {
     config: Config,
@@ -120,8 +120,7 @@ impl Executor {
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         settings: CacheSinkSettings,
-    ) -> Result<(DagExecutor<SchemaSQLContext>, IngestorVec), OrchestrationError>
-    {
+    ) -> Result<(DagExecutor<SchemaSQLContext>, IngestorVec), OrchestrationError> {
         let running_wait = self.running.clone();
 
         let builder = PipelineBuilder::new(

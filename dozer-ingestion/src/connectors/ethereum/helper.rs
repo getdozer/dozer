@@ -182,7 +182,7 @@ pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationE
     if !is_table_required {
         None
     } else if log.log_index.is_some() {
-        let (idx, values) = map_log_to_values(log, details);
+        let (idx, values) = map_log_to_values(log);
         Some(OperationEvent {
             seq_no: idx,
             operation: Operation::Insert {
@@ -208,7 +208,7 @@ pub fn get_id(log: &Log) -> u64 {
 
     block_no * 100_000 + log_idx * 2
 }
-pub fn map_log_to_values(log: Log, details: Arc<EthDetails>) -> (u64, Vec<Field>) {
+pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
     let block_no = log.block_number.expect("expected for non pending").as_u64();
     let txn_idx = log
         .transaction_index
@@ -217,14 +217,6 @@ pub fn map_log_to_values(log: Log, details: Arc<EthDetails>) -> (u64, Vec<Field>
     let log_idx = log.log_index.expect("expected for non pending").as_u64();
 
     let idx = get_id(&log);
-
-    let default_columns = get_eth_schema()
-        .fields
-        .iter()
-        .map(|f| f.name.clone())
-        .collect::<Vec<String>>();
-
-    let columns_idx = get_columns_idx(ETH_LOGS_TABLE, default_columns, details.tables.clone());
 
     let values = vec![
         Field::UInt(idx),
@@ -250,10 +242,6 @@ pub fn map_log_to_values(log: Log, details: Arc<EthDetails>) -> (u64, Vec<Field>
         log.removed.map_or(Field::Null, Field::Boolean),
     ];
 
-    let values = columns_idx
-        .iter()
-        .map(|idx| values[*idx].clone())
-        .collect::<Vec<Field>>();
     (idx, values)
 }
 
