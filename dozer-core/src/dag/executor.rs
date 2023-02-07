@@ -214,7 +214,7 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
                 "Input Schemas length mismatch".to_string(),
             ));
         }
-        for (port, (schema, _ctx)) in &current.input_schemas {
+        for (port, (schema, _ctx)) in &current.output_schemas {
             let other_schema =
                 existing
                     .input_schemas
