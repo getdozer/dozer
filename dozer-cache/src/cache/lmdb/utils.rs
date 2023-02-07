@@ -44,10 +44,12 @@ pub fn init_env(options: &CacheOptions) -> Result<LmdbEnvironmentManager, CacheE
                 .as_ref()
                 .ok_or(CacheError::PathNotInitialized)?;
 
-            let mut env_options = LmdbEnvironmentOptions::default();
-            env_options.max_dbs = options.common.max_readers;
-            env_options.max_readers = options.common.max_readers;
-            env_options.flags = EnvironmentFlags::READ_ONLY;
+            let env_options = LmdbEnvironmentOptions {
+                max_dbs: options.common.max_db_size,
+                max_readers: options.common.max_readers,
+                flags: EnvironmentFlags::READ_ONLY,
+                ..Default::default()
+            };
 
             Ok(LmdbEnvironmentManager::create(
                 base_path,

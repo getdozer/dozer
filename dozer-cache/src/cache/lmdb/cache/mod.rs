@@ -82,7 +82,7 @@ pub trait LmdbCache: Send + Sync + Debug {
         Self: 'a;
 
     fn common(&self) -> &LmdbCacheCommon;
-    fn txn<'a>(&'a self) -> Self::LmdbExclusiveTransactionPointer<'a>;
+    fn txn(&self) -> Self::LmdbExclusiveTransactionPointer<'_>;
 
     fn create_query_handler<'a>(
         &self,
@@ -136,7 +136,7 @@ impl LmdbCache for LmdbRoCache {
         &self.common
     }
 
-    fn txn<'a>(&'a self) -> Self::LmdbExclusiveTransactionPointer<'a> {
+    fn txn(&self) -> Self::LmdbExclusiveTransactionPointer<'_> {
         self.txn.get()
     }
 }
@@ -150,7 +150,7 @@ impl LmdbCache for LmdbRwCache {
         &self.common
     }
 
-    fn txn<'a>(&'a self) -> Self::LmdbExclusiveTransactionPointer<'a> {
+    fn txn(&self) -> Self::LmdbExclusiveTransactionPointer<'_> {
         self.txn.write()
     }
 }

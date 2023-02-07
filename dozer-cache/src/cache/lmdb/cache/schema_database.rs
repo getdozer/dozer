@@ -200,7 +200,7 @@ mod tests {
         );
         assert_eq!(
             get_all_schemas(txn.txn(), reader.0).unwrap(),
-            vec![(schema.clone(), secondary_indexes.clone())]
+            vec![(schema, secondary_indexes)]
         );
     }
 }

@@ -1,4 +1,4 @@
-use dozer_cache::cache::{expression::QueryExpression, Cache, LmdbCache};
+use dozer_cache::cache::{expression::QueryExpression, LmdbRwCache, RwCache};
 use dozer_types::types::Record;
 
 /// Validate if `query.skip` and `query.limit` works correctly by comparing the results
