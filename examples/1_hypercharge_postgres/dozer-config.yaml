@@ -4,30 +4,10 @@ connections:
     authentication: !Postgres
       user: postgres
       password: postgres
-      host: host.docker.internal
-      port: 5434
+      host: localhost
+      port: 5432
       database: stocks
     name: stocks
-sql: |
-  SELECT
-    id,
-    AVG(open),
-    AVG(close),
-    low,
-    volume 
-  INTO stocks_data
-  FROM stocks
-  GROUP BY id;
-  
-  SELECT
-    symbol,
-    security_name,
-    listing_exchange,
-    financial_status
-  INTO stocks_meta_data
-  FROM stocks_meta
-  GROUP BY symbol;
-
 sources:
   - name: stocks
     table_name: stocks
@@ -58,6 +38,19 @@ sources:
       - nasdaq_symbol
       - next_shares
     connection: !Ref stocks
+
+sql: |
+  -- transformation made on top of `stocks` table data
+  SELECT
+    id,
+    AVG(open),
+    AVG(close),
+    low,
+    volume 
+  INTO stocks_data
+  FROM stocks
+  GROUP BY id;
+
 endpoints:
   - name: stocks
     path: /stocks
@@ -67,7 +60,9 @@ endpoints:
         - id
   - name: stocks_meta
     path: /stocks-meta
-    table_name: stocks_meta_data
+    table_name: stocks_meta
+    # direct selecting columns at the source level for `stocks_meta`
+    sql: SELECT * from stocks_meta;
     index:
       primary_key:
         - symbol
