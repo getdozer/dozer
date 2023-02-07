@@ -130,7 +130,7 @@ fn test_run_dag() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -173,7 +173,7 @@ fn test_run_dag_and_stop() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -308,7 +308,7 @@ fn test_run_dag_2_sources_stateless() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -362,7 +362,7 @@ fn test_run_dag_2_sources_stateful() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -417,7 +417,7 @@ fn test_run_dag_1_source_2_ports_stateless() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))

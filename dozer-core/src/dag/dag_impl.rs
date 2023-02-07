@@ -72,6 +72,7 @@ impl Display for EdgeType {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Dag<T> {
     /// The underlying graph.
     graph: daggy::Dag<NodeType<T>, EdgeType>,

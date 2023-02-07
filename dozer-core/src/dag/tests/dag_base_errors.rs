@@ -153,7 +153,7 @@ fn test_run_dag_proc_err_panic() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -212,7 +212,7 @@ fn test_run_dag_proc_err_2() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -272,7 +272,7 @@ fn test_run_dag_proc_err_3() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -423,7 +423,7 @@ fn test_run_dag_src_err() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -539,7 +539,7 @@ fn test_run_dag_sink_err() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -583,7 +583,7 @@ fn test_run_dag_sink_err_panic() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))

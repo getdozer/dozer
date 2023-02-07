@@ -2,7 +2,7 @@ use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::TableInfo;
-use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
@@ -14,6 +14,8 @@ pub struct SourceBuilder {
     used_sources: Vec<String>,
     grouped_connections: HashMap<String, Vec<Source>>,
 }
+
+pub type IngestorVec = Vec<Arc<RwLock<Ingestor>>>;
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
@@ -45,11 +47,10 @@ impl SourceBuilder {
 
     pub fn build_source_manager(
         &self,
-        ingestor: Arc<RwLock<Ingestor>>,
-        iterator: Arc<RwLock<IngestionIterator>>,
         running: Arc<AtomicBool>,
-    ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<(AppSourceManager<SchemaSQLContext>, IngestorVec), OrchestrationError> {
         let mut asm = AppSourceManager::new();
+        let mut ingestors = vec![];
 
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
 
@@ -74,6 +75,8 @@ impl SourceBuilder {
                     }
                 }
 
+                let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
                 let source_factory = ConnectorSourceFactory::new(
                     Arc::clone(&ingestor),
                     Arc::clone(&iterator),
@@ -88,10 +91,12 @@ impl SourceBuilder {
                     Arc::new(source_factory),
                     ports,
                 ))?;
+
+                ingestors.push(ingestor);
             }
         }
 
-        Ok(asm)
+        Ok((asm, ingestors))
     }
 
     pub fn group_connections(sources: Vec<Source>) -> HashMap<String, Vec<Source>> {
@@ -110,7 +115,6 @@ impl SourceBuilder {
 #[cfg(test)]
 mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
-    use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
     use dozer_types::models::app_config::Config;
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
@@ -193,10 +197,6 @@ mod tests {
     fn load_multi_sources() {
         let config = get_default_config();
 
-        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-        let iterator_ref = Arc::clone(&iterator);
-
         let tables = config
             .sources
             .iter()
@@ -208,8 +208,9 @@ mod tests {
             SourceBuilder::group_connections(config.sources.clone()),
         );
         let asm = source_builder
-            .build_source_manager(ingestor, iterator_ref, Arc::new(AtomicBool::new(true)))
-            .unwrap();
+            .build_source_manager(Arc::new(AtomicBool::new(true)))
+            .unwrap()
+            .0;
 
         let conn_name_1 = config.connections.get(0).unwrap().name.clone();
         let conn_name_2 = config.connections.get(1).unwrap().name.clone();
@@ -233,10 +234,6 @@ mod tests {
     fn load_only_used_sources() {
         let config = get_default_config();
 
-        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-        let iterator_ref = Arc::clone(&iterator);
-
         let only_used_table_name = vec![config.sources.get(0).unwrap().table_name.clone()];
         let conn_name = config.connections.get(0).unwrap().name.clone();
         let source_builder = SourceBuilder::new(
@@ -244,8 +241,9 @@ mod tests {
             SourceBuilder::group_connections(config.sources.clone()),
         );
         let asm = source_builder
-            .build_source_manager(ingestor, iterator_ref, Arc::new(AtomicBool::new(true)))
-            .unwrap();
+            .build_source_manager(Arc::new(AtomicBool::new(true)))
+            .unwrap()
+            .0;
 
         let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![AppSourceId::new(

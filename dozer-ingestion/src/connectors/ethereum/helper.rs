@@ -182,7 +182,7 @@ pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationE
     if !is_table_required {
         None
     } else if log.log_index.is_some() {
-        let (idx, values) = map_log_to_values(log, details.clone());
+        let (idx, values) = map_log_to_values(log, details);
         Some(OperationEvent {
             seq_no: idx,
             operation: Operation::Insert {

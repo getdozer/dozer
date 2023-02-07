@@ -95,8 +95,8 @@ use self::source_node::{SourceListenerNode, SourceSenderNode};
 
 use super::epoch::OpIdentifier;
 
-pub struct DagExecutor<'a, T: Clone> {
-    dag: &'a Dag<T>,
+pub struct DagExecutor<T: Clone> {
+    dag: Dag<T>,
     schemas: HashMap<NodeHandle, NodeSchemas<T>>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>>,
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
@@ -106,9 +106,9 @@ pub struct DagExecutor<'a, T: Clone> {
     consistency_metadata: HashMap<NodeHandle, Option<OpIdentifier>>,
 }
 
-impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
+impl<T: Clone + Debug + 'static> DagExecutor<T> {
     fn check_consistency(
-        dag: &'a Dag<T>,
+        dag: &Dag<T>,
         path: &Path,
     ) -> Result<HashMap<NodeHandle, Option<OpIdentifier>>, ExecutionError> {
         let mut r = HashMap::new();
@@ -126,38 +126,39 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
     }
 
     pub fn new(
-        dag: &'a Dag<T>,
+        dag: Dag<T>,
         path: &Path,
         options: ExecutorOptions,
         running: Arc<AtomicBool>,
     ) -> Result<Self, ExecutionError> {
         //
 
-        let consistency_metadata = match Self::check_consistency(dag, path) {
+        let consistency_metadata = match Self::check_consistency(&dag, path) {
             Ok(c) => c,
             Err(_) => {
-                DagMetadataManager::new(dag, path)?.delete_metadata();
+                DagMetadataManager::new(&dag, path)?.delete_metadata();
                 dag.sources()
                     .map(|(handle, _)| (handle.clone(), None))
                     .collect()
             }
         };
 
-        let schemas = Self::load_or_init_schema(dag, path)?;
+        let schemas = Self::load_or_init_schema(&dag, path)?;
+        let record_stores = Arc::new(RwLock::new(
+            dag.node_handles()
+                .map(|node_handle| {
+                    (
+                        node_handle.clone(),
+                        HashMap::<PortHandle, Box<dyn RecordReader>>::new(),
+                    )
+                })
+                .collect(),
+        ));
 
         Ok(Self {
             dag,
             schemas,
-            record_stores: Arc::new(RwLock::new(
-                dag.node_handles()
-                    .map(|node_handle| {
-                        (
-                            node_handle.clone(),
-                            HashMap::<PortHandle, Box<dyn RecordReader>>::new(),
-                        )
-                    })
-                    .collect(),
-            )),
+            record_stores,
             path: path.to_path_buf(),
             join_handles: HashMap::new(),
             options,
@@ -166,7 +167,7 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
         })
     }
 
-    pub fn validate(dag: &'a Dag<T>, path: &Path) -> Result<(), ExecutionError> {
+    pub fn validate(dag: &Dag<T>, path: &Path) -> Result<(), ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
         let meta_manager = DagMetadataManager::new(dag, path)?;
 
@@ -174,9 +175,7 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
         let existing_schemas = meta_manager.get_metadata()?;
         for (handle, current) in &current_schemas {
             if let Some(existing) = existing_schemas.get(handle) {
-                if let Err(e) = Self::validate_schemas(current, existing) {
-                    return Err(e);
-                }
+                Self::validate_schemas(current, existing)?;
             } else {
                 // Non-existing schemas is OK. `Executor::new` will initialize the schemas.
             }
@@ -199,16 +198,14 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
                 .output_schemas
                 .get(port)
                 .ok_or(IncompatibleSchemas(format!(
-                    "Cannot find output schema on port {0:?}",
-                    port
+                    "Cannot find output schema on port {port:?}"
                 )))?;
             if schema != other_schema {
                 schema.print().printstd();
 
                 other_schema.print().printstd();
                 return Err(IncompatibleSchemas(format!(
-                    "Schema mismatch for port {:?}:",
-                    port
+                    "Schema mismatch for port {port:?}:"
                 )));
             }
         }
@@ -223,16 +220,14 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
                     .input_schemas
                     .get(port)
                     .ok_or(IncompatibleSchemas(format!(
-                        "Cannot find input schema on port {0:?}",
-                        port
+                        "Cannot find input schema on port {port:?}",
                     )))?;
             if schema != other_schema {
                 schema.print().printstd();
 
                 other_schema.print().printstd();
                 return Err(IncompatibleSchemas(format!(
-                    "Schema mismatch for port {:?}:",
-                    port
+                    "Schema mismatch for port {port:?}:",
                 )));
             }
         }
@@ -240,7 +235,7 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
     }
 
     fn load_or_init_schema(
-        dag: &'a Dag<T>,
+        dag: &Dag<T>,
         path: &Path,
     ) -> Result<HashMap<NodeHandle, NodeSchemas<T>>, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
@@ -251,9 +246,7 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
             Ok(existing_schemas) => {
                 for (handle, current) in &current_schemas {
                     if let Some(existing) = existing_schemas.get(handle) {
-                        if let Err(e) = Self::validate_schemas(current, existing) {
-                            return Err(e);
-                        }
+                        Self::validate_schemas(current, existing)?;
                     } else {
                         meta_manager.delete_metadata();
                         meta_manager.init_metadata(&current_schemas)?;
@@ -295,7 +288,6 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
             .map(|e| (e.0, e.1 .0))
             .collect();
         let running = self.running.clone();
-        let running_source = running.clone();
         let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let sender = SourceSenderNode::new(
                 handle,
@@ -447,7 +439,7 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
     }
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
-        let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
+        let (mut senders, mut receivers) = index_edges(&self.dag, self.options.channel_buffer_sz);
 
         for (handle, factory) in self.dag.sinks() {
             let join_handle = self.start_sink(

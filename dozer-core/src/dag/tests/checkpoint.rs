@@ -76,7 +76,7 @@ fn test_checkpoint_consistency() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -171,7 +171,7 @@ fn test_checkpoint_consistency_resume() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))
@@ -231,7 +231,7 @@ fn test_checkpoint_consistency_resume() {
     ));
 
     let mut executor = chk!(DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path(),
         ExecutorOptions::default(),
         Arc::new(AtomicBool::new(true))

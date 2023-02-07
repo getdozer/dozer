@@ -144,7 +144,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         &self,
         root_node: &NodeHandle,
     ) -> Result<HashMap<Option<OpIdentifier>, Vec<NodeHandle>>, ExecutionError> {
-        let metadata = Self::get_checkpoint_metadata(&self.path, &self.dag)?;
+        let metadata = Self::get_checkpoint_metadata(self.path, self.dag)?;
 
         let mut result = HashMap::new();
 
