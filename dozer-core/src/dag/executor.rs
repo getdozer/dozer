@@ -113,7 +113,7 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
     ) -> Result<HashMap<NodeHandle, Option<OpIdentifier>>, ExecutionError> {
         let mut r = HashMap::new();
         let meta = DagMetadataManager::new(dag, path)?;
-        let chk = meta.get_checkpoint_consistency();
+        let chk = meta.get_checkpoint_consistency()?;
         for (handle, _factory) in dag.sources() {
             match chk.get(handle) {
                 Some(Consistency::FullyConsistent(c)) => {
@@ -167,7 +167,22 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
     }
 
     pub fn validate(dag: &'a Dag<T>, path: &Path) -> Result<(), ExecutionError> {
-        Self::load_or_init_schema(dag, path).map(|_| ())
+        let dag_schemas = DagSchemas::new(dag)?;
+        let meta_manager = DagMetadataManager::new(dag, path)?;
+
+        let current_schemas = dag_schemas.get_all_schemas();
+        let existing_schemas = meta_manager.get_metadata()?;
+        for (handle, current) in &current_schemas {
+            if let Some(existing) = existing_schemas.get(handle) {
+                if let Err(e) = Self::validate_schemas(current, existing) {
+                    return Err(e);
+                }
+            } else {
+                // Non-existing schemas is OK. `Executor::new` will initialize the schemas.
+            }
+        }
+
+        Ok(())
     }
 
     fn validate_schemas(
@@ -224,51 +239,6 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
         Ok(())
     }
 
-    fn print_dag(
-        dag: &'a Dag<T>,
-        current_schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
-        existing_schemas: &HashMap<NodeHandle, DagMetadata>,
-    ) {
-        use std::println as info;
-        dag.print_dot();
-
-        info!("--------------------------------------------");
-        info!("-------------   Current   ----------------");
-        info!("--------------------------------------------");
-        for (handle, node_schemas) in current_schemas.iter() {
-            info!("Node: {:?}", handle);
-            info!("-----INPUT-----");
-            for (k, (schema, _)) in node_schemas.input_schemas.iter() {
-                info!("Port: {:?}", k);
-                schema.print().printstd();
-            }
-
-            info!("------Output---");
-            for (k, (schema, _)) in node_schemas.output_schemas.iter() {
-                info!("Port: {:?}", k);
-                schema.print().printstd();
-            }
-        }
-
-        info!("--------------------------------------------");
-        info!("-------------   Existing   ----------------");
-        info!("--------------------------------------------");
-        for (handle, metadata) in existing_schemas.iter() {
-            info!("Node: {:?}", handle);
-            info!("--Input--");
-            for (k, schema) in metadata.input_schemas.iter() {
-                info!("Port: {:?}", k);
-                schema.print().printstd();
-            }
-
-            info!("--Output--");
-            for (k, schema) in metadata.output_schemas.iter() {
-                info!("Port: {:?}", k);
-                schema.print().printstd();
-            }
-        }
-    }
-
     fn load_or_init_schema(
         dag: &'a Dag<T>,
         path: &Path,
@@ -282,7 +252,6 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
                 for (handle, current) in &current_schemas {
                     if let Some(existing) = existing_schemas.get(handle) {
                         if let Err(e) = Self::validate_schemas(current, existing) {
-                            Self::print_dag(dag, &current_schemas, &existing_schemas);
                             return Err(e);
                         }
                     } else {
@@ -481,8 +450,6 @@ impl<'a, T: Clone + Debug + 'static> DagExecutor<'a, T> {
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
-
-        self.dag.print_dot();
 
         for (handle, factory) in self.dag.sinks() {
             let join_handle = self.start_sink(

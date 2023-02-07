@@ -186,7 +186,7 @@ fn test_run_dag_and_stop() {
     assert!(executor.join().is_ok());
 
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency();
+    let c = r.get_checkpoint_consistency().unwrap();
     assert!(matches!(
         c.get(&source_handle).unwrap(),
         Consistency::FullyConsistent(_)

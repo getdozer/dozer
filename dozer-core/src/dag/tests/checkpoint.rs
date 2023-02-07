@@ -86,7 +86,7 @@ fn test_checkpoint_consistency() {
     assert!(executor.join().is_ok());
 
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency();
+    let c = r.get_checkpoint_consistency().unwrap();
 
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
@@ -104,7 +104,7 @@ fn test_checkpoint_consistency() {
 
     LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{proc_handle}").as_str());
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency();
+    let c = r.get_checkpoint_consistency().unwrap();
 
     let mut expected = HashMap::new();
     expected.insert(
@@ -181,7 +181,7 @@ fn test_checkpoint_consistency_resume() {
     assert!(executor.join().is_ok());
 
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency();
+    let c = r.get_checkpoint_consistency().unwrap();
 
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
@@ -241,7 +241,7 @@ fn test_checkpoint_consistency_resume() {
     assert!(executor.join().is_ok());
 
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency();
+    let c = r.get_checkpoint_consistency().unwrap();
 
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),

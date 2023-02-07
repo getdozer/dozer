@@ -39,7 +39,6 @@ pub(crate) struct DagMetadata {
 pub(crate) struct DagMetadataManager<'a, T: Clone> {
     dag: &'a Dag<T>,
     path: &'a Path,
-    metadata: HashMap<NodeHandle, DagMetadata>,
 }
 
 impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
@@ -47,13 +46,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         dag: &'a Dag<T>,
         path: &'a Path,
     ) -> Result<DagMetadataManager<'a, T>, ExecutionError> {
-        let metadata = DagMetadataManager::get_checkpoint_metadata(path, dag)?;
-
-        Ok(Self {
-            path,
-            dag,
-            metadata,
-        })
+        Ok(Self { path, dag })
     }
 
     fn get_node_checkpoint_metadata(
@@ -140,7 +133,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     ) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
         let mut all = HashMap::<NodeHandle, DagMetadata>::new();
         for node in dag.node_handles() {
-            if let Ok(Some(metadata)) = Self::get_node_checkpoint_metadata(path, node) {
+            if let Some(metadata) = Self::get_node_checkpoint_metadata(path, node)? {
                 all.insert(node.clone(), metadata);
             }
         }
@@ -150,25 +143,28 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     fn get_dependency_tree_consistency(
         &self,
         root_node: &NodeHandle,
-    ) -> HashMap<Option<OpIdentifier>, Vec<NodeHandle>> {
+    ) -> Result<HashMap<Option<OpIdentifier>, Vec<NodeHandle>>, ExecutionError> {
+        let metadata = Self::get_checkpoint_metadata(&self.path, &self.dag)?;
+
         let mut result = HashMap::new();
 
         for node_handle in self.dag.bfs(root_node) {
-            let seq = self
-                .metadata
+            let seq = metadata
                 .get(node_handle)
                 .and_then(|dag_meta_data| dag_meta_data.commits.get(root_node).copied());
 
             insert_vec_element(&mut result, seq, node_handle.clone());
         }
 
-        result
+        Ok(result)
     }
 
-    pub(crate) fn get_checkpoint_consistency(&self) -> HashMap<NodeHandle, Consistency> {
+    pub(crate) fn get_checkpoint_consistency(
+        &self,
+    ) -> Result<HashMap<NodeHandle, Consistency>, ExecutionError> {
         let mut r: HashMap<NodeHandle, Consistency> = HashMap::new();
         for node_handle in self.dag.node_handles() {
-            let consistency = self.get_dependency_tree_consistency(node_handle);
+            let consistency = self.get_dependency_tree_consistency(node_handle)?;
             debug_assert!(!consistency.is_empty());
             if consistency.len() == 1 {
                 r.insert(
@@ -182,7 +178,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
                 );
             }
         }
-        r
+        Ok(r)
     }
 
     pub(crate) fn delete_metadata(&self) {
