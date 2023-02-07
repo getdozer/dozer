@@ -1,6 +1,6 @@
 use bson::doc;
 use csv::StringRecord;
-use dozer_cache::cache::{CacheOptions, LmdbRwCache, RwCache};
+use dozer_cache::cache::{LmdbRwCache, RwCache};
 use dozer_types::{chrono::DateTime, types::IndexDefinition};
 use mongodb::{options::ClientOptions, Client, Collection, IndexModel};
 
