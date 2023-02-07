@@ -14,6 +14,11 @@ use dozer_types::types::Field;
 use crate::errors::CompareError;
 
 pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
+    debug_assert!(
+        !primary_index.is_empty(),
+        "Primary key indexes cannot be empty"
+    );
+
     let key: Vec<Vec<u8>> = primary_index
         .iter()
         .map(|idx| values[*idx].encode())
