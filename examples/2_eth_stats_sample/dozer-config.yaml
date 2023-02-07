@@ -23,13 +23,26 @@ connections:
     name: eth_conn
 
 sql: |
-  select punkIndex, minValue, toAddress
-  INTO punk_offered from punks_PunkOffered;
+  SELECT
+    punkIndex,
+    minValue,
+    toAddress
+  INTO punk_offered
+  FROM punks_PunkOffered;
 
-  select from, to  INTO transfers from apes_Transfer;
+  SELECT
+    from,
+    to 
+  INTO transfers
+  FROM apes_Transfer;
 
-  select id, address, block_hash, block_number  
-  INTO filtered_logs from eth_logs;
+  SELECT
+    id,
+    address,
+    block_hash,
+    block_number  
+  INTO filtered_logs
+  FROM eth_logs;
 
 sources:
   - name: punks_PunkOffered

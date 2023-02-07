@@ -8,6 +8,26 @@ connections:
       port: 5434
       database: stocks
     name: stocks
+sql: |
+  SELECT
+    id,
+    AVG(open),
+    AVG(close),
+    low,
+    volume 
+  INTO stocks_data
+  FROM stocks
+  GROUP BY id;
+  
+  SELECT
+    symbol,
+    security_name,
+    listing_exchange,
+    financial_status
+  INTO stocks_meta_data
+  FROM stocks_meta
+  GROUP BY symbol;
+
 sources:
   - name: stocks
     table_name: stocks
@@ -41,14 +61,13 @@ sources:
 endpoints:
   - name: stocks
     path: /stocks
-    table_name: stocks
+    table_name: stocks_data
     index:
       primary_key:
         - id
-  - id: null
-    name: stocks_meta
+  - name: stocks_meta
     path: /stocks-meta
-    table_name: stocks_meta
+    table_name: stocks_meta_data
     index:
       primary_key:
         - symbol
