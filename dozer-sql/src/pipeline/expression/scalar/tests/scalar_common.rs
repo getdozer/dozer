@@ -1,9 +1,9 @@
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
-use dozer_core::dag::channels::ProcessorChannelForwarder;
-use dozer_core::dag::node::ProcessorFactory;
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::node::ProcessorFactory;
 use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Field, Operation, Record, Schema};
 use std::collections::HashMap;
 use tempdir::TempDir;
@@ -16,8 +16,8 @@ impl ProcessorChannelForwarder for TestChannelForwarder {
     fn send(
         &mut self,
         op: dozer_types::types::Operation,
-        _port: dozer_core::dag::node::PortHandle,
-    ) -> Result<(), dozer_core::dag::errors::ExecutionError> {
+        _port: dozer_core::node::PortHandle,
+    ) -> Result<(), dozer_core::errors::ExecutionError> {
         self.operations.push(op);
         Ok(())
     }
@@ -46,7 +46,9 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
         .unwrap();
 
     let tmp_dir = TempDir::new("test").unwrap();
-    let mut storage = LmdbEnvironmentManager::create(tmp_dir.path(), "projection_test").unwrap();
+    let mut storage =
+        LmdbEnvironmentManager::create(tmp_dir.path(), "projection_test", Default::default())
+            .unwrap();
 
     processor.init(&mut storage).unwrap();
 

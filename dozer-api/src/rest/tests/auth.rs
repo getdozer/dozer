@@ -1,7 +1,7 @@
 use super::super::api_server::{ApiServer, CorsOptions};
 use crate::{
     auth::{Access, Authorizer},
-    test_utils, CacheEndpoint,
+    test_utils, RoCacheEndpoint,
 };
 use actix_web::{body::MessageBody, dev::ServiceResponse};
 use dozer_types::{
@@ -69,7 +69,7 @@ async fn check_status(
     let api_server = ApiServer::create_app_entry(
         security,
         CorsOptions::Permissive,
-        vec![CacheEndpoint {
+        vec![RoCacheEndpoint {
             cache,
             endpoint: endpoint.clone(),
         }],
@@ -98,7 +98,7 @@ async fn _call_auth_token_api(
     let api_server = ApiServer::create_app_entry(
         Some(ApiSecurity::Jwt(secret)),
         CorsOptions::Permissive,
-        vec![CacheEndpoint { cache, endpoint }],
+        vec![RoCacheEndpoint { cache, endpoint }],
     );
     let app = actix_web::test::init_service(api_server).await;
 

@@ -1,10 +1,10 @@
+use dozer_storage::lmdb::Cursor;
 use dozer_types::types::{Field, Record, Schema};
-use lmdb::{Cursor, RoTransaction};
 
-use crate::cache::{Cache, LmdbCache};
+use crate::cache::{LmdbRwCache, RwCache};
 
 pub fn insert_rec_1(
-    cache: &LmdbCache,
+    cache: &LmdbRwCache,
     schema: &Schema,
     (a, b, c): (i64, Option<String>, Option<i64>),
 ) {
@@ -21,7 +21,7 @@ pub fn insert_rec_1(
 }
 
 pub fn insert_full_text(
-    cache: &LmdbCache,
+    cache: &LmdbRwCache,
     schema: &Schema,
     (a, b): (Option<String>, Option<String>),
 ) {
@@ -36,18 +36,18 @@ pub fn insert_full_text(
     cache.insert(&record).unwrap();
 }
 
-pub fn get_indexes(cache: &LmdbCache) -> Vec<Vec<(&[u8], &[u8])>> {
-    let (env, secondary_indexes) = cache.get_env_and_secondary_indexes();
-    let txn: RoTransaction = env.begin_ro_txn().unwrap();
+pub fn get_indexes(cache: &LmdbRwCache) -> Vec<Vec<(&[u8], &[u8])>> {
+    let (txn, secondary_indexes) = cache.get_txn_and_secondary_indexes();
+    let txn = txn.read();
 
     let mut items = Vec::new();
     for db in secondary_indexes.read().values() {
-        let mut cursor = db.open_ro_cursor(&txn).unwrap();
+        let mut cursor = db.open_ro_cursor(txn.txn()).unwrap();
         items.push(
             cursor
                 .iter_dup()
                 .flatten()
-                .collect::<lmdb::Result<Vec<_>>>()
+                .collect::<dozer_storage::lmdb::Result<Vec<_>>>()
                 .unwrap(),
         );
     }

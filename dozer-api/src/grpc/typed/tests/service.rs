@@ -16,7 +16,7 @@ use crate::{
             TypedService,
         },
     },
-    CacheEndpoint, PipelineDetails,
+    PipelineDetails, RoCacheEndpoint,
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
 use dozer_types::{
@@ -52,7 +52,7 @@ pub fn setup_pipeline() -> (
     let endpoint = test_utils::get_endpoint();
     let pipeline_details = PipelineDetails {
         schema_name: schema_name.clone(),
-        cache_endpoint: CacheEndpoint {
+        cache_endpoint: RoCacheEndpoint {
             cache: test_utils::initialize_cache(&schema_name, None),
             endpoint,
         },

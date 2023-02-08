@@ -4,7 +4,7 @@ pub mod pipeline;
 pub mod simple;
 pub use dozer_api::grpc::internal_grpc;
 pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
-use dozer_core::dag::errors::ExecutionError;
+use dozer_core::errors::ExecutionError;
 use dozer_types::{
     crossbeam::channel::Sender,
     log::debug,
@@ -12,12 +12,14 @@ use dozer_types::{
 };
 use errors::OrchestrationError;
 use std::{
+    backtrace::{Backtrace, BacktraceStatus},
     collections::HashMap,
     panic, process,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    thread::current,
 };
 use tokio::task::JoinHandle;
 mod console_helper;
@@ -81,6 +83,22 @@ pub fn set_panic_hook() {
             error!("{s:?}");
         } else {
             error!("{}", panic_info);
+        }
+
+        let backtrace = Backtrace::capture();
+        if backtrace.status() == BacktraceStatus::Captured {
+            error!(
+                "thread '{}' panicked at '{}'\n stack backtrace:\n{}",
+                current()
+                    .name()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+                panic_info
+                    .location()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+                backtrace
+            );
         }
 
         process::exit(1);

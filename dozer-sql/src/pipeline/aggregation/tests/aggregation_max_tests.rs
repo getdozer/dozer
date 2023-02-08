@@ -7,7 +7,7 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_200_INT, FIELD_200_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_NULL, ITALY,
     SINGAPORE,
 };
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::log::debug;
 use dozer_types::types::Field;

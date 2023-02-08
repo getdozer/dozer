@@ -40,8 +40,9 @@ pub struct CacheCommonOptions {
     /// The chunk size when calculating intersection of index queries.
     pub intersection_chunk_size: usize,
 
-    // Provide a path where db will be created. If nothing is provided, will default to a temp location.
-    pub path: Option<PathBuf>,
+    /// Provide a path where db will be created. If nothing is provided, will default to a temp location.
+    /// Db path will be `PathBuf.join(String)`.
+    pub path: Option<(PathBuf, String)>,
 }
 
 impl Default for CacheCommonOptions {
@@ -56,8 +57,8 @@ impl Default for CacheCommonOptions {
 }
 
 impl CacheCommonOptions {
-    pub fn set_path(&mut self, path: PathBuf) {
-        self.path = Some(path);
+    pub fn set_path(&mut self, base_path: PathBuf, name: String) {
+        self.path = Some((base_path, name));
     }
 }
 

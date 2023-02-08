@@ -4,11 +4,9 @@ use crate::pipeline::{
     tests::utils::get_select,
 };
 use dozer_core::{
-    dag::{
-        node::{PortHandle, Processor},
-        DEFAULT_PORT_HANDLE,
-    },
+    node::{PortHandle, Processor},
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
+    DEFAULT_PORT_HANDLE,
 };
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
@@ -38,8 +36,9 @@ pub(crate) fn init_processor(
 
     let mut processor = AggregationProcessor::new(output_field_rules, input_schema.clone());
 
-    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    let mut storage =
+        LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
+            .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     processor
         .init(&mut storage)

@@ -13,9 +13,9 @@ use crate::grpc::health::HealthService;
 use crate::grpc::health_grpc::health_check_response::ServingStatus;
 use crate::grpc::{common, typed};
 use crate::{
-    errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
+    errors::GRPCError, generator::protoc::generator::ProtoGenerator, PipelineDetails,
+    RoCacheEndpoint,
 };
-use dozer_cache::cache::Cache;
 use dozer_types::{
     log::{info, warn},
     models::{
@@ -128,7 +128,7 @@ impl ApiServer {
 
     pub async fn run(
         &self,
-        cache_endpoints: Vec<CacheEndpoint>,
+        cache_endpoints: Vec<RoCacheEndpoint>,
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
         rx1: Option<Receiver<PipelineResponse>>,
     ) -> Result<(), GRPCError> {

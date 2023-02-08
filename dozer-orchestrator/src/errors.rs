@@ -2,7 +2,7 @@
 
 use dozer_api::errors::{ApiError, GRPCError};
 use dozer_cache::errors::CacheError;
-use dozer_core::dag::errors::ExecutionError;
+use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::RecvError;

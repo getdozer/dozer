@@ -1,6 +1,6 @@
 use bson::doc;
 use csv::StringRecord;
-use dozer_cache::cache::{Cache, CacheOptions, LmdbCache};
+use dozer_cache::cache::{LmdbRwCache, RwCache};
 use dozer_types::{chrono::DateTime, types::IndexDefinition};
 use mongodb::{options::ClientOptions, Client, Collection, IndexModel};
 
@@ -10,14 +10,14 @@ use super::{film_schema, Film};
 
 pub async fn load_database(
     secondary_indexes: &[IndexDefinition],
-) -> (LmdbCache, &'static str, Collection<Film>) {
+) -> (LmdbRwCache, &'static str, Collection<Film>) {
     // Initialize tracing and data.
     init();
 
     // Create cache and insert schema.
     let schema = film_schema();
     let schema_name = "film";
-    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
     cache
         .insert_schema(schema_name, &schema, secondary_indexes)
         .unwrap();

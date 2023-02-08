@@ -8,9 +8,8 @@ use std::{
     time::Duration,
 };
 
-use dozer_api::CacheEndpoint;
-use dozer_cache::cache::{expression::QueryExpression, test_utils, Cache, CacheOptions, LmdbCache};
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
+use dozer_api::RwCacheEndpoint;
+use dozer_cache::cache::{expression::QueryExpression, test_utils, LmdbRwCache, RoCache};
 use dozer_types::{
     ingestion_types::IngestionMessage,
     log::warn,
@@ -50,8 +49,8 @@ fn single_source_sink_impl(schema: Schema) {
     };
 
     let table_name = "events";
-    let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
-    let cache_endpoint = CacheEndpoint {
+    let cache = Arc::new(LmdbRwCache::new(Default::default(), Default::default()).unwrap());
+    let cache_endpoint = RwCacheEndpoint {
         cache: cache.clone(),
         endpoint: ApiEndpoint {
             id: Some("1".to_string()),
@@ -65,9 +64,6 @@ fn single_source_sink_impl(schema: Schema) {
         },
     };
 
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-    let ingestor2 = ingestor.clone();
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     let executor_running = running;
@@ -89,33 +85,34 @@ fn single_source_sink_impl(schema: Schema) {
     fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
     let tmp_path = tmp_dir.path().to_owned();
-    let _thread = thread::spawn(move || {
-        let executor = Executor::new(
-            Config {
-                sources: vec![source],
-                ..Config::default()
-            },
-            vec![cache_endpoint],
-            ingestor,
-            iterator,
-            executor_running,
-            tmp_path,
-        );
-        let flags = Flags::default();
-        match executor.run(None, CacheSinkSettings::new(Some(flags), None)) {
-            Ok(_) => {}
-            Err(e) => warn!("Exiting: {:?}", e),
-        }
+    let executor = Executor::new(
+        Config {
+            sources: vec![source],
+            ..Config::default()
+        },
+        vec![cache_endpoint],
+        executor_running,
+        tmp_path,
+    );
+    let flags = Flags::default();
+    let (dag_executor, ingestors) = executor
+        .create_dag_executor(None, CacheSinkSettings::new(Some(flags), None))
+        .unwrap();
+
+    let _thread = thread::spawn(move || match Executor::run_dag_executor(dag_executor) {
+        Ok(_) => {}
+        Err(e) => warn!("Exiting: {:?}", e),
     });
 
     // Insert each record and query cache
+    let ingestor = ingestors.into_iter().next().unwrap();
     for (a, b, c) in items {
         let record = Record::new(
             schema.identifier,
             vec![Field::Int(a), Field::String(b), Field::Int(c)],
             None,
         );
-        ingestor2
+        ingestor
             .write()
             .handle_message((
                 (1, 0),
@@ -132,7 +129,7 @@ fn single_source_sink_impl(schema: Schema) {
     // Shutdown the thread
     r.store(false, Ordering::SeqCst);
 
-    test_query("events".to_string(), json!({}), 7, &cache);
+    test_query("events".to_string(), json!({}), 7, &*cache);
 }
 
 #[test]
@@ -144,7 +141,7 @@ fn single_source_sink() {
     single_source_sink_impl(schema);
 }
 
-fn test_query(schema_name: String, query: Value, count: usize, cache: &LmdbCache) {
+fn test_query(schema_name: String, query: Value, count: usize, cache: &impl RoCache) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     let records = cache.query(&schema_name, &query).unwrap();
 

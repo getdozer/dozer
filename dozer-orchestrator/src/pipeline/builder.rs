@@ -1,30 +1,28 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use dozer_core::dag::app::AppPipeline;
-use dozer_core::dag::executor::DagExecutor;
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::app::AppPipeline;
+use dozer_core::executor::DagExecutor;
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::{QueryTableInfo, SchemaSQLContext};
 
 use dozer_api::grpc::internal_grpc::PipelineResponse;
-use dozer_core::dag::app::App;
+use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::app_config::Config;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
-use dozer_api::CacheEndpoint;
+use dozer_api::RwCacheEndpoint;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
-use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
-use super::source_builder::SourceBuilder;
+use super::source_builder::{IngestorVec, SourceBuilder};
 use super::validate::validate_grouped_connections;
 use crate::errors::OrchestrationError;
 use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
-use dozer_types::parking_lot::RwLock;
 use OrchestrationError::ExecutionError;
 
 pub enum OutputTableInfo {
@@ -39,19 +37,15 @@ pub struct OriginalTableInfo {
 
 pub struct PipelineBuilder {
     config: Config,
-    cache_endpoints: Vec<CacheEndpoint>,
+    cache_endpoints: Vec<RwCacheEndpoint>,
     pipeline_dir: PathBuf,
-    ingestor: Arc<RwLock<Ingestor>>,
-    iterator: Arc<RwLock<IngestionIterator>>,
     running: Arc<AtomicBool>,
     progress: MultiProgress,
 }
 impl PipelineBuilder {
     pub fn new(
         config: Config,
-        cache_endpoints: Vec<CacheEndpoint>,
-        ingestor: Arc<RwLock<Ingestor>>,
-        iterator: Arc<RwLock<IngestionIterator>>,
+        cache_endpoints: Vec<RwCacheEndpoint>,
         running: Arc<AtomicBool>,
         pipeline_dir: PathBuf,
     ) -> Self {
@@ -59,8 +53,6 @@ impl PipelineBuilder {
             config,
             cache_endpoints,
             pipeline_dir,
-            ingestor,
-            iterator,
             running,
             progress: MultiProgress::new(),
         }
@@ -72,7 +64,7 @@ impl PipelineBuilder {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
         settings: CacheSinkSettings,
-    ) -> Result<dozer_core::dag::Dag<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<(dozer_core::Dag<SchemaSQLContext>, IngestorVec), OrchestrationError> {
         let sources = self.config.sources.clone();
 
         let grouped_connections = SourceBuilder::group_connections(sources);
@@ -197,11 +189,7 @@ impl PipelineBuilder {
 
         pipelines.push(pipeline);
 
-        let asm = source_builder.build_source_manager(
-            self.ingestor.clone(),
-            self.iterator.clone(),
-            self.running.clone(),
-        )?;
+        let (asm, ingestors) = source_builder.build_source_manager(self.running.clone())?;
         let mut app = App::new(asm);
 
         Vec::into_iter(pipelines).for_each(|p| {
@@ -219,6 +207,6 @@ impl PipelineBuilder {
                 OrchestrationError::PipelineValidationError
             })?;
 
-        Ok(dag)
+        Ok((dag, ingestors))
     }
 }

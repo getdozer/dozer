@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use lmdb::Cursor;
-use lmdb_sys::{
+use dozer_storage::lmdb::Cursor;
+use dozer_storage::lmdb_sys::{
     MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_NEXT_NODUP, MDB_PREV, MDB_PREV_NODUP, MDB_SET_RANGE,
 };
 
@@ -63,7 +63,7 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
                                         Ok((key, value))
                                     }
                                 }
-                                Err(lmdb::Error::NotFound) => {
+                                Err(dozer_storage::lmdb::Error::NotFound) => {
                                     return None;
                                 }
 
@@ -84,7 +84,9 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
                                         self.cursor.get(None, None, MDB_PREV_NODUP)
                                     }
                                 }
-                                Err(lmdb::Error::NotFound) => self.cursor.get(None, None, MDB_LAST),
+                                Err(dozer_storage::lmdb::Error::NotFound) => {
+                                    self.cursor.get(None, None, MDB_LAST)
+                                }
                                 Err(e) => Err(e),
                             }
                         }
@@ -126,14 +128,11 @@ impl<'txn, C: Cursor<'txn>> CacheIterator<'txn, C> {
 
 #[cfg(test)]
 mod tests {
-    use lmdb::{Transaction, WriteFlags};
+    use dozer_storage::lmdb::{DatabaseFlags, Transaction, WriteFlags};
 
     use crate::cache::{
         expression::SortDirection,
-        lmdb::{
-            utils::{init_db, init_env, DatabaseCreateOptions},
-            CacheOptions,
-        },
+        lmdb::{utils::init_env, CacheOptions},
     };
 
     use super::{CacheIterator, KeyEndpoint};
@@ -141,28 +140,22 @@ mod tests {
     #[test]
     fn test_cache_iterator() {
         let options = CacheOptions::default();
-        let env = init_env(&options).unwrap();
-        let db = init_db(
-            &env,
-            None,
-            Some(DatabaseCreateOptions {
-                allow_dup: true,
-                fixed_length_key: false,
-            }),
-        )
-        .unwrap();
+        let mut env = init_env(&options).unwrap();
+        let db = env
+            .create_database(None, Some(DatabaseFlags::DUP_SORT))
+            .unwrap();
+        let txn = env.create_txn().unwrap();
+        let mut txn = txn.write();
 
         // Insert test data.
-        let mut txn = env.begin_rw_txn().unwrap();
+        let txn = txn.txn_mut();
         for key in [
             b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
         ] {
             txn.put(db, key, &[], WriteFlags::empty()).unwrap();
         }
-        txn.commit().unwrap();
 
         // Create testing cursor and utility function.
-        let txn = env.begin_ro_txn().unwrap();
         let check = |starting_key, direction, expected: Vec<&'static [u8]>| {
             let cursor = txn.open_ro_cursor(db).unwrap();
             let actual = CacheIterator::new(cursor, starting_key, direction)

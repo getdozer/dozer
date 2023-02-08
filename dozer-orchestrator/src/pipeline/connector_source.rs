@@ -1,7 +1,7 @@
-use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::errors::ExecutionError::ReplicationTypeNotFound;
-use dozer_core::dag::errors::{ExecutionError, SourceError};
-use dozer_core::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
+use dozer_core::channels::SourceChannelForwarder;
+use dozer_core::errors::ExecutionError::ReplicationTypeNotFound;
+use dozer_core::errors::{ExecutionError, SourceError};
+use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
