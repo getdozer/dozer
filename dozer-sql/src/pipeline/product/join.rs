@@ -883,10 +883,7 @@ impl JoinOperator {
 
             let (key, value) = entry.unwrap();
             if key != join_key {
-                return Err(ProductError::IndexGetError(
-                    join_key.to_vec(),
-                    StorageError::InvalidRecord,
-                ));
+                break;
             }
 
             join_keys.push(value.to_vec());
