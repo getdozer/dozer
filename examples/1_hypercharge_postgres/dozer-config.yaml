@@ -38,16 +38,29 @@ sources:
       - nasdaq_symbol
       - next_shares
     connection: !Ref stocks
+
+sql: |
+  -- transformation made on top of `stocks` table data
+  SELECT
+    id,
+    AVG(open),
+    AVG(close),
+    low,
+    volume 
+  INTO stocks_data
+  FROM stocks
+  GROUP BY id;
+
 endpoints:
   - name: stocks
     path: /stocks
-    table_name: stocks
+    table_name: stocks_data
     index:
       primary_key:
         - id
-  - id: null
-    name: stocks_meta
+  - name: stocks_meta
     path: /stocks-meta
+    # direct selecting all columns at the source level for `stocks_meta`
     table_name: stocks_meta
     index:
       primary_key:
