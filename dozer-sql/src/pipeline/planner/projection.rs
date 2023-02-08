@@ -29,17 +29,10 @@ impl CommonPlanner {
     fn append_to_schema(
         expr: &Expression,
         alias: Option<String>,
-        pk_action: PrimaryKeyAction,
         input_schema: &Schema,
         output_schema: &mut Schema,
     ) -> Result<(), PipelineError> {
         let expr_type = expr.get_type(input_schema)?;
-        let primary_key = match pk_action {
-            PrimaryKeyAction::Force => true,
-            PrimaryKeyAction::Drop => false,
-            PrimaryKeyAction::Retain => expr_type.is_primary_key,
-        };
-
         output_schema.fields.push(FieldDefinition::new(
             alias.unwrap_or_else(|| expr.to_string(input_schema)),
             expr_type.return_type,
@@ -47,11 +40,6 @@ impl CommonPlanner {
             expr_type.source,
         ));
 
-        if primary_key {
-            output_schema
-                .primary_index
-                .push(output_schema.fields.len() - 1);
-        }
         Ok(())
     }
 
@@ -74,7 +62,6 @@ impl CommonPlanner {
                 Self::append_to_schema(
                     &new_aggr,
                     alias.clone(),
-                    PrimaryKeyAction::Drop,
                     &self.input_schema,
                     &mut self.post_aggregation_schema,
                 )?;
@@ -85,7 +72,6 @@ impl CommonPlanner {
             Self::append_to_schema(
                 &projection_expression,
                 alias,
-                PrimaryKeyAction::Retain,
                 &self.post_aggregation_schema,
                 &mut self.post_projection_schema,
             )?;
@@ -113,7 +99,6 @@ impl CommonPlanner {
                 Self::append_to_schema(
                     &new_aggr,
                     alias.clone(),
-                    PrimaryKeyAction::Drop,
                     &self.input_schema,
                     &mut self.post_aggregation_schema,
                 )?;
@@ -124,7 +109,6 @@ impl CommonPlanner {
             Self::append_to_schema(
                 &projection_expression,
                 alias,
-                PrimaryKeyAction::Retain,
                 &self.post_aggregation_schema,
                 &mut self.post_projection_schema,
             )?;
@@ -148,7 +132,6 @@ impl CommonPlanner {
             Self::append_to_schema(
                 &new_aggr,
                 None,
-                PrimaryKeyAction::Drop,
                 &self.input_schema,
                 &mut post_aggregation_schema,
             )?;
