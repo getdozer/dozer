@@ -28,7 +28,7 @@ use super::{
 pub struct AggregationProcessorFactory {
     select: Vec<SelectItem>,
     groupby: Vec<SqlExpr>,
-    stateful: bool,
+    _stateful: bool,
 }
 
 impl AggregationProcessorFactory {
@@ -37,7 +37,7 @@ impl AggregationProcessorFactory {
         Self {
             select,
             groupby,
-            stateful,
+            _stateful: stateful,
         }
     }
 }
@@ -48,20 +48,10 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        if self.stateful {
-            vec![OutputPortDef::new(
-                DEFAULT_PORT_HANDLE,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_deletes: true,
-                    retr_old_records_for_updates: true,
-                },
-            )]
-        } else {
-            vec![OutputPortDef::new(
-                DEFAULT_PORT_HANDLE,
-                OutputPortType::Stateless,
-            )]
-        }
+        vec![OutputPortDef::new(
+            DEFAULT_PORT_HANDLE,
+            OutputPortType::Stateless,
+        )]
     }
 
     fn get_output_schema(
