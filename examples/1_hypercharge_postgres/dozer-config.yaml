@@ -60,9 +60,8 @@ endpoints:
         - id
   - name: stocks_meta
     path: /stocks-meta
+    # direct selecting all columns at the source level for `stocks_meta`
     table_name: stocks_meta
-    # direct selecting columns at the source level for `stocks_meta`
-    sql: SELECT * from stocks_meta;
     index:
       primary_key:
         - symbol
