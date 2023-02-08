@@ -9,7 +9,7 @@ use dozer_core::{
 use dozer_types::types::Schema;
 use sqlparser::ast::Expr as SqlExpr;
 
-use crate::pipeline::expression::builder::{BuilderExpressionType, ExpressionBuilder};
+use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionContext};
 
 use super::processor::SelectionProcessor;
 
@@ -57,10 +57,9 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        let builder = ExpressionBuilder {};
-
-        match builder.build(
-            &BuilderExpressionType::FullExpression,
+        match ExpressionBuilder::build(
+            &mut ExpressionContext::new(schema.fields.len()),
+            false,
             &self.statement,
             schema,
         ) {

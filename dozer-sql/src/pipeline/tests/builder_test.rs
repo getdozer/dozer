@@ -193,7 +193,7 @@ fn test_pipeline_builder() {
     let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
         FROM users \
-    WHERE Spending >= 1",
+         WHERE Spending >= 1",
         &mut pipeline,
         Some("results".to_string()),
     )

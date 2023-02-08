@@ -5,9 +5,11 @@ use crate::pipeline::aggregation::min::MinAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
 
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
+use crate::pipeline::expression::execution::Expression;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
@@ -17,6 +19,63 @@ pub enum Aggregator {
     Max,
     Min,
     Sum,
+}
+
+pub fn get_aggregator_from_aggregation_expression(
+    e: &Expression,
+    schema: &Schema,
+) -> Result<(Expression, Aggregator), PipelineError> {
+    match e {
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Sum,
+            args,
+        } => Ok((
+            args.get(0)
+                .ok_or_else(|| {
+                    PipelineError::NotEnoughArguments(AggregateFunctionType::Sum.to_string())
+                })?
+                .clone(),
+            Aggregator::Sum,
+        )),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Min,
+            args,
+        } => Ok((
+            args.get(0)
+                .ok_or_else(|| {
+                    PipelineError::NotEnoughArguments(AggregateFunctionType::Min.to_string())
+                })?
+                .clone(),
+            Aggregator::Min,
+        )),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Max,
+            args,
+        } => Ok((
+            args.get(0)
+                .ok_or_else(|| {
+                    PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
+                })?
+                .clone(),
+            Aggregator::Max,
+        )),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Avg,
+            args,
+        } => Ok((
+            args.get(0)
+                .ok_or_else(|| {
+                    PipelineError::NotEnoughArguments(AggregateFunctionType::Avg.to_string())
+                })?
+                .clone(),
+            Aggregator::Avg,
+        )),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::Count,
+            args: _,
+        } => Ok((Expression::Literal(Field::Int(0)), Aggregator::Count)),
+        _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
+    }
 }
 
 impl Display for Aggregator {
@@ -43,16 +102,6 @@ impl AggregationResult {
 }
 
 impl Aggregator {
-    pub(crate) fn get_return_type(&self, from: FieldType) -> FieldType {
-        match (&self, from) {
-            (Aggregator::Avg, _) => AvgAggregator::get_return_type(from),
-            (Aggregator::Count, _) => CountAggregator::get_return_type(),
-            (Aggregator::Max, from) => MaxAggregator::get_return_type(from),
-            (Aggregator::Min, from) => MinAggregator::get_return_type(from),
-            (Aggregator::Sum, from) => SumAggregator::get_return_type(from),
-        }
-    }
-
     pub(crate) fn _get_type(&self) -> u32 {
         match &self {
             Aggregator::Avg => AvgAggregator::_get_type(),

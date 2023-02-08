@@ -44,6 +44,7 @@ pub(crate) fn evaluate_round(
         Field::Int(i) => Ok(Field::Int(i)),
         Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
         Field::Decimal(_) => Err(PipelineError::InvalidOperandType("ROUND()".to_string())),
+        Field::Null => Ok(Field::Null),
         _ => Err(InvalidFunctionArgument(
             ScalarFunctionType::Round.to_string(),
             value,

@@ -13,12 +13,12 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ProjectionProcessor {
-    expressions: Vec<(String, Expression)>,
+    expressions: Vec<Expression>,
     input_schema: Schema,
 }
 
 impl ProjectionProcessor {
-    pub fn new(input_schema: Schema, expressions: Vec<(String, Expression)>) -> Self {
+    pub fn new(input_schema: Schema, expressions: Vec<Expression>) -> Self {
         Self {
             input_schema,
             expressions,
@@ -30,8 +30,7 @@ impl ProjectionProcessor {
 
         for expr in &self.expressions {
             results.push(
-                expr.1
-                    .evaluate(record, &self.input_schema)
+                expr.evaluate(record, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
@@ -45,8 +44,7 @@ impl ProjectionProcessor {
 
         for expr in self.expressions.clone() {
             results.push(
-                expr.1
-                    .evaluate(record, &self.input_schema)
+                expr.evaluate(record, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
@@ -61,13 +59,11 @@ impl ProjectionProcessor {
 
         for expr in &self.expressions {
             old_results.push(
-                expr.1
-                    .evaluate(old, &self.input_schema)
+                expr.evaluate(old, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
             new_results.push(
-                expr.1
-                    .evaluate(new, &self.input_schema)
+                expr.evaluate(new, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
