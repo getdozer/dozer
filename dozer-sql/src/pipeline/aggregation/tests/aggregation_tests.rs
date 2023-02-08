@@ -1,15 +1,15 @@
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::tests::utils::get_select;
+use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::node::ProcessorFactory;
+use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::SourceDefinition;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::path::Path;
-use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_core::node::ProcessorFactory;
-use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 
 struct TestChannelForwarder {
     operations: Vec<Operation>,
@@ -75,8 +75,9 @@ fn test_simple_aggregation() {
         )
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    let mut storage =
+        LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
+            .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     processor
         .init(storage.borrow_mut())
