@@ -37,14 +37,16 @@ pub(crate) fn get_scalar_function_type(
     match function {
         ScalarFunctionType::Abs => argv!(args, 0, ScalarFunctionType::Abs)?.get_type(schema),
         ScalarFunctionType::Round => {
-            let return_type = argv!(args, 0, ScalarFunctionType::Round)?.get_type(schema)?.return_type;
+            let return_type = argv!(args, 0, ScalarFunctionType::Round)?
+                .get_type(schema)?
+                .return_type;
             Ok(ExpressionType::new(
                 return_type,
                 true,
                 dozer_types::types::SourceDefinition::Dynamic,
                 false,
             ))
-        },
+        }
         ScalarFunctionType::Ucase => {
             validate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, schema)
         }

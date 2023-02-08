@@ -1,13 +1,13 @@
 use crate::pipeline::aggregation::processor::AggregationProcessor;
+use crate::pipeline::builder::SchemaSQLContext;
+use crate::pipeline::planner::projection::CommonPlanner;
+use crate::pipeline::projection::processor::ProjectionProcessor;
 use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::Schema;
-use crate::pipeline::builder::SchemaSQLContext;
-use crate::pipeline::planner::projection::CommonPlanner;
-use crate::pipeline::projection::processor::ProjectionProcessor;
 use sqlparser::ast::Select;
 use std::collections::HashMap;
 

@@ -1,4 +1,3 @@
-use std::path::Path;
 use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
@@ -7,6 +6,7 @@ use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
+use std::path::Path;
 
 #[test]
 fn test_planner_with_aggregator() {
