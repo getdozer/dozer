@@ -18,16 +18,6 @@ const AGGREGATOR_NAME: &str = "AVG";
 impl AvgAggregator {
     const _AGGREGATOR_ID: u32 = 0x03;
 
-    pub(crate) fn get_return_type(from: FieldType) -> FieldType {
-        match from {
-            FieldType::Decimal => FieldType::Decimal,
-            FieldType::Float => FieldType::Float,
-            FieldType::Int => FieldType::Decimal,
-            FieldType::UInt => FieldType::Decimal,
-            _ => from,
-        }
-    }
-
     pub(crate) fn _get_type() -> u32 {
         AvgAggregator::_AGGREGATOR_ID
     }

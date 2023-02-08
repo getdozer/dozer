@@ -445,7 +445,7 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
             let join_handle = self.start_sink(
                 handle.clone(),
                 factory.clone(),
-                receivers.remove(handle).expect("BUG in DagExecutor"),
+                receivers.remove(handle).unwrap_or_default(),
                 self.schemas
                     .get(handle)
                     .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
@@ -457,8 +457,8 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
             let join_handle = self.start_processor(
                 handle.clone(),
                 factory.clone(),
-                senders.remove(handle).expect("BUG in DagExecutor"),
-                receivers.remove(handle).expect("BUG in DagExecutor"),
+                senders.remove(handle).unwrap_or_default(),
+                receivers.remove(handle).unwrap_or_default(),
                 self.schemas
                     .get(handle)
                     .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
@@ -475,7 +475,7 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
             let join_handle = self.start_source(
                 handle.clone(),
                 factory.clone(),
-                senders.remove(handle).expect("BUG in DagExecutor"),
+                senders.remove(handle).unwrap_or_default(),
                 self.schemas
                     .get(handle)
                     .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,

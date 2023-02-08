@@ -1,6 +1,7 @@
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
@@ -17,7 +18,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
-use super::expression::builder::{fullname_from_ident, normalize_ident, NameOrAlias};
 use super::product::factory::FromProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
@@ -53,7 +53,7 @@ pub struct QueryContext {
 }
 
 #[derive(Debug, Clone)]
-pub struct IndexedTabelWithJoins {
+pub struct IndexedTableWithJoins {
     pub relation: (NameOrAlias, TableFactor),
     pub joins: Vec<(NameOrAlias, Join)>,
 }
@@ -237,8 +237,7 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation =
-        AggregationProcessorFactory::new(select.projection.clone(), select.group_by, stateful);
+    let aggregation = AggregationProcessorFactory::new(select.clone(), stateful);
 
     pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
 
@@ -311,7 +310,7 @@ pub fn get_input_tables(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
-) -> Result<IndexedTabelWithJoins, PipelineError> {
+) -> Result<IndexedTableWithJoins, PipelineError> {
     let name = get_from_source(&from.relation, pipeline, query_ctx, pipeline_idx)?;
     let mut joins = vec![];
 
@@ -320,13 +319,13 @@ pub fn get_input_tables(
         joins.push((input_name.clone(), join.clone()));
     }
 
-    Ok(IndexedTabelWithJoins {
+    Ok(IndexedTableWithJoins {
         relation: (name, from.relation.clone()),
         joins,
     })
 }
 
-pub fn get_input_names(input_tables: &IndexedTabelWithJoins) -> Vec<NameOrAlias> {
+pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias> {
     let mut input_names = vec![];
     input_names.push(input_tables.relation.0.clone());
 
@@ -336,7 +335,7 @@ pub fn get_input_names(input_tables: &IndexedTabelWithJoins) -> Vec<NameOrAlias>
     input_names
 }
 pub fn get_entry_points(
-    input_tables: &IndexedTabelWithJoins,
+    input_tables: &IndexedTableWithJoins,
     pipeline_map: &mut HashMap<(usize, String), QueryTableInfo>,
     pipeline_idx: usize,
 ) -> Result<Vec<PipelineEntryPoint>, PipelineError> {
@@ -368,12 +367,12 @@ pub fn get_from_source(
             let input_name = name
                 .0
                 .iter()
-                .map(normalize_ident)
+                .map(ExpressionBuilder::normalize_ident)
                 .collect::<Vec<String>>()
                 .join(".");
             let alias_name = alias
                 .as_ref()
-                .map(|a| fullname_from_ident(&[a.name.clone()]));
+                .map(|a| ExpressionBuilder::fullname_from_ident(&[a.name.clone()]));
 
             Ok(NameOrAlias(input_name, alias_name))
         }
@@ -383,9 +382,9 @@ pub fn get_from_source(
             alias,
         } => {
             let name = format!("derived_{}", uuid::Uuid::new_v4());
-            let alias_name = alias
-                .as_ref()
-                .map(|alias_ident| fullname_from_ident(&[alias_ident.name.clone()]));
+            let alias_name = alias.as_ref().map(|alias_ident| {
+                ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()])
+            });
 
             let name_or = NameOrAlias(name, alias_name);
             query_to_pipeline(
@@ -419,53 +418,55 @@ mod tests {
     fn parse_sql_pipeline() {
         let sql = r#"
                 SELECT
-                a.name as "Genre",
+                    a.name as "Genre",
                     SUM(amount) as "Gross Revenue(in $)"
                 INTO gross_revenue_stats
                 FROM
                 (
                     SELECT
-                    c.name, f.title, p.amount
-                FROM film f
-                LEFT JOIN film_category fc
-                ON fc.film_id = f.film_id
-                LEFT JOIN category c
-                ON fc.category_id = c.category_id
-                LEFT JOIN inventory i
-                ON i.film_id = f.film_id
-                LEFT JOIN rental r
-                ON r.inventory_id = i.inventory_id
-                LEFT JOIN payment p
-                ON p.rental_id = r.rental_id
-                WHERE p.amount IS NOT NULL
+                        c.name,
+                        f.title,
+                        p.amount
+                    FROM film f
+                    LEFT JOIN film_category fc
+                        ON fc.film_id = f.film_id
+                    LEFT JOIN category c
+                        ON fc.category_id = c.category_id
+                    LEFT JOIN inventory i
+                        ON i.film_id = f.film_id
+                    LEFT JOIN rental r
+                        ON r.inventory_id = i.inventory_id
+                    LEFT JOIN payment p
+                        ON p.rental_id = r.rental_id
+                    WHERE p.amount IS NOT NULL
                 ) a
                 GROUP BY name;
-            
+
                 SELECT
                 f.name, f.title, p.amount
                 INTO film_amounts
                 FROM film f
                 LEFT JOIN film_category fc;
-                
+
                 WITH tbl as (select id from a)
-                select id 
+                select id
                 into cte_table
                 from tbl;
-                
+
                 WITH tbl as (select id from  a),
                 tbl2 as (select id from tbl)
-                select id 
+                select id
                 into nested_cte_table
                 from tbl2;
-                
+
                 WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
                 cte_table2 as (select id_ct1 from cte_table1)
-                select id_ct2 
+                select id_ct2
                 into nested_derived_table
                 from cte_table2;
-               
+
                 with tbl as (select id, ticker from stocks)
-                select tbl.id 
+                select tbl.id
                 into nested_stocks_table
                 from  stocks join tbl on tbl.id = stocks.id;
             "#;

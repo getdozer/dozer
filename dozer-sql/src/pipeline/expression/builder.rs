@@ -1,8 +1,10 @@
+#![allow(dead_code)]
 use dozer_types::{
     ordered_float::OrderedFloat,
-    types::{Field, FieldDefinition, Schema, SourceDefinition},
+    types::{Field, Schema},
 };
 
+use dozer_types::types::{FieldDefinition, SourceDefinition};
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
@@ -10,13 +12,11 @@ use sqlparser::ast::{
 
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{
-    AmbiguousFieldIdentifier, IllegalFieldIdentifier, UnknownFieldIdentifier,
+    InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
+    InvalidValue,
 };
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
-use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
-use crate::pipeline::expression::builder::PipelineError::InvalidOperator;
-use crate::pipeline::expression::builder::PipelineError::InvalidValue;
+
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -24,85 +24,91 @@ use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::expression::scalar::string::TrimType;
 
 use super::cast::CastOperatorType;
-
-pub type Bypass = bool;
-
-pub enum BuilderExpressionType {
-    PreAggregation,
-    Aggregation,
-    // PostAggregation,
-    FullExpression,
-}
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct NameOrAlias(pub String, pub Option<String>);
-
 pub struct ExpressionBuilder;
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct ExpressionContext {
+    // Must be an aggregation function
+    pub aggregations: Vec<Expression>,
+    pub offset: usize,
+}
+
+impl ExpressionContext {
+    pub fn new(offset: usize) -> Self {
+        Self {
+            aggregations: Vec::new(),
+            offset,
+        }
+    }
+
+    pub fn from(offset: usize, aggregations: Vec<Expression>) -> Self {
+        Self {
+            aggregations,
+            offset,
+        }
+    }
+}
 
 impl ExpressionBuilder {
     pub fn build(
-        &self,
-        expression_type: &BuilderExpressionType,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         sql_expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
-        let (expression, _bypass) =
-            self.parse_sql_expression(expression_type, sql_expression, schema)?;
-        Ok(expression)
+        Self::parse_sql_expression(context, parse_aggregations, sql_expression, schema)
     }
 
-    pub fn parse_sql_expression(
-        &self,
-        expression_type: &BuilderExpressionType,
+    pub(crate) fn parse_sql_expression(
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         expression: &SqlExpr,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
+    ) -> Result<Box<Expression>, PipelineError> {
         match expression {
             SqlExpr::Trim {
                 expr,
                 trim_where,
                 trim_what,
-            } => self.parse_sql_trim_function(expression_type, expr, trim_where, trim_what, schema),
-            SqlExpr::Identifier(ident) => Ok((parse_sql_column(&[ident.clone()], schema)?, false)),
-            SqlExpr::CompoundIdentifier(ident) => Ok((parse_sql_column(ident, schema)?, false)),
-            SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
-            SqlExpr::Value(SqlValue::Null) => {
-                Ok((Box::new(Expression::Literal(Field::Null)), false))
-            }
+            } => Self::parse_sql_trim_function(
+                context,
+                parse_aggregations,
+                expr,
+                trim_where,
+                trim_what,
+                schema,
+            ),
+            SqlExpr::Identifier(ident) => Self::parse_sql_column(&[ident.clone()], schema),
+            SqlExpr::CompoundIdentifier(ident) => Self::parse_sql_column(ident, schema),
+            SqlExpr::Value(SqlValue::Number(n, _)) => Self::parse_sql_number(n),
+            SqlExpr::Value(SqlValue::Null) => Ok(Box::new(Expression::Literal(Field::Null))),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
-                parse_sql_string(s)
+                Self::parse_sql_string(s)
             }
             SqlExpr::UnaryOp { expr, op } => {
-                self.parse_sql_unary_op(expression_type, op, expr, schema)
+                Self::parse_sql_unary_op(context, parse_aggregations, op, expr, schema)
             }
             SqlExpr::BinaryOp { left, op, right } => {
-                self.parse_sql_binary_op(expression_type, left, op, right, schema)
+                Self::parse_sql_binary_op(context, parse_aggregations, left, op, right, schema)
             }
-            SqlExpr::Nested(expr) => self.parse_sql_expression(expression_type, expr, schema),
-            SqlExpr::Function(sql_function) => match expression_type {
-                BuilderExpressionType::PreAggregation => self.parse_sql_function_pre_aggregation(
-                    expression_type,
-                    sql_function,
-                    schema,
-                    expression,
-                ),
-                BuilderExpressionType::Aggregation => self.parse_sql_function_aggregation(
-                    expression_type,
-                    sql_function,
-                    schema,
-                    expression,
-                ),
-                // ExpressionType::PostAggregation => todo!(),
-                BuilderExpressionType::FullExpression => {
-                    self.parse_sql_function(expression_type, sql_function, schema, expression)
-                }
-            },
+            SqlExpr::Nested(expr) => {
+                Self::parse_sql_expression(context, parse_aggregations, expr, schema)
+            }
+            SqlExpr::Function(sql_function) => Self::parse_sql_function(
+                context,
+                parse_aggregations,
+                sql_function,
+                schema,
+                expression,
+            ),
             SqlExpr::Like {
                 negated,
                 expr,
                 pattern,
                 escape_char,
-            } => self.parse_sql_like_operator(
-                expression_type,
+            } => Self::parse_sql_like_operator(
+                context,
+                parse_aggregations,
                 negated,
                 expr,
                 pattern,
@@ -110,23 +116,121 @@ impl ExpressionBuilder {
                 schema,
             ),
             SqlExpr::Cast { expr, data_type } => {
-                self.parse_sql_cast_operator(expression_type, expr, data_type, schema)
+                Self::parse_sql_cast_operator(context, parse_aggregations, expr, data_type, schema)
             }
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
 
+    fn parse_sql_column(
+        ident: &[Ident],
+        schema: &Schema,
+    ) -> Result<Box<Expression>, PipelineError> {
+        let (src_field, src_table_or_alias, src_connection) = match ident.len() {
+            1 => (&ident[0].value, None, None),
+            2 => (&ident[1].value, Some(&ident[0].value), None),
+            3 => (
+                &ident[2].value,
+                Some(&ident[1].value),
+                Some(&ident[0].value),
+            ),
+            _ => {
+                return Err(InvalidExpression(
+                    ident
+                        .iter()
+                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                ))
+            }
+        };
+
+        let matching_by_field: Vec<(usize, &FieldDefinition)> = schema
+            .fields
+            .iter()
+            .enumerate()
+            .filter(|(_idx, f)| &f.name == src_field)
+            .collect();
+
+        match matching_by_field.len() {
+            1 => Ok(Box::new(Expression::Column {
+                index: matching_by_field[0].0,
+            })),
+            _ => match src_table_or_alias {
+                None => Err(InvalidExpression(
+                    ident
+                        .iter()
+                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                )),
+                Some(src_table_or_alias) => {
+                    let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> =
+                        matching_by_field
+                            .into_iter()
+                            .filter(|(_idx, field)| match &field.source {
+                                SourceDefinition::Alias { name } => name == src_table_or_alias,
+                                SourceDefinition::Table {
+                                    name,
+                                    connection: _,
+                                } => name == src_table_or_alias,
+                                _ => false,
+                            })
+                            .collect();
+
+                    match matching_by_table_or_alias.len() {
+                        1 => Ok(Box::new(Expression::Column {
+                            index: matching_by_table_or_alias[0].0,
+                        })),
+                        _ => match src_connection {
+                            None => Err(InvalidExpression(
+                                ident
+                                    .iter()
+                                    .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                            )),
+                            Some(src_connection) => {
+                                let matching_by_connection: Vec<(usize, &FieldDefinition)> =
+                                    matching_by_table_or_alias
+                                        .into_iter()
+                                        .filter(|(_idx, field)| match &field.source {
+                                            SourceDefinition::Table {
+                                                name: _,
+                                                connection,
+                                            } => connection == src_connection,
+                                            _ => false,
+                                        })
+                                        .collect();
+
+                                match matching_by_connection.len() {
+                                    1 => Ok(Box::new(Expression::Column {
+                                        index: matching_by_connection[0].0,
+                                    })),
+                                    _ => Err(InvalidExpression(
+                                        ident
+                                            .iter()
+                                            .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                                    )),
+                                }
+                            }
+                        },
+                    }
+                }
+            },
+        }
+    }
+
     fn parse_sql_trim_function(
-        &self,
-        expression_type: &BuilderExpressionType,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         expr: &Expr,
         trim_where: &Option<TrimWhereField>,
         trim_what: &Option<Box<Expr>>,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
-        let arg = self.parse_sql_expression(expression_type, expr, schema)?.0;
+    ) -> Result<Box<Expression>, PipelineError> {
+        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
         let what = match trim_what {
-            Some(e) => Some(self.parse_sql_expression(expression_type, e, schema)?.0),
+            Some(e) => Some(Self::parse_sql_expression(
+                context,
+                parse_aggregations,
+                e,
+                schema,
+            )?),
             _ => None,
         };
         let typ = trim_where.as_ref().map(|e| match e {
@@ -134,199 +238,108 @@ impl ExpressionBuilder {
             TrimWhereField::Leading => TrimType::Leading,
             TrimWhereField::Trailing => TrimType::Trailing,
         });
-        Ok((Box::new(Expression::Trim { arg, what, typ }), false))
+        Ok(Box::new(Expression::Trim { arg, what, typ }))
     }
 
     fn parse_sql_function(
-        &self,
-        expression_type: &BuilderExpressionType,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
-        expression: &SqlExpr,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
-        let name = sql_function.name.to_string().to_lowercase();
-        if let Ok(function) = ScalarFunctionType::new(&name) {
-            let mut arg_exprs = vec![];
-            for arg in &sql_function.args {
-                let r = self.parse_sql_function_arg(expression_type, arg, schema);
-                match r {
-                    Ok(result) => {
-                        if result.1 {
-                            return Ok(result);
-                        } else {
-                            arg_exprs.push(*result.0);
-                        }
-                    }
-                    Err(error) => {
-                        return Err(error);
-                    }
+        _expression: &SqlExpr,
+    ) -> Result<Box<Expression>, PipelineError> {
+        let function_name = sql_function.name.to_string().to_lowercase();
+
+        match (
+            AggregateFunctionType::new(function_name.as_str()),
+            parse_aggregations,
+        ) {
+            (Ok(aggr), true) => {
+                let mut arg_expr: Vec<Expression> = Vec::new();
+                for arg in &sql_function.args {
+                    let aggregation = *Self::parse_sql_function_arg(context, true, arg, schema)?;
+                    arg_expr.push(aggregation);
                 }
+                let measure = Expression::AggregateFunction {
+                    fun: aggr,
+                    args: arg_expr,
+                };
+                let index = match context
+                    .aggregations
+                    .iter()
+                    .enumerate()
+                    .find(|e| e.1 == &measure)
+                {
+                    Some((index, _existing)) => index,
+                    _ => {
+                        context.aggregations.push(measure);
+                        context.aggregations.len() - 1
+                    }
+                };
+                Ok(Box::new(Expression::Column {
+                    index: context.offset + index,
+                }))
             }
-
-            return Ok((
-                Box::new(ScalarFunction {
-                    fun: function,
-                    args: arg_exprs,
-                }),
-                false,
-            ));
-        };
-        if AggregateFunctionType::new(&name).is_ok() {
-            let arg = sql_function.args.first().unwrap();
-            let r = self.parse_sql_function_arg(expression_type, arg, schema)?;
-            return Ok((r.0, false)); // switch bypass to true, since the argument of this Aggregation must be the final result
-        };
-        Err(InvalidExpression(format!("{expression:?}")))
-    }
-
-    fn parse_sql_function_pre_aggregation(
-        &self,
-        expression_type: &BuilderExpressionType,
-        sql_function: &Function,
-        schema: &Schema,
-        expression: &SqlExpr,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
-        let name = sql_function.name.to_string().to_lowercase();
-
-        if let Ok(function) = ScalarFunctionType::new(&name) {
-            let mut arg_exprs = vec![];
-            for arg in &sql_function.args {
-                let r = self.parse_sql_function_arg(expression_type, arg, schema);
-                match r {
-                    Ok(result) => {
-                        if result.1 {
-                            return Ok(result);
-                        } else {
-                            arg_exprs.push(*result.0);
-                        }
-                    }
-                    Err(error) => {
-                        return Err(error);
-                    }
+            (Ok(_agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
+            (Err(_), _) => {
+                let mut function_args: Vec<Expression> = Vec::new();
+                for arg in &sql_function.args {
+                    function_args.push(*Self::parse_sql_function_arg(
+                        context,
+                        parse_aggregations,
+                        arg,
+                        schema,
+                    )?);
                 }
+                let function_type = ScalarFunctionType::new(function_name.as_str())?;
+
+                Ok(Box::new(ScalarFunction {
+                    fun: function_type,
+                    args: function_args,
+                }))
             }
-
-            return Ok((
-                Box::new(ScalarFunction {
-                    fun: function,
-                    args: arg_exprs,
-                }),
-                false,
-            ));
-        };
-        if AggregateFunctionType::new(&name).is_ok() {
-            let arg = sql_function.args.first().unwrap();
-            let r = self.parse_sql_function_arg(expression_type, arg, schema)?;
-            return Ok((r.0, true)); // switch bypass to true, since the argument of this Aggregation must be the final result
-        };
-        Err(InvalidExpression(format!("{expression:?}")))
-    }
-
-    fn parse_sql_function_aggregation(
-        &self,
-        expression_type: &BuilderExpressionType,
-        sql_function: &Function,
-        schema: &Schema,
-        expression: &SqlExpr,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
-        let name = sql_function.name.to_string().to_lowercase();
-
-        if let Ok(function) = ScalarFunctionType::new(&name) {
-            let mut arg_exprs = vec![];
-            for arg in &sql_function.args {
-                let r = self.parse_sql_function_arg(expression_type, arg, schema);
-                match r {
-                    Ok(result) => {
-                        if result.1 {
-                            return Ok(result);
-                        } else {
-                            arg_exprs.push(*result.0);
-                        }
-                    }
-                    Err(error) => {
-                        return Err(error);
-                    }
-                }
-            }
-
-            return Ok((
-                Box::new(ScalarFunction {
-                    fun: function,
-                    args: arg_exprs,
-                }),
-                false,
-            ));
-        };
-
-        if let Ok(function) = AggregateFunctionType::new(&name) {
-            let mut arg_exprs = vec![];
-            for arg in &sql_function.args {
-                let r = self.parse_sql_function_arg(expression_type, arg, schema);
-                match r {
-                    Ok(result) => {
-                        if result.1 {
-                            return Ok(result);
-                        } else {
-                            arg_exprs.push(*result.0);
-                        }
-                    }
-                    Err(error) => {
-                        return Err(error);
-                    }
-                }
-            }
-
-            return Ok((
-                Box::new(Expression::AggregateFunction {
-                    fun: function,
-                    args: arg_exprs,
-                }),
-                true, // switch bypass to true, since this Aggregation must be the final result
-            ));
-        };
-
-        Err(InvalidExpression(format!(
-            "Unsupported Expression: {expression:?}"
-        )))
+        }
     }
 
     fn parse_sql_function_arg(
-        &self,
-        expression_type: &BuilderExpressionType,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         argument: &FunctionArg,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
+    ) -> Result<Box<Expression>, PipelineError> {
         match argument {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Expr(arg),
-            } => self.parse_sql_expression(expression_type, arg, schema),
+            } => Self::parse_sql_expression(context, parse_aggregations, arg, schema),
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
             } => Err(InvalidArgument(format!("{argument:?}"))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
-                self.parse_sql_expression(expression_type, arg, schema)
+                Self::parse_sql_expression(context, parse_aggregations, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
                 Err(InvalidArgument(format!("{argument:?}")))
             }
-            _ => Err(InvalidArgument(format!("{argument:?}"))),
+            FunctionArg::Named {
+                name: _,
+                arg: FunctionArgExpr::QualifiedWildcard(_),
+            } => Err(InvalidArgument(format!("{argument:?}"))),
+            FunctionArg::Unnamed(FunctionArgExpr::QualifiedWildcard(_)) => {
+                Err(InvalidArgument(format!("{argument:?}")))
+            }
         }
     }
 
     fn parse_sql_unary_op(
-        &self,
-        expression_type: &BuilderExpressionType,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, Bypass), PipelineError> {
-        let (arg, bypass) = self.parse_sql_expression(expression_type, expr, schema)?;
-        if bypass {
-            return Ok((arg, bypass));
-        }
-
+    ) -> Result<Box<Expression>, PipelineError> {
+        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
         let operator = match op {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
@@ -334,25 +347,19 @@ impl ExpressionBuilder {
             _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
-        Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
+        Ok(Box::new(Expression::UnaryOperator { operator, arg }))
     }
 
     fn parse_sql_binary_op(
-        &self,
-        expression_type: &BuilderExpressionType,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         left: &SqlExpr,
         op: &SqlBinaryOperator,
         right: &SqlExpr,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
-        let (left_op, bypass_left) = self.parse_sql_expression(expression_type, left, schema)?;
-        if bypass_left {
-            return Ok((left_op, bypass_left));
-        }
-        let (right_op, bypass_right) = self.parse_sql_expression(expression_type, right, schema)?;
-        if bypass_right {
-            return Ok((right_op, bypass_right));
-        }
+    ) -> Result<Box<Expression>, PipelineError> {
+        let left_op = Self::parse_sql_expression(context, parse_aggregations, left, schema)?;
+        let right_op = Self::parse_sql_expression(context, parse_aggregations, right, schema)?;
 
         let operator = match op {
             SqlBinaryOperator::Gt => BinaryOperatorType::Gt,
@@ -361,82 +368,67 @@ impl ExpressionBuilder {
             SqlBinaryOperator::LtEq => BinaryOperatorType::Lte,
             SqlBinaryOperator::Eq => BinaryOperatorType::Eq,
             SqlBinaryOperator::NotEq => BinaryOperatorType::Ne,
-
             SqlBinaryOperator::Plus => BinaryOperatorType::Add,
             SqlBinaryOperator::Minus => BinaryOperatorType::Sub,
             SqlBinaryOperator::Multiply => BinaryOperatorType::Mul,
             SqlBinaryOperator::Divide => BinaryOperatorType::Div,
             SqlBinaryOperator::Modulo => BinaryOperatorType::Mod,
-
             SqlBinaryOperator::And => BinaryOperatorType::And,
             SqlBinaryOperator::Or => BinaryOperatorType::Or,
-
-            // BinaryOperator::BitwiseAnd => ...
-            // BinaryOperator::BitwiseOr => ...
-            // BinaryOperator::StringConcat => ...
             _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
-        Ok((
-            Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator,
-                right: right_op,
-            }),
-            false,
-        ))
+        Ok(Box::new(Expression::BinaryOperator {
+            left: left_op,
+            operator,
+            right: right_op,
+        }))
     }
 
-    fn parse_sql_number(&self, n: &str) -> Result<(Box<Expression>, Bypass), PipelineError> {
+    fn parse_sql_number(n: &str) -> Result<Box<Expression>, PipelineError> {
         match n.parse::<i64>() {
-            Ok(n) => Ok((Box::new(Expression::Literal(Field::Int(n))), false)),
+            Ok(n) => Ok(Box::new(Expression::Literal(Field::Int(n)))),
             Err(_) => match n.parse::<f64>() {
-                Ok(f) => Ok((
-                    Box::new(Expression::Literal(Field::Float(OrderedFloat(f)))),
-                    false,
-                )),
+                Ok(f) => Ok(Box::new(Expression::Literal(Field::Float(OrderedFloat(f))))),
                 Err(_) => Err(InvalidValue(n.to_string())),
             },
         }
     }
 
     fn parse_sql_like_operator(
-        &self,
-        expression_type: &BuilderExpressionType,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         negated: &bool,
         expr: &Expr,
         pattern: &Expr,
         escape_char: &Option<char>,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
-        let arg = self.parse_sql_expression(expression_type, expr, schema)?;
-        let pattern = self.parse_sql_expression(expression_type, pattern, schema)?;
+    ) -> Result<Box<Expression>, PipelineError> {
+        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
+        let pattern = Self::parse_sql_expression(context, parse_aggregations, pattern, schema)?;
         let like_expression = Box::new(Expression::Like {
-            arg: arg.0,
-            pattern: pattern.0,
+            arg,
+            pattern,
             escape: *escape_char,
         });
         if *negated {
-            Ok((
-                Box::new(Expression::UnaryOperator {
-                    operator: UnaryOperatorType::Not,
-                    arg: like_expression,
-                }),
-                arg.1,
-            ))
+            Ok(Box::new(Expression::UnaryOperator {
+                operator: UnaryOperatorType::Not,
+                arg: like_expression,
+            }))
         } else {
-            Ok((like_expression, arg.1))
+            Ok(like_expression)
         }
     }
 
     fn parse_sql_cast_operator(
-        &self,
-        expression_type: &BuilderExpressionType,
+        context: &mut ExpressionContext,
+        parse_aggregations: bool,
         expr: &Expr,
         data_type: &DataType,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool), PipelineError> {
-        let expression = self.parse_sql_expression(expression_type, expr, schema)?;
+    ) -> Result<Box<Expression>, PipelineError> {
+        let expression = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
         let cast_to = match data_type {
             DataType::Decimal(_) => CastOperatorType::Decimal,
             DataType::Binary(_) => CastOperatorType::Binary,
@@ -463,37 +455,34 @@ impl ExpressionBuilder {
                 "Unsupported Cast type {data_type}"
             )))?,
         };
-        Ok((
-            Box::new(Expression::Cast {
-                arg: expression.0,
-                typ: cast_to,
-            }),
-            expression.1,
-        ))
+        Ok(Box::new(Expression::Cast {
+            arg: expression,
+            typ: cast_to,
+        }))
+    }
+
+    fn parse_sql_string(s: &str) -> Result<Box<Expression>, PipelineError> {
+        Ok(Box::new(Expression::Literal(Field::String(s.to_owned()))))
+    }
+
+    pub fn fullname_from_ident(ident: &[Ident]) -> String {
+        let mut ident_tokens = vec![];
+        for token in ident.iter() {
+            ident_tokens.push(token.value.clone());
+        }
+        ident_tokens.join(".")
+    }
+
+    pub(crate) fn normalize_ident(id: &Ident) -> String {
+        match id.quote_style {
+            Some(_) => id.value.clone(),
+            None => id.value.clone(),
+        }
     }
 }
 
-pub fn fullname_from_ident(ident: &[Ident]) -> String {
-    let mut ident_tokens = vec![];
-    for token in ident.iter() {
-        ident_tokens.push(token.value.clone());
-    }
-    ident_tokens.join(".")
-}
-
-fn parse_sql_string(s: &str) -> Result<(Box<Expression>, bool), PipelineError> {
-    Ok((
-        Box::new(Expression::Literal(Field::String(s.to_owned()))),
-        false,
-    ))
-}
-
-pub(crate) fn normalize_ident(id: &Ident) -> String {
-    match id.quote_style {
-        Some(_) => id.value.clone(),
-        None => id.value.clone(),
-    }
-}
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct NameOrAlias(pub String, pub Option<String>);
 
 pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
     let mut output_schema = schema.clone();
@@ -510,108 +499,4 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
     output_schema.fields = fields;
 
     output_schema
-}
-
-fn parse_sql_column(ident: &[Ident], schema: &Schema) -> Result<Box<Expression>, PipelineError> {
-    let (src_field, src_table_or_alias, src_connection) = match ident.len() {
-        1 => (&ident[0].value, None, None),
-        2 => (&ident[1].value, Some(&ident[0].value), None),
-        3 => (
-            &ident[2].value,
-            Some(&ident[1].value),
-            Some(&ident[0].value),
-        ),
-        _ => {
-            return Err(IllegalFieldIdentifier(
-                ident
-                    .iter()
-                    .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-            ))
-        }
-    };
-
-    let matching_by_field: Vec<(usize, &FieldDefinition)> = schema
-        .fields
-        .iter()
-        .enumerate()
-        .filter(|(_idx, f)| &f.name == src_field)
-        .collect();
-
-    match matching_by_field.len() {
-        0 => Err(UnknownFieldIdentifier(
-            ident
-                .iter()
-                .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-        )),
-        1 => Ok(Box::new(Expression::Column {
-            index: matching_by_field[0].0,
-        })),
-        _ => match src_table_or_alias {
-            None => Err(AmbiguousFieldIdentifier(
-                ident
-                    .iter()
-                    .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-            )),
-            Some(src_table_or_alias) => {
-                let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> = matching_by_field
-                    .into_iter()
-                    .filter(|(_idx, field)| match &field.source {
-                        SourceDefinition::Alias { name } => name == src_table_or_alias,
-                        SourceDefinition::Table {
-                            name,
-                            connection: _,
-                        } => name == src_table_or_alias,
-                        _ => false,
-                    })
-                    .collect();
-
-                match matching_by_table_or_alias.len() {
-                    0 => Err(UnknownFieldIdentifier(
-                        ident
-                            .iter()
-                            .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-                    )),
-                    1 => Ok(Box::new(Expression::Column {
-                        index: matching_by_table_or_alias[0].0,
-                    })),
-                    _ => match src_connection {
-                        None => Err(InvalidExpression(
-                            ident
-                                .iter()
-                                .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-                        )),
-                        Some(src_connection) => {
-                            let matching_by_connection: Vec<(usize, &FieldDefinition)> =
-                                matching_by_table_or_alias
-                                    .into_iter()
-                                    .filter(|(_idx, field)| match &field.source {
-                                        SourceDefinition::Table {
-                                            name: _,
-                                            connection,
-                                        } => connection == src_connection,
-                                        _ => false,
-                                    })
-                                    .collect();
-
-                            match matching_by_connection.len() {
-                                0 => Err(UnknownFieldIdentifier(
-                                    ident
-                                        .iter()
-                                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-                                )),
-                                1 => Ok(Box::new(Expression::Column {
-                                    index: matching_by_connection[0].0,
-                                })),
-                                _ => Err(InvalidExpression(
-                                    ident
-                                        .iter()
-                                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-                                )),
-                            }
-                        }
-                    },
-                }
-            }
-        },
-    }
 }
