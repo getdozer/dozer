@@ -142,14 +142,12 @@ fn join_alias_query() {
 }
 
 #[test]
-#[ignore = "Test framework does not support cuncurrent sources"]
 fn join_cte_query() {
     let queries = r#" 
-        WITH table as (
-            SELECT actor_id, first_name, last_name from actor
-        ) 
-        SELECT tbl.actor_id, first_name, last_name from table as tbl
-        JOIN film_actor fa on fa.actor_id = tbl.actor_id;
+        WITH tbl AS (SELECT actor_id, first_name, last_name FROM actor) 
+        SELECT t.actor_id, t.first_name, t.last_name 
+        FROM tbl t 
+        JOIN film_actor fa ON fa.actor_id = t.actor_id;
       "#;
 
     let table_names = vec!["actor", "film_actor", "film"];

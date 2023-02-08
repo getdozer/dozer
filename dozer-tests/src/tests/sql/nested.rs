@@ -5,7 +5,6 @@ use super::{
 
 // Testing CTEs, nested queries, aliases and Joins.
 #[test]
-#[ignore]
 fn cte_query() {
     // CTE Test
 
@@ -24,7 +23,6 @@ fn cte_query() {
 }
 
 #[test]
-#[ignore]
 fn nested_query() {
     // CTE Test
     let queries = vec![
@@ -49,7 +47,6 @@ fn nested_query() {
 }
 
 #[test]
-#[ignore]
 fn nested_agg_inserts_query() {
     let query = r#" 
             SELECT actor_id, count(actor_id) from (
@@ -73,7 +70,6 @@ fn nested_agg_inserts_query() {
 }
 
 #[test]
-#[ignore]
 fn nested_agg_updates_query() {
     let query = r#" 
             SELECT actor_id, count(actor_id) from (
@@ -98,7 +94,6 @@ fn nested_agg_updates_query() {
 }
 
 #[test]
-#[ignore]
 fn cte_agg_inserts_query() {
     let query = r#"
             WITH tbl as (
@@ -123,7 +118,6 @@ fn cte_agg_inserts_query() {
 }
 
 #[test]
-#[ignore]
 fn cte_agg_updates_query() {
     let query = r#"
             WITH tbl as (
