@@ -19,7 +19,7 @@
                                 }
                             },
                             {
-                                "name": "sum(id)",
+                                "name": "SUM(id)",
                                 "typ": "UInt",
                                 "nullable": false,
                                 "source": "Dynamic"
