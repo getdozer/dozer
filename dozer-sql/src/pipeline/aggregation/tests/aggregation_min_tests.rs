@@ -14,6 +14,7 @@ use dozer_types::types::Field;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Text, Timestamp, UInt};
 use std::any::Any;
 use std::collections::HashMap;
+use crate::pipeline::errors::PipelineError::InvalidOperandType;
 
 #[test]
 fn test_max_aggregator() {

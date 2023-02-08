@@ -9,6 +9,7 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp};
 use std::collections::HashMap;
+use dozer_types::log::debug;
 
 #[test]
 fn test_count_aggregator() {

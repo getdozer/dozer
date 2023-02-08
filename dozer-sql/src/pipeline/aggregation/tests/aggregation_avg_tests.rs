@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::output;
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
@@ -8,8 +9,10 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_50_UINT, FIELD_75_FLOAT, FIELD_NULL, ITALY, SINGAPORE,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::types::FieldType::{Decimal, Float, Int, UInt};
+use dozer_types::types::FieldType::{Date, Decimal, Float, Int, UInt};
 use std::collections::HashMap;
+use dozer_types::log::debug;
+use crate::pipeline::errors::PipelineError::InvalidOperandType;
 
 #[test]
 fn test_avg_aggregator() {
