@@ -68,9 +68,3 @@ cargo run --bin dozer-tests -- -r buildkite
 ```
 
 If `buildkite` runner type is used, the framework will not use local `dozer` binary or run test client in-process. Instead, it creates `docker-compose.yaml` files for the test cases, which contains all the connection services, the `dozer` service and the test client. A separate `docker compose` process is started to validate all the expectations using the client.
-
-This mode requires you to build `dozer-test-client` binary first, and the artifact must be located at `target/debug/dozer-test-client`.
-
-### Troubleshoot Buildkite Runner
-
-- If `dozer-test-client` service says `exec /dozer-test-client: exec format error`, it's because the container is linux x86_64, but your dev machine is not.
