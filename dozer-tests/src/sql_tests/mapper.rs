@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::helper::*;
-use dozer_core::dag::errors::ExecutionError;
+use dozer_core::errors::ExecutionError;
 use dozer_types::types::{Field, Operation, Record, Schema};
 use sqlparser::ast::{BinaryOperator, Expr, Statement};
 use sqlparser::ast::{SetExpr, TableFactor};

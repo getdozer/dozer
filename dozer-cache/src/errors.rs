@@ -1,5 +1,3 @@
-#![allow(clippy::enum_variant_names)]
-
 use dozer_types::serde_json::Value;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
@@ -10,17 +8,19 @@ use dozer_types::errors::types::{DeserializationError, SerializationError, TypeE
 #[derive(Error, Debug)]
 pub enum CacheError {
     #[error(transparent)]
-    QueryValidationError(#[from] QueryValidationError),
+    QueryValidation(#[from] QueryValidationError),
     #[error(transparent)]
-    InternalError(#[from] BoxedError),
+    Internal(#[from] BoxedError),
     #[error(transparent)]
-    QueryError(#[from] QueryError),
+    Query(#[from] QueryError),
     #[error(transparent)]
-    IndexError(#[from] IndexError),
+    Index(#[from] IndexError),
     #[error(transparent)]
-    PlanError(#[from] PlanError),
+    Plan(#[from] PlanError),
     #[error(transparent)]
-    TypeError(#[from] TypeError),
+    Type(#[from] TypeError),
+    #[error(transparent)]
+    Storage(#[from] dozer_storage::errors::StorageError),
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
     #[error("Path not initialized for Cache Reader")]
@@ -31,12 +31,12 @@ pub enum CacheError {
 
 impl CacheError {
     pub fn map_serialization_error(e: dozer_types::bincode::Error) -> CacheError {
-        CacheError::TypeError(TypeError::SerializationError(SerializationError::Bincode(
+        CacheError::Type(TypeError::SerializationError(SerializationError::Bincode(
             e,
         )))
     }
     pub fn map_deserialization_error(e: dozer_types::bincode::Error) -> CacheError {
-        CacheError::TypeError(TypeError::DeserializationError(
+        CacheError::Type(TypeError::DeserializationError(
             DeserializationError::Bincode(e),
         ))
     }
@@ -45,15 +45,15 @@ impl CacheError {
 #[derive(Error, Debug)]
 pub enum QueryError {
     #[error("Failed to get a record by id - {0:?}")]
-    GetValue(#[source] lmdb::Error),
+    GetValue(#[source] dozer_storage::lmdb::Error),
     #[error("Get by primary key is not supported when it is composite: {0:?}")]
     MultiIndexFetch(String),
     #[error("Failed to get a schema by id - {0:?}")]
-    GetSchema(#[source] lmdb::Error),
+    GetSchema(#[source] dozer_storage::lmdb::Error),
     #[error("Failed to insert a record - {0:?}")]
-    InsertValue(#[source] lmdb::Error),
+    InsertValue(#[source] dozer_storage::lmdb::Error),
     #[error("Failed to delete a record - {0:?}")]
-    DeleteValue(#[source] lmdb::Error),
+    DeleteValue(#[source] dozer_storage::lmdb::Error),
 }
 
 #[derive(Error, Debug)]

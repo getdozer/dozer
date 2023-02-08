@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    dag::{errors::ExecutionError, node::PortHandle, record_store::RecordReader},
+    errors::ExecutionError,
+    node::PortHandle,
+    record_store::RecordReader,
     storage::{
         errors::StorageError, lmdb_storage::SharedTransaction,
         prefix_transaction::PrefixTransaction,
     },
 };
 use dozer_types::{
-    errors::types::TypeError,
-    types::{Record, Schema},
+    errors::types::{DeserializationError, TypeError},
+    types::{Field, Record, Schema},
 };
 use lmdb::Database;
 
@@ -108,8 +110,13 @@ impl JoinTable {
         record: &Record,
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         if self.port == from_port {
-            let lookup_key = self.encode_lookup_key(record, &self.schema)?;
-            Ok(vec![(action, record.clone(), lookup_key)])
+            if self.schema.primary_index.is_empty() {
+                let lookup_key = self.encode_record(record)?;
+                Ok(vec![(action, record.clone(), lookup_key)])
+            } else {
+                let lookup_key = self.encode_lookup_key(record, &self.schema)?;
+                Ok(vec![(action, record.clone(), lookup_key)])
+            }
         } else {
             Err(ExecutionError::InvalidPortHandle(self.port))
         }
@@ -120,6 +127,13 @@ impl JoinTable {
         lookup_key: &[u8],
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+        if self.schema.primary_index.is_empty() {
+            let record = self
+                .decode_record(lookup_key)
+                .map_err(TypeError::DeserializationError)?;
+            return Ok(vec![(record, lookup_key.to_vec())]);
+        }
+
         let reader = readers
             .get(&self.port)
             .ok_or(ExecutionError::InvalidPortHandle(self.port))?;
@@ -154,6 +168,56 @@ impl JoinTable {
         let (version_bytes, id) = lookup_key.split_at(4);
         let version = u32::from_be_bytes(version_bytes.try_into().unwrap());
         (version, id.to_vec())
+    }
+
+    fn encode_record(&self, record: &Record) -> Result<Vec<u8>, TypeError> {
+        let mut record_bytes = Vec::with_capacity(64);
+        if let Some(version) = record.version {
+            record_bytes.extend_from_slice(&version.to_be_bytes());
+        } else {
+            record_bytes.extend_from_slice(&[0_u8; 4]);
+        }
+
+        for value in record.values.iter() {
+            let value_bytes = value.encode();
+            record_bytes.extend_from_slice(&(value_bytes.len() as u32).to_be_bytes());
+            record_bytes.extend_from_slice(&value_bytes);
+        }
+        Ok(record_bytes)
+    }
+
+    fn decode_record(&self, record_bytes: &[u8]) -> Result<Record, DeserializationError> {
+        let mut offset = 0;
+
+        let record_version = u32::from_be_bytes([
+            record_bytes[offset],
+            record_bytes[offset + 1],
+            record_bytes[offset + 2],
+            record_bytes[offset + 3],
+        ]);
+        offset += 4;
+
+        let version = if record_version != 0 {
+            Some(record_version)
+        } else {
+            None
+        };
+
+        let mut values = vec![];
+        while offset < record_bytes.len() {
+            let field_length = u32::from_be_bytes([
+                record_bytes[offset],
+                record_bytes[offset + 1],
+                record_bytes[offset + 2],
+                record_bytes[offset + 3],
+            ]);
+            offset += 4;
+            let field_bytes = &record_bytes[offset..offset + field_length as usize];
+            let value = Field::decode(field_bytes)?;
+            values.push(value);
+            offset += field_length as usize;
+        }
+        Ok(Record::new(None, values, version))
     }
 }
 

@@ -1,12 +1,10 @@
 use dozer_core::{
-    dag::{
-        epoch::Epoch,
-        errors::ExecutionError,
-        node::{PortHandle, Sink, SinkFactory},
-        record_store::RecordReader,
-        DEFAULT_PORT_HANDLE,
-    },
+    epoch::Epoch,
+    errors::ExecutionError,
+    node::{PortHandle, Sink, SinkFactory},
+    record_store::RecordReader,
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
+    DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::{

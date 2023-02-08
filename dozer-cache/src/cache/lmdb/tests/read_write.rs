@@ -1,27 +1,29 @@
 use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
-use crate::cache::lmdb::{CacheCommonOptions, CacheOptionsKind, CacheWriteOptions};
-use crate::cache::CacheReadOptions;
-use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, Cache, CacheOptions, LmdbCache};
+use crate::cache::lmdb::{CacheCommonOptions, CacheWriteOptions};
+use crate::cache::{
+    lmdb::tests::utils as lmdb_utils, test_utils, LmdbRoCache, LmdbRwCache, RoCache, RwCache,
+};
 use dozer_types::serde_json::Value;
 use dozer_types::types::Field;
 use tempdir::TempDir;
 #[test]
 fn read_and_write() {
-    let path = TempDir::new("dozer").unwrap().path().join("cache");
+    let path = TempDir::new("dozer").unwrap();
+    let path = (path.path().to_path_buf(), "cache".to_string());
 
     // write and read from cache from two different threads.
 
-    let cache_writer = LmdbCache::new(CacheOptions {
-        common: CacheCommonOptions {
+    let cache_writer = LmdbRwCache::new(
+        CacheCommonOptions {
             max_readers: 1,
             max_db_size: 100,
             path: Some(path.clone()),
             intersection_chunk_size: 1,
         },
-        kind: CacheOptionsKind::Write(CacheWriteOptions {
+        CacheWriteOptions {
             max_size: 1024 * 1024,
-        }),
-    })
+        },
+    )
     .unwrap();
 
     let (schema, secondary_indexes) = test_utils::schema_1();
@@ -39,15 +41,13 @@ fn read_and_write() {
     for val in items.clone() {
         lmdb_utils::insert_rec_1(&cache_writer, &schema, val.clone());
     }
+    cache_writer.commit().unwrap();
 
-    let read_options = CacheOptions {
-        common: CacheCommonOptions {
-            path: Some(path),
-            ..Default::default()
-        },
-        kind: CacheOptionsKind::ReadOnly(CacheReadOptions {}),
+    let read_options = CacheCommonOptions {
+        path: Some(path),
+        ..Default::default()
     };
-    let cache_reader = LmdbCache::new(read_options).unwrap();
+    let cache_reader = LmdbRoCache::new(read_options).unwrap();
     for (a, b, c) in items {
         let rec = cache_reader.get(&Field::Int(a).encode()).unwrap();
         let values = vec![

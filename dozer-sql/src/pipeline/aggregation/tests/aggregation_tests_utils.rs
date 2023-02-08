@@ -1,9 +1,7 @@
 use dozer_core::{
-    dag::{
-        node::{PortHandle, Processor},
-        DEFAULT_PORT_HANDLE,
-    },
+    node::{PortHandle, Processor},
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
+    DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, DATE_FORMAT,
@@ -33,6 +31,10 @@ pub(crate) fn init_processor(
 
     projection_planner.plan(*statement).unwrap();
 
+    let mut storage =
+        LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
+            .unwrap_or_else(|e| panic!("{}", e.to_string()));
+
     let mut processor = AggregationProcessor::new(
         projection_planner.groupby,
         projection_planner.aggregation_output,
@@ -40,11 +42,7 @@ pub(crate) fn init_processor(
         input_schema.clone(),
         projection_planner.post_aggregation_schema,
     )
-    .unwrap();
-
-    let mut storage =
-        LmdbEnvironmentManager::create(TempDir::new("dozer").unwrap().path(), "aggregation_test")
-            .unwrap();
+    .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     processor.init(&mut storage).unwrap();
     let tx = storage.create_txn().unwrap();

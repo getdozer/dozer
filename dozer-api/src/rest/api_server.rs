@@ -3,7 +3,7 @@ use crate::errors::ApiError;
 use crate::rest::api_generator::health_route;
 use crate::{
     auth::api::{auth_route, validate},
-    CacheEndpoint, PipelineDetails,
+    PipelineDetails, RoCacheEndpoint,
 };
 use actix_cors::Cors;
 use actix_web::{
@@ -71,7 +71,7 @@ impl ApiServer {
     pub fn create_app_entry(
         security: Option<ApiSecurity>,
         cors: CorsOptions,
-        cache_endpoints: Vec<CacheEndpoint>,
+        cache_endpoints: Vec<RoCacheEndpoint>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -133,7 +133,7 @@ impl ApiServer {
 
     pub async fn run(
         &self,
-        cache_endpoints: Vec<CacheEndpoint>,
+        cache_endpoints: Vec<RoCacheEndpoint>,
         tx: Sender<ServerHandle>,
     ) -> Result<(), ApiError> {
         info!(

@@ -1,30 +1,28 @@
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
-    index,
-    lmdb::CacheOptions,
-    test_utils, Cache,
+    index, test_utils, RoCache, RwCache,
 };
 use dozer_types::{
     serde_json::Value,
     types::{Field, IndexDefinition, Record, Schema},
 };
 
-use super::super::cache::LmdbCache;
+use super::super::cache::LmdbRwCache;
 
-fn _setup() -> (LmdbCache, Schema, Vec<IndexDefinition>) {
+fn _setup() -> (LmdbRwCache, Schema, Vec<IndexDefinition>) {
     let (schema, secondary_indexes) = test_utils::schema_0();
-    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
     (cache, schema, secondary_indexes)
 }
 
-fn _setup_empty_primary_index() -> (LmdbCache, Schema, Vec<IndexDefinition>) {
+fn _setup_empty_primary_index() -> (LmdbRwCache, Schema, Vec<IndexDefinition>) {
     let (schema, secondary_indexes) = test_utils::schema_empty_primary_index();
-    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
     (cache, schema, secondary_indexes)
 }
 
 fn query_and_test(
-    cache: &LmdbCache,
+    cache: &LmdbRwCache,
     inserted_record: &Record,
     schema_name: &str,
     exp: &QueryExpression,
@@ -92,7 +90,7 @@ fn insert_and_update_record() {
 }
 
 fn insert_and_query_record_impl(
-    cache: LmdbCache,
+    cache: LmdbRwCache,
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
 ) {

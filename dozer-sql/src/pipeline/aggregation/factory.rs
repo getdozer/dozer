@@ -1,4 +1,13 @@
 use crate::pipeline::aggregation::processor::AggregationProcessor;
+use std::collections::HashMap;
+use dozer_core::{
+    errors::ExecutionError,
+    node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    DEFAULT_PORT_HANDLE,
+};
+use dozer_types::types::{FieldDefinition, Schema};
+use sqlparser::ast::{Expr as SqlExpr, Expr, Ident, SelectItem};
+
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::projection::processor::ProjectionProcessor;
@@ -40,20 +49,10 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        if self.stateful {
-            vec![OutputPortDef::new(
-                DEFAULT_PORT_HANDLE,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_deletes: true,
-                    retr_old_records_for_updates: true,
-                },
-            )]
-        } else {
-            vec![OutputPortDef::new(
-                DEFAULT_PORT_HANDLE,
-                OutputPortType::Stateless,
-            )]
-        }
+        vec![OutputPortDef::new(
+            DEFAULT_PORT_HANDLE,
+            OutputPortType::Stateless,
+        )]
     }
 
     fn get_output_schema(

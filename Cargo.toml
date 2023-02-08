@@ -3,6 +3,7 @@ members = [
   "dozer-api",
   "dozer-ingestion",
   "dozer-types",
+  "dozer-storage",
   "dozer-core",
   "dozer-orchestrator",
   "dozer-sql",

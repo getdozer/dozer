@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
-use dozer_core::dag::errors::ExecutionError;
+use dozer_core::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
