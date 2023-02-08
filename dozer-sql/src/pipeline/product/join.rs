@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use dozer_core::{
     node::PortHandle,
     record_store::RecordReader,
-    storage::{
-        errors::StorageError, lmdb_storage::SharedTransaction,
-        prefix_transaction::PrefixTransaction,
-    },
+    storage::{lmdb_storage::SharedTransaction, prefix_transaction::PrefixTransaction},
 };
 use dozer_types::{
     errors::types::DeserializationError,
