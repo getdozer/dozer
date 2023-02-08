@@ -5,7 +5,7 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_100_INT, FIELD_1_INT, ITALY,
 };
 
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::DEFAULT_PORT_HANDLE;
 
 use dozer_types::types::FieldType::Int;
 use dozer_types::types::{Field, Operation, Record};

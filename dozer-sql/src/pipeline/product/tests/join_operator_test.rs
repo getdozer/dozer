@@ -70,8 +70,8 @@ impl ProcessorChannelForwarder for TestChannelForwarder {
     fn send(
         &mut self,
         op: dozer_types::types::Operation,
-        _port: dozer_core::dag::node::PortHandle,
-    ) -> Result<(), dozer_core::dag::errors::ExecutionError> {
+        _port: dozer_core::node::PortHandle,
+    ) -> Result<(), dozer_core::errors::ExecutionError> {
         self.operations.push(op);
         Ok(())
     }

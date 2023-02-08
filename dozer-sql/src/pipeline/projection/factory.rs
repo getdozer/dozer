@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use dozer_core::dag::{
+use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,

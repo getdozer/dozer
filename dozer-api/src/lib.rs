@@ -1,24 +1,36 @@
-use dozer_cache::cache::LmdbCache;
+use dozer_cache::cache::{RoCache, RwCache};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use std::sync::Arc;
 mod api_helper;
 
 #[derive(Clone, Debug)]
-pub struct CacheEndpoint {
-    pub cache: Arc<LmdbCache>,
+pub struct RoCacheEndpoint {
+    pub cache: Arc<dyn RoCache>,
     pub endpoint: ApiEndpoint,
 }
 
-impl CacheEndpoint {
-    pub fn new(cache: Arc<LmdbCache>, endpoint: ApiEndpoint) -> Result<Self, CacheError> {
+impl RoCacheEndpoint {
+    pub fn new(cache: Arc<dyn RoCache>, endpoint: ApiEndpoint) -> Result<Self, CacheError> {
         Ok(Self { cache, endpoint })
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
+pub struct RwCacheEndpoint {
+    pub cache: Arc<dyn RwCache>,
+    pub endpoint: ApiEndpoint,
+}
+
+impl RwCacheEndpoint {
+    pub fn new(cache: Arc<dyn RwCache>, endpoint: ApiEndpoint) -> Result<Self, CacheError> {
+        Ok(Self { cache, endpoint })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PipelineDetails {
     pub schema_name: String,
-    pub cache_endpoint: CacheEndpoint,
+    pub cache_endpoint: RoCacheEndpoint,
 }
 
 // Exports

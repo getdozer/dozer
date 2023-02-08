@@ -1,18 +1,19 @@
 use crate::pipeline::errors::PipelineError;
-use dozer_core::dag::channels::ProcessorChannelForwarder;
-use dozer_core::dag::epoch::Epoch;
-use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::node::{PortHandle, Processor};
-use dozer_core::dag::record_store::RecordReader;
-use dozer_core::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::epoch::Epoch;
+use dozer_core::errors::ExecutionError;
+use dozer_core::node::{PortHandle, Processor};
+use dozer_core::record_store::RecordReader;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::internal_err;
 
 use dozer_types::types::{Operation, Record};
+use lmdb::DatabaseFlags;
 use std::collections::HashMap;
 
-use dozer_core::dag::errors::ExecutionError::InternalError;
+use dozer_core::errors::ExecutionError::InternalError;
 
 use super::join::{JoinAction, JoinSource};
 
@@ -33,7 +34,7 @@ impl FromProcessor {
     }
 
     fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
-        self.db = Some(env.open_database("product", true)?);
+        self.db = Some(env.create_database(Some("product"), Some(DatabaseFlags::DUP_SORT))?);
 
         Ok(())
     }

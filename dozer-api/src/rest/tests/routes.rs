@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use super::super::api_server::{ApiServer, CorsOptions};
-use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint};
+use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, RoCacheEndpoint};
 use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
 use dozer_types::serde_json::{json, Value};
@@ -32,7 +32,7 @@ async fn list_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![CacheEndpoint {
+        vec![RoCacheEndpoint {
             cache,
             endpoint: endpoint.clone(),
         }],
@@ -94,7 +94,7 @@ async fn count_and_query_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![CacheEndpoint {
+        vec![RoCacheEndpoint {
             cache,
             endpoint: endpoint.clone(),
         }],
@@ -142,7 +142,7 @@ async fn get_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![CacheEndpoint {
+        vec![RoCacheEndpoint {
             cache,
             endpoint: endpoint.clone(),
         }],
