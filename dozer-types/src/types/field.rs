@@ -314,7 +314,7 @@ impl Field {
             Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
             Field::Timestamp(t) => Some(t.to_rfc3339()),
             Field::Binary(b) => Some(format!("{b:X?}")),
-            Field::Null => Some("".to_string()),
+            Field::Null => Some("NULL".to_string()),
             _ => None,
         }
     }

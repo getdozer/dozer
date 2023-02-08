@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    errors::ExecutionError,
     node::PortHandle,
     record_store::RecordReader,
     storage::{
@@ -10,10 +9,12 @@ use dozer_core::{
     },
 };
 use dozer_types::{
-    errors::types::{DeserializationError, TypeError},
+    errors::types::DeserializationError,
     types::{Field, Record, Schema},
 };
 use lmdb::Database;
+
+use crate::pipeline::errors::ProductError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinAction {
@@ -50,7 +51,7 @@ impl JoinSource {
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         match self {
             JoinSource::Table(table) => table.execute(action, from_port, record),
             JoinSource::Join(join) => {
@@ -65,7 +66,7 @@ impl JoinSource {
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(Record, Vec<u8>)>, ProductError> {
         match self {
             JoinSource::Table(table) => table.lookup(lookup_key, readers),
             JoinSource::Join(join) => join.lookup(lookup_key, database, transaction, readers),
@@ -108,17 +109,17 @@ impl JoinTable {
         action: JoinAction,
         from_port: PortHandle,
         record: &Record,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         if self.port == from_port {
             if self.schema.primary_index.is_empty() {
-                let lookup_key = self.encode_record(record)?;
+                let lookup_key = self.encode_record(record);
                 Ok(vec![(action, record.clone(), lookup_key)])
             } else {
                 let lookup_key = self.encode_lookup_key(record, &self.schema)?;
                 Ok(vec![(action, record.clone(), lookup_key)])
             }
         } else {
-            Err(ExecutionError::InvalidPortHandle(self.port))
+            Err(ProductError::InvalidSource(from_port))
         }
     }
 
@@ -126,28 +127,31 @@ impl JoinTable {
         &self,
         lookup_key: &[u8],
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(Record, Vec<u8>)>, ProductError> {
         if self.schema.primary_index.is_empty() {
             let record = self
                 .decode_record(lookup_key)
-                .map_err(TypeError::DeserializationError)?;
+                .map_err(ProductError::DeserializationError)?;
             return Ok(vec![(record, lookup_key.to_vec())]);
         }
 
         let reader = readers
             .get(&self.port)
-            .ok_or(ExecutionError::InvalidPortHandle(self.port))?;
+            .ok_or(ProductError::HistoryUnavailable(self.port))?;
 
         let (version, id) = self.decode_lookup_key(lookup_key);
 
         let mut output_records = vec![];
-        if let Some(record) = reader.get(&id, version)? {
+        if let Some(record) = reader
+            .get(&id, version)
+            .map_err(|err| ProductError::HistoryRecordNotFound(id, version, self.port, err))?
+        {
             output_records.push((record, lookup_key.to_vec()));
         }
         Ok(output_records)
     }
 
-    fn encode_lookup_key(&self, record: &Record, schema: &Schema) -> Result<Vec<u8>, TypeError> {
+    fn encode_lookup_key(&self, record: &Record, schema: &Schema) -> Result<Vec<u8>, ProductError> {
         let mut lookup_key = Vec::with_capacity(64);
         if let Some(version) = record.version {
             lookup_key.extend_from_slice(&version.to_be_bytes());
@@ -156,7 +160,10 @@ impl JoinTable {
         }
 
         for key_index in schema.primary_index.iter() {
-            let key_value = record.get_value(*key_index)?;
+            let key_value = record
+                .get_value(*key_index)
+                .map_err(|e| ProductError::InvalidKey(record.to_owned(), e))?;
+
             let key_bytes = key_value.encode();
             lookup_key.extend_from_slice(&key_bytes);
         }
@@ -170,7 +177,7 @@ impl JoinTable {
         (version, id.to_vec())
     }
 
-    fn encode_record(&self, record: &Record) -> Result<Vec<u8>, TypeError> {
+    fn encode_record(&self, record: &Record) -> Vec<u8> {
         let mut record_bytes = Vec::with_capacity(64);
         if let Some(version) = record.version {
             record_bytes.extend_from_slice(&version.to_be_bytes());
@@ -183,7 +190,7 @@ impl JoinTable {
             record_bytes.extend_from_slice(&(value_bytes.len() as u32).to_be_bytes());
             record_bytes.extend_from_slice(&value_bytes);
         }
-        Ok(record_bytes)
+        record_bytes
     }
 
     fn decode_record(&self, record_bytes: &[u8]) -> Result<Record, DeserializationError> {
@@ -280,7 +287,7 @@ impl JoinOperator {
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         // if the source port is under the left branch of the join
         if self.left_source.get_sources().contains(&from_port) {
             let mut output_records = vec![];
@@ -297,7 +304,7 @@ impl JoinOperator {
 
             // update left join index
             for (_join_action, left_record, left_lookup_key) in left_records.iter_mut() {
-                let left_join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key)?;
+                let left_join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key);
                 self.update_index(
                     _join_action.clone(),
                     &left_join_key,
@@ -356,7 +363,7 @@ impl JoinOperator {
 
             // update right join index
             for (_join_action, right_record, right_lookup_key) in right_records.iter_mut() {
-                let right_join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key)?;
+                let right_join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key);
                 self.update_index(
                     _join_action.clone(),
                     &right_join_key,
@@ -400,7 +407,7 @@ impl JoinOperator {
 
             return Ok(output_records);
         } else {
-            return Err(ExecutionError::InvalidPortHandle(from_port));
+            return Err(ProductError::InvalidSource(from_port));
         }
     }
 
@@ -414,7 +421,7 @@ impl JoinOperator {
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         left_record: &mut Record,
         left_lookup_key: &mut [u8],
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         let right_lookup_keys = self.read_index(
             &left_join_key,
             self.right_lookup_index,
@@ -450,7 +457,7 @@ impl JoinOperator {
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         right_record: &mut Record,
         right_lookup_key: &mut [u8],
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         let left_lookup_keys = self.read_index(
             &right_join_key,
             self.left_lookup_index,
@@ -486,7 +493,7 @@ impl JoinOperator {
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         left_record: &mut Record,
         left_lookup_key: &mut [u8],
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         let right_lookup_keys = self.read_index(
             &left_join_key,
             self.right_lookup_index,
@@ -532,7 +539,7 @@ impl JoinOperator {
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         right_record: &mut Record,
         right_lookup_key: &mut [u8],
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         let left_lookup_keys = self.read_index(
             &right_join_key,
             self.left_lookup_index,
@@ -579,7 +586,7 @@ impl JoinOperator {
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         left_record: &mut Record,
         left_lookup_key: &mut [u8],
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         let right_lookup_keys = self.read_index(
             &left_join_key,
             self.right_lookup_index,
@@ -658,7 +665,7 @@ impl JoinOperator {
         readers: &HashMap<u16, Box<dyn RecordReader>>,
         right_record: &mut Record,
         right_lookup_key: &mut [u8],
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         let left_lookup_keys = self.read_index(
             &right_join_key,
             self.left_lookup_index,
@@ -742,8 +749,8 @@ impl JoinOperator {
         left_record: &mut Record,
         database: &Database,
         transaction: &SharedTransaction,
-    ) -> Result<usize, ExecutionError> {
-        let left_join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key)?;
+    ) -> Result<usize, ProductError> {
+        let left_join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key);
         let right_lookup_keys = self.read_index(
             &left_join_key,
             self.right_lookup_index,
@@ -763,8 +770,8 @@ impl JoinOperator {
         right_record: &mut Record,
         database: &Database,
         transaction: &SharedTransaction,
-    ) -> Result<usize, ExecutionError> {
-        let right_join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key)?;
+    ) -> Result<usize, ProductError> {
+        let right_join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key);
         let left_lookup_keys = self.read_index(
             &right_join_key,
             self.left_lookup_index,
@@ -784,7 +791,7 @@ impl JoinOperator {
         database: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(Record, Vec<u8>)>, ExecutionError> {
+    ) -> Result<Vec<(Record, Vec<u8>)>, ProductError> {
         let mut output_records = vec![];
 
         let (left_loookup_key, right_lookup_key) = self.decode_join_lookup_key(lookup_key);
@@ -818,16 +825,24 @@ impl JoinOperator {
         prefix: u32,
         database: &Database,
         transaction: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), ProductError> {
         let mut exclusive_transaction = transaction.write();
         let mut prefix_transaction = PrefixTransaction::new(&mut exclusive_transaction, prefix);
 
         match action {
             JoinAction::Insert => {
-                prefix_transaction.put(*database, key, value)?;
+                prefix_transaction
+                    .put(*database, key, value)
+                    .map_err(|err| {
+                        ProductError::IndexPutError(key.to_vec(), value.to_vec(), err)
+                    })?;
             }
             JoinAction::Delete => {
-                prefix_transaction.del(*database, key, Some(value))?;
+                prefix_transaction
+                    .del(*database, key, Some(value))
+                    .map_err(|err| {
+                        ProductError::IndexDelError(key.to_vec(), value.to_vec(), err)
+                    })?;
             }
         }
 
@@ -840,30 +855,46 @@ impl JoinOperator {
         prefix: u32,
         database: &Database,
         transaction: &SharedTransaction,
-    ) -> Result<Vec<Vec<u8>>, ExecutionError> {
+    ) -> Result<Vec<Vec<u8>>, ProductError> {
         let mut join_keys = vec![];
 
         let mut exclusive_transaction = transaction.write();
         let right_prefix_transaction = PrefixTransaction::new(&mut exclusive_transaction, prefix);
 
-        let cursor = right_prefix_transaction.open_cursor(*database)?;
+        let cursor = right_prefix_transaction
+            .open_cursor(*database)
+            .map_err(|err| ProductError::IndexGetError(join_key.to_vec(), err))?;
 
-        if !cursor.seek(join_key)? {
+        if !cursor
+            .seek(join_key)
+            .map_err(|err| ProductError::IndexGetError(join_key.to_vec(), err))?
+        {
             return Ok(join_keys);
         }
 
         loop {
-            let entry = cursor.read()?.ok_or(ExecutionError::InternalDatabaseError(
-                StorageError::InvalidRecord,
-            ))?;
+            let entry = cursor
+                .read()
+                .map_err(|err| ProductError::IndexGetError(join_key.to_vec(), err))?;
 
-            if entry.0 != join_key {
+            if entry.is_none() {
                 break;
             }
 
-            join_keys.push(entry.1.to_vec());
+            let (key, value) = entry.unwrap();
+            if key != join_key {
+                return Err(ProductError::IndexGetError(
+                    join_key.to_vec(),
+                    StorageError::InvalidRecord,
+                ));
+            }
 
-            if !cursor.next()? {
+            join_keys.push(value.to_vec());
+
+            if !cursor
+                .next()
+                .map_err(|err| ProductError::IndexGetError(join_key.to_vec(), err))?
+            {
                 break;
             }
         }
@@ -911,7 +942,7 @@ fn join_records(left_record: &Record, right_record: &Record) -> Record {
     Record::new(None, concat_values, None)
 }
 
-fn encode_join_key(record: &Record, join_keys: &[usize]) -> Result<Vec<u8>, TypeError> {
+fn encode_join_key(record: &Record, join_keys: &[usize]) -> Vec<u8> {
     let mut composite_lookup_key = vec![];
     for key in join_keys.iter() {
         let value = &record.values[*key].encode();
@@ -919,7 +950,7 @@ fn encode_join_key(record: &Record, join_keys: &[usize]) -> Result<Vec<u8>, Type
         composite_lookup_key.extend_from_slice(&length.to_be_bytes());
         composite_lookup_key.extend_from_slice(value.as_slice());
     }
-    Ok(composite_lookup_key)
+    composite_lookup_key
 }
 
 // fn join_records(left_record: &Record, right_record: &Record) -> Record {

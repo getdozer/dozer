@@ -48,14 +48,16 @@ impl FromProcessor {
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
-        self.operator.execute(
-            JoinAction::Delete,
-            from_port,
-            record,
-            database,
-            transaction,
-            reader,
-        )
+        self.operator
+            .execute(
+                JoinAction::Delete,
+                from_port,
+                record,
+                database,
+                transaction,
+                reader,
+            )
+            .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))
     }
 
     fn insert(
@@ -67,14 +69,16 @@ impl FromProcessor {
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
-        self.operator.execute(
-            JoinAction::Insert,
-            from_port,
-            record,
-            database,
-            transaction,
-            reader,
-        )
+        self.operator
+            .execute(
+                JoinAction::Insert,
+                from_port,
+                record,
+                database,
+                transaction,
+                reader,
+            )
+            .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))
     }
 
     #[allow(clippy::type_complexity)]
@@ -94,23 +98,29 @@ impl FromProcessor {
     > {
         let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
-        let old_records = self.operator.execute(
-            JoinAction::Delete,
-            from_port,
-            old,
-            database,
-            transaction,
-            reader,
-        )?;
+        let old_records = self
+            .operator
+            .execute(
+                JoinAction::Delete,
+                from_port,
+                old,
+                database,
+                transaction,
+                reader,
+            )
+            .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
-        let new_records = self.operator.execute(
-            JoinAction::Insert,
-            from_port,
-            new,
-            database,
-            transaction,
-            reader,
-        )?;
+        let new_records = self
+            .operator
+            .execute(
+                JoinAction::Insert,
+                from_port,
+                new,
+                database,
+                transaction,
+                reader,
+            )
+            .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
         Ok((old_records, new_records))
     }

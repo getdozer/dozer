@@ -3,10 +3,10 @@
 use dozer_core::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::TypeError;
+use dozer_types::errors::types::{DeserializationError, TypeError};
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Record};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
@@ -86,7 +86,7 @@ pub enum PipelineError {
     UnsupportedSqlError(#[from] UnsupportedSqlError),
 
     #[error(transparent)]
-    JoinError(#[from] JoinError),
+    JoinError(#[from] ProductError),
 }
 
 #[derive(Error, Debug)]
@@ -114,7 +114,7 @@ pub enum UnsupportedSqlError {
 }
 
 #[derive(Error, Debug)]
-pub enum JoinError {
+pub enum ProductError {
     #[error("Field {0:?} not found")]
     FieldError(String),
     #[error("Currently join supports two level of namespacing. For example, `connection1.field1` is valid, but `connection1.n1.field1` is not.")]
@@ -139,4 +139,30 @@ pub enum JoinError {
     UnsupportedJoinType,
     #[error("Invalid Table name specified")]
     InvalidRelation(String),
+
+    #[error("Invalid Join Source: {0}")]
+    InvalidSource(u16),
+
+    #[error("Invalid Key for the record:\n{0}\n{1}")]
+    InvalidKey(Record, TypeError),
+
+    #[error("Error trying to deserialise a record from JOIN processor index: {0}")]
+    DeserializationError(DeserializationError),
+
+    #[error("History unavailable for JOIN source [{0}]")]
+    HistoryUnavailable(u16),
+
+    #[error(
+        "Record with key: {0:x?} version: {1} not available in History for JOIN source[{2}]\n{3}"
+    )]
+    HistoryRecordNotFound(Vec<u8>, u32, u16, dozer_core::errors::ExecutionError),
+
+    #[error("Error trying to insert key: {0:x?} value: {1:x?} in the JOIN index\n{2}")]
+    IndexPutError(Vec<u8>, Vec<u8>, StorageError),
+
+    #[error("Error trying to delete key: {0:x?} value: {1:x?} from the JOIN index\n{2}")]
+    IndexDelError(Vec<u8>, Vec<u8>, StorageError),
+
+    #[error("Error trying to read key: {0:x?} from the JOIN index\n{1}")]
+    IndexGetError(Vec<u8>, StorageError),
 }
