@@ -1,12 +1,14 @@
-use datafusion::arrow::datatypes::DataType;
-use datafusion::common::DFSchema;
-use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 use crate::errors::DataFusionSchemaError;
 use crate::errors::DataFusionSchemaError::FieldTypeNotSupported;
+use datafusion::arrow::datatypes::{DataType, Field};
 
-pub fn map_schema_to_dozer(schema: &DFSchema) -> Result<Vec<FieldDefinition>, DataFusionSchemaError> {
+use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
+
+pub fn map_schema_to_dozer(
+    fields_list: &Vec<Field>,
+) -> Result<Vec<FieldDefinition>, DataFusionSchemaError> {
     let mut fields = vec![];
-    for field in schema.fields() {
+    for field in fields_list {
         let mapped_field_type = match field.data_type() {
             // DataType::Null => ,
             DataType::Boolean => Ok(FieldType::Boolean),
@@ -42,14 +44,14 @@ pub fn map_schema_to_dozer(schema: &DFSchema) -> Result<Vec<FieldDefinition>, Da
             // DataType::Decimal128(_, _) => {}
             // DataType::Decimal256(_, _) => {}
             // DataType::Map(_, _) => {}
-            _ => Err(FieldTypeNotSupported(field.name().clone()))
+            _ => Err(FieldTypeNotSupported(field.name().clone())),
         }?;
 
         fields.push(FieldDefinition {
             name: field.name().clone(),
             typ: mapped_field_type,
             nullable: field.is_nullable(),
-            source: SourceDefinition::Dynamic
+            source: SourceDefinition::Dynamic,
         });
     }
 

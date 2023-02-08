@@ -345,6 +345,9 @@ fn write_dozer_config_for_running_in_docker_compose(
             Authentication::Kafka(_) => {
                 todo!("Map kafka host and port")
             }
+            Authentication::DataFusion(_) => {
+                todo!("Map datafusion host and port")
+            }
         }
 
         connection.authentication = Some(authentication);

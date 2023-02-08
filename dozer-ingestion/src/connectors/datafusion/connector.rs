@@ -1,20 +1,21 @@
+use crossbeam::channel;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::listing::{ListingOptions, ListingTableUrl};
 use std::collections::HashMap;
 use std::sync::Arc;
-use crossbeam::channel;
 
+use crate::connectors::datafusion::schema_helper::map_schema_to_dozer;
 use crate::connectors::TableInfo;
-use crate::errors::ConnectorError;
+use crate::errors::{ConnectorError, DataFusionConnectorError};
 use crate::{connectors::Connector, ingestion::Ingestor};
-use datafusion::prelude::{ParquetReadOptions, SessionContext};
+use datafusion::prelude::{SessionContext};
 use dozer_types::ingestion_types::DataFusionConfig;
+use dozer_types::log::{error};
 use dozer_types::parking_lot::RwLock;
-use object_store::aws::AmazonS3Builder;
-use tokio::runtime::Runtime;
-use dozer_types::log::error;
 use dozer_types::types::ReplicationChangesTrackingType::Nothing;
 use dozer_types::types::{Schema, SchemaIdentifier};
-use crate::connectors::datafusion::schema_helper::map_schema_to_dozer;
-use crate::errors::DataFusionConnectorError::DataFusionSchemaError;
+use object_store::aws::AmazonS3Builder;
+use tokio::runtime::Runtime;
 
 pub struct DataFusionConnector {
     pub id: u64,
@@ -37,56 +38,76 @@ impl DataFusionConnector {
 impl Connector for DataFusionConnector {
     fn get_schemas(
         &self,
-        _table_names: Option<Vec<crate::connectors::TableInfo>>,
-    ) -> Result<Vec<dozer_types::types::SchemaWithChangesType>, crate::errors::ConnectorError> {
-        let ctx = SessionContext::new();
+        table_names: Option<Vec<TableInfo>>,
+    ) -> Result<Vec<dozer_types::types::SchemaWithChangesType>, ConnectorError> {
+        match table_names {
+            None => Ok(vec![]),
+            Some(tables) => {
+                let mut schemas = vec![];
+                for table in tables {
+                    let path = format!("s3://{}/{}", self.config.bucket_name, table.table_name);
 
-        let s3 = AmazonS3Builder::new()
-            .with_bucket_name(self.config.bucket_name.to_owned())
-            .with_region(self.config.region.to_owned())
-            .with_access_key_id(self.config.access_key_id.to_owned())
-            .with_secret_access_key(self.config.secret_access_key.to_owned())
-            .build()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?;
+                    let table_path = ListingTableUrl::parse(path).unwrap();
 
-        ctx.runtime_env()
-            .register_object_store("s3", &self.config.bucket_name, Arc::new(s3));
+                    let file_format = ParquetFormat::new();
+                    let listing_options =
+                        ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet");
 
-        let path = format!("s3://{}{}", self.config.bucket_name, self.config.path);
+                    let (tx, rx) = channel::bounded(1);
 
-        let (tx, rx) = channel::bounded(1);
+                    let rt = Runtime::new().unwrap();
 
-        let rt = Runtime::new()
-            .unwrap();
+                    rt.block_on(async move {
+                        let ctx = SessionContext::new();
+                        let s3 = AmazonS3Builder::new()
+                            .with_bucket_name(self.config.bucket_name.to_owned())
+                            .with_region(self.config.region.to_owned())
+                            .with_access_key_id(self.config.access_key_id.to_owned())
+                            .with_secret_access_key(self.config.secret_access_key.to_owned())
+                            .build()
+                            .map_or(Err(ConnectorError::InitializationError), Ok)
+                            .unwrap();
 
-        rt.block_on(async move {
-            let df = ctx.read_parquet(&path, ParquetReadOptions {
-                file_extension: "parquet",
-                table_partition_cols: vec![],
-                parquet_pruning: None,
-                skip_metadata: None
-            }).await;
-            let _ = tx.send(df);
-        });
-        let df = rx.recv().map_err(|e| {
-            error!("{:?}", e);
-            ConnectorError::WrongConnectionConfiguration
-        })?.map_err(|e| {
-            error!("{:?}", e);
-            ConnectorError::WrongConnectionConfiguration
-        })?;
+                        ctx.runtime_env().register_object_store(
+                            "s3",
+                            &self.config.bucket_name,
+                            Arc::new(s3),
+                        );
 
-        let fields = map_schema_to_dozer(df.schema())
-            .map_err(|e| ConnectorError::DataFusionConnectorError(DataFusionSchemaError(e)))?;
+                        let resolved_schema = listing_options
+                            .infer_schema(&ctx.state(), &table_path)
+                            .await;
 
-        Ok(vec![("userdata".to_string(), Schema {
-            identifier: Some(SchemaIdentifier {
-                id: 0,
-                version: 0
-            }),
-            fields,
-            primary_index: vec![]
-        }, Nothing)])
+                        tx.send(resolved_schema).unwrap();
+                    });
+
+                    let c = rx
+                        .recv()
+                        .map_err(|e| {
+                            error!("{:?}", e);
+                            ConnectorError::WrongConnectionConfiguration
+                        })?
+                        .map_err(|e| {
+                            error!("{:?}", e);
+                            ConnectorError::WrongConnectionConfiguration
+                        })?;
+
+                    let fields = map_schema_to_dozer(c.fields()).map_err(|e| {
+                        ConnectorError::DataFusionConnectorError(
+                            DataFusionConnectorError::DataFusionSchemaError(e),
+                        )
+                    })?;
+                    let schema = Schema {
+                        identifier: Some(SchemaIdentifier { id: 0, version: 0 }),
+                        fields,
+                        primary_index: vec![],
+                    };
+                    schemas.push((table.table_name.clone(), schema, Nothing))
+                }
+
+                Ok(schemas)
+            }
+        }
     }
 
     fn get_tables(
@@ -123,9 +144,19 @@ impl Connector for DataFusionConnector {
         ctx.runtime_env()
             .register_object_store("s3", &self.config.bucket_name, Arc::new(s3));
 
-        let _path = format!("s3://{}{}", self.config.bucket_name, self.config.path);
+        // let _path = format!("s3://{}{}", self.config.bucket_name, self.config.path);
         // ctx.register_parquet("trips", &path, ParquetReadOptions::default())
         //     .await?;
+
+        // READING
+
+        // let config = ListingTableConfig::new(t_p)
+        //     .with_listing_options(l_o)
+        //     .with_schema(c);
+        //
+        // let provider = Arc::new(ListingTable::try_new(config).unwrap());
+        //
+        // let df = ctx.read_table(provider.clone()).unwrap();
 
         Ok(())
     }
@@ -134,10 +165,7 @@ impl Connector for DataFusionConnector {
         todo!()
     }
 
-    fn validate(
-        &self,
-        _tables: Option<Vec<TableInfo>>,
-    ) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
 
@@ -145,8 +173,6 @@ impl Connector for DataFusionConnector {
         &self,
         _tables: &[crate::connectors::TableInfo],
     ) -> Result<crate::connectors::ValidationResults, crate::errors::ConnectorError> {
-
-
         Ok(HashMap::new())
     }
 }

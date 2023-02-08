@@ -8,10 +8,10 @@ use dozer_types::{bincode, serde_json};
 use dozer_types::{rust_decimal, thiserror};
 
 use base64::DecodeError;
+
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 use std::str::Utf8Error;
-use datafusion::error::DataFusionError;
 
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
@@ -322,9 +322,8 @@ pub enum DataFusionConnectorError {
     DataFusionSchemaError(#[from] DataFusionSchemaError),
 }
 
-
 #[derive(Error, Debug, PartialEq)]
 pub enum DataFusionSchemaError {
     #[error("Unsupported type of \"{0}\" field")]
-    FieldTypeNotSupported(String)
+    FieldTypeNotSupported(String),
 }

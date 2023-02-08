@@ -107,6 +107,12 @@ fn fake_dbconnection(db_type: DBType) -> DbConnection {
             name: "kafka_debezium_connection".to_owned(),
             db_type: "kafka".to_owned(),
             ..Default::default()
+        },
+        DBType::DataFusion => DbConnection {
+            auth: r#"{"DataFusion":{"access_key_id":"key","secret_access_key":"secret","region":"ap-southeast-1","bucket_name":"bucket"}}"#.to_owned(),
+            name: "data_fusion_connection".to_owned(),
+            db_type: "data_fusion".to_owned(),
+            ..Default::default()
         }
     }
 }

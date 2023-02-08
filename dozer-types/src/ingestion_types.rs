@@ -172,8 +172,6 @@ pub struct DataFusionConfig {
     pub region: String,
     #[prost(string, tag = "4")]
     pub bucket_name: String,
-    #[prost(string, tag = "5")]
-    pub path: String,
 }
 
 impl DataFusionConfig {
@@ -182,8 +180,7 @@ impl DataFusionConfig {
             ["access_key_id", self.access_key_id],
             ["secret_access_key", self.secret_access_key],
             ["region", self.region],
-            ["bucket_name", self.bucket_name],
-            ["filepath", self.path]
+            ["bucket_name", self.bucket_name]
         )
     }
 }
