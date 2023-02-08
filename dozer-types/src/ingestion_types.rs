@@ -6,18 +6,13 @@ use thiserror::Error;
 
 use crate::{
     errors::internal::BoxedError,
-    types::{Commit, OperationEvent},
+    types::{Commit, Operation},
 };
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum IngestionOperation {
-    OperationEvent(OperationEvent),
-}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum IngestionMessage {
     Begin(),
-    OperationEvent(OperationEvent),
+    OperationEvent(Operation),
     Commit(Commit),
 }
 
@@ -28,7 +23,7 @@ pub enum IngestorError {
 }
 
 pub trait IngestorForwarder: Send + Sync + Debug {
-    fn forward(&self, msg: ((u64, u64), IngestionOperation)) -> Result<(), IngestorError>;
+    fn forward(&self, msg: ((u64, u64), Operation)) -> Result<(), IngestorError>;
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]

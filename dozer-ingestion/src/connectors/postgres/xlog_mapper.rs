@@ -1,9 +1,7 @@
 use crate::connectors::postgres::helper;
 use crate::errors::{PostgresConnectorError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::types::{
-    Field, FieldDefinition, Operation, OperationEvent, Record, Schema, SourceDefinition,
-};
+use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SourceDefinition};
 use helper::postgres_type_to_dozer_type;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
@@ -113,18 +111,15 @@ impl XlogMapper {
 
                 let values = Self::convert_values_to_fields(table, new_values, false)?;
 
-                let event = OperationEvent {
-                    operation: Operation::Insert {
-                        new: Record::new(
-                            Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id,
-                                version: table.rel_id as u16,
-                            }),
-                            values,
-                            None,
-                        ),
-                    },
-                    seq_no: 0,
+                let event = Operation::Insert {
+                    new: Record::new(
+                        Some(dozer_types::types::SchemaIdentifier {
+                            id: table.rel_id,
+                            version: table.rel_id as u16,
+                        }),
+                        values,
+                        None,
+                    ),
                 };
 
                 return Ok(Some(IngestionMessage::OperationEvent(event)));
@@ -136,26 +131,23 @@ impl XlogMapper {
                 let values = Self::convert_values_to_fields(table, new_values, false)?;
                 let old_values = Self::convert_old_value_to_fields(table, update)?;
 
-                let event = OperationEvent {
-                    operation: Operation::Update {
-                        old: Record::new(
-                            Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id,
-                                version: table.rel_id as u16,
-                            }),
-                            old_values,
-                            None,
-                        ),
-                        new: Record::new(
-                            Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id,
-                                version: table.rel_id as u16,
-                            }),
-                            values,
-                            None,
-                        ),
-                    },
-                    seq_no: 0,
+                let event = Operation::Update {
+                    old: Record::new(
+                        Some(dozer_types::types::SchemaIdentifier {
+                            id: table.rel_id,
+                            version: table.rel_id as u16,
+                        }),
+                        old_values,
+                        None,
+                    ),
+                    new: Record::new(
+                        Some(dozer_types::types::SchemaIdentifier {
+                            id: table.rel_id,
+                            version: table.rel_id as u16,
+                        }),
+                        values,
+                        None,
+                    ),
                 };
 
                 return Ok(Some(IngestionMessage::OperationEvent(event)));
@@ -167,18 +159,15 @@ impl XlogMapper {
 
                 let values = Self::convert_values_to_fields(table, key_values, true)?;
 
-                let event = OperationEvent {
-                    operation: Operation::Delete {
-                        old: Record::new(
-                            Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id,
-                                version: table.rel_id as u16,
-                            }),
-                            values,
-                            None,
-                        ),
-                    },
-                    seq_no: 0,
+                let event = Operation::Delete {
+                    old: Record::new(
+                        Some(dozer_types::types::SchemaIdentifier {
+                            id: table.rel_id,
+                            version: table.rel_id as u16,
+                        }),
+                        values,
+                        None,
+                    ),
                 };
 
                 return Ok(Some(IngestionMessage::OperationEvent(event)));

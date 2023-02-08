@@ -10,7 +10,7 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{Operation, OperationEvent, Record, SchemaIdentifier};
+use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use kafka::consumer::Consumer;
 use std::sync::Arc;
 
@@ -145,25 +145,22 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     .write()
                                     .handle_message((
                                         (0, 0),
-                                        IngestionMessage::OperationEvent(OperationEvent {
-                                            seq_no: 0,
-                                            operation: Operation::Update {
-                                                old: Record {
-                                                    schema_id: Some(SchemaIdentifier {
-                                                        id: 1,
-                                                        version: 1,
-                                                    }),
-                                                    values: old,
-                                                    version: None,
-                                                },
-                                                new: Record {
-                                                    schema_id: Some(SchemaIdentifier {
-                                                        id: 1,
-                                                        version: 1,
-                                                    }),
-                                                    values: new,
-                                                    version: None,
-                                                },
+                                        IngestionMessage::OperationEvent(Operation::Update {
+                                            old: Record {
+                                                schema_id: Some(SchemaIdentifier {
+                                                    id: 1,
+                                                    version: 1,
+                                                }),
+                                                values: old,
+                                                version: None,
+                                            },
+                                            new: Record {
+                                                schema_id: Some(SchemaIdentifier {
+                                                    id: 1,
+                                                    version: 1,
+                                                }),
+                                                values: new,
+                                                version: None,
                                             },
                                         }),
                                     ))
@@ -181,17 +178,14 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     .write()
                                     .handle_message((
                                         (0, 0),
-                                        IngestionMessage::OperationEvent(OperationEvent {
-                                            seq_no: 0,
-                                            operation: Operation::Delete {
-                                                old: Record {
-                                                    schema_id: Some(SchemaIdentifier {
-                                                        id: 1,
-                                                        version: 1,
-                                                    }),
-                                                    values: old,
-                                                    version: None,
-                                                },
+                                        IngestionMessage::OperationEvent(Operation::Delete {
+                                            old: Record {
+                                                schema_id: Some(SchemaIdentifier {
+                                                    id: 1,
+                                                    version: 1,
+                                                }),
+                                                values: old,
+                                                version: None,
                                             },
                                         }),
                                     ))
@@ -213,17 +207,14 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     .write()
                                     .handle_message((
                                         (0, 0),
-                                        IngestionMessage::OperationEvent(OperationEvent {
-                                            seq_no: 0,
-                                            operation: Operation::Insert {
-                                                new: Record {
-                                                    schema_id: Some(SchemaIdentifier {
-                                                        id: 1,
-                                                        version: 1,
-                                                    }),
-                                                    values: new,
-                                                    version: None,
-                                                },
+                                        IngestionMessage::OperationEvent(Operation::Insert {
+                                            new: Record {
+                                                schema_id: Some(SchemaIdentifier {
+                                                    id: 1,
+                                                    version: 1,
+                                                }),
+                                                values: new,
+                                                version: None,
                                             },
                                         }),
                                     ))

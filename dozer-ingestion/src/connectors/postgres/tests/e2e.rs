@@ -1,6 +1,5 @@
 use crate::connectors::postgres::tests::client::TestPostgresClient;
 use crate::test_util::load_config;
-use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::app_config::Config;
 
 use crate::connectors::postgres::test_utils::get_iterator;
@@ -29,8 +28,8 @@ fn connector_disabled_test_e2e_connect_postgres_stream() {
     let mut i = 1;
     while i < 10 {
         let op = iterator.write().next();
-        if let Some((_, IngestionOperation::OperationEvent(ev))) = op {
-            if let Operation::Insert { new } = ev.operation {
+        if let Some((_, op)) = op {
+            if let Operation::Insert { new } = op {
                 assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
                 i += 1;
             }
@@ -41,8 +40,8 @@ fn connector_disabled_test_e2e_connect_postgres_stream() {
     while i < 20 {
         let op = iterator.write().next();
 
-        if let Some((_, IngestionOperation::OperationEvent(ev))) = op {
-            if let Operation::Insert { new } = ev.operation {
+        if let Some((_, op)) = op {
+            if let Operation::Insert { new } = op {
                 assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
                 i += 1;
             }

@@ -99,7 +99,6 @@ impl PostgresSnapshotter {
                                 .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
                             &msg,
                             columns,
-                            idx,
                         )
                         .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
 

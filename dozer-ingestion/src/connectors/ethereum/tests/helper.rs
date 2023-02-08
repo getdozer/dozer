@@ -10,7 +10,7 @@ use crate::{
 };
 
 use dozer_types::{
-    ingestion_types::{EthConfig, EthContract, EthFilter, IngestionOperation},
+    ingestion_types::{EthConfig, EthContract, EthFilter},
     log::info,
     parking_lot::RwLock,
     types::Operation,
@@ -108,9 +108,9 @@ pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>
     let mut op_index = HashSet::new();
     while let Some(msg) = iterator.write().next_timeout(Duration::from_millis(400)) {
         // Duplicates are to be expected in ethereum connector
-        let (_, IngestionOperation::OperationEvent(ev)) = msg;
-        if op_index.insert(ev.seq_no) {
-            msgs.push(ev.operation);
+        let ((_, seq_no), op) = msg;
+        if op_index.insert(seq_no) {
+            msgs.push(op);
         }
     }
     (contract, msgs)
