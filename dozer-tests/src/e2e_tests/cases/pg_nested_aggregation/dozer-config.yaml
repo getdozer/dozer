@@ -43,7 +43,7 @@ sources:
 sql: |
   SELECT
     id,
-    ROUND(open, 2)
+    (ROUND(SUM(ROUND(open, 2))) + SUM(close)) AS nested_col
   INTO stocks_data
   FROM stocks
   GROUP BY id;

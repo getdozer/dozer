@@ -34,7 +34,6 @@ pub(crate) fn get_scalar_function_type(
     args: &[Expression],
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
-    schema.print().printstd();
     match function {
         ScalarFunctionType::Abs => argv!(args, 0, ScalarFunctionType::Abs)?.get_type(schema),
         ScalarFunctionType::Round => {
