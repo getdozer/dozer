@@ -280,12 +280,12 @@ fn parse_identifier(
 
     match (left_idx, right_idx) {
         (None, None) => Err(PipelineError::JoinError(
-            ProductError::InvalidFieldSpecified(fullname_from_ident(ident)),
+            ProductError::InvalidFieldSpecified(ExpressionBuilder::fullname_from_ident(ident)),
         )),
         (None, Some(idx)) => Ok((None, Some(idx))),
         (Some(idx), None) => Ok((Some(idx), None)),
         (Some(_), Some(_)) => Err(PipelineError::JoinError(
-            ProductError::InvalidJoinConstraint(fullname_from_ident(ident)),
+            ProductError::InvalidJoinConstraint(ExpressionBuilder::fullname_from_ident(ident)),
         )),
     }
 }
