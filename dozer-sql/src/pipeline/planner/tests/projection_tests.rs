@@ -16,7 +16,7 @@ fn test_basic_projection() {
         .field(
             FieldDefinition::new(
                 "a".to_string(),
-                FieldType::String,
+                FieldType::Int,
                 false,
                 SourceDefinition::Table {
                     name: "t0".to_string(),
@@ -28,7 +28,7 @@ fn test_basic_projection() {
         .field(
             FieldDefinition::new(
                 "b".to_string(),
-                FieldType::String,
+                FieldType::Int,
                 false,
                 SourceDefinition::Table {
                     name: "t0".to_string(),
@@ -93,7 +93,7 @@ fn test_basic_projection() {
             .field(
                 FieldDefinition::new(
                     "a2".to_string(),
-                    FieldType::String,
+                    FieldType::Int,
                     false,
                     SourceDefinition::Table {
                         name: "t0".to_string(),

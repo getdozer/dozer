@@ -6,6 +6,7 @@ use dozer_storage::lmdb::{RoTransaction, RwTransaction, Transaction};
 use dozer_storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
+use dozer_types::log::info;
 use dozer_types::parking_lot::{RwLock, RwLockReadGuard};
 
 use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
@@ -296,9 +297,21 @@ fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
             continue;
         }
         match field.typ {
-            FieldType::UInt => debug_assert!(value.as_uint().is_some()),
-            FieldType::Int => debug_assert!(value.as_int().is_some()),
-            FieldType::Float => debug_assert!(value.as_float().is_some()),
+            FieldType::UInt => {
+                info!("UInt {:?}", value);
+                info!("UInt {:?}", field);
+                debug_assert!(value.as_uint().is_some())
+            },
+            FieldType::Int => {
+                info!("Int {:?}", value);
+                info!("Int {:?}", field);
+                debug_assert!(value.as_int().is_some())
+            },
+            FieldType::Float => {
+                info!("Float {:?}", value);
+                info!("Float {:?}", field);
+                debug_assert!(value.as_float().is_some())
+            },
             FieldType::Boolean => debug_assert!(value.as_boolean().is_some()),
             FieldType::String => debug_assert!(value.as_string().is_some()),
             FieldType::Text => debug_assert!(value.as_text().is_some()),

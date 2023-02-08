@@ -1,12 +1,12 @@
+use std::path::Path;
 use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
-use dozer_core::dag::node::Processor;
+use dozer_core::node::Processor;
 use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
-use tempdir::TempDir;
 
 #[test]
 fn test_planner_with_aggregator() {
@@ -89,7 +89,7 @@ fn test_planner_with_aggregator() {
     .unwrap();
 
     let mut storage =
-        LmdbEnvironmentManager::create(TempDir::new("dozer").unwrap().path(), "aggregation_test")
+        LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
             .unwrap();
 
     processor.init(&mut storage).unwrap();

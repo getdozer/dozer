@@ -16,7 +16,7 @@ use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
-use tempdir::TempDir;
+use std::path::Path;
 
 pub(crate) fn init_processor(
     sql: &str,

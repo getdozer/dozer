@@ -8,21 +8,6 @@ connections:
       port: 5434
       database: stocks
     name: stocks
-sql: |
-  SELECT
-    id,
-    (ROUND(SUM(ROUND(open, 2))) + SUM(close)) 
-  INTO stocks_data
-  FROM stocks
-  GROUP BY id;
-  
-  SELECT
-    symbol,
-    security_name, 
-    listing_exchange,
-    financial_status
-  INTO stocks_meta_data
-  FROM stocks_meta;
 
 sources:
   - name: stocks
@@ -54,6 +39,23 @@ sources:
       - nasdaq_symbol
       - next_shares
     connection: !Ref stocks
+
+sql: |
+  SELECT
+    id,
+    ROUND(open, 2)
+  INTO stocks_data
+  FROM stocks
+  GROUP BY id;
+  
+  SELECT
+    symbol,
+    security_name, 
+    listing_exchange,
+    financial_status
+  INTO stocks_meta_data
+  FROM stocks_meta;
+
 endpoints:
   - name: stocks
     path: /stocks
@@ -62,8 +64,7 @@ endpoints:
     index:
       primary_key:
         - id
-  - id: null
-    name: stocks_meta
+  - name: stocks_meta
     path: /stocks-meta
     # Direct from source
     table_name: stocks_meta_data
