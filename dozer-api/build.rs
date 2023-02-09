@@ -5,7 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(&["protos/types.proto"], &["protos"])?;
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
-        .compile(&["protos/api.proto"], &["protos"])?;
+        .compile(&["protos/common.proto"], &["protos"])?;
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
         .compile(&["protos/health.proto"], &["protos"])?;

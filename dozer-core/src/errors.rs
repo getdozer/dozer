@@ -79,8 +79,8 @@ pub enum ExecutionError {
     InternalDatabaseError(#[from] StorageError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
-    #[error("{0}. Has dozer been initialized (`dozer init`)?")]
-    SinkError(#[source] SinkError),
+    #[error(transparent)]
+    SinkError(#[from] SinkError),
 
     #[error("Failed to initialize source: {0}")]
     ConnectorError(#[source] BoxedError),
@@ -111,26 +111,26 @@ impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
 
 #[derive(Error, Debug)]
 pub enum SinkError {
-    #[error("Failed to initialize schema in Sink: {0}")]
-    SchemaUpdateFailed(#[source] BoxedError),
+    #[error("Failed to initialize schema in Cache: {0:?}, Error: {1:?}.")]
+    SchemaUpdateFailed(String, #[source] BoxedError),
 
-    #[error("Failed to begin cache transaction: {0}")]
-    CacheBeginTransactionFailed(#[source] BoxedError),
+    #[error("Failed to begin transaction in Cache: {0:?}, Error: {1:?}.")]
+    CacheBeginTransactionFailed(String, #[source] BoxedError),
 
-    #[error("Failed to insert record in Sink: {0}")]
-    CacheInsertFailed(#[source] BoxedError),
+    #[error("Failed to insert record in Cache: {0:?}, Error: {1:?}. Usually this happens if primary key is wrongly specified.")]
+    CacheInsertFailed(String, #[source] BoxedError),
 
-    #[error("Failed to delete record in Sink: {0}")]
-    CacheDeleteFailed(#[source] BoxedError),
+    #[error("Failed to delete record in Cache: {0:?}, Error: {1:?}. Usually this happens if primary key is wrongly specified.")]
+    CacheDeleteFailed(String, #[source] BoxedError),
 
-    #[error("Failed to update record in Sink: {0}")]
-    CacheUpdateFailed(#[source] BoxedError),
+    #[error("Failed to update record in Cache: {0:?}, Error: {1:?}. Usually this happens if primary key is wrongly specified.")]
+    CacheUpdateFailed(String, #[source] BoxedError),
 
-    #[error("Failed to commit cache transaction: {0}")]
-    CacheCommitTransactionFailed(#[source] BoxedError),
+    #[error("Failed to commit cache transaction: {0:?}, Error: {1:?}")]
+    CacheCommitTransactionFailed(String, #[source] BoxedError),
 
-    #[error("Failed to initialize schema in Sink: {0}")]
-    CacheCountFailed(#[source] BoxedError),
+    #[error("Failed to count thre records during init in Cache: {0:?}, Error: {1:?}")]
+    CacheCountFailed(String, #[source] BoxedError),
 }
 
 #[derive(Error, Debug)]
