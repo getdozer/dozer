@@ -53,7 +53,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         path: &Path,
         name: &NodeHandle,
     ) -> Result<Option<DagMetadata>, ExecutionError> {
-        let env_name = metadata_environment_name(name);
+        let env_name = node_environment_name(name);
         if !LmdbEnvironmentManager::exists(path, &env_name) {
             return Ok(None);
         }
@@ -184,7 +184,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
 
     pub(crate) fn delete_metadata(&self) {
         for node in self.dag.node_handles() {
-            LmdbEnvironmentManager::remove(self.path, &metadata_environment_name(node));
+            LmdbEnvironmentManager::remove(self.path, &node_environment_name(node));
         }
     }
 
@@ -201,7 +201,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
                 .get(node)
                 .ok_or_else(|| InvalidNodeHandle(node.clone()))?;
 
-            let env_name = metadata_environment_name(node);
+            let env_name = node_environment_name(node);
             if LmdbEnvironmentManager::exists(self.path, &env_name) {
                 return Err(MetadataAlreadyExists(node.clone()));
             }
@@ -242,7 +242,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     }
 }
 
-fn metadata_environment_name(node_handle: &NodeHandle) -> String {
+pub fn node_environment_name(node_handle: &NodeHandle) -> String {
     format!("{node_handle}")
 }
 

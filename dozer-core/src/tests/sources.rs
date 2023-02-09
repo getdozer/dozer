@@ -1,6 +1,7 @@
 use crate::channels::SourceChannelForwarder;
 use crate::errors::ExecutionError;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
+use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -402,5 +403,38 @@ impl Source for NoPkGeneratorSource {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectivityTestSourceFactory;
+
+impl SourceFactory<NoneContext> for ConnectivityTestSourceFactory {
+    fn get_output_schema(
+        &self,
+        _port: &PortHandle,
+    ) -> Result<(Schema, NoneContext), ExecutionError> {
+        unimplemented!("This struct is for connectivity test, only output ports are defined")
+    }
+
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(vec![OutputPortDef::new(
+            DEFAULT_PORT_HANDLE,
+            OutputPortType::Stateless,
+        )])
+    }
+
+    fn prepare(
+        &self,
+        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
+        unimplemented!("This struct is for connectivity test, only output ports are defined")
+    }
+
+    fn build(
+        &self,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        unimplemented!("This struct is for connectivity test, only output ports are defined")
     }
 }

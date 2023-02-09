@@ -1,4 +1,4 @@
-use crate::dag_schemas::DagSchemas;
+use crate::dag_schemas::{DagHaveSchemas, DagSchemas};
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{

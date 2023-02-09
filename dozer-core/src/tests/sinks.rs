@@ -2,6 +2,7 @@ use crate::epoch::Epoch;
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::record_store::RecordReader;
+use crate::DEFAULT_PORT_HANDLE;
 use dozer_storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
 
@@ -95,5 +96,51 @@ impl Sink for CountingSink {
             self.running.store(false, Ordering::Relaxed);
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectivityTestSinkFactory;
+
+impl SinkFactory<NoneContext> for ConnectivityTestSinkFactory {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
+    }
+
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
+        unimplemented!("This struct is for connectivity test, only input ports are defined")
+    }
+
+    fn build(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        unimplemented!("This struct is for connectivity test, only input ports are defined")
+    }
+}
+
+#[derive(Debug)]
+pub struct NoInputPortSinkFactory;
+
+impl SinkFactory<NoneContext> for NoInputPortSinkFactory {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        vec![]
+    }
+
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(), ExecutionError> {
+        unimplemented!("This struct is for connectivity test, only input ports are defined")
+    }
+
+    fn build(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 }

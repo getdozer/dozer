@@ -3,16 +3,15 @@ use crate::epoch::{Epoch, EpochManager};
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::executor::ExecutorOperation;
-use crate::executor_utils::StateOptions;
 use crate::node::{NodeHandle, PortHandle};
-use crate::record_store::{RecordWriter, RecordWriterUtils};
+use crate::record_store::RecordWriter;
 use dozer_storage::common::Database;
 
 use crossbeam::channel::Sender;
 use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::internal_err;
 use dozer_types::log::debug;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::Operation;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -29,30 +28,14 @@ pub(crate) struct StateWriter {
 impl StateWriter {
     pub fn new(
         meta_db: Database,
-        dbs: HashMap<PortHandle, StateOptions>,
+        record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
         tx: SharedTransaction,
-        output_schemas: HashMap<PortHandle, Schema>,
-        retention_queue_size: usize,
-    ) -> Result<Self, ExecutionError> {
-        let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
-        for (port, options) in dbs {
-            if let Some(schema) = output_schemas.get(&port) {
-                let writer = RecordWriterUtils::create_writer(
-                    options.typ,
-                    options.db,
-                    options.meta_db,
-                    schema.clone(),
-                    retention_queue_size,
-                )?;
-                record_writers.insert(port, writer);
-            }
-        }
-
-        Ok(Self {
+    ) -> Self {
+        Self {
             meta_db,
             record_writers,
             tx,
-        })
+        }
     }
 
     fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
@@ -72,9 +55,6 @@ impl StateWriter {
                 .iter()
                 .map(|(source, op_id)| (source, *op_id)),
         )?;
-        for record_writer in self.record_writers.values() {
-            record_writer.commit()?;
-        }
         self.tx.write().commit_and_renew()?;
         Ok(())
     }

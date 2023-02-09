@@ -23,8 +23,10 @@ mod dag_schemas;
 #[cfg(test)]
 mod node;
 #[cfg(test)]
+pub mod processors;
+#[cfg(test)]
 mod record_store;
 #[cfg(test)]
-mod sinks;
+pub mod sinks;
 #[cfg(test)]
-mod sources;
+pub mod sources;

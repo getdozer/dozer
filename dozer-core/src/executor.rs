@@ -1,19 +1,13 @@
-#![allow(clippy::type_complexity)]
-
 use crate::dag_metadata::{Consistency, DagMetadata, DagMetadataManager};
 use crate::dag_schemas::{DagSchemas, NodeSchemas};
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::{IncompatibleSchemas, InconsistentCheckpointMetadata};
-use crate::executor_utils::index_edges;
-use crate::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
-use crate::record_store::RecordReader;
+use crate::node::NodeHandle;
 use crate::Dag;
 
-use crossbeam::channel::{bounded, Receiver, Sender};
-use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Operation, Record};
 
-use crate::epoch::{Epoch, EpochManager};
+use crate::epoch::Epoch;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -80,6 +74,7 @@ impl Display for ExecutorOperation {
     }
 }
 
+mod execution_dag;
 mod name;
 mod node;
 mod processor_node;
@@ -91,14 +86,13 @@ use node::Node;
 use processor_node::ProcessorNode;
 use sink_node::SinkNode;
 
-use self::source_node::{SourceListenerNode, SourceSenderNode};
+use self::execution_dag::ExecutionDag;
+use self::source_node::{create_source_nodes, SourceListenerNode, SourceSenderNode};
 
 use super::epoch::OpIdentifier;
 
 pub struct DagExecutor<T: Clone> {
     dag: Dag<T>,
-    schemas: HashMap<NodeHandle, NodeSchemas<T>>,
-    record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>>,
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
     path: PathBuf,
     options: ExecutorOptions,
@@ -143,22 +137,10 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
             }
         };
 
-        let schemas = Self::load_or_init_schema(&dag, path)?;
-        let record_stores = Arc::new(RwLock::new(
-            dag.node_handles()
-                .map(|node_handle| {
-                    (
-                        node_handle.clone(),
-                        HashMap::<PortHandle, Box<dyn RecordReader>>::new(),
-                    )
-                })
-                .collect(),
-        ));
+        Self::load_or_init_schema(&dag, path)?;
 
         Ok(Self {
             dag,
-            schemas,
-            record_stores,
             path: path.to_path_buf(),
             join_handles: HashMap::new(),
             options,
@@ -262,227 +244,74 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
         Ok(current_schemas)
     }
 
-    fn start_source(
-        &self,
-        handle: NodeHandle,
-        src_factory: Arc<dyn SourceFactory<T>>,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        schemas: &NodeSchemas<T>,
-        epoch_manager: Arc<EpochManager>,
-        start_barrier: Arc<Barrier>,
-    ) -> Result<JoinHandle<()>, ExecutionError> {
-        let (sender, receiver) = bounded(self.options.channel_buffer_sz);
-        // let (sender, receiver) = bounded(1);
-
-        let start_seq = *self
-            .consistency_metadata
-            .get(&handle)
-            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-        let output_ports = src_factory.get_output_ports()?;
-
-        let st_node_handle = handle.clone();
-        let output_schemas: HashMap<PortHandle, Schema> = schemas
-            .output_schemas
-            .clone()
-            .into_iter()
-            .map(|e| (e.0, e.1 .0))
-            .collect();
-        let running = self.running.clone();
-        let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
-            let sender = SourceSenderNode::new(
-                handle,
-                &*src_factory,
-                output_schemas,
-                start_seq,
-                sender,
-                running,
-            )?;
-            sender.run()
-        };
-
-        let _st_handle = Builder::new()
-            .name(format!("{handle}-sender"))
-            .spawn(move || {
-                if let Err(e) = source_fn(st_node_handle) {
-                    std::panic::panic_any(e);
-                }
-            })?;
-
-        let timeout = self.options.commit_time_threshold;
-        let base_path = self.path.clone();
-        let record_readers = self.record_stores.clone();
-        let edges = self.dag.edge_handles().cloned().collect::<Vec<_>>();
-        let running = self.running.clone();
-        let running_listener = running.clone();
-        let commit_sz = self.options.commit_sz;
-        let max_duration_between_commits = self.options.commit_time_threshold;
-        let output_schemas: HashMap<PortHandle, Schema> = schemas
-            .output_schemas
-            .clone()
-            .into_iter()
-            .map(|e| (e.0, e.1 .0))
-            .collect();
-        let retention_queue_size = self.options.channel_buffer_sz + 1;
-        let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
-            let listener = SourceListenerNode::new(
-                handle,
-                receiver,
-                timeout,
-                &base_path,
-                &output_ports,
-                record_readers,
-                senders,
-                &edges,
-                running,
-                commit_sz,
-                max_duration_between_commits,
-                epoch_manager,
-                output_schemas,
-                retention_queue_size,
-            )?;
-            start_barrier.wait();
-            listener.run()
-        };
-        Ok(Builder::new()
-            .name(format!("{handle}-listener"))
-            .spawn(move || {
-                if let Err(e) = source_fn(handle) {
-                    if running_listener.load(Ordering::Relaxed) {
-                        std::panic::panic_any(e);
-                    }
-                }
-            })?)
-    }
-
-    pub fn start_processor(
-        &self,
-        handle: NodeHandle,
-        proc_factory: Arc<dyn ProcessorFactory<T>>,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        schemas: &NodeSchemas<T>,
-    ) -> Result<JoinHandle<()>, ExecutionError> {
-        let base_path = self.path.clone();
-        let record_readers = self.record_stores.clone();
-        let edges = self.dag.edge_handles().cloned().collect::<Vec<_>>();
-        let input_schemas: HashMap<PortHandle, Schema> = schemas
-            .input_schemas
-            .clone()
-            .into_iter()
-            .map(|e| (e.0, e.1 .0))
-            .collect();
-        let output_schemas: HashMap<PortHandle, Schema> = schemas
-            .output_schemas
-            .clone()
-            .into_iter()
-            .map(|e| (e.0, e.1 .0))
-            .collect();
-        let running = self.running.clone();
-        let retention_queue_size = self.options.channel_buffer_sz + 1;
-        let processor_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
-            let processor = ProcessorNode::new(
-                handle,
-                &*proc_factory,
-                &base_path,
-                record_readers,
-                receivers,
-                senders,
-                &edges,
-                input_schemas,
-                output_schemas,
-                retention_queue_size,
-            )?;
-            processor.run()
-        };
-        Ok(Builder::new().name(handle.to_string()).spawn(move || {
-            if let Err(e) = processor_fn(handle) {
-                if running.load(Ordering::Relaxed) {
-                    std::panic::panic_any(e);
-                }
-            }
-        })?)
-    }
-
-    pub fn start_sink(
-        &self,
-        handle: NodeHandle,
-        snk_factory: Arc<dyn SinkFactory<T>>,
-        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        schemas: &NodeSchemas<T>,
-    ) -> Result<JoinHandle<()>, ExecutionError> {
-        let base_path = self.path.clone();
-        let record_readers = self.record_stores.clone();
-        let input_schemas: HashMap<PortHandle, Schema> = schemas
-            .input_schemas
-            .clone()
-            .into_iter()
-            .map(|e| (e.0, e.1 .0))
-            .collect();
-        let retention_queue_size = self.options.channel_buffer_sz + 1;
-        let snk_fn = move |handle| -> Result<(), ExecutionError> {
-            let sink = SinkNode::new(
-                handle,
-                &*snk_factory,
-                &base_path,
-                record_readers,
-                receivers,
-                input_schemas,
-                retention_queue_size,
-            )?;
-            sink.run()
-        };
-        Ok(Builder::new().name(handle.to_string()).spawn(|| {
-            if let Err(e) = snk_fn(handle) {
-                std::panic::panic_any(e);
-            }
-        })?)
-    }
-
     pub fn start(&mut self) -> Result<(), ExecutionError> {
-        let (mut senders, mut receivers) = index_edges(&self.dag, self.options.channel_buffer_sz);
+        // Construct execution dag.
+        let dag_schemas = DagSchemas::new(&self.dag)?;
+        let mut execution_dag =
+            ExecutionDag::new(&dag_schemas, &self.path, self.options.channel_buffer_sz)?;
 
-        for (handle, factory) in self.dag.sinks() {
-            let join_handle = self.start_sink(
-                handle.clone(),
-                factory.clone(),
-                receivers.remove(handle).unwrap_or_default(),
-                self.schemas
-                    .get(handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-            )?;
-            self.join_handles.insert(handle.clone(), join_handle);
+        // Create source nodes.
+        let source_nodes = self
+            .dag
+            .source_identifiers()
+            .map(|source_index| {
+                let node_handle = &self.dag.graph()[source_index].handle;
+                let checkpoint = self
+                    .consistency_metadata
+                    .get(node_handle)
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(node_handle.clone()))?;
+
+                Ok::<_, ExecutionError>(create_source_nodes(
+                    &mut execution_dag,
+                    source_index,
+                    &self.options,
+                    *checkpoint,
+                    self.running.clone(),
+                ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Create processor and sink nodes.
+        let processor_nodes = self
+            .dag
+            .processor_identifiers()
+            .map(|processor_index| ProcessorNode::new(&mut execution_dag, processor_index))
+            .collect::<Vec<_>>();
+        let sink_nodes = self
+            .dag
+            .sink_identifiers()
+            .map(|sink_index| SinkNode::new(&mut execution_dag, sink_index))
+            .collect::<Vec<_>>();
+
+        // Drop execution DAG because it holds some of the senders and receivers.
+        drop(execution_dag);
+
+        // Start sinks.
+        for sink in sink_nodes {
+            let handle = sink.handle().clone();
+            let join_handle = start_sink(sink)?;
+            self.join_handles.insert(handle, join_handle);
         }
 
-        for (handle, factory) in self.dag.processors() {
-            let join_handle = self.start_processor(
-                handle.clone(),
-                factory.clone(),
-                senders.remove(handle).unwrap_or_default(),
-                receivers.remove(handle).unwrap_or_default(),
-                self.schemas
-                    .get(handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-            )?;
-            self.join_handles.insert(handle.clone(), join_handle);
+        // Start processors.
+        for processor in processor_nodes {
+            let handle = processor.handle().clone();
+            let join_handle = start_processor(processor, self.running.clone())?;
+            self.join_handles.insert(handle, join_handle);
         }
 
+        // Start sources.
         let num_sources = self.dag.sources().count();
-        let epoch_manager: Arc<EpochManager> = Arc::new(EpochManager::new(num_sources));
-
         let start_barrier = Arc::new(Barrier::new(num_sources));
 
-        for (handle, factory) in self.dag.sources() {
-            let join_handle = self.start_source(
-                handle.clone(),
-                factory.clone(),
-                senders.remove(handle).unwrap_or_default(),
-                self.schemas
-                    .get(handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-                epoch_manager.clone(),
+        for (source_sender_node, source_listener_node) in source_nodes {
+            let handle = source_sender_node.handle().clone();
+            let join_handle = start_source(
+                source_sender_node,
+                source_listener_node,
                 start_barrier.clone(),
             )?;
-            self.join_handles.insert(handle.clone(), join_handle);
+            self.join_handles.insert(handle, join_handle);
         }
         Ok(())
     }
@@ -512,4 +341,55 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
             thread::sleep(Duration::from_millis(250));
         }
     }
+}
+
+fn start_source(
+    source_sender: SourceSenderNode,
+    source_listener: SourceListenerNode,
+    start_barrier: Arc<Barrier>,
+) -> Result<JoinHandle<()>, ExecutionError> {
+    let handle = source_sender.handle().clone();
+    let running = source_sender.running().clone();
+
+    let _st_handle = Builder::new()
+        .name(format!("{handle}-sender"))
+        .spawn(move || {
+            start_barrier.wait();
+            if let Err(e) = source_sender.run() {
+                std::panic::panic_any(e);
+            }
+        })?;
+
+    Ok(Builder::new()
+        .name(format!("{handle}-listener"))
+        .spawn(move || {
+            if let Err(e) = source_listener.run() {
+                if running.load(Ordering::Relaxed) {
+                    std::panic::panic_any(e);
+                }
+            }
+        })?)
+}
+
+fn start_processor(
+    processor: ProcessorNode,
+    running: Arc<AtomicBool>,
+) -> Result<JoinHandle<()>, ExecutionError> {
+    Ok(Builder::new()
+        .name(processor.handle().to_string())
+        .spawn(move || {
+            if let Err(e) = processor.run() {
+                if running.load(Ordering::Relaxed) {
+                    std::panic::panic_any(e);
+                }
+            }
+        })?)
+}
+
+fn start_sink(sink: SinkNode) -> Result<JoinHandle<()>, ExecutionError> {
+    Ok(Builder::new().name(sink.handle().to_string()).spawn(|| {
+        if let Err(e) = sink.run() {
+            std::panic::panic_any(e);
+        }
+    })?)
 }

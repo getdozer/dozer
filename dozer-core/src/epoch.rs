@@ -79,7 +79,7 @@ enum EpochManagerState {
 }
 
 #[derive(Debug)]
-pub(crate) struct EpochManager {
+pub struct EpochManager {
     num_sources: usize,
     state: Mutex<EpochManagerState>,
 }

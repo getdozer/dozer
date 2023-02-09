@@ -8,18 +8,21 @@ use std::collections::VecDeque;
 use dozer_storage::common::Database;
 use dozer_storage::errors::StorageError;
 use dozer_storage::errors::StorageError::{DeserializationError, SerializationError};
+use dozer_storage::lmdb::DatabaseFlags;
 use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_storage::prefix_transaction::PrefixTransaction;
 use dozer_types::bincode;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
+use dyn_clone::DynClone;
 use std::fmt::{Debug, Formatter};
 
-pub trait RecordWriter {
+use super::node::PortHandle;
+
+pub trait RecordWriter: Send + Sync {
     fn write(&mut self, op: Operation, tx: &SharedTransaction)
         -> Result<Operation, ExecutionError>;
-    fn commit(&self) -> Result<(), ExecutionError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -28,9 +31,11 @@ impl Debug for dyn RecordWriter {
     }
 }
 
-pub trait RecordReader: Send + Sync {
+pub trait RecordReader: Send + Sync + DynClone {
     fn get(&self, key: &[u8], version: u32) -> Result<Option<Record>, ExecutionError>;
 }
+
+dyn_clone::clone_trait_object!(RecordReader);
 
 impl Debug for dyn RecordReader {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -38,35 +43,57 @@ impl Debug for dyn RecordReader {
     }
 }
 
-pub(crate) struct RecordWriterUtils {}
+#[allow(clippy::type_complexity)]
+pub fn create_record_store(
+    tx: &SharedTransaction,
+    output_port: PortHandle,
+    output_port_type: OutputPortType,
+    schema: Schema,
+    retention_queue_size: usize,
+) -> Result<Option<(Box<dyn RecordWriter>, Box<dyn RecordReader>)>, StorageError> {
+    let create_databases = || {
+        let mut tx = tx.write();
+        let db = tx.create_database(
+            Some(&format!("{PORT_STATE_KEY}_{output_port}")),
+            Some(DatabaseFlags::empty()),
+        )?;
+        let meta_db = tx.create_database(
+            Some(&format!("{PORT_STATE_KEY}_{output_port}_META")),
+            Some(DatabaseFlags::empty()),
+        )?;
+        Ok::<_, StorageError>((db, meta_db))
+    };
 
-impl RecordWriterUtils {
-    pub fn create_writer(
-        typ: OutputPortType,
-        db: Database,
-        meta_db: Database,
-        schema: Schema,
-        retention_queue_size: usize,
-    ) -> Result<Box<dyn RecordWriter>, ExecutionError> {
-        match typ {
-            OutputPortType::StatefulWithPrimaryKeyLookup {
-                retr_old_records_for_updates,
-                retr_old_records_for_deletes,
-            } => Ok(Box::new(PrimaryKeyLookupRecordWriter::new(
+    match output_port_type {
+        OutputPortType::Stateless => Ok(None),
+
+        OutputPortType::StatefulWithPrimaryKeyLookup {
+            retr_old_records_for_updates,
+            retr_old_records_for_deletes,
+        } => {
+            let (db, meta_db) = create_databases()?;
+            let writer = Box::new(PrimaryKeyLookupRecordWriter::new(
                 db,
                 meta_db,
                 schema,
                 retr_old_records_for_deletes,
                 retr_old_records_for_updates,
                 retention_queue_size,
-            ))),
-            OutputPortType::AutogenRowKeyLookup => Ok(Box::new(
-                AutogenRowKeyLookupRecordWriter::new(db, meta_db, schema),
-            )),
-            _ => panic!("Unexpected port type in RecordWriterUtils::create_writer(): {typ}"),
+            ));
+            let reader = Box::new(PrimaryKeyLookupRecordReader::new(tx.clone(), db));
+            Ok(Some((writer, reader)))
+        }
+
+        OutputPortType::AutogenRowKeyLookup => {
+            let (db, meta_db) = create_databases()?;
+            let writer = Box::new(AutogenRowKeyLookupRecordWriter::new(db, meta_db, schema));
+            let reader = Box::new(AutogenRowKeyLookupRecordReader::new(tx.clone(), db));
+            Ok(Some((writer, reader)))
         }
     }
 }
+
+const PORT_STATE_KEY: &str = "__PORT_STATE_";
 
 const VERSIONED_RECORDS_INDEX_ID: u32 = 0x01;
 const RECORD_VERSIONS_INDEX_ID: u32 = 0x02;
@@ -121,7 +148,7 @@ impl PrimaryKeyLookupRecordWriter {
     }
 
     #[inline]
-    pub(crate) fn put_last_record_version(
+    fn put_last_record_version(
         &self,
         rec_key: &[u8],
         version: u32,
@@ -189,7 +216,7 @@ impl PrimaryKeyLookupRecordWriter {
         Ok(rec)
     }
 
-    pub(crate) fn del_versioned_record(
+    fn del_versioned_record(
         &self,
         mut key: Vec<u8>,
         version: u32,
@@ -203,7 +230,7 @@ impl PrimaryKeyLookupRecordWriter {
             .map_err(|e| InternalError(Box::new(e)))
     }
 
-    pub(crate) fn push_pop_retention_queue(
+    fn push_pop_retention_queue(
         &mut self,
         key: Vec<u8>,
         version: u32,
@@ -267,25 +294,21 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
             }
         }
     }
-
-    fn commit(&self) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
-#[derive(Debug)]
-pub struct PrimaryKeyValueLookupRecordReader {
+#[derive(Debug, Clone)]
+pub struct PrimaryKeyLookupRecordReader {
     tx: SharedTransaction,
     db: Database,
 }
 
-impl PrimaryKeyValueLookupRecordReader {
+impl PrimaryKeyLookupRecordReader {
     pub fn new(tx: SharedTransaction, db: Database) -> Self {
         Self { tx, db }
     }
 }
 
-impl RecordReader for PrimaryKeyValueLookupRecordReader {
+impl RecordReader for PrimaryKeyLookupRecordReader {
     fn get(&self, key: &[u8], version: u32) -> Result<Option<Record>, ExecutionError> {
         let mut versioned_key: Vec<u8> = Vec::with_capacity(key.len() + 4);
         versioned_key.extend(VERSIONED_RECORDS_INDEX_ID.to_be_bytes());
@@ -407,13 +430,9 @@ impl RecordWriter for AutogenRowKeyLookupRecordWriter {
             )),
         }
     }
-
-    fn commit(&self) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AutogenRowKeyLookupRecordReader {
     tx: SharedTransaction,
     db: Database,

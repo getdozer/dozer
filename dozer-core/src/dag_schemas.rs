@@ -71,9 +71,33 @@ impl<T> EdgeType<T> {
     }
 }
 
+pub trait EdgeHaveSchema {
+    type Context: Clone;
+
+    fn output_port(&self) -> PortHandle;
+    fn input_port(&self) -> PortHandle;
+    fn schema(&self) -> (&Schema, &Self::Context);
+}
+
+impl<T: Clone> EdgeHaveSchema for EdgeType<T> {
+    type Context = T;
+
+    fn output_port(&self) -> PortHandle {
+        self.output_port
+    }
+
+    fn input_port(&self) -> PortHandle {
+        self.input_port
+    }
+
+    fn schema(&self) -> (&Schema, &Self::Context) {
+        (&self.schema, &self.context)
+    }
+}
+
 #[derive(Debug, Clone)]
 /// `DagSchemas` is a `Dag` with validated schema on the edge.
-pub struct DagSchemas<T: Clone> {
+pub struct DagSchemas<T> {
     pub graph: daggy::Dag<NodeType<T>, EdgeType<T>>,
 }
 
@@ -81,39 +105,9 @@ impl<T: Clone + Debug> DagSchemas<T> {
     /// Validate and populate the schemas, the resultant DAG will have the exact same structure as the input DAG,
     /// with validated schema information on the edges.
     pub fn new(dag: &Dag<T>) -> Result<Self, ExecutionError> {
+        validate_connectivity(dag);
         let graph = populate_schemas(dag.graph())?;
         Ok(Self { graph })
-    }
-
-    pub fn get_node_input_schemas(
-        &self,
-        node_index: NodeIndex,
-    ) -> HashMap<PortHandle, (Schema, T)> {
-        let mut schemas = HashMap::new();
-
-        for edge in self.graph.edges_directed(node_index, Direction::Incoming) {
-            let edge = edge.weight();
-            schemas.insert(edge.input_port, (edge.schema.clone(), edge.context.clone()));
-        }
-
-        schemas
-    }
-
-    pub fn get_node_output_schemas(
-        &self,
-        node_index: NodeIndex,
-    ) -> HashMap<PortHandle, (Schema, T)> {
-        let mut schemas = HashMap::new();
-
-        for edge in self.graph.edges(node_index) {
-            let edge = edge.weight();
-            schemas.insert(
-                edge.output_port,
-                (edge.schema.clone(), edge.context.clone()),
-            );
-        }
-
-        schemas
     }
 
     pub fn get_all_schemas(&self) -> HashMap<NodeHandle, NodeSchemas<T>> {
@@ -151,6 +145,94 @@ impl<T: Clone + Debug> DagSchemas<T> {
             }
         }
         Ok(())
+    }
+}
+
+pub trait DagHaveSchemas {
+    type NodeType;
+    type EdgeType: EdgeHaveSchema;
+
+    fn graph(&self) -> &daggy::Dag<Self::NodeType, Self::EdgeType>;
+
+    fn get_node_input_schemas(
+        &self,
+        node_index: NodeIndex,
+    ) -> HashMap<PortHandle, (Schema, <Self::EdgeType as EdgeHaveSchema>::Context)> {
+        let mut schemas = HashMap::new();
+
+        for edge in self.graph().edges_directed(node_index, Direction::Incoming) {
+            let edge = edge.weight();
+            let (schema, context) = edge.schema();
+            schemas.insert(edge.input_port(), (schema.clone(), context.clone()));
+        }
+
+        schemas
+    }
+
+    fn get_node_output_schemas(
+        &self,
+        node_index: NodeIndex,
+    ) -> HashMap<PortHandle, (Schema, <Self::EdgeType as EdgeHaveSchema>::Context)> {
+        let mut schemas = HashMap::new();
+
+        for edge in self.graph().edges(node_index) {
+            let edge = edge.weight();
+            let (schema, context) = edge.schema();
+            schemas.insert(edge.output_port(), (schema.clone(), context.clone()));
+        }
+
+        schemas
+    }
+}
+
+impl<T: Clone> DagHaveSchemas for DagSchemas<T> {
+    type NodeType = NodeType<T>;
+    type EdgeType = EdgeType<T>;
+
+    fn graph(&self) -> &daggy::Dag<Self::NodeType, Self::EdgeType> {
+        &self.graph
+    }
+}
+
+fn validate_connectivity<T>(dag: &Dag<T>) {
+    // Every source or processor has at least one outgoing edge.
+    for (node_index, node) in dag.graph().node_references() {
+        match &node.kind {
+            NodeKind::Source(_) | NodeKind::Processor(_) => {
+                if dag.graph().edges(node_index).count() == 0 {
+                    panic!("Node {} has no outgoing edge", node.handle);
+                }
+            }
+            NodeKind::Sink(_) => {}
+        }
+    }
+
+    // Processor and sink has at least one input port. Every input port has exactly one incoming edge.
+    for (node_index, node) in dag.graph().node_references() {
+        let mut input_ports = match &node.kind {
+            NodeKind::Source(_) => continue,
+            NodeKind::Processor(processor) => processor.get_input_ports(),
+            NodeKind::Sink(sink) => sink.get_input_ports(),
+        };
+        if input_ports.is_empty() {
+            panic!("Node {} has no input port", node.handle);
+        }
+
+        input_ports.sort();
+
+        let mut connected_input_ports = dag
+            .graph()
+            .edges_directed(node_index, Direction::Incoming)
+            .map(|edge| edge.weight().to)
+            .collect::<Vec<_>>();
+        connected_input_ports.sort();
+
+        if input_ports != connected_input_ports {
+            panic!(
+                "Node {} has input ports {input_ports:?}, but the incoming edges are {connected_input_ports:?}",
+                node.handle
+            );
+        }
     }
 }
 
@@ -279,4 +361,195 @@ fn validate_input_schemas<T: Clone>(
         }
     }
     Ok(input_schemas)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    use crate::{
+        node::NodeHandle,
+        tests::{
+            processors::{ConnectivityTestProcessorFactory, NoInputPortProcessorFactory},
+            sinks::{ConnectivityTestSinkFactory, NoInputPortSinkFactory},
+            sources::ConnectivityTestSourceFactory,
+        },
+        DEFAULT_PORT_HANDLE,
+    };
+
+    #[test]
+    #[should_panic]
+    fn source_with_no_outgoing_edge_should_panic() {
+        let mut dag = Dag::new();
+        dag.add_source(
+            NodeHandle::new(None, "source".to_string()),
+            Arc::new(ConnectivityTestSourceFactory),
+        );
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    #[should_panic]
+    fn processor_with_no_outgoing_edge_should_panic() {
+        let mut dag = Dag::new();
+        let source = dag.add_source(
+            NodeHandle::new(None, "source".to_string()),
+            Arc::new(ConnectivityTestSourceFactory),
+        );
+        let processor = dag.add_processor(
+            NodeHandle::new(None, "processor".to_string()),
+            Arc::new(ConnectivityTestProcessorFactory),
+        );
+        dag.connect_with_index(source, DEFAULT_PORT_HANDLE, processor, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    #[should_panic]
+    fn sink_with_no_input_port_should_panic() {
+        let mut dag = Dag::new();
+        dag.add_sink(
+            NodeHandle::new(None, "sink".to_string()),
+            Arc::new(NoInputPortSinkFactory),
+        );
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    #[should_panic]
+    fn processor_with_no_input_port_should_panic() {
+        let mut dag = Dag::new();
+        let processor = dag.add_processor(
+            NodeHandle::new(None, "processor".to_string()),
+            Arc::new(NoInputPortProcessorFactory),
+        );
+        let sink = dag.add_sink(
+            NodeHandle::new(None, "sink".to_string()),
+            Arc::new(ConnectivityTestSinkFactory),
+        );
+        dag.connect_with_index(processor, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    #[should_panic]
+    fn sink_with_unconnected_input_port_should_panic() {
+        let mut dag = Dag::new();
+        dag.add_sink(
+            NodeHandle::new(None, "sink".to_string()),
+            Arc::new(ConnectivityTestSinkFactory),
+        );
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    #[should_panic]
+    fn sink_with_over_connected_input_port_should_panic() {
+        let mut dag = Dag::new();
+        let source1 = dag.add_source(
+            NodeHandle::new(None, "source1".to_string()),
+            Arc::new(ConnectivityTestSourceFactory),
+        );
+        let source2 = dag.add_source(
+            NodeHandle::new(None, "source2".to_string()),
+            Arc::new(ConnectivityTestSourceFactory),
+        );
+        let sink = dag.add_sink(
+            NodeHandle::new(None, "sink".to_string()),
+            Arc::new(ConnectivityTestSinkFactory),
+        );
+        dag.connect_with_index(source1, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        dag.connect_with_index(source2, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    #[should_panic]
+    fn processor_with_unconnected_input_port_should_panic() {
+        let mut dag = Dag::new();
+        let processor = dag.add_processor(
+            NodeHandle::new(None, "processor".to_string()),
+            Arc::new(ConnectivityTestProcessorFactory),
+        );
+        let sink = dag.add_sink(
+            NodeHandle::new(None, "sink".to_string()),
+            Arc::new(ConnectivityTestSinkFactory),
+        );
+        dag.connect_with_index(processor, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    #[should_panic]
+    fn processor_with_over_connected_input_port_should_panic() {
+        let mut dag = Dag::new();
+        let source1 = dag.add_source(
+            NodeHandle::new(None, "source1".to_string()),
+            Arc::new(ConnectivityTestSourceFactory),
+        );
+        let source2 = dag.add_source(
+            NodeHandle::new(None, "source2".to_string()),
+            Arc::new(ConnectivityTestSourceFactory),
+        );
+        let processor = dag.add_processor(
+            NodeHandle::new(None, "processor".to_string()),
+            Arc::new(ConnectivityTestProcessorFactory),
+        );
+        let sink = dag.add_sink(
+            NodeHandle::new(None, "sink".to_string()),
+            Arc::new(ConnectivityTestSinkFactory),
+        );
+        dag.connect_with_index(source1, DEFAULT_PORT_HANDLE, processor, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        dag.connect_with_index(source2, DEFAULT_PORT_HANDLE, processor, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        dag.connect_with_index(processor, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    fn validate_source_sink_dag() {
+        let mut dag = Dag::new();
+        let source = dag.add_source(
+            NodeHandle::new(None, "source".to_string()),
+            Arc::new(ConnectivityTestSourceFactory),
+        );
+        let sink = dag.add_sink(
+            NodeHandle::new(None, "sink".to_string()),
+            Arc::new(ConnectivityTestSinkFactory),
+        );
+        dag.connect_with_index(source, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        validate_connectivity(&dag);
+    }
+
+    #[test]
+    fn validate_link_shaped_dag() {
+        let mut dag = Dag::new();
+        let source = dag.add_source(
+            NodeHandle::new(None, "source".to_string()),
+            Arc::new(ConnectivityTestSourceFactory),
+        );
+        let processor = dag.add_processor(
+            NodeHandle::new(None, "processor1".to_string()),
+            Arc::new(ConnectivityTestProcessorFactory),
+        );
+        let sink = dag.add_sink(
+            NodeHandle::new(None, "sink".to_string()),
+            Arc::new(ConnectivityTestSinkFactory),
+        );
+        dag.connect_with_index(source, DEFAULT_PORT_HANDLE, processor, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        dag.connect_with_index(processor, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
+            .unwrap();
+        validate_connectivity(&dag);
+    }
 }

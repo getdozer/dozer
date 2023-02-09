@@ -22,7 +22,7 @@ use dozer_cache::cache::{
     CacheCommonOptions, CacheReadOptions, CacheWriteOptions, LmdbRoCache, LmdbRwCache,
 };
 use dozer_core::app::AppPipeline;
-use dozer_core::dag_schemas::DagSchemas;
+use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;

@@ -72,14 +72,22 @@ impl Display for EdgeType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct EdgeIndex {
+    from_node: daggy::NodeIndex,
+    output_port: PortHandle,
+    to_node: daggy::NodeIndex,
+    input_port: PortHandle,
+}
+
 #[derive(Debug, Clone)]
 pub struct Dag<T> {
     /// The underlying graph.
     graph: daggy::Dag<NodeType<T>, EdgeType>,
     /// Map from node handle to node index.
     node_lookup_table: HashMap<NodeHandle, daggy::NodeIndex>,
-    /// All edge handles.
-    edge_handles: HashSet<Edge>,
+    /// All edge indexes.
+    edge_indexes: HashSet<EdgeIndex>,
 }
 
 impl<T> Default for Dag<T> {
@@ -94,7 +102,7 @@ impl<T> Dag<T> {
         Self {
             graph: daggy::Dag::new(),
             node_lookup_table: HashMap::new(),
-            edge_handles: HashSet::new(),
+            edge_indexes: HashSet::new(),
         }
     }
 
@@ -141,13 +149,33 @@ impl<T> Dag<T> {
     pub fn connect(&mut self, from: Endpoint, to: Endpoint) -> Result<(), ExecutionError> {
         let from_node_index = validate_endpoint(self, &from, PortDirection::Output)?;
         let to_node_index = validate_endpoint(self, &to, PortDirection::Input)?;
+        self.connect_with_index(from_node_index, from.port, to_node_index, to.port)
+    }
+
+    /// Adds an edge. Panics if there's already an edge from `from` to `to`.
+    ///
+    /// Returns an error if any of the port cannot be found or the edge would create a cycle.
+    pub fn connect_with_index(
+        &mut self,
+        from_node_index: daggy::NodeIndex,
+        output_port: PortHandle,
+        to_node_index: daggy::NodeIndex,
+        input_port: PortHandle,
+    ) -> Result<(), ExecutionError> {
+        validate_port_with_index(self, from_node_index, output_port, PortDirection::Output)?;
+        validate_port_with_index(self, to_node_index, input_port, PortDirection::Input)?;
         let edge_index = self.graph.add_edge(
             from_node_index,
             to_node_index,
-            EdgeType::new(from.port, to.port),
+            EdgeType::new(output_port, input_port),
         )?;
 
-        if !self.edge_handles.insert(Edge::new(from, to)) {
+        if !self.edge_indexes.insert(EdgeIndex {
+            from_node: from_node_index,
+            output_port,
+            to_node: to_node_index,
+            input_port,
+        }) {
             panic!("An edge {edge_index:?} has already been inserted using specified edge handle");
         }
 
@@ -159,26 +187,28 @@ impl<T> Dag<T> {
         let (other_nodes, _) = other.graph.into_graph().into_nodes_edges();
 
         // Insert nodes.
-        let mut other_node_handle_to_self_node_handle = HashMap::new();
+        let mut other_node_index_to_self_node_index = vec![];
         for other_node in other_nodes.into_iter() {
             let other_node = other_node.weight;
             let self_node_handle =
                 NodeHandle::new(ns.or(other_node.handle.ns), other_node.handle.id.clone());
-            self.add_node(self_node_handle.clone(), other_node.kind);
-            other_node_handle_to_self_node_handle.insert(other_node.handle, self_node_handle);
+            let self_node_index = self.add_node(self_node_handle.clone(), other_node.kind);
+            other_node_index_to_self_node_index.push(self_node_index);
         }
 
         // Insert edges.
-        let map_endpoint = |other_endpoint: Endpoint| {
-            let self_node_handle = other_node_handle_to_self_node_handle
-                .get(&other_endpoint.node)
-                .expect("BUG in DAG");
-            Endpoint::new(self_node_handle.clone(), other_endpoint.port)
-        };
-        for other_edge_handle in other.edge_handles.into_iter() {
-            let from = map_endpoint(other_edge_handle.from);
-            let to = map_endpoint(other_edge_handle.to);
-            self.connect(from, to).expect("BUG in DAG");
+        for other_edge_index in other.edge_indexes.into_iter() {
+            let self_from_node =
+                other_node_index_to_self_node_index[other_edge_index.from_node.index()];
+            let self_to_node =
+                other_node_index_to_self_node_index[other_edge_index.to_node.index()];
+            self.connect_with_index(
+                self_from_node,
+                other_edge_index.output_port,
+                self_to_node,
+                other_edge_index.input_port,
+            )
+            .expect("BUG in DAG");
         }
     }
 
@@ -203,11 +233,33 @@ impl<T> Dag<T> {
         })
     }
 
+    /// Returns an iterator over source node indexes.
+    pub fn source_identifiers(&self) -> impl Iterator<Item = daggy::NodeIndex> + '_ {
+        self.graph.node_references().flat_map(|(node_index, node)| {
+            if let NodeKind::Source(_) = &node.kind {
+                Some(node_index)
+            } else {
+                None
+            }
+        })
+    }
+
     /// Returns an iterator over processor handles and processors.
     pub fn processors(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn ProcessorFactory<T>>)> {
         self.nodes().flat_map(|node| {
             if let NodeKind::Processor(processor) = &node.kind {
                 Some((&node.handle, processor))
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Returns an iterator over processor node indexes.
+    pub fn processor_identifiers(&self) -> impl Iterator<Item = daggy::NodeIndex> + '_ {
+        self.graph.node_references().flat_map(|(node_index, node)| {
+            if let NodeKind::Processor(_) = &node.kind {
+                Some(node_index)
             } else {
                 None
             }
@@ -225,6 +277,7 @@ impl<T> Dag<T> {
         })
     }
 
+    /// Returns an iterator over sink node indexes.
     pub fn sink_identifiers(&self) -> impl Iterator<Item = daggy::NodeIndex> + '_ {
         self.graph.node_references().flat_map(|(node_index, node)| {
             if let NodeKind::Sink(_) = node.kind {
@@ -236,8 +289,24 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over all edge handles.
-    pub fn edge_handles(&self) -> impl Iterator<Item = &Edge> {
-        self.edge_handles.iter()
+    pub fn edge_handles(&self) -> Vec<Edge> {
+        let get_endpoint = |node_index: daggy::NodeIndex, port_handle| {
+            let node = &self.graph[node_index];
+            Endpoint {
+                node: node.handle.clone(),
+                port: port_handle,
+            }
+        };
+
+        self.edge_indexes
+            .iter()
+            .map(|edge_index| {
+                Edge::new(
+                    get_endpoint(edge_index.from_node, edge_index.output_port),
+                    get_endpoint(edge_index.to_node, edge_index.input_port),
+                )
+            })
+            .collect()
     }
 
     /// Finds the node by its handle.
@@ -307,11 +376,21 @@ fn validate_endpoint<T>(
     direction: PortDirection,
 ) -> Result<daggy::NodeIndex, ExecutionError> {
     let node_index = dag.node_index(&endpoint.node);
-    let node = &dag.graph[node_index];
-    if !contains_port(&node.kind, direction, endpoint.port)? {
-        return Err(ExecutionError::InvalidPortHandle(endpoint.port));
-    }
+    validate_port_with_index(dag, node_index, endpoint.port, direction)?;
     Ok(node_index)
+}
+
+fn validate_port_with_index<T>(
+    dag: &Dag<T>,
+    node_index: daggy::NodeIndex,
+    port: PortHandle,
+    direction: PortDirection,
+) -> Result<(), ExecutionError> {
+    let node = &dag.graph[node_index];
+    if !contains_port(&node.kind, direction, port)? {
+        return Err(ExecutionError::InvalidPortHandle(port));
+    }
+    Ok(())
 }
 
 fn contains_port<T>(
