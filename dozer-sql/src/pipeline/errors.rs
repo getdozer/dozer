@@ -172,15 +172,15 @@ pub enum ProductError {
     #[error("Product Processor Database is not initialised properly")]
     InvalidDatabase(),
 
-    #[error("Error deleting a record coming from source {0}\n{1}")]
-    DeleteError(u16, JoinError),
+    #[error("Error deleting a record coming from {0}\n{1}")]
+    DeleteError(String, #[source] BoxedError),
 
-    #[error("Error inserting a record coming from source {0}\n{1}")]
-    InsertError(u16, JoinError),
+    #[error("Error inserting a record coming from {0}\n{1}")]
+    InsertError(String, #[source] BoxedError),
 
-    #[error("Error updating a record from source {0} cannot delete the old entry\n{1}")]
-    UpdateOldError(u16, JoinError),
+    #[error("Error updating a record from {0} cannot delete the old entry\n{1}")]
+    UpdateOldError(String, #[source] BoxedError),
 
-    #[error("Error updating a record from source {0} cannot insert the new entry\n{1}")]
-    UpdateNewError(u16, JoinError),
+    #[error("Error updating a record from {0} cannot insert the new entry\n{1}")]
+    UpdateNewError(String, #[source] BoxedError),
 }

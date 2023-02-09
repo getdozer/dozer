@@ -25,12 +25,18 @@ pub struct FromProcessor {
 
     /// Database to store Join indexes
     db: Option<Database>,
+
+    source_names: HashMap<PortHandle, String>,
 }
 
 impl FromProcessor {
     /// Creates a new [`FromProcessor`].
-    pub fn new(operator: JoinSource) -> Self {
-        Self { operator, db: None }
+    pub fn new(operator: JoinSource, source_names: HashMap<PortHandle, String>) -> Self {
+        Self {
+            operator,
+            db: None,
+            source_names,
+        }
     }
 
     fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
@@ -61,7 +67,7 @@ impl FromProcessor {
                 transaction,
                 reader,
             )
-            .map_err(|err| ProductError::DeleteError(from_port, err))
+            .map_err(|err| ProductError::DeleteError(self.get_port_name(from_port), Box::new(err)))
     }
 
     fn insert(
@@ -86,7 +92,7 @@ impl FromProcessor {
                 transaction,
                 reader,
             )
-            .map_err(|err| ProductError::InsertError(from_port, err))
+            .map_err(|err| ProductError::InsertError(self.get_port_name(from_port), Box::new(err)))
     }
 
     #[allow(clippy::type_complexity)]
@@ -120,7 +126,9 @@ impl FromProcessor {
                 transaction,
                 reader,
             )
-            .map_err(|err| ProductError::UpdateOldError(from_port, err))?;
+            .map_err(|err| {
+                ProductError::UpdateOldError(self.get_port_name(from_port), Box::new(err))
+            })?;
 
         let new_records = self
             .operator
@@ -132,9 +140,18 @@ impl FromProcessor {
                 transaction,
                 reader,
             )
-            .map_err(|err| ProductError::UpdateNewError(from_port, err))?;
+            .map_err(|err| {
+                ProductError::UpdateNewError(self.get_port_name(from_port), Box::new(err))
+            })?;
 
         Ok((old_records, new_records))
+    }
+
+    fn get_port_name(&self, from_port: u16) -> String {
+        self.source_names
+            .get(&from_port)
+            .unwrap_or(&from_port.to_string())
+            .to_string()
     }
 }
 
