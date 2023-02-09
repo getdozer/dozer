@@ -1,4 +1,4 @@
-use crate::ingestion_types::{DataFusionConfig, EthConfig, KafkaConfig, SnowflakeConfig};
+use crate::ingestion_types::{EthConfig, KafkaConfig, LocalStorage, S3Storage, SnowflakeConfig};
 use serde::{
     de::Deserializer,
     ser::{self, Serializer},
@@ -133,7 +133,10 @@ pub enum Authentication {
     Kafka(KafkaConfig),
     #[prost(message, tag = "6")]
     /// In yaml, present as tag: `!DataFusion`
-    DataFusion(DataFusionConfig),
+    S3Storage(S3Storage),
+    #[prost(message, tag = "7")]
+    /// In yaml, present as tag: `!DataFusion`
+    LocalStorage(LocalStorage),
 }
 
 impl Default for Authentication {
