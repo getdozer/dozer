@@ -107,16 +107,14 @@ impl JoinTable {
         from_port: PortHandle,
         record: &Record,
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
-        if self.port == from_port {
-            if self.schema.primary_index.is_empty() {
-                let lookup_key = self.encode_record(record);
-                Ok(vec![(action, record.clone(), lookup_key)])
-            } else {
-                let lookup_key = self.encode_lookup_key(record, &self.schema)?;
-                Ok(vec![(action, record.clone(), lookup_key)])
-            }
+        debug_assert!(self.port == from_port);
+
+        if self.schema.primary_index.is_empty() {
+            let lookup_key = self.encode_record(record);
+            Ok(vec![(action, record.clone(), lookup_key)])
         } else {
-            Err(JoinError::InvalidSource(from_port))
+            let lookup_key = self.encode_lookup_key(record, &self.schema)?;
+            Ok(vec![(action, record.clone(), lookup_key)])
         }
     }
 
