@@ -65,8 +65,7 @@ fn test_simple_aggregation() {
         )
         .clone();
 
-    let processor_factory =
-        AggregationProcessorFactory::new(*select, false);
+    let processor_factory = AggregationProcessorFactory::new(*select, false);
 
     let mut processor = processor_factory
         .build(

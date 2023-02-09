@@ -11,9 +11,9 @@ mod aggregation_null;
 #[cfg(test)]
 mod aggregation_sum_tests;
 #[cfg(test)]
-mod aggregation_tests;
-#[cfg(test)]
 mod aggregation_test_planner;
+#[cfg(test)]
+mod aggregation_tests;
 #[cfg(test)]
 mod aggregation_tests_utils;
 #[cfg(test)]
