@@ -10,7 +10,7 @@ use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{
-    builder::SchemaSQLContext, errors::ProductError, expression::builder::extend_schema_source_def,
+    builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
     product::join::JoinBranch,
 };
 use crate::pipeline::{
@@ -109,7 +109,7 @@ pub fn build_join_tree(
     let left_schema = input_schemas
         .get(&port)
         .map_or(
-            Err(ProductError::InvalidJoinConstraint(
+            Err(JoinError::InvalidJoinConstraint(
                 join_tables.relation.0.clone().0,
             )),
             Ok,
@@ -126,7 +126,7 @@ pub fn build_join_tree(
     for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
         let right_port = (index + 1) as PortHandle;
         let right_schema = input_schemas.get(&right_port).map_or(
-            Err(ProductError::InvalidJoinConstraint(
+            Err(JoinError::InvalidJoinConstraint(
                 relation_name.0.to_string(),
             )),
             Ok,
@@ -148,14 +148,14 @@ pub fn build_join_tree(
             sqlparser::ast::JoinOperator::RightOuter(constraint) => {
                 (JoinOperatorType::RightOuter, constraint)
             }
-            _ => return Err(PipelineError::JoinError(ProductError::UnsupportedJoinType)),
+            _ => return Err(PipelineError::JoinError(JoinError::UnsupportedJoinType)),
         };
 
         let expression = match join_constraint {
             JoinConstraint::On(expression) => expression,
             _ => {
                 return Err(PipelineError::JoinError(
-                    ProductError::UnsupportedJoinConstraintType,
+                    JoinError::UnsupportedJoinConstraintType,
                 ))
             }
         };
@@ -228,11 +228,11 @@ fn parse_join_constraint(
                 Ok((left_key_indexes, right_key_indexes))
             }
             _ => Err(PipelineError::JoinError(
-                ProductError::UnsupportedJoinConstraintOperator(op.to_string()),
+                JoinError::UnsupportedJoinConstraintOperator(op.to_string()),
             )),
         },
         _ => Err(PipelineError::JoinError(
-            ProductError::UnsupportedJoinConstraint(expression.to_string()),
+            JoinError::UnsupportedJoinConstraint(expression.to_string()),
         )),
     }
 }
@@ -251,7 +251,7 @@ fn parse_join_eq_expression(
         }
         _ => {
             return Err(PipelineError::JoinError(
-                ProductError::UnsupportedJoinConstraint(expr.clone().to_string()),
+                JoinError::UnsupportedJoinConstraint(expr.clone().to_string()),
             ))
         }
     }?;
@@ -261,7 +261,7 @@ fn parse_join_eq_expression(
         (None, Some(right_key)) => right_key_indexes.push(right_key),
         _ => {
             return Err(PipelineError::JoinError(
-                ProductError::UnsupportedJoinConstraint("".to_string()),
+                JoinError::UnsupportedJoinConstraint("".to_string()),
             ))
         }
     }
@@ -279,14 +279,14 @@ fn parse_identifier(
     let right_idx = get_field_index(ident, right_join_schema)?;
 
     match (left_idx, right_idx) {
-        (None, None) => Err(PipelineError::JoinError(
-            ProductError::InvalidFieldSpecified(ExpressionBuilder::fullname_from_ident(ident)),
-        )),
+        (None, None) => Err(PipelineError::JoinError(JoinError::InvalidFieldSpecified(
+            ExpressionBuilder::fullname_from_ident(ident),
+        ))),
         (None, Some(idx)) => Ok((None, Some(idx))),
         (Some(idx), None) => Ok((Some(idx), None)),
-        (Some(_), Some(_)) => Err(PipelineError::JoinError(
-            ProductError::InvalidJoinConstraint(ExpressionBuilder::fullname_from_ident(ident)),
-        )),
+        (Some(_), Some(_)) => Err(PipelineError::JoinError(JoinError::InvalidJoinConstraint(
+            ExpressionBuilder::fullname_from_ident(ident),
+        ))),
     }
 }
 
@@ -330,7 +330,7 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>
         //     let field_name = comp_ident.get(2).expect("field_name is expected");
         // }
         _ => {
-            return Err(PipelineError::JoinError(ProductError::NameSpaceTooLong(
+            return Err(PipelineError::JoinError(JoinError::NameSpaceTooLong(
                 ident
                     .iter()
                     .map(|a| a.value.clone())

@@ -86,7 +86,7 @@ pub enum PipelineError {
     UnsupportedSqlError(#[from] UnsupportedSqlError),
 
     #[error(transparent)]
-    JoinError(#[from] ProductError),
+    JoinError(#[from] JoinError),
 }
 
 #[derive(Error, Debug)]
@@ -114,7 +114,7 @@ pub enum UnsupportedSqlError {
 }
 
 #[derive(Error, Debug)]
-pub enum ProductError {
+pub enum JoinError {
     #[error("Field {0:?} not found")]
     FieldError(String),
     #[error("Currently join supports two level of namespacing. For example, `connection1.field1` is valid, but `connection1.n1.field1` is not.")]
@@ -157,12 +157,30 @@ pub enum ProductError {
     )]
     HistoryRecordNotFound(Vec<u8>, u32, u16, dozer_core::errors::ExecutionError),
 
-    #[error("Error trying to insert key: {0:x?} value: {1:x?} in the JOIN index\n{2}")]
+    #[error("Error inserting key: {0:x?} value: {1:x?} in the JOIN index\n{2}")]
     IndexPutError(Vec<u8>, Vec<u8>, StorageError),
 
-    #[error("Error trying to delete key: {0:x?} value: {1:x?} from the JOIN index\n{2}")]
+    #[error("Error deleting key: {0:x?} value: {1:x?} from the JOIN index\n{2}")]
     IndexDelError(Vec<u8>, Vec<u8>, StorageError),
 
-    #[error("Error trying to read key: {0:x?} from the JOIN index\n{1}")]
+    #[error("Error reading key: {0:x?} from the JOIN index\n{1}")]
     IndexGetError(Vec<u8>, StorageError),
+}
+
+#[derive(Error, Debug)]
+pub enum ProductError {
+    #[error("Product Processor Database is not initialised properly")]
+    InvalidDatabase(),
+
+    #[error("Error deleting a record coming from source {0}\n{1}")]
+    DeleteError(u16, JoinError),
+
+    #[error("Error inserting a record coming from source {0}\n{1}")]
+    InsertError(u16, JoinError),
+
+    #[error("Error updating a record from source {0} cannot delete the old entry\n{1}")]
+    UpdateOldError(u16, JoinError),
+
+    #[error("Error updating a record from source {0} cannot insert the new entry\n{1}")]
+    UpdateNewError(u16, JoinError),
 }

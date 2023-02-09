@@ -1,4 +1,4 @@
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{PipelineError, ProductError};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
@@ -45,19 +45,23 @@ impl FromProcessor {
         record: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
-        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
 
         self.operator
             .execute(
                 JoinAction::Delete,
                 from_port,
                 record,
-                database,
+                &database,
                 transaction,
                 reader,
             )
-            .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))
+            .map_err(|err| ProductError::DeleteError(from_port, err))
     }
 
     fn insert(
@@ -66,19 +70,23 @@ impl FromProcessor {
         record: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
-        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
 
         self.operator
             .execute(
                 JoinAction::Insert,
                 from_port,
                 record,
-                database,
+                &database,
                 transaction,
                 reader,
             )
-            .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))
+            .map_err(|err| ProductError::InsertError(from_port, err))
     }
 
     #[allow(clippy::type_complexity)]
@@ -94,9 +102,13 @@ impl FromProcessor {
             Vec<(JoinAction, Record, Vec<u8>)>,
             Vec<(JoinAction, Record, Vec<u8>)>,
         ),
-        ExecutionError,
+        ProductError,
     > {
-        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
 
         let old_records = self
             .operator
@@ -104,11 +116,11 @@ impl FromProcessor {
                 JoinAction::Delete,
                 from_port,
                 old,
-                database,
+                &database,
                 transaction,
                 reader,
             )
-            .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+            .map_err(|err| ProductError::UpdateOldError(from_port, err))?;
 
         let new_records = self
             .operator
@@ -116,11 +128,11 @@ impl FromProcessor {
                 JoinAction::Insert,
                 from_port,
                 new,
-                database,
+                &database,
                 transaction,
                 reader,
             )
-            .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+            .map_err(|err| ProductError::UpdateNewError(from_port, err))?;
 
         Ok((old_records, new_records))
     }
@@ -153,7 +165,9 @@ impl Processor for FromProcessor {
 
         match op {
             Operation::Delete { ref old } => {
-                let records = self.delete(from_port, old, transaction, reader)?;
+                let records = self
+                    .delete(from_port, old, transaction, reader)
+                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record, _key) in records.into_iter() {
                     match action {
@@ -167,7 +181,9 @@ impl Processor for FromProcessor {
                 }
             }
             Operation::Insert { ref new } => {
-                let records = self.insert(from_port, new, transaction, reader)?;
+                let records = self
+                    .insert(from_port, new, transaction, reader)
+                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record, _key) in records.into_iter() {
                     match action {
@@ -181,8 +197,9 @@ impl Processor for FromProcessor {
                 }
             }
             Operation::Update { ref old, ref new } => {
-                let (old_join_records, new_join_records) =
-                    self.update(from_port, old, new, transaction, reader)?;
+                let (old_join_records, new_join_records) = self
+                    .update(from_port, old, new, transaction, reader)
+                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, old, _key) in old_join_records.into_iter() {
                     match action {
