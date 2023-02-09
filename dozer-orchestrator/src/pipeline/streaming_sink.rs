@@ -3,10 +3,11 @@ use dozer_core::{
     errors::ExecutionError,
     node::{PortHandle, Sink, SinkFactory},
     record_store::RecordReader,
-    storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
+    storage::lmdb_storage::SharedTransaction,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_types::{
     crossbeam,
     log::debug,
@@ -55,7 +56,7 @@ pub struct StreamingSink {
 }
 
 impl Sink for StreamingSink {
-    fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising StreamingSink");
         Ok(())
     }

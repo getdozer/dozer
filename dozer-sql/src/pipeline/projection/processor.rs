@@ -6,7 +6,7 @@ use dozer_core::errors::ExecutionError;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record, Schema};
 use std::collections::HashMap;
@@ -76,7 +76,7 @@ impl ProjectionProcessor {
 }
 
 impl Processor for ProjectionProcessor {
-    fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 

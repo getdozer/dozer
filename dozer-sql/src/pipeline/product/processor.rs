@@ -5,7 +5,7 @@ use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::common::Database;
-use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::internal_err;
 
@@ -33,8 +33,8 @@ impl FromProcessor {
         Self { operator, db: None }
     }
 
-    fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
-        self.db = Some(env.create_database(Some("product"), Some(DatabaseFlags::DUP_SORT))?);
+    fn init_store(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), PipelineError> {
+        self.db = Some(txn.create_database(Some("product"), Some(DatabaseFlags::DUP_SORT))?);
 
         Ok(())
     }
@@ -117,8 +117,8 @@ impl FromProcessor {
 }
 
 impl Processor for FromProcessor {
-    fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
-        internal_err!(self.init_store(state))
+    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
+        internal_err!(self.init_store(txn))
     }
 
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {

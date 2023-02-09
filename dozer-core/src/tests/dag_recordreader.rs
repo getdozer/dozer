@@ -10,7 +10,7 @@ use crate::tests::sources::{
     GeneratorSourceFactory, NoPkGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint};
-use dozer_storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 
 use std::collections::HashMap;
@@ -87,7 +87,7 @@ impl ProcessorFactory<NoneContext> for PassthroughProcessorFactory {
 pub(crate) struct PassthroughProcessor {}
 
 impl Processor for PassthroughProcessor {
-    fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -168,7 +168,7 @@ pub(crate) struct RecordReaderProcessor {
 }
 
 impl Processor for RecordReaderProcessor {
-    fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -255,15 +255,12 @@ fn test_run_dag_record_reader() {
     };
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
-        options,
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    DagExecutor::new(&dag, tmp_dir.path().to_path_buf(), options)
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -301,15 +298,16 @@ fn test_run_dag_record_reader_from_src() {
         .is_ok());
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[derive(Debug)]
@@ -366,7 +364,7 @@ pub(crate) struct NoPkRecordReaderProcessor {
 }
 
 impl Processor for NoPkRecordReaderProcessor {
-    fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -432,13 +430,14 @@ fn test_run_dag_record_reader_from_rowkey_autogen_src() {
         .is_ok());
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }

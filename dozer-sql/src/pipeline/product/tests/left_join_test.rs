@@ -8,7 +8,7 @@ use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
@@ -496,7 +496,7 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -590,18 +590,16 @@ fn test_pipeline_builder() {
 
     let tmp_dir = TempDir::new("test").unwrap();
 
-    let mut executor = DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true)),
     )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
     .unwrap();
-
-    executor
-        .start()
-        .unwrap_or_else(|e| panic!("Unable to start the Executor: {e}"));
-    assert!(executor.join().is_ok());
 
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);

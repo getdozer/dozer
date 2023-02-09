@@ -7,9 +7,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::errors::ExecutionError;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::storage::lmdb_storage::{
-    LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
-};
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::types::TypeError;
 use dozer_types::internal_err;
@@ -94,11 +92,11 @@ impl AggregationProcessor {
         })
     }
 
-    fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
-        self.db = Some(env.create_database(Some("aggr"), Some(DatabaseFlags::empty()))?);
+    fn init_store(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), PipelineError> {
+        self.db = Some(txn.create_database(Some("aggr"), Some(DatabaseFlags::empty()))?);
         self.aggregators_db =
-            Some(env.create_database(Some("aggr_data"), Some(DatabaseFlags::empty()))?);
-        self.meta_db = Some(env.create_database(Some("meta"), Some(DatabaseFlags::empty()))?);
+            Some(txn.create_database(Some("aggr_data"), Some(DatabaseFlags::empty()))?);
+        self.meta_db = Some(txn.create_database(Some("meta"), Some(DatabaseFlags::empty()))?);
         Ok(())
     }
 
@@ -532,8 +530,8 @@ fn get_key(
 }
 
 impl Processor for AggregationProcessor {
-    fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
-        internal_err!(self.init_store(state))
+    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
+        internal_err!(self.init_store(txn))
     }
 
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {

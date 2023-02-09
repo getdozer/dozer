@@ -1,5 +1,7 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::chk;
+use crate::dag_metadata::DagMetadata;
+use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
@@ -13,7 +15,7 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
 
 use std::collections::HashMap;
@@ -22,7 +24,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::dag_metadata::{Consistency, DagMetadataManager};
 use crate::epoch::Epoch;
 use crate::tests::app::NoneContext;
 use tempdir::TempDir;
@@ -71,7 +72,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
-    fn init(&mut self, _state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -129,15 +130,16 @@ fn test_run_dag() {
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[test]
@@ -172,25 +174,22 @@ fn test_run_dag_and_stop() {
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag.clone(),
-        tmp_dir.path(),
+    let join_handle = DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap();
 
     thread::sleep(Duration::from_millis(1000));
-    executor.stop();
-    assert!(executor.join().is_ok());
+    join_handle.stop();
+    join_handle.join().unwrap();
 
-    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency().unwrap();
-    assert!(matches!(
-        c.get(&source_handle).unwrap(),
-        Consistency::FullyConsistent(_)
-    ));
+    let dag_schemas = DagSchemas::new(&dag).unwrap();
+    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    assert!(dag_metadata.check_consistency());
 }
 
 #[derive(Debug)]
@@ -240,7 +239,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
-    fn init(&mut self, _state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -307,15 +306,16 @@ fn test_run_dag_2_sources_stateless() {
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[test]
@@ -361,15 +361,16 @@ fn test_run_dag_2_sources_stateful() {
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[test]
@@ -416,14 +417,14 @@ fn test_run_dag_1_source_2_ports_stateless() {
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
-    let r = executor.join();
-    assert!(r.is_ok());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }

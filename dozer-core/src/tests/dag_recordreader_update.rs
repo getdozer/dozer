@@ -11,7 +11,7 @@ use crate::record_store::RecordReader;
 use crate::tests::app::NoneContext;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::{Dag, Endpoint};
-use dozer_storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -250,7 +250,7 @@ pub(crate) struct RecordReaderProcessor {
 }
 
 impl Processor for RecordReaderProcessor {
-    fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -328,14 +328,10 @@ fn test_run_dag_record_reader_from_src() {
 
     let tmp_dir = TempDir::new("test").unwrap();
     let options = ExecutorOptions::default();
-    let mut executor = DagExecutor::new(
-        dag,
-        tmp_dir.path(),
-        options,
-        Arc::new(AtomicBool::new(true)),
-    )
-    .unwrap();
-
-    executor.start().unwrap();
-    assert!(executor.join().is_ok());
+    DagExecutor::new(&dag, tmp_dir.path().to_path_buf(), options)
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }

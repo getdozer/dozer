@@ -1,6 +1,6 @@
 use crate::chk;
-use crate::dag_metadata::{Consistency, DagMetadataManager};
-use crate::epoch::OpIdentifier;
+use crate::dag_metadata::DagMetadata;
+use crate::dag_schemas::DagSchemas;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::NodeHandle;
 use crate::tests::dag_base_run::NoopJoinProcessorFactory;
@@ -9,7 +9,6 @@ use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_storage::lmdb_storage::LmdbEnvironmentManager;
 
-use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -75,58 +74,25 @@ fn test_checkpoint_consistency() {
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag.clone(),
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    let dag_schemas = DagSchemas::new(&dag).unwrap();
 
-    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency().unwrap();
-
-    match c.get(&source1_handle).unwrap() {
-        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => {
-            assert_eq!(r.unwrap(), OpIdentifier::new(SRC1_MSG_COUNT, 0))
-        }
-    }
-
-    match c.get(&source2_handle).unwrap() {
-        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => {
-            assert_eq!(r.unwrap(), OpIdentifier::new(SRC2_MSG_COUNT, 0))
-        }
-    }
+    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    assert!(dag_metadata.check_consistency());
 
     LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{proc_handle}").as_str());
-    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency().unwrap();
-
-    let mut expected = HashMap::new();
-    expected.insert(
-        Some(OpIdentifier::new(SRC1_MSG_COUNT, 0)),
-        vec![source1_handle.clone(), sink_handle.clone()],
-    );
-    expected.insert(None, vec![proc_handle.clone()]);
-    match c.get(&source1_handle).unwrap() {
-        Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
-        Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
-    }
-
-    let mut expected = HashMap::new();
-    expected.insert(
-        Some(OpIdentifier::new(SRC2_MSG_COUNT, 0)),
-        vec![source2_handle.clone(), sink_handle],
-    );
-    expected.insert(None, vec![proc_handle]);
-    match c.get(&source2_handle).unwrap() {
-        Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
-        Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
-    }
+    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    assert!(!dag_metadata.check_consistency());
 }
 
 #[test]
@@ -170,28 +136,21 @@ fn test_checkpoint_consistency_resume() {
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag.clone(),
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    let dag_schemas = DagSchemas::new(&dag).unwrap();
 
-    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency().unwrap();
-
-    match c.get(&source1_handle).unwrap() {
-        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r.unwrap(), OpIdentifier::new(25_000, 0)),
-    }
-
-    match c.get(&source2_handle).unwrap() {
-        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r.unwrap(), OpIdentifier::new(50_000, 0)),
-    }
+    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    assert!(dag_metadata.check_consistency());
 
     let mut dag = Dag::new();
     let latch = Arc::new(AtomicBool::new(true));
@@ -230,26 +189,19 @@ fn test_checkpoint_consistency_resume() {
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
-    let mut executor = chk!(DagExecutor::new(
-        dag.clone(),
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    let dag_schemas = DagSchemas::new(&dag).unwrap();
 
-    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    let c = r.get_checkpoint_consistency().unwrap();
-
-    match c.get(&source1_handle).unwrap() {
-        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r.unwrap(), OpIdentifier::new(50_000, 0)),
-    }
-
-    match c.get(&source2_handle).unwrap() {
-        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r.unwrap(), OpIdentifier::new(100_000, 0)),
-    }
+    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    assert!(dag_metadata.check_consistency());
 }

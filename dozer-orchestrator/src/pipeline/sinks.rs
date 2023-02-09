@@ -9,8 +9,9 @@ use dozer_core::epoch::Epoch;
 use dozer_core::errors::{ExecutionError, SinkError};
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
@@ -285,7 +286,7 @@ impl Sink for CacheSink {
         Ok(())
     }
 
-    fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         let query = QueryExpression::new(None, vec![], None, 0);
         self.counter = self
             .cache

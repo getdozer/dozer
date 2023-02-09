@@ -1,5 +1,5 @@
-#![allow(clippy::enum_variant_names)]
 use crate::appsource::AppSourceId;
+use crate::dag_metadata::SchemaType;
 use crate::node::{NodeHandle, PortHandle};
 use dozer_storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
@@ -23,10 +23,6 @@ pub enum ExecutionError {
     InvalidOperation(String),
     #[error("Schema not initialized")]
     SchemaNotInitialized,
-    #[error("The node {0} does not have any input")]
-    MissingNodeInput(NodeHandle),
-    #[error("The node {0} does not have any output")]
-    MissingNodeOutput(NodeHandle),
     #[error("The database is invalid")]
     InvalidDatabase,
     #[error("Field not found at position {0}")]
@@ -37,10 +33,12 @@ pub enum ExecutionError {
     ReplicationTypeNotFound,
     #[error("Record not found")]
     RecordNotFound(),
-    #[error("Already exists: {0}")]
-    MetadataAlreadyExists(NodeHandle),
-    #[error("Incompatible schemas: {0:?}")]
-    IncompatibleSchemas(String),
+    #[error("Node {node} has incompatible {typ:?} schemas: {source}")]
+    IncompatibleSchemas {
+        node: NodeHandle,
+        typ: SchemaType,
+        source: IncompatibleSchemas,
+    },
     #[error("Channel disconnected")]
     ChannelDisconnected,
     #[error("Cannot spawn worker thread: {0}")]
@@ -51,8 +49,6 @@ pub enum ExecutionError {
     InvalidSourceIdentifier(AppSourceId),
     #[error("Ambiguous source identifier {0}")]
     AmbiguousSourceIdentifier(AppSourceId),
-    #[error("Inconsistent checkpointing data")]
-    InconsistentCheckpointMetadata,
     #[error("Port not found for source: {0}")]
     PortNotFoundInSource(PortHandle),
     #[error("Failed to get output schema: {0}")]
@@ -107,6 +103,16 @@ impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
     fn from(_: daggy::WouldCycle<T>) -> Self {
         ExecutionError::WouldCycle
     }
+}
+
+#[derive(Error, Debug)]
+pub enum IncompatibleSchemas {
+    #[error("Length mismatch: current {current}, existing {existing}")]
+    LengthMismatch { current: usize, existing: usize },
+    #[error("Not found on port {0}")]
+    NotFound(PortHandle),
+    #[error("Schema mismatch on port {0}")]
+    SchemaMismatch(PortHandle),
 }
 
 #[derive(Error, Debug)]

@@ -37,8 +37,10 @@ pub struct SinkNode {
 
 impl SinkNode {
     pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
-        let node = &mut dag.graph_mut()[node_index];
-        let (node_storage, Some(NodeKind::Sink(sink))) = (node.storage.clone(), node.kind.take()) else {
+        let node = dag.node_weight_mut(node_index);
+        let node_handle = node.handle.clone();
+        let node_storage = node.storage.clone();
+        let Some(NodeKind::Sink(sink)) = node.kind.take() else {
             panic!("Must pass in a sink node");
         };
 
@@ -48,16 +50,16 @@ impl SinkNode {
         let state_writer = StateWriter::new(
             node_storage.meta_db,
             HashMap::new(),
-            node_storage.master_tx.clone(),
+            node_storage.master_txn.clone(),
         );
 
         Self {
-            node_handle: node_storage.handle,
+            node_handle,
             port_handles,
             receivers,
             sink,
             record_readers,
-            master_tx: node_storage.master_tx,
+            master_tx: node_storage.master_txn,
             state_writer,
         }
     }

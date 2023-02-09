@@ -150,12 +150,13 @@ pub fn create_source_nodes(
     dag: &mut ExecutionDag,
     node_index: daggy::NodeIndex,
     options: &ExecutorOptions,
-    last_checkpoint: Option<OpIdentifier>,
     running: Arc<AtomicBool>,
 ) -> (SourceSenderNode, SourceListenerNode) {
     // Get the source node.
-    let node = &mut dag.graph_mut()[node_index];
-    let (node_storage, Some(NodeKind::Source(source))) = (node.storage.clone(), node.kind.take()) else {
+    let node = dag.node_weight_mut(node_index);
+    let node_handle = node.handle.clone();
+    let node_storage = node.storage.clone();
+    let Some(NodeKind::Source(source, last_checkpoint)) = node.kind.take() else {
         panic!("Must pass in a source node");
     };
 
@@ -166,7 +167,7 @@ pub fn create_source_nodes(
     // Create source listener.
     let forwarder = InternalChannelSourceForwarder::new(source_sender);
     let source_sender_node = SourceSenderNode {
-        node_handle: node_storage.handle.clone(),
+        node_handle: node_handle.clone(),
         source,
         last_checkpoint,
         forwarder,
@@ -175,10 +176,13 @@ pub fn create_source_nodes(
 
     // Create source sender node.
     let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
-    let state_writer =
-        StateWriter::new(node_storage.meta_db, record_writers, node_storage.master_tx);
+    let state_writer = StateWriter::new(
+        node_storage.meta_db,
+        record_writers,
+        node_storage.master_txn,
+    );
     let channel_manager = SourceChannelManager::new(
-        node_storage.handle.clone(),
+        node_handle.clone(),
         senders,
         state_writer,
         true,
@@ -187,7 +191,7 @@ pub fn create_source_nodes(
         dag.epoch_manager().clone(),
     );
     let source_listener_node = SourceListenerNode {
-        node_handle: node_storage.handle,
+        node_handle,
         receiver: source_receiver,
         timeout: options.commit_time_threshold,
         running,
