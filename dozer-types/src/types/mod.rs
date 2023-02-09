@@ -175,6 +175,10 @@ impl Record {
         self.values[idx] = value;
     }
 
+    pub fn push_value(&mut self, value: Field) {
+        self.values.push(value);
+    }
+
     pub fn get_value(&self, idx: usize) -> Result<&Field, TypeError> {
         match self.values.get(idx) {
             Some(f) => Ok(f),
@@ -183,6 +187,8 @@ impl Record {
     }
 
     pub fn get_key(&self, indexes: &Vec<usize>) -> Vec<u8> {
+        debug_assert!(!indexes.is_empty(), "Primary key indexes cannot be empty");
+
         let mut tot_size = 0_usize;
         let mut buffers = Vec::<Vec<u8>>::with_capacity(indexes.len());
         for i in indexes {

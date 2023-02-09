@@ -83,4 +83,20 @@ fn test_round() {
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(3.0))
     );
+
+    let v = Box::new(Literal(Field::Null));
+    let d = &Box::new(Literal(Field::String("2".to_string())));
+    assert_eq!(
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Null
+    );
+
+    let v = Box::new(Literal(Field::Null));
+    let d = &Box::new(Literal(Field::String("2".to_string())));
+    assert_eq!(
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Null
+    );
 }

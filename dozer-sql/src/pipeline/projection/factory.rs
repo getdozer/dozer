@@ -9,12 +9,11 @@ use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Ident, SelectItem};
 
 use crate::pipeline::builder::SchemaSQLContext;
+use crate::pipeline::expression::builder::ExpressionContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
-        builder::{BuilderExpressionType, ExpressionBuilder},
-        execution::Expression,
-        execution::ExpressionExecutor,
+        builder::ExpressionBuilder, execution::Expression, execution::ExpressionExecutor,
     },
 };
 
@@ -119,7 +118,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
                 schema.clone(),
-                expressions,
+                expressions.into_iter().map(|e| e.1).collect(),
             ))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
@@ -138,22 +137,26 @@ pub(crate) fn parse_sql_select_item(
     sql: &SelectItem,
     schema: &Schema,
 ) -> Result<(String, Expression), PipelineError> {
-    let builder = ExpressionBuilder {};
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
-            match builder.parse_sql_expression(
-                &BuilderExpressionType::FullExpression,
+            match ExpressionBuilder::parse_sql_expression(
+                &mut ExpressionContext::new(0),
+                true,
                 sql_expr,
                 schema,
             ) {
-                Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
+                Ok(expr) => Ok((sql_expr.to_string(), *expr)),
                 Err(error) => Err(error),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => {
-            match builder.parse_sql_expression(&BuilderExpressionType::FullExpression, expr, schema)
-            {
-                Ok(expr) => Ok((alias.value.clone(), *expr.0)),
+            match ExpressionBuilder::parse_sql_expression(
+                &mut ExpressionContext::new(0),
+                true,
+                expr,
+                schema,
+            ) {
+                Ok(expr) => Ok((alias.value.clone(), *expr)),
                 Err(error) => Err(error),
             }
         }

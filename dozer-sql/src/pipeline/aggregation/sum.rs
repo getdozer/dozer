@@ -12,14 +12,10 @@ pub struct SumAggregator {}
 const AGGREGATOR_NAME: &str = "SUM";
 
 impl SumAggregator {
-    pub(crate) fn get_return_type(from: FieldType) -> FieldType {
-        match from {
-            FieldType::Decimal => FieldType::Decimal,
-            FieldType::Float => FieldType::Float,
-            FieldType::Int => FieldType::Int,
-            FieldType::UInt => FieldType::UInt,
-            _ => from,
-        }
+    const _AGGREGATOR_ID: u32 = 0x01;
+
+    pub(crate) fn _get_type() -> u32 {
+        SumAggregator::_AGGREGATOR_ID
     }
 
     pub(crate) fn insert(

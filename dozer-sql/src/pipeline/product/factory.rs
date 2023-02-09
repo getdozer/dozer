@@ -8,14 +8,13 @@ use dozer_core::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
+use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{
-    builder::SchemaSQLContext,
-    errors::JoinError,
-    expression::builder::{extend_schema_source_def, fullname_from_ident},
+    builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
     product::join::JoinBranch,
 };
 use crate::pipeline::{
-    builder::{get_input_names, IndexedTabelWithJoins},
+    builder::{get_input_names, IndexedTableWithJoins},
     errors::PipelineError,
 };
 use sqlparser::ast::Expr as SqlExpr;
@@ -27,12 +26,12 @@ use super::{
 
 #[derive(Debug)]
 pub struct FromProcessorFactory {
-    input_tables: IndexedTabelWithJoins,
+    input_tables: IndexedTableWithJoins,
 }
 
 impl FromProcessorFactory {
     /// Creates a new [`FromProcessorFactory`].
-    pub fn new(input_tables: IndexedTabelWithJoins) -> Self {
+    pub fn new(input_tables: IndexedTableWithJoins) -> Self {
         Self { input_tables }
     }
 }
@@ -101,7 +100,7 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
 ///
 /// This function will return an error if.
 pub fn build_join_tree(
-    join_tables: &IndexedTabelWithJoins,
+    join_tables: &IndexedTableWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<JoinSource, PipelineError> {
     const RIGHT_JOIN_FLAG: u32 = 0x80000000;
@@ -281,12 +280,12 @@ fn parse_identifier(
 
     match (left_idx, right_idx) {
         (None, None) => Err(PipelineError::JoinError(JoinError::InvalidFieldSpecified(
-            fullname_from_ident(ident),
+            ExpressionBuilder::fullname_from_ident(ident),
         ))),
         (None, Some(idx)) => Ok((None, Some(idx))),
         (Some(idx), None) => Ok((Some(idx), None)),
         (Some(_), Some(_)) => Err(PipelineError::JoinError(JoinError::InvalidJoinConstraint(
-            fullname_from_ident(ident),
+            ExpressionBuilder::fullname_from_ident(ident),
         ))),
     }
 }

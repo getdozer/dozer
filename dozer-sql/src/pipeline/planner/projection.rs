@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder_new::{ExpressionBuilder, ExpressionContext};
+use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionContext};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Select, SelectItem};
@@ -14,7 +14,7 @@ pub enum PrimaryKeyAction {
     Force,
 }
 
-pub struct ProjectionPlanner {
+pub struct CommonPlanner {
     input_schema: Schema,
     pub post_aggregation_schema: Schema,
     pub post_projection_schema: Schema,
@@ -25,21 +25,14 @@ pub struct ProjectionPlanner {
     pub projection_output: Vec<Expression>,
 }
 
-impl ProjectionPlanner {
+impl CommonPlanner {
     fn append_to_schema(
         expr: &Expression,
         alias: Option<String>,
-        pk_action: PrimaryKeyAction,
         input_schema: &Schema,
         output_schema: &mut Schema,
     ) -> Result<(), PipelineError> {
         let expr_type = expr.get_type(input_schema)?;
-        let primary_key = match pk_action {
-            PrimaryKeyAction::Force => true,
-            PrimaryKeyAction::Drop => false,
-            PrimaryKeyAction::Retain => expr_type.is_primary_key,
-        };
-
         output_schema.fields.push(FieldDefinition::new(
             alias.unwrap_or_else(|| expr.to_string(input_schema)),
             expr_type.return_type,
@@ -47,16 +40,10 @@ impl ProjectionPlanner {
             expr_type.source,
         ));
 
-        if primary_key {
-            output_schema
-                .primary_index
-                .push(output_schema.fields.len() - 1);
-        }
         Ok(())
     }
 
     fn add_select_item(&mut self, item: SelectItem) -> Result<(), PipelineError> {
-        //
         let expr_items: Vec<(Expr, Option<String>)> = match item {
             SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
             SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
@@ -71,11 +58,10 @@ impl ProjectionPlanner {
             let projection_expression =
                 ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
 
-            for new_aggr in context.aggrgeations {
+            for new_aggr in context.aggregations {
                 Self::append_to_schema(
                     &new_aggr,
                     alias.clone(),
-                    PrimaryKeyAction::Drop,
                     &self.input_schema,
                     &mut self.post_aggregation_schema,
                 )?;
@@ -86,7 +72,43 @@ impl ProjectionPlanner {
             Self::append_to_schema(
                 &projection_expression,
                 alias,
-                PrimaryKeyAction::Retain,
+                &self.post_aggregation_schema,
+                &mut self.post_projection_schema,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn add_join_item(&mut self, item: SelectItem) -> Result<(), PipelineError> {
+        let expr_items: Vec<(Expr, Option<String>)> = match item {
+            SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
+            SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
+            SelectItem::QualifiedWildcard(_, _) => panic!("not supported yet"),
+            SelectItem::Wildcard(_) => panic!("not supported yet"),
+        };
+
+        for (expr, alias) in expr_items {
+            let mut context = ExpressionContext::new(
+                self.input_schema.fields.len() + self.aggregation_output.len(),
+            );
+            let projection_expression =
+                ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
+
+            for new_aggr in context.aggregations {
+                Self::append_to_schema(
+                    &new_aggr,
+                    alias.clone(),
+                    &self.input_schema,
+                    &mut self.post_aggregation_schema,
+                )?;
+                self.aggregation_output.push(new_aggr);
+            }
+
+            self.projection_output.push(*projection_expression.clone());
+            Self::append_to_schema(
+                &projection_expression,
+                alias,
                 &self.post_aggregation_schema,
                 &mut self.post_projection_schema,
             )?;
@@ -96,8 +118,6 @@ impl ProjectionPlanner {
     }
 
     fn add_having_item(&mut self, expr: Expr) -> Result<(), PipelineError> {
-        //
-
         let mut context = ExpressionContext::from(
             self.input_schema.fields.len(),
             self.aggregation_output.clone(),
@@ -108,11 +128,10 @@ impl ProjectionPlanner {
         let mut post_aggregation_schema = self.input_schema.clone();
         let mut aggregation_output = Vec::new();
 
-        for new_aggr in context.aggrgeations {
+        for new_aggr in context.aggregations {
             Self::append_to_schema(
                 &new_aggr,
                 None,
-                PrimaryKeyAction::Drop,
                 &self.input_schema,
                 &mut post_aggregation_schema,
             )?;
@@ -127,8 +146,6 @@ impl ProjectionPlanner {
     }
 
     fn add_groupby_items(&mut self, expr_items: Vec<Expr>) -> Result<(), PipelineError> {
-        //
-
         for expr in expr_items {
             let mut context = ExpressionContext::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),

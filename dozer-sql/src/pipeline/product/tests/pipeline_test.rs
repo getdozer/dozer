@@ -48,13 +48,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     retr_old_records_for_deletes: true,
                 },
             ),
-            OutputPortDef::new(
-                DEPARTMENT_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates: true,
-                    retr_old_records_for_deletes: true,
-                },
-            ),
+            OutputPortDef::new(DEPARTMENT_PORT, OutputPortType::Stateless),
             OutputPortDef::new(
                 COUNTRY_PORT,
                 OutputPortType::StatefulWithPrimaryKeyLookup {
@@ -138,7 +132,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             false,
                             source_id.clone(),
                         ),
-                        true,
+                        false,
                     )
                     .field(
                         FieldDefinition::new(

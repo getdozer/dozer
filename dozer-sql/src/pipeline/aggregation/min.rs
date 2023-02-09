@@ -16,16 +16,10 @@ pub struct MinAggregator {}
 const AGGREGATOR_NAME: &str = "MIN";
 
 impl MinAggregator {
-    pub(crate) fn get_return_type(from: FieldType) -> FieldType {
-        match from {
-            FieldType::Date => FieldType::Date,
-            FieldType::Decimal => FieldType::Decimal,
-            FieldType::Float => FieldType::Float,
-            FieldType::Int => FieldType::Int,
-            FieldType::UInt => FieldType::UInt,
-            FieldType::Timestamp => FieldType::Timestamp,
-            _ => from,
-        }
+    const _AGGREGATOR_ID: u32 = 0x04;
+
+    pub(crate) fn _get_type() -> u32 {
+        MinAggregator::_AGGREGATOR_ID
     }
 
     pub(crate) fn insert(
@@ -420,7 +414,7 @@ impl MinAggregator {
                     String::from_utf8(deserialize!(f)).unwrap().as_ref(),
                     DATE_FORMAT,
                 )
-                .unwrap(),
+                    .unwrap(),
             ),
             FieldType::Decimal => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
                 deserialize!(f),
@@ -516,7 +510,7 @@ impl MinAggregator {
                 String::from_utf8(deserialize!(cur.0)).unwrap().as_ref(),
                 DATE_FORMAT,
             )
-            .unwrap();
+                .unwrap();
         }
         Ok(minimum)
     }

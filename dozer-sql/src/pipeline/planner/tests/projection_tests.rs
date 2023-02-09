@@ -3,7 +3,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
-use crate::pipeline::planner::projection::ProjectionPlanner;
+use crate::pipeline::planner::projection::CommonPlanner;
 
 use crate::pipeline::tests::utils::get_select;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
@@ -16,7 +16,7 @@ fn test_basic_projection() {
         .field(
             FieldDefinition::new(
                 "a".to_string(),
-                FieldType::String,
+                FieldType::Int,
                 false,
                 SourceDefinition::Table {
                     name: "t0".to_string(),
@@ -28,7 +28,7 @@ fn test_basic_projection() {
         .field(
             FieldDefinition::new(
                 "b".to_string(),
-                FieldType::String,
+                FieldType::Int,
                 false,
                 SourceDefinition::Table {
                     name: "t0".to_string(),
@@ -39,7 +39,7 @@ fn test_basic_projection() {
         )
         .to_owned();
 
-    let mut projection_planner = ProjectionPlanner::new(schema);
+    let mut projection_planner = CommonPlanner::new(schema);
     let statement = get_select(sql).unwrap();
 
     projection_planner.plan(*statement).unwrap();
@@ -93,7 +93,7 @@ fn test_basic_projection() {
             .field(
                 FieldDefinition::new(
                     "a2".to_string(),
-                    FieldType::String,
+                    FieldType::Int,
                     false,
                     SourceDefinition::Table {
                         name: "t0".to_string(),

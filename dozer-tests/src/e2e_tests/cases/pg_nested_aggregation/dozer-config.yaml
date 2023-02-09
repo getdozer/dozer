@@ -8,6 +8,7 @@ connections:
       port: 5434
       database: stocks
     name: stocks
+
 sources:
   - name: stocks
     table_name: stocks
@@ -40,28 +41,33 @@ sources:
     connection: !Ref stocks
 
 sql: |
-  -- transformation made on top of `stocks` table data
   SELECT
     id,
-    AVG(open),
-    AVG(close),
-    low,
-    volume 
+    (ROUND(SUM(ROUND(open, 2))) + SUM(close)) AS nested_col
   INTO stocks_data
   FROM stocks
   GROUP BY id;
+  
+  SELECT
+    symbol,
+    security_name, 
+    listing_exchange,
+    financial_status
+  INTO stocks_meta_data
+  FROM stocks_meta;
 
 endpoints:
   - name: stocks
     path: /stocks
+    # Direct from source
     table_name: stocks_data
     index:
       primary_key:
         - id
   - name: stocks_meta
     path: /stocks-meta
-    # direct selecting all columns at the source level for `stocks_meta`
-    table_name: stocks_meta
+    # Direct from source
+    table_name: stocks_meta_data
     index:
       primary_key:
         - symbol
