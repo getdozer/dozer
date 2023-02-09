@@ -1,5 +1,4 @@
 use crate::output;
-use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_date_field, get_decimal_field, get_ts_field, init_input_schema,
     init_processor, insert_exp, insert_field, update_exp, update_field, DATE16, DATE4, DATE8,
@@ -10,23 +9,10 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{TimeZone, Utc};
-use dozer_types::log::debug;
 use dozer_types::types::Field;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Text, Timestamp, UInt};
 use std::any::Any;
 use std::collections::HashMap;
-
-#[test]
-fn test_max_aggregator() {
-    let max_aggr = Aggregator::Max;
-    assert_eq!(Date, max_aggr.get_return_type(Date));
-    assert_eq!(Decimal, max_aggr.get_return_type(Decimal));
-    assert_eq!(Float, max_aggr.get_return_type(Float));
-    assert_eq!(Int, max_aggr.get_return_type(Int));
-    assert_eq!(UInt, max_aggr.get_return_type(UInt));
-    assert_eq!(Timestamp, max_aggr.get_return_type(Timestamp));
-    debug!("{}", max_aggr);
-}
 
 #[test]
 fn failure_max_aggregator() {

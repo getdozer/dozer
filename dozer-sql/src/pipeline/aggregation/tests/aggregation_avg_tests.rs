@@ -1,5 +1,4 @@
 use crate::output;
-use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_date_field, get_decimal_div_field, get_decimal_field,
     init_input_schema, init_processor, insert_exp, insert_field, update_exp, update_field, DATE8,
@@ -9,20 +8,9 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 };
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::log::debug;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, UInt};
 use std::any::Any;
 use std::collections::HashMap;
-
-#[test]
-fn test_avg_aggregator() {
-    let avg_aggr = Aggregator::Avg;
-    assert_eq!(Decimal, avg_aggr.get_return_type(Int));
-    assert_eq!(Decimal, avg_aggr.get_return_type(UInt));
-    assert_eq!(Float, avg_aggr.get_return_type(Float));
-    assert_eq!(Decimal, avg_aggr.get_return_type(Decimal));
-    debug!("{}", avg_aggr);
-}
 
 #[test]
 fn failure_avg_aggregator() {

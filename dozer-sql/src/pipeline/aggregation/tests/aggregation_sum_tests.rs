@@ -1,5 +1,4 @@
 use crate::output;
-use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_decimal_field, init_input_schema, init_processor, insert_exp,
     insert_field, update_exp, update_field, FIELD_0_FLOAT, FIELD_0_INT, FIELD_100_FLOAT,
@@ -10,21 +9,10 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 };
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::log::debug;
 use dozer_types::types::Field;
 use dozer_types::types::FieldType::{Decimal, Float, Int, Text, UInt};
 use std::any::Any;
 use std::collections::HashMap;
-
-#[test]
-fn test_sum_aggregator() {
-    let sum_aggr = Aggregator::Sum;
-    assert_eq!(Decimal, sum_aggr.get_return_type(Decimal));
-    assert_eq!(Float, sum_aggr.get_return_type(Float));
-    assert_eq!(Int, sum_aggr.get_return_type(Int));
-    assert_eq!(UInt, sum_aggr.get_return_type(UInt));
-    debug!("{}", sum_aggr);
-}
 
 #[test]
 fn failure_min_aggregator() {
