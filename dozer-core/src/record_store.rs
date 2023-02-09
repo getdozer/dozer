@@ -97,7 +97,7 @@ const PORT_STATE_KEY: &str = "__PORT_STATE_";
 
 const VERSIONED_RECORDS_INDEX_ID: u32 = 0x01;
 const RECORD_VERSIONS_INDEX_ID: u32 = 0x02;
-const INITIAL_RECORD_VERSION: u32 = 1_u32;
+pub(crate) const INITIAL_RECORD_VERSION: u32 = 1_u32;
 
 const RECORD_PRESENT_FLAG: u8 = 0x01;
 const RECORD_DELETED_FLAG: u8 = 0x00;
@@ -336,7 +336,7 @@ impl RecordReader for PrimaryKeyLookupRecordReader {
     }
 }
 
-const DOZER_ROWID: &str = "_DOZER_ROWID";
+pub(crate) const DOZER_ROWID: &str = "_DOZER_ROWID";
 
 #[derive(Debug)]
 pub struct AutogenRowKeyLookupRecordWriter {
