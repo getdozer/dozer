@@ -2,7 +2,7 @@ use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::epoch::Epoch;
 use crate::errors::ExecutionError;
 use crate::record_store::RecordReader;
-use dozer_storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
@@ -144,7 +144,7 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Processor: Send + Sync + Debug {
-    fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError>;
+    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError>;
     fn commit(&self, epoch_details: &Epoch, tx: &SharedTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
@@ -169,7 +169,7 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Sink: Send + Sync + Debug {
-    fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError>;
+    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError>;
     fn commit(
         &mut self,
         epoch_details: &Epoch,

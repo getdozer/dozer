@@ -363,15 +363,14 @@ fn test_app_dag() {
     assert_eq!(edges.len(), 6);
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    //  thread::sleep(Duration::from_millis(3000));
-
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }

@@ -50,7 +50,7 @@ impl StateWriter {
         write_source_metadata(
             &mut self.tx.write(),
             self.meta_db,
-            &mut epoch_details
+            epoch_details
                 .details
                 .iter()
                 .map(|(source, op_id)| (source, *op_id)),

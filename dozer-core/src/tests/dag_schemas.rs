@@ -1,6 +1,5 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas};
 use crate::errors::ExecutionError;
-use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
     SinkFactory, Source, SourceFactory,
@@ -11,9 +10,7 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
 
 use crate::tests::app::NoneContext;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tempdir::TempDir;
 
 macro_rules! chk {
     ($stmt:expr) => {
@@ -287,78 +284,4 @@ fn test_extract_dag_schemas() {
         sink_input.get(&DEFAULT_PORT_HANDLE).unwrap().0.fields.len(),
         5
     );
-}
-
-#[test]
-fn test_init_metadata() {
-    let users_handle = NodeHandle::new(Some(1), 1.to_string());
-    let countries_handle = NodeHandle::new(Some(1), 2.to_string());
-    let join_handle = NodeHandle::new(Some(1), 3.to_string());
-    let sink_handle = NodeHandle::new(Some(1), 4.to_string());
-
-    let mut dag = Dag::new();
-    dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
-    dag.add_source(
-        countries_handle.clone(),
-        Arc::new(TestCountriesSourceFactory {}),
-    );
-    dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
-    dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
-
-    chk!(dag.connect(
-        Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle.clone(), 1),
-    ));
-    chk!(dag.connect(
-        Endpoint::new(countries_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle.clone(), 2),
-    ));
-    chk!(dag.connect(
-        Endpoint::new(join_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("example"));
-    let _exec = chk!(DagExecutor::new(
-        dag.clone(),
-        tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-    let _exec = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    let mut dag = Dag::new();
-    dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
-    dag.add_source(
-        countries_handle.clone(),
-        Arc::new(TestUsersSourceFactory {}),
-    );
-    dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
-    dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
-
-    chk!(dag.connect(
-        Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle.clone(), 1),
-    ));
-    chk!(dag.connect(
-        Endpoint::new(countries_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle.clone(), 2),
-    ));
-    chk!(dag.connect(
-        Endpoint::new(join_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
-    ));
-
-    let exec = DagExecutor::new(
-        dag,
-        tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true)),
-    );
-    assert!(exec.is_err());
 }

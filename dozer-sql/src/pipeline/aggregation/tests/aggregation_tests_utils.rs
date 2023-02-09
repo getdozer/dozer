@@ -31,7 +31,7 @@ pub(crate) fn init_processor(
 
     projection_planner.plan(*statement).unwrap();
 
-    let mut storage =
+    let storage =
         LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
             .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
@@ -44,8 +44,8 @@ pub(crate) fn init_processor(
     )
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    processor.init(&mut storage).unwrap();
     let tx = storage.create_txn().unwrap();
+    processor.init(&mut tx.write()).unwrap();
 
     Ok((processor, tx))
 }

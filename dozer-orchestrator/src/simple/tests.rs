@@ -99,7 +99,7 @@ fn single_source_sink_impl(schema: Schema) {
         .create_dag_executor(None, CacheSinkSettings::new(Some(flags), None))
         .unwrap();
 
-    let _thread = thread::spawn(move || match Executor::run_dag_executor(dag_executor) {
+    let _thread = thread::spawn(move || match executor.run_dag_executor(dag_executor) {
         Ok(_) => {}
         Err(e) => warn!("Exiting: {:?}", e),
     });

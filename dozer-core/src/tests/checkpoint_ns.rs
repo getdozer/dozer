@@ -70,13 +70,14 @@ fn test_checkpoint_consistency_ns() {
     }
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        dag,
-        tmp_dir.path(),
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
-    ));
-
-    chk!(executor.start());
-    assert!(executor.join().is_ok());
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }

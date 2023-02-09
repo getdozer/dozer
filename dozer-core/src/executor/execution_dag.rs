@@ -3,23 +3,21 @@ use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     fmt::Debug,
-    path::Path,
     rc::Rc,
     sync::Arc,
 };
 
 use crossbeam::channel::{bounded, Receiver, Sender};
 use daggy::petgraph::{
-    visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeReferences},
+    visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
-use dozer_storage::{lmdb::Database, lmdb_storage::SharedTransaction};
 
 use crate::{
-    dag_schemas::{DagHaveSchemas, DagSchemas},
-    epoch::EpochManager,
+    dag_metadata::{DagMetadata, NodeStorage},
+    dag_schemas::DagHaveSchemas,
+    epoch::{EpochManager, OpIdentifier},
     errors::ExecutionError,
-    executor_utils::init_component,
     hash_map_to_vec::insert_vec_element,
     node::{NodeHandle, PortHandle, Processor, Sink, Source},
     record_store::{create_record_store, RecordReader, RecordWriter},
@@ -31,25 +29,18 @@ use super::ExecutorOperation;
 #[derive(Debug)]
 /// Node in the execution DAG.
 pub struct NodeType {
+    /// The node handle.
+    pub handle: NodeHandle,
     /// The node storage environment.
     pub storage: NodeStorage,
     /// The node kind. Will be moved to execution node.
     pub kind: Option<NodeKind>,
 }
 
-#[derive(Debug, Clone)]
-/// A node's storage environment.
-pub struct NodeStorage {
-    /// Name of the node.
-    pub handle: NodeHandle,
-    pub master_tx: SharedTransaction,
-    pub meta_db: Database,
-}
-
 #[derive(Debug)]
 /// Node kind, source, processor or sink.
 pub enum NodeKind {
-    Source(Box<dyn Source>),
+    Source(Box<dyn Source>, Option<OpIdentifier>),
     Processor(Box<dyn Processor>),
     Sink(Box<dyn Sink>),
 }
@@ -80,67 +71,64 @@ pub struct ExecutionDag {
 
 impl ExecutionDag {
     pub fn new<T: Clone>(
-        dag_schemas: &DagSchemas<T>,
-        base_path: &Path,
+        mut dag_metadata: DagMetadata<T>,
         channel_buf_sz: usize,
     ) -> Result<Self, ExecutionError> {
-        let dag = &dag_schemas.graph;
-
         // Create new nodes.
         let mut nodes = vec![];
         let mut num_sources = 0;
-        for (node_index, node) in dag.node_references() {
-            let input_schemas = dag_schemas.get_node_input_schemas(node_index);
+        let node_indexes = dag_metadata.graph().node_identifiers().collect::<Vec<_>>();
+        for node_index in node_indexes {
+            // Get or create node storage.
+            let node_storage = if let Some(node_storage) =
+                dag_metadata.node_weight_mut(node_index).storage.take()
+            {
+                node_storage
+            } else {
+                dag_metadata.initialize_node_storage(node_index)?
+            };
+
+            // Create and initialize source, processor or sink.
+            let node = &dag_metadata.graph()[node_index];
+            let input_schemas = dag_metadata.get_node_input_schemas(node_index);
             let input_schemas = input_schemas
                 .into_iter()
                 .map(|(key, value)| (key, value.0))
                 .collect();
-            let output_schemas = dag_schemas.get_node_output_schemas(node_index);
+            let output_schemas = dag_metadata.get_node_output_schemas(node_index);
             let output_schemas = output_schemas
                 .into_iter()
                 .map(|(key, value)| (key, value.0))
                 .collect();
 
-            let (storage_metadata, node_kind) = match &node.kind {
+            let node_kind = match &node.kind {
                 DagNodeKind::Source(source) => {
                     num_sources += 1;
                     let source = source.build(output_schemas)?;
-                    (
-                        init_component(&node.handle, base_path, |_| Ok(()))?,
-                        NodeKind::Source(source),
-                    )
+                    let last_checkpoint = node.commits.get(&node.handle).copied();
+                    NodeKind::Source(source, last_checkpoint)
                 }
                 DagNodeKind::Processor(processor) => {
                     let mut processor = processor.build(input_schemas, output_schemas)?;
-                    (
-                        init_component(&node.handle, base_path, |state| processor.init(state))?,
-                        NodeKind::Processor(processor),
-                    )
+                    processor.init(&mut node_storage.master_txn.write())?;
+                    NodeKind::Processor(processor)
                 }
                 DagNodeKind::Sink(sink) => {
                     let mut sink = sink.build(input_schemas)?;
-                    (
-                        init_component(&node.handle, base_path, |state| sink.init(state))?,
-                        NodeKind::Sink(sink),
-                    )
+                    sink.init(&mut node_storage.master_txn.write())?;
+                    NodeKind::Sink(sink)
                 }
             };
 
-            let master_tx = storage_metadata.env.create_txn()?;
-
-            let node_storage = NodeStorage {
-                handle: node.handle.clone(),
-                master_tx,
-                meta_db: storage_metadata.meta_db,
-            };
-
             nodes.push(Some(NodeType {
+                handle: node.handle.clone(),
                 storage: node_storage,
                 kind: Some(node_kind),
             }));
         }
 
         // We only create record stored once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record store created.
+        let dag = dag_metadata.graph();
         let mut all_record_stores =
             vec![
                 HashMap::<PortHandle, (SharedRecordWriter, Option<Box<dyn RecordReader>>)>::new();
@@ -163,7 +151,7 @@ impl ExecutionDag {
                                 .as_ref()
                                 .expect("We created all nodes")
                                 .storage
-                                .master_tx,
+                                .master_txn,
                             output_port,
                             edge.output_port_type,
                             edge.schema.clone(),
@@ -217,8 +205,12 @@ impl ExecutionDag {
         })
     }
 
-    pub fn graph_mut(&mut self) -> &mut daggy::Dag<NodeType, EdgeType> {
-        &mut self.graph
+    pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
+        &self.graph
+    }
+
+    pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut NodeType {
+        &mut self.graph[node_index]
     }
 
     pub fn epoch_manager(&self) -> &Arc<EpochManager> {

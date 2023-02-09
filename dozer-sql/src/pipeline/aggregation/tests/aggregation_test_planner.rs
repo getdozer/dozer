@@ -88,12 +88,12 @@ fn test_planner_with_aggregator() {
     )
     .unwrap();
 
-    let mut storage =
+    let storage =
         LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
             .unwrap();
 
-    processor.init(&mut storage).unwrap();
     let tx = storage.create_txn().unwrap();
+    processor.init(&mut tx.write()).unwrap();
 
     let _r = processor
         .aggregate(

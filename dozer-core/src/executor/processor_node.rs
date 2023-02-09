@@ -39,8 +39,10 @@ pub struct ProcessorNode {
 
 impl ProcessorNode {
     pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
-        let node = &mut dag.graph_mut()[node_index];
-        let (node_storage, Some(NodeKind::Processor(processor))) = (node.storage.clone(), node.kind.take()) else {
+        let node = dag.node_weight_mut(node_index);
+        let node_handle = node.handle.clone();
+        let node_storage = node.storage.clone();
+        let Some(NodeKind::Processor(processor)) = node.kind.take() else {
             panic!("Must pass in a processor node");
         };
 
@@ -52,18 +54,18 @@ impl ProcessorNode {
         let state_writer = StateWriter::new(
             node_storage.meta_db,
             record_writers,
-            node_storage.master_tx.clone(),
+            node_storage.master_txn.clone(),
         );
         let channel_manager =
-            ProcessorChannelManager::new(node_storage.handle.clone(), senders, state_writer, true);
+            ProcessorChannelManager::new(node_handle.clone(), senders, state_writer, true);
 
         Self {
-            node_handle: node_storage.handle,
+            node_handle,
             port_handles,
             receivers,
             processor,
             record_readers,
-            master_tx: node_storage.master_tx,
+            master_tx: node_storage.master_txn,
             channel_manager,
         }
     }

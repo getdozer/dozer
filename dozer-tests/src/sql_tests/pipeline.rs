@@ -6,11 +6,13 @@ use dozer_core::errors::ExecutionError;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
+use dozer_core::petgraph::visit::{IntoEdgesDirected, IntoNodeReferences};
+use dozer_core::petgraph::Direction;
+use dozer_core::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
@@ -213,7 +215,7 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -327,14 +329,24 @@ impl TestPipeline {
 
         let dag_schemas = DagSchemas::new(&dag)?;
         dag_schemas.prepare()?;
-        let streaming_sink_index = dag.sink_identifiers().next().expect("Sink is expected");
-        let (schema, _) = dag_schemas
-            .get_node_input_schemas(streaming_sink_index)
-            .values()
-            .next()
-            .expect("schema is expected")
-            .clone();
 
+        let sink_index = (|| {
+            for (node_index, node) in dag_schemas.graph().node_references() {
+                if matches!(node.kind, NodeKind::Sink(_)) {
+                    return node_index;
+                }
+            }
+            panic!("Sink is expected");
+        })();
+
+        let schema = dag_schemas
+            .graph()
+            .edges_directed(sink_index, Direction::Incoming)
+            .next()
+            .expect("Sink must have incoming edge")
+            .weight()
+            .schema
+            .clone();
         Ok(TestPipeline {
             schema,
             dag,
@@ -349,14 +361,13 @@ impl TestPipeline {
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-        let mut exec = DagExecutor::new(
-            self.dag.clone(),
-            tmp_dir.path(),
+        let exec = DagExecutor::new(
+            &self.dag,
+            tmp_dir.path().to_path_buf(),
             ExecutorOptions::default(),
-            self.running.clone(),
         )
         .unwrap_or_else(|_e| panic!("Unable to create exec"));
-        exec.start()?;
+        let join_handle = exec.start(self.running.clone())?;
 
         for (schema_name, op) in &self.ops {
             if self.used_schemas.contains(&schema_name.to_string()) {
@@ -367,7 +378,7 @@ impl TestPipeline {
         }
         self.sender.send(None).unwrap();
 
-        exec.join()?;
+        join_handle.join()?;
 
         Ok(())
     }

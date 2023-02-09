@@ -1,13 +1,12 @@
 use std::borrow::Cow;
 
-use crossbeam::channel::Receiver;
+use crossbeam::channel::{Receiver, Select};
 use dozer_types::log::debug;
 use dozer_types::{internal_err, types::Operation};
 
 use crate::{
     epoch::Epoch,
     errors::ExecutionError::{self, InternalError},
-    executor_utils::init_select,
 };
 
 use super::{name::Name, ExecutorOperation, InputPortState};
@@ -99,6 +98,14 @@ pub trait ReceiverLoop: Name {
             }
         }
     }
+}
+
+fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Select {
+    let mut sel = Select::new();
+    for r in receivers {
+        sel.recv(r);
+    }
+    sel
 }
 
 #[cfg(test)]

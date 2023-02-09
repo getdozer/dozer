@@ -89,15 +89,9 @@ impl Executor {
         app.add_pipeline(pipeline);
 
         let dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
-        let path = &self.pipeline_dir;
-        let mut exec = DagExecutor::new(
-            dag.clone(),
-            path.as_path(),
-            ExecutorOptions::default(),
-            self.running.clone(),
-        )?;
+        let exec = DagExecutor::new(&dag, self.pipeline_dir.clone(), ExecutorOptions::default())?;
 
-        exec.start()?;
+        exec.start(self.running.clone())?;
         Ok(dag)
     }
 
@@ -121,8 +115,6 @@ impl Executor {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         settings: CacheSinkSettings,
     ) -> Result<(DagExecutor<SchemaSQLContext>, IngestorVec), OrchestrationError> {
-        let running_wait = self.running.clone();
-
         let builder = PipelineBuilder::new(
             self.config.clone(),
             self.cache_endpoints.clone(),
@@ -139,20 +131,16 @@ impl Executor {
             ));
         }
 
-        let exec = DagExecutor::new(
-            parent_dag,
-            path.as_path(),
-            ExecutorOptions::default(),
-            running_wait,
-        )?;
+        let exec = DagExecutor::new(&parent_dag, path.to_path_buf(), ExecutorOptions::default())?;
 
         Ok((exec, ingestors))
     }
 
     pub fn run_dag_executor(
-        mut dag_executor: DagExecutor<SchemaSQLContext>,
+        &self,
+        dag_executor: DagExecutor<SchemaSQLContext>,
     ) -> Result<(), OrchestrationError> {
-        dag_executor.start()?;
-        dag_executor.join().map_err(ExecutionError)
+        let join_handle = dag_executor.start(self.running.clone())?;
+        join_handle.join().map_err(ExecutionError)
     }
 }

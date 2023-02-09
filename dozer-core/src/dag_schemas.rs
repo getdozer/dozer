@@ -98,7 +98,7 @@ impl<T: Clone> EdgeHaveSchema for EdgeType<T> {
 #[derive(Debug, Clone)]
 /// `DagSchemas` is a `Dag` with validated schema on the edge.
 pub struct DagSchemas<T> {
-    pub graph: daggy::Dag<NodeType<T>, EdgeType<T>>,
+    graph: daggy::Dag<NodeType<T>, EdgeType<T>>,
 }
 
 impl<T: Clone + Debug> DagSchemas<T> {

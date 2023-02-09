@@ -24,6 +24,9 @@ use dozer_cache::cache::{
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
+use dozer_core::petgraph::visit::{IntoEdgesDirected, IntoNodeReferences};
+use dozer_core::petgraph::Direction;
+use dozer_core::NodeKind;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
@@ -216,7 +219,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
         let dag_executor = executor.create_dag_executor(Some(sender), settings)?.0;
-        Executor::run_dag_executor(dag_executor)
+        executor.run_dag_executor(dag_executor)
     }
 
     fn list_connectors(
@@ -261,12 +264,23 @@ impl Orchestrator for SimpleOrchestrator {
 
         let dag = executor.query(sql, sender)?;
         let dag_schemas = DagSchemas::new(&dag)?;
-        let streaming_sink_index = dag.sink_identifiers().next().expect("Sink is expected");
-        let (schema, _ctx) = dag_schemas
-            .get_node_input_schemas(streaming_sink_index)
-            .values()
+
+        let sink_index = (|| {
+            for (node_index, node) in dag_schemas.graph().node_references() {
+                if matches!(node.kind, NodeKind::Sink(_)) {
+                    return node_index;
+                }
+            }
+            panic!("Sink is expected");
+        })();
+
+        let schema = dag_schemas
+            .graph()
+            .edges_directed(sink_index, Direction::Incoming)
             .next()
-            .expect("schema is expected")
+            .expect("Sink must have incoming edge")
+            .weight()
+            .schema
             .clone();
         Ok(schema)
     }

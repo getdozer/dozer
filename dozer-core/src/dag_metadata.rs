@@ -1,8 +1,10 @@
-use crate::dag_schemas::NodeSchemas;
-use crate::errors::ExecutionError;
-use crate::errors::ExecutionError::{InvalidNodeHandle, MetadataAlreadyExists};
+use crate::dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType};
+use crate::errors::{ExecutionError, IncompatibleSchemas};
 use crate::node::{NodeHandle, PortHandle};
-use crate::Dag;
+use crate::{Dag, NodeKind};
+use daggy::petgraph::visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences, Topo};
+use daggy::petgraph::Direction;
+use daggy::{NodeIndex, Walker};
 use dozer_storage::common::Seek;
 use dozer_storage::errors::StorageError;
 use dozer_storage::errors::StorageError::{DeserializationError, SerializationError};
@@ -14,242 +16,289 @@ use dozer_types::bincode;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 
-use std::iter::once;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::epoch::{OpIdentifier, SourceStates};
-use super::hash_map_to_vec::insert_vec_element;
 
 pub(crate) const METADATA_DB_NAME: &str = "__META__";
 const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
 pub(crate) const OUTPUT_SCHEMA_IDENTIFIER: u8 = 1_u8;
 pub(crate) const INPUT_SCHEMA_IDENTIFIER: u8 = 2_u8;
 
-pub(crate) enum Consistency {
-    FullyConsistent(Option<OpIdentifier>),
-    PartiallyConsistent(HashMap<Option<OpIdentifier>, Vec<NodeHandle>>),
+#[derive(Debug, Clone)]
+/// A node's storage environment.
+pub struct NodeStorage {
+    /// The transaction to read from and write to the storage.
+    pub master_txn: SharedTransaction,
+    /// The metadata database. Including schemas and checkpoints.
+    pub meta_db: Database,
 }
 
-pub(crate) struct DagMetadata {
+/// Node type for `DagMetadata`.
+pub struct NodeType<T> {
+    /// Name of the node.
+    pub handle: NodeHandle,
+    /// Checkpoint read from the storage, or empty if the storage isn't created yet.
     pub commits: SourceStates,
-    pub input_schemas: HashMap<PortHandle, Schema>,
-    pub output_schemas: HashMap<PortHandle, Schema>,
+    /// The node's storage.
+    pub storage: Option<NodeStorage>,
+    /// The node kind.
+    pub kind: NodeKind<T>,
 }
 
-pub(crate) struct DagMetadataManager<'a, T: Clone> {
-    dag: &'a Dag<T>,
-    path: &'a Path,
+/// `DagMetadata` reads the metadata information from disk and attach it to node.
+///
+/// It also checks if the persisted schemas are the same with current schemas.
+pub struct DagMetadata<T> {
+    /// Base path of all node storages.
+    path: PathBuf,
+    graph: daggy::Dag<NodeType<T>, EdgeType<T>>,
 }
 
-impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
-    pub fn new(
-        dag: &'a Dag<T>,
-        path: &'a Path,
-    ) -> Result<DagMetadataManager<'a, T>, ExecutionError> {
-        Ok(Self { path, dag })
+impl<T: Clone> DagHaveSchemas for DagMetadata<T> {
+    type NodeType = NodeType<T>;
+    type EdgeType = EdgeType<T>;
+
+    fn graph(&self) -> &daggy::Dag<Self::NodeType, Self::EdgeType> {
+        &self.graph
     }
+}
 
-    fn get_node_checkpoint_metadata(
-        path: &Path,
-        name: &NodeHandle,
-    ) -> Result<Option<DagMetadata>, ExecutionError> {
-        let env_name = node_environment_name(name);
-        if !LmdbEnvironmentManager::exists(path, &env_name) {
-            return Ok(None);
-        }
+impl<T: Clone> DagMetadata<T> {
+    /// Returns `Ok` if validation passes, `Err` otherwise.
+    pub fn new(dag_schemas: &DagSchemas<T>, path: PathBuf) -> Result<Self, ExecutionError> {
+        // Create nodes.
+        let mut nodes = vec![];
+        for (node_index, node) in dag_schemas.graph().node_references() {
+            let env_name = node_environment_name(&node.handle);
 
-        let mut env =
-            LmdbEnvironmentManager::create(path, &env_name, LmdbEnvironmentOptions::default())?;
-        let db = env.create_database(Some(METADATA_DB_NAME), Some(DatabaseFlags::empty()))?;
-        let txn = env.create_txn()?;
-        let txn = SharedTransaction::try_unwrap(txn)
-            .expect("We just created this `SharedTransaction`. It's not shared.");
-
-        let cur = txn.open_ro_cursor(db)?;
-        if !cur.first()? {
-            return Err(ExecutionError::InternalDatabaseError(
-                StorageError::InvalidRecord,
-            ));
-        }
-
-        let mut commits = SourceStates::default();
-        let mut input_schemas: HashMap<PortHandle, Schema> = HashMap::new();
-        let mut output_schemas: HashMap<PortHandle, Schema> = HashMap::new();
-
-        loop {
-            let value = cur.read()?.ok_or(ExecutionError::InternalDatabaseError(
-                StorageError::InvalidRecord,
-            ))?;
-            match value.0[0] {
-                SOURCE_ID_IDENTIFIER => {
-                    commits.extend(once(deserialize_source_metadata(value.0, value.1)))
-                }
-                OUTPUT_SCHEMA_IDENTIFIER => {
-                    let handle: PortHandle = PortHandle::from_be_bytes(
-                        (&value.0[1..])
-                            .try_into()
-                            .map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
-                    );
-                    let schema: Schema =
-                        bincode::deserialize(value.1).map_err(|e| DeserializationError {
-                            typ: "Schema".to_string(),
-                            reason: Box::new(e),
-                        })?;
-                    output_schemas.insert(handle, schema);
-                }
-                INPUT_SCHEMA_IDENTIFIER => {
-                    let handle: PortHandle = PortHandle::from_be_bytes(
-                        (&value.0[1..])
-                            .try_into()
-                            .map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
-                    );
-                    let schema: Schema =
-                        bincode::deserialize(value.1).map_err(|e| DeserializationError {
-                            typ: "Schema".to_string(),
-                            reason: Box::new(e),
-                        })?;
-                    input_schemas.insert(handle, schema);
-                }
-                _ => {
-                    return Err(ExecutionError::InternalDatabaseError(
-                        StorageError::InvalidRecord,
-                    ))
-                }
-            }
-            if !cur.next()? {
-                break;
-            }
-        }
-
-        Ok(Some(DagMetadata {
-            commits,
-            input_schemas,
-            output_schemas,
-        }))
-    }
-
-    fn get_checkpoint_metadata(
-        path: &Path,
-        dag: &Dag<T>,
-    ) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
-        let mut all = HashMap::<NodeHandle, DagMetadata>::new();
-        for node in dag.node_handles() {
-            if let Ok(Some(metadata)) = Self::get_node_checkpoint_metadata(path, node) {
-                all.insert(node.clone(), metadata);
-            }
-        }
-        Ok(all)
-    }
-
-    fn get_dependency_tree_consistency(
-        &self,
-        root_node: &NodeHandle,
-    ) -> Result<HashMap<Option<OpIdentifier>, Vec<NodeHandle>>, ExecutionError> {
-        let metadata = Self::get_checkpoint_metadata(self.path, self.dag)?;
-
-        let mut result = HashMap::new();
-
-        for node_handle in self.dag.bfs(root_node) {
-            let seq = metadata
-                .get(node_handle)
-                .and_then(|dag_meta_data| dag_meta_data.commits.get(root_node).copied());
-
-            insert_vec_element(&mut result, seq, node_handle.clone());
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn get_checkpoint_consistency(
-        &self,
-    ) -> Result<HashMap<NodeHandle, Consistency>, ExecutionError> {
-        let mut r: HashMap<NodeHandle, Consistency> = HashMap::new();
-        for node_handle in self.dag.node_handles() {
-            let consistency = self.get_dependency_tree_consistency(node_handle)?;
-            debug_assert!(!consistency.is_empty());
-            if consistency.len() == 1 {
-                r.insert(
-                    node_handle.clone(),
-                    Consistency::FullyConsistent(*consistency.iter().next().unwrap().0),
-                );
-            } else {
-                r.insert(
-                    node_handle.clone(),
-                    Consistency::PartiallyConsistent(consistency),
-                );
-            }
-        }
-        Ok(r)
-    }
-
-    pub(crate) fn delete_metadata(&self) {
-        for node in self.dag.node_handles() {
-            LmdbEnvironmentManager::remove(self.path, &node_environment_name(node));
-        }
-    }
-
-    pub(crate) fn get_metadata(&self) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
-        Self::get_checkpoint_metadata(self.path, self.dag)
-    }
-
-    pub(crate) fn init_metadata(
-        &self,
-        schemas: &HashMap<NodeHandle, NodeSchemas<T>>,
-    ) -> Result<(), ExecutionError> {
-        for node in self.dag.node_handles() {
-            let curr_node_schema = schemas
-                .get(node)
-                .ok_or_else(|| InvalidNodeHandle(node.clone()))?;
-
-            let env_name = node_environment_name(node);
-            if LmdbEnvironmentManager::exists(self.path, &env_name) {
-                return Err(MetadataAlreadyExists(node.clone()));
+            // Create new env if it doesn't exist.
+            if !LmdbEnvironmentManager::exists(&path, &env_name) {
+                nodes.push(Some(NodeType {
+                    handle: node.handle.clone(),
+                    storage: None,
+                    commits: SourceStates::new(),
+                    kind: node.kind.clone(),
+                }));
+                continue;
             }
 
+            // Open environment and database.
             let mut env = LmdbEnvironmentManager::create(
-                self.path,
+                &path,
                 &env_name,
                 LmdbEnvironmentOptions::default(),
             )?;
-            let db = env.create_database(Some(METADATA_DB_NAME), Some(DatabaseFlags::empty()))?;
-            let txn = env.create_txn()?;
-            let mut txn = SharedTransaction::try_unwrap(txn)
-                .expect("We just created this `SharedTransaction`. It's not shared.");
+            let meta_db = env.create_database(Some(METADATA_DB_NAME), None)?;
+            let master_txn = env.create_txn()?;
 
-            for (handle, (schema, _ctx)) in curr_node_schema.output_schemas.iter() {
-                let mut key: Vec<u8> = vec![OUTPUT_SCHEMA_IDENTIFIER];
-                key.extend(handle.to_be_bytes());
-                let value = bincode::serialize(schema).map_err(|e| SerializationError {
-                    typ: "Schema".to_string(),
-                    reason: Box::new(e),
-                })?;
-                txn.put(db, &key, &value)?;
+            let mut commits = SourceStates::new();
+            let mut input_schemas: HashMap<PortHandle, Schema> = HashMap::new();
+            let mut output_schemas: HashMap<PortHandle, Schema> = HashMap::new();
+
+            // Read schemas and checkpoints.
+            {
+                let txn = master_txn.read();
+                let cur = txn.open_ro_cursor(meta_db)?;
+                if !cur.first()? {
+                    return Err(ExecutionError::InternalDatabaseError(
+                        StorageError::InvalidRecord,
+                    ));
+                }
+
+                loop {
+                    let (key, value) = cur.read()?.ok_or(ExecutionError::InternalDatabaseError(
+                        StorageError::InvalidRecord,
+                    ))?;
+                    match key[0] {
+                        SOURCE_ID_IDENTIFIER => {
+                            let (source, op_id) = deserialize_source_metadata(key, value);
+                            commits.insert(source, op_id);
+                        }
+                        OUTPUT_SCHEMA_IDENTIFIER => {
+                            let (handle, schema) = deserialize_schema(key, value)?;
+                            output_schemas.insert(handle, schema);
+                        }
+                        INPUT_SCHEMA_IDENTIFIER => {
+                            let (handle, schema) = deserialize_schema(key, value)?;
+                            input_schemas.insert(handle, schema);
+                        }
+                        _ => {
+                            return Err(ExecutionError::InternalDatabaseError(
+                                StorageError::InvalidRecord,
+                            ))
+                        }
+                    }
+                    if !cur.next()? {
+                        break;
+                    }
+                }
             }
 
-            for (handle, (schema, _ctx)) in curr_node_schema.input_schemas.iter() {
-                let mut key: Vec<u8> = vec![INPUT_SCHEMA_IDENTIFIER];
-                key.extend(handle.to_be_bytes());
-                let value = bincode::serialize(schema).map_err(|e| SerializationError {
-                    typ: "Schema".to_string(),
-                    reason: Box::new(e),
-                })?;
-                txn.put(db, &key, &value)?;
-            }
+            // Check if schema has changed.
+            validate_schemas(
+                &node.handle,
+                SchemaType::Output,
+                &dag_schemas.get_node_output_schemas(node_index),
+                &output_schemas,
+            )?;
+            validate_schemas(
+                &node.handle,
+                SchemaType::Input,
+                &dag_schemas.get_node_input_schemas(node_index),
+                &input_schemas,
+            )?;
 
-            txn.commit_and_renew()?;
+            // Create node.
+            nodes.push(Some(NodeType {
+                handle: node.handle.clone(),
+                storage: Some(NodeStorage {
+                    master_txn,
+                    meta_db,
+                }),
+                commits,
+                kind: node.kind.clone(),
+            }));
         }
-        Ok(())
+
+        let graph = dag_schemas.graph().map(
+            |node_index, _| {
+                nodes[node_index.index()]
+                    .take()
+                    .expect("We created all nodes")
+            },
+            |_, edge| edge.clone(),
+        );
+        Ok(Self { path, graph })
+    }
+
+    pub fn delete(path: &Path, dag: &Dag<T>) {
+        for node in dag.graph().raw_nodes() {
+            let env_name = node_environment_name(&node.weight.handle);
+            LmdbEnvironmentManager::remove(path, &env_name);
+        }
+    }
+
+    pub fn node_weight_mut(&mut self, node_index: NodeIndex) -> &mut NodeType<T> {
+        &mut self.graph[node_index]
+    }
+
+    pub fn initialize_node_storage(
+        &self,
+        node_index: NodeIndex,
+    ) -> Result<NodeStorage, StorageError> {
+        // Create the environment.
+        let node = &self.graph[node_index];
+        debug_assert!(node.storage.is_none());
+        let node_handle = &node.handle;
+        let env_name = node_environment_name(node_handle);
+        debug_assert!(!LmdbEnvironmentManager::exists(&self.path, &env_name));
+        let mut env = LmdbEnvironmentManager::create(
+            &self.path,
+            &env_name,
+            LmdbEnvironmentOptions::default(),
+        )?;
+        let meta_db = env.create_database(Some(METADATA_DB_NAME), Some(DatabaseFlags::empty()))?;
+        let txn = env.create_txn()?;
+
+        // Write schemas to the storage.
+        write_schemas(
+            &mut txn.write(),
+            meta_db,
+            OUTPUT_SCHEMA_IDENTIFIER,
+            self.graph
+                .edges_directed(node_index, Direction::Outgoing)
+                .map(|edge| {
+                    let edge = edge.weight();
+                    (edge.output_port, &edge.schema)
+                }),
+        )?;
+        write_schemas(
+            &mut txn.write(),
+            meta_db,
+            INPUT_SCHEMA_IDENTIFIER,
+            self.graph
+                .edges_directed(node_index, Direction::Incoming)
+                .map(|edge| {
+                    let edge = edge.weight();
+                    (edge.input_port, &edge.schema)
+                }),
+        )?;
+        txn.write().commit_and_renew()?;
+
+        // Return the storage.
+        Ok(NodeStorage {
+            master_txn: txn,
+            meta_db,
+        })
+    }
+
+    pub fn check_consistency(&self) -> bool {
+        for node_index in Topo::new(&self.graph).iter(&self.graph) {
+            let mut all_parent_commits = SourceStates::new();
+            for edge in self.graph.edges_directed(node_index, Direction::Incoming) {
+                let parent_commits = self.graph[edge.source()].commits.clone();
+                all_parent_commits.extend(parent_commits.into_iter());
+            }
+
+            if all_parent_commits.is_empty() {
+                // This is a source node.
+                continue;
+            }
+
+            if all_parent_commits != self.graph[node_index].commits {
+                return false;
+            }
+        }
+        true
     }
 }
 
-pub fn node_environment_name(node_handle: &NodeHandle) -> String {
-    format!("{node_handle}")
+#[derive(Debug, Clone, Copy)]
+pub enum SchemaType {
+    Input,
+    Output,
+}
+
+fn node_environment_name(node: &NodeHandle) -> String {
+    format!("{node}")
+}
+
+fn write_schemas<'a>(
+    txn: &mut LmdbExclusiveTransaction,
+    db: Database,
+    identifier: u8,
+    schemas: impl Iterator<Item = (PortHandle, &'a Schema)>,
+) -> Result<(), StorageError> {
+    for (handle, schema) in schemas {
+        let mut key: Vec<u8> = vec![identifier];
+        key.extend(handle.to_be_bytes());
+        let value = bincode::serialize(schema).map_err(|e| SerializationError {
+            typ: "Schema".to_string(),
+            reason: Box::new(e),
+        })?;
+        txn.put(db, &key, &value)?;
+    }
+    Ok(())
+}
+
+fn deserialize_schema(key: &[u8], value: &[u8]) -> Result<(PortHandle, Schema), ExecutionError> {
+    let handle: PortHandle = PortHandle::from_be_bytes(
+        (&key[1..])
+            .try_into()
+            .map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
+    );
+    let schema: Schema = bincode::deserialize(value).map_err(|e| DeserializationError {
+        typ: "Schema".to_string(),
+        reason: Box::new(e),
+    })?;
+    Ok((handle, schema))
 }
 
 pub fn write_source_metadata<'a>(
     txn: &mut LmdbExclusiveTransaction,
     db: Database,
-    metadata: &'a mut impl Iterator<Item = (&'a NodeHandle, OpIdentifier)>,
+    metadata: impl Iterator<Item = (&'a NodeHandle, OpIdentifier)>,
 ) -> Result<(), StorageError> {
     for (source, op_id) in metadata {
         let (key, value) = serialize_source_metadata(source, op_id);
@@ -277,6 +326,45 @@ fn deserialize_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, OpIdent
     let txid = u64::from_be_bytes(value[0..8].try_into().unwrap());
     let seq_in_tx = u64::from_be_bytes(value[8..16].try_into().unwrap());
     (source, OpIdentifier { txid, seq_in_tx })
+}
+
+fn validate_schemas<T>(
+    node_handle: &NodeHandle,
+    typ: SchemaType,
+    current: &HashMap<PortHandle, (Schema, T)>,
+    existing: &HashMap<PortHandle, Schema>,
+) -> Result<(), ExecutionError> {
+    if existing.len() != current.len() {
+        return Err(ExecutionError::IncompatibleSchemas {
+            node: node_handle.clone(),
+            typ,
+            source: IncompatibleSchemas::LengthMismatch {
+                current: current.len(),
+                existing: existing.len(),
+            },
+        });
+    }
+    for (port, (current_schema, _)) in current {
+        let existing_schema =
+            existing
+                .get(port)
+                .ok_or_else(|| ExecutionError::IncompatibleSchemas {
+                    node: node_handle.clone(),
+                    typ,
+                    source: IncompatibleSchemas::NotFound(*port),
+                })?;
+
+        if current_schema != existing_schema {
+            current_schema.print().printstd();
+            existing_schema.print().printstd();
+            return Err(ExecutionError::IncompatibleSchemas {
+                node: node_handle.clone(),
+                typ,
+                source: IncompatibleSchemas::SchemaMismatch(*port),
+            });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

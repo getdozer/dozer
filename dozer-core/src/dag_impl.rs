@@ -1,5 +1,5 @@
 use daggy::petgraph::dot;
-use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges, IntoNodeReferences};
+use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges};
 use daggy::Walker;
 
 use crate::errors::ExecutionError;
@@ -36,6 +36,7 @@ impl Edge {
 }
 
 #[derive(Debug, Clone)]
+/// A `SourceFactory`, `ProcessorFactory` or `SinkFactory`.
 pub enum NodeKind<T> {
     Source(Arc<dyn SourceFactory<T>>),
     Processor(Arc<dyn ProcessorFactory<T>>),
@@ -43,8 +44,11 @@ pub enum NodeKind<T> {
 }
 
 #[derive(Debug, Clone)]
+/// The node type of the description DAG.
 pub struct NodeType<T> {
+    /// The node handle, unique across the DAG.
     pub handle: NodeHandle,
+    /// The node kind.
     pub kind: NodeKind<T>,
 }
 
@@ -70,14 +74,6 @@ impl Display for EdgeType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} -> {:?}", self.from, self.to)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct EdgeIndex {
-    from_node: daggy::NodeIndex,
-    output_port: PortHandle,
-    to_node: daggy::NodeIndex,
-    input_port: PortHandle,
 }
 
 #[derive(Debug, Clone)]
@@ -233,17 +229,6 @@ impl<T> Dag<T> {
         })
     }
 
-    /// Returns an iterator over source node indexes.
-    pub fn source_identifiers(&self) -> impl Iterator<Item = daggy::NodeIndex> + '_ {
-        self.graph.node_references().flat_map(|(node_index, node)| {
-            if let NodeKind::Source(_) = &node.kind {
-                Some(node_index)
-            } else {
-                None
-            }
-        })
-    }
-
     /// Returns an iterator over processor handles and processors.
     pub fn processors(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn ProcessorFactory<T>>)> {
         self.nodes().flat_map(|node| {
@@ -255,33 +240,11 @@ impl<T> Dag<T> {
         })
     }
 
-    /// Returns an iterator over processor node indexes.
-    pub fn processor_identifiers(&self) -> impl Iterator<Item = daggy::NodeIndex> + '_ {
-        self.graph.node_references().flat_map(|(node_index, node)| {
-            if let NodeKind::Processor(_) = &node.kind {
-                Some(node_index)
-            } else {
-                None
-            }
-        })
-    }
-
     /// Returns an iterator over sink handles and sinks.
     pub fn sinks(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn SinkFactory<T>>)> {
         self.nodes().flat_map(|node| {
             if let NodeKind::Sink(sink) = &node.kind {
                 Some((&node.handle, sink))
-            } else {
-                None
-            }
-        })
-    }
-
-    /// Returns an iterator over sink node indexes.
-    pub fn sink_identifiers(&self) -> impl Iterator<Item = daggy::NodeIndex> + '_ {
-        self.graph.node_references().flat_map(|(node_index, node)| {
-            if let NodeKind::Sink(_) = node.kind {
-                Some(node_index)
             } else {
                 None
             }
@@ -342,6 +305,14 @@ impl<T> Dag<T> {
             .iter(self.graph.graph())
             .map(|node_index| &self.graph[node_index].handle)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct EdgeIndex {
+    from_node: daggy::NodeIndex,
+    output_port: PortHandle,
+    to_node: daggy::NodeIndex,
+    input_port: PortHandle,
 }
 
 impl<T> Dag<T> {
