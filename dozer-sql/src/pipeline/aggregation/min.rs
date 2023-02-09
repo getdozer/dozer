@@ -414,7 +414,7 @@ impl MinAggregator {
                     String::from_utf8(deserialize!(f)).unwrap().as_ref(),
                     DATE_FORMAT,
                 )
-                    .unwrap(),
+                .unwrap(),
             ),
             FieldType::Decimal => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
                 deserialize!(f),
@@ -510,7 +510,7 @@ impl MinAggregator {
                 String::from_utf8(deserialize!(cur.0)).unwrap().as_ref(),
                 DATE_FORMAT,
             )
-                .unwrap();
+            .unwrap();
         }
         Ok(minimum)
     }

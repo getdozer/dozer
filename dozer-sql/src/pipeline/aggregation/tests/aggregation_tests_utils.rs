@@ -42,7 +42,7 @@ pub(crate) fn init_processor(
         input_schema.clone(),
         projection_planner.post_aggregation_schema,
     )
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     processor.init(&mut storage).unwrap();
     let tx = storage.create_txn().unwrap();
