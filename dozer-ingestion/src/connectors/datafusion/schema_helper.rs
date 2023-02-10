@@ -1,5 +1,9 @@
 use crate::errors::DataFusionSchemaError;
+use crate::errors::DataFusionSchemaError::DateConversionError;
+use crate::errors::DataFusionSchemaError::DateTimeConversionError;
+use crate::errors::DataFusionSchemaError::DurationConversionError;
 use crate::errors::DataFusionSchemaError::FieldTypeNotSupported;
+use crate::errors::DataFusionSchemaError::TimeConversionError;
 use datafusion::arrow::array;
 use datafusion::arrow::array::{Array, ArrayRef};
 use datafusion::arrow::datatypes::{DataType, Field, TimeUnit};
@@ -47,14 +51,13 @@ macro_rules! make_timestamp {
         let array = $column.as_any().downcast_ref::<$array_type>();
 
         if let Some(r) = array {
-            let s: DozerField = if r.is_null($row.clone()) {
-                DozerField::Null
+            if r.is_null($row.clone()) {
+                Ok(DozerField::Null)
             } else {
-                let v = r.value_as_datetime($row.clone()).unwrap();
-                DozerField::from(v)
-            };
-
-            Ok(s)
+                r.value_as_datetime($row.clone())
+                    .map(DozerField::from)
+                    .map_or_else(|| Err(DateTimeConversionError), |v| Ok(DozerField::from(v)))
+            }
         } else {
             Ok(DozerField::Null)
         }
@@ -66,14 +69,12 @@ macro_rules! make_date {
         let array = $column.as_any().downcast_ref::<$array_type>();
 
         if let Some(r) = array {
-            let s: DozerField = if r.is_null($row.clone()) {
-                DozerField::Null
+            if r.is_null($row.clone()) {
+                Ok(DozerField::Null)
             } else {
-                let v = r.value_as_date($row.clone()).unwrap();
-                DozerField::from(v)
-            };
-
-            Ok(s)
+                r.value_as_date($row.clone())
+                    .map_or_else(|| Err(DateConversionError), |v| Ok(DozerField::from(v)))
+            }
         } else {
             Ok(DozerField::Null)
         }
@@ -85,14 +86,12 @@ macro_rules! make_time {
         let array = $column.as_any().downcast_ref::<$array_type>();
 
         if let Some(r) = array {
-            let s: DozerField = if r.is_null($row.clone()) {
-                DozerField::Null
+            if r.is_null($row.clone()) {
+                Ok(DozerField::Null)
             } else {
-                let v = r.value_as_time($row.clone()).unwrap();
-                DozerField::from(v)
-            };
-
-            Ok(s)
+                r.value_as_time($row.clone())
+                    .map_or_else(|| Err(TimeConversionError), |v| Ok(DozerField::from(v)))
+            }
         } else {
             Ok(DozerField::Null)
         }
@@ -104,14 +103,14 @@ macro_rules! make_duration {
         let array = $column.as_any().downcast_ref::<$array_type>();
 
         if let Some(r) = array {
-            let s: DozerField = if r.is_null($row.clone()) {
-                DozerField::Null
+            if r.is_null($row.clone()) {
+                Ok(DozerField::Null)
             } else {
-                let v = r.value_as_duration($row.clone()).unwrap();
-                DozerField::from(v.num_nanoseconds().unwrap())
-            };
-
-            Ok(s)
+                r.value_as_duration($row.clone()).map_or_else(
+                    || Err(DurationConversionError),
+                    |v| Ok(DozerField::from(v.num_nanoseconds().unwrap())),
+                )
+            }
         } else {
             Ok(DozerField::Null)
         }

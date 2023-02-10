@@ -9,10 +9,12 @@ use dozer_types::{rust_decimal, thiserror};
 
 use base64::DecodeError;
 
+use datafusion::error::DataFusionError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 use std::str::Utf8Error;
 
+use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
 use schema_registry_converter::error::SRCError;
@@ -316,14 +318,65 @@ pub enum DebeziumSchemaError {
     InvalidTimestampError,
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum DataFusionConnectorError {
     #[error(transparent)]
     DataFusionSchemaError(#[from] DataFusionSchemaError),
+
+    #[error(transparent)]
+    DataFusionStorageObjectError(#[from] DataFusionStorageObjectError),
+
+    #[error("Runtime creation error")]
+    RuntimeCreationError,
+
+    #[error("Internal error")]
+    InternalError,
+
+    #[error("Internal data fusion error")]
+    InternalDataFusionError(#[source] DataFusionError),
+
+    #[error(transparent)]
+    DataFusionTableReaderError(#[from] DataFusionTableReaderError),
 }
 
 #[derive(Error, Debug, PartialEq)]
 pub enum DataFusionSchemaError {
     #[error("Unsupported type of \"{0}\" field")]
     FieldTypeNotSupported(String),
+
+    #[error("Date time conversion failed")]
+    DateTimeConversionError,
+
+    #[error("Date conversion failed")]
+    DateConversionError,
+
+    #[error("Time conversion failed")]
+    TimeConversionError,
+
+    #[error("Duration conversion failed")]
+    DurationConversionError,
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum DataFusionStorageObjectError {
+    #[error("Missing storage details")]
+    MissingStorageDetails,
+
+    #[error("Table definition not found")]
+    TableDefinitionNotFound,
+
+    #[error("Listing path parsing error")]
+    ListingPathParsingError,
+}
+
+#[derive(Error, Debug)]
+pub enum DataFusionTableReaderError {
+    #[error("Table read failed")]
+    TableReadFailed(DataFusionError),
+
+    #[error("Columns select failed")]
+    ColumnsSelectFailed(DataFusionError),
+
+    #[error("Stream execution failed")]
+    StreamExecutionError(DataFusionError),
 }
