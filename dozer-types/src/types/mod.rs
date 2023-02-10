@@ -205,10 +205,10 @@ impl Record {
         res_buffer
     }
 
-    pub fn get_hash(&self, fields: Vec<Field>) -> u64 {
+    pub fn get_values_hash(&self) -> u64 {
         let mut hasher = AHasher::default();
 
-        for (index, field) in fields.iter().enumerate() {
+        for (index, field) in self.values.iter().enumerate() {
             hasher.write_i32(index as i32);
             match field {
                 Field::UInt(i) => {

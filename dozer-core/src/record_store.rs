@@ -25,6 +25,21 @@ pub trait RecordWriter: Send + Sync {
         -> Result<Operation, ExecutionError>;
 }
 
+#[derive(Debug)]
+pub enum KeyExtractor {
+    PrimaryKey(Schema),
+    HashKey,
+}
+
+impl KeyExtractor {
+    fn get_key(&self, record: &Record) -> Vec<u8> {
+        match self {
+            KeyExtractor::PrimaryKey(schema) => record.get_key(&schema.primary_index),
+            KeyExtractor::HashKey => record.get_values_hash().to_be_bytes().to_vec(),
+        }
+    }
+}
+
 impl Debug for dyn RecordWriter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("RecordWriter")
@@ -72,6 +87,11 @@ pub fn create_record_store(
             retr_old_records_for_deletes,
         } => {
             let (db, meta_db) = create_databases()?;
+            let key_extractor = if schema.primary_index.is_empty() {
+                KeyExtractor::HashKey
+            } else {
+                KeyExtractor::PrimaryKey(schema.clone())
+            };
             let writer = Box::new(PrimaryKeyLookupRecordWriter::new(
                 db,
                 meta_db,
@@ -79,6 +99,7 @@ pub fn create_record_store(
                 retr_old_records_for_deletes,
                 retr_old_records_for_updates,
                 retention_queue_size,
+                key_extractor,
             ));
             let reader = Box::new(PrimaryKeyLookupRecordReader::new(tx.clone(), db));
             Ok(Some((writer, reader)))
@@ -111,6 +132,7 @@ pub(crate) struct PrimaryKeyLookupRecordWriter {
     retr_old_records_for_updates: bool,
     retention_queue_size: usize,
     retention_queue: VecDeque<(Vec<u8>, u32)>,
+    key_extractor: KeyExtractor,
 }
 
 impl PrimaryKeyLookupRecordWriter {
@@ -121,6 +143,7 @@ impl PrimaryKeyLookupRecordWriter {
         retr_old_records_for_deletes: bool,
         retr_old_records_for_updates: bool,
         retention_queue_size: usize,
+        key_extractor: KeyExtractor,
     ) -> Self {
         Self {
             db,
@@ -130,6 +153,7 @@ impl PrimaryKeyLookupRecordWriter {
             retr_old_records_for_updates,
             retention_queue_size,
             retention_queue: VecDeque::with_capacity(retention_queue_size),
+            key_extractor,
         }
     }
 
@@ -254,7 +278,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
     ) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { mut new } => {
-                let key = new.get_key(&self.schema.primary_index);
+                let key = self.key_extractor.get_key(&new);
                 self.write_versioned_record(
                     Some(&new),
                     key,
