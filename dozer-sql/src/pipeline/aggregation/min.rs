@@ -9,7 +9,8 @@ use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp, UInt};
 use dozer_types::types::{Field, FieldType, DATE_FORMAT};
 
 use crate::deserialize;
-use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
+use dozer_types::chrono::{DateTime, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
+use dozer_types::errors::types::TypeError;
 use std::string::ToString;
 
 pub struct MinAggregator {}
@@ -32,7 +33,7 @@ impl MinAggregator {
         match (return_type, new) {
             (FieldType::Date, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = &Field::to_date(new).unwrap().to_string();
+                let new_val = &Field::to_date(new)?.unwrap().to_string();
                 Self::update_aggregator_db(new_val.as_bytes(), 1, false, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -42,7 +43,7 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(minimum.to_string().as_bytes(), return_type),
+                        Self::get_value(minimum.to_string().as_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_string().as_bytes())),
                     ))
                 }
@@ -58,7 +59,7 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(minimum.serialize().as_slice(), return_type),
+                        Self::get_value(minimum.serialize().as_slice(), return_type)?,
                         Some(Vec::from(minimum.serialize())),
                     ))
                 }
@@ -77,7 +78,7 @@ impl MinAggregator {
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
@@ -96,7 +97,7 @@ impl MinAggregator {
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
@@ -115,14 +116,14 @@ impl MinAggregator {
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
             (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = &Field::to_timestamp(new)
+                let new_val = &Field::to_timestamp(new)?
                     .unwrap()
                     .timestamp_millis()
                     .to_be_bytes();
@@ -139,7 +140,7 @@ impl MinAggregator {
                         Self::get_value(
                             minimum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
-                        ),
+                        )?,
                         Some(Vec::from(minimum.timestamp_millis().to_be_bytes())),
                     ))
                 }
@@ -159,9 +160,9 @@ impl MinAggregator {
         match (return_type, new) {
             (FieldType::Date, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = &Field::to_date(new).unwrap().to_string();
+                let new_val = &Field::to_date(new)?.unwrap().to_string();
                 Self::update_aggregator_db(new_val.as_bytes(), 1, false, ptx, aggregators_db);
-                let old_val = &Field::to_date(old).unwrap().to_string();
+                let old_val = &Field::to_date(old)?.unwrap().to_string();
                 Self::update_aggregator_db(old_val.as_bytes(), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -171,7 +172,7 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(minimum.to_string().as_bytes(), return_type),
+                        Self::get_value(minimum.to_string().as_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_string().as_bytes())),
                     ))
                 }
@@ -189,7 +190,7 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(minimum.serialize().as_slice(), return_type),
+                        Self::get_value(minimum.serialize().as_slice(), return_type)?,
                         Some(Vec::from(minimum.serialize())),
                     ))
                 }
@@ -210,7 +211,7 @@ impl MinAggregator {
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
@@ -231,7 +232,7 @@ impl MinAggregator {
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
@@ -252,19 +253,19 @@ impl MinAggregator {
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
             (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = &Field::to_timestamp(new)
+                let new_val = &Field::to_timestamp(new)?
                     .unwrap()
                     .timestamp_millis()
                     .to_be_bytes();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
-                let old_val = &Field::to_timestamp(old)
+                let old_val = &Field::to_timestamp(old)?
                     .unwrap()
                     .timestamp_millis()
                     .to_be_bytes();
@@ -281,7 +282,7 @@ impl MinAggregator {
                         Self::get_value(
                             minimum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
-                        ),
+                        )?,
                         Some(Vec::from(minimum.timestamp_millis().to_be_bytes())),
                     ))
                 }
@@ -300,7 +301,7 @@ impl MinAggregator {
         match (return_type, old) {
             (FieldType::Date, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = &Field::to_date(old).unwrap().to_string();
+                let old_val = &Field::to_date(old)?.unwrap().to_string();
                 Self::update_aggregator_db(old_val.as_bytes(), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -310,7 +311,7 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(minimum.to_string().as_bytes(), return_type),
+                        Self::get_value(minimum.to_string().as_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_string().as_bytes())),
                     ))
                 }
@@ -326,7 +327,7 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(minimum.serialize().as_slice(), return_type),
+                        Self::get_value(minimum.serialize().as_slice(), return_type)?,
                         Some(Vec::from(minimum.serialize())),
                     ))
                 }
@@ -342,7 +343,7 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
@@ -358,7 +359,7 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
@@ -374,14 +375,14 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Self::get_value(&minimum.to_be_bytes(), return_type)?,
                         Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
             (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = &Field::to_timestamp(old)
+                let old_val = &Field::to_timestamp(old)?
                     .unwrap()
                     .timestamp_millis()
                     .to_be_bytes();
@@ -398,7 +399,7 @@ impl MinAggregator {
                         Self::get_value(
                             minimum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
-                        ),
+                        )?,
                         Some(Vec::from(minimum.timestamp_millis().to_be_bytes())),
                     ))
                 }
@@ -407,25 +408,33 @@ impl MinAggregator {
         }
     }
 
-    pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
+    pub(crate) fn get_value(f: &[u8], from: FieldType) -> Result<Field, PipelineError> {
         match from {
-            FieldType::Date => Date(
+            FieldType::Date => Ok(Date(
                 NaiveDate::parse_from_str(
                     String::from_utf8(deserialize!(f)).unwrap().as_ref(),
                     DATE_FORMAT,
                 )
                 .unwrap(),
-            ),
-            FieldType::Decimal => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
+            )),
+            FieldType::Decimal => Ok(Decimal(dozer_types::rust_decimal::Decimal::deserialize(
                 deserialize!(f),
-            )),
-            FieldType::Float => Float(OrderedFloat(f64::from_be_bytes(deserialize!(f)))),
-            FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
-            FieldType::UInt => UInt(u64::from_be_bytes(deserialize!(f))),
-            FieldType::Timestamp => Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_be_bytes(deserialize!(f))),
-            )),
-            _ => Field::Null,
+            ))),
+            FieldType::Float => Ok(Float(OrderedFloat(f64::from_be_bytes(deserialize!(f))))),
+            FieldType::Int => Ok(Int(i64::from_be_bytes(deserialize!(f)))),
+            FieldType::UInt => Ok(UInt(u64::from_be_bytes(deserialize!(f)))),
+            FieldType::Timestamp => {
+                match Utc.timestamp_millis_opt(i64::from_be_bytes(deserialize!(f))) {
+                    LocalResult::None => Err(PipelineError::InternalTypeError(
+                        TypeError::InvalidTimestamp,
+                    )),
+                    LocalResult::Single(v) => Ok(Timestamp(DateTime::from(v))),
+                    LocalResult::Ambiguous(_, _) => Err(PipelineError::InternalTypeError(
+                        TypeError::AmbiguousTimestamp,
+                    )),
+                }
+            }
+            _ => Ok(Field::Null),
         }
     }
 
@@ -491,7 +500,18 @@ impl MinAggregator {
         // get first to get the minimum
         if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            minimum = Utc.timestamp_millis(i64::from_be_bytes(deserialize!(cur.0)));
+            let minimum_local_result =
+                Utc.timestamp_millis_opt(i64::from_be_bytes(deserialize!(cur.0)));
+
+            minimum = match minimum_local_result {
+                LocalResult::Single(v) => Ok(v),
+                LocalResult::Ambiguous(_, _) => Err(PipelineError::InternalTypeError(
+                    TypeError::AmbiguousTimestamp,
+                )),
+                LocalResult::None => Err(PipelineError::InternalTypeError(
+                    TypeError::InvalidTimestamp,
+                )),
+            }?;
         }
         Ok(DateTime::from(minimum))
     }

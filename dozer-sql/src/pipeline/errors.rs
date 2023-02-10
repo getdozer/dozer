@@ -63,7 +63,7 @@ pub enum PipelineError {
     InvalidCast { from: Field, to: FieldType },
     #[error("{0}() cannot be called frome here. Aggregations can only be used in SELECT and HAVING and cannot be nested within other aggregations.")]
     InvalidNestedAggregationFunction(String),
-    #[error("Field {0} is not present in teh source schema")]
+    #[error("Field {0} is not present in the source schema")]
     UnknownFieldIdentifier(String),
     #[error(
         "Field {0} is ambiguous. Specify a fully qualified name such as [connection.]source.field"

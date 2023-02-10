@@ -138,11 +138,11 @@ mod tests {
             (FieldType::Decimal, Field::Decimal(Decimal::new(202, 2))),
             (
                 FieldType::Timestamp,
-                Field::Timestamp(Utc.fix().ymd(2001, 1, 1).and_hms_milli(0, 4, 0, 42)),
+                Field::Timestamp(Utc.fix().with_ymd_and_hms(2001, 1, 1, 0, 4, 0).unwrap()),
             ),
             (
                 FieldType::Date,
-                Field::Date(NaiveDate::from_ymd(2022, 11, 24)),
+                Field::Date(NaiveDate::from_ymd_opt(2022, 11, 24).unwrap()),
             ),
             (
                 FieldType::Bson,

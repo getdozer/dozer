@@ -59,18 +59,18 @@ fn test_checkpoint_consistency() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 
     chk!(dag.connect(
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -121,12 +121,12 @@ fn test_checkpoint_consistency_resume() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 
@@ -175,12 +175,12 @@ fn test_checkpoint_consistency_resume() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 

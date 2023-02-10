@@ -164,7 +164,7 @@ fn test_run_dag_and_stop() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 

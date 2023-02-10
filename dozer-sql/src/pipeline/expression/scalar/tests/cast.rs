@@ -341,7 +341,7 @@ fn test_string() {
                 false,
             )
             .clone(),
-        vec![Field::Date(NaiveDate::from_ymd(2022, 1, 1))],
+        vec![Field::Date(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap())],
     );
     assert_eq!(f, Field::String("2022-01-01".to_string()));
 
@@ -444,7 +444,7 @@ fn test_string() {
             )
             .clone(),
         vec![Field::Timestamp(DateTime::from(
-            Utc.timestamp_millis(42_000_000),
+            Utc.timestamp_millis_opt(42_000_000).unwrap(),
         ))],
     );
     assert_eq!(f, Field::String("1970-01-01T11:40:00+00:00".to_string()));
@@ -511,7 +511,7 @@ fn test_text() {
                 false,
             )
             .clone(),
-        vec![Field::Date(NaiveDate::from_ymd(2022, 1, 1))],
+        vec![Field::Date(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap())],
     );
     assert_eq!(f, Field::Text("2022-01-01".to_string()));
 
@@ -614,7 +614,7 @@ fn test_text() {
             )
             .clone(),
         vec![Field::Timestamp(DateTime::from(
-            Utc.timestamp_millis(42_000_000),
+            Utc.timestamp_millis_opt(42_000_000).unwrap(),
         ))],
     );
     assert_eq!(f, Field::Text("1970-01-01T11:40:00+00:00".to_string()));
