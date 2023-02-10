@@ -205,13 +205,12 @@ impl Record {
         res_buffer
     }
 
-    pub fn get_hash(&self, fields: Vec<usize>) -> u64 {
+    pub fn get_hash(&self, fields: Vec<Field>) -> u64 {
         let mut hasher = AHasher::default();
-        let mut ctr = 0;
 
-        for i in fields {
-            hasher.write_i32(ctr);
-            match &self.values[i] {
+        for (index, field) in fields.iter().enumerate() {
+            hasher.write_i32(index as i32);
+            match field {
                 Field::UInt(i) => {
                     hasher.write_u8(1);
                     hasher.write_u64(*i);
@@ -250,7 +249,7 @@ impl Record {
                 }
                 Field::Date(d) => {
                     hasher.write_u8(10);
-                    hasher.write(&d.serialise());
+                    hasher.write(d.to_string().as_bytes());
                 }
                 Field::Bson(b) => {
                     hasher.write_u8(11);
@@ -260,9 +259,8 @@ impl Record {
                     hasher.write_u8(0);
                 }
             }
-            ctr += 1;
         }
-        Ok(hasher.finish())
+        hasher.finish()
     }
 }
 
