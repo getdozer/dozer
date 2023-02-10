@@ -1,5 +1,5 @@
-use crate::errors::types::DeserializationError;
-use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
+use crate::errors::types::{DeserializationError, TypeError};
+use chrono::{DateTime, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
@@ -137,12 +137,22 @@ impl Field {
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            8 => Ok(FieldBorrow::Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_be_bytes(
+            8 => {
+                let timestamp = Utc.timestamp_millis_opt(i64::from_be_bytes(
                     val.try_into()
                         .map_err(|_| DeserializationError::BadDataLength)?,
-                )),
-            ))),
+                ));
+
+                match timestamp {
+                    LocalResult::Single(v) => Ok(FieldBorrow::Timestamp(DateTime::from(v))),
+                    LocalResult::Ambiguous(_, _) => Err(DeserializationError::Custom(Box::new(
+                        TypeError::AmbiguousTimestamp,
+                    ))),
+                    LocalResult::None => Err(DeserializationError::Custom(Box::new(
+                        TypeError::InvalidTimestamp,
+                    ))),
+                }
+            }
             9 => Ok(FieldBorrow::Date(NaiveDate::parse_from_str(
                 std::str::from_utf8(val)?,
                 DATE_FORMAT,
@@ -363,7 +373,7 @@ impl Field {
         match self {
             Field::Timestamp(t) => Some(*t),
             Field::String(s) => DateTime::parse_from_rfc3339(s.as_str()).ok(),
-            Field::Null => Some(DateTime::from(Utc.timestamp_millis(0))),
+            Field::Null => Some(DateTime::from(Utc.timestamp_millis_opt(0).unwrap())),
             _ => None,
         }
     }
@@ -372,7 +382,7 @@ impl Field {
         match self {
             Field::Date(d) => Some(*d),
             Field::String(s) => NaiveDate::parse_from_str(s, "%Y-%m-%d").ok(),
-            Field::Null => Some(Utc.timestamp_millis(0).naive_utc().date()),
+            Field::Null => Some(Utc.timestamp_millis_opt(0).unwrap().naive_utc().date()),
             _ => None,
         }
     }
@@ -483,10 +493,10 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
         Field::Binary(vec![1]),
         Field::Decimal(Decimal::new(0, 0)),
         Field::Decimal(Decimal::new(1, 0)),
-        Field::Timestamp(DateTime::from(Utc.timestamp_millis(0))),
+        Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(0).unwrap())),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
-        Field::Date(NaiveDate::from_ymd(1970, 1, 1)),
-        Field::Date(NaiveDate::from_ymd(2020, 1, 1)),
+        Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
+        Field::Date(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
         Field::Bson(vec![
             // BSON representation of `{"abc":"foo"}`
             123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125,
@@ -622,7 +632,7 @@ pub mod tests {
         assert!(field.as_bson().is_none());
         assert!(field.as_null().is_none());
 
-        let field = Field::Timestamp(DateTime::from(Utc.timestamp_millis(0)));
+        let field = Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(0).unwrap()));
         assert!(field.as_uint().is_none());
         assert!(field.as_int().is_none());
         assert!(field.as_float().is_none());
@@ -636,7 +646,7 @@ pub mod tests {
         assert!(field.as_bson().is_none());
         assert!(field.as_null().is_none());
 
-        let field = Field::Date(NaiveDate::from_ymd(1970, 1, 1));
+        let field = Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
         assert!(field.as_uint().is_none());
         assert!(field.as_int().is_none());
         assert!(field.as_float().is_none());
@@ -793,7 +803,7 @@ pub mod tests {
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
-        let field = Field::Timestamp(DateTime::from(Utc.timestamp_millis(0)));
+        let field = Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(0).unwrap()));
         assert!(field.to_uint().is_none());
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_none());
@@ -807,7 +817,7 @@ pub mod tests {
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
-        let field = Field::Date(NaiveDate::from_ymd(1970, 1, 1));
+        let field = Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
         assert!(field.to_uint().is_none());
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_none());

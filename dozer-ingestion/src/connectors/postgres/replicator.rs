@@ -87,7 +87,9 @@ impl CDCHandler {
                 if k.reply() == 1 {
                     // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
                     let since_the_epoch = SystemTime::now()
-                        .duration_since(SystemTime::from(Utc.ymd(2020, 1, 1).and_hms(0, 0, 0)))
+                        .duration_since(SystemTime::from(
+                            Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap(),
+                        ))
                         .unwrap()
                         .as_millis();
                     stream

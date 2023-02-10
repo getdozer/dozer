@@ -216,6 +216,12 @@ pub enum SnowflakeSchemaError {
     #[error("Value conversion Error")]
     ValueConversionError(#[source] Box<DiagnosticRecord>),
 
+    #[error("Invalid date")]
+    InvalidDateError,
+
+    #[error("Invalid time")]
+    InvalidTimeError,
+
     #[error("Schema conversion Error: {0}")]
     SchemaConversionError(#[source] TryFromIntError),
 
@@ -296,4 +302,12 @@ pub enum DebeziumSchemaError {
 
     #[error("Decimal convert error")]
     DecimalConvertError(#[source] rust_decimal::Error),
+
+    #[error("Invalid date")]
+    InvalidDateError,
+
+    // #[error("Invalid time")]
+    // InvalidTimeError,
+    #[error("Invalid timestamp")]
+    InvalidTimestampError,
 }

@@ -9,7 +9,8 @@ use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp, UInt};
 use dozer_types::types::{Field, FieldType, DATE_FORMAT};
 
 use crate::deserialize;
-use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
+use dozer_types::chrono::{DateTime, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
+use dozer_types::errors::types::TypeError;
 use std::string::ToString;
 
 pub struct MaxAggregator {}
@@ -42,7 +43,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(maximum.to_string().as_bytes(), return_type),
+                        Self::get_value(maximum.to_string().as_bytes(), return_type)?,
                         Some(Vec::from(maximum.to_string().as_bytes())),
                     ))
                 }
@@ -58,7 +59,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(maximum.serialize().as_slice(), return_type),
+                        Self::get_value(maximum.serialize().as_slice(), return_type)?,
                         Some(Vec::from(maximum.serialize())),
                     ))
                 }
@@ -71,7 +72,7 @@ impl MaxAggregator {
                 // Calculate average
                 let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&maximum, return_type),
+                    Self::get_value(&maximum, return_type)?,
                     Some(Vec::from(maximum)),
                 ))
             }
@@ -83,7 +84,7 @@ impl MaxAggregator {
                 // Calculate average
                 let maximum = try_unwrap!(Self::calc_i64_max(ptx, aggregators_db)).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&maximum, return_type),
+                    Self::get_value(&maximum, return_type)?,
                     Some(Vec::from(maximum)),
                 ))
             }
@@ -95,7 +96,7 @@ impl MaxAggregator {
                 // Calculate average
                 let maximum = try_unwrap!(Self::calc_u64_max(ptx, aggregators_db)).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&maximum, return_type),
+                    Self::get_value(&maximum, return_type)?,
                     Some(Vec::from(maximum)),
                 ))
             }
@@ -118,7 +119,7 @@ impl MaxAggregator {
                         Self::get_value(
                             maximum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
-                        ),
+                        )?,
                         Some(Vec::from(maximum.timestamp_millis().to_be_bytes())),
                     ))
                 }
@@ -150,7 +151,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(maximum.to_string().as_bytes(), return_type),
+                        Self::get_value(maximum.to_string().as_bytes(), return_type)?,
                         Some(Vec::from(maximum.to_string().as_bytes())),
                     ))
                 }
@@ -168,7 +169,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(maximum.serialize().as_slice(), return_type),
+                        Self::get_value(maximum.serialize().as_slice(), return_type)?,
                         Some(Vec::from(maximum.serialize())),
                     ))
                 }
@@ -183,7 +184,7 @@ impl MaxAggregator {
                 // Calculate average
                 let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&maximum, return_type),
+                    Self::get_value(&maximum, return_type)?,
                     Some(Vec::from(maximum)),
                 ))
             }
@@ -197,7 +198,7 @@ impl MaxAggregator {
                 // Calculate average
                 let maximum = (try_unwrap!(Self::calc_i64_max(ptx, aggregators_db))).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&maximum, return_type),
+                    Self::get_value(&maximum, return_type)?,
                     Some(Vec::from(maximum)),
                 ))
             }
@@ -211,7 +212,7 @@ impl MaxAggregator {
                 // Calculate average
                 let maximum = (try_unwrap!(Self::calc_u64_max(ptx, aggregators_db))).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&maximum, return_type),
+                    Self::get_value(&maximum, return_type)?,
                     Some(Vec::from(maximum)),
                 ))
             }
@@ -239,7 +240,7 @@ impl MaxAggregator {
                         Self::get_value(
                             maximum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
-                        ),
+                        )?,
                         Some(Vec::from(maximum.timestamp_millis().to_be_bytes())),
                     ))
                 }
@@ -268,7 +269,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(maximum.to_string().as_bytes(), return_type),
+                        Self::get_value(maximum.to_string().as_bytes(), return_type)?,
                         Some(Vec::from(maximum.to_string().as_bytes())),
                     ))
                 }
@@ -284,7 +285,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(maximum.serialize().as_slice(), return_type),
+                        Self::get_value(maximum.serialize().as_slice(), return_type)?,
                         Some(Vec::from(maximum.serialize())),
                     ))
                 }
@@ -300,7 +301,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&maximum.to_be_bytes(), return_type),
+                        Self::get_value(&maximum.to_be_bytes(), return_type)?,
                         Some(Vec::from(maximum.to_be_bytes())),
                     ))
                 }
@@ -316,7 +317,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&maximum.to_be_bytes(), return_type),
+                        Self::get_value(&maximum.to_be_bytes(), return_type)?,
                         Some(Vec::from(maximum.to_be_bytes())),
                     ))
                 }
@@ -332,7 +333,7 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&maximum.to_be_bytes(), return_type),
+                        Self::get_value(&maximum.to_be_bytes(), return_type)?,
                         Some(Vec::from(maximum.to_be_bytes())),
                     ))
                 }
@@ -356,7 +357,7 @@ impl MaxAggregator {
                         Self::get_value(
                             maximum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
-                        ),
+                        )?,
                         Some(Vec::from(maximum.timestamp_millis().to_be_bytes())),
                     ))
                 }
@@ -365,25 +366,33 @@ impl MaxAggregator {
         }
     }
 
-    pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
+    pub(crate) fn get_value(f: &[u8], from: FieldType) -> Result<Field, PipelineError> {
         match from {
-            FieldType::Date => Date(
+            FieldType::Date => Ok(Date(
                 NaiveDate::parse_from_str(
                     String::from_utf8(deserialize!(f)).unwrap().as_ref(),
                     DATE_FORMAT,
                 )
                 .unwrap(),
-            ),
-            FieldType::Decimal => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
+            )),
+            FieldType::Decimal => Ok(Decimal(dozer_types::rust_decimal::Decimal::deserialize(
                 deserialize!(f),
-            )),
-            FieldType::Float => Float(OrderedFloat(f64::from_be_bytes(deserialize!(f)))),
-            FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
-            FieldType::UInt => UInt(u64::from_be_bytes(deserialize!(f))),
-            FieldType::Timestamp => Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_be_bytes(deserialize!(f))),
-            )),
-            _ => Field::Null,
+            ))),
+            FieldType::Float => Ok(Float(OrderedFloat(f64::from_be_bytes(deserialize!(f))))),
+            FieldType::Int => Ok(Int(i64::from_be_bytes(deserialize!(f)))),
+            FieldType::UInt => Ok(UInt(u64::from_be_bytes(deserialize!(f)))),
+            FieldType::Timestamp => {
+                match Utc.timestamp_millis_opt(i64::from_be_bytes(deserialize!(f))) {
+                    LocalResult::None => Err(PipelineError::InternalTypeError(
+                        TypeError::InvalidTimestamp,
+                    )),
+                    LocalResult::Single(v) => Ok(Timestamp(DateTime::from(v))),
+                    LocalResult::Ambiguous(_, _) => Err(PipelineError::InternalTypeError(
+                        TypeError::AmbiguousTimestamp,
+                    )),
+                }
+            }
+            _ => Ok(Field::Null),
         }
     }
 
@@ -449,7 +458,15 @@ impl MaxAggregator {
         // get first to get the minimum
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            maximum = Utc.timestamp_millis(i64::from_be_bytes(deserialize!(cur.0)));
+            maximum = match Utc.timestamp_millis_opt(i64::from_be_bytes(deserialize!(cur.0))) {
+                LocalResult::Single(v) => Ok(v),
+                LocalResult::Ambiguous(_, _) => Err(PipelineError::InternalTypeError(
+                    TypeError::AmbiguousTimestamp,
+                )),
+                LocalResult::None => Err(PipelineError::InternalTypeError(
+                    TypeError::InvalidTimestamp,
+                )),
+            }?;
         }
         Ok(DateTime::from(maximum))
     }

@@ -6,8 +6,10 @@ use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::connectors::TableInfo;
 use crate::errors::SnowflakeError::{QueryError, SnowflakeStreamError};
-use crate::errors::SnowflakeSchemaError::DecimalConvertError;
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
+use crate::errors::SnowflakeSchemaError::{
+    DecimalConvertError, InvalidDateError, InvalidTimeError,
+};
 use crate::errors::SnowflakeStreamError::TimeTravelNotAvailableError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dozer_types::rust_decimal::Decimal;
@@ -95,17 +97,19 @@ pub fn convert_data(
             {
                 None => Ok(Field::Null),
                 Some(value) => {
-                    let date = NaiveDate::from_ymd(
+                    let date = NaiveDate::from_ymd_opt(
                         value.year as i32,
                         value.month as u32,
                         value.day as u32,
-                    );
-                    let time = NaiveTime::from_hms_nano(
+                    )
+                    .map_or_else(|| Err(InvalidDateError), Ok)?;
+                    let time = NaiveTime::from_hms_nano_opt(
                         value.hour as u32,
                         value.minute as u32,
                         value.second as u32,
                         value.fraction,
-                    );
+                    )
+                    .map_or_else(|| Err(InvalidTimeError), Ok)?;
                     Ok(Field::from(NaiveDateTime::new(date, time)))
                 }
             }
@@ -117,11 +121,12 @@ pub fn convert_data(
             {
                 None => Ok(Field::Null),
                 Some(value) => {
-                    let date = NaiveDate::from_ymd(
+                    let date = NaiveDate::from_ymd_opt(
                         value.year as i32,
                         value.month as u32,
                         value.day as u32,
-                    );
+                    )
+                    .map_or_else(|| Err(InvalidDateError), Ok)?;
                     Ok(Field::from(date))
                 }
             }
