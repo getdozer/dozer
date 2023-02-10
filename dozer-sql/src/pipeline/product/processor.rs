@@ -1,4 +1,4 @@
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{PipelineError, ProductError};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
@@ -25,12 +25,18 @@ pub struct FromProcessor {
 
     /// Database to store Join indexes
     db: Option<Database>,
+
+    source_names: HashMap<PortHandle, String>,
 }
 
 impl FromProcessor {
     /// Creates a new [`FromProcessor`].
-    pub fn new(operator: JoinSource) -> Self {
-        Self { operator, db: None }
+    pub fn new(operator: JoinSource, source_names: HashMap<PortHandle, String>) -> Self {
+        Self {
+            operator,
+            db: None,
+            source_names,
+        }
     }
 
     fn init_store(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), PipelineError> {
@@ -45,17 +51,23 @@ impl FromProcessor {
         record: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
-        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
 
-        self.operator.execute(
-            JoinAction::Delete,
-            from_port,
-            record,
-            database,
-            transaction,
-            reader,
-        )
+        self.operator
+            .execute(
+                JoinAction::Delete,
+                from_port,
+                record,
+                &database,
+                transaction,
+                reader,
+            )
+            .map_err(|err| ProductError::DeleteError(self.get_port_name(from_port), Box::new(err)))
     }
 
     fn insert(
@@ -64,17 +76,23 @@ impl FromProcessor {
         record: &Record,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ExecutionError> {
-        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
 
-        self.operator.execute(
-            JoinAction::Insert,
-            from_port,
-            record,
-            database,
-            transaction,
-            reader,
-        )
+        self.operator
+            .execute(
+                JoinAction::Insert,
+                from_port,
+                record,
+                &database,
+                transaction,
+                reader,
+            )
+            .map_err(|err| ProductError::InsertError(self.get_port_name(from_port), Box::new(err)))
     }
 
     #[allow(clippy::type_complexity)]
@@ -90,29 +108,50 @@ impl FromProcessor {
             Vec<(JoinAction, Record, Vec<u8>)>,
             Vec<(JoinAction, Record, Vec<u8>)>,
         ),
-        ExecutionError,
+        ProductError,
     > {
-        let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
 
-        let old_records = self.operator.execute(
-            JoinAction::Delete,
-            from_port,
-            old,
-            database,
-            transaction,
-            reader,
-        )?;
+        let old_records = self
+            .operator
+            .execute(
+                JoinAction::Delete,
+                from_port,
+                old,
+                &database,
+                transaction,
+                reader,
+            )
+            .map_err(|err| {
+                ProductError::UpdateOldError(self.get_port_name(from_port), Box::new(err))
+            })?;
 
-        let new_records = self.operator.execute(
-            JoinAction::Insert,
-            from_port,
-            new,
-            database,
-            transaction,
-            reader,
-        )?;
+        let new_records = self
+            .operator
+            .execute(
+                JoinAction::Insert,
+                from_port,
+                new,
+                &database,
+                transaction,
+                reader,
+            )
+            .map_err(|err| {
+                ProductError::UpdateNewError(self.get_port_name(from_port), Box::new(err))
+            })?;
 
         Ok((old_records, new_records))
+    }
+
+    fn get_port_name(&self, from_port: u16) -> String {
+        self.source_names
+            .get(&from_port)
+            .unwrap_or(&from_port.to_string())
+            .to_string()
     }
 }
 
@@ -143,7 +182,9 @@ impl Processor for FromProcessor {
 
         match op {
             Operation::Delete { ref old } => {
-                let records = self.delete(from_port, old, transaction, reader)?;
+                let records = self
+                    .delete(from_port, old, transaction, reader)
+                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record, _key) in records.into_iter() {
                     match action {
@@ -157,7 +198,9 @@ impl Processor for FromProcessor {
                 }
             }
             Operation::Insert { ref new } => {
-                let records = self.insert(from_port, new, transaction, reader)?;
+                let records = self
+                    .insert(from_port, new, transaction, reader)
+                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record, _key) in records.into_iter() {
                     match action {
@@ -171,8 +214,9 @@ impl Processor for FromProcessor {
                 }
             }
             Operation::Update { ref old, ref new } => {
-                let (old_join_records, new_join_records) =
-                    self.update(from_port, old, new, transaction, reader)?;
+                let (old_join_records, new_join_records) = self
+                    .update(from_port, old, new, transaction, reader)
+                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, old, _key) in old_join_records.into_iter() {
                     match action {

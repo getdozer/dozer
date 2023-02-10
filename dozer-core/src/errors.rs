@@ -97,6 +97,9 @@ pub enum ExecutionError {
 
     #[error(transparent)]
     SourceError(SourceError),
+
+    #[error("Failed to execute product processor: {0}")]
+    ProductProcessorError(#[source] BoxedError),
 }
 
 impl<T> From<daggy::WouldCycle<T>> for ExecutionError {

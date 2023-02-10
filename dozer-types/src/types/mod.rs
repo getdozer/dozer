@@ -1,7 +1,7 @@
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 
 use crate::errors::types::TypeError;
-use prettytable::Table;
+use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
 mod field;
@@ -202,6 +202,20 @@ impl Record {
             res_buffer.extend(i);
         }
         res_buffer
+    }
+}
+
+impl Display for Record {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let v = self
+            .values
+            .iter()
+            .map(|f| Cell::new(&f.to_string().unwrap_or("".to_string())))
+            .collect::<Vec<Cell>>();
+
+        let mut table = Table::new();
+        table.add_row(Row::new(v));
+        table.fmt(f)
     }
 }
 
