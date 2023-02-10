@@ -35,7 +35,6 @@ impl<T: Clone + Send + Sync> TableReader<T> {
     }
 
     pub async fn read(
-        &self,
         id: u32,
         ctx: SessionContext,
         resolved_schema: SchemaRef,
@@ -195,7 +194,7 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
                     .await
                     .map_err(|_| DataFusionConnectorError::InternalError)?;
 
-                self.read(
+                Self::read(
                     id as u32,
                     ctx,
                     resolved_schema,
@@ -277,7 +276,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
                     .await
                     .map_err(|_| DataFusionConnectorError::InternalError)?;
 
-                self.read(
+                Self::read(
                     id as u32,
                     ctx,
                     resolved_schema,
