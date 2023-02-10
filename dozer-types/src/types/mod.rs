@@ -1,6 +1,7 @@
-use std::fmt::Display;
+use std::{fmt::Display, hash::Hasher};
 
 use crate::errors::types::TypeError;
+use ahash::AHasher;
 use prettytable::Table;
 use serde::{self, Deserialize, Serialize};
 
@@ -202,6 +203,66 @@ impl Record {
             res_buffer.extend(i);
         }
         res_buffer
+    }
+
+    pub fn get_hash(&self, fields: Vec<usize>) -> u64 {
+        let mut hasher = AHasher::default();
+        let mut ctr = 0;
+
+        for i in fields {
+            hasher.write_i32(ctr);
+            match &self.values[i] {
+                Field::UInt(i) => {
+                    hasher.write_u8(1);
+                    hasher.write_u64(*i);
+                }
+                Field::Int(i) => {
+                    hasher.write_u8(2);
+                    hasher.write_i64(*i);
+                }
+                Field::Float(f) => {
+                    hasher.write_u8(3);
+                    hasher.write(&((*f).to_ne_bytes()));
+                }
+                Field::Boolean(b) => {
+                    hasher.write_u8(4);
+                    hasher.write_u8(if *b { 1_u8 } else { 0_u8 });
+                }
+                Field::String(s) => {
+                    hasher.write_u8(5);
+                    hasher.write(s.as_str().as_bytes());
+                }
+                Field::Text(t) => {
+                    hasher.write_u8(6);
+                    hasher.write(t.as_str().as_bytes());
+                }
+                Field::Binary(b) => {
+                    hasher.write_u8(7);
+                    hasher.write(b.as_ref());
+                }
+                Field::Decimal(d) => {
+                    hasher.write_u8(8);
+                    hasher.write(&d.serialize());
+                }
+                Field::Timestamp(t) => {
+                    hasher.write_u8(9);
+                    hasher.write_i64(t.timestamp())
+                }
+                Field::Date(d) => {
+                    hasher.write_u8(10);
+                    hasher.write(&d.serialise());
+                }
+                Field::Bson(b) => {
+                    hasher.write_u8(11);
+                    hasher.write(b.as_ref());
+                }
+                Field::Null => {
+                    hasher.write_u8(0);
+                }
+            }
+            ctr += 1;
+        }
+        Ok(hasher.finish())
     }
 }
 
