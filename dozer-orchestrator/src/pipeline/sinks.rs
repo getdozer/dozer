@@ -195,7 +195,10 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
                         &secondary_indexes,
                     )
                     .map_err(|e| {
-                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
+                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(
+                            self.api_endpoint.name.clone(),
+                            Box::new(e),
+                        ))
                     })?;
                 debug!(
                     "SinkFactory: Inserted schema for {}",
@@ -274,6 +277,7 @@ pub struct CacheSink {
 
 impl Sink for CacheSink {
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+        let endpoint_name = self.api_endpoint.name.clone();
         // Update Counter on commit
         self.pb.set_message(format!(
             "{}: Count: {}",
@@ -281,7 +285,10 @@ impl Sink for CacheSink {
             self.counter,
         ));
         self.cache.commit().map_err(|e| {
-            ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
+            ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(
+                endpoint_name,
+                Box::new(e),
+            ))
         })?;
         Ok(())
     }
@@ -291,7 +298,12 @@ impl Sink for CacheSink {
         self.counter = self
             .cache
             .count(&self.api_endpoint.name, &query)
-            .map_err(|e| ExecutionError::SinkError(SinkError::CacheCountFailed(Box::new(e))))?;
+            .map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheCountFailed(
+                    self.api_endpoint.name.clone(),
+                    Box::new(e),
+                ))
+            })?;
 
         debug!(
             "SINK: Initialising CacheSink: {} with count: {}",
@@ -308,6 +320,8 @@ impl Sink for CacheSink {
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
+
+        let endpoint_name = self.api_endpoint.name.clone();
 
         let (schema, _) = self
             .input_schemas
@@ -328,13 +342,19 @@ impl Sink for CacheSink {
                 old.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 self.cache.delete(&key).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
+                    ExecutionError::SinkError(SinkError::CacheDeleteFailed(
+                        endpoint_name,
+                        Box::new(e),
+                    ))
                 })?;
             }
             Operation::Insert { mut new } => {
                 new.schema_id = schema.identifier;
                 self.cache.insert(&new).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
+                    ExecutionError::SinkError(SinkError::CacheInsertFailed(
+                        endpoint_name,
+                        Box::new(e),
+                    ))
                 })?;
             }
             Operation::Update { mut old, mut new } => {
@@ -342,7 +362,10 @@ impl Sink for CacheSink {
                 new.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 self.cache.update(&key, &new).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheUpdateFailed(Box::new(e)))
+                    ExecutionError::SinkError(SinkError::CacheUpdateFailed(
+                        endpoint_name,
+                        Box::new(e),
+                    ))
                 })?;
             }
         }

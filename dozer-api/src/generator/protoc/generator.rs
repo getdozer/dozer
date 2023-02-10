@@ -183,15 +183,23 @@ impl<'a> ProtoGenerator<'a> {
         Ok((resource_proto, resource_path))
     }
 
-    pub fn copy_common(folder_path: &Path) -> Result<(), GenerationError> {
-        let common_proto = include_str!("../../../protos/api.proto");
-        let mut common_file = std::fs::File::create(folder_path.join("common.proto"))
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+    pub fn copy_common(folder_path: &Path) -> Result<Vec<String>, GenerationError> {
+        let mut resource_names = vec![];
+        let protos = vec![
+            ("common", include_str!("../../../protos/common.proto")),
+            ("health", include_str!("../../../protos/health.proto")),
+        ];
 
-        std::io::Write::write_all(&mut common_file, common_proto.as_bytes())
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+        for (name, proto_str) in protos {
+            let mut proto_file =
+                std::fs::File::create(folder_path.join(format!("{name}.proto").as_str()))
+                    .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+            std::io::Write::write_all(&mut proto_file, proto_str.as_bytes())
+                .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
 
-        Ok(())
+            resource_names.push(name.to_string());
+        }
+        Ok(resource_names)
     }
 
     pub fn generate(

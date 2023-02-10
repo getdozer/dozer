@@ -352,11 +352,12 @@ impl Orchestrator for SimpleOrchestrator {
             resources.push(e.name.clone());
         }
 
-        // Copy common service to be included in descriptor.
-        resources.push("common".to_string());
-
-        ProtoGenerator::copy_common(&generated_path)
+        let common_resources = ProtoGenerator::copy_common(&generated_path)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+
+        // Copy common service to be included in descriptor.
+        resources.extend(common_resources);
+
         // Generate a descriptor based on all proto files generated within sink.
         ProtoGenerator::generate_descriptor(&generated_path, resources)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
