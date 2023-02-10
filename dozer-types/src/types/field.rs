@@ -388,7 +388,7 @@ impl Field {
             Field::String(s) => Ok(NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
             Field::Null => match Utc.timestamp_millis_opt(0) {
                 LocalResult::None => Err(TypeError::InvalidTimestamp),
-                LocalResult::Single(v) => Ok(Some(v.unwrap().naive_utc().date())),
+                LocalResult::Single(v) => Ok(Some(v.naive_utc().date())),
                 LocalResult::Ambiguous(_, _) => Err(TypeError::AmbiguousTimestamp),
             },
             _ => Ok(None),
