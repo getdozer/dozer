@@ -132,7 +132,7 @@ impl CastOperatorType {
                 }
             }
             CastOperatorType::Timestamp => {
-                if let Some(value) = field.to_timestamp() {
+                if let Some(value) = field.to_timestamp()? {
                     Ok(Field::Timestamp(value))
                 } else {
                     Err(PipelineError::InvalidCast {
@@ -142,7 +142,7 @@ impl CastOperatorType {
                 }
             }
             CastOperatorType::Date => {
-                if let Some(value) = field.to_date() {
+                if let Some(value) = field.to_date()? {
                     Ok(Field::Date(value))
                 } else {
                     Err(PipelineError::InvalidCast {

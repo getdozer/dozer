@@ -369,21 +369,29 @@ impl Field {
         }
     }
 
-    pub fn to_timestamp(&self) -> Option<DateTime<FixedOffset>> {
+    pub fn to_timestamp(&self) -> Result<Option<DateTime<FixedOffset>>, TypeError> {
         match self {
-            Field::Timestamp(t) => Some(*t),
-            Field::String(s) => DateTime::parse_from_rfc3339(s.as_str()).ok(),
-            Field::Null => Some(DateTime::from(Utc.timestamp_millis_opt(0).unwrap())),
-            _ => None,
+            Field::Timestamp(t) => Ok(Some(*t)),
+            Field::String(s) => Ok(DateTime::parse_from_rfc3339(s.as_str()).ok()),
+            Field::Null => match Utc.timestamp_millis_opt(0) {
+                LocalResult::None => Err(TypeError::InvalidTimestamp),
+                LocalResult::Single(v) => Ok(Some(DateTime::from(v))),
+                LocalResult::Ambiguous(_, _) => Err(TypeError::AmbiguousTimestamp),
+            },
+            _ => Ok(None),
         }
     }
 
-    pub fn to_date(&self) -> Option<NaiveDate> {
+    pub fn to_date(&self) -> Result<Option<NaiveDate>, TypeError> {
         match self {
-            Field::Date(d) => Some(*d),
-            Field::String(s) => NaiveDate::parse_from_str(s, "%Y-%m-%d").ok(),
-            Field::Null => Some(Utc.timestamp_millis_opt(0).unwrap().naive_utc().date()),
-            _ => None,
+            Field::Date(d) => Ok(Some(*d)),
+            Field::String(s) => Ok(NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
+            Field::Null => match Utc.timestamp_millis_opt(0) {
+                LocalResult::None => Err(TypeError::InvalidTimestamp),
+                LocalResult::Single(v) => Ok(Some(v.naive_utc().date())),
+                LocalResult::Ambiguous(_, _) => Err(TypeError::AmbiguousTimestamp),
+            },
+            _ => Ok(None),
         }
     }
 
@@ -700,8 +708,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -714,8 +722,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -728,8 +736,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -742,8 +750,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -756,8 +764,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -770,8 +778,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -784,8 +792,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_some());
         assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -798,8 +806,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -812,8 +820,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().is_some());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_some());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -826,8 +834,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_some());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_some());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_none());
 
@@ -840,8 +848,8 @@ pub mod tests {
         assert!(field.to_text().is_none());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().is_none());
-        assert!(field.to_date().is_none());
+        assert!(field.to_timestamp().unwrap().is_none());
+        assert!(field.to_date().unwrap().is_none());
         assert!(field.to_bson().is_some());
         assert!(field.to_null().is_none());
 
@@ -854,8 +862,8 @@ pub mod tests {
         assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().is_some());
-        assert!(field.to_date().is_some());
+        assert!(field.to_timestamp().unwrap().is_some());
+        assert!(field.to_date().unwrap().is_some());
         assert!(field.to_bson().is_none());
         assert!(field.to_null().is_some());
     }
