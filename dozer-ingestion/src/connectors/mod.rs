@@ -1,3 +1,4 @@
+pub mod datafusion;
 pub mod ethereum;
 pub mod events;
 pub mod kafka;
@@ -14,6 +15,7 @@ use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
 
+use crate::connectors::datafusion::connector::DataFusionConnector;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
@@ -28,12 +30,16 @@ use crate::connectors::snowflake::connector::SnowflakeConnector;
 pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
 
 pub trait Connector: Send + Sync {
+    fn test_connection(&self) -> Result<(), ConnectorError>;
+    fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
+    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;
+
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
-    fn test_connection(&self) -> Result<(), ConnectorError>;
+
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
@@ -41,8 +47,6 @@ pub trait Connector: Send + Sync {
     ) -> Result<(), ConnectorError>;
     fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
     fn stop(&self);
-    fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
-    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -83,6 +87,12 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             )))
         }
         Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
+        Authentication::S3Storage(data_fusion_config) => {
+            Ok(Box::new(DataFusionConnector::new(5, data_fusion_config)))
+        }
+        Authentication::LocalStorage(data_fusion_config) => {
+            Ok(Box::new(DataFusionConnector::new(5, data_fusion_config)))
+        }
     }
 }
 
@@ -92,6 +102,8 @@ pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
         Some(Authentication::Ethereum(config)) => Some(config.convert_to_table()),
         Some(Authentication::Snowflake(config)) => Some(config.convert_to_table()),
         Some(Authentication::Kafka(config)) => Some(config.convert_to_table()),
+        Some(Authentication::S3Storage(config)) => Some(config.convert_to_table()),
+        Some(Authentication::LocalStorage(config)) => Some(config.convert_to_table()),
         _ => None,
     }
 }
