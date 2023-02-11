@@ -1,12 +1,12 @@
 [package]
 name = "dozer-storage"
-version = "0.1.0"
+version = "0.1.7"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dozer-types = { version = "0.1.6", path = "../dozer-types" }
+dozer-types = { path = "../dozer-types" }
 lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
 
