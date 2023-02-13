@@ -1,11 +1,10 @@
 use crate::errors::ExecutionError;
 use crate::node::{
-    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source,
-    SourceFactory,
+    OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
 use crate::tests::app::NoneContext;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_types::types::Schema;
+use dozer_types::{node::NodeHandle, types::Schema};
 use std::collections::HashMap;
 use std::sync::Arc;
 

@@ -1,10 +1,10 @@
 use crate::dag_metadata::DagMetadata;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
-use crate::node::NodeHandle;
 use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
+use dozer_types::node::NodeHandle;
 use dozer_types::types::{Operation, Record};
 
 use crate::epoch::Epoch;

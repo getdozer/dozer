@@ -1,11 +1,12 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas};
 use crate::errors::ExecutionError;
 use crate::node::{
-    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
-    SinkFactory, Source, SourceFactory,
+    OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, SinkFactory, Source,
+    SourceFactory,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
+use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
 

@@ -1,9 +1,10 @@
 use crate::appsource::AppSourceId;
 use crate::dag_metadata::SchemaType;
-use crate::node::{NodeHandle, PortHandle};
+use crate::node::PortHandle;
 use dozer_storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
+use dozer_types::node::NodeHandle;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 

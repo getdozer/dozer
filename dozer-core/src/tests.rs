@@ -21,8 +21,6 @@ mod dag_recordreader_update;
 #[cfg(test)]
 mod dag_schemas;
 #[cfg(test)]
-mod node;
-#[cfg(test)]
 pub mod processors;
 #[cfg(test)]
 mod record_store;

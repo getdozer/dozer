@@ -1,6 +1,8 @@
+use dozer_types::node::NodeHandle;
+
 use crate::appsource::{AppSourceId, AppSourceManager};
 use crate::errors::ExecutionError;
-use crate::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory};
+use crate::node::{PortHandle, ProcessorFactory, SinkFactory};
 use crate::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
 
 use std::sync::Arc;

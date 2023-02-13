@@ -113,11 +113,9 @@ mod tests {
     use std::mem::swap;
 
     use crossbeam::channel::{unbounded, Sender};
-    use dozer_types::types::{Field, Record};
-
-    use crate::{
-        epoch::{OpIdentifier, SourceStates},
-        node::NodeHandle,
+    use dozer_types::{
+        node::{NodeHandle, OpIdentifier, SourceStates},
+        types::{Field, Record},
     };
 
     use super::*;

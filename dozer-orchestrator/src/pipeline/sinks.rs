@@ -400,10 +400,11 @@ mod tests {
     use crate::test_utils;
 
     use dozer_cache::cache::index;
-    use dozer_core::node::{NodeHandle, Sink};
+    use dozer_core::node::Sink;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
     use dozer_core::DEFAULT_PORT_HANDLE;
 
+    use dozer_types::node::NodeHandle;
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
     use tempdir::TempDir;
