@@ -1,49 +1,40 @@
-use std::{cmp::Ordering, sync::Arc};
+use std::cmp::Ordering;
 
 use super::intersection::intersection;
 use super::iterator::{CacheIterator, KeyEndpoint};
+use crate::cache::lmdb::cache::{id_from_bytes, id_to_bytes, LmdbCacheCommon};
+use crate::cache::RecordWithId;
 use crate::cache::{
     expression::{Operator, QueryExpression, SortDirection},
     index,
-    lmdb::cache::{RecordDatabase, SecondaryIndexDatabases},
     plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
 use crate::errors::{CacheError, IndexError};
 use dozer_storage::lmdb::Transaction;
-use dozer_types::{
-    bincode,
-    parking_lot::RwLock,
-    types::{Field, IndexDefinition, Record, Schema},
-};
+use dozer_types::types::{Field, IndexDefinition, Schema};
 use itertools::Either;
 
 pub struct LmdbQueryHandler<'a, T: Transaction> {
-    db: RecordDatabase,
-    secondary_index_databases: Arc<RwLock<SecondaryIndexDatabases>>,
+    common: &'a LmdbCacheCommon,
     txn: &'a T,
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
     query: &'a QueryExpression,
-    intersection_chunk_size: usize,
 }
 impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     pub fn new(
-        db: RecordDatabase,
-        secondary_index_databases: Arc<RwLock<SecondaryIndexDatabases>>,
+        common: &'a LmdbCacheCommon,
         txn: &'a T,
         schema: Schema,
         secondary_indexes: Vec<IndexDefinition>,
         query: &'a QueryExpression,
-        intersection_chunk_size: usize,
     ) -> Self {
         Self {
-            db,
-            secondary_index_databases,
+            common,
             txn,
             schema,
             secondary_indexes,
             query,
-            intersection_chunk_size,
         }
     }
 
@@ -53,6 +44,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         match execution {
             Plan::IndexScans(index_scans) => Ok(self.build_index_scan(index_scans)?.count()),
             Plan::SeqScan(_) => Ok(self
+                .common
                 .db
                 .count(self.txn)?
                 .saturating_sub(self.query.skip)
@@ -61,26 +53,28 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         }
     }
 
-    pub fn query(&self) -> Result<Vec<Record>, CacheError> {
+    pub fn query(&self) -> Result<Vec<RecordWithId>, CacheError> {
         let planner = QueryPlanner::new(&self.schema, &self.secondary_indexes, self.query);
         let execution = planner.plan()?;
         match execution {
             Plan::IndexScans(index_scans) => {
-                let scan = self.build_index_scan(index_scans)?;
-                self.collect_records(scan)
+                self.collect_records(self.build_index_scan(index_scans)?)
             }
-            Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize(),
+            Plan::SeqScan(_seq_scan) => self.collect_records(self.all_ids()?),
             Plan::ReturnEmpty => Ok(vec![]),
         }
     }
 
-    pub fn iterate_and_deserialize(&self) -> Result<Vec<Record>, CacheError> {
-        let cursor = self.db.open_ro_cursor(self.txn)?;
-        CacheIterator::new(cursor, None, SortDirection::Ascending)
+    pub fn all_ids(&self) -> Result<impl Iterator<Item = [u8; 8]> + '_, CacheError> {
+        let cursor = self.common.id.open_ro_cursor(self.txn)?;
+        Ok(CacheIterator::new(cursor, None, SortDirection::Ascending)
             .skip(self.query.skip)
             .take(self.query.limit.unwrap_or(usize::MAX))
-            .map(|(_, v)| bincode::deserialize(v).map_err(CacheError::map_deserialization_error))
-            .collect()
+            .map(|(_, value)| {
+                value
+                    .try_into()
+                    .expect("All values must be u64 ids in id database")
+            }))
     }
 
     fn build_index_scan(
@@ -91,7 +85,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             !index_scans.is_empty(),
             "Planner should not generate empty index scan"
         );
-        let full_sacan = if index_scans.len() == 1 {
+        let full_scan = if index_scans.len() == 1 {
             // The fast path, without intersection calculation.
             Either::Left(self.query_with_secondary_index(&index_scans[0])?)
         } else {
@@ -100,14 +94,15 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
                 .iter()
                 .map(|index_scan| {
                     self.query_with_secondary_index(index_scan)
-                        .map(|iter| iter.map(u64::from_be_bytes))
+                        .map(|iter| iter.map(id_from_bytes))
                 })
                 .collect::<Result<Vec<_>, CacheError>>()?;
             Either::Right(
-                intersection(iterators, self.intersection_chunk_size).map(|id| id.to_be_bytes()),
+                intersection(iterators, self.common.cache_options.intersection_chunk_size)
+                    .map(id_to_bytes),
             )
         };
-        Ok(full_sacan
+        Ok(full_scan
             .skip(self.query.skip)
             .take(self.query.limit.unwrap_or(usize::MAX)))
     }
@@ -121,7 +116,8 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             .identifier
             .ok_or(CacheError::SchemaIdentifierNotFound)?;
         let index_db = *self
-            .secondary_index_databases
+            .common
+            .secondary_indexes
             .read()
             .get(&(schema_id, index_scan.index_id))
             .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
@@ -148,15 +144,21 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             })
             .map(|(_, id)| {
                 id.try_into()
-                    .expect("All values must be u64 ids in seconary index database")
+                    .expect("All values must be u64 ids in secondary index database")
             }))
     }
 
     fn collect_records(
         &self,
         ids: impl Iterator<Item = [u8; 8]>,
-    ) -> Result<Vec<Record>, CacheError> {
-        ids.map(|id| self.db.get(self.txn, id)).collect()
+    ) -> Result<Vec<RecordWithId>, CacheError> {
+        ids.map(|id| {
+            self.common
+                .db
+                .get(self.txn, id)
+                .map(|record| RecordWithId::new(id_from_bytes(id), record))
+        })
+        .collect()
     }
 }
 

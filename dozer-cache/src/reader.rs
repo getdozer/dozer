@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::cache::{expression::QueryExpression, RoCache};
+use crate::cache::{expression::QueryExpression, RecordWithId, RoCache};
 
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
@@ -53,7 +53,7 @@ impl CacheReader {
         &self,
         schema_name: &str,
         query: &mut QueryExpression,
-    ) -> Result<Vec<Record>, CacheError> {
+    ) -> Result<Vec<RecordWithId>, CacheError> {
         self.apply_access_filter(query);
         self.cache.query(schema_name, query)
     }

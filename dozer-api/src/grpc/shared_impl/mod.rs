@@ -1,7 +1,8 @@
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
+use dozer_cache::cache::RecordWithId;
 use dozer_types::log::warn;
 use dozer_types::serde_json;
-use dozer_types::types::{Record, Schema};
+use dozer_types::types::Schema;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
@@ -50,7 +51,7 @@ pub fn query(
     pipeline_details: &PipelineDetails,
     query: Option<&str>,
     access: Option<Access>,
-) -> Result<(Schema, Vec<Record>), Status> {
+) -> Result<(Schema, Vec<RecordWithId>), Status> {
     let mut query = parse_query(query, QueryExpression::with_default_limit)?;
     if query.limit.is_none() {
         query.limit = Some(default_limit_for_query());
