@@ -15,9 +15,9 @@ use tonic::Request;
 use super::CommonService;
 
 fn setup_common_service() -> CommonService {
-    let (pipeline_map, _, rx1) = setup_pipeline();
+    let (endpoint_map, rx1) = setup_pipeline();
     CommonService {
-        pipeline_map,
+        endpoint_map,
         event_notifier: Some(rx1),
     }
 }
