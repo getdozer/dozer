@@ -24,6 +24,27 @@ pub struct SchemaMapper<T: Clone + Send + Sync> {
     config: T,
 }
 
+fn prepare_tables_for_mapping(
+    tables: Option<Vec<TableInfo>>,
+    tables_map: &HashMap<String, DataFusionTable>,
+) -> Vec<TableInfo> {
+    tables.map_or_else(
+        || {
+            tables_map
+                .values()
+                .into_iter()
+                .map(|t| TableInfo {
+                    name: t.name.clone(),
+                    table_name: t.name.clone(),
+                    id: 0,
+                    columns: None,
+                })
+                .collect()
+        },
+        |t| t,
+    )
+}
+
 impl<T: Clone + Send + Sync> SchemaMapper<T> {
     pub fn new(config: T) -> SchemaMapper<T> {
         Self { config }
@@ -76,14 +97,14 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
 pub trait Mapper<T> {
     fn get_schema(
         &self,
-        tables: Vec<TableInfo>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
 }
 
 impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
     fn get_schema(
         &self,
-        tables: Vec<TableInfo>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
         let tables_map: HashMap<String, Table> = self
             .config
@@ -92,6 +113,9 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
             .into_iter()
             .map(|table| (table.name.clone(), table))
             .collect();
+
+        let tables_list = prepare_tables_for_mapping(tables, &tables_map);
+
         let details = self.config.details.as_ref().map_or_else(
             || {
                 Err(ConnectorError::DataFusionConnectorError(
@@ -102,7 +126,7 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
         )?;
         let mut schemas = vec![];
 
-        for (id, table) in tables.iter().enumerate() {
+        for (id, table) in tables_list.iter().enumerate() {
             let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
                 || {
                     Err(ConnectorError::DataFusionConnectorError(
@@ -171,7 +195,7 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
 impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
     fn get_schema(
         &self,
-        tables: Vec<TableInfo>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
         let tables_map: HashMap<String, Table> = self
             .config
@@ -180,6 +204,9 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
             .into_iter()
             .map(|table| (table.name.clone(), table))
             .collect();
+
+        let tables_list = prepare_tables_for_mapping(tables, &tables_map);
+
         let details = self.config.details.as_ref().map_or_else(
             || {
                 Err(ConnectorError::DataFusionConnectorError(
@@ -190,7 +217,7 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
         )?;
 
         let mut schemas = vec![];
-        for (id, table) in tables.iter().enumerate() {
+        for (id, table) in tables_list.iter().enumerate() {
             let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
                 || {
                     Err(ConnectorError::DataFusionConnectorError(

@@ -43,11 +43,8 @@ impl Connector for ObjectStoreConnector<S3Storage> {
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<dozer_types::types::SchemaWithChangesType>, ConnectorError> {
-        let tables = table_names
-            .as_ref()
-            .map_or_else(std::vec::Vec::new, |t| t.clone());
         let mapper = SchemaMapper::new(self.config.clone());
-        mapper.get_schema(tables)
+        mapper.get_schema(table_names)
     }
 
     fn initialize(
@@ -98,11 +95,8 @@ impl Connector for ObjectStoreConnector<LocalStorage> {
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<dozer_types::types::SchemaWithChangesType>, ConnectorError> {
-        let tables = table_names
-            .as_ref()
-            .map_or_else(std::vec::Vec::new, |t| t.clone());
         let mapper = SchemaMapper::new(self.config.clone());
-        mapper.get_schema(tables)
+        mapper.get_schema(table_names)
     }
 
     fn initialize(
