@@ -3,10 +3,8 @@ use dozer_storage::{
     lmdb_storage::LmdbEnvironmentManager,
 };
 
-use crate::{
-    cache::lmdb::query::helper,
-    errors::{CacheError, QueryError},
-};
+use super::helper;
+use crate::errors::{CacheError, QueryError};
 
 #[derive(Debug, Clone, Copy)]
 pub struct IdDatabase(Database);

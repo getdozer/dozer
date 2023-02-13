@@ -4,10 +4,8 @@ use dozer_storage::{
 };
 use dozer_types::{bincode, types::Record};
 
-use crate::{
-    cache::lmdb::query::helper,
-    errors::{CacheError, QueryError},
-};
+use super::helper;
+use crate::errors::{CacheError, QueryError};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RecordDatabase(Database);
