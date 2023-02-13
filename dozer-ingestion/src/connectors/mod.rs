@@ -30,7 +30,6 @@ use crate::connectors::snowflake::connector::SnowflakeConnector;
 pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
 
 pub trait Connector: Send + Sync {
-    fn test_connection(&self) -> Result<(), ConnectorError>;
     fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;
 
@@ -38,15 +37,12 @@ pub trait Connector: Send + Sync {
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
-
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
     fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
-    fn stop(&self);
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]

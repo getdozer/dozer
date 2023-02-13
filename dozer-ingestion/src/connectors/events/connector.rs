@@ -54,16 +54,6 @@ impl Connector for EventsConnector {
         Ok(vec![])
     }
 
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        Ok(vec![])
-    }
-
-    fn stop(&self) {}
-
-    fn test_connection(&self) -> Result<(), ConnectorError> {
-        Ok(())
-    }
-
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,

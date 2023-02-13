@@ -28,10 +28,6 @@ impl<T: Clone> DataFusionConnector<T> {
 }
 
 impl Connector for DataFusionConnector<S3Storage> {
-    fn test_connection(&self) -> Result<(), ConnectorError> {
-        todo!()
-    }
-
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
@@ -52,10 +48,6 @@ impl Connector for DataFusionConnector<S3Storage> {
             .map_or_else(std::vec::Vec::new, |t| t.clone());
         let mapper = SchemaMapper::new(self.config.clone());
         mapper.get_schema(tables)
-    }
-
-    fn get_tables(&self) -> Result<Vec<crate::connectors::TableInfo>, errors::ConnectorError> {
-        todo!()
     }
 
     fn initialize(
@@ -83,18 +75,10 @@ impl Connector for DataFusionConnector<S3Storage> {
             .clone();
 
         reader.read_tables(tables, ingestor)
-    }
-
-    fn stop(&self) {
-        todo!()
     }
 }
 
 impl Connector for DataFusionConnector<LocalStorage> {
-    fn test_connection(&self) -> Result<(), ConnectorError> {
-        todo!()
-    }
-
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
@@ -115,10 +99,6 @@ impl Connector for DataFusionConnector<LocalStorage> {
             .map_or_else(std::vec::Vec::new, |t| t.clone());
         let mapper = SchemaMapper::new(self.config.clone());
         mapper.get_schema(tables)
-    }
-
-    fn get_tables(&self) -> Result<Vec<crate::connectors::TableInfo>, errors::ConnectorError> {
-        todo!()
     }
 
     fn initialize(
@@ -146,9 +126,5 @@ impl Connector for DataFusionConnector<LocalStorage> {
             .clone();
 
         reader.read_tables(tables, ingestor)
-    }
-
-    fn stop(&self) {
-        todo!()
     }
 }
