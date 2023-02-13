@@ -54,10 +54,6 @@ impl Connector for KafkaConnector {
         )
     }
 
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        Ok(vec![])
-    }
-
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
@@ -87,12 +83,6 @@ impl Connector for KafkaConnector {
         Runtime::new()
             .unwrap()
             .block_on(async { run(broker, topic, ingestor).await })
-    }
-
-    fn stop(&self) {}
-
-    fn test_connection(&self) -> Result<(), ConnectorError> {
-        todo!()
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
