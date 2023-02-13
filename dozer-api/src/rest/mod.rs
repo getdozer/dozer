@@ -24,7 +24,7 @@ mod api_generator;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]
-pub enum CorsOptions {
+enum CorsOptions {
     Permissive,
     // origins, max_age
     Custom(Vec<String>, usize),

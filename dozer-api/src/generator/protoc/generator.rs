@@ -14,7 +14,7 @@ use super::utils::{create_descriptor_set, get_proto_descriptor};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
-pub struct ProtoMetadata {
+struct ProtoMetadata {
     import_libs: Vec<String>,
     messages: Vec<RPCMessage>,
     package_name: String,
@@ -27,9 +27,9 @@ pub struct ProtoMetadata {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
-pub struct RPCMessage {
-    pub(crate) name: String,
-    pub(crate) props: Vec<String>,
+struct RPCMessage {
+    name: String,
+    props: Vec<String>,
 }
 
 pub struct ProtoResponse {
@@ -53,7 +53,7 @@ fn safe_name(name: &str) -> String {
     name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
 }
 impl<'a> ProtoGenerator<'a> {
-    pub fn new(
+    fn new(
         schema_name: &str,
         schema: Schema,
         folder_path: &'a Path,
@@ -110,7 +110,7 @@ impl<'a> ProtoGenerator<'a> {
         }
     }
 
-    pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
+    fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
         let type_need_import_libs = ["google.protobuf.Timestamp"];
         let mut libs_import: Vec<String> = self
             .schema
@@ -131,7 +131,7 @@ impl<'a> ProtoGenerator<'a> {
         Ok(libs_import)
     }
 
-    pub fn get_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
+    fn get_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = format!("dozer.generated.{}", self.schema_name);
 
         let messages = vec![self.resource_message()];
@@ -150,7 +150,7 @@ impl<'a> ProtoGenerator<'a> {
         Ok(metadata)
     }
 
-    pub fn _generate_proto(&self) -> Result<(String, PathBuf), GenerationError> {
+    fn _generate_proto(&self) -> Result<(String, PathBuf), GenerationError> {
         if !Path::new(&self.folder_path).exists() {
             return Err(GenerationError::DirPathNotExist);
         }
