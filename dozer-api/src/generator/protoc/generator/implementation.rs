@@ -6,11 +6,8 @@ use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::{FieldType, Schema};
 use handlebars::Handlebars;
 use inflector::Inflector;
-use prost_reflect::DescriptorPool;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
-
-use super::utils::{create_descriptor_set, get_proto_descriptor};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
@@ -32,12 +29,7 @@ struct RPCMessage {
     props: Vec<String>,
 }
 
-pub struct ProtoResponse {
-    pub descriptor: DescriptorPool,
-    pub descriptor_bytes: Vec<u8>,
-}
-
-pub struct ProtoGenerator<'a> {
+pub struct ProtoGeneratorImpl<'a> {
     handlebars: Handlebars<'a>,
     schema: dozer_types::types::Schema,
     schema_name: String,
@@ -52,8 +44,9 @@ fn safe_name(name: &str) -> String {
     }
     name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
 }
-impl<'a> ProtoGenerator<'a> {
-    fn new(
+
+impl<'a> ProtoGeneratorImpl<'a> {
+    pub fn new(
         schema_name: &str,
         schema: Schema,
         folder_path: &'a Path,
@@ -150,14 +143,14 @@ impl<'a> ProtoGenerator<'a> {
         Ok(metadata)
     }
 
-    fn _generate_proto(&self) -> Result<(String, PathBuf), GenerationError> {
+    pub fn generate_proto(&self) -> Result<(String, PathBuf), GenerationError> {
         if !Path::new(&self.folder_path).exists() {
             return Err(GenerationError::DirPathNotExist);
         }
 
         let metadata = self.get_metadata()?;
 
-        let types_proto = include_str!("../../../protos/types.proto");
+        let types_proto = include_str!("../../../../protos/types.proto");
 
         let resource_proto = self
             .handlebars
@@ -181,62 +174,6 @@ impl<'a> ProtoGenerator<'a> {
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
 
         Ok((resource_proto, resource_path))
-    }
-
-    pub fn copy_common(folder_path: &Path) -> Result<Vec<String>, GenerationError> {
-        let mut resource_names = vec![];
-        let protos = vec![
-            ("common", include_str!("../../../protos/common.proto")),
-            ("health", include_str!("../../../protos/health.proto")),
-        ];
-
-        for (name, proto_str) in protos {
-            let mut proto_file =
-                std::fs::File::create(folder_path.join(format!("{name}.proto").as_str()))
-                    .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-            std::io::Write::write_all(&mut proto_file, proto_str.as_bytes())
-                .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-
-            resource_names.push(name.to_string());
-        }
-        Ok(resource_names)
-    }
-
-    pub fn generate(
-        folder_path: &Path,
-        schema_name: &str,
-        schema: Schema,
-        security: &Option<ApiSecurity>,
-        flags: &Option<Flags>,
-    ) -> Result<(), GenerationError> {
-        let generator = ProtoGenerator::new(schema_name, schema, folder_path, security, flags)?;
-        generator._generate_proto()?;
-        Ok(())
-    }
-
-    pub fn generate_descriptor(
-        folder_path: &Path,
-        resources: Vec<String>,
-    ) -> Result<ProtoResponse, GenerationError> {
-        let descriptor_path = create_descriptor_set(folder_path, &resources)
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-
-        let (descriptor_bytes, descriptor) = get_proto_descriptor(&descriptor_path)?;
-
-        Ok(ProtoResponse {
-            descriptor,
-            descriptor_bytes,
-        })
-    }
-
-    pub fn read(folder_path: &Path) -> Result<ProtoResponse, GenerationError> {
-        let descriptor_path = folder_path.join("file_descriptor_set.bin");
-        let (descriptor_bytes, descriptor) = get_proto_descriptor(&descriptor_path)?;
-
-        Ok(ProtoResponse {
-            descriptor,
-            descriptor_bytes,
-        })
     }
 }
 
