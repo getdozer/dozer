@@ -3,7 +3,7 @@ use crate::errors::ApiError;
 use crate::rest::api_generator::health_route;
 use crate::{
     auth::api::{auth_route, validate},
-    PipelineDetails, RoCacheEndpoint,
+    RoCacheEndpoint,
 };
 use actix_cors::Cors;
 use actix_web::{
@@ -102,15 +102,11 @@ impl ApiServer {
             .fold(app, |app, cache_endpoint| {
                 let endpoint = cache_endpoint.endpoint.clone();
                 let scope = endpoint.path.clone();
-                let schema_name = endpoint.name;
                 app.service(
                     web::scope(&scope)
                         // Inject pipeline_details for generated functions
                         .wrap_fn(move |req, srv| {
-                            req.extensions_mut().insert(PipelineDetails {
-                                schema_name: schema_name.to_owned(),
-                                cache_endpoint: cache_endpoint.clone(),
-                            });
+                            req.extensions_mut().insert(cache_endpoint.clone());
                             srv.call(req)
                         })
                         .route("/count", web::post().to(api_generator::count))

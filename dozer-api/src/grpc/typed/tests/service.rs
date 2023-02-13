@@ -16,13 +16,10 @@ use crate::{
             TypedService,
         },
     },
-    PipelineDetails, RoCacheEndpoint,
+    RoCacheEndpoint,
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
-use dozer_types::{
-    models::{api_config::default_api_config, api_security::ApiSecurity},
-    types::Schema,
-};
+use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
 use std::{collections::HashMap, env, path::PathBuf, str::FromStr, time::Duration};
 
@@ -42,20 +39,11 @@ use tonic::{
     Code, Request,
 };
 
-pub fn setup_pipeline() -> (
-    HashMap<String, PipelineDetails>,
-    HashMap<String, Schema>,
-    Receiver<PipelineResponse>,
-) {
-    let schema_name = String::from("films");
-    let (schema, _) = test_utils::get_schema();
+pub fn setup_pipeline() -> (HashMap<String, RoCacheEndpoint>, Receiver<PipelineResponse>) {
     let endpoint = test_utils::get_endpoint();
-    let pipeline_details = PipelineDetails {
-        schema_name: schema_name.clone(),
-        cache_endpoint: RoCacheEndpoint {
-            cache: test_utils::initialize_cache(&schema_name, None),
-            endpoint,
-        },
+    let cache_endpoint = RoCacheEndpoint {
+        cache: test_utils::initialize_cache(&endpoint.name, None),
+        endpoint,
     };
 
     let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
@@ -65,13 +53,10 @@ pub fn setup_pipeline() -> (
             .await
             .unwrap();
     });
-    let mut pipeline_map = HashMap::new();
-    pipeline_map.insert("films".to_string(), pipeline_details);
+    let mut endpoint_map = HashMap::new();
+    endpoint_map.insert(cache_endpoint.endpoint.name.clone(), cache_endpoint);
 
-    let mut schema_map = HashMap::new();
-    schema_map.insert("films".to_string(), schema);
-
-    (pipeline_map, schema_map, rx1)
+    (endpoint_map, rx1)
 }
 
 fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
@@ -81,9 +66,9 @@ fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
 
     let (_, desc) = get_proto_descriptor(&path).unwrap();
 
-    let (pipeline_map, schema_map, rx1) = setup_pipeline();
+    let (endpoint_map, rx1) = setup_pipeline();
 
-    TypedService::new(desc, pipeline_map, schema_map, Some(rx1), security)
+    TypedService::new(desc, endpoint_map, Some(rx1), security)
 }
 
 async fn test_grpc_count_and_query_common(

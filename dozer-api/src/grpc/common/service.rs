@@ -5,7 +5,7 @@ use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
 use crate::grpc::internal_grpc::PipelineResponse;
 use crate::grpc::shared_impl;
 use crate::grpc::types_helper::{map_field_definitions, map_record};
-use crate::{api_helper, PipelineDetails};
+use crate::{api_helper, RoCacheEndpoint};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -20,7 +20,8 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 
 // #[derive(Clone)]
 pub struct CommonService {
-    pub pipeline_map: HashMap<String, PipelineDetails>,
+    /// For look up endpoint from its name. `key == value.endpoint.name`.
+    pub endpoint_map: HashMap<String, RoCacheEndpoint>,
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 }
 
@@ -28,17 +29,17 @@ impl CommonService {
     fn parse_request(
         &self,
         request: Request<QueryRequest>,
-    ) -> Result<(&PipelineDetails, QueryRequest, Option<Access>), Status> {
+    ) -> Result<(&RoCacheEndpoint, QueryRequest, Option<Access>), Status> {
         let parts = request.into_parts();
         let mut extensions = parts.1;
         let query_request = parts.2;
         let access = extensions.remove::<Access>();
         let endpoint = &query_request.endpoint;
-        let pipeline_details = self
-            .pipeline_map
+        let cache_endpoint = self
+            .endpoint_map
             .get(endpoint)
             .map_or(Err(Status::invalid_argument(endpoint)), Ok)?;
-        Ok((pipeline_details, query_request, access))
+        Ok((cache_endpoint, query_request, access))
     }
 }
 
@@ -83,7 +84,7 @@ impl CommonGrpcService for CommonService {
         let access = extensions.get::<Access>();
         let endpoint = &query_request.endpoint;
         let pipeline_details = self
-            .pipeline_map
+            .endpoint_map
             .get(endpoint)
             .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
@@ -106,7 +107,7 @@ impl CommonGrpcService for CommonService {
         &self,
         _: Request<GetEndpointsRequest>,
     ) -> Result<Response<GetEndpointsResponse>, Status> {
-        let endpoints = self.pipeline_map.keys().cloned().collect();
+        let endpoints = self.endpoint_map.keys().cloned().collect();
         Ok(Response::new(GetEndpointsResponse { endpoints }))
     }
 
@@ -117,7 +118,7 @@ impl CommonGrpcService for CommonService {
         let request = request.into_inner();
         let endpoint = request.endpoint;
         let pipeline_details = self
-            .pipeline_map
+            .endpoint_map
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 

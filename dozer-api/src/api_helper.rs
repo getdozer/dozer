@@ -1,25 +1,26 @@
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use crate::generator::oapi::generator::OpenApiGenerator;
-use crate::PipelineDetails;
+use crate::RoCacheEndpoint;
 use dozer_cache::cache::RecordWithId;
 use dozer_cache::cache::{expression::QueryExpression, index};
 use dozer_cache::errors::CacheError;
 use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::indexmap::IndexMap;
 use dozer_types::json_str_to_field;
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::record_to_map;
 use dozer_types::serde_json::Value;
 use dozer_types::types::Schema;
 use openapiv3::OpenAPI;
 
 pub struct ApiHelper<'a> {
-    details: &'a PipelineDetails,
+    endpoint: &'a ApiEndpoint,
     reader: CacheReader,
 }
 impl<'a> ApiHelper<'a> {
     pub fn new(
-        pipeline_details: &'a PipelineDetails,
+        cache_endpoint: &'a RoCacheEndpoint,
         access: Option<Access>,
     ) -> Result<Self, ApiError> {
         let access = access.unwrap_or(Access::All);
@@ -33,7 +34,7 @@ impl<'a> ApiHelper<'a> {
             },
 
             Access::Custom(mut access_filters) => {
-                if let Some(access_filter) = access_filters.remove(&pipeline_details.schema_name) {
+                if let Some(access_filter) = access_filters.remove(&cache_endpoint.endpoint.name) {
                     access_filter
                 } else {
                     return Err(ApiError::ApiAuthError(AuthError::InvalidToken));
@@ -42,27 +43,25 @@ impl<'a> ApiHelper<'a> {
         };
 
         let reader = CacheReader {
-            cache: pipeline_details.cache_endpoint.cache.clone(),
+            cache: cache_endpoint.cache.clone(),
             access: reader_access,
         };
         Ok(Self {
-            details: pipeline_details,
+            endpoint: &cache_endpoint.endpoint,
             reader,
         })
     }
 
     pub fn generate_oapi3(&self) -> Result<OpenAPI, ApiError> {
-        let schema_name = self.details.schema_name.clone();
         let (schema, secondary_indexes) = self
             .reader
-            .get_schema_and_indexes_by_name(&schema_name)
+            .get_schema_and_indexes_by_name(&self.endpoint.name)
             .map_err(ApiError::SchemaNotFound)?;
 
         let oapi_generator = OpenApiGenerator::new(
             schema,
             secondary_indexes,
-            schema_name,
-            self.details.cache_endpoint.endpoint.clone(),
+            self.endpoint.clone(),
             vec![format!("http://localhost:{}", "8080")],
         );
 
@@ -75,7 +74,7 @@ impl<'a> ApiHelper<'a> {
     pub fn get_record(&self, key: &str) -> Result<IndexMap<String, Value>, CacheError> {
         let schema = self
             .reader
-            .get_schema_and_indexes_by_name(&self.details.schema_name)?
+            .get_schema_and_indexes_by_name(&self.endpoint.name)?
             .0;
 
         let key = if schema.primary_index.is_empty() {
@@ -97,7 +96,7 @@ impl<'a> ApiHelper<'a> {
     }
 
     pub fn get_records_count(&self, mut exp: QueryExpression) -> Result<usize, CacheError> {
-        self.reader.count(&self.details.schema_name, &mut exp)
+        self.reader.count(&self.endpoint.name, &mut exp)
     }
 
     /// Get multiple records
@@ -120,9 +119,9 @@ impl<'a> ApiHelper<'a> {
     ) -> Result<(Schema, Vec<RecordWithId>), CacheError> {
         let schema = self
             .reader
-            .get_schema_and_indexes_by_name(&self.details.schema_name)?
+            .get_schema_and_indexes_by_name(&self.endpoint.name)?
             .0;
-        let records = self.reader.query(&self.details.schema_name, &mut exp)?;
+        let records = self.reader.query(&self.endpoint.name, &mut exp)?;
 
         Ok((schema, records))
     }
@@ -131,7 +130,7 @@ impl<'a> ApiHelper<'a> {
     pub fn get_schema(&self) -> Result<Schema, CacheError> {
         let schema = self
             .reader
-            .get_schema_and_indexes_by_name(&self.details.schema_name)?
+            .get_schema_and_indexes_by_name(&self.endpoint.name)?
             .0;
         Ok(schema)
     }

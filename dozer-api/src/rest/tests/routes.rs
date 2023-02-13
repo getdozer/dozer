@@ -14,7 +14,6 @@ fn test_generate_oapi() {
     let oapi_generator = OpenApiGenerator::new(
         schema,
         secondary_indexes,
-        endpoint.name.to_owned(),
         endpoint,
         vec![format!("http://localhost:{}", "8080")],
     );

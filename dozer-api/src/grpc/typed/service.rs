@@ -9,10 +9,10 @@ use super::{
 use crate::{
     auth::{Access, Authorizer},
     grpc::{internal_grpc::PipelineResponse, shared_impl},
-    PipelineDetails,
+    RoCacheEndpoint,
 };
 use actix_web::http::StatusCode;
-use dozer_types::{models::api_security::ApiSecurity, types::Schema};
+use dozer_types::models::api_security::ApiSecurity;
 use futures_util::future;
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, Value};
@@ -27,8 +27,8 @@ pub struct TypedService {
     accept_compression_encodings: EnabledCompressionEncodings,
     send_compression_encodings: EnabledCompressionEncodings,
     descriptor: DescriptorPool,
-    pipeline_map: HashMap<String, PipelineDetails>,
-    schema_map: HashMap<String, Schema>,
+    /// For look up endpoint from its name. `key == value.endpoint.name`.
+    endpoint_map: HashMap<String, RoCacheEndpoint>,
     event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
     security: Option<ApiSecurity>,
 }
@@ -39,8 +39,7 @@ impl Clone for TypedService {
             accept_compression_encodings: self.accept_compression_encodings,
             send_compression_encodings: self.send_compression_encodings,
             descriptor: self.descriptor.clone(),
-            pipeline_map: self.pipeline_map.clone(),
-            schema_map: self.schema_map.clone(),
+            endpoint_map: self.endpoint_map.clone(),
             event_notifier: self.event_notifier.as_ref().map(|r| r.resubscribe()),
             security: self.security.to_owned(),
         }
@@ -50,8 +49,7 @@ impl Clone for TypedService {
 impl TypedService {
     pub fn new(
         descriptor: DescriptorPool,
-        pipeline_map: HashMap<String, PipelineDetails>,
-        schema_map: HashMap<String, Schema>,
+        endpoint_map: HashMap<String, RoCacheEndpoint>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
         security: Option<ApiSecurity>,
     ) -> Self {
@@ -59,8 +57,7 @@ impl TypedService {
             accept_compression_encodings: Default::default(),
             send_compression_encodings: Default::default(),
             descriptor,
-            pipeline_map,
-            schema_map,
+            endpoint_map,
             event_notifier,
             security,
         }
@@ -86,7 +83,7 @@ where
         let req_service_name = current_path[current_path.len() - 2];
 
         let service_tuple = self
-            .pipeline_map
+            .endpoint_map
             .clone()
             .into_iter()
             .map(|(endpoint_name, details)| {
@@ -110,7 +107,7 @@ where
                     .body(empty_body())
                     .unwrap())
             }),
-            Some((service_name, pipeline_details)) => {
+            Some((service_name, cache_endpoint)) => {
                 let service_desc = self
                     .descriptor
                     .services()
@@ -134,7 +131,7 @@ where
 
                 match method_name {
                     "count" => {
-                        struct CountService(PipelineDetails, DescriptorPool);
+                        struct CountService(RoCacheEndpoint, DescriptorPool);
                         impl tonic::server::UnaryService<DynamicMessage> for CountService {
                             type Response = TypedResponse;
                             type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
@@ -144,13 +141,13 @@ where
                             }
                         }
                         Box::pin(async move {
-                            let method = CountService(pipeline_details, desc);
+                            let method = CountService(cache_endpoint, desc);
                             let res = grpc.unary(method, req).await;
                             Ok(res)
                         })
                     }
                     "query" => {
-                        struct QueryService(PipelineDetails, DescriptorPool);
+                        struct QueryService(RoCacheEndpoint, DescriptorPool);
                         impl tonic::server::UnaryService<DynamicMessage> for QueryService {
                             type Response = TypedResponse;
                             type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
@@ -160,7 +157,7 @@ where
                             }
                         }
                         Box::pin(async move {
-                            let method = QueryService(pipeline_details, desc);
+                            let method = QueryService(cache_endpoint, desc);
                             let res = grpc.unary(method, req).await;
                             Ok(res)
                         })
@@ -168,7 +165,7 @@ where
 
                     "on_event" => {
                         struct EventService(
-                            PipelineDetails,
+                            RoCacheEndpoint,
                             DescriptorPool,
                             Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
                         );
@@ -191,27 +188,26 @@ where
                             }
                         }
                         Box::pin(async move {
-                            let method = EventService(pipeline_details, desc, event_notifier);
+                            let method = EventService(cache_endpoint, desc, event_notifier);
                             let res = grpc.server_streaming(method, req).await;
                             Ok(res)
                         })
                     }
                     "token" => {
-                        struct AuthService(PipelineDetails, DescriptorPool, Option<ApiSecurity>);
+                        struct AuthService(RoCacheEndpoint, DescriptorPool, Option<ApiSecurity>);
                         impl tonic::server::UnaryService<DynamicMessage> for AuthService {
                             type Response = TypedResponse;
                             type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
                             fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
-                                let pipeline_details = self.0.clone();
                                 let desc = self.1.clone();
                                 let security = self.2.clone();
-                                let response = token(request, security, desc, pipeline_details);
+                                let response = token(request, security, desc, &self.0);
                                 future::ready(response)
                             }
                         }
                         Box::pin(async move {
                             // let security = self.security.to_owned();
-                            let method = AuthService(pipeline_details, desc, security);
+                            let method = AuthService(cache_endpoint, desc, security);
                             let res = grpc.unary(method, req).await;
                             Ok(res)
                         })
@@ -260,41 +256,33 @@ fn parse_request(
 
 fn count(
     request: Request<DynamicMessage>,
-    pipeline_details: &PipelineDetails,
+    cache_endpoint: &RoCacheEndpoint,
     desc: &DescriptorPool,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let count = shared_impl::count(pipeline_details, query.as_deref(), access)?;
-    let res = count_response_to_typed_response(
-        count,
-        desc,
-        &pipeline_details.cache_endpoint.endpoint.name,
-    );
+    let count = shared_impl::count(cache_endpoint, query.as_deref(), access)?;
+    let res = count_response_to_typed_response(count, desc, &cache_endpoint.endpoint.name);
     Ok(Response::new(res))
 }
 
 fn query(
     request: Request<DynamicMessage>,
-    pipeline_details: &PipelineDetails,
+    cache_endpoint: &RoCacheEndpoint,
     desc: &DescriptorPool,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let (_, records) = shared_impl::query(pipeline_details, query.as_deref(), access)?;
-    let res = query_response_to_typed_response(
-        records,
-        desc,
-        &pipeline_details.cache_endpoint.endpoint.name,
-    );
+    let (_, records) = shared_impl::query(cache_endpoint, query.as_deref(), access)?;
+    let res = query_response_to_typed_response(records, desc, &cache_endpoint.endpoint.name);
     Ok(Response::new(res))
 }
 
 fn on_event(
     request: Request<DynamicMessage>,
-    pipeline_details: &PipelineDetails,
+    cache_endpoint: &RoCacheEndpoint,
     desc: DescriptorPool,
     event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
@@ -313,7 +301,7 @@ fn on_event(
         .transpose()?;
 
     shared_impl::on_event(
-        pipeline_details,
+        cache_endpoint,
         filter,
         event_notifier,
         access.cloned(),
@@ -325,15 +313,15 @@ fn token(
     request: Request<DynamicMessage>,
     security: Option<ApiSecurity>,
     desc: DescriptorPool,
-    pipeline_details: PipelineDetails,
+    cache_endpoint: &RoCacheEndpoint,
 ) -> Result<Response<TypedResponse>, Status> {
     if let Some(security) = security {
         let _parts = request.into_parts();
-        let endpoint_name = pipeline_details.cache_endpoint.endpoint.name;
+        let endpoint_name = &cache_endpoint.endpoint.name;
 
         let auth = Authorizer::from(&security);
         let token = auth.generate_token(Access::All, None).unwrap();
-        let res = token_response(token, &desc, &endpoint_name);
+        let res = token_response(token, &desc, endpoint_name);
         Ok(Response::new(res))
     } else {
         Err(Status::unavailable("security config unavailable"))
