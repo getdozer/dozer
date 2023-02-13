@@ -3,8 +3,7 @@ use crate::chk;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
-    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source,
-    SourceFactory,
+    OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
@@ -12,6 +11,7 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
+use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
 use std::collections::HashMap;

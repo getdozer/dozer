@@ -4,9 +4,7 @@ use crate::dag_metadata::DagMetadata;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
-use crate::node::{
-    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
-};
+use crate::node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory};
 use crate::record_store::RecordReader;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{
@@ -16,6 +14,7 @@ use crate::tests::sources::{
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_types::node::NodeHandle;
 use dozer_types::types::{Operation, Schema};
 
 use std::collections::HashMap;

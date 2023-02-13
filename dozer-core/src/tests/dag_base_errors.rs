@@ -3,8 +3,8 @@ use crate::chk;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
-    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink,
-    SinkFactory, Source, SourceFactory,
+    OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
+    Source, SourceFactory,
 };
 use crate::record_store::RecordReader;
 use crate::tests::dag_base_run::NoopProcessorFactory;
@@ -12,6 +12,7 @@ use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_types::node::NodeHandle;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };

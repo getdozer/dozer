@@ -2,12 +2,12 @@ use crate::chk;
 use crate::dag_metadata::DagMetadata;
 use crate::dag_schemas::DagSchemas;
 use crate::executor::{DagExecutor, ExecutorOptions};
-use crate::node::NodeHandle;
 use crate::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_storage::lmdb_storage::LmdbEnvironmentManager;
+use dozer_types::node::NodeHandle;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;

@@ -1,24 +1,9 @@
-use crate::node::NodeHandle;
+use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 use dozer_types::parking_lot::Mutex;
-use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Barrier};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct OpIdentifier {
-    pub txid: u64,
-    pub seq_in_tx: u64,
-}
-
-impl OpIdentifier {
-    pub fn new(txid: u64, seq_in_tx: u64) -> Self {
-        Self { txid, seq_in_tx }
-    }
-}
-
-pub type SourceStates = HashMap<NodeHandle, OpIdentifier>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Epoch {

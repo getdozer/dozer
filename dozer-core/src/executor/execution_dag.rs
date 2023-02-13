@@ -12,14 +12,15 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
+use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
     dag_metadata::{DagMetadata, NodeStorage},
     dag_schemas::DagHaveSchemas,
-    epoch::{EpochManager, OpIdentifier},
+    epoch::EpochManager,
     errors::ExecutionError,
     hash_map_to_vec::insert_vec_element,
-    node::{NodeHandle, PortHandle, Processor, Sink, Source},
+    node::{PortHandle, Processor, Sink, Source},
     record_store::{create_record_store, RecordReader, RecordWriter},
     NodeKind as DagNodeKind,
 };
