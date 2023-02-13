@@ -33,5 +33,9 @@ pub fn validate(
         assert_eq!(record, expected);
     }
 
+    let all_records = all_records
+        .into_iter()
+        .map(|record| record.record)
+        .collect();
     (query, all_records)
 }

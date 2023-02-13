@@ -1,5 +1,6 @@
 use crate::grpc::types::{self as GrpcTypes};
 use crate::grpc::types_helper::field_to_prost_value;
+use dozer_cache::cache::RecordWithId;
 use dozer_types::types::Record;
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, MessageDescriptor};
@@ -153,7 +154,7 @@ pub fn count_response_to_typed_response(
 }
 
 pub fn query_response_to_typed_response(
-    records: Vec<Record>,
+    records: Vec<RecordWithId>,
     desc: &DescriptorPool,
     endpoint_name: &str,
 ) -> TypedResponse {
@@ -164,7 +165,7 @@ pub fn query_response_to_typed_response(
     let resource_desc = get_resource_desc(desc, endpoint_name);
     let resources = records
         .into_iter()
-        .map(|rec| prost_reflect::Value::Message(record_to_pb(rec, &resource_desc)))
+        .map(|rec| prost_reflect::Value::Message(record_to_pb(rec.record, &resource_desc)))
         .collect::<Vec<_>>();
     msg.set_field_by_name("data", prost_reflect::Value::List(resources));
     TypedResponse::new(msg)

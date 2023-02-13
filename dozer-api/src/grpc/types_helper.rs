@@ -1,3 +1,4 @@
+use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::types::{
     Field, FieldType, Operation as DozerOperation, Record as DozerRecord, DATE_FORMAT,
@@ -5,30 +6,32 @@ use dozer_types::types::{
 
 use crate::grpc::types::{value, Operation, OperationType, Record, Type, Value};
 
+use super::types::RecordWithId;
+
 pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Operation {
     match operation.to_owned() {
         DozerOperation::Delete { old } => Operation {
             typ: OperationType::Delete as i32,
-            old: Some(map_record(old)),
+            old: Some(record_to_internal_record(old)),
             new: None,
             endpoint_name,
         },
         DozerOperation::Insert { new } => Operation {
             typ: OperationType::Insert as i32,
             old: None,
-            new: Some(map_record(new)),
+            new: Some(record_to_internal_record(new)),
             endpoint_name,
         },
         DozerOperation::Update { old, new } => Operation {
             typ: OperationType::Insert as i32,
-            old: Some(map_record(old)),
-            new: Some(map_record(new)),
+            old: Some(record_to_internal_record(old)),
+            new: Some(record_to_internal_record(new)),
             endpoint_name,
         },
     }
 }
 
-pub fn map_record(record: DozerRecord) -> Record {
+fn record_to_internal_record(record: DozerRecord) -> Record {
     let values: Vec<Value> = record
         .values
         .into_iter()
@@ -36,6 +39,13 @@ pub fn map_record(record: DozerRecord) -> Record {
         .collect();
 
     Record { values }
+}
+
+pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
+    RecordWithId {
+        id: record.id,
+        record: Some(record_to_internal_record(record.record)),
+    }
 }
 
 pub fn field_to_prost_value(f: Field) -> Value {

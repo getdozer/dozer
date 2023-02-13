@@ -2,6 +2,7 @@ use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use crate::generator::oapi::generator::OpenApiGenerator;
 use crate::PipelineDetails;
+use dozer_cache::cache::RecordWithId;
 use dozer_cache::cache::{expression::QueryExpression, index};
 use dozer_cache::errors::CacheError;
 use dozer_cache::{AccessFilter, CacheReader};
@@ -9,7 +10,7 @@ use dozer_types::indexmap::IndexMap;
 use dozer_types::json_str_to_field;
 use dozer_types::record_to_map;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{Record, Schema};
+use dozer_types::types::Schema;
 use openapiv3::OpenAPI;
 
 pub struct ApiHelper<'a> {
@@ -107,7 +108,7 @@ impl<'a> ApiHelper<'a> {
         let mut maps = vec![];
         let (schema, records) = self.get_records(exp)?;
         for rec in records.iter() {
-            let map = record_to_map(rec, &schema)?;
+            let map = record_to_map(&rec.record, &schema)?;
             maps.push(map);
         }
         Ok(maps)
@@ -116,7 +117,7 @@ impl<'a> ApiHelper<'a> {
     pub fn get_records(
         &self,
         mut exp: QueryExpression,
-    ) -> Result<(Schema, Vec<Record>), CacheError> {
+    ) -> Result<(Schema, Vec<RecordWithId>), CacheError> {
         let schema = self
             .reader
             .get_schema_and_indexes_by_name(&self.details.schema_name)?
