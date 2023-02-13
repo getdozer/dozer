@@ -14,15 +14,17 @@ use dozer_types::types::{Schema, SchemaIdentifier};
 
 use super::super::{RoCache, RwCache};
 use super::indexer::Indexer;
-use super::query::handler::LmdbQueryHandler;
 use super::{
     utils, CacheCommonOptions, CacheOptions, CacheOptionsKind, CacheReadOptions, CacheWriteOptions,
 };
 use crate::cache::expression::QueryExpression;
 use crate::cache::index::get_primary_key;
 use crate::errors::CacheError;
+use query::LmdbQueryHandler;
 
+mod helper;
 mod id_database;
+mod query;
 mod record_database;
 mod schema_database;
 mod secondary_index_database;

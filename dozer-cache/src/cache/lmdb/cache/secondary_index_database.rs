@@ -7,8 +7,9 @@ use dozer_storage::{
 };
 use dozer_types::types::{IndexDefinition, SchemaIdentifier};
 
+use super::helper::lmdb_cmp;
 use crate::{
-    cache::lmdb::{comparator, query::helper::lmdb_cmp},
+    cache::lmdb::comparator,
     errors::{CacheError, QueryError},
 };
 

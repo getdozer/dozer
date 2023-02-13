@@ -1,13 +1,11 @@
 use std::{cmp::Ordering, sync::Arc};
 
+use super::intersection::intersection;
 use super::iterator::{CacheIterator, KeyEndpoint};
 use crate::cache::{
     expression::{Operator, QueryExpression, SortDirection},
     index,
-    lmdb::{
-        cache::{RecordDatabase, SecondaryIndexDatabases},
-        query::intersection::intersection,
-    },
+    lmdb::cache::{RecordDatabase, SecondaryIndexDatabases},
     plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
 use crate::errors::{CacheError, IndexError};
