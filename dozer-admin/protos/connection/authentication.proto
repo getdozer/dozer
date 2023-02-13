@@ -1,6 +1,28 @@
 syntax = "proto3";
 package dozer_admin_grpc;
 
+enum DBType {
+  Postgres = 0;
+  Snowflake = 1;
+  Ethereum = 2;
+  Events = 3;
+  Kafka = 4;
+}
+
+message ConnectionInfo {
+  oneof authentication {
+    PostgresAuthentication Postgres = 1;
+    EthereumAuthentication Ethereum = 2;
+    EventsAuthentication Events = 3;
+    SnowflakeAuthentication Snowflake = 4;
+    KafkaAuthentication Kafka = 5;
+  }
+  string id = 6;
+  string app_id = 7;
+  DBType db_type = 8;
+  string name = 9;
+}
+
 message Authentication {
   oneof authentication {
     PostgresAuthentication Postgres = 1;
@@ -33,9 +55,7 @@ message KafkaAuthentication {
   string topic = 2;
   optional string schema_registry_url = 3;
 }
-message EventsAuthentication {
-  string database = 1;
-}
+message EventsAuthentication { string database = 1; }
 
 message EthereumAuthentication {
   EthereumFilter filter = 1;
