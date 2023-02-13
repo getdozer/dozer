@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::super::api_server::{ApiServer, CorsOptions};
+use super::super::{ApiServer, CorsOptions};
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, RoCacheEndpoint};
 use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
