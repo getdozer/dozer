@@ -1,5 +1,4 @@
 use super::generator::ProtoGenerator;
-use crate::generator::protoc::utils::{create_descriptor_set, get_proto_descriptor};
 use crate::test_utils;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
@@ -27,8 +26,9 @@ fn test_generate_proto_and_descriptor() {
     )
     .unwrap();
 
-    let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
-    let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
+    let descriptor = ProtoGenerator::generate_descriptor(tmp_dir_path, &[endpoint.name])
+        .unwrap()
+        .descriptor;
 
     let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
     let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");
@@ -66,8 +66,9 @@ fn test_generate_proto_and_descriptor_with_security() {
     )
     .unwrap();
 
-    let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
-    let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
+    let descriptor = ProtoGenerator::generate_descriptor(tmp_dir_path, &[endpoint.name])
+        .unwrap()
+        .descriptor;
 
     let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
     let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");
@@ -101,8 +102,9 @@ fn test_generate_proto_and_descriptor_with_push_event_off() {
         &None,
     )
     .unwrap();
-    let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
-    let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
+    let descriptor = ProtoGenerator::generate_descriptor(tmp_dir_path, &[endpoint.name])
+        .unwrap()
+        .descriptor;
 
     let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
     let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");

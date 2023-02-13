@@ -3,9 +3,12 @@ use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use dozer_types::types::Schema;
 use prost_reflect::DescriptorPool;
-use std::path::Path;
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
-use super::utils::{create_descriptor_set, get_proto_descriptor};
+use super::utils::get_proto_descriptor;
 
 pub struct ProtoResponse {
     pub descriptor: DescriptorPool,
@@ -46,23 +49,19 @@ impl ProtoGenerator {
         Ok(())
     }
 
-    pub fn generate_descriptor(
+    pub fn generate_descriptor<T: AsRef<str>>(
         folder_path: &Path,
-        resources: Vec<String>,
+        resources: &[T],
     ) -> Result<ProtoResponse, GenerationError> {
-        let descriptor_path = create_descriptor_set(folder_path, &resources)
+        let descriptor_path = descriptor_path(folder_path);
+        create_descriptor_set(folder_path, &descriptor_path, resources)
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
 
-        let (descriptor_bytes, descriptor) = get_proto_descriptor(&descriptor_path)?;
-
-        Ok(ProtoResponse {
-            descriptor,
-            descriptor_bytes,
-        })
+        Self::read(folder_path)
     }
 
     pub fn read(folder_path: &Path) -> Result<ProtoResponse, GenerationError> {
-        let descriptor_path = folder_path.join("file_descriptor_set.bin");
+        let descriptor_path = descriptor_path(folder_path);
         let (descriptor_bytes, descriptor) = get_proto_descriptor(&descriptor_path)?;
 
         Ok(ProtoResponse {
@@ -70,6 +69,34 @@ impl ProtoGenerator {
             descriptor_bytes,
         })
     }
+}
+
+fn descriptor_path(folder_path: &Path) -> PathBuf {
+    folder_path.join("file_descriptor_set.bin")
+}
+
+fn create_descriptor_set<T: AsRef<str>>(
+    folder_path: &Path,
+    descriptor_path: &Path,
+    resources: &[T],
+) -> Result<(), io::Error> {
+    let resources: Vec<_> = resources
+        .iter()
+        .map(|r| folder_path.join(format!("{}.proto", r.as_ref())))
+        .collect();
+
+    let mut prost_build_config = prost_build::Config::new();
+    prost_build_config.out_dir(folder_path.to_owned());
+    tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
+        .file_descriptor_set_path(descriptor_path)
+        // .extern_path(".google.protobuf.Value", "::prost_wkt_types::Value")
+        .build_client(false)
+        .build_server(false)
+        .emit_rerun_if_changed(false)
+        .out_dir(folder_path)
+        .compile_with_config(prost_build_config, &resources, &[folder_path])?;
+    Ok(())
 }
 
 mod implementation;

@@ -349,17 +349,17 @@ impl Orchestrator for SimpleOrchestrator {
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {
-            resources.push(e.name.clone());
+            resources.push(&e.name);
         }
 
         let common_resources = ProtoGenerator::copy_common(&generated_path)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         // Copy common service to be included in descriptor.
-        resources.extend(common_resources);
+        resources.extend(common_resources.iter());
 
         // Generate a descriptor based on all proto files generated within sink.
-        ProtoGenerator::generate_descriptor(&generated_path, resources)
+        ProtoGenerator::generate_descriptor(&generated_path, &resources)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())
