@@ -25,8 +25,6 @@ pub enum ApiError {
     #[error(transparent)]
     InternalError(#[from] BoxedError),
     #[error(transparent)]
-    InitError(#[from] InitError),
-    #[error(transparent)]
     TypeError(#[from] TypeError),
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
@@ -82,14 +80,6 @@ impl From<ApiError> for tonic::Status {
 }
 
 #[derive(Error, Debug)]
-pub enum InitError {
-    #[error("pipeline_details not initialized")]
-    PipelineNotInitialized,
-    #[error("api_security not initialized")]
-    SecurityNotInitialized,
-}
-
-#[derive(Error, Debug)]
 pub enum GenerationError {
     #[error(transparent)]
     InternalError(#[from] BoxedError),
@@ -131,7 +121,6 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::SchemaNotFound(_)
             | ApiError::InvalidQuery(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ApiError::InternalError(_)
-            | ApiError::InitError(_)
             | ApiError::SchemaIdentifierNotFound
             | ApiError::PortAlreadyInUse(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
