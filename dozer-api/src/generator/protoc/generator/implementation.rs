@@ -13,20 +13,13 @@ use std::path::{Path, PathBuf};
 #[serde(crate = "self::serde")]
 struct ProtoMetadata {
     import_libs: Vec<String>,
-    messages: Vec<RPCMessage>,
     package_name: String,
     lower_name: String,
     plural_pascal_name: String,
     pascal_name: String,
+    props: Vec<String>,
     enable_token: bool,
     enable_on_event: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(crate = "self::serde")]
-struct RPCMessage {
-    name: String,
-    props: Vec<String>,
 }
 
 pub struct ProtoGeneratorImpl<'a> {
@@ -74,9 +67,8 @@ impl<'a> ProtoGeneratorImpl<'a> {
         Ok(())
     }
 
-    fn resource_message(&self) -> RPCMessage {
-        let props_message: Vec<String> = self
-            .schema
+    fn props(&self) -> Vec<String> {
+        self.schema
             .fields
             .iter()
             .enumerate()
@@ -95,12 +87,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                 );
                 result
             })
-            .collect();
-
-        RPCMessage {
-            name: self.schema_name.to_pascal_case().to_singular(),
-            props: props_message,
-        }
+            .collect()
     }
 
     fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
@@ -127,16 +114,14 @@ impl<'a> ProtoGeneratorImpl<'a> {
     fn get_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = format!("dozer.generated.{}", self.schema_name);
 
-        let messages = vec![self.resource_message()];
-
         let import_libs: Vec<String> = self.libs_by_type()?;
         let metadata = ProtoMetadata {
             package_name,
-            messages,
             import_libs,
             lower_name: self.schema_name.to_lowercase(),
             plural_pascal_name: self.schema_name.to_pascal_case().to_plural(),
             pascal_name: self.schema_name.to_pascal_case().to_singular(),
+            props: self.props(),
             enable_token: self.security.is_some(),
             enable_on_event: self.flags.to_owned().unwrap_or_default().push_events,
         };
