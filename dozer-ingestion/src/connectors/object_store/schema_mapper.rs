@@ -1,10 +1,10 @@
-use crate::connectors::datafusion::helper::map_listing_options;
-use crate::connectors::datafusion::schema_helper::map_schema_to_dozer;
+use crate::connectors::object_store::helper::map_listing_options;
+use crate::connectors::object_store::schema_helper::map_schema_to_dozer;
 use crate::connectors::TableInfo;
-use crate::errors::DataFusionStorageObjectError::{
+use crate::errors::ObjectStoreObjectError::{
     ListingPathParsingError, MissingStorageDetails, TableDefinitionNotFound,
 };
-use crate::errors::{ConnectorError, DataFusionConnectorError};
+use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crossbeam::channel;
 use crossbeam::channel::Receiver;
 use datafusion::arrow::datatypes::SchemaRef;
@@ -61,7 +61,7 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
 
         let fields = map_schema_to_dozer(fields_list).map_err(|e| {
             ConnectorError::DataFusionConnectorError(
-                DataFusionConnectorError::DataFusionSchemaError(e),
+                ObjectStoreConnectorError::DataFusionSchemaError(e),
             )
         })?;
 
@@ -95,7 +95,7 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
         let details = self.config.details.as_ref().map_or_else(
             || {
                 Err(ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
+                    ObjectStoreConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
                 ))
             },
             Ok,
@@ -106,7 +106,7 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
             let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
                 || {
                     Err(ConnectorError::DataFusionConnectorError(
-                        DataFusionConnectorError::DataFusionStorageObjectError(
+                        ObjectStoreConnectorError::DataFusionStorageObjectError(
                             TableDefinitionNotFound,
                         ),
                     ))
@@ -120,7 +120,9 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
 
             let table_path = ListingTableUrl::parse(path).map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::DataFusionStorageObjectError(ListingPathParsingError),
+                    ObjectStoreConnectorError::DataFusionStorageObjectError(
+                        ListingPathParsingError,
+                    ),
                 )
             })?;
 
@@ -130,7 +132,7 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
 
             let rt = Runtime::new().map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::RuntimeCreationError,
+                    ObjectStoreConnectorError::RuntimeCreationError,
                 )
             })?;
 
@@ -155,7 +157,7 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
                 tx.send(resolved_schema)
                     .map_err(|_| {
                         ConnectorError::DataFusionConnectorError(
-                            DataFusionConnectorError::InternalError,
+                            ObjectStoreConnectorError::InternalError,
                         )
                     })
                     .unwrap();
@@ -184,7 +186,7 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
         let details = self.config.details.as_ref().map_or_else(
             || {
                 Err(ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
+                    ObjectStoreConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
                 ))
             },
             Ok,
@@ -195,7 +197,7 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
             let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
                 || {
                     Err(ConnectorError::DataFusionConnectorError(
-                        DataFusionConnectorError::DataFusionStorageObjectError(
+                        ObjectStoreConnectorError::DataFusionStorageObjectError(
                             TableDefinitionNotFound,
                         ),
                     ))
@@ -214,7 +216,7 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
 
             let rt = Runtime::new().map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::RuntimeCreationError,
+                    ObjectStoreConnectorError::RuntimeCreationError,
                 )
             })?;
 
@@ -227,7 +229,9 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
 
             let table_path = ListingTableUrl::parse(path).map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::DataFusionStorageObjectError(ListingPathParsingError),
+                    ObjectStoreConnectorError::DataFusionStorageObjectError(
+                        ListingPathParsingError,
+                    ),
                 )
             })?;
 
@@ -239,7 +243,7 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
                 tx.send(resolved_schema)
                     .map_err(|_| {
                         ConnectorError::DataFusionConnectorError(
-                            DataFusionConnectorError::InternalError,
+                            ObjectStoreConnectorError::InternalError,
                         )
                     })
                     .unwrap()

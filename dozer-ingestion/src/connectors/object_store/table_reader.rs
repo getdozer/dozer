@@ -1,14 +1,14 @@
-use crate::connectors::datafusion::helper::map_listing_options;
-use crate::connectors::datafusion::schema_helper::map_value_to_dozer_field;
+use crate::connectors::object_store::helper::map_listing_options;
+use crate::connectors::object_store::schema_helper::map_value_to_dozer_field;
 use crate::connectors::TableInfo;
-use crate::errors::DataFusionConnectorError::DataFusionTableReaderError;
-use crate::errors::DataFusionStorageObjectError::{
+use crate::errors::ObjectStoreConnectorError::DataFusionTableReaderError;
+use crate::errors::ObjectStoreObjectError::{
     ListingPathParsingError, MissingStorageDetails, TableDefinitionNotFound,
 };
-use crate::errors::DataFusionTableReaderError::{
+use crate::errors::ObjectStoreTableReaderError::{
     ColumnsSelectFailed, StreamExecutionError, TableReadFailed,
 };
-use crate::errors::{ConnectorError, DataFusionConnectorError};
+use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crate::ingestion::Ingestor;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::datasource::listing::{
@@ -42,7 +42,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         listing_options: ListingOptions,
         ingestor: Arc<RwLock<Ingestor>>,
         table: &TableInfo,
-    ) -> Result<(), DataFusionConnectorError> {
+    ) -> Result<(), ObjectStoreConnectorError> {
         let mut idx = 0;
         let fields = resolved_schema.all_fields();
 
@@ -52,7 +52,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
 
         let provider = Arc::new(
             ListingTable::try_new(config)
-                .map_err(DataFusionConnectorError::InternalDataFusionError)?,
+                .map_err(ObjectStoreConnectorError::InternalDataFusionError)?,
         );
 
         let columns: Vec<String> = match table.columns.clone() {
@@ -134,7 +134,7 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
         let details = self.config.details.as_ref().map_or_else(
             || {
                 Err(ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
+                    ObjectStoreConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
                 ))
             },
             Ok,
@@ -144,7 +144,7 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
             let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
                 || {
                     Err(ConnectorError::DataFusionConnectorError(
-                        DataFusionConnectorError::DataFusionStorageObjectError(
+                        ObjectStoreConnectorError::DataFusionStorageObjectError(
                             TableDefinitionNotFound,
                         ),
                     ))
@@ -158,7 +158,9 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
 
             let table_path = ListingTableUrl::parse(path).map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::DataFusionStorageObjectError(ListingPathParsingError),
+                    ObjectStoreConnectorError::DataFusionStorageObjectError(
+                        ListingPathParsingError,
+                    ),
                 )
             })?;
 
@@ -166,7 +168,7 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
 
             let rt = Runtime::new().map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::RuntimeCreationError,
+                    ObjectStoreConnectorError::RuntimeCreationError,
                 )
             })?;
 
@@ -189,7 +191,7 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
                 let resolved_schema = listing_options
                     .infer_schema(&ctx.state(), &table_path)
                     .await
-                    .map_err(|_| DataFusionConnectorError::InternalError)?;
+                    .map_err(|_| ObjectStoreConnectorError::InternalError)?;
 
                 Self::read(
                     id as u32,
@@ -225,7 +227,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
         let details = self.config.details.as_ref().map_or_else(
             || {
                 Err(ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
+                    ObjectStoreConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
                 ))
             },
             Ok,
@@ -235,7 +237,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
             let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
                 || {
                     Err(ConnectorError::DataFusionConnectorError(
-                        DataFusionConnectorError::DataFusionStorageObjectError(
+                        ObjectStoreConnectorError::DataFusionStorageObjectError(
                             TableDefinitionNotFound,
                         ),
                     ))
@@ -252,7 +254,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
 
             let rt = Runtime::new().map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
-                    DataFusionConnectorError::RuntimeCreationError,
+                    ObjectStoreConnectorError::RuntimeCreationError,
                 )
             })?;
 
@@ -271,7 +273,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
                 let resolved_schema = listing_options
                     .infer_schema(&ctx.state(), &table_path)
                     .await
-                    .map_err(|_| DataFusionConnectorError::InternalError)?;
+                    .map_err(|_| ObjectStoreConnectorError::InternalError)?;
 
                 Self::read(
                     id as u32,

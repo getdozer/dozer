@@ -2,21 +2,21 @@ use dozer_types::ingestion_types::{LocalStorage, S3Storage};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::connectors::datafusion::schema_mapper::{Mapper, SchemaMapper};
-use crate::connectors::datafusion::table_reader::{Reader, TableReader};
+use crate::connectors::object_store::schema_mapper::{Mapper, SchemaMapper};
+use crate::connectors::object_store::table_reader::{Reader, TableReader};
 use crate::connectors::TableInfo;
 use crate::errors::ConnectorError;
 use crate::{connectors::Connector, errors, ingestion::Ingestor};
 use dozer_types::parking_lot::RwLock;
 
-pub struct DataFusionConnector<T: Clone> {
+pub struct ObjectStoreConnector<T: Clone> {
     pub id: u64,
     config: T,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
     tables: Option<Vec<TableInfo>>,
 }
 
-impl<T: Clone> DataFusionConnector<T> {
+impl<T: Clone> ObjectStoreConnector<T> {
     pub fn new(id: u64, config: T) -> Self {
         Self {
             id,
@@ -27,7 +27,7 @@ impl<T: Clone> DataFusionConnector<T> {
     }
 }
 
-impl Connector for DataFusionConnector<S3Storage> {
+impl Connector for ObjectStoreConnector<S3Storage> {
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
@@ -78,7 +78,7 @@ impl Connector for DataFusionConnector<S3Storage> {
     }
 }
 
-impl Connector for DataFusionConnector<LocalStorage> {
+impl Connector for ObjectStoreConnector<LocalStorage> {
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
