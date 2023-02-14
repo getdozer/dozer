@@ -110,8 +110,8 @@ fn fake_dbconnection(db_type: DBType) -> DbConnection {
         },
         DBType::ObjectStore => DbConnection {
             auth: r#"{"ObjectStore":{"access_key_id":"key","secret_access_key":"secret","region":"ap-southeast-1","bucket_name":"bucket"}}"#.to_owned(),
-            name: "data_fusion_connection".to_owned(),
-            db_type: "data_fusion".to_owned(),
+            name: "object_store_connection".to_owned(),
+            db_type: "object_store".to_owned(),
             ..Default::default()
         }
     }
