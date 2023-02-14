@@ -1,6 +1,6 @@
 use crate::record_store::{
-    AutogenRowKeyLookupRecordReader, AutogenRowKeyLookupRecordWriter, PrimaryKeyLookupRecordReader,
-    PrimaryKeyLookupRecordWriter, RecordReader, RecordWriter,
+    AutogenRowKeyLookupRecordReader, AutogenRowKeyLookupRecordWriter, KeyExtractor,
+    PrimaryKeyLookupRecordReader, PrimaryKeyLookupRecordWriter, RecordReader, RecordWriter,
 };
 use dozer_storage::{
     lmdb::DatabaseFlags,
@@ -49,8 +49,15 @@ fn test_pk_record_writer() {
         )
         .clone();
 
-    let writer =
-        PrimaryKeyLookupRecordWriter::new(master_db, meta_db, schema.clone(), true, true, 1000);
+    let writer = PrimaryKeyLookupRecordWriter::new(
+        master_db,
+        meta_db,
+        schema.clone(),
+        true,
+        true,
+        1000,
+        KeyExtractor::PrimaryKey(schema.clone()),
+    );
 
     let input_record = Record::new(
         None,
@@ -172,8 +179,15 @@ fn test_read_write_kv() {
         )
         .clone();
 
-    let mut writer =
-        PrimaryKeyLookupRecordWriter::new(master_db, meta_db, schema.clone(), true, true, 1000);
+    let mut writer = PrimaryKeyLookupRecordWriter::new(
+        master_db,
+        meta_db,
+        schema.clone(),
+        true,
+        true,
+        1000,
+        KeyExtractor::PrimaryKey(schema.clone()),
+    );
 
     let r = writer
         .write(

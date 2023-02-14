@@ -2,7 +2,6 @@ pub mod app;
 pub mod appsource;
 pub mod channels;
 mod dag_impl;
-pub mod record_store_hashkey;
 pub use dag_impl::*;
 mod dag_metadata;
 pub mod dag_schemas;
