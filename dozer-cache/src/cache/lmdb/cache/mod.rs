@@ -121,28 +121,12 @@ impl<C: LmdbCache> RoCache for C {
 }
 
 impl RwCache for LmdbRwCache {
-    fn insert(&self, record: &Record) -> Result<(), CacheError> {
-        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(record)?;
-
-        let mut txn = self.txn.write();
-        let txn = txn.txn_mut();
-
-        let id = if schema.primary_index.is_empty() {
-            self.common.id.get_or_generate(txn, None)?
-        } else {
-            let primary_key = get_primary_key(&schema.primary_index, &record.values);
-            self.common.id.get_or_generate(txn, Some(&primary_key))?
-        };
-        self.common.db.insert(txn, id, record)?;
-
-        let indexer = Indexer {
-            secondary_indexes: self.common.secondary_indexes.clone(),
-        };
-
-        indexer.build_indexes(txn, record, &schema, &secondary_indexes, id)
+    fn insert(&self, record: &mut Record) -> Result<(), CacheError> {
+        record.version = Some(INITIAL_RECORD_VERSION);
+        self.insert_impl(record)
     }
 
-    fn delete(&self, key: &[u8]) -> Result<(), CacheError> {
+    fn delete(&self, key: &[u8]) -> Result<u32, CacheError> {
         let record = self.get(key)?;
         let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&record)?;
 
@@ -155,12 +139,17 @@ impl RwCache for LmdbRwCache {
         let indexer = Indexer {
             secondary_indexes: self.common.secondary_indexes.clone(),
         };
-        indexer.delete_indexes(txn, &record, &schema, &secondary_indexes, id)
+        indexer.delete_indexes(txn, &record, &schema, &secondary_indexes, id)?;
+        Ok(record
+            .version
+            .expect("All records in cache should have a version"))
     }
 
-    fn update(&self, key: &[u8], record: &Record) -> Result<(), CacheError> {
-        self.delete(key)?;
-        self.insert(record)
+    fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError> {
+        let old_version = self.delete(key)?;
+        record.version = Some(old_version + 1);
+        self.insert_impl(record)?;
+        Ok(old_version)
     }
 
     fn insert_schema(
@@ -194,6 +183,29 @@ impl RwCache for LmdbRwCache {
     fn commit(&self) -> Result<(), CacheError> {
         self.txn.write().commit_and_renew()?;
         Ok(())
+    }
+}
+
+impl LmdbRwCache {
+    fn insert_impl(&self, record: &Record) -> Result<(), CacheError> {
+        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(record)?;
+
+        let mut txn = self.txn.write();
+        let txn = txn.txn_mut();
+
+        let id = if schema.primary_index.is_empty() {
+            self.common.id.get_or_generate(txn, None)?
+        } else {
+            let primary_key = get_primary_key(&schema.primary_index, &record.values);
+            self.common.id.get_or_generate(txn, Some(&primary_key))?
+        };
+        self.common.db.insert(txn, id, record)?;
+
+        let indexer = Indexer {
+            secondary_indexes: self.common.secondary_indexes.clone(),
+        };
+
+        indexer.build_indexes(txn, record, &schema, &secondary_indexes, id)
     }
 }
 
@@ -330,6 +342,8 @@ fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
         }
     }
 }
+
+const INITIAL_RECORD_VERSION: u32 = 1_u32;
 
 #[derive(Debug)]
 pub struct LmdbCacheCommon {

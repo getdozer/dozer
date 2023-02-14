@@ -106,7 +106,7 @@ impl ApiServer {
                 let scope = &endpoint.path;
                 app.service(
                     web::scope(scope)
-                        // Inject pipeline_details for generated functions
+                        // Inject cache_endpoint for generated functions
                         .wrap_fn(move |req, srv| {
                             req.extensions_mut().insert(cache_endpoint.clone());
                             srv.call(req)

@@ -82,13 +82,11 @@ message {{pascal_name}}Event {
  * 
  * Nullable fields will be generated as `optional` fields.
  */
-{{#each messages}}
-message {{name}} {
+message {{pascal_name}} {
  {{#each props}}
  {{{this}}}
  {{~/each}}
 }
-{{~/each}}
 
 {{#if enable_token}}
 // Request for `token`.

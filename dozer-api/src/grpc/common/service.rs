@@ -26,6 +26,20 @@ pub struct CommonService {
 }
 
 impl CommonService {
+    pub fn new(
+        endpoints: Vec<RoCacheEndpoint>,
+        event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
+    ) -> Self {
+        let endpoint_map = endpoints
+            .into_iter()
+            .map(|endpoint| (endpoint.endpoint.name.clone(), endpoint))
+            .collect();
+        Self {
+            endpoint_map,
+            event_notifier,
+        }
+    }
+
     fn parse_request(
         &self,
         request: Request<QueryRequest>,

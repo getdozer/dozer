@@ -111,8 +111,8 @@ pub fn initialize_cache(
         .insert_schema(schema_name, &schema, &secondary_indexes)
         .unwrap();
     let records = get_sample_records(schema);
-    for record in records {
-        cache.insert(&record.record).unwrap();
+    for mut record in records {
+        cache.insert(&mut record.record).unwrap();
     }
     cache
 }

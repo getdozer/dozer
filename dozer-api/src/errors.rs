@@ -8,7 +8,7 @@ use dozer_types::{serde_json, thiserror};
 use dozer_cache::errors::{CacheError, QueryValidationError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
-use prost_reflect::DescriptorError;
+use prost_reflect::{DescriptorError, Kind};
 
 #[derive(Error, Debug)]
 pub enum ApiError {
@@ -24,8 +24,6 @@ pub enum ApiError {
     NotFound(#[source] CacheError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
-    #[error(transparent)]
-    InitError(#[from] InitError),
     #[error(transparent)]
     TypeError(#[from] TypeError),
     #[error("Schema Identifier is not present")]
@@ -82,14 +80,6 @@ impl From<ApiError> for tonic::Status {
 }
 
 #[derive(Error, Debug)]
-pub enum InitError {
-    #[error("pipeline_details not initialized")]
-    PipelineNotInitialized,
-    #[error("api_security not initialized")]
-    SecurityNotInitialized,
-}
-
-#[derive(Error, Debug)]
 pub enum GenerationError {
     #[error(transparent)]
     InternalError(#[from] BoxedError),
@@ -101,6 +91,21 @@ pub enum GenerationError {
     MissingPrimaryKeyToQueryById(String),
     #[error("Cannot read proto descriptor: {0}")]
     ProtoDescriptorError(#[source] DescriptorError),
+    #[error("Service not found: {0}")]
+    ServiceNotFound(String),
+    #[error("Field not found: {field_name} in message: {message_name}")]
+    FieldNotFound {
+        message_name: String,
+        field_name: String,
+    },
+    #[error("Expected message field: {filed_name}, but found: {actual:?}")]
+    ExpectedMessageField { filed_name: String, actual: Kind },
+    #[error("Unexpected method {0}")]
+    UnexpectedMethod(String),
+    #[error("Missing count method for: {0}")]
+    MissingCountMethod(String),
+    #[error("Missing query method for: {0}")]
+    MissingQueryMethod(String),
 }
 
 #[derive(Error, Debug)]
@@ -131,7 +136,6 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::SchemaNotFound(_)
             | ApiError::InvalidQuery(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ApiError::InternalError(_)
-            | ApiError::InitError(_)
             | ApiError::SchemaIdentifierNotFound
             | ApiError::PortAlreadyInUse(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
