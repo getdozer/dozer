@@ -16,7 +16,11 @@ pub async fn generate_oapi(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<RoCacheEndpoint>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(&cache_endpoint, access.map(|a| a.into_inner()))?;
+    let helper = ApiHelper::new(
+        &cache_endpoint.cache_reader,
+        &cache_endpoint.endpoint,
+        access.map(|a| a.into_inner()),
+    )?;
 
     helper
         .generate_oapi3()
@@ -29,7 +33,11 @@ pub async fn get(
     cache_endpoint: ReqData<RoCacheEndpoint>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(&cache_endpoint, access.map(|a| a.into_inner()))?;
+    let helper = ApiHelper::new(
+        &cache_endpoint.cache_reader,
+        &cache_endpoint.endpoint,
+        access.map(|a| a.into_inner()),
+    )?;
     let key = path.as_str();
     helper
         .get_record(key)
@@ -42,7 +50,11 @@ pub async fn list(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<RoCacheEndpoint>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(&cache_endpoint, access.map(|a| a.into_inner()))?;
+    let helper = ApiHelper::new(
+        &cache_endpoint.cache_reader,
+        &cache_endpoint.endpoint,
+        access.map(|a| a.into_inner()),
+    )?;
     let exp = QueryExpression::new(None, vec![], Some(50), 0);
     match helper
         .get_records_map(exp)
@@ -78,7 +90,11 @@ pub async fn count(
         None => QueryExpression::with_no_limit(),
     };
 
-    let helper = ApiHelper::new(&cache_endpoint, access.map(|a| a.into_inner()))?;
+    let helper = ApiHelper::new(
+        &cache_endpoint.cache_reader,
+        &cache_endpoint.endpoint,
+        access.map(|a| a.into_inner()),
+    )?;
     helper
         .get_records_count(query_expression)
         .map(|count| HttpResponse::Ok().json(count))
@@ -104,7 +120,11 @@ pub async fn query(
     if query_expression.limit.is_none() {
         query_expression.limit = Some(default_limit_for_query());
     }
-    let helper = ApiHelper::new(&cache_endpoint, access.map(|a| a.into_inner()))?;
+    let helper = ApiHelper::new(
+        &cache_endpoint.cache_reader,
+        &cache_endpoint.endpoint,
+        access.map(|a| a.into_inner()),
+    )?;
     helper
         .get_records_map(query_expression)
         .map(|maps| HttpResponse::Ok().json(maps))

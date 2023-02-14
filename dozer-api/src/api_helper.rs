@@ -1,7 +1,6 @@
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use crate::generator::oapi::generator::OpenApiGenerator;
-use crate::RoCacheEndpoint;
 use dozer_cache::cache::RecordWithId;
 use dozer_cache::cache::{expression::QueryExpression, index};
 use dozer_cache::errors::CacheError;
@@ -15,18 +14,20 @@ use dozer_types::types::Schema;
 use openapiv3::OpenAPI;
 
 pub struct ApiHelper<'a> {
+    reader: &'a CacheReader,
+    access_filter: AccessFilter,
     endpoint: &'a ApiEndpoint,
-    reader: CacheReader,
 }
 impl<'a> ApiHelper<'a> {
     pub fn new(
-        cache_endpoint: &'a RoCacheEndpoint,
+        reader: &'a CacheReader,
+        endpoint: &'a ApiEndpoint,
         access: Option<Access>,
     ) -> Result<Self, ApiError> {
         let access = access.unwrap_or(Access::All);
 
         // Define Access Filter based on token
-        let reader_access = match access {
+        let access_filter = match access {
             // No access filter.
             Access::All => AccessFilter {
                 filter: None,
@@ -34,7 +35,7 @@ impl<'a> ApiHelper<'a> {
             },
 
             Access::Custom(mut access_filters) => {
-                if let Some(access_filter) = access_filters.remove(&cache_endpoint.endpoint.name) {
+                if let Some(access_filter) = access_filters.remove(&endpoint.name) {
                     access_filter
                 } else {
                     return Err(ApiError::ApiAuthError(AuthError::InvalidToken));
@@ -42,13 +43,10 @@ impl<'a> ApiHelper<'a> {
             }
         };
 
-        let reader = CacheReader {
-            cache: cache_endpoint.cache.clone(),
-            access: reader_access,
-        };
         Ok(Self {
-            endpoint: &cache_endpoint.endpoint,
             reader,
+            access_filter,
+            endpoint,
         })
     }
 
@@ -90,18 +88,19 @@ impl<'a> ApiHelper<'a> {
         }?;
 
         let key = index::get_primary_key(&[0], &[key]);
-        let rec = self.reader.get(&key)?;
+        let rec = self.reader.get(&key, &self.access_filter)?;
 
         record_to_map(&rec, &schema).map_err(CacheError::Type)
     }
 
-    pub fn get_records_count(&self, mut exp: QueryExpression) -> Result<usize, CacheError> {
-        self.reader.count(&self.endpoint.name, &mut exp)
+    pub fn get_records_count(self, mut exp: QueryExpression) -> Result<usize, CacheError> {
+        self.reader
+            .count(&self.endpoint.name, &mut exp, self.access_filter)
     }
 
     /// Get multiple records
     pub fn get_records_map(
-        &self,
+        self,
         exp: QueryExpression,
     ) -> Result<Vec<IndexMap<String, Value>>, CacheError> {
         let mut maps = vec![];
@@ -114,14 +113,16 @@ impl<'a> ApiHelper<'a> {
     }
     /// Get multiple records
     pub fn get_records(
-        &self,
+        self,
         mut exp: QueryExpression,
     ) -> Result<(Schema, Vec<RecordWithId>), CacheError> {
         let schema = self
             .reader
             .get_schema_and_indexes_by_name(&self.endpoint.name)?
             .0;
-        let records = self.reader.query(&self.endpoint.name, &mut exp)?;
+        let records = self
+            .reader
+            .query(&self.endpoint.name, &mut exp, self.access_filter)?;
 
         Ok((schema, records))
     }

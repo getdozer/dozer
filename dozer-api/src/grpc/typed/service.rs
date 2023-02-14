@@ -12,7 +12,8 @@ use crate::{
     RoCacheEndpoint,
 };
 use actix_web::http::StatusCode;
-use dozer_types::models::api_security::ApiSecurity;
+use dozer_cache::CacheReader;
+use dozer_types::models::{api_endpoint::ApiEndpoint, api_security::ApiSecurity};
 use futures_util::future;
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, Value};
@@ -136,7 +137,8 @@ where
                             type Response = TypedResponse;
                             type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
                             fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
-                                let response = count(request, &self.0, &self.1);
+                                let response =
+                                    count(request, &self.0.cache_reader, &self.0.endpoint, &self.1);
                                 future::ready(response)
                             }
                         }
@@ -152,7 +154,8 @@ where
                             type Response = TypedResponse;
                             type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
                             fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
-                                let response = query(request, &self.0, &self.1);
+                                let response =
+                                    query(request, &self.0.cache_reader, &self.0.endpoint, &self.1);
                                 future::ready(response)
                             }
                         }
@@ -184,7 +187,13 @@ where
                             ) -> Self::Future {
                                 let desc = self.1.clone();
                                 let event_notifier = self.2.as_ref().map(|r| r.resubscribe());
-                                future::ready(on_event(request, &self.0, desc, event_notifier))
+                                future::ready(on_event(
+                                    request,
+                                    &self.0.cache_reader,
+                                    &self.0.endpoint,
+                                    desc,
+                                    event_notifier,
+                                ))
                             }
                         }
                         Box::pin(async move {
@@ -256,33 +265,36 @@ fn parse_request(
 
 fn count(
     request: Request<DynamicMessage>,
-    cache_endpoint: &RoCacheEndpoint,
+    reader: &CacheReader,
+    endpoint: &ApiEndpoint,
     desc: &DescriptorPool,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let count = shared_impl::count(cache_endpoint, query.as_deref(), access)?;
-    let res = count_response_to_typed_response(count, desc, &cache_endpoint.endpoint.name);
+    let count = shared_impl::count(reader, endpoint, query.as_deref(), access)?;
+    let res = count_response_to_typed_response(count, desc, &endpoint.name);
     Ok(Response::new(res))
 }
 
 fn query(
     request: Request<DynamicMessage>,
-    cache_endpoint: &RoCacheEndpoint,
+    reader: &CacheReader,
+    endpoint: &ApiEndpoint,
     desc: &DescriptorPool,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let (_, records) = shared_impl::query(cache_endpoint, query.as_deref(), access)?;
-    let res = query_response_to_typed_response(records, desc, &cache_endpoint.endpoint.name);
+    let (_, records) = shared_impl::query(reader, endpoint, query.as_deref(), access)?;
+    let res = query_response_to_typed_response(records, desc, &endpoint.name);
     Ok(Response::new(res))
 }
 
 fn on_event(
     request: Request<DynamicMessage>,
-    cache_endpoint: &RoCacheEndpoint,
+    reader: &CacheReader,
+    endpoint: &ApiEndpoint,
     desc: DescriptorPool,
     event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
@@ -301,7 +313,8 @@ fn on_event(
         .transpose()?;
 
     shared_impl::on_event(
-        cache_endpoint,
+        reader,
+        endpoint,
         filter,
         event_notifier,
         access.cloned(),

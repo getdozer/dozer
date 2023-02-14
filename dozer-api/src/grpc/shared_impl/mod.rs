@@ -1,6 +1,8 @@
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
 use dozer_cache::cache::RecordWithId;
+use dozer_cache::CacheReader;
 use dozer_types::log::warn;
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde_json;
 use dozer_types::types::Schema;
 use tokio::sync::broadcast::error::RecvError;
@@ -10,7 +12,6 @@ use tonic::{Code, Response, Status};
 
 use crate::api_helper::ApiHelper;
 use crate::auth::Access;
-use crate::RoCacheEndpoint;
 
 use super::internal_grpc::pipeline_response::ApiEvent;
 use super::internal_grpc::PipelineResponse;
@@ -39,17 +40,19 @@ fn parse_query(
 }
 
 pub fn count(
-    cache_endpoint: &RoCacheEndpoint,
+    reader: &CacheReader,
+    endpoint: &ApiEndpoint,
     query: Option<&str>,
     access: Option<Access>,
 ) -> Result<usize, Status> {
     let query = parse_query(query, QueryExpression::with_no_limit)?;
-    let api_helper = ApiHelper::new(cache_endpoint, access)?;
+    let api_helper = ApiHelper::new(reader, endpoint, access)?;
     api_helper.get_records_count(query).map_err(from_error)
 }
 
 pub fn query(
-    cache_endpoint: &RoCacheEndpoint,
+    reader: &CacheReader,
+    endpoint: &ApiEndpoint,
     query: Option<&str>,
     access: Option<Access>,
 ) -> Result<(Schema, Vec<RecordWithId>), Status> {
@@ -57,13 +60,14 @@ pub fn query(
     if query.limit.is_none() {
         query.limit = Some(default_limit_for_query());
     }
-    let api_helper = ApiHelper::new(cache_endpoint, access)?;
+    let api_helper = ApiHelper::new(reader, endpoint, access)?;
     let (schema, records) = api_helper.get_records(query).map_err(from_error)?;
     Ok((schema, records))
 }
 
 pub fn on_event<T: Send + 'static>(
-    cache_endpoint: &RoCacheEndpoint,
+    reader: &CacheReader,
+    endpoint: &ApiEndpoint,
     filter: Option<&str>,
     mut broadcast_receiver: Option<Receiver<PipelineResponse>>,
     access: Option<Access>,
@@ -85,10 +89,10 @@ pub fn on_event<T: Send + 'static>(
         }
         None => None,
     };
-    let api_helper = ApiHelper::new(cache_endpoint, access)?;
+    let api_helper = ApiHelper::new(reader, endpoint, access)?;
     let schema = api_helper
         .get_schema()
-        .map_err(|_| Status::invalid_argument(&cache_endpoint.endpoint.name))?;
+        .map_err(|_| Status::invalid_argument(&endpoint.name))?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
