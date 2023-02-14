@@ -12,7 +12,7 @@ service DozerAdmin {
   rpc create_connection(CreateConnectionRequest) returns (ConnectionResponse);
   rpc list_connections(GetAllConnectionRequest)
       returns (GetAllConnectionResponse);
-  rpc get_schema(GetSchemaRequest) returns (GetSchemaResponse);
+  rpc get_tables(GetTablesRequest) returns (GetTablesResponse);
   rpc update_connection(UpdateConnectionRequest) returns (ConnectionResponse);
 
   rpc start_pipeline(StartPipelineRequest) returns (StartPipelineResponse);
@@ -60,9 +60,9 @@ message ConnectionResponse {
   Connection connection = 2;
 }
 
-message GetSchemaRequest { string connection_id = 2; }
+message GetTablesRequest { string connection_id = 2; }
 
-message GetSchemaResponse {
+message GetTablesResponse {
   string connection_id = 1;
   repeated TableInfo tables = 2;
 }

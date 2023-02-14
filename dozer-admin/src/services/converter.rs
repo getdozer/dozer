@@ -10,13 +10,13 @@ impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
             columns.push(dozer_admin_grpc::ColumnInfo {
                 column_name: f.name.to_owned(),
                 is_nullable: f.nullable,
-                is_primary_key: schema.primary_index.contains(&idx),
                 udt_name: serde_json::to_string(&f.typ).unwrap(),
             });
         });
         dozer_admin_grpc::TableInfo {
             table_name: item.0,
             columns,
+            primary_key: schema.primary_key,
         }
     }
 }

@@ -6,7 +6,7 @@ mod grpc_service {
 
     use crate::server::dozer_admin_grpc::{
         ConnectionResponse, CreateConnectionRequest, GetAllConnectionRequest,
-        GetAllConnectionResponse, GetSchemaRequest, UpdateConnectionRequest,
+        GetAllConnectionResponse, GetTablesRequest, UpdateConnectionRequest,
         ValidateConnectionRequest, ValidateConnectionResponse,
     };
     use crate::services::connection_service::ConnectionService;
@@ -70,7 +70,7 @@ mod grpc_service {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
         let connection_service = ConnectionService::new(db_pool);
-        let request = GetSchemaRequest {
+        let request = GetTablesRequest {
             connection_id: "random_id".to_owned(),
         };
         let result = connection_service

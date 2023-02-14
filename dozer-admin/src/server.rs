@@ -16,8 +16,8 @@ pub mod dozer_admin_grpc {
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
     AppResponse, ConnectionResponse, CreateAppRequest, CreateConnectionRequest,
-    GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetSchemaRequest,
-    GetSchemaResponse, StartPipelineRequest, StartPipelineResponse, UpdateConnectionRequest,
+    GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetTablesRequest,
+    GetTablesResponse, StartPipelineRequest, StartPipelineResponse, UpdateConnectionRequest,
 };
 
 use self::dozer_admin_grpc::{
@@ -111,13 +111,13 @@ impl DozerAdmin for GrpcService {
         }
     }
 
-    async fn get_schema(
+    async fn get_tables(
         &self,
-        request: Request<GetSchemaRequest>,
-    ) -> Result<Response<GetSchemaResponse>, Status> {
+        request: Request<GetTablesRequest>,
+    ) -> Result<Response<GetTablesResponse>, Status> {
         let result = self
             .connection_service
-            .get_schema(request.into_inner())
+            .get_tables(request.into_inner())
             .await;
         match result {
             Ok(response) => Ok(Response::new(response)),

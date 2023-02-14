@@ -6,7 +6,7 @@ use crate::{
     },
     server::dozer_admin_grpc::{
         ConnectionResponse, CreateConnectionRequest, ErrorResponse, GetAllConnectionRequest,
-        GetAllConnectionResponse, GetSchemaRequest, GetSchemaResponse, Pagination, TableInfo,
+        GetAllConnectionResponse, GetTablesRequest, GetTablesResponse, Pagination, TableInfo,
         UpdateConnectionRequest, ValidateConnectionRequest, ValidateConnectionResponse,
     },
 };
@@ -87,10 +87,10 @@ impl ConnectionService {
         })
     }
 
-    pub async fn get_schema(
+    pub async fn get_tables(
         &self,
-        input: GetSchemaRequest,
-    ) -> Result<GetSchemaResponse, ErrorResponse> {
+        input: GetTablesRequest,
+    ) -> Result<GetTablesResponse, ErrorResponse> {
         let mut db = self.db_pool.clone().get().map_err(|err| ErrorResponse {
             message: err.to_string(),
         })?;
@@ -108,7 +108,7 @@ impl ConnectionService {
         })?;
 
         let schema = self._get_schema(connection).await?;
-        Ok(GetSchemaResponse {
+        Ok(GetTablesResponse {
             connection_id: input.connection_id,
             tables: schema
                 .iter()
