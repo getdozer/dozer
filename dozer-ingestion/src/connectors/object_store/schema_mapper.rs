@@ -10,7 +10,7 @@ use crossbeam::channel::Receiver;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::prelude::SessionContext;
-use dozer_types::ingestion_types::{DataFusionTable, LocalStorage, S3Storage};
+use dozer_types::ingestion_types::{LocalStorage, S3Storage, Table};
 use dozer_types::log::error;
 use dozer_types::types::ReplicationChangesTrackingType::Nothing;
 use dozer_types::types::{Schema, SchemaIdentifier, SchemaWithChangesType};
@@ -85,7 +85,7 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
         &self,
         tables: Vec<TableInfo>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
-        let tables_map: HashMap<String, DataFusionTable> = self
+        let tables_map: HashMap<String, Table> = self
             .config
             .tables
             .clone()
@@ -113,10 +113,7 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
                 },
                 Ok,
             )?;
-            let path = format!(
-                "s3://{}/{}/",
-                details.bucket_name, data_fusion_table.folder_name
-            );
+            let path = format!("s3://{}/{}/", details.bucket_name, data_fusion_table.prefix);
 
             let table_path = ListingTableUrl::parse(path).map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
@@ -176,7 +173,7 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
         &self,
         tables: Vec<TableInfo>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
-        let tables_map: HashMap<String, DataFusionTable> = self
+        let tables_map: HashMap<String, Table> = self
             .config
             .tables
             .clone()
@@ -204,11 +201,7 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
                 },
                 Ok,
             )?;
-            let path = format!(
-                "{}/{}/",
-                details.path.clone(),
-                data_fusion_table.folder_name
-            );
+            let path = format!("{}/{}/", details.path.clone(), data_fusion_table.prefix);
 
             let listing_options = map_listing_options(data_fusion_table);
 

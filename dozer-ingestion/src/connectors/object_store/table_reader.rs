@@ -1,7 +1,7 @@
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::schema_helper::map_value_to_dozer_field;
 use crate::connectors::TableInfo;
-use crate::errors::ObjectStoreConnectorError::DataFusionTableReaderError;
+use crate::errors::ObjectStoreConnectorError::TableReaderError;
 use crate::errors::ObjectStoreObjectError::{
     ListingPathParsingError, MissingStorageDetails, TableDefinitionNotFound,
 };
@@ -15,7 +15,7 @@ use datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
 use datafusion::prelude::SessionContext;
-use dozer_types::ingestion_types::{DataFusionTable, IngestionMessage, LocalStorage, S3Storage};
+use dozer_types::ingestion_types::{IngestionMessage, LocalStorage, S3Storage, Table};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
@@ -63,12 +63,12 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         let cols: Vec<&str> = columns.iter().map(String::as_str).collect();
         let data = ctx
             .read_table(provider.clone())
-            .map_err(|e| DataFusionTableReaderError(TableReadFailed(e)))?
+            .map_err(|e| TableReaderError(TableReadFailed(e)))?
             .select_columns(&cols)
-            .map_err(|e| DataFusionTableReaderError(ColumnsSelectFailed(e)))?
+            .map_err(|e| TableReaderError(ColumnsSelectFailed(e)))?
             .execute_stream()
             .await
-            .map_err(|e| DataFusionTableReaderError(StreamExecutionError(e)))?;
+            .map_err(|e| TableReaderError(StreamExecutionError(e)))?;
 
         tokio::pin!(data);
         loop {
@@ -124,7 +124,7 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
         tables: Vec<TableInfo>,
         ingestor: Arc<RwLock<Ingestor>>,
     ) -> Result<(), ConnectorError> {
-        let tables_map: HashMap<String, DataFusionTable> = self
+        let tables_map: HashMap<String, Table> = self
             .config
             .tables
             .clone()
@@ -151,10 +151,7 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
                 },
                 Ok,
             )?;
-            let path = format!(
-                "s3://{}/{}/",
-                details.bucket_name, data_fusion_table.folder_name
-            );
+            let path = format!("s3://{}/{}/", details.bucket_name, data_fusion_table.prefix);
 
             let table_path = ListingTableUrl::parse(path).map_err(|_| {
                 ConnectorError::DataFusionConnectorError(
@@ -217,7 +214,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
         tables: Vec<TableInfo>,
         ingestor: Arc<RwLock<Ingestor>>,
     ) -> Result<(), ConnectorError> {
-        let tables_map: HashMap<String, DataFusionTable> = self
+        let tables_map: HashMap<String, Table> = self
             .config
             .tables
             .clone()
@@ -244,11 +241,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
                 },
                 Ok,
             )?;
-            let path = format!(
-                "{}/{}/",
-                details.path.clone(),
-                data_fusion_table.folder_name
-            );
+            let path = format!("{}/{}/", details.path.clone(), data_fusion_table.prefix);
 
             let listing_options = map_listing_options(data_fusion_table);
 

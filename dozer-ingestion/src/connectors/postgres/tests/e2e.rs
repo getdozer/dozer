@@ -28,11 +28,9 @@ fn connector_disabled_test_e2e_connect_postgres_stream() {
     let mut i = 1;
     while i < 10 {
         let op = iterator.write().next();
-        if let Some((_, op)) = op {
-            if let Operation::Insert { new } = op {
-                assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
-                i += 1;
-            }
+        if let Some((_, Operation::Insert { new })) = op {
+            assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
+            i += 1;
         }
     }
     client.insert_rows(&table_name, 10);
@@ -40,11 +38,9 @@ fn connector_disabled_test_e2e_connect_postgres_stream() {
     while i < 20 {
         let op = iterator.write().next();
 
-        if let Some((_, op)) = op {
-            if let Operation::Insert { new } = op {
-                assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
-                i += 1;
-            }
+        if let Some((_, Operation::Insert { new })) = op {
+            assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
+            i += 1;
         }
     }
 

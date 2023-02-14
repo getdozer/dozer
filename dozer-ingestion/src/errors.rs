@@ -336,7 +336,7 @@ pub enum ObjectStoreConnectorError {
     InternalDataFusionError(#[source] DataFusionError),
 
     #[error(transparent)]
-    DataFusionTableReaderError(#[from] ObjectStoreTableReaderError),
+    TableReaderError(#[from] ObjectStoreTableReaderError),
 }
 
 #[derive(Error, Debug, PartialEq)]

@@ -16,9 +16,9 @@ connections:
           region: ap-southeast-1
           bucket_name: {{ BUCKET }}
         tables:
-          - !DataFusionTable
+          - !Table
             name: userdata
-            folder_name: userdata_parquet
+            prefix: userdata_parquet
             file_type: parquet
             extension: .parquet #optional
 
@@ -28,9 +28,9 @@ connections:
       details:
         path: "/Users/user/data"
       tables:
-        - !DataFusionTable
+        - !Table
             name: taxi_data
-            folder_name: taxi_data
+            prefix: taxi_data
             file_type: csv
             extension: .csv
 ```
