@@ -144,6 +144,10 @@ impl Connector for PostgresConnector {
         SchemaHelper::validate(&self.schema_helper, tables)
             .map_err(ConnectorError::PostgresConnectorError)
     }
+
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
+        todo!()
+    }
 }
 
 impl PostgresConnector {

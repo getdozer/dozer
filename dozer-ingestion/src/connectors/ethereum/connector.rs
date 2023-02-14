@@ -214,4 +214,8 @@ impl Connector for EthConnector {
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         Ok(HashMap::new())
     }
+
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
+        todo!()
+    }
 }
