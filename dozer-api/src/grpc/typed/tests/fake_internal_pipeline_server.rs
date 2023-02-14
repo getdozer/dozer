@@ -43,6 +43,7 @@ impl InternalPipelineService for FakeInternalPipelineServer {
                             Value { value: None },
                             Value { value: None },
                         ],
+                        version: None,
                     }),
                     endpoint_name: "films".to_string(),
                 })),

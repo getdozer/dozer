@@ -135,6 +135,7 @@ pub struct Record {
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
+    /// Records with same primary key will have increasing version.
     pub version: Option<u32>,
 }
 

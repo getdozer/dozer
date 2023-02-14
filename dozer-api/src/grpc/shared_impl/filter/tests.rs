@@ -735,6 +735,7 @@ fn test_record_satisfies_filter() {
                 value: Some(value::Value::IntValue(3)),
             },
         ],
+        version: None,
     };
 
     let check = |filter, expected| {
@@ -780,6 +781,7 @@ fn test_op_satisfies_filter() {
                 value: Some(value::Value::IntValue(3)),
             },
         ],
+        version: None,
     };
     let new = Record {
         values: vec![
@@ -793,6 +795,7 @@ fn test_op_satisfies_filter() {
                 value: Some(value::Value::IntValue(3)),
             },
         ],
+        version: None,
     };
     let filter1 = FilterExpression::Simple("a".into(), Operator::EQ, json!(1));
     let filter2 = FilterExpression::Simple("a".into(), Operator::EQ, json!(2));

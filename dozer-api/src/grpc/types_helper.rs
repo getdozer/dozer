@@ -38,7 +38,10 @@ fn record_to_internal_record(record: DozerRecord) -> Record {
         .map(field_to_prost_value)
         .collect();
 
-    Record { values }
+    Record {
+        values,
+        version: record.version,
+    }
 }
 
 pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
