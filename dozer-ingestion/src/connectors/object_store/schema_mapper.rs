@@ -52,8 +52,7 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
                 for f in c.fields() {
                     if columns
                         .iter()
-                        .find(|c| c.name.to_string() == f.name().clone())
-                        .is_some()
+                        .any(|c| c.name == f.name().clone())
                     {
                         cols.push(f.clone());
                     }

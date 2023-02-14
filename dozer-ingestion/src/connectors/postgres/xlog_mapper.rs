@@ -198,8 +198,7 @@ impl XlogMapper {
                 existing_columns.is_empty()
                     || existing_columns
                         .iter()
-                        .find(|c| c.name.to_string() == column.name().unwrap().to_string())
-                        .is_some()
+                        .any(|c| c.name == *column.name().unwrap())
             })
             .map(|(idx, column)| TableColumn {
                 name: String::from(column.name().unwrap()),

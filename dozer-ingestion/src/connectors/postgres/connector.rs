@@ -145,7 +145,7 @@ impl Connector for PostgresConnector {
             .map_err(ConnectorError::PostgresConnectorError)
     }
 
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
         self.schema_helper.get_tables(None)
     }
 }

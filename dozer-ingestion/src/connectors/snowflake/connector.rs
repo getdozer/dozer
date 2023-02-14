@@ -122,7 +122,7 @@ impl Connector for SnowflakeConnector {
         Ok(HashMap::new())
     }
 
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
         todo!()
     }
 }

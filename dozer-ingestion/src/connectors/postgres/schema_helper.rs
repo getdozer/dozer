@@ -61,7 +61,7 @@ impl SchemaHelper {
 
             if add_column_table {
                 let vals = columns_map.get(&table_name);
-                let mut columns = vals.map_or_else(|| vec![], |columns| columns.clone());
+                let mut columns = vals.map_or_else(std::vec::Vec::new, |columns| columns.clone());
 
                 columns.push(ColumnInfo {
                     name: column_name,
@@ -80,7 +80,7 @@ impl SchemaHelper {
             TableInfo {
                 name: table_name.clone(),
                 table_name: table_name.clone(),
-                id: tables_id.get(&table_name.clone()).unwrap().clone(),
+                id: *tables_id.get(&table_name.clone()).unwrap(),
                 columns: Some(columns.clone())
             }
         }).collect())
