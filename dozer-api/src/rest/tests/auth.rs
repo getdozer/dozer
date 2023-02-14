@@ -45,7 +45,6 @@ async fn verify_token_test() {
 
     // Without ApiSecurity
     let res = check_status(None, None).await;
-    dbg!(&res.status());
     assert!(res.status().is_success());
 
     // With ApiSecurity but no token
