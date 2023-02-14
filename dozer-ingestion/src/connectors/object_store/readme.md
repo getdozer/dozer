@@ -7,8 +7,8 @@ Depending on storage type configuration of connection is slightly different.
 Example configuration:
 ```yaml
 connections:
-  - db_type: DataFusion
-    name: df_data_s3
+  - db_type: ObjectStore
+    name: data_s3
     authentication: !S3Storage
         details:
           access_key_id: {{ ACCESS_ID }}
@@ -22,8 +22,8 @@ connections:
             file_type: parquet
             extension: .parquet #optional
 
-  - db_type: DataFusion
-    name: df_data_local
+  - db_type: ObjectStore
+    name: data_local
     authentication: !LocalStorage
       details:
         path: "/Users/user/data"
