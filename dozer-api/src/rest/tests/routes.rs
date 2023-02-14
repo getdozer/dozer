@@ -31,10 +31,7 @@ async fn list_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint {
-            cache,
-            endpoint: endpoint.clone(),
-        }],
+        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -93,10 +90,7 @@ async fn count_and_query_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint {
-            cache,
-            endpoint: endpoint.clone(),
-        }],
+        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -141,10 +135,7 @@ async fn get_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint {
-            cache,
-            endpoint: endpoint.clone(),
-        }],
+        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
     );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::get()

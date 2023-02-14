@@ -102,13 +102,13 @@ impl Orchestrator for SimpleOrchestrator {
         for ce in &self.config.endpoints {
             let mut cache_common_options = self.cache_common_options.clone();
             cache_common_options.set_path(cache_dir.clone(), ce.name.clone());
-            cache_endpoints.push(RoCacheEndpoint {
-                cache: Arc::new(
+            cache_endpoints.push(RoCacheEndpoint::new(
+                Arc::new(
                     LmdbRoCache::new(cache_common_options)
                         .map_err(OrchestrationError::CacheInitFailed)?,
                 ),
-                endpoint: ce.to_owned(),
-            });
+                ce.clone(),
+            ));
         }
 
         let ce2 = cache_endpoints.clone();

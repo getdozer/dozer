@@ -22,15 +22,19 @@ pub struct AccessFilter {
     pub fields: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
 /// CacheReader dynamically attaches permissions on top of queries
 pub struct CacheReader {
-    pub cache: Arc<dyn RoCache>,
-    pub access: AccessFilter,
+    cache: Arc<dyn RoCache>,
 }
 
 impl CacheReader {
+    pub fn new(cache: Arc<dyn RoCache>) -> Self {
+        Self { cache }
+    }
+
     // TODO: Implement check_access
-    pub fn check_access(&self, _rec: &Record) -> Result<(), CacheError> {
+    fn check_access(&self, _rec: &Record, _access_filter: &AccessFilter) -> Result<(), CacheError> {
         Ok(())
     }
 
@@ -41,9 +45,9 @@ impl CacheReader {
         self.cache.get_schema_and_indexes_by_name(name)
     }
 
-    pub fn get(&self, key: &[u8]) -> Result<Record, CacheError> {
+    pub fn get(&self, key: &[u8], access_filter: &AccessFilter) -> Result<Record, CacheError> {
         let record = self.cache.get(key)?;
-        match self.check_access(&record) {
+        match self.check_access(&record, access_filter) {
             Ok(_) => Ok(record.to_owned()),
             Err(e) => Err(e),
         }
@@ -53,8 +57,9 @@ impl CacheReader {
         &self,
         schema_name: &str,
         query: &mut QueryExpression,
+        access_filter: AccessFilter,
     ) -> Result<Vec<RecordWithId>, CacheError> {
-        self.apply_access_filter(query);
+        self.apply_access_filter(query, access_filter);
         self.cache.query(schema_name, query)
     }
 
@@ -62,20 +67,19 @@ impl CacheReader {
         &self,
         schema_name: &str,
         query: &mut QueryExpression,
+        access_filter: AccessFilter,
     ) -> Result<usize, CacheError> {
-        self.apply_access_filter(query);
+        self.apply_access_filter(query, access_filter);
         self.cache.count(schema_name, query)
     }
 
     // Apply filter if specified in access
-    fn apply_access_filter(&self, query: &mut QueryExpression) {
-        if let Some(access_filter) = self.access.filter.to_owned() {
-            let filter = query
-                .filter
-                .as_ref()
-                .map_or(access_filter.to_owned(), |query_filter| {
-                    FilterExpression::And(vec![access_filter.to_owned(), query_filter.to_owned()])
-                });
+    fn apply_access_filter(&self, query: &mut QueryExpression, access_filter: AccessFilter) {
+        if let Some(access_filter) = access_filter.filter {
+            let filter = match query.filter.take() {
+                Some(query_filter) => FilterExpression::And(vec![access_filter, query_filter]),
+                None => access_filter,
+            };
 
             query.filter = Some(filter);
         }

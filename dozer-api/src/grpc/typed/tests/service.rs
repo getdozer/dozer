@@ -18,7 +18,10 @@ use crate::{
     },
     RoCacheEndpoint,
 };
-use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
+use dozer_cache::{
+    cache::expression::{FilterExpression, QueryExpression},
+    CacheReader,
+};
 use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
 use std::{collections::HashMap, env, path::PathBuf, str::FromStr, time::Duration};
@@ -42,7 +45,7 @@ use tonic::{
 pub fn setup_pipeline() -> (HashMap<String, RoCacheEndpoint>, Receiver<PipelineResponse>) {
     let endpoint = test_utils::get_endpoint();
     let cache_endpoint = RoCacheEndpoint {
-        cache: test_utils::initialize_cache(&endpoint.name, None),
+        cache_reader: CacheReader::new(test_utils::initialize_cache(&endpoint.name, None)),
         endpoint,
     };
 
