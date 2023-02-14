@@ -1,4 +1,6 @@
 app_name: 1-hypercharge-postgres-sample
+flags:
+  push_events: true
 connections:
   - db_type: Postgres
     authentication: !Postgres

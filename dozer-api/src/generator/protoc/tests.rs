@@ -40,6 +40,7 @@ fn test_generate_proto_and_descriptor() {
         service_desc
             .query
             .response_desc
+            .record_with_id_desc
             .record_desc
             .message
             .full_name(),
@@ -75,6 +76,7 @@ fn test_generate_proto_and_descriptor_with_security() {
         service_desc
             .query
             .response_desc
+            .record_with_id_desc
             .record_desc
             .message
             .full_name(),
@@ -116,6 +118,7 @@ fn test_generate_proto_and_descriptor_with_push_event_off() {
         service_desc
             .query
             .response_desc
+            .record_with_id_desc
             .record_desc
             .message
             .full_name(),

@@ -55,8 +55,8 @@ message Count{{plural_pascal_name}}Response {
 
 // Response for `query`.
 message Query{{plural_pascal_name}}Response {
-  // The list of record data.
-  repeated {{pascal_name}} data = 1;
+  // The list of records.
+  repeated {{pascal_name}}WithId records = 1;
 }
 
 {{#if enable_on_event}}
@@ -83,9 +83,21 @@ message {{pascal_name}}Event {
  * Nullable fields will be generated as `optional` fields.
  */
 message {{pascal_name}} {
- {{#each props}}
- {{{this}}}
- {{~/each}}
+  {{#each props}}
+
+  {{{this}}}
+  {{~/each}}
+
+  // Records with same primary key will have increasing version.
+  uint32 __dozer_record_version = {{version_field_id}};
+}
+
+// A record with its id in cache.
+message {{pascal_name}}WithId {
+  // The record id.
+  uint64 id = 1;
+  // The record data.
+  {{pascal_name}} record = 2;
 }
 
 {{#if enable_token}}

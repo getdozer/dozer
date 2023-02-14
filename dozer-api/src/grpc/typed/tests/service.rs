@@ -148,8 +148,8 @@ async fn test_grpc_query() {
         test_grpc_count_and_query_common(1402, request, None, None)
             .await
             .unwrap();
-    assert_eq!(count_response.count, query_response.data.len() as u64);
-    assert!(!query_response.data.len() > 0);
+    assert_eq!(count_response.count, query_response.records.len() as u64);
+    assert!(!query_response.records.len() > 0);
 }
 
 #[tokio::test]
@@ -175,8 +175,8 @@ async fn test_grpc_query_with_access_token() {
         test_grpc_count_and_query_common(1403, request, Some(api_security), Some(generated_token))
             .await
             .unwrap();
-    assert_eq!(count_response.count, query_response.data.len() as u64);
-    assert!(!query_response.data.is_empty());
+    assert_eq!(count_response.count, query_response.records.len() as u64);
+    assert!(!query_response.records.is_empty());
 }
 
 #[tokio::test]
@@ -213,7 +213,7 @@ async fn test_grpc_query_empty_body() {
             .await
             .unwrap();
     assert_eq!(count_response.count, 52);
-    assert_eq!(query_response.data.len(), 50);
+    assert_eq!(query_response.records.len(), 50);
 }
 
 #[tokio::test]
