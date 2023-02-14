@@ -4,7 +4,9 @@ use crate::{
     services::{application_service::AppService, connection_service::ConnectionService},
 };
 use dotenvy::dotenv;
+use dozer_types::{log::info, tracing::Level};
 use tonic::{transport::Server, Request, Response, Status};
+use tower_http::trace::{self, TraceLayer};
 pub mod dozer_admin_grpc {
     #![allow(clippy::derive_partial_eq_without_eq, clippy::large_enum_variant)]
     tonic::include_proto!("dozer_admin_grpc");
@@ -147,6 +149,7 @@ impl DozerAdmin for GrpcService {
 }
 
 pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::transport::Error> {
+    dozer_tracing::init_telemetry(false).unwrap();
     let host = config.host;
     let port = config.port;
     let dozer_path = config.dozer_path;
@@ -164,7 +167,15 @@ pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::tra
         .register_encoded_file_descriptor_set(dozer_admin_grpc::FILE_DESCRIPTOR_SET)
         .build()
         .unwrap();
+
+    info!("Starting Dozer Admin server on http://{}:{} ", host, port,);
+
     Server::builder()
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+        )
         .accept_http1(true)
         .add_service(reflection_service)
         .add_service(server)

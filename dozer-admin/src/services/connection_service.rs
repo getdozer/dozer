@@ -11,8 +11,11 @@ use crate::{
     },
 };
 use dozer_orchestrator::get_connector;
-use dozer_types::models::connection::{Authentication, Connection};
 use dozer_types::types::SchemaWithChangesType;
+use dozer_types::{
+    log::error,
+    models::connection::{Authentication, Connection},
+};
 use std::thread;
 
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
@@ -94,8 +97,11 @@ impl ConnectionService {
         let result: DbConnection = connections
             .find(input.connection_id.clone())
             .first(&mut db)
-            .map_err(|err| ErrorResponse {
-                message: err.to_string(),
+            .map_err(|err| {
+                error!("Error fetching schemas: {}", err);
+                ErrorResponse {
+                    message: err.to_string(),
+                }
             })?;
         let connection = Connection::try_from(result).map_err(|err| ErrorResponse {
             message: err.to_string(),
