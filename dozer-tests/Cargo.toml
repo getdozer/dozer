@@ -32,7 +32,7 @@ dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
-csv = "1.1"
+csv = "1.2"
 tempdir = "0.3.7"
 
 [features]
