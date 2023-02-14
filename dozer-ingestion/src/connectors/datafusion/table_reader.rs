@@ -17,7 +17,7 @@ use datafusion::datasource::listing::{
 use datafusion::prelude::SessionContext;
 use dozer_types::ingestion_types::{DataFusionTable, IngestionMessage, LocalStorage, S3Storage};
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, OperationEvent, Record, SchemaIdentifier};
+use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use object_store::aws::AmazonS3Builder;
 use object_store::local::LocalFileSystem;
@@ -89,14 +89,11 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                         .write()
                         .handle_message((
                             (0_u64, idx),
-                            IngestionMessage::OperationEvent(OperationEvent {
-                                seq_no: idx,
-                                operation: Operation::Insert {
-                                    new: Record {
-                                        schema_id: Some(SchemaIdentifier { id, version: 0 }),
-                                        values: fields,
-                                        version: None,
-                                    },
+                            IngestionMessage::OperationEvent(Operation::Insert {
+                                new: Record {
+                                    schema_id: Some(SchemaIdentifier { id, version: 0 }),
+                                    values: fields,
+                                    version: None,
                                 },
                             }),
                         ))
