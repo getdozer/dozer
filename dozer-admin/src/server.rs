@@ -13,15 +13,14 @@ pub mod dozer_admin_grpc {
 }
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
-    CreateAppRequest, CreateAppResponse, CreateConnectionRequest, CreateConnectionResponse,
-    GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetAppResponse,
-    GetSchemaRequest, GetSchemaResponse, StartPipelineRequest, StartPipelineResponse,
-    UpdateConnectionRequest, UpdateConnectionResponse,
+    AppResponse, ConnectionResponse, CreateAppRequest, CreateConnectionRequest,
+    GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetSchemaRequest,
+    GetSchemaResponse, StartPipelineRequest, StartPipelineResponse, UpdateConnectionRequest,
 };
 
 use self::dozer_admin_grpc::{
-    ListAppRequest, ListAppResponse, UpdateAppRequest, UpdateAppResponse,
-    ValidateConnectionRequest, ValidateConnectionResponse,
+    ListAppRequest, ListAppResponse, UpdateAppRequest, ValidateConnectionRequest,
+    ValidateConnectionResponse,
 };
 
 pub struct GrpcService {
@@ -34,7 +33,7 @@ impl DozerAdmin for GrpcService {
     async fn create_application(
         &self,
         request: tonic::Request<CreateAppRequest>,
-    ) -> Result<tonic::Response<CreateAppResponse>, tonic::Status> {
+    ) -> Result<tonic::Response<AppResponse>, tonic::Status> {
         let result = self.app_service.create(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
@@ -54,7 +53,7 @@ impl DozerAdmin for GrpcService {
     async fn update_application(
         &self,
         request: tonic::Request<UpdateAppRequest>,
-    ) -> Result<tonic::Response<UpdateAppResponse>, tonic::Status> {
+    ) -> Result<tonic::Response<AppResponse>, tonic::Status> {
         let result = self.app_service.update_app(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
@@ -65,7 +64,7 @@ impl DozerAdmin for GrpcService {
     async fn get_application(
         &self,
         request: tonic::Request<GetAppRequest>,
-    ) -> Result<tonic::Response<GetAppResponse>, tonic::Status> {
+    ) -> Result<tonic::Response<AppResponse>, tonic::Status> {
         let result = self.app_service.get_app(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
@@ -89,7 +88,7 @@ impl DozerAdmin for GrpcService {
     async fn create_connection(
         &self,
         request: Request<CreateConnectionRequest>,
-    ) -> Result<Response<CreateConnectionResponse>, Status> {
+    ) -> Result<Response<ConnectionResponse>, Status> {
         let result = self
             .connection_service
             .create_connection(request.into_inner());
@@ -127,7 +126,7 @@ impl DozerAdmin for GrpcService {
     async fn update_connection(
         &self,
         request: Request<UpdateConnectionRequest>,
-    ) -> Result<Response<UpdateConnectionResponse>, Status> {
+    ) -> Result<Response<ConnectionResponse>, Status> {
         let result = self.connection_service.update(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),

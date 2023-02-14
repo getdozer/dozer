@@ -13,7 +13,6 @@ diesel::table! {
 diesel::table! {
     connections (id) {
         id -> Text,
-        app_id -> Text,
         auth -> Text,
         name -> Text,
         db_type -> Text,

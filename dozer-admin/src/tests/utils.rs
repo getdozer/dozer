@@ -139,7 +139,6 @@ fn setup_data(connection: &mut SqliteConnection, config_id: TestConfigId) {
             insert_connections(
                 connection,
                 config_id.connection_ids[idx].to_owned(),
-                config_id.app_id.to_owned(),
                 db_connection.db_type,
                 db_connection.auth,
                 db_connection.name,
@@ -159,13 +158,12 @@ fn insert_apps(connection: &mut SqliteConnection, app_id: String, config: String
 fn insert_connections(
     connection: &mut SqliteConnection,
     connection_id: String,
-    app_id: String,
     db_type: String,
     auth: String,
     name: String,
 ) {
     diesel::sql_query(
-        format!("INSERT INTO connections (id, app_id, auth, name, db_type, created_at, updated_at) VALUES('{connection_id}', '{app_id}', '{auth}', '{name}', '{db_type}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
+        format!("INSERT INTO connections (id, auth, name, db_type, created_at, updated_at) VALUES('{connection_id}', '{auth}', '{name}', '{db_type}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
     .execute(connection)
     .unwrap();
 }

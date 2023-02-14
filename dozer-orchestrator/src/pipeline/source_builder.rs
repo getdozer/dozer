@@ -130,7 +130,6 @@ mod tests {
         let events1_conn = Connection {
             authentication: Some(Authentication::Events(EventsAuthentication {})),
             id: None,
-            app_id: None,
             db_type: DBType::Postgres.into(),
             name: "pg_conn".to_string(),
         };
@@ -138,13 +137,11 @@ mod tests {
         let events2_conn = Connection {
             authentication: Some(Authentication::Events(EventsAuthentication {})),
             id: None,
-            app_id: None,
             db_type: DBType::Snowflake.into(),
             name: "snow".to_string(),
         };
 
         Config {
-            id: None,
             app_name: "multi".to_string(),
             api: Default::default(),
             flags: Default::default(),
