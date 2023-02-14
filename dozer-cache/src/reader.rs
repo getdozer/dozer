@@ -45,10 +45,14 @@ impl CacheReader {
         self.cache.get_schema_and_indexes_by_name(name)
     }
 
-    pub fn get(&self, key: &[u8], access_filter: &AccessFilter) -> Result<Record, CacheError> {
+    pub fn get(
+        &self,
+        key: &[u8],
+        access_filter: &AccessFilter,
+    ) -> Result<RecordWithId, CacheError> {
         let record = self.cache.get(key)?;
-        match self.check_access(&record, access_filter) {
-            Ok(_) => Ok(record.to_owned()),
+        match self.check_access(&record.record, access_filter) {
+            Ok(_) => Ok(record),
             Err(e) => Err(e),
         }
     }
