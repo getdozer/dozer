@@ -4,9 +4,14 @@
     </a>
 </div>
 
-<h4 align="center">
-      ⚡️ Connect any data source, combine them in real-time and instantly get low-latency gRPC and REST APIs. All with just a simple configuration! ⚡️ 
-</h4>
+<p align="center">
+    <br />
+    <b>
+    Connect any data source, combine them in real-time and instantly get low-latency gRPC and REST APIs.<br>
+    ⚡ All with just a simple configuration! ⚡️ 
+    </b>
+</p>
+<br />
 
 <p align="center">
   <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg" alt="CI"></a>
@@ -16,6 +21,12 @@
   <a href="https://github.com/getdozer/dozer/blob/main/LICENSE.txt" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
 
 </p>
+<br>
+<br>
+
+<div align="center">
+    Please star ⭐️ the repo if you want us to continue developing and improving Dozer!
+</div>
 <br>
 
 ## Overview
