@@ -6,12 +6,12 @@ mod grpc_service {
 
     use crate::server::dozer_admin_grpc::{
         CreateConnectionRequest, CreateConnectionResponse, GetAllConnectionRequest,
-        GetAllConnectionResponse, GetConnectionDetailsRequest, UpdateConnectionRequest,
+        GetAllConnectionResponse, GetSchemaRequest, UpdateConnectionRequest,
         UpdateConnectionResponse, ValidateConnectionRequest, ValidateConnectionResponse,
     };
     use crate::services::connection_service::ConnectionService;
-    use crate::tests::util_sqlite_setup::database_url_for_test_env;
-    use crate::tests::util_sqlite_setup::{establish_test_connection, get_setup_ids};
+    use crate::tests::utils::database_url_for_test_env;
+    use crate::tests::utils::{establish_test_connection, get_setup_ids};
     #[test]
     pub fn list() {
         let test_db_connection = database_url_for_test_env();
@@ -25,11 +25,11 @@ mod grpc_service {
                 offset: Some(0),
             })
             .unwrap();
-        assert_eq!(result.data.len(), setup_ids.connection_ids.len());
-        assert!(result.data[0].id.is_some());
+        assert_eq!(result.connections.len(), setup_ids.connection_ids.len());
+        assert!(result.connections[0].id.is_some());
         assert!(setup_ids
             .connection_ids
-            .contains(&result.data[0].id.to_owned().unwrap()));
+            .contains(&result.connections[0].id.to_owned().unwrap()));
     }
 
     #[test]
@@ -49,10 +49,13 @@ mod grpc_service {
         let result: CreateConnectionResponse = connection_service
             .create_connection(request.to_owned())
             .unwrap();
-        assert_eq!(result.data.to_owned().unwrap().name, request.name);
-        assert_eq!(result.data.to_owned().unwrap().db_type, request.r#type);
+        assert_eq!(result.connection.to_owned().unwrap().name, request.name);
         assert_eq!(
-            result.data.unwrap().authentication,
+            result.connection.to_owned().unwrap().db_type,
+            request.r#type
+        );
+        assert_eq!(
+            result.connection.unwrap().authentication,
             request.authentication.unwrap().authentication
         );
     }
@@ -71,22 +74,23 @@ mod grpc_service {
         };
         let result: UpdateConnectionResponse =
             connection_service.update(request.to_owned()).unwrap();
-        assert_eq!(result.info.unwrap().name, request.name);
+        assert_eq!(result.connection.unwrap().name, request.name);
     }
     #[tokio::test]
-    pub async fn get_connection_details_wrong_id() {
+    pub async fn get_schema_details() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
         let setup_ids = get_setup_ids();
         let connection_service = ConnectionService::new(db_pool);
-        let request = GetConnectionDetailsRequest {
+        let request = GetSchemaRequest {
             app_id: setup_ids.app_id,
             connection_id: "random_id".to_owned(),
         };
         let result = connection_service
-            .get_connection_details(request.to_owned())
-            .await;
-        assert!(result.is_err());
+            .get_schema(request.to_owned())
+            .await
+            .unwrap();
+        assert!(result.tables.len() > 0);
     }
 
     #[tokio::test]

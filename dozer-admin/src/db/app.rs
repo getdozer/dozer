@@ -5,11 +5,11 @@ use super::{
     schema::{self, apps},
 };
 use crate::diesel::ExpressionMethods;
-use crate::server::dozer_admin_grpc::{ApplicationInfo, Pagination};
+use crate::server::dozer_admin_grpc::{App, Pagination};
 use diesel::{
     insert_into, AsChangeset, Identifiable, Insertable, QueryDsl, Queryable, RunQueryDsl,
 };
-use dozer_types::models::app_config::{self, default_home_dir};
+use dozer_types::models::app_config::{self};
 use schema::apps::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -18,8 +18,7 @@ use std::error::Error;
 pub struct Application {
     pub(crate) id: String,
     pub(crate) name: String,
-    pub(crate) home_dir: Option<String>,
-    pub(crate) flags: Option<String>,
+    pub(crate) config: String,
     pub(crate) created_at: String,
     pub(crate) updated_at: String,
 }
@@ -28,17 +27,15 @@ pub struct Application {
 struct NewApplication {
     id: String,
     name: String,
-    home_dir: Option<String>,
-    flags: Option<String>,
+    config: String,
 }
-impl TryFrom<Application> for ApplicationInfo {
+impl TryFrom<Application> for App {
     type Error = Box<dyn Error>;
     fn try_from(item: Application) -> Result<Self, Self::Error> {
-        let default_home_dir = default_home_dir();
-        Ok(ApplicationInfo {
+        Ok(App {
             id: item.id,
             name: item.name,
-            home_dir: item.home_dir.unwrap_or(default_home_dir),
+            config: item.config,
             created_at: item.created_at,
             updated_at: item.updated_at,
         })
@@ -57,31 +54,24 @@ impl Default for AppDbService {
     }
 }
 impl AppDbService {
-    pub fn save(
-        app: ApplicationInfo,
-        pool: DbPool,
-    ) -> Result<ApplicationInfo, Box<dyn std::error::Error>> {
+    pub fn save(app: App, pool: DbPool) -> Result<App, Box<dyn std::error::Error>> {
         let new_app = NewApplication {
             id: app.to_owned().id,
             name: app.to_owned().name,
-            home_dir: Some(app.home_dir),
-            flags: None,
+            config: app.config,
         };
         let mut db = pool.get()?;
         let _inserted = insert_into(apps).values(&new_app).execute(&mut db);
         // query
         let result: Application = apps.find(app.id).first(&mut db)?;
-        let response = ApplicationInfo::try_from(result)?;
+        let response = App::try_from(result)?;
         Ok(response)
     }
 
-    pub fn by_id(
-        pool: DbPool,
-        input_id: String,
-    ) -> Result<ApplicationInfo, Box<dyn std::error::Error>> {
+    pub fn by_id(pool: DbPool, input_id: String) -> Result<App, Box<dyn std::error::Error>> {
         let mut db = pool.get()?;
         let result: Application = apps.find(input_id).first(&mut db)?;
-        let response = ApplicationInfo::try_from(result)?;
+        let response = App::try_from(result)?;
         Ok(response)
     }
 
@@ -89,13 +79,8 @@ impl AppDbService {
         pool: DbPool,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<
-        (
-            Vec<ApplicationInfo>,
-            crate::server::dozer_admin_grpc::Pagination,
-        ),
-        Box<dyn std::error::Error>,
-    > {
+    ) -> Result<(Vec<App>, crate::server::dozer_admin_grpc::Pagination), Box<dyn std::error::Error>>
+    {
         let mut db = pool.get()?;
         let offset = offset.unwrap_or(constants::OFFSET);
         let limit = limit.unwrap_or(constants::LIMIT);
@@ -105,9 +90,9 @@ impl AppDbService {
             .limit(limit.into())
             .load(&mut db)?;
         let total: i64 = apps.count().get_result(&mut db)?;
-        let application_info: Vec<ApplicationInfo> = results
+        let application_info: Vec<App> = results
             .iter()
-            .map(|result| ApplicationInfo::try_from(result.clone()).unwrap())
+            .map(|result| App::try_from(result.clone()).unwrap())
             .collect();
 
         Ok((
@@ -124,7 +109,7 @@ impl AppDbService {
         pool: DbPool,
         input_id: String,
         update_name: String,
-    ) -> Result<ApplicationInfo, Box<dyn std::error::Error>> {
+    ) -> Result<App, Box<dyn std::error::Error>> {
         let mut db = pool.get()?;
         let _ = diesel::update(apps)
             .filter(id.eq(input_id.to_owned()))
@@ -132,7 +117,7 @@ impl AppDbService {
             .execute(&mut db)?;
         // load back
         let by_id: Application = apps.find(input_id).first(&mut db)?;
-        let result = ApplicationInfo::try_from(by_id)?;
+        let result = App::try_from(by_id)?;
         Ok(result)
     }
 }
@@ -145,22 +130,13 @@ impl Persistable<'_, app_config::Config> for app_config::Config {
         if self.app_name.is_empty() {
             self.app_name = "build_your_first_app".to_owned()
         }
-        let app_info = ApplicationInfo {
+        let app_info = App {
             id: app_id.to_owned(),
             name: self.app_name.to_owned(),
-            home_dir: default_home_dir(),
+            config: serde_yaml::to_string(&self).unwrap(),
             ..Default::default()
         };
         AppDbService::save(app_info, pool.clone())?;
-        self.id = Some(app_id.to_owned());
-
-        let mut api_config = self.api.to_owned().unwrap_or_default();
-        api_config.app_id = Some(app_id.to_owned());
-        if api_config.id.is_none() {
-            api_config.id = Some(uuid::Uuid::new_v4().to_string())
-        }
-        api_config.save(pool.clone())?;
-        self.api = Some(api_config);
 
         // connection
         let connections = self
@@ -177,36 +153,7 @@ impl Persistable<'_, app_config::Config> for app_config::Config {
             })
             .collect();
         self.connections = connections;
-        // sources
-        let sources = self
-            .sources
-            .iter()
-            .cloned()
-            .map(|mut src| {
-                src.app_id = Some(app_id.to_owned());
-                if src.id.is_none() {
-                    src.id = Some(uuid::Uuid::new_v4().to_string())
-                }
-                let source = src.save(pool.to_owned()).unwrap();
-                source.to_owned()
-            })
-            .collect();
-        self.sources = sources;
-        // endpoints
-        let endpoints = self
-            .endpoints
-            .iter()
-            .cloned()
-            .map(|mut ep| {
-                ep.app_id = Some(app_id.to_owned());
-                if ep.id.is_none() {
-                    ep.id = Some(uuid::Uuid::new_v4().to_string())
-                }
-                let endpoint = ep.save(pool.to_owned()).unwrap();
-                endpoint.to_owned()
-            })
-            .collect();
-        self.endpoints = endpoints;
+
         Ok(self)
     }
 

@@ -1,15 +1,15 @@
 syntax = "proto3";
 package dozer_admin_grpc;
 
-enum DBType {
-  Postgres = 0;
-  Snowflake = 1;
-  Ethereum = 2;
-  Events = 3;
-  Kafka = 4;
+message App {
+  string id = 1;
+  string name = 2;
+  string config = 3;
+  string created_at = 4;
+  string updated_at = 5;
 }
 
-message ConnectionInfo {
+message Connection {
   oneof authentication {
     PostgresAuthentication Postgres = 1;
     EthereumAuthentication Ethereum = 2;
@@ -21,6 +21,14 @@ message ConnectionInfo {
   string app_id = 7;
   DBType db_type = 8;
   string name = 9;
+}
+
+enum DBType {
+  Postgres = 0;
+  Snowflake = 1;
+  Ethereum = 2;
+  Events = 3;
+  Kafka = 4;
 }
 
 message Authentication {
@@ -73,4 +81,15 @@ message EthContract {
   string name = 1;
   string address = 2;
   string abi = 3;
+}
+
+message TableInfo {
+  string table_name = 1;
+  repeated ColumnInfo columns = 2;
+}
+message ColumnInfo {
+  string column_name = 1;
+  bool is_nullable = 2;
+  string udt_name = 3;
+  bool is_primary_key = 4;
 }

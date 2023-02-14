@@ -3,7 +3,9 @@ PRAGMA foreign_keys = ON;
 create table apps (
     id TEXT NOT NULL PRIMARY KEY,
     name TEXT not null,
-    config TEXT not null
+    config TEXT not null,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 create table connections (
     id TEXT NOT NULL PRIMARY KEY,

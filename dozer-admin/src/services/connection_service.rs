@@ -1,9 +1,8 @@
 use crate::{
     db::{persistable::Persistable, pool::DbPool},
     server::dozer_admin_grpc::{
-        ConnectionDetails, CreateConnectionRequest, CreateConnectionResponse, ErrorResponse,
-        GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
-        GetConnectionDetailsResponse, GetSchemaRequest, GetSchemaResponse, Pagination, TableInfo,
+        CreateConnectionRequest, CreateConnectionResponse, ErrorResponse, GetAllConnectionRequest,
+        GetAllConnectionResponse, GetSchemaRequest, GetSchemaResponse, Pagination, TableInfo,
         UpdateConnectionRequest, UpdateConnectionResponse, ValidateConnectionRequest,
         ValidateConnectionResponse,
     },
@@ -58,36 +57,11 @@ impl ConnectionService {
                     message: err.to_string(),
                 })?;
             return Ok(CreateConnectionResponse {
-                data: Some(connection),
+                connection: Some(connection),
             });
         }
         Err(ErrorResponse {
             message: "Missing authentication input".to_owned(),
-        })
-    }
-
-    pub async fn get_connection_details(
-        &self,
-        input: GetConnectionDetailsRequest,
-    ) -> Result<GetConnectionDetailsResponse, ErrorResponse> {
-        let connection_by_id =
-            Connection::by_id(self.db_pool.clone(), input.connection_id, input.app_id).map_err(
-                |op| ErrorResponse {
-                    message: op.to_string(),
-                },
-            )?;
-        let connection = connection_by_id.to_owned();
-        let schema = self._get_schema(connection.clone()).await?;
-        Ok(GetConnectionDetailsResponse {
-            info: Some(connection_by_id),
-            details: Some(ConnectionDetails {
-                table_info: schema
-                    .iter()
-                    .map(|(name, schema, _)| {
-                        TableInfo::try_from((name.clone(), schema.clone())).unwrap()
-                    })
-                    .collect(),
-            }),
         })
     }
 
@@ -107,14 +81,12 @@ impl ConnectionService {
         let schema = self._get_schema(connection).await?;
         Ok(GetSchemaResponse {
             connection_id: input.connection_id,
-            details: Some(ConnectionDetails {
-                table_info: schema
-                    .iter()
-                    .map(|(name, schema, _)| {
-                        TableInfo::try_from((name.clone(), schema.clone())).unwrap()
-                    })
-                    .collect(),
-            }),
+            tables: schema
+                .iter()
+                .map(|(name, schema, _)| {
+                    TableInfo::try_from((name.clone(), schema.clone())).unwrap()
+                })
+                .collect(),
         })
     }
 
@@ -122,7 +94,7 @@ impl ConnectionService {
         &self,
         input: GetAllConnectionRequest,
     ) -> Result<GetAllConnectionResponse, ErrorResponse> {
-        let connection_infos: (Vec<Connection>, Pagination) = Connection::list(
+        let connections: (Vec<Connection>, Pagination) = Connection::list(
             self.db_pool.clone(),
             input.app_id,
             input.limit,
@@ -132,8 +104,8 @@ impl ConnectionService {
             message: op.to_string(),
         })?;
         Ok(GetAllConnectionResponse {
-            data: connection_infos.0,
-            pagination: Some(connection_infos.1),
+            connections: connections.0,
+            pagination: Some(connections.1),
         })
     }
 
@@ -157,7 +129,7 @@ impl ConnectionService {
                 message: err.to_string(),
             })?;
         Ok(UpdateConnectionResponse {
-            info: Some(connection_by_id),
+            connection: Some(connection_by_id),
         })
     }
 

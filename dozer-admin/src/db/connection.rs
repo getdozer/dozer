@@ -1,5 +1,5 @@
 use super::{
-    application::Application,
+    app::Application,
     constants,
     persistable::Persistable,
     pool::DbPool,

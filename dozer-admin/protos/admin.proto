@@ -1,0 +1,95 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+import "protos/types.proto";
+
+service DozerAdmin {
+  rpc create_application(CreateAppRequest) returns (CreateAppResponse);
+  rpc list_applications(ListAppRequest) returns (ListAppResponse);
+  rpc update_application(UpdateAppRequest) returns (UpdateAppResponse);
+  rpc get_application(GetAppRequest) returns (GetAppResponse);
+  rpc validate_connection(ValidateConnectionRequest)
+      returns (ValidateConnectionResponse);
+  rpc create_connection(CreateConnectionRequest)
+      returns (CreateConnectionResponse);
+  rpc list_connections(GetAllConnectionRequest)
+      returns (GetAllConnectionResponse);
+  rpc get_schema(GetSchemaRequest) returns (GetSchemaResponse);
+  rpc update_connection(UpdateConnectionRequest)
+      returns (UpdateConnectionResponse);
+  rpc start_pipeline(StartPipelineRequest) returns (StartPipelineResponse);
+}
+
+message StartPipelineRequest { string app_id = 1; }
+message StartPipelineResponse { bool success = 1; }
+message CreateAppRequest {
+  string app_name = 1;
+  string config = 2;
+}
+message CreateAppResponse { App app = 1; }
+
+message ListAppRequest {
+  optional uint32 limit = 1;
+  optional uint32 offset = 2;
+}
+message ListAppResponse {
+  repeated App apps = 1;
+  Pagination pagination = 2;
+}
+
+message UpdateAppRequest {
+  string app_id = 1;
+  string name = 2;
+}
+message UpdateAppResponse { App app = 1; }
+message GetAppRequest { optional string app_id = 1; }
+message GetAppResponse { App app = 1; }
+
+message ValidateConnectionRequest {
+  Authentication authentication = 1;
+  string name = 2;
+  DBType type = 3;
+}
+message ValidateConnectionResponse { bool success = 1; }
+message CreateConnectionRequest {
+  Authentication authentication = 1;
+  string app_id = 2;
+  string name = 3;
+  DBType type = 4;
+}
+
+message CreateConnectionResponse { Connection connection = 1; }
+
+message GetSchemaRequest {
+  string app_id = 1;
+  string connection_id = 2;
+}
+
+message GetSchemaResponse {
+  string connection_id = 1;
+  repeated TableInfo tables = 2;
+}
+
+message GetAllConnectionRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+message GetAllConnectionResponse {
+  repeated Connection connections = 1;
+  Pagination pagination = 2;
+}
+message UpdateConnectionRequest {
+  Authentication authentication = 1;
+  string app_id = 2;
+  string connection_id = 3;
+  string name = 4;
+  DBType type = 5;
+}
+message UpdateConnectionResponse { Connection connection = 1; }
+message Pagination {
+  uint32 limit = 1;
+  uint32 offset = 2;
+  uint32 total = 3;
+}
+
+message ErrorResponse { string message = 1; }
