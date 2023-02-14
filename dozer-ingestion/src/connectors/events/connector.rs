@@ -74,4 +74,8 @@ impl Connector for EventsConnector {
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         Ok(HashMap::new())
     }
+
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        todo!()
+    }
 }

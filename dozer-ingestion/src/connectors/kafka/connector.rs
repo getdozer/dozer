@@ -92,6 +92,10 @@ impl Connector for KafkaConnector {
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         todo!()
     }
+
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        todo!()
+    }
 }
 
 async fn run(

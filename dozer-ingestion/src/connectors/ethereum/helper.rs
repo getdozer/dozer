@@ -121,7 +121,6 @@ pub fn decode_event(
                         )
                     });
 
-                // let columns_idx = get_columns_idx(&table_name, default_columns, tables.clone());
                 let values = parsed_event
                     .params
                     .into_iter()
@@ -235,36 +234,6 @@ pub fn map_log_to_values(log: Log) -> Vec<Field> {
     ];
 
     values
-}
-
-pub fn get_columns_idx(
-    table_name: &str,
-    default_columns: Vec<String>,
-    tables: Option<Vec<TableInfo>>,
-) -> Vec<usize> {
-    let columns = tables.as_ref().map_or(vec![], |tables| {
-        tables
-            .iter()
-            .find(|t| t.table_name == table_name)
-            .map_or(vec![], |t| {
-                t.columns.as_ref().map_or(vec![], |cols| cols.clone())
-            })
-    });
-    let columns = if columns.is_empty() {
-        default_columns.clone()
-    } else {
-        columns
-    };
-
-    columns
-        .iter()
-        .map(|c| {
-            default_columns
-                .iter()
-                .position(|f| f == c)
-                .unwrap_or_else(|| panic!("column not found: {c}"))
-        })
-        .collect::<Vec<usize>>()
 }
 
 pub fn get_eth_schema() -> Schema {

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use dozer_ingestion::{
-    connectors::{get_connector, get_connector_info_table, TableInfo, ValidationResults},
+    connectors::{
+        get_connector, get_connector_info_table, ColumnInfo, TableInfo, ValidationResults,
+    },
     errors::ConnectorError,
 };
 use dozer_types::{
@@ -24,7 +26,16 @@ pub fn validate_grouped_connections(
                     name: source.name.clone(),
                     table_name: source.table_name.clone(),
                     id: 0,
-                    columns: Some(source.columns.clone()),
+                    columns: Some(
+                        source
+                            .columns
+                            .iter()
+                            .map(|c| ColumnInfo {
+                                name: c.clone(),
+                                data_type: None,
+                            })
+                            .collect(),
+                    ),
                 })
                 .collect();
 
