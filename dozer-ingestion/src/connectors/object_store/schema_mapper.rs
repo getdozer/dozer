@@ -50,10 +50,7 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
         let fields_list = match table.columns {
             Some(columns) if !columns.is_empty() => {
                 for f in c.fields() {
-                    if columns
-                        .iter()
-                        .any(|c| c.name == f.name().clone())
-                    {
+                    if columns.iter().any(|c| c.name == f.name().clone()) {
                         cols.push(f.clone());
                     }
                 }

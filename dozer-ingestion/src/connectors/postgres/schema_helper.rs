@@ -41,8 +41,7 @@ impl SchemaHelper {
     ) -> Result<Vec<TableInfo>, ConnectorError> {
         let (results, tables_columns_map) = self.get_columns(tables)?;
 
-        let mut columns_map: HashMap<String, Vec<ColumnInfo>> =
-            HashMap::new();
+        let mut columns_map: HashMap<String, Vec<ColumnInfo>> = HashMap::new();
         let mut tables_id: HashMap<String, u32> = HashMap::new();
         for row in results {
             let table_name: String = row.get(0);
@@ -55,7 +54,7 @@ impl SchemaHelper {
                 s.finish() as u32
             };
 
-            let add_column_table =tables_columns_map.get(&table_name).map_or(true, |columns| {
+            let add_column_table = tables_columns_map.get(&table_name).map_or(true, |columns| {
                 columns.is_empty() || columns.contains(&column_name)
             });
 
@@ -65,25 +64,23 @@ impl SchemaHelper {
 
                 columns.push(ColumnInfo {
                     name: column_name,
-                    data_type: None
+                    data_type: None,
                 });
 
-                columns_map.insert(
-                    table_name.clone(),
-                    columns,
-                );
+                columns_map.insert(table_name.clone(), columns);
                 tables_id.insert(table_name, table_id);
             }
         }
 
-        Ok(columns_map.iter().map(|(table_name, columns)| {
-            TableInfo {
+        Ok(columns_map
+            .iter()
+            .map(|(table_name, columns)| TableInfo {
                 name: table_name.clone(),
                 table_name: table_name.clone(),
                 id: *tables_id.get(&table_name.clone()).unwrap(),
-                columns: Some(columns.clone())
-            }
-        }).collect())
+                columns: Some(columns.clone()),
+            })
+            .collect())
     }
 
     fn get_columns(
@@ -96,7 +93,10 @@ impl SchemaHelper {
         let query = if let Some(tables) = table_name {
             tables.iter().for_each(|t| {
                 if let Some(columns) = t.columns.clone() {
-                    tables_columns_map.insert(t.table_name.clone(), columns.iter().map(|c| c.name.clone()).collect());
+                    tables_columns_map.insert(
+                        t.table_name.clone(),
+                        columns.iter().map(|c| c.name.clone()).collect(),
+                    );
                 }
             });
             let table_names: Vec<String> = tables.iter().map(|t| t.table_name.clone()).collect();
