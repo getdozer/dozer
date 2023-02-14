@@ -359,7 +359,8 @@ impl Orchestrator for SimpleOrchestrator {
         resources.extend(common_resources.iter());
 
         // Generate a descriptor based on all proto files generated within sink.
-        ProtoGenerator::generate_descriptor(&generated_path, &resources)
+        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
+        ProtoGenerator::generate_descriptor(&generated_path, &descriptor_path, &resources)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())

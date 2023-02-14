@@ -15,11 +15,8 @@ use tonic::Request;
 use super::CommonService;
 
 fn setup_common_service() -> CommonService {
-    let (endpoint_map, rx1) = setup_pipeline();
-    CommonService {
-        endpoint_map,
-        event_notifier: Some(rx1),
-    }
+    let (endpoints, rx1) = setup_pipeline();
+    CommonService::new(endpoints, Some(rx1))
 }
 
 async fn count_and_query(

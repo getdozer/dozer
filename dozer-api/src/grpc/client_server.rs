@@ -53,7 +53,7 @@ impl ApiServer {
     }
     fn get_dynamic_service(
         &self,
-        endpoint_map: HashMap<String, RoCacheEndpoint>,
+        endpoints: Vec<RoCacheEndpoint>,
         rx1: Option<broadcast::Receiver<PipelineResponse>>,
     ) -> Result<
         (
@@ -74,21 +74,22 @@ impl ApiServer {
         );
 
         let generated_path = self.api_dir.join("generated");
+        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
 
-        let proto_res = ProtoGenerator::read(&generated_path)?;
+        let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(&descriptor_path)?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
+            .register_encoded_file_descriptor_set(&descriptor_bytes)
             .build()?;
 
         // Service handling dynamic gRPC requests.
         let typed_service = if self.flags.dynamic {
             Some(TypedService::new(
-                proto_res.descriptor,
-                endpoint_map,
+                &descriptor_path,
+                endpoints,
                 rx1.map(|r| r.resubscribe()),
-                self.security.to_owned(),
-            ))
+                self.security.clone(),
+            )?)
         } else {
             None
         };
@@ -117,24 +118,19 @@ impl ApiServer {
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
         rx1: Option<Receiver<PipelineResponse>>,
     ) -> Result<(), GRPCError> {
-        let mut endpoint_map = HashMap::new();
-        for ce in cache_endpoints {
-            endpoint_map.insert(ce.endpoint.name.to_owned(), ce.clone());
-        }
-
         // Create our services.
         let mut web_config = tonic_web::config();
         if self.flags.grpc_web {
             web_config = web_config.allow_all_origins();
         }
 
-        let common_service = CommonGrpcServiceServer::new(CommonService {
-            endpoint_map: endpoint_map.to_owned(),
-            event_notifier: rx1.as_ref().map(|r| r.resubscribe()),
-        });
+        let common_service = CommonGrpcServiceServer::new(CommonService::new(
+            cache_endpoints.clone(),
+            rx1.as_ref().map(|r| r.resubscribe()),
+        ));
         let common_service = web_config.enable(common_service);
 
-        let (typed_service, reflection_service) = self.get_dynamic_service(endpoint_map, rx1)?;
+        let (typed_service, reflection_service) = self.get_dynamic_service(cache_endpoints, rx1)?;
         let typed_service = typed_service.map(|typed_service| web_config.enable(typed_service));
         let reflection_service = web_config.enable(reflection_service);
 

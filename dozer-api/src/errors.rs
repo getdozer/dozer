@@ -8,7 +8,7 @@ use dozer_types::{serde_json, thiserror};
 use dozer_cache::errors::{CacheError, QueryValidationError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
-use prost_reflect::DescriptorError;
+use prost_reflect::{DescriptorError, Kind};
 
 #[derive(Error, Debug)]
 pub enum ApiError {
@@ -91,6 +91,21 @@ pub enum GenerationError {
     MissingPrimaryKeyToQueryById(String),
     #[error("Cannot read proto descriptor: {0}")]
     ProtoDescriptorError(#[source] DescriptorError),
+    #[error("Service not found: {0}")]
+    ServiceNotFound(String),
+    #[error("Field not found: {field_name} in message: {message_name}")]
+    FieldNotFound {
+        message_name: String,
+        field_name: String,
+    },
+    #[error("Expected message field: {filed_name}, but found: {actual:?}")]
+    ExpectedMessageField { filed_name: String, actual: Kind },
+    #[error("Unexpected method {0}")]
+    UnexpectedMethod(String),
+    #[error("Missing count method for: {0}")]
+    MissingCountMethod(String),
+    #[error("Missing query method for: {0}")]
+    MissingQueryMethod(String),
 }
 
 #[derive(Error, Debug)]

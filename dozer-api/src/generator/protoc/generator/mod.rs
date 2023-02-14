@@ -2,17 +2,79 @@ use crate::errors::GenerationError;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use dozer_types::types::Schema;
-use prost_reflect::DescriptorPool;
+use prost_reflect::{
+    DescriptorPool, FieldDescriptor, MessageDescriptor, MethodDescriptor, ServiceDescriptor,
+};
 use std::{
-    io,
+    fs::File,
+    io::{self, BufReader, Read},
     path::{Path, PathBuf},
 };
 
-use super::utils::get_proto_descriptor;
+#[derive(Debug, Clone)]
+pub struct ServiceDesc {
+    pub service: ServiceDescriptor,
+    pub count: CountMethodDesc,
+    pub query: QueryMethodDesc,
+    pub on_event: Option<OnEventMethodDesc>,
+    pub token: Option<TokenMethodDesc>,
+}
 
-pub struct ProtoResponse {
-    pub descriptor: DescriptorPool,
-    pub descriptor_bytes: Vec<u8>,
+#[derive(Debug, Clone)]
+pub struct CountMethodDesc {
+    pub method: MethodDescriptor,
+    pub response_desc: CountResponseDesc,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryMethodDesc {
+    pub method: MethodDescriptor,
+    pub response_desc: QueryResponseDesc,
+}
+
+#[derive(Debug, Clone)]
+pub struct OnEventMethodDesc {
+    pub method: MethodDescriptor,
+    pub response_desc: EventDesc,
+}
+
+#[derive(Debug, Clone)]
+pub struct TokenMethodDesc {
+    pub method: MethodDescriptor,
+    pub response_desc: TokenResponseDesc,
+}
+
+#[derive(Debug, Clone)]
+pub struct CountResponseDesc {
+    pub message: MessageDescriptor,
+    pub count_field: FieldDescriptor,
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordDesc {
+    pub message: MessageDescriptor,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryResponseDesc {
+    pub message: MessageDescriptor,
+    pub data_field: FieldDescriptor,
+    pub record_desc: RecordDesc,
+}
+
+#[derive(Debug, Clone)]
+pub struct EventDesc {
+    pub message: MessageDescriptor,
+    pub typ_field: FieldDescriptor,
+    pub old_field: FieldDescriptor,
+    pub new_field: FieldDescriptor,
+    pub record_desc: RecordDesc,
+}
+
+#[derive(Debug, Clone)]
+pub struct TokenResponseDesc {
+    pub message: MessageDescriptor,
+    pub token_field: FieldDescriptor,
 }
 
 pub struct ProtoGenerator;
@@ -50,43 +112,45 @@ impl ProtoGenerator {
     }
 
     pub fn generate_descriptor<T: AsRef<str>>(
-        folder_path: &Path,
+        proto_folder_path: &Path,
+        descriptor_path: &Path,
         resources: &[T],
-    ) -> Result<ProtoResponse, GenerationError> {
-        let descriptor_path = descriptor_path(folder_path);
-        create_descriptor_set(folder_path, &descriptor_path, resources)
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-
-        Self::read(folder_path)
+    ) -> Result<(), GenerationError> {
+        create_descriptor_set(proto_folder_path, descriptor_path, resources)
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))
     }
 
-    pub fn read(folder_path: &Path) -> Result<ProtoResponse, GenerationError> {
-        let descriptor_path = descriptor_path(folder_path);
-        let (descriptor_bytes, descriptor) = get_proto_descriptor(&descriptor_path)?;
-
-        Ok(ProtoResponse {
-            descriptor,
-            descriptor_bytes,
-        })
+    pub fn read_descriptor_bytes(descriptor_path: &Path) -> Result<Vec<u8>, GenerationError> {
+        read_file_as_byte(descriptor_path).map_err(|e| GenerationError::InternalError(Box::new(e)))
     }
-}
 
-fn descriptor_path(folder_path: &Path) -> PathBuf {
-    folder_path.join("file_descriptor_set.bin")
+    pub fn read_schema(
+        descriptor_path: &Path,
+        schema_name: &str,
+    ) -> Result<ServiceDesc, GenerationError> {
+        let descriptor_bytes = Self::read_descriptor_bytes(descriptor_path)?;
+        let descriptor = DescriptorPool::decode(descriptor_bytes.as_slice())
+            .map_err(GenerationError::ProtoDescriptorError)?;
+        ProtoGeneratorImpl::read(&descriptor, schema_name)
+    }
+
+    pub fn descriptor_path(folder_path: &Path) -> PathBuf {
+        folder_path.join("file_descriptor_set.bin")
+    }
 }
 
 fn create_descriptor_set<T: AsRef<str>>(
-    folder_path: &Path,
+    proto_folder_path: &Path,
     descriptor_path: &Path,
     resources: &[T],
 ) -> Result<(), io::Error> {
     let resources: Vec<_> = resources
         .iter()
-        .map(|r| folder_path.join(format!("{}.proto", r.as_ref())))
+        .map(|r| proto_folder_path.join(format!("{}.proto", r.as_ref())))
         .collect();
 
     let mut prost_build_config = prost_build::Config::new();
-    prost_build_config.out_dir(folder_path.to_owned());
+    prost_build_config.out_dir(proto_folder_path);
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
         .file_descriptor_set_path(descriptor_path)
@@ -94,9 +158,17 @@ fn create_descriptor_set<T: AsRef<str>>(
         .build_client(false)
         .build_server(false)
         .emit_rerun_if_changed(false)
-        .out_dir(folder_path)
-        .compile_with_config(prost_build_config, &resources, &[folder_path])?;
+        .out_dir(proto_folder_path)
+        .compile_with_config(prost_build_config, &resources, &[proto_folder_path])?;
     Ok(())
+}
+
+fn read_file_as_byte(path: &Path) -> Result<Vec<u8>, io::Error> {
+    let f = File::open(path)?;
+    let mut reader = BufReader::new(f);
+    let mut buffer = Vec::new();
+    reader.read_to_end(&mut buffer)?;
+    Ok(buffer)
 }
 
 mod implementation;

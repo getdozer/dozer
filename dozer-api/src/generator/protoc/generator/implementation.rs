@@ -1,4 +1,8 @@
 use crate::errors::GenerationError;
+use crate::generator::protoc::generator::{
+    CountMethodDesc, EventDesc, OnEventMethodDesc, QueryMethodDesc, TokenMethodDesc,
+    TokenResponseDesc,
+};
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
@@ -6,8 +10,10 @@ use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::{FieldType, Schema};
 use handlebars::Handlebars;
 use inflector::Inflector;
-use std::fmt::Write;
+use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor};
 use std::path::{Path, PathBuf};
+
+use super::{CountResponseDesc, QueryResponseDesc, RecordDesc, ServiceDesc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
@@ -25,17 +31,10 @@ struct ProtoMetadata {
 pub struct ProtoGeneratorImpl<'a> {
     handlebars: Handlebars<'a>,
     schema: dozer_types::types::Schema,
-    schema_name: String,
+    names: Names,
     folder_path: &'a Path,
     security: &'a Option<ApiSecurity>,
     flags: &'a Option<Flags>,
-}
-
-fn safe_name(name: &str) -> String {
-    if name.contains('-') {
-        error!("Name of the endpoint should not contains `-`.");
-    }
-    name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
 }
 
 impl<'a> ProtoGeneratorImpl<'a> {
@@ -46,11 +45,11 @@ impl<'a> ProtoGeneratorImpl<'a> {
         security: &'a Option<ApiSecurity>,
         flags: &'a Option<Flags>,
     ) -> Result<Self, GenerationError> {
-        let schema_name = safe_name(schema_name);
+        let names = Names::new(schema_name, &schema);
         let mut generator = Self {
             handlebars: Handlebars::new(),
             schema,
-            schema_name,
+            names,
             folder_path,
             security,
             flags,
@@ -72,20 +71,11 @@ impl<'a> ProtoGeneratorImpl<'a> {
             .fields
             .iter()
             .enumerate()
-            .map(|(idx, field)| -> String {
-                let mut result = "".to_owned();
-                if field.nullable {
-                    result.push_str("optional ");
-                }
+            .zip(&self.names.record_field_names)
+            .map(|((idx, field), field_name)| -> String {
+                let optional = if field.nullable { "optional " } else { "" };
                 let proto_type = convert_dozer_type_to_proto_type(field.typ.to_owned()).unwrap();
-                let _ = writeln!(
-                    result,
-                    "{} {} = {}; ",
-                    proto_type,
-                    safe_name(&field.name),
-                    idx + 1
-                );
-                result
+                format!("{optional}{proto_type} {field_name} = {};", idx + 1)
             })
             .collect()
     }
@@ -112,18 +102,16 @@ impl<'a> ProtoGeneratorImpl<'a> {
     }
 
     fn get_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
-        let package_name = format!("dozer.generated.{}", self.schema_name);
-
         let import_libs: Vec<String> = self.libs_by_type()?;
         let metadata = ProtoMetadata {
-            package_name,
+            package_name: self.names.package_name.clone(),
             import_libs,
-            lower_name: self.schema_name.to_lowercase(),
-            plural_pascal_name: self.schema_name.to_pascal_case().to_plural(),
-            pascal_name: self.schema_name.to_pascal_case().to_singular(),
+            lower_name: self.names.lower_name.clone(),
+            plural_pascal_name: self.names.plural_pascal_name.clone(),
+            pascal_name: self.names.pascal_name.clone(),
             props: self.props(),
             enable_token: self.security.is_some(),
-            enable_on_event: self.flags.to_owned().unwrap_or_default().push_events,
+            enable_on_event: self.flags.clone().unwrap_or_default().push_events,
         };
         Ok(metadata)
     }
@@ -146,9 +134,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
         let mut types_file = std::fs::File::create(self.folder_path.join("types.proto"))
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
 
-        let resource_path = self
-            .folder_path
-            .join(format!("{}.proto", self.schema_name.to_lowercase()));
+        let resource_path = self.folder_path.join(&self.names.proto_file_name);
         let mut resource_file = std::fs::File::create(resource_path.clone())
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
 
@@ -159,6 +145,169 @@ impl<'a> ProtoGeneratorImpl<'a> {
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
 
         Ok((resource_proto, resource_path))
+    }
+
+    pub fn read(
+        descriptor: &DescriptorPool,
+        schema_name: &str,
+    ) -> Result<ServiceDesc, GenerationError> {
+        fn get_field(
+            message: &MessageDescriptor,
+            field_name: &str,
+        ) -> Result<FieldDescriptor, GenerationError> {
+            message
+                .get_field_by_name(field_name)
+                .ok_or_else(|| GenerationError::FieldNotFound {
+                    message_name: message.name().to_string(),
+                    field_name: field_name.to_string(),
+                })
+        }
+
+        let names = Names::new(schema_name, &Schema::empty());
+        let service_name = format!("{}.{}", &names.package_name, &names.plural_pascal_name);
+        let service = descriptor
+            .get_service_by_name(&service_name)
+            .ok_or(GenerationError::ServiceNotFound(service_name))?;
+
+        let mut count = None;
+        let mut query = None;
+        let mut on_event = None;
+        let mut token = None;
+        for method in service.methods() {
+            match method.name() {
+                "count" => {
+                    let message = method.output();
+                    let count_field = get_field(&message, "count")?;
+                    count = Some(CountMethodDesc {
+                        method,
+                        response_desc: CountResponseDesc {
+                            message,
+                            count_field,
+                        },
+                    });
+                }
+                "query" => {
+                    let message = method.output();
+                    let data_field = get_field(&message, "data")?;
+                    let data_filed_kind = data_field.kind();
+                    let Kind::Message(record_message) = data_filed_kind else {
+                        return Err(GenerationError::ExpectedMessageField {
+                            filed_name: data_field.full_name().to_string(),
+                            actual: data_filed_kind
+                        });
+                    };
+                    query = Some(QueryMethodDesc {
+                        method,
+                        response_desc: QueryResponseDesc {
+                            message,
+                            data_field,
+                            record_desc: RecordDesc {
+                                message: record_message,
+                            },
+                        },
+                    });
+                }
+                "on_event" => {
+                    let message = method.output();
+                    let typ_field = get_field(&message, "typ")?;
+                    let old_field = get_field(&message, "old")?;
+                    let new_field = get_field(&message, "new")?;
+                    let old_field_kind = old_field.kind();
+                    let Kind::Message(record_message) = old_field_kind else {
+                        return Err(GenerationError::ExpectedMessageField {
+                            filed_name: old_field.full_name().to_string(),
+                            actual: old_field_kind
+                        });
+                    };
+                    on_event = Some(OnEventMethodDesc {
+                        method,
+                        response_desc: EventDesc {
+                            message,
+                            typ_field,
+                            old_field,
+                            new_field,
+                            record_desc: RecordDesc {
+                                message: record_message,
+                            },
+                        },
+                    });
+                }
+                "token" => {
+                    let message = method.output();
+                    let token_field = get_field(&message, "token")?;
+                    token = Some(TokenMethodDesc {
+                        method,
+                        response_desc: TokenResponseDesc {
+                            message,
+                            token_field,
+                        },
+                    });
+                }
+                _ => {
+                    return Err(GenerationError::UnexpectedMethod(
+                        method.full_name().to_string(),
+                    ))
+                }
+            }
+        }
+
+        let Some(count) = count else {
+            return Err(GenerationError::MissingCountMethod(service.full_name().to_string()));
+        };
+        let Some(query) = query else {
+            return Err(GenerationError::MissingQueryMethod(service.full_name().to_string()));
+        };
+
+        Ok(ServiceDesc {
+            service,
+            count,
+            query,
+            on_event,
+            token,
+        })
+    }
+}
+
+struct Names {
+    proto_file_name: String,
+    package_name: String,
+    lower_name: String,
+    plural_pascal_name: String,
+    pascal_name: String,
+    record_field_names: Vec<String>,
+}
+
+impl Names {
+    fn new(schema_name: &str, schema: &Schema) -> Self {
+        if schema_name.contains('-') {
+            error!("Name of the endpoint should not contain `-`.");
+        }
+        let schema_name = schema_name.replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+
+        let package_name = format!("dozer.generated.{schema_name}");
+        let lower_name = schema_name.to_lowercase();
+        let plural_pascal_name = schema_name.to_pascal_case().to_plural();
+        let pascal_name = schema_name.to_pascal_case().to_singular();
+        let record_field_names = schema
+            .fields
+            .iter()
+            .map(|field| {
+                if field.name.contains('-') {
+                    error!("Name of the field should not contain `-`.");
+                }
+                field
+                    .name
+                    .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
+            })
+            .collect::<Vec<_>>();
+        Self {
+            proto_file_name: format!("{lower_name}.proto"),
+            package_name,
+            lower_name,
+            plural_pascal_name,
+            pascal_name,
+            record_field_names,
+        }
     }
 }
 
