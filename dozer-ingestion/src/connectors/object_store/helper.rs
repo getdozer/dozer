@@ -1,10 +1,10 @@
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::listing::ListingOptions;
-use dozer_types::ingestion_types::DataFusionTable;
+use dozer_types::ingestion_types::Table;
 use std::sync::Arc;
 
-pub fn map_listing_options(data_fusion_table: &DataFusionTable) -> ListingOptions {
+pub fn map_listing_options(data_fusion_table: &Table) -> ListingOptions {
     match data_fusion_table.file_type.as_str() {
         "parquet" => {
             let format = ParquetFormat::new();

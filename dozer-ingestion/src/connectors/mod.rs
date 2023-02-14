@@ -1,7 +1,7 @@
-pub mod datafusion;
 pub mod ethereum;
 pub mod events;
 pub mod kafka;
+pub mod object_store;
 pub mod postgres;
 
 use crate::connectors::postgres::connection::helper::map_connection_config;
@@ -15,7 +15,7 @@ use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
 
-use crate::connectors::datafusion::connector::DataFusionConnector;
+use crate::connectors::object_store::connector::ObjectStoreConnector;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
@@ -24,6 +24,7 @@ use dozer_types::types::SchemaWithChangesType;
 use std::sync::Arc;
 
 pub mod snowflake;
+
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
@@ -83,11 +84,11 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             )))
         }
         Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
-        Authentication::S3Storage(data_fusion_config) => {
-            Ok(Box::new(DataFusionConnector::new(5, data_fusion_config)))
+        Authentication::S3Storage(object_store_config) => {
+            Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
         }
-        Authentication::LocalStorage(data_fusion_config) => {
-            Ok(Box::new(DataFusionConnector::new(5, data_fusion_config)))
+        Authentication::LocalStorage(object_store_config) => {
+            Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
         }
     }
 }

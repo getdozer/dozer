@@ -1,9 +1,9 @@
-use crate::errors::DataFusionSchemaError;
-use crate::errors::DataFusionSchemaError::DateConversionError;
-use crate::errors::DataFusionSchemaError::DateTimeConversionError;
-use crate::errors::DataFusionSchemaError::DurationConversionError;
-use crate::errors::DataFusionSchemaError::FieldTypeNotSupported;
-use crate::errors::DataFusionSchemaError::TimeConversionError;
+use crate::errors::ObjectStoreSchemaError;
+use crate::errors::ObjectStoreSchemaError::DateConversionError;
+use crate::errors::ObjectStoreSchemaError::DateTimeConversionError;
+use crate::errors::ObjectStoreSchemaError::DurationConversionError;
+use crate::errors::ObjectStoreSchemaError::FieldTypeNotSupported;
+use crate::errors::ObjectStoreSchemaError::TimeConversionError;
 use datafusion::arrow::array;
 use datafusion::arrow::array::{Array, ArrayRef};
 use datafusion::arrow::datatypes::{DataType, Field, TimeUnit};
@@ -119,7 +119,7 @@ macro_rules! make_duration {
 
 pub fn map_schema_to_dozer(
     fields_list: &Vec<Field>,
-) -> Result<Vec<FieldDefinition>, DataFusionSchemaError> {
+) -> Result<Vec<FieldDefinition>, ObjectStoreSchemaError> {
     let mut fields = vec![];
     for field in fields_list {
         let mapped_field_type = match field.data_type() {
@@ -174,7 +174,7 @@ pub fn map_value_to_dozer_field(
     column: &ArrayRef,
     row: &usize,
     column_name: &str,
-) -> Result<DozerField, DataFusionSchemaError> {
+) -> Result<DozerField, ObjectStoreSchemaError> {
     match column.data_type() {
         DataType::Null => Ok(DozerField::Null),
         DataType::Boolean => make_from!(array::BooleanArray, column, row),
