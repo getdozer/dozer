@@ -22,12 +22,6 @@
 
 </p>
 <br>
-<br>
-
-<div align="center">
-    Please star ⭐️ the repo if you want us to continue developing and improving Dozer!
-</div>
-<br>
 
 ## Overview
 Dozer implements a Real-Time SQL Engine that connects to any of your data sources, transforms and stores the data in an embedded cache powered by LMDB, automatically creates secondary indexes and instantly generates REST and gRPC APIs. Protobuf and Open API documentation are available out of the box. 
@@ -35,6 +29,11 @@ Dozer implements a Real-Time SQL Engine that connects to any of your data source
 Dozer is implemented fully in Rust for fast processing of data and is less resource intensive. 
 
 ![Architecture](./images/dozer.png)
+
+<div align="center">
+    <b>Please star ⭐️ the repo if you want us to continue developing and improving Dozer! 💡</b>
+</div>
+<br /><br />
 
 Dozer takes an end-to-end approach, aiming to drastically lower the cost, complexity and effort involved in putting together the infrastructure necessary to build data applications. Today developers have to integrate and maintain a variety of tools to achieve the same result. 
 
