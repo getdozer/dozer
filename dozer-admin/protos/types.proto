@@ -1,14 +1,6 @@
 syntax = "proto3";
 package dozer_admin_grpc;
 
-message App {
-  string id = 1;
-  string name = 2;
-  string config = 3;
-  string created_at = 4;
-  string updated_at = 5;
-}
-
 message Connection {
   oneof authentication {
     PostgresAuthentication Postgres = 1;

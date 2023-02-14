@@ -16,6 +16,7 @@ service DozerAdmin {
   rpc get_schema(GetSchemaRequest) returns (GetSchemaResponse);
   rpc update_connection(UpdateConnectionRequest)
       returns (UpdateConnectionResponse);
+
   rpc start_pipeline(StartPipelineRequest) returns (StartPipelineResponse);
 }
 
@@ -25,6 +26,14 @@ message CreateAppRequest {
   string app_name = 1;
   string config = 2;
 }
+message App {
+  string id = 1;
+  string name = 2;
+  string config = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
 message CreateAppResponse { App app = 1; }
 
 message ListAppRequest {

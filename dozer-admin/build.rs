@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .protoc_arg("--experimental_allow_proto3_optional")
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .extern_path(
-            ".dozer_admin_grpc.Application",
+            ".dozer_admin_grpc.AppConfig",
             "dozer_types::models::app_config::Config",
         )
         .extern_path(
