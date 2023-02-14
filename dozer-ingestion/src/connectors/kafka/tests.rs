@@ -4,11 +4,7 @@ use crate::connectors::kafka::test_utils::{
 };
 use crate::connectors::{Connector, TableInfo};
 use dozer_types::models::connection::Authentication;
-use dozer_types::{
-    ingestion_types::{IngestionOperation, KafkaConfig},
-    rust_decimal::Decimal,
-    types::Operation,
-};
+use dozer_types::{ingestion_types::KafkaConfig, rust_decimal::Decimal, types::Operation};
 use postgres::Client;
 use std::fmt::Write;
 use std::thread::sleep;
@@ -85,9 +81,9 @@ fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
     while i < 30 {
         let op = iterator.write().next();
 
-        if let Some((_, IngestionOperation::OperationEvent(ev))) = op {
+        if let Some((_, op)) = op {
             i += 1;
-            match ev.operation {
+            match op {
                 Operation::Insert { .. } => {
                     if i > 10 {
                         panic!("Unexpected operation");

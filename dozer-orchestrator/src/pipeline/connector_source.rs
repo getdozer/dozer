@@ -6,7 +6,6 @@ use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
@@ -232,24 +231,20 @@ impl Source for ConnectorSource {
 
         loop {
             let msg = self.iterator.write().next();
-            if let Some(msg) = msg {
-                match msg {
-                    ((lsn, seq_no), IngestionOperation::OperationEvent(op)) => {
-                        let identifier = match &op.operation {
-                            Operation::Delete { old } => old.schema_id.to_owned(),
-                            Operation::Insert { new } => new.schema_id.to_owned(),
-                            Operation::Update { old: _, new } => new.schema_id.to_owned(),
-                        };
-                        let schema_id = get_schema_id(identifier.as_ref())?;
-                        let port = self.schema_port_map.get(&schema_id).map_or(
-                            Err(ExecutionError::SourceError(SourceError::PortError(
-                                schema_id.to_string(),
-                            ))),
-                            Ok,
-                        )?;
-                        fw.send(lsn, seq_no, op.operation.to_owned(), port.to_owned())?
-                    }
-                }
+            if let Some(((lsn, seq_no), op)) = msg {
+                let identifier = match &op {
+                    Operation::Delete { old } => old.schema_id.to_owned(),
+                    Operation::Insert { new } => new.schema_id.to_owned(),
+                    Operation::Update { old: _, new } => new.schema_id.to_owned(),
+                };
+                let schema_id = get_schema_id(identifier.as_ref())?;
+                let port = self.schema_port_map.get(&schema_id).map_or(
+                    Err(ExecutionError::SourceError(SourceError::PortError(
+                        schema_id.to_string(),
+                    ))),
+                    Ok,
+                )?;
+                fw.send(lsn, seq_no, op, *port)?
             } else {
                 break;
             }

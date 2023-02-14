@@ -219,18 +219,6 @@ impl Display for Record {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct OperationEvent {
-    pub seq_no: u64,
-    pub operation: Operation,
-}
-
-impl OperationEvent {
-    pub fn new(seq_no: u64, operation: Operation) -> Self {
-        Self { seq_no, operation }
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize, Debug, Copy)]
 pub struct Commit {
     pub seq_no: u64,

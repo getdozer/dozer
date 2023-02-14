@@ -1,7 +1,6 @@
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, OperationEvent, Record,
-    ReplicationChangesTrackingType, Schema, SchemaIdentifier, SchemaWithChangesType,
-    SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, Record, ReplicationChangesTrackingType, Schema,
+    SchemaIdentifier, SchemaWithChangesType, SourceDefinition,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -79,7 +78,7 @@ pub fn decode_event(
     contracts: HashMap<String, ContractTuple>,
     tables: Option<Vec<TableInfo>>,
     schema_map: HashMap<H256, usize>,
-) -> Option<OperationEvent> {
+) -> Option<Operation> {
     let address = format!("{:?}", log.address);
 
     if let Some(contract_tuple) = contracts.get(&address) {
@@ -104,7 +103,6 @@ pub fn decode_event(
                 .expect("schema is missing")
                 .to_owned();
 
-            let seq_no = get_id(&log) + schema_id as u64;
             let table_name = get_table_name(contract_tuple, &event.name);
             let is_table_required = tables.map_or(true, |tables| {
                 tables.iter().any(|t| t.table_name == table_name)
@@ -129,17 +127,14 @@ pub fn decode_event(
                     .into_iter()
                     .map(|p| map_abitype_to_field(p.value))
                     .collect();
-                return Some(OperationEvent {
-                    seq_no,
-                    operation: Operation::Insert {
-                        new: Record {
-                            schema_id: Some(SchemaIdentifier {
-                                id: schema_id as u32,
-                                version: 1,
-                            }),
-                            values,
-                            version: None,
-                        },
+                return Some(Operation::Insert {
+                    new: Record {
+                        schema_id: Some(SchemaIdentifier {
+                            id: schema_id as u32,
+                            version: 1,
+                        }),
+                        values,
+                        version: None,
                     },
                 });
             }
@@ -173,7 +168,7 @@ pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
         ),
     }
 }
-pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationEvent> {
+pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<Operation> {
     // Check if table is requested
     let is_table_required = details.tables.as_ref().map_or(true, |tables| {
         tables.iter().any(|t| t.table_name == ETH_LOGS_TABLE)
@@ -182,15 +177,12 @@ pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationE
     if !is_table_required {
         None
     } else if log.log_index.is_some() {
-        let (idx, values) = map_log_to_values(log);
-        Some(OperationEvent {
-            seq_no: idx,
-            operation: Operation::Insert {
-                new: Record {
-                    schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
-                    values,
-                    version: None,
-                },
+        let values = map_log_to_values(log);
+        Some(Operation::Insert {
+            new: Record {
+                schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
+                values,
+                version: None,
             },
         })
     } else {
@@ -208,7 +200,7 @@ pub fn get_id(log: &Log) -> u64 {
 
     block_no * 100_000 + log_idx * 2
 }
-pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
+pub fn map_log_to_values(log: Log) -> Vec<Field> {
     let block_no = log.block_number.expect("expected for non pending").as_u64();
     let txn_idx = log
         .transaction_index
@@ -242,7 +234,7 @@ pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
         log.removed.map_or(Field::Null, Field::Boolean),
     ];
 
-    (idx, values)
+    values
 }
 
 pub fn get_columns_idx(
