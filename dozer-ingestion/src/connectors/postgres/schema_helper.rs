@@ -43,9 +43,17 @@ impl SchemaHelper {
 
         let mut columns_map: HashMap<String, Vec<ColumnInfo>> =
             HashMap::new();
+        let mut tables_id: HashMap<String, u32> = HashMap::new();
         for row in results {
             let table_name: String = row.get(0);
             let column_name: String = row.get(1);
+            let table_id: u32 = if let Some(rel_id) = row.get(4) {
+                rel_id
+            } else {
+                let mut s = DefaultHasher::new();
+                table_name.hash(&mut s);
+                s.finish() as u32
+            };
 
             let add_column_table =tables_columns_map.get(&table_name).map_or(true, |columns| {
                 columns.is_empty() || columns.contains(&column_name)
@@ -61,9 +69,10 @@ impl SchemaHelper {
                 });
 
                 columns_map.insert(
-                    table_name,
+                    table_name.clone(),
                     columns,
                 );
+                tables_id.insert(table_name, table_id);
             }
         }
 
@@ -71,7 +80,7 @@ impl SchemaHelper {
             TableInfo {
                 name: table_name.clone(),
                 table_name: table_name.clone(),
-                id: 0,
+                id: tables_id.get(&table_name.clone()).unwrap().clone(),
                 columns: Some(columns.clone())
             }
         }).collect())
