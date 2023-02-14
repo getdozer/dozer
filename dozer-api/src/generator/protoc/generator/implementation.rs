@@ -1,7 +1,7 @@
 use crate::errors::GenerationError;
 use crate::generator::protoc::generator::{
-    CountMethodDesc, EventDesc, OnEventMethodDesc, QueryMethodDesc, TokenMethodDesc,
-    TokenResponseDesc,
+    CountMethodDesc, EventDesc, OnEventMethodDesc, QueryMethodDesc, RecordWithIdDesc,
+    TokenMethodDesc, TokenResponseDesc,
 };
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
@@ -24,6 +24,7 @@ struct ProtoMetadata {
     plural_pascal_name: String,
     pascal_name: String,
     props: Vec<String>,
+    version_field_id: usize,
     enable_token: bool,
     enable_on_event: bool,
 }
@@ -110,6 +111,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
             plural_pascal_name: self.names.plural_pascal_name.clone(),
             pascal_name: self.names.pascal_name.clone(),
             props: self.props(),
+            version_field_id: self.schema.fields.len() + 1,
             enable_token: self.security.is_some(),
             enable_on_event: self.flags.clone().unwrap_or_default().push_events,
         };
@@ -163,6 +165,16 @@ impl<'a> ProtoGeneratorImpl<'a> {
                 })
         }
 
+        fn record_desc_from_message(
+            message: MessageDescriptor,
+        ) -> Result<RecordDesc, GenerationError> {
+            let version_field = get_field(&message, "__dozer_record_version")?;
+            Ok(RecordDesc {
+                message,
+                version_field,
+            })
+        }
+
         let names = Names::new(schema_name, &Schema::empty());
         let service_name = format!("{}.{}", &names.package_name, &names.plural_pascal_name);
         let service = descriptor
@@ -188,21 +200,33 @@ impl<'a> ProtoGeneratorImpl<'a> {
                 }
                 "query" => {
                     let message = method.output();
-                    let data_field = get_field(&message, "data")?;
-                    let data_filed_kind = data_field.kind();
-                    let Kind::Message(record_message) = data_filed_kind else {
+                    let records_field = get_field(&message, "records")?;
+                    let records_filed_kind = records_field.kind();
+                    let Kind::Message(record_with_id_message) = records_filed_kind else {
                         return Err(GenerationError::ExpectedMessageField {
-                            filed_name: data_field.full_name().to_string(),
-                            actual: data_filed_kind
+                            filed_name: records_field.full_name().to_string(),
+                            actual: records_filed_kind
+                        });
+                    };
+                    let id_field = get_field(&record_with_id_message, "id")?;
+                    let record_field = get_field(&record_with_id_message, "record")?;
+                    let record_field_kind = record_field.kind();
+                    let Kind::Message(record_message) = record_field_kind else {
+                        return Err(GenerationError::ExpectedMessageField {
+                            filed_name: record_field.full_name().to_string(),
+                            actual: record_field_kind
                         });
                     };
                     query = Some(QueryMethodDesc {
                         method,
                         response_desc: QueryResponseDesc {
                             message,
-                            data_field,
-                            record_desc: RecordDesc {
-                                message: record_message,
+                            records_field,
+                            record_with_id_desc: RecordWithIdDesc {
+                                message: record_with_id_message,
+                                id_field,
+                                record_field,
+                                record_desc: record_desc_from_message(record_message)?,
                             },
                         },
                     });
@@ -226,9 +250,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                             typ_field,
                             old_field,
                             new_field,
-                            record_desc: RecordDesc {
-                                message: record_message,
-                            },
+                            record_desc: record_desc_from_message(record_message)?,
                         },
                     });
                 }

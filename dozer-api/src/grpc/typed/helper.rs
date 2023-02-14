@@ -1,11 +1,10 @@
 use crate::generator::protoc::generator::{
-    CountResponseDesc, EventDesc, QueryResponseDesc, TokenResponseDesc,
+    CountResponseDesc, EventDesc, QueryResponseDesc, RecordDesc, RecordWithIdDesc,
+    TokenResponseDesc,
 };
 use crate::grpc::types::{self as GrpcTypes};
-use crate::grpc::types_helper::field_to_prost_value;
+use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
-use dozer_types::types::Record;
-use prost_reflect::MessageDescriptor;
 use prost_reflect::{DynamicMessage, Value};
 
 use super::TypedResponse;
@@ -22,34 +21,36 @@ pub fn on_event_to_typed_response(
     if let Some(old) = op.old {
         event.set_field(
             &event_desc.old_field,
-            prost_reflect::Value::Message(internal_record_to_pb(
-                old,
-                &event_desc.record_desc.message,
-            )),
+            prost_reflect::Value::Message(internal_record_to_pb(old, &event_desc.record_desc)),
         );
     }
 
     if let Some(new) = op.new {
         event.set_field(
             &event_desc.new_field,
-            prost_reflect::Value::Message(internal_record_to_pb(
-                new,
-                &event_desc.record_desc.message,
-            )),
+            prost_reflect::Value::Message(internal_record_to_pb(new, &event_desc.record_desc)),
         );
     }
 
     TypedResponse::new(event)
 }
 
-fn internal_record_to_pb(rec: GrpcTypes::Record, desc: &MessageDescriptor) -> DynamicMessage {
-    let mut msg = DynamicMessage::new(desc.clone());
+fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) -> DynamicMessage {
+    let mut msg = DynamicMessage::new(record_desc.message.clone());
 
-    for (field, value) in desc.fields().zip(rec.values.into_iter()) {
+    // `record_desc` has more fields than `record.values` because it also contains the version field.
+    // Here `zip` handles the case.
+    for (field, value) in record_desc.message.fields().zip(record.values.into_iter()) {
         if let Some(value) = interval_value_to_pb(value) {
             msg.set_field(&field, value);
         }
     }
+
+    msg.set_field(
+        &record_desc.version_field,
+        prost_reflect::Value::U32(record.version),
+    );
+
     msg
 }
 
@@ -68,13 +69,26 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
     })
 }
 
-fn record_to_pb(record: Record, desc: &MessageDescriptor) -> DynamicMessage {
-    let mut msg = DynamicMessage::new(desc.clone());
-    for (field, value) in desc.fields().zip(record.values.into_iter()) {
-        if let Some(value) = interval_value_to_pb(field_to_prost_value(value)) {
-            msg.set_field(&field, value);
-        }
-    }
+fn internal_record_with_id_to_pb(
+    record_with_id: RecordWithId,
+    record_with_id_desc: &RecordWithIdDesc,
+) -> DynamicMessage {
+    let mut msg = DynamicMessage::new(record_with_id_desc.message.clone());
+
+    let record_with_id = map_record(record_with_id);
+
+    let record = internal_record_to_pb(
+        record_with_id.record.expect("Record is not optional"),
+        &record_with_id_desc.record_desc,
+    );
+    msg.set_field(
+        &record_with_id_desc.record_field,
+        prost_reflect::Value::Message(record),
+    );
+
+    let id = prost_reflect::Value::U64(record_with_id.id as _);
+    msg.set_field(&record_with_id_desc.id_field, id);
+
     msg
 }
 
@@ -99,14 +113,16 @@ pub fn query_response_to_typed_response(
 
     let data = records
         .into_iter()
-        .map(|rec| {
-            prost_reflect::Value::Message(record_to_pb(
-                rec.record,
-                &response_desc.record_desc.message,
-            ))
+        .map(|record_with_id| {
+            let record_with_id =
+                internal_record_with_id_to_pb(record_with_id, &response_desc.record_with_id_desc);
+            prost_reflect::Value::Message(record_with_id)
         })
         .collect::<Vec<_>>();
-    msg.set_field(&response_desc.data_field, prost_reflect::Value::List(data));
+    msg.set_field(
+        &response_desc.records_field,
+        prost_reflect::Value::List(data),
+    );
     TypedResponse::new(msg)
 }
 
