@@ -44,7 +44,7 @@ pub trait Connector: Send + Sync {
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
     fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
+    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
