@@ -49,18 +49,19 @@ fn insert_and_get_schema() {
 fn insert_get_and_delete_record() {
     let val = "bar".to_string();
     let (cache, schema, secondary_indexes) = _setup();
-    let record = Record::new(schema.identifier, vec![Field::String(val.clone())], None);
+    let mut record = Record::new(schema.identifier, vec![Field::String(val.clone())], None);
     cache
         .insert_schema("docs", &schema, &secondary_indexes)
         .unwrap();
-    cache.insert(&record).unwrap();
+    cache.insert(&mut record).unwrap();
+    let version = record.version.unwrap();
 
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
     let get_record = cache.get(&key).unwrap();
     assert_eq!(get_record, record, "must be equal");
 
-    cache.delete(&key).unwrap();
+    assert_eq!(cache.delete(&key).unwrap(), version);
 
     cache.get(&key).expect_err("Must not find a record");
 }
@@ -68,12 +69,12 @@ fn insert_get_and_delete_record() {
 #[test]
 fn insert_and_update_record() {
     let (cache, schema, secondary_indexes) = _setup();
-    let foo = Record::new(
+    let mut foo = Record::new(
         schema.identifier,
         vec![Field::String("foo".to_string())],
         None,
     );
-    let bar = Record::new(
+    let mut bar = Record::new(
         schema.identifier,
         vec![Field::String("bar".to_string())],
         None,
@@ -81,12 +82,14 @@ fn insert_and_update_record() {
     cache
         .insert_schema("test", &schema, &secondary_indexes)
         .unwrap();
-    cache.insert(&foo).unwrap();
-    cache.insert(&bar).unwrap();
+    cache.insert(&mut foo).unwrap();
+    let old_version = foo.version.unwrap();
+    cache.insert(&mut bar).unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &foo.values);
 
-    cache.update(&key, &foo).unwrap();
+    assert_eq!(cache.update(&key, &mut foo).unwrap(), old_version);
+    assert_eq!(foo.version.unwrap(), old_version + 1);
 }
 
 fn insert_and_query_record_impl(
@@ -95,12 +98,12 @@ fn insert_and_query_record_impl(
     secondary_indexes: Vec<IndexDefinition>,
 ) {
     let val = "bar".to_string();
-    let record = Record::new(schema.identifier, vec![Field::String(val)], None);
+    let mut record = Record::new(schema.identifier, vec![Field::String(val)], None);
 
     cache
         .insert_schema("docs", &schema, &secondary_indexes)
         .unwrap();
-    cache.insert(&record).unwrap();
+    cache.insert(&mut record).unwrap();
 
     // Query with an expression
     let exp = QueryExpression::new(

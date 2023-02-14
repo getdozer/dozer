@@ -33,6 +33,8 @@ message Operation {
 message Record {
   // The list of field values.
   repeated Value values = 1;
+  // Records with same primary key will have increasing version.
+  uint32 version = 2;
 }
 
 // A record with its id in cache.

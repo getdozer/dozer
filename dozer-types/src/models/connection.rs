@@ -51,7 +51,7 @@ pub enum DBType {
     Ethereum = 2,
     Events = 3,
     Kafka = 4,
-    DataFusion = 5,
+    ObjectStore = 5,
 }
 impl TryFrom<i32> for DBType {
     type Error = Box<dyn Error>;
@@ -62,7 +62,7 @@ impl TryFrom<i32> for DBType {
             2 => Ok(DBType::Ethereum),
             3 => Ok(DBType::Events),
             4 => Ok(DBType::Kafka),
-            5 => Ok(DBType::DataFusion),
+            5 => Ok(DBType::ObjectStore),
             _ => Err("DBType enum not match".to_owned())?,
         }
     }
@@ -76,7 +76,7 @@ impl DBType {
             DBType::Ethereum => "ethereum",
             DBType::Events => "events",
             DBType::Kafka => "kafka",
-            DBType::DataFusion => "data_fusion",
+            DBType::ObjectStore => "object_store",
         }
     }
 }
@@ -126,10 +126,10 @@ pub enum Authentication {
     /// In yaml, present as tag: `!Kafka`
     Kafka(KafkaConfig),
     #[prost(message, tag = "6")]
-    /// In yaml, present as tag: `!DataFusion`
+    /// In yaml, present as tag: `!ObjectStore`
     S3Storage(S3Storage),
     #[prost(message, tag = "7")]
-    /// In yaml, present as tag: `!DataFusion`
+    /// In yaml, present as tag: `!ObjectStore`
     LocalStorage(LocalStorage),
 }
 
@@ -154,7 +154,7 @@ impl FromStr for DBType {
             "Snowflake" | "snowflake" => Ok(DBType::Snowflake),
             "Kafka" | "kafka" => Ok(DBType::Kafka),
             "Events" | "events" => Ok(DBType::Events),
-            "DataFusion" | "dataFusion" | "data_fusion" => Ok(DBType::DataFusion),
+            "ObjectStore" | "objectStore" | "object_store" => Ok(DBType::ObjectStore),
             _ => Err("Not match any value in Enum DBType"),
         }
     }

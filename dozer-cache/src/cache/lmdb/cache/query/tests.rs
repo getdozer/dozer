@@ -12,7 +12,7 @@ use dozer_types::{
 fn query_secondary() {
     let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
     let (schema, seconary_indexes) = test_utils::schema_1();
-    let record = Record::new(
+    let mut record = Record::new(
         schema.identifier,
         vec![
             Field::Int(1),
@@ -25,7 +25,8 @@ fn query_secondary() {
     cache
         .insert_schema("sample", &schema, &seconary_indexes)
         .unwrap();
-    cache.insert(&record).unwrap();
+    cache.insert(&mut record).unwrap();
+    assert!(record.version.is_some());
 
     let filter = FilterExpression::And(vec![
         FilterExpression::Simple(
@@ -50,7 +51,7 @@ fn query_secondary() {
 
     // Full text query.
     let (schema, secondary_indexes) = test_utils::schema_full_text();
-    let record = Record::new(
+    let mut record = Record::new(
         schema.identifier,
         vec![
             Field::String("today is a good day".into()),
@@ -62,7 +63,8 @@ fn query_secondary() {
     cache
         .insert_schema("full_text_sample", &schema, &secondary_indexes)
         .unwrap();
-    cache.insert(&record).unwrap();
+    cache.insert(&mut record).unwrap();
+    assert!(record.version.is_some());
 
     let filter =
         FilterExpression::Simple("foo".into(), expression::Operator::Contains, "good".into());
@@ -215,13 +217,13 @@ fn query_secondary_multi_indices() {
         (6, "fish glove heart igloo"),
         (7, "glove heart igloo jump"),
     ] {
-        cache
-            .insert(&Record {
-                schema_id: schema.identifier,
-                values: vec![Field::Int(id), Field::String(text.into())],
-                version: None,
-            })
-            .unwrap();
+        let mut record = Record {
+            schema_id: schema.identifier,
+            values: vec![Field::Int(id), Field::String(text.into())],
+            version: None,
+        };
+        cache.insert(&mut record).unwrap();
+        assert!(record.version.is_some());
     }
 
     let query = QueryExpression::new(
@@ -252,7 +254,7 @@ fn query_secondary_multi_indices() {
                 Record {
                     schema_id: schema.identifier,
                     values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
-                    version: None
+                    version: Some(1)
                 }
             ),
             RecordWithId::new(
@@ -260,7 +262,7 @@ fn query_secondary_multi_indices() {
                 Record {
                     schema_id: schema.identifier,
                     values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
-                    version: None
+                    version: Some(1)
                 }
             ),
         ]
@@ -306,7 +308,7 @@ fn test_query_record(
                 Record::new(
                     schema.identifier,
                     vec![Field::Int(a), Field::String(b), Field::Int(c)],
-                    None,
+                    Some(1),
                 ),
             )
         })

@@ -53,7 +53,7 @@ pub enum ConnectorError {
     DebeziumError(#[from] DebeziumError),
 
     #[error(transparent)]
-    DataFusionConnectorError(#[from] DataFusionConnectorError),
+    DataFusionConnectorError(#[from] ObjectStoreConnectorError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -319,12 +319,12 @@ pub enum DebeziumSchemaError {
 }
 
 #[derive(Error, Debug)]
-pub enum DataFusionConnectorError {
+pub enum ObjectStoreConnectorError {
     #[error(transparent)]
-    DataFusionSchemaError(#[from] DataFusionSchemaError),
+    DataFusionSchemaError(#[from] ObjectStoreSchemaError),
 
     #[error(transparent)]
-    DataFusionStorageObjectError(#[from] DataFusionStorageObjectError),
+    DataFusionStorageObjectError(#[from] ObjectStoreObjectError),
 
     #[error("Runtime creation error")]
     RuntimeCreationError,
@@ -336,11 +336,11 @@ pub enum DataFusionConnectorError {
     InternalDataFusionError(#[source] DataFusionError),
 
     #[error(transparent)]
-    DataFusionTableReaderError(#[from] DataFusionTableReaderError),
+    TableReaderError(#[from] ObjectStoreTableReaderError),
 }
 
 #[derive(Error, Debug, PartialEq)]
-pub enum DataFusionSchemaError {
+pub enum ObjectStoreSchemaError {
     #[error("Unsupported type of \"{0}\" field")]
     FieldTypeNotSupported(String),
 
@@ -358,7 +358,7 @@ pub enum DataFusionSchemaError {
 }
 
 #[derive(Error, Debug, PartialEq)]
-pub enum DataFusionStorageObjectError {
+pub enum ObjectStoreObjectError {
     #[error("Missing storage details")]
     MissingStorageDetails,
 
@@ -370,7 +370,7 @@ pub enum DataFusionStorageObjectError {
 }
 
 #[derive(Error, Debug)]
-pub enum DataFusionTableReaderError {
+pub enum ObjectStoreTableReaderError {
     #[error("Table read failed")]
     TableReadFailed(DataFusionError),
 

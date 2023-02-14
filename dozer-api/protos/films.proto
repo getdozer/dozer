@@ -54,8 +54,8 @@ message CountFilmsResponse {
 
 // Response for `query`.
 message QueryFilmsResponse {
-  // The list of record data.
-  repeated Film data = 1;
+  // The list of records.
+  repeated FilmWithId records = 1;
 }
 
 // Request for `on_event`.
@@ -86,6 +86,16 @@ message FilmEvent {
   optional string description = 2;
   optional string rental_rate = 3;
   optional uint64 release_year = 4;
+  // Records with same primary key will have increasing version.
+  uint32 __dozer_record_version = 5;
+}
+
+// A record with its id in cache.
+message FilmWithId {
+  // The record id.
+  uint64 id = 1;
+  // The record data.
+  Film record = 2;
 }
 
 // Request for `token`.

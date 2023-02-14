@@ -7,7 +7,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::RwLock;
 
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
-use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
+use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
 use odbc::create_environment_v3;
 use std::sync::Arc;
 
@@ -103,18 +103,12 @@ impl StreamConsumer {
             row_mut.truncate(used_columns_for_schema);
 
             if insert_action == action {
-                Ok(IngestionMessage::OperationEvent(OperationEvent {
-                    seq_no: 0,
-                    operation: Operation::Insert {
-                        new: Self::map_record(row_mut, table_idx),
-                    },
+                Ok(IngestionMessage::OperationEvent(Operation::Insert {
+                    new: Self::map_record(row_mut, table_idx),
                 }))
             } else if delete_action == action {
-                Ok(IngestionMessage::OperationEvent(OperationEvent {
-                    seq_no: 0,
-                    operation: Operation::Delete {
-                        old: Self::map_record(row_mut, table_idx),
-                    },
+                Ok(IngestionMessage::OperationEvent(Operation::Delete {
+                    old: Self::map_record(row_mut, table_idx),
                 }))
             } else {
                 Err(ConnectorError::SnowflakeError(

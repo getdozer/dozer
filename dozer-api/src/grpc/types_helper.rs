@@ -38,7 +38,12 @@ fn record_to_internal_record(record: DozerRecord) -> Record {
         .map(field_to_prost_value)
         .collect();
 
-    Record { values }
+    Record {
+        values,
+        version: record
+            .version
+            .expect("Record from cache should always have a version"),
+    }
 }
 
 pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
@@ -48,7 +53,7 @@ pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
     }
 }
 
-pub fn field_to_prost_value(f: Field) -> Value {
+fn field_to_prost_value(f: Field) -> Value {
     match f {
         Field::UInt(n) => Value {
             value: Some(value::Value::UintValue(n)),

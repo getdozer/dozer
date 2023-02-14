@@ -1,6 +1,5 @@
 use crate::{
     auth::{Access, Authorizer},
-    generator::protoc::utils::get_proto_descriptor,
     grpc::{
         auth_middleware::AuthMiddlewareLayer,
         client_server::ApiServer,
@@ -18,10 +17,13 @@ use crate::{
     },
     RoCacheEndpoint,
 };
-use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
+use dozer_cache::{
+    cache::expression::{FilterExpression, QueryExpression},
+    CacheReader,
+};
 use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
-use std::{collections::HashMap, env, path::PathBuf, str::FromStr, time::Duration};
+use std::{env, path::PathBuf, str::FromStr, time::Duration};
 
 use super::{generated::films::FilmEventRequest, types::EventType};
 use crate::test_utils;
@@ -39,10 +41,10 @@ use tonic::{
     Code, Request,
 };
 
-pub fn setup_pipeline() -> (HashMap<String, RoCacheEndpoint>, Receiver<PipelineResponse>) {
+pub fn setup_pipeline() -> (Vec<RoCacheEndpoint>, Receiver<PipelineResponse>) {
     let endpoint = test_utils::get_endpoint();
     let cache_endpoint = RoCacheEndpoint {
-        cache: test_utils::initialize_cache(&endpoint.name, None),
+        cache_reader: CacheReader::new(test_utils::initialize_cache(&endpoint.name, None)),
         endpoint,
     };
 
@@ -53,10 +55,8 @@ pub fn setup_pipeline() -> (HashMap<String, RoCacheEndpoint>, Receiver<PipelineR
             .await
             .unwrap();
     });
-    let mut endpoint_map = HashMap::new();
-    endpoint_map.insert(cache_endpoint.endpoint.name.clone(), cache_endpoint);
 
-    (endpoint_map, rx1)
+    (vec![cache_endpoint], rx1)
 }
 
 fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
@@ -64,11 +64,9 @@ fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
 
     let path = out_dir.join("generated_films.bin");
 
-    let (_, desc) = get_proto_descriptor(&path).unwrap();
+    let (endpoints, rx1) = setup_pipeline();
 
-    let (endpoint_map, rx1) = setup_pipeline();
-
-    TypedService::new(desc, endpoint_map, Some(rx1), security)
+    TypedService::new(&path, endpoints, Some(rx1), security).unwrap()
 }
 
 async fn test_grpc_count_and_query_common(
@@ -150,8 +148,8 @@ async fn test_grpc_query() {
         test_grpc_count_and_query_common(1402, request, None, None)
             .await
             .unwrap();
-    assert_eq!(count_response.count, query_response.data.len() as u64);
-    assert!(!query_response.data.len() > 0);
+    assert_eq!(count_response.count, query_response.records.len() as u64);
+    assert!(!query_response.records.len() > 0);
 }
 
 #[tokio::test]
@@ -177,8 +175,8 @@ async fn test_grpc_query_with_access_token() {
         test_grpc_count_and_query_common(1403, request, Some(api_security), Some(generated_token))
             .await
             .unwrap();
-    assert_eq!(count_response.count, query_response.data.len() as u64);
-    assert!(!query_response.data.is_empty());
+    assert_eq!(count_response.count, query_response.records.len() as u64);
+    assert!(!query_response.records.is_empty());
 }
 
 #[tokio::test]
@@ -215,7 +213,7 @@ async fn test_grpc_query_empty_body() {
             .await
             .unwrap();
     assert_eq!(count_response.count, 52);
-    assert_eq!(query_response.data.len(), 50);
+    assert_eq!(query_response.records.len(), 50);
 }
 
 #[tokio::test]

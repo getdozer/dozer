@@ -111,8 +111,8 @@ pub fn initialize_cache(
         .insert_schema(schema_name, &schema, &secondary_indexes)
         .unwrap();
     let records = get_sample_records(schema);
-    for record in records {
-        cache.insert(&record.record).unwrap();
+    for mut record in records {
+        cache.insert(&mut record.record).unwrap();
     }
     cache
 }
@@ -136,7 +136,7 @@ pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {
                     Field::UInt(release_year),
                     Field::Null,
                 ],
-                None,
+                Some(1),
             );
             records.push(RecordWithId::new(record_index as _, record));
         }

@@ -1,10 +1,17 @@
-use super::generator::ProtoGenerator;
-use crate::generator::protoc::utils::{create_descriptor_set, get_proto_descriptor};
+use std::path::Path;
+
+use super::generator::{ProtoGenerator, ServiceDesc};
 use crate::test_utils;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
-use prost_reflect::{MethodDescriptor, ServiceDescriptor};
 use tempdir::TempDir;
+
+fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDesc {
+    let descriptor_path = ProtoGenerator::descriptor_path(&proto_folder_path);
+    ProtoGenerator::generate_descriptor(proto_folder_path, &descriptor_path, &[endpoint_name])
+        .unwrap();
+    ProtoGenerator::read_schema(&descriptor_path, endpoint_name).unwrap()
+}
 
 #[test]
 fn test_generate_proto_and_descriptor() {
@@ -27,22 +34,19 @@ fn test_generate_proto_and_descriptor() {
     )
     .unwrap();
 
-    let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
-    let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
+    let service_desc = read_service_desc(tmp_dir_path, &endpoint.name);
 
-    let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
-    let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");
-    let token_request = descriptor.get_message_by_name("dozer.generated.films.TokenRequest");
-
-    assert!(msg.is_some(), "descriptor is not decoded properly");
-    assert!(
-        token_request.is_none(),
-        "Token request should not be generated with empty security config"
+    assert_eq!(
+        service_desc
+            .query
+            .response_desc
+            .record_with_id_desc
+            .record_desc
+            .message
+            .full_name(),
+        "dozer.generated.films.Film"
     );
-    assert!(
-        token_response.is_none(),
-        "Token response should not be generated with empty security config"
-    );
+    assert!(service_desc.token.is_none());
 }
 
 #[test]
@@ -66,20 +70,26 @@ fn test_generate_proto_and_descriptor_with_security() {
     )
     .unwrap();
 
-    let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
-    let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
+    let service_desc = read_service_desc(tmp_dir_path, &endpoint.name);
 
-    let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
-    let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");
-    let token_request = descriptor.get_message_by_name("dozer.generated.films.TokenRequest");
-    assert!(msg.is_some(), "descriptor is not decoded properly");
-    assert!(
-        token_request.is_some(),
-        "Missing Token request generated with security config"
+    assert_eq!(
+        service_desc
+            .query
+            .response_desc
+            .record_with_id_desc
+            .record_desc
+            .message
+            .full_name(),
+        "dozer.generated.films.Film"
     );
-    assert!(
-        token_response.is_some(),
-        "Missing Token response generated with security config"
+    assert_eq!(
+        service_desc
+            .token
+            .unwrap()
+            .response_desc
+            .message
+            .full_name(),
+        "dozer.generated.films.TokenResponse"
     );
 }
 
@@ -101,49 +111,27 @@ fn test_generate_proto_and_descriptor_with_push_event_off() {
         &None,
     )
     .unwrap();
-    let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
-    let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
 
-    let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
-    let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");
-    let token_request = descriptor.get_message_by_name("dozer.generated.films.TokenRequest");
-    let event_request = descriptor.get_message_by_name("dozer.generated.films.FilmEventRequest");
-    let event_response = descriptor.get_message_by_name("dozer.generated.films.FilmEventResponse");
-    let svcs: Vec<ServiceDescriptor> = descriptor.services().collect();
-    let methods = svcs[0]
-        .methods()
-        .collect::<Vec<MethodDescriptor>>()
-        .iter()
-        .map(|m| m.name().to_string())
-        .collect::<Vec<String>>();
-    assert!(msg.is_some(), "descriptor is not decoded properly");
-    assert!(
-        token_request.is_some(),
-        "Missing Token request generated with security config"
+    let service_desc = read_service_desc(tmp_dir_path, &endpoint.name);
+
+    assert_eq!(
+        service_desc
+            .query
+            .response_desc
+            .record_with_id_desc
+            .record_desc
+            .message
+            .full_name(),
+        "dozer.generated.films.Film"
     );
-    assert!(
-        token_response.is_some(),
-        "Missing Token response generated with security config"
+    assert_eq!(
+        service_desc
+            .token
+            .unwrap()
+            .response_desc
+            .message
+            .full_name(),
+        "dozer.generated.films.TokenResponse"
     );
-    assert!(
-        event_request.is_none(),
-        "Event request should not be generated with push_event flag off"
-    );
-    assert!(
-        event_response.is_none(),
-        "Event response should not be generated with push_event flag off"
-    );
-    assert!(svcs.len() == 1, "Only one service should be generated");
-    assert!(
-        methods.contains(&"query".to_string()),
-        "query method should be generated"
-    );
-    assert!(
-        methods.contains(&"token".to_string()),
-        "token method should be generated"
-    );
-    assert!(
-        !methods.contains(&"on_event".to_string()),
-        "on_event method should not be generated"
-    );
+    assert!(service_desc.on_event.is_none());
 }

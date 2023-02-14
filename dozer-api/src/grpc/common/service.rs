@@ -26,6 +26,20 @@ pub struct CommonService {
 }
 
 impl CommonService {
+    pub fn new(
+        endpoints: Vec<RoCacheEndpoint>,
+        event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
+    ) -> Self {
+        let endpoint_map = endpoints
+            .into_iter()
+            .map(|endpoint| (endpoint.endpoint.name.clone(), endpoint))
+            .collect();
+        Self {
+            endpoint_map,
+            event_notifier,
+        }
+    }
+
     fn parse_request(
         &self,
         request: Request<QueryRequest>,
@@ -49,9 +63,14 @@ impl CommonGrpcService for CommonService {
         &self,
         request: Request<QueryRequest>,
     ) -> Result<Response<CountResponse>, Status> {
-        let (pipeline_details, query_request, access) = self.parse_request(request)?;
+        let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
-        let count = shared_impl::count(pipeline_details, query_request.query.as_deref(), access)?;
+        let count = shared_impl::count(
+            &cache_endpoint.cache_reader,
+            &cache_endpoint.endpoint.name,
+            query_request.query.as_deref(),
+            access,
+        )?;
 
         let reply = CountResponse {
             count: count as u64,
@@ -63,10 +82,14 @@ impl CommonGrpcService for CommonService {
         &self,
         request: Request<QueryRequest>,
     ) -> Result<Response<QueryResponse>, Status> {
-        let (pipeline_details, query_request, access) = self.parse_request(request)?;
+        let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
-        let (schema, records) =
-            shared_impl::query(pipeline_details, query_request.query.as_deref(), access)?;
+        let (schema, records) = shared_impl::query(
+            &cache_endpoint.cache_reader,
+            &cache_endpoint.endpoint.name,
+            query_request.query.as_deref(),
+            access,
+        )?;
 
         let fields = map_field_definitions(schema.fields);
         let records = records.into_iter().map(map_record).collect();
@@ -83,13 +106,14 @@ impl CommonGrpcService for CommonService {
         let query_request = parts.2;
         let access = extensions.get::<Access>();
         let endpoint = &query_request.endpoint;
-        let pipeline_details = self
+        let cache_endpoint = self
             .endpoint_map
             .get(endpoint)
             .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
         shared_impl::on_event(
-            pipeline_details,
+            &cache_endpoint.cache_reader,
+            &cache_endpoint.endpoint.name,
             query_request.filter.as_deref(),
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
             access.cloned(),
@@ -117,12 +141,16 @@ impl CommonGrpcService for CommonService {
     ) -> Result<Response<GetFieldsResponse>, Status> {
         let request = request.into_inner();
         let endpoint = request.endpoint;
-        let pipeline_details = self
+        let cache_endpoint = self
             .endpoint_map
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
+        let api_helper = api_helper::ApiHelper::new(
+            &cache_endpoint.cache_reader,
+            &cache_endpoint.endpoint.name,
+            None,
+        )?;
         let schema = api_helper
             .get_schema()
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;

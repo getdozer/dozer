@@ -1,119 +1,57 @@
+use crate::generator::protoc::generator::{
+    CountResponseDesc, EventDesc, QueryResponseDesc, RecordDesc, RecordWithIdDesc,
+    TokenResponseDesc,
+};
 use crate::grpc::types::{self as GrpcTypes};
-use crate::grpc::types_helper::field_to_prost_value;
+use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
-use dozer_types::types::Record;
-use inflector::Inflector;
-use prost_reflect::{DescriptorPool, MessageDescriptor};
 use prost_reflect::{DynamicMessage, Value};
 
 use super::TypedResponse;
 
-fn get_response_descriptor(
-    desc: &DescriptorPool,
-    method: &str,
-    endpoint_name: &str,
-) -> MessageDescriptor {
-    match method {
-        "count" => {
-            let count_path = format!(
-                "dozer.generated.{}.Count{}Response",
-                endpoint_name.to_lowercase(),
-                endpoint_name.to_pascal_case().to_plural(),
-            );
-
-            desc.get_message_by_name(&count_path)
-                .unwrap_or_else(|| panic!("{count_path}: not found"))
-        }
-        "query" => {
-            let query_path = format!(
-                "dozer.generated.{}.Query{}Response",
-                endpoint_name.to_lowercase(),
-                endpoint_name.to_pascal_case().to_plural(),
-            );
-
-            desc.get_message_by_name(&query_path)
-                .unwrap_or_else(|| panic!("{query_path}: not found"))
-        }
-        "on_event" => {
-            let query_path = format!(
-                "dozer.generated.{}.{}Event",
-                endpoint_name.to_lowercase(),
-                endpoint_name.to_pascal_case().to_singular(),
-            );
-
-            desc.get_message_by_name(&query_path)
-                .unwrap_or_else(|| panic!("{query_path}: not found"))
-        }
-        "token" => {
-            let token_path = format!(
-                "dozer.generated.{}.TokenResponse",
-                endpoint_name.to_lowercase(),
-            );
-            desc.get_message_by_name(&token_path)
-                .unwrap_or_else(|| panic!("{token_path}: not found"))
-        }
-        _ => panic!("method not found"),
-    }
-}
-
-fn get_resource_desc(desc: &DescriptorPool, endpoint_name: &str) -> MessageDescriptor {
-    let msg_path = format!(
-        "dozer.generated.{}.{}",
-        endpoint_name.to_lowercase(),
-        endpoint_name.to_pascal_case().to_singular(),
-    );
-
-    desc.get_message_by_name(&msg_path)
-        .unwrap_or_else(|| panic!("{msg_path}: not found"))
-}
-
 pub fn on_event_to_typed_response(
     op: GrpcTypes::Operation,
-    desc: &DescriptorPool,
-    endpoint_name: &str,
+    event_desc: EventDesc,
 ) -> TypedResponse {
-    let event_desc = get_response_descriptor(desc, "on_event", endpoint_name);
-
-    let mut event = DynamicMessage::new(event_desc);
-    event.set_field_by_name("typ", prost_reflect::Value::EnumNumber(op.typ));
+    let mut event = DynamicMessage::new(event_desc.message);
+    event.set_field(
+        &event_desc.typ_field,
+        prost_reflect::Value::EnumNumber(op.typ),
+    );
     if let Some(old) = op.old {
-        event.set_field_by_name(
-            "old",
-            prost_reflect::Value::Message(internal_record_to_pb(old, desc, endpoint_name)),
+        event.set_field(
+            &event_desc.old_field,
+            prost_reflect::Value::Message(internal_record_to_pb(old, &event_desc.record_desc)),
         );
     }
 
     if let Some(new) = op.new {
-        event.set_field_by_name(
-            "new",
-            prost_reflect::Value::Message(internal_record_to_pb(new, desc, endpoint_name)),
+        event.set_field(
+            &event_desc.new_field,
+            prost_reflect::Value::Message(internal_record_to_pb(new, &event_desc.record_desc)),
         );
     }
 
     TypedResponse::new(event)
 }
 
-fn internal_record_to_pb(
-    rec: GrpcTypes::Record,
-    desc: &DescriptorPool,
-    endpoint_name: &str,
-) -> DynamicMessage {
-    let msg_path = format!(
-        "dozer.generated.{}.{}",
-        endpoint_name.to_lowercase(),
-        endpoint_name.to_pascal_case().to_singular(),
-    );
-    let resource_desc = desc
-        .get_message_by_name(&msg_path)
-        .unwrap_or_else(|| panic!("{msg_path}: not found"));
-    let mut resource = DynamicMessage::new(resource_desc.to_owned());
+fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) -> DynamicMessage {
+    let mut msg = DynamicMessage::new(record_desc.message.clone());
 
-    for (field, value) in resource_desc.fields().zip(rec.values.into_iter()) {
+    // `record_desc` has more fields than `record.values` because it also contains the version field.
+    // Here `zip` handles the case.
+    for (field, value) in record_desc.message.fields().zip(record.values.into_iter()) {
         if let Some(value) = interval_value_to_pb(value) {
-            resource.set_field(&field, value);
+            msg.set_field(&field, value);
         }
     }
-    resource
+
+    msg.set_field(
+        &record_desc.version_field,
+        prost_reflect::Value::U32(record.version),
+    );
+
+    msg
 }
 
 fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value> {
@@ -130,50 +68,69 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
         _ => todo!(),
     })
 }
-fn record_to_pb(record: Record, desc: &MessageDescriptor) -> DynamicMessage {
-    let mut resource = DynamicMessage::new(desc.clone());
-    for (field, value) in desc.fields().zip(record.values.into_iter()) {
-        if let Some(value) = interval_value_to_pb(field_to_prost_value(value)) {
-            resource.set_field(&field, value);
-        }
-    }
-    resource
+
+fn internal_record_with_id_to_pb(
+    record_with_id: RecordWithId,
+    record_with_id_desc: &RecordWithIdDesc,
+) -> DynamicMessage {
+    let mut msg = DynamicMessage::new(record_with_id_desc.message.clone());
+
+    let record_with_id = map_record(record_with_id);
+
+    let record = internal_record_to_pb(
+        record_with_id.record.expect("Record is not optional"),
+        &record_with_id_desc.record_desc,
+    );
+    msg.set_field(
+        &record_with_id_desc.record_field,
+        prost_reflect::Value::Message(record),
+    );
+
+    let id = prost_reflect::Value::U64(record_with_id.id as _);
+    msg.set_field(&record_with_id_desc.id_field, id);
+
+    msg
 }
 
 pub fn count_response_to_typed_response(
     count: usize,
-    desc: &DescriptorPool,
-    endpoint_name: &str,
+    response_desc: CountResponseDesc,
 ) -> TypedResponse {
-    let count_desc = get_response_descriptor(desc, "count", endpoint_name);
-
-    let mut msg = DynamicMessage::new(count_desc);
-    msg.set_field_by_name("count", prost_reflect::Value::U64(count as _));
+    let mut msg = DynamicMessage::new(response_desc.message);
+    msg.set_field(
+        &response_desc.count_field,
+        prost_reflect::Value::U64(count as _),
+    );
 
     TypedResponse::new(msg)
 }
 
 pub fn query_response_to_typed_response(
     records: Vec<RecordWithId>,
-    desc: &DescriptorPool,
-    endpoint_name: &str,
+    response_desc: QueryResponseDesc,
 ) -> TypedResponse {
-    let query_desc = get_response_descriptor(desc, "query", endpoint_name);
+    let mut msg = DynamicMessage::new(response_desc.message);
 
-    let mut msg = DynamicMessage::new(query_desc);
-
-    let resource_desc = get_resource_desc(desc, endpoint_name);
-    let resources = records
+    let data = records
         .into_iter()
-        .map(|rec| prost_reflect::Value::Message(record_to_pb(rec.record, &resource_desc)))
+        .map(|record_with_id| {
+            let record_with_id =
+                internal_record_with_id_to_pb(record_with_id, &response_desc.record_with_id_desc);
+            prost_reflect::Value::Message(record_with_id)
+        })
         .collect::<Vec<_>>();
-    msg.set_field_by_name("data", prost_reflect::Value::List(resources));
+    msg.set_field(
+        &response_desc.records_field,
+        prost_reflect::Value::List(data),
+    );
     TypedResponse::new(msg)
 }
 
-pub fn token_response(token: String, desc: &DescriptorPool, endpoint_name: &str) -> TypedResponse {
-    let token_desc = get_response_descriptor(desc, "token", endpoint_name);
-    let mut msg = DynamicMessage::new(token_desc);
-    msg.set_field_by_name("token", prost_reflect::Value::String(token));
+pub fn token_response(token: String, response_desc: TokenResponseDesc) -> TypedResponse {
+    let mut msg = DynamicMessage::new(response_desc.message);
+    msg.set_field(
+        &response_desc.token_field,
+        prost_reflect::Value::String(token),
+    );
     TypedResponse::new(msg)
 }
