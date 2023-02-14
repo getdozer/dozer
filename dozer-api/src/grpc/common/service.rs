@@ -53,7 +53,7 @@ impl CommonGrpcService for CommonService {
 
         let count = shared_impl::count(
             &cache_endpoint.cache_reader,
-            &cache_endpoint.endpoint,
+            &cache_endpoint.endpoint.name,
             query_request.query.as_deref(),
             access,
         )?;
@@ -72,7 +72,7 @@ impl CommonGrpcService for CommonService {
 
         let (schema, records) = shared_impl::query(
             &cache_endpoint.cache_reader,
-            &cache_endpoint.endpoint,
+            &cache_endpoint.endpoint.name,
             query_request.query.as_deref(),
             access,
         )?;
@@ -99,7 +99,7 @@ impl CommonGrpcService for CommonService {
 
         shared_impl::on_event(
             &cache_endpoint.cache_reader,
-            &cache_endpoint.endpoint,
+            &cache_endpoint.endpoint.name,
             query_request.filter.as_deref(),
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
             access.cloned(),
@@ -134,7 +134,7 @@ impl CommonGrpcService for CommonService {
 
         let api_helper = api_helper::ApiHelper::new(
             &cache_endpoint.cache_reader,
-            &cache_endpoint.endpoint,
+            &cache_endpoint.endpoint.name,
             None,
         )?;
         let schema = api_helper
