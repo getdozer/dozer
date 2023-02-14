@@ -30,7 +30,7 @@ impl PostgresSnapshotter {
         tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
         let helper = SchemaHelper::new(self.conn_config.clone(), None);
-        let arr = helper.get_tables(tables).unwrap();
+        let arr = helper.get_tables(tables.as_ref().map(Vec::as_ref)).unwrap();
         match self.tables.as_ref() {
             None => Ok(arr),
             Some(filtered_tables) => {
@@ -67,7 +67,7 @@ impl PostgresSnapshotter {
                 .clone()
                 .map_or(Err(ConnectorError::ColumnsNotFound), Ok)?
                 .iter()
-                .map(|c| format!("\"{c}\""))
+                .map(|c| format!("\"{0}\"", c.name))
                 .collect();
 
             let column_str = column_str.join(",");

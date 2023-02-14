@@ -76,6 +76,10 @@ impl Connector for ObjectStoreConnector<S3Storage> {
 
         reader.read_tables(tables, ingestor)
     }
+
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        todo!()
+    }
 }
 
 impl Connector for ObjectStoreConnector<LocalStorage> {
@@ -126,5 +130,9 @@ impl Connector for ObjectStoreConnector<LocalStorage> {
             .clone();
 
         reader.read_tables(tables, ingestor)
+    }
+
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        todo!()
     }
 }
