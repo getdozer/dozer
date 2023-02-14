@@ -1,4 +1,4 @@
-use super::super::api_server::{ApiServer, CorsOptions};
+use super::super::{ApiServer, CorsOptions};
 use crate::{
     auth::{Access, Authorizer},
     test_utils, RoCacheEndpoint,

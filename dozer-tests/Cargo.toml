@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -23,7 +23,7 @@ mongodb = { version = "2.3.1", optional = true }
 futures = { version = "0.3.25", optional = true }
 env_logger = "0.10.0"
 clap = { version = "4.1.4", features = ["derive"] }
-dozer-orchestrator = { version = "0.1.6", path = "../dozer-orchestrator" }
+dozer-orchestrator = { path = "../dozer-orchestrator" }
 
 [dev-dependencies]
 sqlparser = "0.24.0"

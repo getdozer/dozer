@@ -1,8 +1,11 @@
-use std::{fmt::Display, hash::Hasher};
+use std::{
+    fmt::{Display, Formatter},
+    hash::Hasher,
+};
 
 use crate::errors::types::TypeError;
 use ahash::AHasher;
-use prettytable::Table;
+use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
 mod field;
@@ -261,6 +264,20 @@ impl Record {
             }
         }
         hasher.finish()
+    }
+}
+
+impl Display for Record {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let v = self
+            .values
+            .iter()
+            .map(|f| Cell::new(&f.to_string().unwrap_or("".to_string())))
+            .collect::<Vec<Cell>>();
+
+        let mut table = Table::new();
+        table.add_row(Row::new(v));
+        table.fmt(f)
     }
 }
 

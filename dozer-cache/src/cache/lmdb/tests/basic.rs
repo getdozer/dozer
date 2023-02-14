@@ -28,7 +28,7 @@ fn query_and_test(
     exp: &QueryExpression,
 ) {
     let records = cache.query(schema_name, exp).unwrap();
-    assert_eq!(records[0], inserted_record.clone(), "must be equal");
+    assert_eq!(records[0].record, inserted_record.clone(), "must be equal");
 }
 
 #[test]

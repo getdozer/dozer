@@ -1,6 +1,6 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,6 +15,9 @@ postgres = "0.19.4"
 postgres-protocol = "0.6.4"
 postgres-types = "0.2.4"
 tokio-postgres = { version = "0.7.7", features = ["with-chrono-0_4"] }
+# DataFusion connector
+datafusion = "17.0.0"
+object_store = { version = "0.5", features = ["aws"] }
 # Eth connector
 web3 = "0.18.0"
 # Kafka connector

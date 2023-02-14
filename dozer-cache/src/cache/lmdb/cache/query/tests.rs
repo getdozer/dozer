@@ -1,7 +1,7 @@
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
     lmdb::{cache::LmdbRwCache, tests::utils},
-    test_utils, RoCache, RwCache,
+    test_utils, RecordWithId, RoCache, RwCache,
 };
 use dozer_types::{
     serde_json::{self, json, Value},
@@ -46,7 +46,7 @@ fn query_secondary() {
     let records = cache.query("sample", &query).unwrap();
     assert_eq!(cache.count("sample", &query).unwrap(), 1);
     assert_eq!(records.len(), 1, "must be equal");
-    assert_eq!(records[0], record, "must be equal");
+    assert_eq!(records[0].record, record, "must be equal");
 
     // Full text query.
     let (schema, secondary_indexes) = test_utils::schema_full_text();
@@ -72,7 +72,7 @@ fn query_secondary() {
     let records = cache.query("full_text_sample", &query).unwrap();
     assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0], record);
+    assert_eq!(records[0].record, record);
 
     let filter =
         FilterExpression::Simple("bar".into(), expression::Operator::Contains, "lamb".into());
@@ -80,7 +80,7 @@ fn query_secondary() {
     let records = cache.query("full_text_sample", &query).unwrap();
     assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0], record);
+    assert_eq!(records[0].record, record);
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn query_secondary_vars() {
             "$filter":{ "a": {"$eq": 1}},
             "$order_by": { "b": "asc" }
         }),
-        vec![(1, "yuri".to_string(), 521)],
+        vec![(0, 1, "yuri".to_string(), 521)],
         &schema,
         &cache,
     );
@@ -175,7 +175,10 @@ fn query_secondary_vars() {
             "$filter":{ "c": {"$gt": 526}},
             "$order_by": { "c": "asc" }
         }),
-        vec![(6, "mega".to_string(), 527), (7, "james".to_string(), 528)],
+        vec![
+            (5, 6, "mega".to_string(), 527),
+            (6, 7, "james".to_string(), 528),
+        ],
         &schema,
         &cache,
     );
@@ -185,7 +188,10 @@ fn query_secondary_vars() {
             "$filter":{ "c": {"$gt": 526}},
             "$order_by": { "c": "desc" }
         }),
-        vec![(7, "james".to_string(), 528), (6, "mega".to_string(), 527)],
+        vec![
+            (6, 7, "james".to_string(), 528),
+            (5, 6, "mega".to_string(), 527),
+        ],
         &schema,
         &cache,
     );
@@ -241,16 +247,22 @@ fn query_secondary_multi_indices() {
     assert_eq!(
         records,
         vec![
-            Record {
-                schema_id: schema.identifier,
-                values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
-                version: None
-            },
-            Record {
-                schema_id: schema.identifier,
-                values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
-                version: None
-            },
+            RecordWithId::new(
+                2,
+                Record {
+                    schema_id: schema.identifier,
+                    values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
+                    version: None
+                }
+            ),
+            RecordWithId::new(
+                3,
+                Record {
+                    schema_id: schema.identifier,
+                    values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
+                    version: None
+                }
+            ),
         ]
     );
 }
@@ -279,7 +291,7 @@ fn test_query(query: Value, count: usize, cache: &LmdbRwCache) {
 
 fn test_query_record(
     query: Value,
-    expected: Vec<(i64, String, i64)>,
+    expected: Vec<(u64, i64, String, i64)>,
     schema: &Schema,
     cache: &LmdbRwCache,
 ) {
@@ -288,11 +300,14 @@ fn test_query_record(
     let records = cache.query("sample", &query).unwrap();
     let expected = expected
         .into_iter()
-        .map(|(a, b, c)| {
-            Record::new(
-                schema.identifier,
-                vec![Field::Int(a), Field::String(b), Field::Int(c)],
-                None,
+        .map(|(id, a, b, c)| {
+            RecordWithId::new(
+                id,
+                Record::new(
+                    schema.identifier,
+                    vec![Field::Int(a), Field::String(b), Field::Int(c)],
+                    None,
+                ),
             )
         })
         .collect::<Vec<_>>();

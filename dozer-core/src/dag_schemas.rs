@@ -1,12 +1,13 @@
 use crate::errors::ExecutionError;
 use crate::{Dag, NodeKind};
 
-use crate::node::{NodeHandle, OutputPortType, PortHandle};
+use crate::node::{OutputPortType, PortHandle};
 use crate::record_store::AutogenRowKeyLookupRecordWriter;
 use daggy::petgraph::graph::EdgeReference;
 use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeReferences, Topo};
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
+use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -370,7 +371,6 @@ mod tests {
     use super::*;
 
     use crate::{
-        node::NodeHandle,
         tests::{
             processors::{ConnectivityTestProcessorFactory, NoInputPortProcessorFactory},
             sinks::{ConnectivityTestSinkFactory, NoInputPortSinkFactory},

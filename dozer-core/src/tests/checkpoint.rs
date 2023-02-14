@@ -2,12 +2,12 @@ use crate::chk;
 use crate::dag_metadata::DagMetadata;
 use crate::dag_schemas::DagSchemas;
 use crate::executor::{DagExecutor, ExecutorOptions};
-use crate::node::NodeHandle;
 use crate::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_storage::lmdb_storage::LmdbEnvironmentManager;
+use dozer_types::node::NodeHandle;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -59,18 +59,18 @@ fn test_checkpoint_consistency() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 
     chk!(dag.connect(
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -121,12 +121,12 @@ fn test_checkpoint_consistency_resume() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 
@@ -175,12 +175,12 @@ fn test_checkpoint_consistency_resume() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 

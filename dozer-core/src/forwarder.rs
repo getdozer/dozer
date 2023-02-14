@@ -3,7 +3,7 @@ use crate::epoch::{Epoch, EpochManager};
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::executor::ExecutorOperation;
-use crate::node::{NodeHandle, PortHandle};
+use crate::node::PortHandle;
 use crate::record_store::RecordWriter;
 use dozer_storage::common::Database;
 
@@ -11,6 +11,7 @@ use crossbeam::channel::Sender;
 use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::internal_err;
 use dozer_types::log::debug;
+use dozer_types::node::NodeHandle;
 use dozer_types::types::Operation;
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -35,6 +35,14 @@ message Record {
   repeated Value values = 1;
 }
 
+// A record with its id in cache.
+message RecordWithId {
+  // The record id.
+  uint64 id = 1;
+  // The record data.
+  Record record = 2;
+}
+
 // Supported data types in Dozer.
 enum Type {
   UInt = 0; // Unsigned 64 bit integer.

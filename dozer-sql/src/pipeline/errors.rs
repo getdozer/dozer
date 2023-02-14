@@ -3,10 +3,10 @@
 use dozer_core::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::TypeError;
+use dozer_types::errors::types::{DeserializationError, TypeError};
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Record};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
@@ -63,7 +63,7 @@ pub enum PipelineError {
     InvalidCast { from: Field, to: FieldType },
     #[error("{0}() cannot be called frome here. Aggregations can only be used in SELECT and HAVING and cannot be nested within other aggregations.")]
     InvalidNestedAggregationFunction(String),
-    #[error("Field {0} is not present in teh source schema")]
+    #[error("Field {0} is not present in the source schema")]
     UnknownFieldIdentifier(String),
     #[error(
         "Field {0} is ambiguous. Specify a fully qualified name such as [connection.]source.field"
@@ -139,4 +139,48 @@ pub enum JoinError {
     UnsupportedJoinType,
     #[error("Invalid Table name specified")]
     InvalidRelation(String),
+
+    #[error("Invalid Join Source: {0}")]
+    InvalidSource(u16),
+
+    #[error("Invalid Key for the record:\n{0}\n{1}")]
+    InvalidKey(Record, TypeError),
+
+    #[error("Error trying to deserialise a record from JOIN processor index: {0}")]
+    DeserializationError(DeserializationError),
+
+    #[error("History unavailable for JOIN source [{0}]")]
+    HistoryUnavailable(u16),
+
+    #[error(
+        "Record with key: {0:x?} version: {1} not available in History for JOIN source[{2}]\n{3}"
+    )]
+    HistoryRecordNotFound(Vec<u8>, u32, u16, dozer_core::errors::ExecutionError),
+
+    #[error("Error inserting key: {0:x?} value: {1:x?} in the JOIN index\n{2}")]
+    IndexPutError(Vec<u8>, Vec<u8>, StorageError),
+
+    #[error("Error deleting key: {0:x?} value: {1:x?} from the JOIN index\n{2}")]
+    IndexDelError(Vec<u8>, Vec<u8>, StorageError),
+
+    #[error("Error reading key: {0:x?} from the JOIN index\n{1}")]
+    IndexGetError(Vec<u8>, StorageError),
+}
+
+#[derive(Error, Debug)]
+pub enum ProductError {
+    #[error("Product Processor Database is not initialised properly")]
+    InvalidDatabase(),
+
+    #[error("Error deleting a record coming from {0}\n{1}")]
+    DeleteError(String, #[source] BoxedError),
+
+    #[error("Error inserting a record coming from {0}\n{1}")]
+    InsertError(String, #[source] BoxedError),
+
+    #[error("Error updating a record from {0} cannot delete the old entry\n{1}")]
+    UpdateOldError(String, #[source] BoxedError),
+
+    #[error("Error updating a record from {0} cannot insert the new entry\n{1}")]
+    UpdateNewError(String, #[source] BoxedError),
 }

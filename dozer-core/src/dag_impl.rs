@@ -1,9 +1,10 @@
 use daggy::petgraph::dot;
 use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges};
 use daggy::Walker;
+use dozer_types::node::NodeHandle;
 
 use crate::errors::ExecutionError;
-use crate::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+use crate::node::{PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;

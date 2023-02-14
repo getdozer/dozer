@@ -14,15 +14,18 @@ use dozer_types::types::{Schema, SchemaIdentifier};
 
 use super::super::{RoCache, RwCache};
 use super::indexer::Indexer;
-use super::query::handler::LmdbQueryHandler;
 use super::{
     utils, CacheCommonOptions, CacheOptions, CacheOptionsKind, CacheReadOptions, CacheWriteOptions,
 };
 use crate::cache::expression::QueryExpression;
 use crate::cache::index::get_primary_key;
+use crate::cache::RecordWithId;
 use crate::errors::CacheError;
+use query::LmdbQueryHandler;
 
+mod helper;
 mod id_database;
+mod query;
 mod record_database;
 mod schema_database;
 mod secondary_index_database;
@@ -86,7 +89,11 @@ impl<C: LmdbCache> RoCache for C {
         handler.count()
     }
 
-    fn query(&self, schema_name: &str, query: &QueryExpression) -> Result<Vec<Record>, CacheError> {
+    fn query(
+        &self,
+        schema_name: &str,
+        query: &QueryExpression,
+    ) -> Result<Vec<RecordWithId>, CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
         let handler = self.create_query_handler(txn, schema_name, query)?;
@@ -190,6 +197,14 @@ impl RwCache for LmdbRwCache {
     }
 }
 
+fn id_from_bytes(bytes: [u8; 8]) -> u64 {
+    u64::from_be_bytes(bytes)
+}
+
+fn id_to_bytes(id: u64) -> [u8; 8] {
+    id.to_be_bytes()
+}
+
 /// This trait abstracts the behavior of getting a transaction from a `LmdbExclusiveTransaction` or a `lmdb::Transaction`.
 trait AsTransaction {
     type Transaction<'a>: Transaction
@@ -237,13 +252,11 @@ trait LmdbCache: Send + Sync + Debug {
             .get_schema_from_name(txn, schema_name)?;
 
         Ok(LmdbQueryHandler::new(
-            self.common().db,
-            self.common().secondary_indexes.clone(),
+            self.common(),
             txn,
             schema,
             secondary_indexes,
             query,
-            self.common().cache_options.intersection_chunk_size,
         ))
     }
 

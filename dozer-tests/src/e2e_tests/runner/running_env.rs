@@ -345,6 +345,8 @@ fn write_dozer_config_for_running_in_docker_compose(
             Authentication::Kafka(_) => {
                 todo!("Map kafka host and port")
             }
+            Authentication::S3Storage(_) => {}
+            Authentication::LocalStorage(_) => {}
         }
 
         connection.authentication = Some(authentication);

@@ -79,7 +79,9 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         match build_join_tree(&self.input_tables, input_schemas) {
-            Ok(join_operator) => Ok(Box::new(FromProcessor::new(join_operator))),
+            Ok((join_operator, source_names)) => {
+                Ok(Box::new(FromProcessor::new(join_operator, source_names)))
+            }
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
     }
@@ -102,8 +104,10 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
 pub fn build_join_tree(
     join_tables: &IndexedTableWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
-) -> Result<JoinSource, PipelineError> {
+) -> Result<(JoinSource, HashMap<u16, String>), PipelineError> {
     const RIGHT_JOIN_FLAG: u32 = 0x80000000;
+
+    let mut source_names = HashMap::new();
 
     let port = 0 as PortHandle;
     let left_schema = input_schemas
@@ -117,6 +121,9 @@ pub fn build_join_tree(
         .unwrap()
         .clone();
     let relation_name = &join_tables.relation.0;
+
+    source_names.insert(port, relation_name.0.to_owned());
+
     let mut left_extended_schema = extend_schema_source_def(&left_schema, relation_name);
 
     let mut left_join_table = JoinSource::Table(JoinTable::new(port, left_extended_schema.clone()));
@@ -132,6 +139,7 @@ pub fn build_join_tree(
             Ok,
         )?;
 
+        source_names.insert(right_port, relation_name.0.to_owned());
         let right_extended_schema = extend_schema_source_def(right_schema, relation_name);
         let right_join_table =
             JoinSource::Table(JoinTable::new(right_port, right_extended_schema.clone()));
@@ -186,7 +194,7 @@ pub fn build_join_tree(
         left_join_table = JoinSource::Join(join_op);
     }
 
-    Ok(join_tree_root)
+    Ok((join_tree_root, source_names))
 }
 
 fn parse_join_constraint(

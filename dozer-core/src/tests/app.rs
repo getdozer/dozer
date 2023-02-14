@@ -3,7 +3,7 @@ use crate::appsource::{AppSource, AppSourceId, AppSourceManager};
 use crate::chk;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
-use crate::node::{NodeHandle, OutputPortDef, PortHandle, Source, SourceFactory};
+use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
 use crate::tests::dag_base_run::{
     NoopJoinProcessorFactory, NOOP_JOIN_LEFT_INPUT_PORT, NOOP_JOIN_RIGHT_INPUT_PORT,
 };
@@ -14,6 +14,7 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
 
 use std::collections::HashMap;

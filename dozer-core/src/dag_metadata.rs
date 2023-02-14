@@ -1,6 +1,6 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType};
 use crate::errors::{ExecutionError, IncompatibleSchemas};
-use crate::node::{NodeHandle, PortHandle};
+use crate::node::PortHandle;
 use crate::{Dag, NodeKind};
 use daggy::petgraph::visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences, Topo};
 use daggy::petgraph::Direction;
@@ -13,12 +13,11 @@ use dozer_storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbEnvironmentOptions, LmdbExclusiveTransaction, SharedTransaction,
 };
 use dozer_types::bincode;
+use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 
 use std::path::{Path, PathBuf};
-
-use super::epoch::{OpIdentifier, SourceStates};
 
 pub(crate) const METADATA_DB_NAME: &str = "__META__";
 const SOURCE_ID_IDENTIFIER: u8 = 0_u8;

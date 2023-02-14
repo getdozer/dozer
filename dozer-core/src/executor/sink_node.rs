@@ -3,13 +3,13 @@ use std::{borrow::Cow, collections::HashMap, mem::swap};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_storage::lmdb_storage::SharedTransaction;
-use dozer_types::log::debug;
+use dozer_types::{log::debug, node::NodeHandle};
 
 use crate::{
     epoch::Epoch,
     errors::ExecutionError,
     forwarder::StateWriter,
-    node::{NodeHandle, PortHandle, Sink},
+    node::{PortHandle, Sink},
     record_store::RecordReader,
 };
 

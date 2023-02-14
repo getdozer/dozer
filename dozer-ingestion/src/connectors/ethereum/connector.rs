@@ -164,22 +164,6 @@ impl Connector for EthConnector {
         Ok(schemas)
     }
 
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        let schemas = self.get_schemas(None)?;
-
-        let tables = schemas
-            .iter()
-            .enumerate()
-            .map(|(id, (name, schema, _))| TableInfo {
-                name: name.to_string(),
-                table_name: name.to_string(),
-                id: id as u32,
-                columns: Some(schema.fields.iter().map(|f| f.name.to_owned()).collect()),
-            })
-            .collect();
-        Ok(tables)
-    }
-
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
@@ -214,12 +198,6 @@ impl Connector for EthConnector {
             ));
             run(details).await
         })
-    }
-
-    fn stop(&self) {}
-
-    fn test_connection(&self) -> Result<(), ConnectorError> {
-        Ok(())
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {

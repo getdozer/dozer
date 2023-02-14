@@ -27,12 +27,6 @@ impl RwCacheEndpoint {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct PipelineDetails {
-    pub schema_name: String,
-    pub cache_endpoint: RoCacheEndpoint,
-}
-
 // Exports
 pub mod auth;
 pub mod errors;

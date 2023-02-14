@@ -6,7 +6,7 @@ use dozer_types::{
 };
 use std::sync::Arc;
 
-use dozer_cache::cache::{LmdbRwCache, RwCache};
+use dozer_cache::cache::{LmdbRwCache, RecordWithId, RwCache};
 
 pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![
@@ -112,15 +112,15 @@ pub fn initialize_cache(
         .unwrap();
     let records = get_sample_records(schema);
     for record in records {
-        cache.insert(&record).unwrap();
+        cache.insert(&record.record).unwrap();
     }
     cache
 }
 
-pub fn get_sample_records(schema: Schema) -> Vec<Record> {
+pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {
     let records_value: Vec<Value> = get_films();
     let mut records = vec![];
-    for record_str in records_value {
+    for (record_index, record_str) in records_value.into_iter().enumerate() {
         let film_id = record_str["film_id"].as_u64();
         let description = record_str["description"].as_str();
         let release_year = record_str["release_year"].as_u64();
@@ -138,7 +138,7 @@ pub fn get_sample_records(schema: Schema) -> Vec<Record> {
                 ],
                 None,
             );
-            records.push(record);
+            records.push(RecordWithId::new(record_index as _, record));
         }
     }
     records

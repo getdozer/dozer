@@ -1,6 +1,6 @@
 [package]
 name = "dozer-core"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,7 +14,7 @@ unixstring = "0.2.7"
 dyn-clone = "1.0.10"
 fp_rust = "0.3.5"
 daggy = "0.8.0"
-dozer-storage = { version = "0.1.0", path = "../dozer-storage" }
+dozer-storage = { path = "../dozer-storage" }
 
 [dev-dependencies]
 tempdir = "0.3.7"
