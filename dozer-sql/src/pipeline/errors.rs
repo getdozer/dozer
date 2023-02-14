@@ -97,7 +97,7 @@ pub enum UnsupportedSqlError {
     CteFromError,
     #[error("Currently only SELECT operations are allowed")]
     SelectOnlyError,
-    #[error("Unsupported syntax in fROM clause")]
+    #[error("Unsupported syntax in FROM clause")]
     JoinTable,
 
     #[error("FROM clause doesn't support \"Comma Syntax\"")]

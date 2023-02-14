@@ -8,7 +8,7 @@ use dozer_core::app::PipelineEntryPoint;
 use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use sqlparser::ast::{Join, TableFactor, TableWithJoins};
+use sqlparser::ast::{Join, SetOperator, TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::AnsiDialect,
@@ -181,6 +181,37 @@ fn query_to_pipeline(
                 stateful,
                 pipeline_idx,
             )?
+        }
+        SetExpr::SetOperation {op, set_quantifier, left, right} => {
+            match (*left, *right) {
+                (SetExpr::Select(left_select), SetExpr::Select(right_select)) => {
+                    select_to_pipeline(
+                        table_info,
+                        *left_select,
+                        pipeline,
+                        query_ctx,
+                        stateful,
+                        pipeline_idx,
+                    )?;
+
+                    select_to_pipeline(
+                        table_info,
+                        *right_select,
+                        pipeline,
+                        query_ctx,
+                        stateful,
+                        pipeline_idx,
+                    )?;
+
+                    match op {
+                        SetOperator::Union => {
+
+                        }
+                        _ => panic!("Only select queries are supported for UNION"),
+                    }
+                }
+                _ => panic!("Only select queries are supported for UNION"),
+            }
         }
         _ => {
             return Err(PipelineError::UnsupportedSqlError(
