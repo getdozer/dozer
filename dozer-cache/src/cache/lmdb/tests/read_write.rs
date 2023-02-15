@@ -55,7 +55,7 @@ fn read_and_write() {
             b.map_or(Field::Null, Field::String),
             c.map_or(Field::Null, Field::Int),
         ];
-        assert_eq!(rec.values, values, "should be equal");
+        assert_eq!(rec.record.values, values, "should be equal");
     }
     let records = cache_reader
         .query(

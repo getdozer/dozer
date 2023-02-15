@@ -38,7 +38,7 @@ pub trait RoCache: Send + Sync + Debug {
     ) -> Result<(Schema, Vec<IndexDefinition>), CacheError>;
 
     // Record Operations
-    fn get(&self, key: &[u8]) -> Result<Record, CacheError>;
+    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError>;
     fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError>;
     fn query(
         &self,

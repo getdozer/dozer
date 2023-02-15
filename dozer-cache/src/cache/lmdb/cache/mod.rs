@@ -76,10 +76,12 @@ impl LmdbRwCache {
 }
 
 impl<C: LmdbCache> RoCache for C {
-    fn get(&self, key: &[u8]) -> Result<Record, CacheError> {
+    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
-        self.common().db.get(txn, self.common().id.get(txn, key)?)
+        let id = self.common().id.get(txn, key)?;
+        let record = self.common().db.get(txn, id)?;
+        Ok(RecordWithId::new(id_from_bytes(id), record))
     }
 
     fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError> {
@@ -127,7 +129,7 @@ impl RwCache for LmdbRwCache {
     }
 
     fn delete(&self, key: &[u8]) -> Result<u32, CacheError> {
-        let record = self.get(key)?;
+        let record = self.get(key)?.record;
         let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&record)?;
 
         let mut txn = self.txn.write();

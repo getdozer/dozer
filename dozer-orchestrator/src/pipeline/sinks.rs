@@ -481,7 +481,7 @@ mod tests {
         .unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
-        let record = cache.get(&key).unwrap();
+        let record = cache.get(&key).unwrap().record;
 
         assert_eq!(initial_values, record.values);
 
@@ -504,7 +504,7 @@ mod tests {
 
         // Primary key with updated values
         let key = index::get_primary_key(&schema.primary_index, &updated_values);
-        let record = cache.get(&key).unwrap();
+        let record = cache.get(&key).unwrap().record;
 
         assert_eq!(updated_values, record.values);
     }
