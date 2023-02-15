@@ -115,7 +115,6 @@ pub async fn count(
         .get_records_count(query_expression)
         .map(|count| HttpResponse::Ok().json(count))
         .map_err(|e| match e {
-            CacheError::QueryValidation(e) => ApiError::InvalidQuery(e),
             CacheError::Type(e) => ApiError::TypeError(e),
             CacheError::Internal(e) => ApiError::InternalError(e),
             e => ApiError::InternalError(Box::new(e)),
@@ -145,7 +144,6 @@ pub async fn query(
         .get_records_map(query_expression)
         .map(|maps| HttpResponse::Ok().json(maps))
         .map_err(|e| match e {
-            CacheError::QueryValidation(e) => ApiError::InvalidQuery(e),
             CacheError::Type(e) => ApiError::TypeError(e),
             CacheError::Internal(e) => ApiError::InternalError(e),
             e => ApiError::InternalError(Box::new(e)),

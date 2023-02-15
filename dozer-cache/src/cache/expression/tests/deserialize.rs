@@ -6,13 +6,12 @@ use crate::cache::expression::{
     SortDirection::{Ascending, Descending},
     SortOption,
 };
-use crate::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::json;
 use dozer_types::serde_json::Value;
 
 #[test]
-fn test_operators() -> Result<(), CacheError> {
+fn test_operators() {
     let operators = vec![
         (Operator::GT, "$gt"),
         (Operator::GTE, "$gte"),
@@ -24,11 +23,10 @@ fn test_operators() -> Result<(), CacheError> {
         (Operator::MatchesAll, "$matches_all"),
     ];
     for (op, op_str) in operators {
-        let fetched = Operator::convert_str(op_str).unwrap();
+        let fetched = serde_json::from_value(Value::String(op_str.to_string())).unwrap();
 
         assert_eq!(op, fetched, "are equal");
     }
-    Ok(())
 }
 
 #[test]
@@ -86,19 +84,8 @@ fn test_filter_query_deserialize_simple() {
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::Null),
     );
 
-    // // special character
-    test_deserialize_filter_error(json!({"_":  1}));
-    test_deserialize_filter_error(json!({"'":  1}));
-    test_deserialize_filter_error(json!({"\n":  1}));
-    test_deserialize_filter_error(json!({"❤":  1}));
-    test_deserialize_filter_error(json!({"%":  1}));
-    test_deserialize_filter_error(json!({"a":  '💝'}));
-    test_deserialize_filter_error(json!({"a":  "❤"}));
-
     test_deserialize_filter_error(json!({"a":  []}));
     test_deserialize_filter_error(json!({"a":  {}}));
-    test_deserialize_filter_error(json!({"a":  {"$lte": {}}}));
-    test_deserialize_filter_error(json!({"a":  {"$lte": []}}));
     test_deserialize_filter_error(json!({"a":  {"lte": 1}}));
     test_deserialize_filter_error(json!({"$lte":  {"lte": 1}}));
     test_deserialize_filter_error(json!([]));
@@ -136,12 +123,8 @@ fn test_filter_query_deserialize_complex() {
         ]),
     );
 
-    test_deserialize_filter_error(json!({"$and": [{"a":  {"$lt": 1}}]}));
-    test_deserialize_filter_error(json!({"$and": []}));
     test_deserialize_filter_error(json!({"$and": {}}));
     test_deserialize_filter_error(json!({"$and": [{"a":  {"lt": 1}}, {"b":  {"$gt": 1}}]}));
-    test_deserialize_filter_error(json!({"$and": [{"a":  {"$lt": 1}}, {"b":  {"$gte": {}}}]}));
-    test_deserialize_filter_error(json!({"$and": [{"$and":[{"a": 1}]}, {"c": 3}]}));
     test_deserialize_filter_error(json!({"and": [{"a":  {"$lt": 1}}]}));
 }
 
@@ -171,7 +154,6 @@ fn test_sort_options_query_deserialize() {
     test_deserialize_sort_options_error(json!({ "a": null }));
     test_deserialize_sort_options_error(json!({"a": []}));
     test_deserialize_sort_options_error(json!({"a": {}}));
-    test_deserialize_sort_options_error(json!({"-": "asc"}));
 }
 
 #[test]
