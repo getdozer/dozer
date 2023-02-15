@@ -5,15 +5,13 @@ use actix_web::HttpResponse;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_json, thiserror};
 
-use dozer_cache::errors::{CacheError, QueryValidationError};
+use dozer_cache::errors::CacheError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
 use prost_reflect::{DescriptorError, Kind};
 
 #[derive(Error, Debug)]
 pub enum ApiError {
-    #[error("Invalid query provided")]
-    InvalidQuery(#[source] QueryValidationError),
     #[error(transparent)]
     ApiAuthError(#[from] AuthError),
     #[error("Failed to generate openapi documentation")]
@@ -132,9 +130,9 @@ impl actix_web::error::ResponseError for ApiError {
             ApiError::TypeError(_) => StatusCode::BAD_REQUEST,
             ApiError::ApiAuthError(_) => StatusCode::UNAUTHORIZED,
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
-            ApiError::ApiGenerationError(_)
-            | ApiError::SchemaNotFound(_)
-            | ApiError::InvalidQuery(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            ApiError::ApiGenerationError(_) | ApiError::SchemaNotFound(_) => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
             ApiError::InternalError(_)
             | ApiError::SchemaIdentifierNotFound
             | ApiError::PortAlreadyInUse(_) => StatusCode::INTERNAL_SERVER_ERROR,
