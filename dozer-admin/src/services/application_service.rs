@@ -7,8 +7,9 @@ use crate::{
     },
     server::dozer_admin_grpc::{
         AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
-        GetAppRequest, ListAppRequest, ListAppResponse, Pagination, ParseRequest, ParseResponse,
-        StartPipelineRequest, StartPipelineResponse, UpdateAppRequest,
+        GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
+        Pagination, ParseRequest, ParseResponse, StartPipelineRequest, StartPipelineResponse,
+        UpdateAppRequest,
     },
 };
 use diesel::prelude::*;
@@ -91,11 +92,37 @@ impl AppService {
         };
         let g = graph::generate(context, &c)?;
 
-        let config_str = serde_yaml::to_string(&c).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-        })?;
-
         Ok(GenerateGraphResponse { graph: Some(g) })
+    }
+
+    pub fn generate_yaml(
+        &self,
+        input: GenerateYamlRequest,
+    ) -> Result<GenerateYamlResponse, ErrorResponse> {
+        //validate config
+
+        let app = input.app.unwrap();
+        let mut connections = vec![];
+        let mut sources = vec![];
+        let mut endpoints = vec![];
+
+        for c in app.connections.iter() {
+            connections.push(serde_yaml::to_string(c).unwrap());
+        }
+
+        for c in app.sources.iter() {
+            sources.push(serde_yaml::to_string(c).unwrap());
+        }
+
+        for c in app.sources.iter() {
+            endpoints.push(serde_yaml::to_string(c).unwrap());
+        }
+
+        Ok(GenerateYamlResponse {
+            connections,
+            sources,
+            endpoints,
+        })
     }
 
     pub fn create(&self, input: CreateAppRequest) -> Result<AppResponse, ErrorResponse> {
