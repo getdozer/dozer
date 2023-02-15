@@ -68,24 +68,37 @@ impl WindowFunction for TumbleWindow {
     }
 }
 
-struct HopWindow {
+pub struct HopWindow {
     column_index: usize,
-    _hop_size: Duration,
-    _interval: Duration,
+    hop_size: Duration,
+    interval: Duration,
 }
 
 impl HopWindow {
-    pub fn _new(column_index: usize, _hop_size: Duration, _interval: Duration) -> Self {
+    pub fn new(column_index: usize, hop_size: Duration, interval: Duration) -> Self {
         Self {
             column_index,
-            _hop_size,
-            _interval,
+            hop_size,
+            interval,
         }
     }
 
     fn hop(&self, field: &Field) -> Result<Vec<(Field, Field)>, WindowError> {
-        if let Field::Timestamp(_ts) = field {
-            let windows = vec![];
+        if let Field::Timestamp(ts) = field {
+            let starting_time = ts
+                .duration_trunc(self.hop_size)
+                .map_err(WindowError::TumbleRoundingError)?
+                - self.interval;
+
+            let mut windows = vec![];
+            let mut current = starting_time;
+            while current < starting_time + self.interval {
+                let start = current;
+                let end = current + self.interval;
+                windows.push((Field::Timestamp(start), Field::Timestamp(end)));
+                current += self.hop_size;
+            }
+
             Ok(windows)
         } else {
             Err(WindowError::TumbleInvalidColumnType())
