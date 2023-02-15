@@ -1,5 +1,5 @@
 use clap::Parser;
-use dozer_orchestrator::cli::init::init_simple_config_file_with_question;
+use dozer_orchestrator::cli::generate_config_repl;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
@@ -81,7 +81,7 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.clean()
             }
             Commands::Configure => configure(cli.config_path, running),
-            Commands::Init => init_simple_config_file_with_question(),
+            Commands::Init => generate_config_repl(),
         }
     } else {
         render_logo();

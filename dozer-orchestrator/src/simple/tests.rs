@@ -39,10 +39,8 @@ fn single_source_sink_impl(schema: Schema) {
             authentication: Some(models::connection::Authentication::Events(
                 EventsAuthentication::default(),
             )),
-            id: Some("1".to_string()),
             db_type: models::connection::DBType::Events as i32,
             name: "events".to_string(),
-            ..Default::default()
         }),
         refresh_config: Some(models::source::RefreshConfig::default()),
         ..Default::default()
