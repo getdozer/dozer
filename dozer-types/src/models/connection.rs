@@ -18,12 +18,6 @@ pub struct Connection {
     #[prost(oneof = "Authentication", tags = "1,2,3,4,5")]
     /// authentication config - depends on db_type
     pub authentication: Option<Authentication>,
-    #[prost(string, optional, tag = "6")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    #[prost(string, optional, tag = "7")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_id: Option<String>,
     #[prost(enumeration = "DBType", tag = "8")]
     #[serde(serialize_with = "serialize_db_type_i32_as_string")]
     #[serde(deserialize_with = "deserialize_db_type_str_as_i32")]

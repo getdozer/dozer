@@ -58,7 +58,7 @@ impl Completer for InitHelper {
     }
 }
 
-fn sample_connection(connection_name: &str) -> Connection {
+pub fn generate_connection(connection_name: &str) -> Connection {
     match connection_name {
         "Snowflake" | "snowflake" | "S" | "s" => {
             let snowflake_config = SnowflakeConfig {
@@ -75,7 +75,6 @@ fn sample_connection(connection_name: &str) -> Connection {
                 name: "snowflake".to_owned(),
                 authentication: Some(Authentication::Snowflake(snowflake_config)),
                 db_type: DBType::Ethereum as i32,
-                ..Connection::default()
             };
             connection
         }
@@ -95,7 +94,6 @@ fn sample_connection(connection_name: &str) -> Connection {
                 name: "ethereum".to_owned(),
                 authentication: Some(Authentication::Ethereum(ethereum_auth)),
                 db_type: DBType::Ethereum as i32,
-                ..Connection::default()
             };
             connection
         }
@@ -111,7 +109,6 @@ fn sample_connection(connection_name: &str) -> Connection {
                 name: "postgres".to_owned(),
                 authentication: Some(Authentication::Postgres(postgres_auth)),
                 db_type: DBType::Postgres as i32,
-                ..Connection::default()
             };
             connection
         }
@@ -121,7 +118,7 @@ type Question = (
     &'static str,
     Box<dyn Fn((String, &mut Config)) -> Result<(), OrchestrationError>>,
 );
-pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError> {
+pub fn generate_config_repl() -> Result<(), OrchestrationError> {
     let mut rl = Editor::<InitHelper>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
     rl.set_helper(Some(InitHelper {}));
@@ -155,10 +152,10 @@ pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError>
             Box::new(move |(connection, config)| {
                 let connections_available = vec!["Postgres", "Ethereum", "Snowflake"];
                 if connections_available.contains(&connection.as_str()) {
-                    let sample_connection = sample_connection(&connection);
+                    let sample_connection = generate_connection(&connection);
                     config.connections.push(sample_connection);
                 } else {
-                    let sample_connection = sample_connection("Postgres");
+                    let sample_connection = generate_connection("Postgres");
                     config.connections.push(sample_connection);
                 }
                 Ok(())

@@ -49,7 +49,10 @@ pub trait Orchestrator {
 }
 
 // Re-exports
-pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
+pub use dozer_ingestion::{
+    connectors::{get_connector, ColumnInfo, TableInfo},
+    errors::ConnectorError,
+};
 
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;

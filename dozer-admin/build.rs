@@ -7,27 +7,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .protoc_arg("--experimental_allow_proto3_optional")
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .extern_path(
-            ".dozer_admin_grpc.ApplicationDetail",
+            ".dozer_admin_grpc.AppConfig",
             "dozer_types::models::app_config::Config",
-        )
-        .extern_path(
-            ".dozer_admin_grpc.ApiIndex",
-            "dozer_types::models::api_endpoint::ApiIndex",
-        )
-        .extern_path(
-            ".dozer_admin_grpc.EndpointInfo",
-            "dozer_types::models::api_endpoint::ApiEndpoint",
-        )
-        .extern_path(
-            ".dozer_admin_grpc.SourceInfo",
-            "dozer_types::models::source::Source",
         )
         .extern_path(
             ".dozer_admin_grpc.Authentication",
             "dozer_types::models::connection::AuthenticationWrapper",
         )
         .extern_path(
-            ".dozer_admin_grpc.ConnectionInfo",
+            ".dozer_admin_grpc.Connection",
             "dozer_types::models::connection::Connection",
         )
         .extern_path(
@@ -62,29 +50,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ".dozer_admin_grpc.DBType",
             "dozer_types::models::connection::DBType",
         )
-        .extern_path(
-            ".dozer_admin_grpc.ApiConfig",
-            "dozer_types::models::api_config::ApiConfig",
-        )
-        .extern_path(
-            ".dozer_admin_grpc.ApiGrpc",
-            "dozer_types::models::api_config::ApiGrpc",
-        )
-        .extern_path(
-            ".dozer_admin_grpc.ApiRest",
-            "dozer_types::models::api_config::ApiRest",
-        )
-        .extern_path(
-            ".dozer_admin_grpc.ApiInternal",
-            "dozer_types::models::api_config::ApiInternal",
-        )
-        .extern_path(
-            ".dozer_admin_grpc.ApiPipelineInternal",
-            "dozer_types::models::api_config::ApiPipelineInternal",
-        )
         .build_client(false)
         .file_descriptor_set_path(out_dir.join("dozer_admin_grpc_descriptor.bin"))
-        .compile(&["protos/api.proto"], &["proto"])
+        .compile(&["protos/admin.proto"], &["proto"])
         .unwrap();
 
     Ok(())
