@@ -16,7 +16,7 @@ fn test_tumble() {
         Some(1),
     );
 
-    let window = TumbleWindow::_new(1, Duration::minutes(5));
+    let window = TumbleWindow::new(1, Duration::minutes(5));
     let result = window.execute(&record).unwrap();
     assert_eq!(result.len(), 1);
     let window_record = result.get(0).unwrap();
@@ -32,14 +32,7 @@ fn test_tumble() {
         Some(1),
     );
 
-    assert_eq!(
-        window_record.get_value(2).unwrap(),
-        expected_record.get_value(2).unwrap()
-    );
-    assert_eq!(
-        window_record.get_value(3).unwrap(),
-        expected_record.get_value(3).unwrap()
-    );
+    assert_eq!(*window_record, expected_record);
 }
 
 #[test]
@@ -67,5 +60,45 @@ fn test_tumble_schema() {
 
     let window = TumbleWindow::new(3, Duration::seconds(10));
     let result = window.get_output_schema(&schema).unwrap();
-    assert_eq!(result.fields.len(), schema.fields.len() + 2);
+
+    let expected_schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                String::from("id"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            true,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("timestamp"),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("window_start"),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("window_end"),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .clone();
+
+    assert_eq!(result, expected_schema);
 }

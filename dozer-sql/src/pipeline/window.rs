@@ -1,6 +1,6 @@
 use dozer_types::{
     chrono::{Duration, DurationRound},
-    types::{Field, Record, Schema},
+    types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
 };
 
 use super::errors::WindowError;
@@ -52,7 +52,20 @@ impl WindowFunction for TumbleWindow {
     }
 
     fn get_output_schema(&self, schema: &Schema) -> Result<Schema, WindowError> {
-        Ok(schema.clone())
+        let mut output_schema = schema.clone();
+        output_schema.fields.push(FieldDefinition::new(
+            String::from("window_start"),
+            FieldType::Timestamp,
+            false,
+            SourceDefinition::Dynamic,
+        ));
+        output_schema.fields.push(FieldDefinition::new(
+            String::from("window_end"),
+            FieldType::Timestamp,
+            false,
+            SourceDefinition::Dynamic,
+        ));
+        Ok(output_schema)
     }
 }
 
