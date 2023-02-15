@@ -8,7 +8,7 @@ use dozer_core::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
-use crate::pipeline::expression::builder::ExpressionBuilder;
+use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::{
     builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
     product::join::JoinBranch,
@@ -25,25 +25,24 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct FromProcessorFactory {
-    input_tables: IndexedTableWithJoins,
+pub struct SetProcessorFactory {
+    left_input_tables: IndexedTableWithJoins,
+    right_input_tables: IndexedTableWithJoins,
 }
 
-impl FromProcessorFactory {
+impl SetProcessorFactory {
     /// Creates a new [`FromProcessorFactory`].
-    pub fn new(input_tables: IndexedTableWithJoins) -> Self {
-        Self { input_tables }
+    pub fn new(
+        left_input_tables: IndexedTableWithJoins,
+        right_input_tables: IndexedTableWithJoins,
+    ) -> Self {
+        Self { left_input_tables, right_input_tables }
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        let input_names = get_input_names(&self.input_tables);
-        input_names
-            .iter()
-            .enumerate()
-            .map(|(number, _)| number as PortHandle)
-            .collect::<Vec<PortHandle>>()
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
@@ -60,11 +59,16 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let mut output_schema = Schema::empty();
 
-        let input_names = get_input_names(&self.input_tables);
+        let mut input_names: Vec<NameOrAlias> = Vec::new();
+        get_input_names(&self.left_input_tables).iter().for_each(|name| input_names.push(name.clone()));
+        get_input_names(&self.right_input_tables).iter().for_each(|name| input_names.push(name.clone()));
+
         for (port, table) in input_names.iter().enumerate() {
             if let Some((current_schema, _)) = input_schemas.get(&(port as PortHandle)) {
-                let current_extended_schema = extend_schema_source_def(current_schema, table);
-                output_schema = append_schema(&output_schema, &current_extended_schema);
+                if current_schema.fields.iter().map(|f| output_schema.fields.contains(f)).all(|x| !x) {
+                    let current_extended_schema = extend_schema_source_def(current_schema, table);
+                    output_schema = append_schema(&output_schema, &current_extended_schema);
+                }
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
             }
@@ -78,12 +82,13 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        match build_join_tree(&self.input_tables, input_schemas) {
-            Ok((join_operator, source_names)) => {
-                Ok(Box::new(FromProcessor::new(join_operator, source_names)))
-            }
-            Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
-        }
+    //     match build_join_tree(&self.input_tables, input_schemas) {
+    //         Ok((join_operator, source_names)) => {
+    //             Ok(Box::new(FromProcessor::new(join_operator, source_names)))
+    //         }
+    //         Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
+    //     }
+        Err(ExecutionError::InternalStringError("UNION test".to_string()))
     }
 
     fn prepare(

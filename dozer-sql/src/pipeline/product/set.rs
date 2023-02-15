@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::ptr::read;
 use lmdb::Database;
-use dozer_types::types::{Field, Record, Schema};
-use crate::pipeline::errors::{PipelineError, UnsupportedSqlError};
+use dozer_types::types::{Record, Schema};
+use crate::pipeline::errors::PipelineError;
 use sqlparser::ast::{Select, SetOperator};
 use dozer_core::node::PortHandle;
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SetAction {

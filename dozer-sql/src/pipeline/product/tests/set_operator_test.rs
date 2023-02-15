@@ -1,43 +1,102 @@
-// use std::sync::Arc;
-// use std::sync::atomic::AtomicBool;
-// use sqlparser::ast::SelectItem;
-// use tempdir::TempDir;
-// use dozer_core::app::{App, AppPipeline};
-// use dozer_core::appsource::{AppSource, AppSourceManager};
-// use dozer_core::DEFAULT_PORT_HANDLE;
-// use dozer_core::executor::{DagExecutor, ExecutorOptions};
-// use dozer_types::log::debug;
-// use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
-// use crate::pipeline::builder::statement_to_pipeline;
-// use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionContext};
-// use crate::pipeline::expression::execution::Expression;
-// use crate::pipeline::product::tests::pipeline_test::{TestSinkFactory, TestSourceFactory};
-// use crate::pipeline::tests::utils::get_set_operation;
-//
-
 use std::sync::Arc;
-use sqlparser::ast::Statement;
+use std::sync::atomic::AtomicBool;
 use sqlparser::dialect::AnsiDialect;
 use sqlparser::parser::Parser;
-use dozer_core::app::AppPipeline;
+use dozer_core::app::{App, AppPipeline};
+use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_core::node::PortHandle;
+use dozer_core::node::{PortHandle, ProcessorFactory};
 use dozer_types::log::info;
-use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
-use crate::pipeline::builder::{get_entry_points, get_input_names, get_input_tables, QueryContext, QueryTableInfo, statement_to_pipeline, TableInfo};
-use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder::NameOrAlias;
-use crate::pipeline::product::factory::FromProcessorFactory;
-use crate::pipeline::selection::factory::SelectionProcessorFactory;
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
+use crate::pipeline::builder::{get_input_tables, QueryContext, SchemaSQLContext, statement_to_pipeline};
+use crate::pipeline::product::set_factory::SetProcessorFactory;
+use crate::pipeline::product::tests::left_join_test::{TestSinkFactory, TestSourceFactory};
+use crate::pipeline::projection::factory::ProjectionProcessorFactory;
 use crate::pipeline::tests::utils::get_set_operation;
+
+#[test]
+fn test_set_union_pipeline_builder() {
+    let sql = "SELECT supplier_id
+                    FROM suppliers
+                    UNION
+                    SELECT supplier_id
+                    FROM orders;";
+
+    dozer_tracing::init_telemetry(false).unwrap();
+
+    let mut pipeline: AppPipeline<SchemaSQLContext> = AppPipeline::new();
+    let mut query_ctx = statement_to_pipeline(sql, &mut pipeline, Some("results".to_string())).unwrap();
+
+    let table_info = query_ctx.output_tables_map.get("results").unwrap();
+    let latch = Arc::new(AtomicBool::new(true));
+
+    const SUPPLIERS_PORT: u16 = 0 as PortHandle;
+    const ORDERS_PORT: u16 = 1 as PortHandle;
+
+    let mut asm = AppSourceManager::new();
+    asm.add(AppSource::new(
+        "conn".to_string(),
+        Arc::new(TestSourceFactory::new(latch.clone())),
+        vec![
+            ("suppliers".to_string(), DEFAULT_PORT_HANDLE),
+            ("orders".to_string(), DEFAULT_PORT_HANDLE),
+        ]
+        .into_iter()
+        .collect(),
+    ))
+    .unwrap();
+
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
+    pipeline
+        .connect_nodes(
+            &table_info.node,
+            Some(table_info.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        )
+        .unwrap();
+
+    let mut app = App::new(asm);
+    app.add_pipeline(pipeline);
+
+    let dag = app.get_dag().unwrap();
+
+    dag.print_dot();
+    // let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    // if tmp_dir.path().exists() {
+    //     std::fs::remove_dir_all(tmp_dir.path())
+    //         .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+    // }
+    // std::fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    //
+    // use std::time::Instant;
+    // let now = Instant::now();
+    //
+    // let tmp_dir = TempDir::new("test").unwrap();
+    //
+    // DagExecutor::new(
+    //     &dag,
+    //     tmp_dir.path().to_path_buf(),
+    //     ExecutorOptions::default(),
+    // )
+    //     .unwrap()
+    //     .start(Arc::new(AtomicBool::new(true)))
+    //     .unwrap()
+    //     .join()
+    //     .unwrap();
+    //
+    // let elapsed = now.elapsed();
+    // debug!("Elapsed: {:.2?}", elapsed);
+}
 
 #[test]
 fn test_set_union() {
     let sql = "SELECT supplier_id
-        FROM suppliers
-        UNION
-        SELECT supplier_id
-        FROM orders;";
+                    FROM suppliers
+                    UNION
+                    SELECT supplier_id
+                    FROM orders;";
 
     let dialect = AnsiDialect {};
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
@@ -48,6 +107,57 @@ fn test_set_union() {
     let left_select = set_operation.left;
     let right_select = set_operation.right;
 
+    let suppliers_schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                "supplier_id".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "supplier_name".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .to_owned();
+
+    let orders_schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                "order_id".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "order_date".to_string(),
+                FieldType::Date,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "supplier_id".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .to_owned();
+
     let mut pipeline = AppPipeline::new();
     let mut query_ctx = QueryContext::default();
     // let mut query_ctx = statement_to_pipeline(sql, &mut pipeline, Some("results".to_string())).unwrap();
@@ -55,129 +165,167 @@ fn test_set_union() {
     let mut output_keys = query_ctx.output_tables_map.keys().collect::<Vec<_>>();
 
     for (idx, statement) in ast.iter().enumerate() {
-        let left_input_tables = get_input_tables(&left_select.from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
-        let right_input_tables = get_input_tables(&right_select.from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
+        let left_input_tables = get_input_tables(&left_select.clone().from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
+        let right_input_tables = get_input_tables(&right_select.clone().from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
         info!("{}", statement);
 
-        let left_factory = FromProcessorFactory::new(left_input_tables.clone());
-        let right_factory = FromProcessorFactory::new(right_input_tables.clone());
+        let set_factory = SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
+        let input_ports = set_factory.get_input_ports();
 
-        let left_input_endpoints = get_entry_points(&left_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
-        let right_input_endpoints = get_entry_points(&right_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
+        let left_factory = ProjectionProcessorFactory::new(left_select.clone().projection);
+        let left_output_schema = left_factory.get_output_schema(
+            input_ports.first().unwrap(),
+            &[
+                (DEFAULT_PORT_HANDLE, (suppliers_schema.clone(), SchemaSQLContext::default())),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .unwrap();
 
-        let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
-        let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
-        let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
-        pipeline.add_processor(Arc::new(left_factory), &gen_product_name, left_input_endpoints);
-        pipeline.add_processor(Arc::new(right_factory), &gen_product_name, right_input_endpoints);
+        let right_factory = ProjectionProcessorFactory::new(right_select.clone().projection);
+        let right_output_schema = right_factory.get_output_schema(
+            input_ports.first().unwrap(),
+            &[
+                (DEFAULT_PORT_HANDLE, (orders_schema.clone(), SchemaSQLContext::default())),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .unwrap();
 
-        let mut input_names: Vec<NameOrAlias> = Vec::new();
-        get_input_names(&left_input_tables).iter().for_each(|name| input_names.push(name.clone()));
-        get_input_names(&right_input_tables).iter().for_each(|name| input_names.push(name.clone()));
-        for (port_index, table_name) in input_names.iter().enumerate() {
-            if let Some(table_info) = query_ctx
-                .pipeline_map
-                .get(&(idx, table_name.0.clone()))
-            {
-                pipeline.connect_nodes(
-                    &table_info.node,
-                    Some(table_info.port),
-                    &gen_product_name,
-                    Some(port_index as PortHandle),
-                    true,
-                ).unwrap();
-                // If not present in pipeline_map, insert into used_sources as this is coming from source
-            } else {
-                query_ctx.used_sources.push(table_name.0.clone());
-            }
-        }
+        assert_eq!(left_output_schema.0, right_output_schema.0);
 
-        let left_aggregation = AggregationProcessorFactory::new(left_select.clone(), true);
-        let right_aggregation = AggregationProcessorFactory::new(right_select.clone(), true);
+        set_factory.get_output_ports();
+        let output_schema = set_factory.get_output_schema(
+            &DEFAULT_PORT_HANDLE,
+            &[
+                (*input_ports.first().unwrap(), left_output_schema),
+                (*input_ports.last().unwrap(), right_output_schema),
+            ]
+            .into_iter()
+            .collect(),
+        ).unwrap();
 
-        pipeline.add_processor(Arc::new(left_aggregation), &gen_agg_name, vec![]);
-        pipeline.add_processor(Arc::new(right_aggregation), &gen_agg_name, vec![]);
-
-        // Where clause
-        if let Some(selection) = left_select.clone().selection {
-            let selection = SelectionProcessorFactory::new(selection);
-            pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
-
-            pipeline.connect_nodes(
-                &gen_product_name,
-                Some(DEFAULT_PORT_HANDLE),
-                &gen_selection_name,
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            ).unwrap();
-
-            pipeline.connect_nodes(
-                &gen_selection_name,
-                Some(DEFAULT_PORT_HANDLE),
-                &gen_agg_name,
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            ).unwrap();
-        } else {
-            pipeline.connect_nodes(
-                &gen_product_name,
-                Some(DEFAULT_PORT_HANDLE),
-                &gen_agg_name,
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            ).unwrap();
-        }
-
-        if let Some(selection) = right_select.clone().selection {
-            let selection = SelectionProcessorFactory::new(selection);
-            pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
-
-            pipeline.connect_nodes(
-                &gen_product_name,
-                Some(DEFAULT_PORT_HANDLE),
-                &gen_selection_name,
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            ).unwrap();
-
-            pipeline.connect_nodes(
-                &gen_selection_name,
-                Some(DEFAULT_PORT_HANDLE),
-                &gen_agg_name,
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            ).unwrap();
-        } else {
-            pipeline.connect_nodes(
-                &gen_product_name,
-                Some(DEFAULT_PORT_HANDLE),
-                &gen_agg_name,
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            ).unwrap();
-        }
-
-        let table_name = "results".to_string();
-        query_ctx.pipeline_map.insert(
-            (idx, table_name.clone()),
-            QueryTableInfo {
-                node: gen_agg_name.clone(),
-                port: DEFAULT_PORT_HANDLE,
-                is_derived: false,
-            },
-        );
-
-        let table_name = query_ctx.output_tables_map.insert(
-            table_name,
-            QueryTableInfo {
-                node: gen_agg_name,
-                port: DEFAULT_PORT_HANDLE,
-                is_derived: false,
-            },
-        );
+        println!("{:?}", output_schema);
     }
 
-    info!("{:?}", query_ctx.pipeline_map);
+    //     let left_input_endpoints = get_entry_points(&left_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
+    //     let right_input_endpoints = get_entry_points(&right_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
+    //
+    //     let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
+    //     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
+    //     let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
+    //     pipeline.add_processor(Arc::new(left_factory), &gen_product_name, left_input_endpoints);
+    //     pipeline.add_processor(Arc::new(right_factory), &gen_product_name, right_input_endpoints);
+    //
+    //     let mut input_names: Vec<NameOrAlias> = Vec::new();
+    //     get_input_names(&left_input_tables).iter().for_each(|name| input_names.push(name.clone()));
+    //     get_input_names(&right_input_tables).iter().for_each(|name| input_names.push(name.clone()));
+    //     for (port_index, table_name) in input_names.iter().enumerate() {
+    //         if let Some(table_info) = query_ctx
+    //             .pipeline_map
+    //             .get(&(idx, table_name.0.clone()))
+    //         {
+    //             pipeline.connect_nodes(
+    //                 &table_info.node,
+    //                 Some(table_info.port),
+    //                 &gen_product_name,
+    //                 Some(port_index as PortHandle),
+    //                 true,
+    //             ).unwrap();
+    //             // If not present in pipeline_map, insert into used_sources as this is coming from source
+    //         } else {
+    //             query_ctx.used_sources.push(table_name.0.clone());
+    //         }
+    //     }
+    //
+    //     let left_aggregation = AggregationProcessorFactory::new(left_select.clone(), true);
+    //     let right_aggregation = AggregationProcessorFactory::new(right_select.clone(), true);
+    //
+    //     pipeline.add_processor(Arc::new(left_aggregation), &gen_agg_name, vec![]);
+    //     pipeline.add_processor(Arc::new(right_aggregation), &gen_agg_name, vec![]);
+    //
+    //     // Where clause
+    //     if let Some(selection) = left_select.clone().selection {
+    //         let selection = SelectionProcessorFactory::new(selection);
+    //         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
+    //
+    //         pipeline.connect_nodes(
+    //             &gen_product_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             &gen_selection_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             true,
+    //         ).unwrap();
+    //
+    //         pipeline.connect_nodes(
+    //             &gen_selection_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             &gen_agg_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             true,
+    //         ).unwrap();
+    //     } else {
+    //         pipeline.connect_nodes(
+    //             &gen_product_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             &gen_agg_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             true,
+    //         ).unwrap();
+    //     }
+    //
+    //     if let Some(selection) = right_select.clone().selection {
+    //         let selection = SelectionProcessorFactory::new(selection);
+    //         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
+    //
+    //         pipeline.connect_nodes(
+    //             &gen_product_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             &gen_selection_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             true,
+    //         ).unwrap();
+    //
+    //         pipeline.connect_nodes(
+    //             &gen_selection_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             &gen_agg_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             true,
+    //         ).unwrap();
+    //     } else {
+    //         pipeline.connect_nodes(
+    //             &gen_product_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             &gen_agg_name,
+    //             Some(DEFAULT_PORT_HANDLE),
+    //             true,
+    //         ).unwrap();
+    //     }
+    //
+    //     let table_name = "results".to_string();
+    //     query_ctx.pipeline_map.insert(
+    //         (idx, table_name.clone()),
+    //         QueryTableInfo {
+    //             node: gen_agg_name.clone(),
+    //             port: DEFAULT_PORT_HANDLE,
+    //             is_derived: false,
+    //         },
+    //     );
+    //
+    //     let table_name = query_ctx.output_tables_map.insert(
+    //         table_name,
+    //         QueryTableInfo {
+    //             node: gen_agg_name,
+    //             port: DEFAULT_PORT_HANDLE,
+    //             is_derived: false,
+    //         },
+    //     );
+    // }
+    //
+    // info!("{:?}", query_ctx.pipeline_map);
 
 
 }

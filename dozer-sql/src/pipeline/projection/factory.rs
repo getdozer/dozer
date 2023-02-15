@@ -26,7 +26,7 @@ pub struct ProjectionProcessorFactory {
 
 impl ProjectionProcessorFactory {
     /// Creates a new [`ProjectionProcessorFactory`].
-    pub fn _new(select: Vec<SelectItem>) -> Self {
+    pub fn new(select: Vec<SelectItem>) -> Self {
         Self { select }
     }
 }

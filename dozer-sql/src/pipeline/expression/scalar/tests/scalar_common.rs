@@ -25,7 +25,7 @@ impl ProcessorChannelForwarder for TestChannelForwarder {
 
 pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
     let select = get_select(sql).unwrap();
-    let processor_factory = ProjectionProcessorFactory::_new(select.projection);
+    let processor_factory = ProjectionProcessorFactory::new(select.projection);
     processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,

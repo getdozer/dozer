@@ -7,8 +7,9 @@ use crate::errors::ExecutionError;
 use crate::node::{PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::sync::Arc;
+use dozer_types::log::info;
 
 pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
 
@@ -379,6 +380,10 @@ fn contains_port<T>(
             }
         }
         NodeKind::Sink(s) => {
+            let input_ports = s.get_input_ports();
+            info!("port {:?}", port);
+            info!("direction {:?}", direction);
+            info!("input_ports {:?}", input_ports);
             if direction == PortDirection::Output {
                 false
             } else {

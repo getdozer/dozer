@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter, Write};
 use dozer_types::node::NodeHandle;
 
 use crate::appsource::{AppSourceId, AppSourceManager};
@@ -22,14 +23,28 @@ impl PipelineEntryPoint {
         &self.id
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NamespacedEdge {
-    edge: Edge,
+    pub edge: Edge,
     namespaced: bool,
 }
+
+impl Display for NamespacedEdge {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            format!("edge: [node: {}, port: {} -> node: {}, port: {}], , namespaced: {}",
+                self.edge.from.node, self.edge.from.port,
+                self.edge.to.node, self.edge.to.port,
+                self.namespaced
+            )
+            .as_str()
+        )
+    }
+}
+
 #[derive(Clone)]
 pub struct AppPipeline<T> {
-    edges: Vec<NamespacedEdge>,
+    pub edges: Vec<NamespacedEdge>,
     processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory<T>>)>,
     sinks: Vec<(NodeHandle, Arc<dyn SinkFactory<T>>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
@@ -178,6 +193,8 @@ impl<T: Clone> App<T> {
             .sources
             .get(entry_points.iter().map(|e| e.0.clone()).collect())?;
 
+        dag.print_dot();
+
         // Connect to all pipelines
         for mapping in &mappings {
             let node_handle = NodeHandle::new(None, mapping.source.connection.clone());
@@ -187,6 +204,8 @@ impl<T: Clone> App<T> {
                 }
             }
         }
+
+        dag.print_dot();
 
         Ok(dag)
     }
