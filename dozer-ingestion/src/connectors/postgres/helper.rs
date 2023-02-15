@@ -14,6 +14,8 @@ use rust_decimal::Decimal;
 use std::error::Error;
 use std::vec;
 
+use dozer_types::geo::Point as GeoPoint;
+
 pub fn postgres_type_to_field(
     value: Option<&Bytes>,
     column: &TableColumn,
@@ -71,6 +73,12 @@ pub fn postgres_type_to_field(
                 }
                 Type::JSONB | Type::JSON => Ok(Field::Bson(v.to_vec())),
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
+                Type::POINT => Ok(Field::Point(
+                    String::from_utf8(v.to_vec())
+                        .unwrap()
+                        .parse::<DozerPoint>()
+                        .unwrap(),
+                )),
                 _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
             })
     })
@@ -87,6 +95,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
         Type::NUMERIC => Ok(FieldType::Decimal),
         Type::JSONB => Ok(FieldType::Bson),
         Type::DATE => Ok(FieldType::Date),
+        Type::POINT => Ok(FieldType::Point),
         _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
     }
 }
@@ -137,6 +146,7 @@ pub fn value_to_field(
             let value: Result<Vec<u8>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |v| Ok(Field::Bson(v)))
         }
+        &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
         _ => {
             if col_type.schema() == "pg_catalog" {
                 Err(ColumnTypeNotSupported(col_type.name().to_string()))

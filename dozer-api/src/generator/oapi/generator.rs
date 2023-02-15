@@ -4,6 +4,7 @@ use super::utils::{
 use crate::errors::GenerationError;
 use dozer_types::indexmap::{self, IndexMap};
 use dozer_types::serde_json;
+use dozer_types::serde_json::Map;
 use dozer_types::types::IndexDefinition;
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
 use openapiv3::*;
@@ -43,6 +44,18 @@ impl OpenApiGenerator {
 
                     FieldType::Text => Value::from("lorem ipsum".to_string()),
                     FieldType::Date => Value::from("2022-11-24"),
+                    FieldType::Coord => {
+                        let mut m = Map::new();
+                        m.insert("x".to_string(), Value::from(1.1));
+                        m.insert("y".to_string(), Value::from(2.2));
+                        Value::Object(m)
+                    }
+                    FieldType::Point => {
+                        let mut m = Map::new();
+                        m.insert("x".to_string(), Value::from(3.3));
+                        m.insert("y".to_string(), Value::from(4.4));
+                        Value::Object(m)
+                    }
                 };
                 json!({ name: val })
             } else {

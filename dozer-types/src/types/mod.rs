@@ -1,9 +1,14 @@
 use ahash::AHasher;
+use geo::{point, Coord, Point};
+use log::info;
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use std::hash::{Hash, Hasher};
 
 use crate::errors::types::TypeError;
 use prettytable::{Cell, Row, Table};
+use prost::Message;
 use serde::{self, Deserialize, Serialize};
 
 mod field;
@@ -330,4 +335,104 @@ pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct DozerCoord(pub Coord);
+
+impl Eq for DozerCoord {}
+
+impl PartialEq for DozerCoord {
+    fn eq(&self, _other: &Self) -> bool {
+        info!("F");
+        todo!("F")
+    }
+}
+
+impl Ord for DozerCoord {
+    fn cmp(&self, _other: &Self) -> Ordering {
+        info!("E");
+        todo!("E")
+    }
+}
+
+impl PartialOrd for DozerCoord {
+    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
+        info!("D");
+        todo!("D")
+    }
+}
+
+impl Display for DozerCoord {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{:?}", self.0.x_y()))
+    }
+}
+
+impl DozerCoord {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut x_bytes_vec = self.0.x.encode_to_vec();
+        let mut y_bytes_vec = self.0.y.encode_to_vec();
+        x_bytes_vec.append(&mut y_bytes_vec);
+        x_bytes_vec
+    }
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct DozerPoint(pub Point);
+
+impl Eq for DozerPoint {}
+
+impl PartialEq for DozerPoint {
+    fn eq(&self, _other: &Self) -> bool {
+        info!("C");
+        todo!("C")
+    }
+}
+
+impl Ord for DozerPoint {
+    fn cmp(&self, _other: &Self) -> Ordering {
+        info!("B");
+        todo!("B")
+    }
+}
+
+impl PartialOrd for DozerPoint {
+    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
+        info!("a");
+        todo!("A")
+    }
+}
+
+impl FromStr for DozerPoint {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.replace('(', "");
+        let s = s.replace(')', "");
+        let mut cs = s.split(',');
+        let x = cs.next().unwrap().parse::<f64>().unwrap();
+        let y = cs.next().unwrap().parse::<f64>().unwrap();
+        Ok(Self(Point::from((x, y))))
+    }
+}
+
+impl From<(f64, f64)> for DozerPoint {
+    fn from((x, y): (f64, f64)) -> Self {
+        Self(point! {x: x, y: y})
+    }
+}
+
+impl Display for DozerPoint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{:?}", self.0.x_y()))
+    }
+}
+
+impl DozerPoint {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut x_bytes_vec = self.0.x().encode_to_vec();
+        let mut y_bytes_vec = self.0.y().encode_to_vec();
+        x_bytes_vec.append(&mut y_bytes_vec);
+        x_bytes_vec
+    }
 }

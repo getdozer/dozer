@@ -151,7 +151,7 @@ pub fn map_sqlite_to_record(
                 Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
             },
             FieldType::Date =>  convert_type!(Field::String, f, row, idx),
-            dozer_types::types::FieldType::Bson => {
+            dozer_types::types::FieldType::Bson | FieldType::Coord | FieldType::Point => {
                 panic!("type not supported : {:?}", f.typ.to_owned())
             }
         };
@@ -228,6 +228,8 @@ pub fn map_field_to_string(f: &Field) -> String {
         Field::Binary(_) | Field::Bson(_) => panic!("not supported {f:?}"),
         Field::Decimal(i) => i.to_string(),
         Field::Null => "null".to_string(),
+        Field::Coord(c) => format!("'{c:?}'"),
+        Field::Point(p) => format!("'{:?}'", p.0.x_y()),
     }
 }
 

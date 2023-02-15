@@ -3,7 +3,9 @@ use dozer_types::chrono::SecondsFormat;
 use dozer_types::types::{
     Field, FieldType, Operation as DozerOperation, Record as DozerRecord, DATE_FORMAT,
 };
+use std::collections::HashMap;
 
+use crate::grpc::types::CoordType;
 use crate::grpc::types::{value, Operation, OperationType, Record, Type, Value};
 
 use super::types::RecordWithId;
@@ -53,6 +55,15 @@ pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
     }
 }
 
+fn map_x_y_to_prost_coord_map((x, y): (f64, f64)) -> Value {
+    let mut coords: HashMap<String, f32> = HashMap::new();
+    coords.insert("x".to_string(), x as f32);
+    coords.insert("y".to_string(), y as f32);
+    Value {
+        value: Some(value::Value::MapValue(CoordType { values: coords })),
+    }
+}
+
 fn field_to_prost_value(f: Field) -> Value {
     match f {
         Field::UInt(n) => Value {
@@ -95,6 +106,8 @@ fn field_to_prost_value(f: Field) -> Value {
                 date.format(DATE_FORMAT).to_string(),
             )),
         },
+        Field::Coord(coord) => map_x_y_to_prost_coord_map(coord.0.x_y()),
+        Field::Point(point) => map_x_y_to_prost_coord_map(point.0.x_y()),
     }
 }
 
@@ -124,5 +137,7 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Timestamp => Type::Timestamp,
         FieldType::Bson => Type::Bson,
         FieldType::Date => Type::String,
+        FieldType::Coord => Type::Coord,
+        FieldType::Point => Type::Point,
     }
 }

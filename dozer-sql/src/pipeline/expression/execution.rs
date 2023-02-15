@@ -284,6 +284,8 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::UInt(_) => Some(FieldType::UInt),
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
+        Field::Coord(_) => Some(FieldType::Coord),
+        Field::Point(_) => Some(FieldType::Point),
     }
 }
 

@@ -8,7 +8,7 @@ use dozer_types::chrono::SecondsFormat;
 use dozer_types::errors::types::{DeserializationError, TypeError};
 use dozer_types::indexmap::IndexMap;
 use dozer_types::json_value_to_field;
-use dozer_types::serde_json::Value;
+use dozer_types::serde_json::{Map, Value};
 use dozer_types::types::{Field, FieldType, Schema, DATE_FORMAT};
 
 pub struct ApiHelper<'a> {
@@ -138,6 +138,13 @@ fn record_to_map(
     Ok(map)
 }
 
+fn convert_x_y_to_object((x, y): &(f64, f64)) -> Value {
+    let mut m = Map::new();
+    m.insert("x".to_string(), Value::from(*x));
+    m.insert("y".to_string(), Value::from(*y));
+    Value::Object(m)
+}
+
 /// Used in REST APIs for converting raw value back and forth.
 ///
 /// Should be consistent with `convert_cache_type_to_schema_type`.
@@ -154,6 +161,8 @@ fn field_to_json_value(field: Field) -> Value {
         Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
         Field::Bson(b) => Value::from(b),
+        Field::Coord(coord) => convert_x_y_to_object(&coord.0.x_y()),
+        Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
         Field::Null => Value::Null,
     }
 }

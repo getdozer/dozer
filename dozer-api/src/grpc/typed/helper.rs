@@ -5,7 +5,8 @@ use crate::generator::protoc::generator::{
 use crate::grpc::types::{self as GrpcTypes};
 use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
-use prost_reflect::{DynamicMessage, Value};
+use prost_reflect::{DynamicMessage, MapKey, Value};
+use std::collections::HashMap;
 
 use super::TypedResponse;
 
@@ -65,6 +66,13 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
         GrpcTypes::value::Value::DoubleValue(n) => Value::F64(n),
+        GrpcTypes::value::Value::MapValue(c) => {
+            let mut h = HashMap::new();
+            for (key, value) in c.values {
+                h.insert(MapKey::String(key), Value::F32(value));
+            }
+            Value::Map(h)
+        }
         _ => todo!(),
     })
 }

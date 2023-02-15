@@ -58,6 +58,8 @@ enum Type {
   Timestamp = 8; // ISO 8601 combined date and time with time zone.
   Date = 9; // ISO 8601 calendar date without timezone.
   Bson = 10; // BSON data.
+  Coord = 11; // Geo Coord type.
+  Point = 12; // Geo Point type.
 }
 message SchemaEvent {
   string endpoint = 1;
@@ -76,6 +78,10 @@ message FieldDefinition {
   bool nullable = 3;
 }
 
+message CoordType {
+  map<string, float> values = 1;
+}
+
 // A field value.
 message Value {
   // A field value.
@@ -88,6 +94,7 @@ message Value {
     bytes bytes_value = 7; // Binary data.
     ArrayValue array_value = 8; // Value array.
     double double_value = 9; // 64 bit floating point number.
+    CoordType map_value = 10;
   };
 }
 
