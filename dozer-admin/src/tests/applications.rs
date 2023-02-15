@@ -26,7 +26,7 @@ mod grpc_service {
         let request = CreateAppRequest {
             config: serde_yaml::to_string(&config).unwrap(),
         };
-        let create_result: AppResponse = application_service.create(request.to_owned()).unwrap();
+        let create_result: AppResponse = application_service.create(request).unwrap();
         assert_eq!(
             create_result.app.as_ref().unwrap().app_name,
             config.app_name
@@ -41,14 +41,14 @@ mod grpc_service {
         assert!(!result.apps.is_empty());
         assert_eq!(result.apps[0].id, setup_ids.app_id);
 
-        let mut updated_config = config.clone();
+        let mut updated_config = config;
         updated_config.app_name = "updated_app_name".to_owned();
         let request = UpdateAppRequest {
-            id: create_result.id.clone(),
+            id: create_result.id,
 
             config: serde_yaml::to_string(&updated_config).unwrap(),
         };
-        let result: AppResponse = application_service.update_app(request.to_owned()).unwrap();
+        let result: AppResponse = application_service.update_app(request).unwrap();
         assert_eq!(result.app.unwrap().app_name, updated_config.app_name);
     }
 

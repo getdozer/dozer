@@ -75,7 +75,6 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 name: "snowflake".to_owned(),
                 authentication: Some(Authentication::Snowflake(snowflake_config)),
                 db_type: DBType::Ethereum as i32,
-                ..Connection::default()
             };
             connection
         }
@@ -95,7 +94,6 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 name: "ethereum".to_owned(),
                 authentication: Some(Authentication::Ethereum(ethereum_auth)),
                 db_type: DBType::Ethereum as i32,
-                ..Connection::default()
             };
             connection
         }
@@ -111,7 +109,6 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 name: "postgres".to_owned(),
                 authentication: Some(Authentication::Postgres(postgres_auth)),
                 db_type: DBType::Postgres as i32,
-                ..Connection::default()
             };
             connection
         }

@@ -52,7 +52,7 @@ mod grpc_service {
             })
             .unwrap();
 
-        assert_eq!(result.connections.last().unwrap().id, created_id.clone());
+        assert_eq!(result.connections.last().unwrap().id, created_id);
 
         let request = UpdateConnectionRequest {
             connection_id: created_id,
@@ -74,10 +74,10 @@ mod grpc_service {
             connection_id: "random_id".to_owned(),
         };
         let result = connection_service
-            .get_schema(request.to_owned())
+            .get_tables(request.to_owned())
             .await
             .unwrap();
-        assert!(result.tables.len() > 0);
+        assert!(!result.tables.is_empty());
     }
 
     #[tokio::test]

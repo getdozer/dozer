@@ -203,7 +203,6 @@ impl ConnectionService {
             db_type: input.r#type,
             authentication: Some(authentication),
             name: input.name,
-            ..Default::default()
         };
         let validate_result = thread::spawn(|| {
             let connector = get_connector(connection).map_err(|err| err.to_string())?;

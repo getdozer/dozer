@@ -138,14 +138,12 @@ mod tests {
     fn get_default_config() -> Config {
         let events1_conn = Connection {
             authentication: Some(Authentication::Events(EventsAuthentication {})),
-            id: None,
             db_type: DBType::Postgres.into(),
             name: "pg_conn".to_string(),
         };
 
         let events2_conn = Connection {
             authentication: Some(Authentication::Events(EventsAuthentication {})),
-            id: None,
             db_type: DBType::Snowflake.into(),
             name: "snow".to_string(),
         };

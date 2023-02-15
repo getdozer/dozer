@@ -52,9 +52,9 @@ impl AppService {
                 app: Some(c),
             })
         } else {
-            return Err(ErrorResponse {
+            Err(ErrorResponse {
                 message: "app_id is missing".to_string(),
-            });
+            })
         }
     }
 
@@ -199,7 +199,7 @@ impl AppService {
         }
         fs::create_dir_all(&path).unwrap();
 
-        let yaml_path = path.join(format!("dozer-config-{:}.yaml", response.id.clone()));
+        let yaml_path = path.join(format!("dozer-config-{:}.yaml", response.id));
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)

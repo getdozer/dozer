@@ -1,5 +1,5 @@
 use crate::server::dozer_admin_grpc::{self};
-use dozer_types::types::Schema;
+
 use std::convert::From;
 
 impl From<dozer_orchestrator::TableInfo> for dozer_admin_grpc::TableInfo {
