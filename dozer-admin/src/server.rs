@@ -21,8 +21,8 @@ use dozer_admin_grpc::{
 };
 
 use self::dozer_admin_grpc::{
-    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, UpdateAppRequest,
-    ValidateConnectionRequest, ValidateConnectionResponse,
+    GenerateGraphRequest, GenerateGraphResponse, ListAppRequest, ListAppResponse, ParseRequest,
+    ParseResponse, UpdateAppRequest, ValidateConnectionRequest, ValidateConnectionResponse,
 };
 
 pub struct GrpcService {
@@ -37,6 +37,16 @@ impl DozerAdmin for GrpcService {
         request: tonic::Request<ParseRequest>,
     ) -> Result<tonic::Response<ParseResponse>, tonic::Status> {
         let result = self.app_service.parse(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+    async fn generate_graph(
+        &self,
+        request: tonic::Request<GenerateGraphRequest>,
+    ) -> Result<tonic::Response<GenerateGraphResponse>, tonic::Status> {
+        let result = self.app_service.generate(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),

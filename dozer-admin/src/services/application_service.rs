@@ -6,9 +6,9 @@ use crate::{
         schema::apps::{self, dsl::*},
     },
     server::dozer_admin_grpc::{
-        AppResponse, CreateAppRequest, ErrorResponse, GetAppRequest, ListAppRequest,
-        ListAppResponse, Pagination, ParseRequest, ParseResponse, StartPipelineRequest,
-        StartPipelineResponse, UpdateAppRequest,
+        AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
+        GetAppRequest, ListAppRequest, ListAppResponse, Pagination, ParseRequest, ParseResponse,
+        StartPipelineRequest, StartPipelineResponse, UpdateAppRequest,
     },
 };
 use diesel::prelude::*;
@@ -61,6 +61,20 @@ impl AppService {
     }
 
     pub fn parse(&self, input: ParseRequest) -> Result<ParseResponse, ErrorResponse> {
+        let context = wrapped_statement_to_pipeline(&input.sql).map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
+
+        Ok(ParseResponse {
+            used_sources: context.used_sources.clone(),
+            output_tables: context.output_tables_map.keys().cloned().collect(),
+        })
+    }
+
+    pub fn generate(
+        &self,
+        input: GenerateGraphRequest,
+    ) -> Result<GenerateGraphResponse, ErrorResponse> {
         //validate config
         let c = serde_yaml::from_str::<dozer_types::models::app_config::Config>(&input.config)
             .map_err(|op| ErrorResponse {
@@ -81,11 +95,7 @@ impl AppService {
             message: op.to_string(),
         })?;
 
-        Ok(ParseResponse {
-            app: Some(c),
-            graph: Some(g),
-            config: config_str,
-        })
+        Ok(GenerateGraphResponse { graph: Some(g) })
     }
 
     pub fn create(&self, input: CreateAppRequest) -> Result<AppResponse, ErrorResponse> {
