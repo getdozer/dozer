@@ -11,7 +11,6 @@ use crate::{
     },
 };
 use dozer_orchestrator::get_connector;
-use dozer_types::types::SchemaWithChangesType;
 use dozer_types::{
     log::error,
     models::connection::{Authentication, Connection},
@@ -32,18 +31,18 @@ impl ConnectionService {
 }
 
 impl ConnectionService {
-    async fn _get_schema(
+    async fn _get_tables(
         &self,
         connection: Connection,
-    ) -> Result<Vec<SchemaWithChangesType>, ErrorResponse> {
-        let get_schema_res = thread::spawn(|| {
+    ) -> Result<Vec<dozer_orchestrator::TableInfo>, ErrorResponse> {
+        let res = thread::spawn(|| {
             let connector = get_connector(connection).map_err(|err| err.to_string())?;
-            connector.get_schemas(None).map_err(|err| err.to_string())
-        });
-        get_schema_res
-            .join()
-            .unwrap()
-            .map_err(|err| ErrorResponse { message: err })
+            connector.get_tables(None).map_err(|err| err.to_string())
+        })
+        .join()
+        .unwrap();
+
+        res.map_err(|err| ErrorResponse { message: err })
     }
 }
 impl ConnectionService {
@@ -107,12 +106,12 @@ impl ConnectionService {
             message: err.to_string(),
         })?;
 
-        let schema = self._get_schema(connection).await?;
+        let tables = self._get_tables(connection).await?;
         Ok(GetTablesResponse {
             connection_id: input.connection_id,
-            tables: schema
+            tables: tables
                 .iter()
-                .map(|(n, schema, _)| TableInfo::try_from((n.clone(), schema.clone())).unwrap())
+                .map(|t| TableInfo::try_from(t.clone()).unwrap())
                 .collect(),
         })
     }

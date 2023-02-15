@@ -87,12 +87,10 @@ message EthContract {
 message TableInfo {
   string table_name = 1;
   repeated ColumnInfo columns = 2;
-  repeated string primary_key = 3;
 }
 message ColumnInfo {
   string column_name = 1;
   bool is_nullable = 2;
-  string udt_name = 3;
 }
 
 message Endpoint {
