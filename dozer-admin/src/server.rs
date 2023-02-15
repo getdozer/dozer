@@ -21,8 +21,8 @@ use dozer_admin_grpc::{
 };
 
 use self::dozer_admin_grpc::{
-    ListAppRequest, ListAppResponse, UpdateAppRequest, ValidateConnectionRequest,
-    ValidateConnectionResponse,
+    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, UpdateAppRequest,
+    ValidateConnectionRequest, ValidateConnectionResponse,
 };
 
 pub struct GrpcService {
@@ -32,6 +32,17 @@ pub struct GrpcService {
 
 #[tonic::async_trait]
 impl DozerAdmin for GrpcService {
+    async fn parse_config(
+        &self,
+        request: tonic::Request<ParseRequest>,
+    ) -> Result<tonic::Response<ParseResponse>, tonic::Status> {
+        let result = self.app_service.parse(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
     async fn create_application(
         &self,
         request: tonic::Request<CreateAppRequest>,

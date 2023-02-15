@@ -1,9 +1,12 @@
 syntax = "proto3";
 package dozer_admin_grpc;
 import "protos/types.proto";
+import "protos/query.proto";
 
 service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (AppResponse);
+  rpc parse_config(ParseRequest) returns (ParseResponse);
+
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc get_application(GetAppRequest) returns (AppResponse);
@@ -21,6 +24,15 @@ service DozerAdmin {
 message StartPipelineRequest { string app_id = 1; }
 message StartPipelineResponse { bool success = 1; }
 message CreateAppRequest { string config = 2; }
+message ParseRequest {
+  string config = 1;
+  AppConfig app = 2;
+}
+message ParseResponse {
+  string config = 1;
+  AppConfig app = 2;
+  QueryGraph graph = 3;
+}
 
 message AppResponse {
   string id = 1;
