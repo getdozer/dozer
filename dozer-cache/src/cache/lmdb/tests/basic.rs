@@ -58,7 +58,7 @@ fn insert_get_and_delete_record() {
 
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
-    let get_record = cache.get(&key).unwrap();
+    let get_record = cache.get(&key).unwrap().record;
     assert_eq!(get_record, record, "must be equal");
 
     assert_eq!(cache.delete(&key).unwrap(), version);
