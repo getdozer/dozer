@@ -136,7 +136,7 @@ pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {
                     Field::UInt(release_year),
                     Field::Null,
                 ],
-                None,
+                Some(1),
             );
             records.push(RecordWithId::new(record_index as _, record));
         }

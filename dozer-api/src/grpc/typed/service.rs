@@ -358,13 +358,20 @@ fn on_event(
         })
         .transpose()?;
 
+    let endpoint_to_be_streamed = endpoint_name.to_string();
     shared_impl::on_event(
         reader,
         endpoint_name,
         filter,
         event_notifier,
         access.cloned(),
-        move |op, _| Some(Ok(on_event_to_typed_response(op, event_desc.clone()))),
+        move |op, endpoint| {
+            if endpoint_to_be_streamed == endpoint {
+                Some(Ok(on_event_to_typed_response(op, event_desc.clone())))
+            } else {
+                None
+            }
+        },
     )
 }
 

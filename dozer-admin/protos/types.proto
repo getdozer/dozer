@@ -1,0 +1,154 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+
+message AppConfig {
+  optional string id = 1;
+  string app_name = 2;
+  ApiConfig api = 3;
+  repeated Connection connections = 4;
+  repeated Source sources = 5;
+  repeated Endpoint endpoints = 6;
+  string sql = 7;
+  string home_dir = 8;
+}
+
+message Connection {
+  oneof authentication {
+    PostgresAuthentication Postgres = 1;
+    EthereumAuthentication Ethereum = 2;
+    EventsAuthentication Events = 3;
+    SnowflakeAuthentication Snowflake = 4;
+    KafkaAuthentication Kafka = 5;
+  }
+  DBType db_type = 8;
+  string name = 9;
+}
+
+enum DBType {
+  Postgres = 0;
+  Snowflake = 1;
+  Ethereum = 2;
+  Events = 3;
+  Kafka = 4;
+}
+
+message Authentication {
+  oneof authentication {
+    PostgresAuthentication Postgres = 1;
+    EthereumAuthentication Ethereum = 2;
+    EventsAuthentication Events = 3;
+    SnowflakeAuthentication Snowflake = 4;
+    KafkaAuthentication Kafka = 5;
+  }
+}
+
+message SnowflakeAuthentication {
+  string server = 1;
+  string port = 2;
+  string user = 3;
+  string password = 4;
+  string database = 5;
+  string schema = 6;
+  string warehouse = 7;
+  optional string driver = 8;
+}
+message PostgresAuthentication {
+  string user = 1;
+  string password = 2;
+  string host = 3;
+  uint32 port = 4;
+  string database = 5;
+}
+message KafkaAuthentication {
+  string broker = 1;
+  string topic = 2;
+  optional string schema_registry_url = 3;
+}
+message EventsAuthentication { string database = 1; }
+
+message EthereumAuthentication {
+  EthereumFilter filter = 1;
+  string wss_url = 2;
+  string name = 3;
+  repeated EthContract contracts = 4;
+}
+
+message EthereumFilter {
+  optional uint64 from_block = 1;
+  repeated string addresses = 2;
+  repeated string topics = 3;
+}
+message EthContract {
+  string name = 1;
+  string address = 2;
+  string abi = 3;
+}
+
+message TableInfo {
+  string table_name = 1;
+  repeated ColumnInfo columns = 2;
+}
+message ColumnInfo {
+  string column_name = 1;
+  bool is_nullable = 2;
+}
+
+message Endpoint {
+  string id = 1;
+  string app_id = 2;
+  string name = 3;
+  string path = 4;
+  string sql = 5;
+  ApiIndex index = 6;
+}
+
+message ApiIndex { repeated string primary_key = 1; }
+
+message Source {
+  string name = 1;
+  string table_name = 2;
+  repeated string columns = 3;
+  Connection connection = 4;
+}
+
+message ApiConfig {
+  oneof ApiSecurity { string Jwt = 1; }
+  ApiRest rest = 2;
+  ApiGrpc grpc = 3;
+  bool auth = 4;
+  ApiInternal api_internal = 5;
+  ApiPipelineInternal pipeline_internal = 6;
+  optional string app_id = 7;
+  optional string id = 8;
+}
+
+message ApiRest {
+  uint32 port = 1;
+  string url = 2;
+  bool cors = 3;
+}
+message ApiGrpc {
+  uint32 port = 1;
+  string url = 2;
+  bool cors = 3;
+  bool web = 4;
+}
+message ApiInternal { string home_dir = 1; }
+message ApiPipelineInternal {
+  uint32 port = 1;
+  string host = 2;
+  string home_dir = 3;
+}
+
+message RefreshConfig {
+  oneof config {
+    RefreshConfigHour hour = 1;
+    RefreshConfigDay day = 2;
+    RefreshConfigCronExpression cron_expression = 3;
+    RefreshConfigRealTime realtime = 4;
+  }
+}
+message RefreshConfigHour { uint32 minute = 1; }
+message RefreshConfigDay { string time = 1; }
+message RefreshConfigCronExpression { string expression = 1; }
+message RefreshConfigRealTime {}

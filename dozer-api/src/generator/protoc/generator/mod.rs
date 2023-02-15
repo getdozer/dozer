@@ -53,13 +53,22 @@ pub struct CountResponseDesc {
 #[derive(Debug, Clone)]
 pub struct RecordDesc {
     pub message: MessageDescriptor,
+    pub version_field: FieldDescriptor,
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordWithIdDesc {
+    pub message: MessageDescriptor,
+    pub id_field: FieldDescriptor,
+    pub record_field: FieldDescriptor,
+    pub record_desc: RecordDesc,
 }
 
 #[derive(Debug, Clone)]
 pub struct QueryResponseDesc {
     pub message: MessageDescriptor,
-    pub data_field: FieldDescriptor,
-    pub record_desc: RecordDesc,
+    pub records_field: FieldDescriptor,
+    pub record_with_id_desc: RecordWithIdDesc,
 }
 
 #[derive(Debug, Clone)]

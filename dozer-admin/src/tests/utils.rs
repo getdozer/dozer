@@ -1,7 +1,8 @@
 use crate::db::connection::DbConnection;
 use diesel::{r2d2::ConnectionManager, RunQueryDsl, SqliteConnection};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
-use dozer_types::models::connection::DBType;
+use dozer_orchestrator::cli::generate_connection;
+use dozer_types::models::{app_config::Config, connection::DBType};
 use r2d2::{CustomizeConnection, Pool};
 use std::error::Error;
 type DB = diesel::sqlite::Sqlite;
@@ -76,6 +77,14 @@ pub fn database_url_for_test_env() -> String {
     String::from(":memory:")
 }
 
+pub fn get_sample_config() -> String {
+    let config = Config {
+        connections: vec![generate_connection("Postgres")],
+        ..Default::default()
+    };
+    serde_yaml::to_string(&config).unwrap()
+}
+
 fn fake_dbconnection(db_type: DBType) -> DbConnection {
     match db_type {
         DBType::Postgres => DbConnection {
@@ -120,7 +129,7 @@ fn fake_dbconnection(db_type: DBType) -> DbConnection {
 fn setup_data(connection: &mut SqliteConnection, config_id: TestConfigId) {
     // let generated_app_id = uuid::Uuid::new_v4().to_string();
     // create app
-    insert_apps(connection, config_id.app_id.to_owned());
+    insert_apps(connection, config_id.app_id.to_owned(), get_sample_config());
 
     //let generated_postgres_connection_id = uuid::Uuid::new_v4().to_string();
     let db_types = get_db_type_supported();
@@ -130,37 +139,18 @@ fn setup_data(connection: &mut SqliteConnection, config_id: TestConfigId) {
             insert_connections(
                 connection,
                 config_id.connection_ids[idx].to_owned(),
-                config_id.app_id.to_owned(),
                 db_connection.db_type,
                 db_connection.auth,
                 db_connection.name,
             );
-            insert_sources(
-                connection,
-                config_id.source_ids[idx].to_owned(),
-                config_id.app_id.to_owned(),
-                format!("source_{:}", db_type.to_owned()),
-                format!("table_source_{:}", db_type.to_owned()),
-                config_id.connection_ids[idx].to_owned(),
-                "id".to_owned(),
-            )
         }
     });
 
     //let generated_endpoint_id = uuid::Uuid::new_v4().to_string();
-    insert_endpoints(
-        connection,
-        config_id.api_ids[0].to_owned(),
-        config_id.app_id.to_owned(),
-        "users".to_owned(),
-        "/users".to_owned(),
-        "select id, email, phone from users where 1=1;".to_owned(),
-        "id".to_owned(),
-    );
 }
 
-fn insert_apps(connection: &mut SqliteConnection, app_id: String) {
-    diesel::sql_query(format!("INSERT INTO apps (id, name, created_at, updated_at) VALUES('{app_id}', \'app_name\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
+fn insert_apps(connection: &mut SqliteConnection, app_id: String, config: String) {
+    diesel::sql_query(format!("INSERT INTO apps (id, name, config, created_at, updated_at) VALUES('{app_id}', \'app_name\', '{config}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
         .execute(connection)
         .unwrap();
 }
@@ -168,46 +158,14 @@ fn insert_apps(connection: &mut SqliteConnection, app_id: String) {
 fn insert_connections(
     connection: &mut SqliteConnection,
     connection_id: String,
-    app_id: String,
     db_type: String,
     auth: String,
     name: String,
 ) {
     diesel::sql_query(
-        format!("INSERT INTO connections (id, app_id, auth, name, db_type, created_at, updated_at) VALUES('{connection_id}', '{app_id}', '{auth}', '{name}', '{db_type}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
+        format!("INSERT INTO connections (id, auth, name, db_type, created_at, updated_at) VALUES('{connection_id}', '{auth}', '{name}', '{db_type}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
     .execute(connection)
     .unwrap();
-}
-
-fn insert_sources(
-    connection: &mut SqliteConnection,
-    source_id: String,
-    app_id: String,
-    name: String,
-    table_name: String,
-    connection_id: String,
-    columns: String,
-) {
-    diesel::sql_query(
-        format!("INSERT INTO sources (id, app_id, name, table_name, connection_id,columns, created_at, updated_at) VALUES('{source_id}', '{app_id}', '{name}', '{table_name}', '{connection_id}','{columns}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
-    .execute(connection)
-    .unwrap();
-}
-
-fn insert_endpoints(
-    connection: &mut SqliteConnection,
-    endpoint_id: String,
-    app_id: String,
-    name: String,
-    path: String,
-    sql: String,
-    primary_keys: String,
-) {
-    diesel::sql_query(
-        format!("INSERT INTO endpoints (id, app_id, name, \"path\", \"sql\", primary_keys, created_at, updated_at) VALUES( '{endpoint_id}', '{app_id}', '{name}', '{path}','{sql}','{primary_keys}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"
-        ))
-        .execute(connection)
-        .unwrap();
 }
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");

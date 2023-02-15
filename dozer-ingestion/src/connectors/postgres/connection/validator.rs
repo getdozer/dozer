@@ -145,8 +145,8 @@ fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresCon
     for t in table_info {
         if let Some(columns) = &t.columns {
             for column in columns {
-                if !column_name_regex.is_match(column) {
-                    return Err(ColumnNameNotValid(column.clone()));
+                if !column_name_regex.is_match(&column.name) {
+                    return Err(ColumnNameNotValid(column.name.clone()));
                 }
             }
         }
@@ -251,7 +251,7 @@ mod tests {
 
     use tokio_postgres::NoTls;
 
-    use crate::connectors::TableInfo;
+    use crate::connectors::{ColumnInfo, TableInfo};
     use crate::errors::PostgresConnectorError;
     use serial_test::serial;
 
@@ -514,7 +514,10 @@ mod tests {
                 name: "column_test_table".to_string(),
                 table_name: "column_test_table".to_string(),
                 id: 0,
-                columns: Some(vec![column_name.to_string()]),
+                columns: Some(vec![ColumnInfo {
+                    name: column_name.to_string(),
+                    data_type: None,
+                }]),
             }]);
 
             assert_eq!(expected_result, res.is_ok());

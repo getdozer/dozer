@@ -1,4 +1,5 @@
 use crate::connectors::postgres::helper;
+use crate::connectors::ColumnInfo;
 use crate::errors::{PostgresConnectorError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SourceDefinition};
@@ -56,7 +57,7 @@ impl Hash for MessageBody<'_> {
 
 pub struct XlogMapper {
     relations_map: HashMap<u32, Table>,
-    tables_columns: HashMap<u32, Vec<String>>,
+    tables_columns: HashMap<u32, Vec<ColumnInfo>>,
 }
 
 impl Default for XlogMapper {
@@ -66,7 +67,7 @@ impl Default for XlogMapper {
 }
 
 impl XlogMapper {
-    pub fn new(tables_columns: HashMap<u32, Vec<String>>) -> Self {
+    pub fn new(tables_columns: HashMap<u32, Vec<ColumnInfo>>) -> Self {
         XlogMapper {
             relations_map: HashMap::<u32, Table>::new(),
             tables_columns,
@@ -195,7 +196,9 @@ impl XlogMapper {
             .enumerate()
             .filter(|(_, column)| {
                 existing_columns.is_empty()
-                    || existing_columns.contains(&column.name().unwrap().to_string())
+                    || existing_columns
+                        .iter()
+                        .any(|c| c.name == *column.name().unwrap())
             })
             .map(|(idx, column)| TableColumn {
                 name: String::from(column.name().unwrap()),

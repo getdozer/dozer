@@ -16,7 +16,9 @@ fn test_records_to_typed_response() {
     let service_desc = ProtoGenerator::read_schema(&path, "films").unwrap();
 
     let records = get_sample_records(schema);
-    let res = query_response_to_typed_response(records, service_desc.query.response_desc);
-    let data = res.message.get_field_by_name("data");
-    assert!(data.is_some(), "data must be present");
+    let res = query_response_to_typed_response(records, service_desc.query.response_desc.clone());
+    let records = res
+        .message
+        .get_field_by_name(service_desc.query.response_desc.records_field.name());
+    assert!(records.is_some(), "records must be present");
 }

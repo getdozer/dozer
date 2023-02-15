@@ -10,9 +10,6 @@ use serde::{
 #[derive(Serialize, PartialEq, Eq, Clone, prost::Message)]
 /// The configuration for the app
 pub struct Config {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(string, optional, tag = "1")]
-    pub id: Option<String>,
     #[prost(string, tag = "2")]
     /// name of the app
     pub app_name: String,
@@ -74,13 +71,9 @@ impl<'de> Deserialize<'de> for Config {
 
                 let mut app_name = "".to_owned();
                 let mut sql = None;
-                let mut id: Option<String> = None;
                 let mut home_dir: String = default_home_dir();
                 while let Some(key) = access.next_key()? {
                     match key {
-                        "id" => {
-                            id = access.next_value::<Option<String>>()?;
-                        }
                         "app_name" => {
                             app_name = access.next_value::<String>()?;
                         }
@@ -163,7 +156,6 @@ impl<'de> Deserialize<'de> for Config {
                 let endpoints = result_endpoints?;
 
                 Ok(Config {
-                    id,
                     app_name,
                     api,
                     connections,

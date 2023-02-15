@@ -1,7 +1,7 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
 use dozer_core::appsource::{AppSource, AppSourceManager};
-use dozer_ingestion::connectors::TableInfo;
+use dozer_ingestion::connectors::{ColumnInfo, TableInfo};
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::source::Source;
@@ -68,7 +68,16 @@ impl SourceBuilder {
                             name: source.name.clone(),
                             table_name: source.table_name.clone(),
                             id: port as u32,
-                            columns: Some(source.columns.clone()),
+                            columns: Some(
+                                source
+                                    .columns
+                                    .iter()
+                                    .map(|c| ColumnInfo {
+                                        name: c.clone(),
+                                        data_type: None,
+                                    })
+                                    .collect(),
+                            ),
                         });
 
                         port += 1;
@@ -129,22 +138,17 @@ mod tests {
     fn get_default_config() -> Config {
         let events1_conn = Connection {
             authentication: Some(Authentication::Events(EventsAuthentication {})),
-            id: None,
-            app_id: None,
             db_type: DBType::Postgres.into(),
             name: "pg_conn".to_string(),
         };
 
         let events2_conn = Connection {
             authentication: Some(Authentication::Events(EventsAuthentication {})),
-            id: None,
-            app_id: None,
             db_type: DBType::Snowflake.into(),
             name: "snow".to_string(),
         };
 
         Config {
-            id: None,
             app_name: "multi".to_string(),
             api: Default::default(),
             flags: Default::default(),

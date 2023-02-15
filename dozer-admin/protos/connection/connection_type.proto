@@ -1,9 +1,0 @@
-syntax = "proto3";
-package dozer_admin_grpc;
-enum DBType {
-  Postgres = 0;
-  Snowflake = 1;
-  Ethereum = 2;
-  Events = 3;
-  Kafka = 4;
-}

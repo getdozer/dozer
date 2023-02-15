@@ -7,7 +7,7 @@ use dozer_types::models::flags::Flags;
 use tempdir::TempDir;
 
 fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDesc {
-    let descriptor_path = ProtoGenerator::descriptor_path(&proto_folder_path);
+    let descriptor_path = ProtoGenerator::descriptor_path(proto_folder_path);
     ProtoGenerator::generate_descriptor(proto_folder_path, &descriptor_path, &[endpoint_name])
         .unwrap();
     ProtoGenerator::read_schema(&descriptor_path, endpoint_name).unwrap()
@@ -40,6 +40,7 @@ fn test_generate_proto_and_descriptor() {
         service_desc
             .query
             .response_desc
+            .record_with_id_desc
             .record_desc
             .message
             .full_name(),
@@ -75,6 +76,7 @@ fn test_generate_proto_and_descriptor_with_security() {
         service_desc
             .query
             .response_desc
+            .record_with_id_desc
             .record_desc
             .message
             .full_name(),
@@ -116,6 +118,7 @@ fn test_generate_proto_and_descriptor_with_push_event_off() {
         service_desc
             .query
             .response_desc
+            .record_with_id_desc
             .record_desc
             .message
             .full_name(),

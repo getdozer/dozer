@@ -1,12 +1,12 @@
 use std::{fs::File, path::Path, process::Command};
 
 use super::{
-    utils::{init_db_with_config, init_internal_pipeline_client, kill_process_at, reset_db},
+    utils::{kill_process_at, reset_db},
     AdminCliConfig,
 };
 use crate::server;
-use dozer_orchestrator::internal_grpc::GetAppConfigRequest;
-use dozer_types::{models::app_config::Config, serde_yaml};
+
+use dozer_types::serde_yaml;
 
 pub struct CliProcess {
     pub config: AdminCliConfig,
@@ -45,16 +45,8 @@ impl CliProcess {
     }
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.get_internal_config();
-        let internal_pipeline_config = self.config.to_owned().pipeline_internal;
-        let client_connect_result = init_internal_pipeline_client(internal_pipeline_config).await;
-        let mut dozer_config: Config = Config::default();
-        if let Ok(mut client) = client_connect_result {
-            let response = client.get_config(GetAppConfigRequest {}).await?;
-            let config = response.into_inner();
-            dozer_config = config.data.unwrap();
-        }
+
         reset_db();
-        init_db_with_config(dozer_config);
         kill_process_at(3000);
         kill_process_at(self.config.to_owned().port as u16);
 

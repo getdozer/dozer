@@ -1,8 +1,8 @@
-use crate::db::{persistable::Persistable, pool::establish_connection};
+use crate::db::pool::establish_connection;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
 use dozer_orchestrator::internal_pipeline_service_client::InternalPipelineServiceClient;
-use dozer_types::models::{api_config::ApiPipelineInternal, app_config::Config};
+use dozer_types::models::api_config::ApiPipelineInternal;
 use std::{env, error::Error, fs, process::Command};
 use tonic::transport::Channel;
 
@@ -39,13 +39,6 @@ pub fn reset_db() {
     let mut db_connection = db_pool.get().unwrap();
     // run migration
     run_migrations(&mut db_connection).unwrap();
-}
-
-pub fn init_db_with_config(mut config: Config) -> Config {
-    let database_url = get_db_path();
-    let db_pool = establish_connection(database_url);
-    config.save(db_pool).unwrap();
-    config
 }
 
 pub fn kill_process_at(port: u16) {
