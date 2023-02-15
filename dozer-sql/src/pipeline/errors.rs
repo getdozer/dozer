@@ -2,6 +2,7 @@
 
 use dozer_core::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
+use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, TypeError};
 use dozer_types::thiserror;
@@ -183,4 +184,21 @@ pub enum ProductError {
 
     #[error("Error updating a record from {0} cannot insert the new entry\n{1}")]
     UpdateNewError(String, #[source] BoxedError),
+}
+
+#[derive(Error, Debug)]
+pub enum WindowError {
+    #[error("Invalid column specified in Tumble Windowing function.\nOnly Timestamp and Date types are supported")]
+    TumbleInvalidColumnType(),
+    #[error("Invalid column specified in Tumble Windowing function.")]
+    TumbleInvalidColumnIndex(),
+    #[error("Error in Tumble Windowing function:\n{0}")]
+    TumbleRoundingError(#[source] RoundingError),
+
+    #[error("Invalid column specified in Hop Windowing function.\nOnly Timestamp and Date types are supported")]
+    HopInvalidColumnType(),
+    #[error("Invalid column specified in Hop Windowing function.")]
+    HopInvalidColumnIndex(),
+    #[error("Error in Hop Windowing function:\n{0}")]
+    HopRoundingError(#[source] RoundingError),
 }
