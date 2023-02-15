@@ -1,6 +1,6 @@
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
-use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
+use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
 use dozer_cache::CacheReader;
 use dozer_types::log::info;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -71,7 +71,7 @@ pub async fn list(
         &cache_endpoint.endpoint.name,
         access.map(|a| a.into_inner()),
     )?;
-    let exp = QueryExpression::new(None, vec![], Some(50), 0);
+    let exp = QueryExpression::new(None, vec![], Some(50), Skip::Skip(0));
     match helper
         .get_records_map(exp)
         .map(|maps| HttpResponse::Ok().json(maps))

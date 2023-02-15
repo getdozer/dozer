@@ -1,5 +1,6 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
+use crate::cache::expression::Skip;
 use crate::cache::expression::SortOptions;
 use crate::cache::expression::{
     QueryExpression,
@@ -158,10 +159,18 @@ fn test_sort_options_query_deserialize() {
 
 #[test]
 fn test_query_expression_deserialize() {
-    test_deserialize_query(json!({}), QueryExpression::new(None, vec![], None, 0));
+    test_deserialize_query(
+        json!({}),
+        QueryExpression::new(None, vec![], None, Skip::Skip(0)),
+    );
     test_deserialize_query(
         json!({"$filter": {}}),
-        QueryExpression::new(Some(FilterExpression::And(vec![])), vec![], None, 0),
+        QueryExpression::new(
+            Some(FilterExpression::And(vec![])),
+            vec![],
+            None,
+            Skip::Skip(0),
+        ),
     );
     test_deserialize_query(
         json!({"$order_by": {"abc": "asc"}}),
@@ -172,7 +181,7 @@ fn test_query_expression_deserialize() {
                 direction: Ascending,
             }],
             None,
-            0,
+            Skip::Skip(0),
         ),
     );
     test_deserialize_query(
@@ -184,8 +193,12 @@ fn test_query_expression_deserialize() {
                 direction: Ascending,
             }],
             Some(100),
-            20,
+            Skip::Skip(20),
         ),
+    );
+    test_deserialize_query(
+        json!({ "$after": 30 }),
+        QueryExpression::new(None, vec![], None, Skip::After(30)),
     );
     test_deserialize_query(
         json!({"$filter": {"a":  {"$lt": 1}, "b":  {"$gte": 3}, "c": 3}}),
@@ -197,9 +210,14 @@ fn test_query_expression_deserialize() {
             ])),
             vec![],
             None,
-            0,
+            Skip::Skip(0),
         ),
     );
+}
+
+#[test]
+fn test_query_expression_deserialize_error() {
+    test_deserialize_query_error(json!({ "$skip": 20, "$after": 30 }));
 }
 
 fn test_deserialize_query(a: Value, b: QueryExpression) {
@@ -207,13 +225,16 @@ fn test_deserialize_query(a: Value, b: QueryExpression) {
     assert_eq!(parsed_result, b, "must be equal");
 }
 
+fn test_deserialize_query_error(a: Value) {
+    let parsed_result = serde_json::from_value::<QueryExpression>(a);
+    assert!(parsed_result.is_err());
+}
+
 fn test_deserialize_filter(a: Value, b: FilterExpression) {
     let parsed_result = serde_json::from_value::<FilterExpression>(a).unwrap();
     assert_eq!(parsed_result, b, "must be equal");
 }
 fn test_deserialize_filter_error(a: Value) {
-    use std::println as info;
-    info!("deserialize: {a:?}");
     let parsed_result = serde_json::from_value::<FilterExpression>(a);
     assert!(parsed_result.is_err());
 }

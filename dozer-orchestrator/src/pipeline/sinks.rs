@@ -2,7 +2,7 @@ use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_api::grpc::types_helper;
-use dozer_cache::cache::expression::QueryExpression;
+use dozer_cache::cache::expression::{QueryExpression, Skip};
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::RwCache;
 use dozer_core::epoch::Epoch;
@@ -294,7 +294,7 @@ impl Sink for CacheSink {
     }
 
     fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        let query = QueryExpression::new(None, vec![], None, 0);
+        let query = QueryExpression::new(None, vec![], None, Skip::Skip(0));
         self.counter = self
             .cache
             .count(&self.api_endpoint.name, &query)

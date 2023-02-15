@@ -1,13 +1,13 @@
 use dozer_types::serde::{
-    de::{Deserialize, Deserializer, MapAccess, Visitor},
+    de::{Deserialize, Deserializer, Error, MapAccess, Visitor},
     ser::{Serialize, SerializeMap, Serializer},
 };
 
-use crate::cache::expression::{query_helper::OperatorAndValue, SortOption};
-
-use super::super::expression::FilterExpression;
-use super::query_helper::OperatorAndValueBorrow;
-use super::SortOptions;
+use super::{
+    super::expression::{FilterExpression, Skip, SortOption},
+    query_helper::{OperatorAndValue, OperatorAndValueBorrow},
+    QueryExpression, SortOptions,
+};
 
 impl<'de> Deserialize<'de> for FilterExpression {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -108,6 +108,93 @@ impl Serialize for SortOptions {
         let mut state = serializer.serialize_map(Some(self.0.len()))?;
         for sort_option in &self.0 {
             state.serialize_entry(&sort_option.field_name, &sort_option.direction)?;
+        }
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for QueryExpression {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct QueryExpressionVisitor {}
+        impl<'de> Visitor<'de> for QueryExpressionVisitor {
+            type Value = QueryExpression;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("map of dozer query options")
+            }
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut filter = None;
+                let mut order_by = None;
+                let mut limit = None;
+                let mut skip = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "$filter" => {
+                            filter = Some(map.next_value()?);
+                        }
+                        "$order_by" => {
+                            order_by = Some(map.next_value()?);
+                        }
+                        "$limit" => {
+                            limit = Some(map.next_value()?);
+                        }
+                        "$skip" => {
+                            if skip.is_some() {
+                                return Err(Error::custom("$skip cannot be used with $after"));
+                            }
+                            skip = Some(Skip::Skip(map.next_value()?));
+                        }
+                        "$after" => {
+                            if skip.is_some() {
+                                return Err(Error::custom("$after cannot be used with $skip"));
+                            }
+                            skip = Some(Skip::After(map.next_value()?));
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(QueryExpression {
+                    filter,
+                    order_by: order_by.unwrap_or_default(),
+                    limit,
+                    skip: skip.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_map(QueryExpressionVisitor {})
+    }
+}
+
+impl Serialize for QueryExpression {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_map(Some(4))?;
+        if let Some(filter) = &self.filter {
+            state.serialize_entry("$filter", filter)?;
+        }
+        if !self.order_by.0.is_empty() {
+            state.serialize_entry("$order_by", &self.order_by)?;
+        }
+        if let Some(limit) = self.limit {
+            state.serialize_entry("$limit", &limit)?;
+        }
+        match self.skip {
+            Skip::Skip(skip) => {
+                if skip > 0 {
+                    state.serialize_entry("$skip", &skip)?;
+                }
+            }
+            Skip::After(after) => {
+                state.serialize_entry("$after", &after)?;
+            }
         }
         state.end()
     }

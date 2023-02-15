@@ -6,17 +6,24 @@ mod query_serde;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Clone, Debug, Copy, PartialEq)]
+pub enum Skip {
+    Skip(usize),
+    After(u64),
+}
+
+impl Default for Skip {
+    fn default() -> Self {
+        Skip::Skip(0)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct QueryExpression {
-    #[serde(rename = "$filter", default)]
     pub filter: Option<FilterExpression>,
-    #[serde(rename = "$order_by", default)]
     pub order_by: SortOptions,
-    #[serde(rename = "$limit")]
     pub limit: Option<usize>,
-    #[serde(rename = "$skip", default)]
-    pub skip: usize,
+    pub skip: Skip,
 }
 
 pub fn default_limit_for_query() -> usize {
@@ -54,7 +61,7 @@ impl QueryExpression {
         filter: Option<FilterExpression>,
         order_by: Vec<SortOption>,
         limit: Option<usize>,
-        skip: usize,
+        skip: Skip,
     ) -> Self {
         Self {
             filter,
