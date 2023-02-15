@@ -17,7 +17,7 @@ use postgres_protocol::message::backend::{LogicalReplicationMessage, Replication
 use postgres_types::PgLsn;
 use std::collections::HashMap;
 
-use crate::connectors::TableInfo;
+use crate::connectors::{ColumnInfo, TableInfo};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
@@ -72,7 +72,7 @@ impl CDCHandler {
             .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
 
         let stream = LogicalReplicationStream::new(copy_stream);
-        let mut tables_columns: HashMap<u32, Vec<String>> = HashMap::new();
+        let mut tables_columns: HashMap<u32, Vec<ColumnInfo>> = HashMap::new();
         if let Some(tables_info) = tables {
             tables_info.iter().for_each(|t| {
                 tables_columns.insert(t.id, t.clone().columns.map_or(vec![], |t| t));
@@ -87,7 +87,9 @@ impl CDCHandler {
                 if k.reply() == 1 {
                     // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
                     let since_the_epoch = SystemTime::now()
-                        .duration_since(SystemTime::from(Utc.ymd(2020, 1, 1).and_hms(0, 0, 0)))
+                        .duration_since(SystemTime::from(
+                            Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap(),
+                        ))
                         .unwrap()
                         .as_millis();
                     stream

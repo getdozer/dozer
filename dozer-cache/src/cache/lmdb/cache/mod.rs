@@ -14,15 +14,18 @@ use dozer_types::types::{Schema, SchemaIdentifier};
 
 use super::super::{RoCache, RwCache};
 use super::indexer::Indexer;
-use super::query::handler::LmdbQueryHandler;
 use super::{
     utils, CacheCommonOptions, CacheOptions, CacheOptionsKind, CacheReadOptions, CacheWriteOptions,
 };
 use crate::cache::expression::QueryExpression;
 use crate::cache::index::get_primary_key;
+use crate::cache::RecordWithId;
 use crate::errors::CacheError;
+use query::LmdbQueryHandler;
 
+mod helper;
 mod id_database;
+mod query;
 mod record_database;
 mod schema_database;
 mod secondary_index_database;
@@ -73,10 +76,12 @@ impl LmdbRwCache {
 }
 
 impl<C: LmdbCache> RoCache for C {
-    fn get(&self, key: &[u8]) -> Result<Record, CacheError> {
+    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
-        self.common().db.get(txn, self.common().id.get(txn, key)?)
+        let id = self.common().id.get(txn, key)?;
+        let record = self.common().db.get(txn, id)?;
+        Ok(RecordWithId::new(id_from_bytes(id), record))
     }
 
     fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError> {
@@ -86,7 +91,11 @@ impl<C: LmdbCache> RoCache for C {
         handler.count()
     }
 
-    fn query(&self, schema_name: &str, query: &QueryExpression) -> Result<Vec<Record>, CacheError> {
+    fn query(
+        &self,
+        schema_name: &str,
+        query: &QueryExpression,
+    ) -> Result<Vec<RecordWithId>, CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
         let handler = self.create_query_handler(txn, schema_name, query)?;
@@ -114,29 +123,13 @@ impl<C: LmdbCache> RoCache for C {
 }
 
 impl RwCache for LmdbRwCache {
-    fn insert(&self, record: &Record) -> Result<(), CacheError> {
-        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(record)?;
-
-        let mut txn = self.txn.write();
-        let txn = txn.txn_mut();
-
-        let id = if schema.primary_index.is_empty() {
-            self.common.id.get_or_generate(txn, None)?
-        } else {
-            let primary_key = get_primary_key(&schema.primary_index, &record.values);
-            self.common.id.get_or_generate(txn, Some(&primary_key))?
-        };
-        self.common.db.insert(txn, id, record)?;
-
-        let indexer = Indexer {
-            secondary_indexes: self.common.secondary_indexes.clone(),
-        };
-
-        indexer.build_indexes(txn, record, &schema, &secondary_indexes, id)
+    fn insert(&self, record: &mut Record) -> Result<(), CacheError> {
+        record.version = Some(INITIAL_RECORD_VERSION);
+        self.insert_impl(record)
     }
 
-    fn delete(&self, key: &[u8]) -> Result<(), CacheError> {
-        let record = self.get(key)?;
+    fn delete(&self, key: &[u8]) -> Result<u32, CacheError> {
+        let record = self.get(key)?.record;
         let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&record)?;
 
         let mut txn = self.txn.write();
@@ -148,12 +141,17 @@ impl RwCache for LmdbRwCache {
         let indexer = Indexer {
             secondary_indexes: self.common.secondary_indexes.clone(),
         };
-        indexer.delete_indexes(txn, &record, &schema, &secondary_indexes, id)
+        indexer.delete_indexes(txn, &record, &schema, &secondary_indexes, id)?;
+        Ok(record
+            .version
+            .expect("All records in cache should have a version"))
     }
 
-    fn update(&self, key: &[u8], record: &Record) -> Result<(), CacheError> {
-        self.delete(key)?;
-        self.insert(record)
+    fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError> {
+        let old_version = self.delete(key)?;
+        record.version = Some(old_version + 1);
+        self.insert_impl(record)?;
+        Ok(old_version)
     }
 
     fn insert_schema(
@@ -188,6 +186,37 @@ impl RwCache for LmdbRwCache {
         self.txn.write().commit_and_renew()?;
         Ok(())
     }
+}
+
+impl LmdbRwCache {
+    fn insert_impl(&self, record: &Record) -> Result<(), CacheError> {
+        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(record)?;
+
+        let mut txn = self.txn.write();
+        let txn = txn.txn_mut();
+
+        let id = if schema.primary_index.is_empty() {
+            self.common.id.get_or_generate(txn, None)?
+        } else {
+            let primary_key = get_primary_key(&schema.primary_index, &record.values);
+            self.common.id.get_or_generate(txn, Some(&primary_key))?
+        };
+        self.common.db.insert(txn, id, record)?;
+
+        let indexer = Indexer {
+            secondary_indexes: self.common.secondary_indexes.clone(),
+        };
+
+        indexer.build_indexes(txn, record, &schema, &secondary_indexes, id)
+    }
+}
+
+fn id_from_bytes(bytes: [u8; 8]) -> u64 {
+    u64::from_be_bytes(bytes)
+}
+
+fn id_to_bytes(id: u64) -> [u8; 8] {
+    id.to_be_bytes()
 }
 
 /// This trait abstracts the behavior of getting a transaction from a `LmdbExclusiveTransaction` or a `lmdb::Transaction`.
@@ -237,13 +266,11 @@ trait LmdbCache: Send + Sync + Debug {
             .get_schema_from_name(txn, schema_name)?;
 
         Ok(LmdbQueryHandler::new(
-            self.common().db,
-            self.common().secondary_indexes.clone(),
+            self.common(),
             txn,
             schema,
             secondary_indexes,
             query,
-            self.common().cache_options.intersection_chunk_size,
         ))
     }
 
@@ -317,6 +344,8 @@ fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
         }
     }
 }
+
+const INITIAL_RECORD_VERSION: u32 = 1_u32;
 
 #[derive(Debug)]
 pub struct LmdbCacheCommon {

@@ -7,15 +7,17 @@ use std::{
 };
 
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
-use dozer_types::log::debug;
 use dozer_types::{internal_err, types::Operation};
+use dozer_types::{
+    log::debug,
+    node::{NodeHandle, OpIdentifier},
+};
 
 use crate::{
     channels::SourceChannelForwarder,
-    epoch::OpIdentifier,
     errors::ExecutionError::{self, InternalError},
     forwarder::{SourceChannelManager, StateWriter},
-    node::{NodeHandle, PortHandle, Source},
+    node::{PortHandle, Source},
 };
 
 use super::{

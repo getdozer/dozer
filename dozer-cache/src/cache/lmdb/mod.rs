@@ -3,7 +3,6 @@ use std::path::PathBuf;
 pub mod cache;
 pub mod comparator;
 pub mod indexer;
-pub mod query;
 pub mod utils;
 
 #[cfg(test)]

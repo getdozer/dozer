@@ -87,10 +87,6 @@ impl PostgresConnector {
 }
 
 impl Connector for PostgresConnector {
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.schema_helper.get_tables(None)
-    }
-
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
@@ -132,14 +128,6 @@ impl Connector for PostgresConnector {
         iterator.start(lsn)
     }
 
-    fn stop(&self) {}
-
-    fn test_connection(&self) -> Result<(), ConnectorError> {
-        helper::connect(self.replication_conn_config.clone())
-            .map_err(ConnectorError::PostgresConnectorError)?;
-        Ok(())
-    }
-
     fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         let tables_list = tables.or_else(|| self.tables.clone());
         validate_connection(
@@ -155,6 +143,10 @@ impl Connector for PostgresConnector {
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         SchemaHelper::validate(&self.schema_helper, tables)
             .map_err(ConnectorError::PostgresConnectorError)
+    }
+
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        self.schema_helper.get_tables(None)
     }
 }
 

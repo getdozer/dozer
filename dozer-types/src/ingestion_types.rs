@@ -1,4 +1,4 @@
-use prettytable::Table;
+use prettytable::Table as PrettyTable;
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
@@ -6,18 +6,13 @@ use thiserror::Error;
 
 use crate::{
     errors::internal::BoxedError,
-    types::{Commit, OperationEvent},
+    types::{Commit, Operation},
 };
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum IngestionOperation {
-    OperationEvent(OperationEvent),
-}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum IngestionMessage {
     Begin(),
-    OperationEvent(OperationEvent),
+    OperationEvent(Operation),
     Commit(Commit),
 }
 
@@ -28,7 +23,7 @@ pub enum IngestorError {
 }
 
 pub trait IngestorForwarder: Send + Sync + Debug {
-    fn forward(&self, msg: ((u64, u64), IngestionOperation)) -> Result<(), IngestorError>;
+    fn forward(&self, msg: ((u64, u64), Operation)) -> Result<(), IngestorError>;
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
@@ -58,7 +53,7 @@ pub struct EthConfig {
 }
 
 impl EthConfig {
-    pub fn convert_to_table(&self) -> Table {
+    pub fn convert_to_table(&self) -> PrettyTable {
         let mut table = table!(["wss_url", self.wss_url]);
 
         if let Some(filter) = &self.filter {
@@ -114,7 +109,7 @@ pub struct KafkaConfig {
 }
 
 impl KafkaConfig {
-    pub fn convert_to_table(&self) -> Table {
+    pub fn convert_to_table(&self) -> PrettyTable {
         table!(
             ["broker", self.broker],
             [
@@ -148,7 +143,7 @@ pub struct SnowflakeConfig {
 }
 
 impl SnowflakeConfig {
-    pub fn convert_to_table(&self) -> Table {
+    pub fn convert_to_table(&self) -> PrettyTable {
         table!(
             ["server", self.server],
             ["port", self.port],
@@ -159,5 +154,98 @@ impl SnowflakeConfig {
             ["warehouse", self.warehouse],
             ["driver", self.driver.as_ref().map_or("default", |d| d)]
         )
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct DataFusionConfig {
+    #[prost(string, tag = "1")]
+    pub access_key_id: String,
+    #[prost(string, tag = "2")]
+    pub secret_access_key: String,
+    #[prost(string, tag = "3")]
+    pub region: String,
+    #[prost(string, tag = "4")]
+    pub bucket_name: String,
+}
+
+impl DataFusionConfig {
+    pub fn convert_to_table(&self) -> PrettyTable {
+        table!(
+            ["access_key_id", self.access_key_id],
+            ["secret_access_key", self.secret_access_key],
+            ["region", self.region],
+            ["bucket_name", self.bucket_name]
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct Table {
+    #[prost(string, tag = "1")]
+    pub name: String,
+    #[prost(string, tag = "2")]
+    pub prefix: String,
+    #[prost(string, tag = "3")]
+    pub file_type: String,
+    #[prost(string, tag = "4")]
+    pub extension: String,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct S3Details {
+    #[prost(string, tag = "1")]
+    pub access_key_id: String,
+    #[prost(string, tag = "2")]
+    pub secret_access_key: String,
+    #[prost(string, tag = "3")]
+    pub region: String,
+    #[prost(string, tag = "4")]
+    pub bucket_name: String,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct S3Storage {
+    #[prost(message, optional, tag = "1")]
+    pub details: Option<S3Details>,
+    #[prost(message, repeated, tag = "2")]
+    pub tables: Vec<Table>,
+}
+
+impl S3Storage {
+    pub fn convert_to_table(&self) -> PrettyTable {
+        self.details.as_ref().map_or_else(
+            || table!(),
+            |details| {
+                table!(
+                    ["access_key_id", details.access_key_id],
+                    ["secret_access_key", details.secret_access_key],
+                    ["region", details.region],
+                    ["bucket_name", details.bucket_name]
+                )
+            },
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct LocalDetails {
+    #[prost(string, tag = "1")]
+    pub path: String,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct LocalStorage {
+    #[prost(message, optional, tag = "1")]
+    pub details: Option<LocalDetails>,
+    #[prost(message, repeated, tag = "2")]
+    pub tables: Vec<Table>,
+}
+
+impl LocalStorage {
+    pub fn convert_to_table(&self) -> PrettyTable {
+        self.details
+            .as_ref()
+            .map_or_else(|| table!(), |details| table!(["path", details.path]))
     }
 }

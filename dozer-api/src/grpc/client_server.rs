@@ -12,10 +12,7 @@ use super::{
 use crate::grpc::health::HealthService;
 use crate::grpc::health_grpc::health_check_response::ServingStatus;
 use crate::grpc::{common, typed};
-use crate::{
-    errors::GRPCError, generator::protoc::generator::ProtoGenerator, PipelineDetails,
-    RoCacheEndpoint,
-};
+use crate::{errors::GRPCError, generator::protoc::generator::ProtoGenerator, RoCacheEndpoint};
 use dozer_types::{
     log::{info, warn},
     models::{
@@ -23,7 +20,6 @@ use dozer_types::{
         api_security::ApiSecurity,
         flags::Flags,
     },
-    types::Schema,
 };
 use futures_util::{FutureExt, StreamExt};
 use std::{collections::HashMap, path::PathBuf};
@@ -57,7 +53,7 @@ impl ApiServer {
     }
     fn get_dynamic_service(
         &self,
-        pipeline_map: HashMap<String, PipelineDetails>,
+        endpoints: Vec<RoCacheEndpoint>,
         rx1: Option<broadcast::Receiver<PipelineResponse>>,
     ) -> Result<
         (
@@ -66,16 +62,6 @@ impl ApiServer {
         ),
         GRPCError,
     > {
-        let mut schema_map: HashMap<String, Schema> = HashMap::new();
-
-        for (endpoint_name, details) in &pipeline_map {
-            let cache = details.cache_endpoint.cache.clone();
-
-            let (schema, _) = cache
-                .get_schema_and_indexes_by_name(endpoint_name)
-                .map_err(|e| GRPCError::SchemaNotInitialized(endpoint_name.clone(), e))?;
-            schema_map.insert(endpoint_name.clone(), schema);
-        }
         info!(
             "Starting gRPC server on http://{}:{} with security: {}",
             self.host,
@@ -88,22 +74,22 @@ impl ApiServer {
         );
 
         let generated_path = self.api_dir.join("generated");
+        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
 
-        let proto_res = ProtoGenerator::read(&generated_path)?;
+        let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(&descriptor_path)?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
+            .register_encoded_file_descriptor_set(&descriptor_bytes)
             .build()?;
 
         // Service handling dynamic gRPC requests.
         let typed_service = if self.flags.dynamic {
             Some(TypedService::new(
-                proto_res.descriptor,
-                pipeline_map,
-                schema_map,
+                &descriptor_path,
+                endpoints,
                 rx1.map(|r| r.resubscribe()),
-                self.security.to_owned(),
-            ))
+                self.security.clone(),
+            )?)
         } else {
             None
         };
@@ -132,30 +118,19 @@ impl ApiServer {
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
         rx1: Option<Receiver<PipelineResponse>>,
     ) -> Result<(), GRPCError> {
-        let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
-        for ce in cache_endpoints {
-            pipeline_map.insert(
-                ce.endpoint.name.to_owned(),
-                PipelineDetails {
-                    schema_name: ce.endpoint.name.to_owned(),
-                    cache_endpoint: ce.to_owned(),
-                },
-            );
-        }
-
         // Create our services.
         let mut web_config = tonic_web::config();
         if self.flags.grpc_web {
             web_config = web_config.allow_all_origins();
         }
 
-        let common_service = CommonGrpcServiceServer::new(CommonService {
-            pipeline_map: pipeline_map.to_owned(),
-            event_notifier: rx1.as_ref().map(|r| r.resubscribe()),
-        });
+        let common_service = CommonGrpcServiceServer::new(CommonService::new(
+            cache_endpoints.clone(),
+            rx1.as_ref().map(|r| r.resubscribe()),
+        ));
         let common_service = web_config.enable(common_service);
 
-        let (typed_service, reflection_service) = self.get_dynamic_service(pipeline_map, rx1)?;
+        let (typed_service, reflection_service) = self.get_dynamic_service(cache_endpoints, rx1)?;
         let typed_service = typed_service.map(|typed_service| web_config.enable(typed_service));
         let reflection_service = web_config.enable(reflection_service);
 

@@ -2,7 +2,6 @@ use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 use crate::connectors::snowflake::test_utils::{get_client, remove_streams};
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, Ingestor};
-use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::app_config::Config;
 
 use dozer_types::serde_yaml;
@@ -48,9 +47,7 @@ fn connector_disabled_test_e2e_connect_snowflake_and_read_from_stream() {
         let op = iterator.write().next();
         match op {
             None => {}
-            Some((_, ingestion_operation)) => match ingestion_operation {
-                IngestionOperation::OperationEvent(_) => {}
-            },
+            Some((_, _operation)) => {}
         }
     }
 
@@ -100,10 +97,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     consumer
         .consume_stream(&client, &table_name, &ingestor, 0, 1)
         .unwrap();
-    assert!(matches!(
-        iterator.write().next().unwrap().1,
-        IngestionOperation::OperationEvent(_)
-    ));
+    iterator.write().next().unwrap();
 
     // Update table and insert record
     client
@@ -117,10 +111,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     consumer
         .consume_stream(&client, &table_name, &ingestor, 0, 1)
         .unwrap();
-    assert!(matches!(
-        iterator.write().next().unwrap().1,
-        IngestionOperation::OperationEvent(_)
-    ));
+    iterator.write().next().unwrap();
 
     client
         .execute_query(&conn, &format!("DROP TABLE {table_name};"))

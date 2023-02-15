@@ -12,6 +12,10 @@ pub enum TypeError {
     InvalidFieldType,
     #[error("Invalid field value: {0}")]
     InvalidFieldValue(String),
+    #[error("Invalid timestamp")]
+    InvalidTimestamp,
+    #[error("Ambiguous timestamp")]
+    AmbiguousTimestamp,
     #[error("Serialization failed: {0}")]
     SerializationError(#[source] SerializationError),
     #[error("Failed to parse the field: {0}")]

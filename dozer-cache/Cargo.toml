@@ -1,6 +1,6 @@
 [package]
 name = "dozer-cache"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,10 +10,10 @@ dozer-types = {path = "../dozer-types"}
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 tempdir = "0.3.7"
 futures = "0.3.26"
-unicode-segmentation = "1.10.0"
+unicode-segmentation = "1.10.1"
 itertools = "0.10.5"
 roaring = "0.10.1"
-dozer-storage = { version = "0.1.0", path = "../dozer-storage" }
+dozer-storage = { path = "../dozer-storage" }
 
 [dev-dependencies]
 criterion = "0.4"

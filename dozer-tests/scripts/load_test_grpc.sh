@@ -18,7 +18,7 @@ HOST=localhost:50051
 TOTAL=1000
 CONCURRENCY=50
 echo "Testing common grpc service with $TOTAL requests and $CONCURRENCY concurrency"
-ghz --insecure --proto ./dozer-api/protos/api.proto --call dozer.common.CommonGrpcService.query --total $TOTAL --concurrency $CONCURRENCY --data '{"endpoint":"users"}' $HOST
+ghz --insecure --proto ./dozer-api/protos/common.proto --call dozer.common.CommonGrpcService.query --total $TOTAL --concurrency $CONCURRENCY --data '{"endpoint":"users"}' $HOST
 echo "Testing typed grpc service with $TOTAL requests and $CONCURRENCY concurrency"
 ghz --insecure --proto .dozer/generated/users.proto --call dozer.generated.users.Users.query --total $TOTAL --concurrency $CONCURRENCY $HOST
 

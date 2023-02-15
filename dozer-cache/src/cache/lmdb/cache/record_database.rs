@@ -1,13 +1,11 @@
 use dozer_storage::{
-    lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags},
+    lmdb::{Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags},
     lmdb_storage::LmdbEnvironmentManager,
 };
 use dozer_types::{bincode, types::Record};
 
-use crate::{
-    cache::lmdb::query::helper,
-    errors::{CacheError, QueryError},
-};
+use super::helper;
+use crate::errors::{CacheError, QueryError};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RecordDatabase(Database);
@@ -53,14 +51,6 @@ impl RecordDatabase {
             .map(|stat| stat.ms_entries)
             .map_err(|e| CacheError::Internal(Box::new(e)))
     }
-
-    pub fn open_ro_cursor<'txn, T: Transaction>(
-        &self,
-        txn: &'txn T,
-    ) -> Result<RoCursor<'txn>, CacheError> {
-        txn.open_ro_cursor(self.0)
-            .map_err(|e| CacheError::Internal(Box::new(e)))
-    }
 }
 
 #[cfg(test)]
@@ -81,26 +71,25 @@ mod tests {
         txn.commit_and_renew().unwrap();
 
         let id = 1u64;
+        let id = id.to_be_bytes();
         let record = Record::new(None, vec![], None);
 
-        writer
-            .insert(txn.txn_mut(), id.to_be_bytes(), &record)
-            .unwrap();
+        writer.insert(txn.txn_mut(), id, &record).unwrap();
         txn.commit_and_renew().unwrap();
 
         assert_eq!(writer.count(txn.txn()).unwrap(), 1);
         assert_eq!(reader.count(txn.txn()).unwrap(), 1);
-        assert_eq!(writer.get(txn.txn(), id.to_be_bytes()).unwrap(), record);
-        assert_eq!(reader.get(txn.txn(), id.to_be_bytes()).unwrap(), record);
+        assert_eq!(writer.get(txn.txn(), id).unwrap(), record);
+        assert_eq!(reader.get(txn.txn(), id).unwrap(), record);
         txn.commit_and_renew().unwrap();
 
-        writer.delete(txn.txn_mut(), id.to_be_bytes()).unwrap();
+        writer.delete(txn.txn_mut(), id).unwrap();
         txn.commit_and_renew().unwrap();
 
         assert_eq!(writer.count(txn.txn()).unwrap(), 0);
         assert_eq!(reader.count(txn.txn()).unwrap(), 0);
-        assert!(writer.get(txn.txn(), id.to_be_bytes()).is_err());
-        assert!(reader.get(txn.txn(), id.to_be_bytes()).is_err());
+        assert!(writer.get(txn.txn(), id).is_err());
+        assert!(reader.get(txn.txn(), id).is_err());
         txn.commit_and_renew().unwrap();
     }
 }

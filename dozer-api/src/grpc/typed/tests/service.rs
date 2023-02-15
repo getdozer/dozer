@@ -1,6 +1,5 @@
 use crate::{
     auth::{Access, Authorizer},
-    generator::protoc::utils::get_proto_descriptor,
     grpc::{
         auth_middleware::AuthMiddlewareLayer,
         client_server::ApiServer,
@@ -16,15 +15,15 @@ use crate::{
             TypedService,
         },
     },
-    PipelineDetails, RoCacheEndpoint,
+    RoCacheEndpoint,
 };
-use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
-use dozer_types::{
-    models::{api_config::default_api_config, api_security::ApiSecurity},
-    types::Schema,
+use dozer_cache::{
+    cache::expression::{FilterExpression, QueryExpression},
+    CacheReader,
 };
+use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
-use std::{collections::HashMap, env, path::PathBuf, str::FromStr, time::Duration};
+use std::{env, path::PathBuf, str::FromStr, time::Duration};
 
 use super::{generated::films::FilmEventRequest, types::EventType};
 use crate::test_utils;
@@ -42,20 +41,11 @@ use tonic::{
     Code, Request,
 };
 
-pub fn setup_pipeline() -> (
-    HashMap<String, PipelineDetails>,
-    HashMap<String, Schema>,
-    Receiver<PipelineResponse>,
-) {
-    let schema_name = String::from("films");
-    let (schema, _) = test_utils::get_schema();
+pub fn setup_pipeline() -> (Vec<RoCacheEndpoint>, Receiver<PipelineResponse>) {
     let endpoint = test_utils::get_endpoint();
-    let pipeline_details = PipelineDetails {
-        schema_name: schema_name.clone(),
-        cache_endpoint: RoCacheEndpoint {
-            cache: test_utils::initialize_cache(&schema_name, None),
-            endpoint,
-        },
+    let cache_endpoint = RoCacheEndpoint {
+        cache_reader: CacheReader::new(test_utils::initialize_cache(&endpoint.name, None)),
+        endpoint,
     };
 
     let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
@@ -65,13 +55,8 @@ pub fn setup_pipeline() -> (
             .await
             .unwrap();
     });
-    let mut pipeline_map = HashMap::new();
-    pipeline_map.insert("films".to_string(), pipeline_details);
 
-    let mut schema_map = HashMap::new();
-    schema_map.insert("films".to_string(), schema);
-
-    (pipeline_map, schema_map, rx1)
+    (vec![cache_endpoint], rx1)
 }
 
 fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
@@ -79,11 +64,9 @@ fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
 
     let path = out_dir.join("generated_films.bin");
 
-    let (_, desc) = get_proto_descriptor(&path).unwrap();
+    let (endpoints, rx1) = setup_pipeline();
 
-    let (pipeline_map, schema_map, rx1) = setup_pipeline();
-
-    TypedService::new(desc, pipeline_map, schema_map, Some(rx1), security)
+    TypedService::new(&path, endpoints, Some(rx1), security).unwrap()
 }
 
 async fn test_grpc_count_and_query_common(
@@ -165,8 +148,8 @@ async fn test_grpc_query() {
         test_grpc_count_and_query_common(1402, request, None, None)
             .await
             .unwrap();
-    assert_eq!(count_response.count, query_response.data.len() as u64);
-    assert!(!query_response.data.len() > 0);
+    assert_eq!(count_response.count, query_response.records.len() as u64);
+    assert!(!query_response.records.len() > 0);
 }
 
 #[tokio::test]
@@ -192,8 +175,8 @@ async fn test_grpc_query_with_access_token() {
         test_grpc_count_and_query_common(1403, request, Some(api_security), Some(generated_token))
             .await
             .unwrap();
-    assert_eq!(count_response.count, query_response.data.len() as u64);
-    assert!(!query_response.data.is_empty());
+    assert_eq!(count_response.count, query_response.records.len() as u64);
+    assert!(!query_response.records.is_empty());
 }
 
 #[tokio::test]
@@ -230,7 +213,7 @@ async fn test_grpc_query_empty_body() {
             .await
             .unwrap();
     assert_eq!(count_response.count, 52);
-    assert_eq!(query_response.data.len(), 50);
+    assert_eq!(query_response.records.len(), 50);
 }
 
 #[tokio::test]

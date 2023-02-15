@@ -2,10 +2,10 @@ use crate::chk;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use crate::executor::{DagExecutor, ExecutorOptions};
-use crate::node::NodeHandle;
 use crate::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use dozer_types::node::NodeHandle;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;

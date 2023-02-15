@@ -8,7 +8,7 @@ pub fn insert_rec_1(
     schema: &Schema,
     (a, b, c): (i64, Option<String>, Option<i64>),
 ) {
-    let record = Record::new(
+    let mut record = Record::new(
         schema.identifier,
         vec![
             Field::Int(a),
@@ -17,7 +17,7 @@ pub fn insert_rec_1(
         ],
         None,
     );
-    cache.insert(&record).unwrap();
+    cache.insert(&mut record).unwrap();
 }
 
 pub fn insert_full_text(
@@ -25,7 +25,7 @@ pub fn insert_full_text(
     schema: &Schema,
     (a, b): (Option<String>, Option<String>),
 ) {
-    let record = Record::new(
+    let mut record = Record::new(
         schema.identifier,
         vec![
             a.map_or(Field::Null, Field::String),
@@ -33,7 +33,7 @@ pub fn insert_full_text(
         ],
         None,
     );
-    cache.insert(&record).unwrap();
+    cache.insert(&mut record).unwrap();
 }
 
 pub fn get_indexes(cache: &LmdbRwCache) -> Vec<Vec<(&[u8], &[u8])>> {

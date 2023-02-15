@@ -33,6 +33,16 @@ message Operation {
 message Record {
   // The list of field values.
   repeated Value values = 1;
+  // Records with same primary key will have increasing version.
+  uint32 version = 2;
+}
+
+// A record with its id in cache.
+message RecordWithId {
+  // The record id.
+  uint64 id = 1;
+  // The record data.
+  Record record = 2;
 }
 
 // Supported data types in Dozer.

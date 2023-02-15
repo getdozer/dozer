@@ -1,7 +1,7 @@
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 
 use crate::errors::types::TypeError;
-use prettytable::Table;
+use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
 mod field;
@@ -135,6 +135,7 @@ pub struct Record {
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
+    /// Records with same primary key will have increasing version.
     pub version: Option<u32>,
 }
 
@@ -205,15 +206,17 @@ impl Record {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct OperationEvent {
-    pub seq_no: u64,
-    pub operation: Operation,
-}
+impl Display for Record {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let v = self
+            .values
+            .iter()
+            .map(|f| Cell::new(&f.to_string().unwrap_or("".to_string())))
+            .collect::<Vec<Cell>>();
 
-impl OperationEvent {
-    pub fn new(seq_no: u64, operation: Operation) -> Self {
-        Self { seq_no, operation }
+        let mut table = Table::new();
+        table.add_row(Row::new(v));
+        table.fmt(f)
     }
 }
 

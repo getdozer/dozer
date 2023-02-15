@@ -6,7 +6,7 @@ use crate::grpc::{
     typed::tests::{
         fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, service::setup_pipeline,
     },
-    types::{value, EventType, FieldDefinition, OperationType, Record, Type, Value},
+    types::{value, EventType, FieldDefinition, OperationType, RecordWithId, Type, Value},
 };
 use dozer_types::models::api_config::default_api_config;
 use tokio::sync::oneshot;
@@ -15,18 +15,15 @@ use tonic::Request;
 use super::CommonService;
 
 fn setup_common_service() -> CommonService {
-    let (pipeline_map, _, rx1) = setup_pipeline();
-    CommonService {
-        pipeline_map,
-        event_notifier: Some(rx1),
-    }
+    let (endpoints, rx1) = setup_pipeline();
+    CommonService::new(endpoints, Some(rx1))
 }
 
 async fn count_and_query(
     service: &impl CommonGrpcService,
     endpoint: &str,
     query: Option<String>,
-) -> (u64, Vec<Record>) {
+) -> (u64, Vec<RecordWithId>) {
     let response = service
         .count(Request::new(QueryRequest {
             endpoint: endpoint.to_string(),

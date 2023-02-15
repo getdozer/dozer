@@ -1,12 +1,10 @@
 use dozer_storage::{
-    lmdb::{Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags},
+    lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags},
     lmdb_storage::LmdbEnvironmentManager,
 };
 
-use crate::{
-    cache::lmdb::query::helper,
-    errors::{CacheError, QueryError},
-};
+use super::{helper, id_to_bytes};
+use crate::errors::{CacheError, QueryError};
 
 #[derive(Debug, Clone, Copy)]
 pub struct IdDatabase(Database);
@@ -51,7 +49,7 @@ impl IdDatabase {
         let id = helper::lmdb_stat(txn, self.0)
             .map_err(|e| CacheError::Internal(Box::new(e)))?
             .ms_entries as u64;
-        let id: [u8; 8] = id.to_be_bytes();
+        let id: [u8; 8] = id_to_bytes(id);
 
         let key = key.unwrap_or(&id);
 
@@ -68,6 +66,14 @@ impl IdDatabase {
                 id.try_into()
                     .expect("All values must be u64 ids in this database")
             })
+    }
+
+    pub fn open_ro_cursor<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<RoCursor<'txn>, CacheError> {
+        txn.open_ro_cursor(self.0)
+            .map_err(|e| CacheError::Internal(Box::new(e)))
     }
 }
 

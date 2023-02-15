@@ -1,6 +1,7 @@
 pub mod ethereum;
 pub mod events;
 pub mod kafka;
+pub mod object_store;
 pub mod postgres;
 
 use crate::connectors::postgres::connection::helper::map_connection_config;
@@ -14,6 +15,7 @@ use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
 
+use crate::connectors::object_store::connector::ObjectStoreConnector;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
@@ -22,27 +24,27 @@ use dozer_types::types::SchemaWithChangesType;
 use std::sync::Arc;
 
 pub mod snowflake;
+
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
 pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
 
 pub trait Connector: Send + Sync {
+    fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
+    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;
+
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
-    fn test_connection(&self) -> Result<(), ConnectorError>;
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
     fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
-    fn stop(&self);
-    fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
-    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;
+    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -51,7 +53,14 @@ pub struct TableInfo {
     pub name: String,
     pub table_name: String,
     pub id: u32,
-    pub columns: Option<Vec<String>>,
+    pub columns: Option<Vec<ColumnInfo>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[serde(crate = "self::serde")]
+pub struct ColumnInfo {
+    pub name: String,
+    pub data_type: Option<String>,
 }
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
@@ -83,6 +92,12 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             )))
         }
         Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
+        Authentication::S3Storage(object_store_config) => {
+            Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
+        }
+        Authentication::LocalStorage(object_store_config) => {
+            Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
+        }
     }
 }
 
@@ -92,6 +107,8 @@ pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
         Some(Authentication::Ethereum(config)) => Some(config.convert_to_table()),
         Some(Authentication::Snowflake(config)) => Some(config.convert_to_table()),
         Some(Authentication::Kafka(config)) => Some(config.convert_to_table()),
+        Some(Authentication::S3Storage(config)) => Some(config.convert_to_table()),
+        Some(Authentication::LocalStorage(config)) => Some(config.convert_to_table()),
         _ => None,
     }
 }

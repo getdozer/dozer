@@ -1,17 +1,23 @@
-use dozer_cache::cache::{RoCache, RwCache};
+use dozer_cache::{
+    cache::{RoCache, RwCache},
+    CacheReader,
+};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use std::sync::Arc;
 mod api_helper;
 
 #[derive(Clone, Debug)]
 pub struct RoCacheEndpoint {
-    pub cache: Arc<dyn RoCache>,
+    pub cache_reader: CacheReader,
     pub endpoint: ApiEndpoint,
 }
 
 impl RoCacheEndpoint {
-    pub fn new(cache: Arc<dyn RoCache>, endpoint: ApiEndpoint) -> Result<Self, CacheError> {
-        Ok(Self { cache, endpoint })
+    pub fn new(cache: Arc<dyn RoCache>, endpoint: ApiEndpoint) -> Self {
+        Self {
+            cache_reader: CacheReader::new(cache),
+            endpoint,
+        }
     }
 }
 
@@ -22,15 +28,9 @@ pub struct RwCacheEndpoint {
 }
 
 impl RwCacheEndpoint {
-    pub fn new(cache: Arc<dyn RwCache>, endpoint: ApiEndpoint) -> Result<Self, CacheError> {
-        Ok(Self { cache, endpoint })
+    pub fn new(cache: Arc<dyn RwCache>, endpoint: ApiEndpoint) -> Self {
+        Self { cache, endpoint }
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct PipelineDetails {
-    pub schema_name: String,
-    pub cache_endpoint: RoCacheEndpoint,
 }
 
 // Exports
@@ -42,7 +42,6 @@ pub mod rest;
 // Re-exports
 pub use actix_web;
 pub use async_trait;
-use dozer_cache::errors::CacheError;
 pub use openapiv3;
 pub use tokio;
 pub use tonic;

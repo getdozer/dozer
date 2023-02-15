@@ -164,22 +164,6 @@ impl Connector for EthConnector {
         Ok(schemas)
     }
 
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        let schemas = self.get_schemas(None)?;
-
-        let tables = schemas
-            .iter()
-            .enumerate()
-            .map(|(id, (name, schema, _))| TableInfo {
-                name: name.to_string(),
-                table_name: name.to_string(),
-                id: id as u32,
-                columns: Some(schema.fields.iter().map(|f| f.name.to_owned()).collect()),
-            })
-            .collect();
-        Ok(tables)
-    }
-
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
@@ -216,12 +200,6 @@ impl Connector for EthConnector {
         })
     }
 
-    fn stop(&self) {}
-
-    fn test_connection(&self) -> Result<(), ConnectorError> {
-        Ok(())
-    }
-
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         // Return contract parsing error
         for contract in &self.config.contracts {
@@ -235,5 +213,9 @@ impl Connector for EthConnector {
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         Ok(HashMap::new())
+    }
+
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        todo!()
     }
 }

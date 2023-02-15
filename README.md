@@ -4,9 +4,14 @@
     </a>
 </div>
 
-<h4 align="center">
-      ⚡️ A Plug and Play Data Cache that instantly gives you Blazing Fast APIs ⚡️ 
-</h4>
+<p align="center">
+    <br />
+    <b>
+    Connect any data source, combine them in real-time and instantly get low-latency gRPC and REST APIs.<br>
+    ⚡ All with just a simple configuration! ⚡️ 
+    </b>
+</p>
+<br />
 
 <p align="center">
   <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg" alt="CI"></a>
@@ -16,23 +21,26 @@
   <a href="https://github.com/getdozer/dozer/blob/main/LICENSE.txt" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
 
 </p>
-
-[//]: # (  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>)
-
 <br>
 
 ## Overview
-Dozer connects to your data sources, incrementally transforms the data and builds up the cache in real-time and provides high-performance gRPC and REST APIs. 
-
-Dozer takes an end-to-end approach, aiming to drastically lower the cost, complexity and effort involved in putting together the data infrastructure necessary to build data applications. Today developers have to integrate and maintain a variety of tools to achieve the same result. 
-
-Dozer maintains the data in a caching layer built on LMDB (Lightning Memory-Mapped Database) so users can immediately and efficiently query data in the form of gRPC and REST APIs. Dozer publishes data contracts and API documentation out of the box for the best developer experience. 
+Dozer implements a Real-Time SQL Engine that connects to any of your data sources, transforms and stores the data in an embedded cache powered by LMDB, automatically creates secondary indexes and instantly generates REST and gRPC APIs. Protobuf and Open API documentation are available out of the box. 
 
 Dozer is implemented fully in Rust for fast processing of data and is less resource intensive. 
 
+![Architecture](./images/dozer.png)
+
+<div align="center">
+    <b>Please star ⭐️ the repo if you want us to continue developing and improving Dozer! 💡</b>
+</div>
+<br /><br />
+
+Dozer takes an end-to-end approach, aiming to drastically lower the cost, complexity and effort involved in putting together the infrastructure necessary to build data applications. Today developers have to integrate and maintain a variety of tools to achieve the same result. 
+
+
 Check out our website and sign up for [Early Access](https:///getdozer.io) to our hosted service.
 
-![Architecture](https://getdozer.io/img/dozer-binary.svg)
+
 
 
 ## Quick Start

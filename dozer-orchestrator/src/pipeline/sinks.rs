@@ -195,7 +195,10 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
                         &secondary_indexes,
                     )
                     .map_err(|e| {
-                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
+                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(
+                            self.api_endpoint.name.clone(),
+                            Box::new(e),
+                        ))
                     })?;
                 debug!(
                     "SinkFactory: Inserted schema for {}",
@@ -274,6 +277,7 @@ pub struct CacheSink {
 
 impl Sink for CacheSink {
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+        let endpoint_name = self.api_endpoint.name.clone();
         // Update Counter on commit
         self.pb.set_message(format!(
             "{}: Count: {}",
@@ -281,7 +285,10 @@ impl Sink for CacheSink {
             self.counter,
         ));
         self.cache.commit().map_err(|e| {
-            ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
+            ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(
+                endpoint_name,
+                Box::new(e),
+            ))
         })?;
         Ok(())
     }
@@ -291,7 +298,12 @@ impl Sink for CacheSink {
         self.counter = self
             .cache
             .count(&self.api_endpoint.name, &query)
-            .map_err(|e| ExecutionError::SinkError(SinkError::CacheCountFailed(Box::new(e))))?;
+            .map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheCountFailed(
+                    self.api_endpoint.name.clone(),
+                    Box::new(e),
+                ))
+            })?;
 
         debug!(
             "SINK: Initialising CacheSink: {} with count: {}",
@@ -303,48 +315,62 @@ impl Sink for CacheSink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        mut op: Operation,
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
+
+        let endpoint_name = self.api_endpoint.name.clone();
 
         let (schema, _) = self
             .input_schemas
             .get(&from_port)
             .ok_or(ExecutionError::SchemaNotInitialized)?;
 
+        match &mut op {
+            Operation::Delete { old } => {
+                old.schema_id = schema.identifier;
+                let key = get_primary_key(&schema.primary_index, &old.values);
+                let version = self.cache.delete(&key).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheDeleteFailed(
+                        endpoint_name,
+                        Box::new(e),
+                    ))
+                })?;
+                old.version = Some(version);
+            }
+            Operation::Insert { new } => {
+                new.schema_id = schema.identifier;
+                self.cache.insert(new).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheInsertFailed(
+                        endpoint_name,
+                        Box::new(e),
+                    ))
+                })?;
+            }
+            Operation::Update { old, new } => {
+                old.schema_id = schema.identifier;
+                new.schema_id = schema.identifier;
+                let key = get_primary_key(&schema.primary_index, &old.values);
+                let old_version = self.cache.update(&key, new).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheUpdateFailed(
+                        endpoint_name,
+                        Box::new(e),
+                    ))
+                })?;
+                old.version = Some(old_version);
+            }
+        }
+
         if let Some(notifier) = &self.notifier {
-            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
+            let op = types_helper::map_operation(self.api_endpoint.name.clone(), &op);
             notifier
                 .try_send(PipelineResponse {
-                    endpoint: self.api_endpoint.name.to_owned(),
+                    endpoint: self.api_endpoint.name.clone(),
                     api_event: Some(ApiEvent::Op(op)),
                 })
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        }
-        match op {
-            Operation::Delete { mut old } => {
-                old.schema_id = schema.identifier;
-                let key = get_primary_key(&schema.primary_index, &old.values);
-                self.cache.delete(&key).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
-                })?;
-            }
-            Operation::Insert { mut new } => {
-                new.schema_id = schema.identifier;
-                self.cache.insert(&new).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
-                })?;
-            }
-            Operation::Update { mut old, mut new } => {
-                old.schema_id = schema.identifier;
-                new.schema_id = schema.identifier;
-                let key = get_primary_key(&schema.primary_index, &old.values);
-                self.cache.update(&key, &new).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheUpdateFailed(Box::new(e)))
-                })?;
-            }
         }
 
         Ok(())
@@ -377,10 +403,11 @@ mod tests {
     use crate::test_utils;
 
     use dozer_cache::cache::index;
-    use dozer_core::node::{NodeHandle, Sink};
+    use dozer_core::node::Sink;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
     use dozer_core::DEFAULT_PORT_HANDLE;
 
+    use dozer_types::node::NodeHandle;
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
     use tempdir::TempDir;
@@ -454,7 +481,7 @@ mod tests {
         .unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
-        let record = cache.get(&key).unwrap();
+        let record = cache.get(&key).unwrap().record;
 
         assert_eq!(initial_values, record.values);
 
@@ -477,7 +504,7 @@ mod tests {
 
         // Primary key with updated values
         let key = index::get_primary_key(&schema.primary_index, &updated_values);
-        let record = cache.get(&key).unwrap();
+        let record = cache.get(&key).unwrap().record;
 
         assert_eq!(updated_values, record.values);
     }

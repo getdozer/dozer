@@ -8,10 +8,13 @@ use dozer_types::{bincode, serde_json};
 use dozer_types::{rust_decimal, thiserror};
 
 use base64::DecodeError;
+
+use datafusion::error::DataFusionError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 use std::str::Utf8Error;
 
+use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
 use schema_registry_converter::error::SRCError;
@@ -48,6 +51,9 @@ pub enum ConnectorError {
 
     #[error(transparent)]
     DebeziumError(#[from] DebeziumError),
+
+    #[error(transparent)]
+    DataFusionConnectorError(#[from] ObjectStoreConnectorError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -216,6 +222,12 @@ pub enum SnowflakeSchemaError {
     #[error("Value conversion Error")]
     ValueConversionError(#[source] Box<DiagnosticRecord>),
 
+    #[error("Invalid date")]
+    InvalidDateError,
+
+    #[error("Invalid time")]
+    InvalidTimeError,
+
     #[error("Schema conversion Error: {0}")]
     SchemaConversionError(#[source] TryFromIntError),
 
@@ -296,4 +308,75 @@ pub enum DebeziumSchemaError {
 
     #[error("Decimal convert error")]
     DecimalConvertError(#[source] rust_decimal::Error),
+
+    #[error("Invalid date")]
+    InvalidDateError,
+
+    // #[error("Invalid time")]
+    // InvalidTimeError,
+    #[error("Invalid timestamp")]
+    InvalidTimestampError,
+}
+
+#[derive(Error, Debug)]
+pub enum ObjectStoreConnectorError {
+    #[error(transparent)]
+    DataFusionSchemaError(#[from] ObjectStoreSchemaError),
+
+    #[error(transparent)]
+    DataFusionStorageObjectError(#[from] ObjectStoreObjectError),
+
+    #[error("Runtime creation error")]
+    RuntimeCreationError,
+
+    #[error("Internal error")]
+    InternalError,
+
+    #[error("Internal data fusion error")]
+    InternalDataFusionError(#[source] DataFusionError),
+
+    #[error(transparent)]
+    TableReaderError(#[from] ObjectStoreTableReaderError),
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum ObjectStoreSchemaError {
+    #[error("Unsupported type of \"{0}\" field")]
+    FieldTypeNotSupported(String),
+
+    #[error("Date time conversion failed")]
+    DateTimeConversionError,
+
+    #[error("Date conversion failed")]
+    DateConversionError,
+
+    #[error("Time conversion failed")]
+    TimeConversionError,
+
+    #[error("Duration conversion failed")]
+    DurationConversionError,
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum ObjectStoreObjectError {
+    #[error("Missing storage details")]
+    MissingStorageDetails,
+
+    #[error("Table definition not found")]
+    TableDefinitionNotFound,
+
+    #[error("Listing path parsing error")]
+    ListingPathParsingError,
+}
+
+#[derive(Error, Debug)]
+pub enum ObjectStoreTableReaderError {
+    #[error("Table read failed")]
+    TableReadFailed(DataFusionError),
+
+    #[error("Columns select failed")]
+    ColumnsSelectFailed(DataFusionError),
+
+    #[error("Stream execution failed")]
+    StreamExecutionError(DataFusionError),
 }

@@ -164,14 +164,10 @@ pub fn map_row_to_operation_event(
     identifier: SchemaIdentifier,
     row: &Row,
     columns: &[Column],
-    seq_no: u64,
-) -> Result<OperationEvent, PostgresSchemaError> {
+) -> Result<Operation, PostgresSchemaError> {
     match get_values(row, columns) {
-        Ok(values) => Ok(OperationEvent {
-            operation: Operation::Insert {
-                new: Record::new(Some(identifier), values, None),
-            },
-            seq_no,
+        Ok(values) => Ok(Operation::Insert {
+            new: Record::new(Some(identifier), values, None),
         }),
         Err(e) => Err(e),
     }
@@ -237,7 +233,10 @@ mod tests {
         test_conversion!("8.28", Type::NUMERIC, Field::Decimal(value));
 
         let value = DateTime::from_utc(
-            NaiveDate::from_ymd(2022, 9, 16).and_hms(5, 56, 29),
+            NaiveDate::from_ymd_opt(2022, 9, 16)
+                .unwrap()
+                .and_hms_opt(5, 56, 29)
+                .unwrap(),
             Utc.fix(),
         );
         test_conversion!(
@@ -247,7 +246,10 @@ mod tests {
         );
 
         let value = DateTime::from_utc(
-            NaiveDate::from_ymd(2022, 9, 16).and_hms_micro(3, 56, 30, 959787),
+            NaiveDate::from_ymd_opt(2022, 9, 16)
+                .unwrap()
+                .and_hms_micro_opt(3, 56, 30, 959787)
+                .unwrap(),
             Utc.fix(),
         );
         test_conversion!(

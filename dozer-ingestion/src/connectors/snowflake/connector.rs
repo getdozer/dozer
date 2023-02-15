@@ -85,14 +85,6 @@ impl Connector for SnowflakeConnector {
         todo!()
     }
 
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        todo!()
-    }
-
-    fn test_connection(&self) -> Result<(), ConnectorError> {
-        todo!()
-    }
-
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
@@ -122,14 +114,16 @@ impl Connector for SnowflakeConnector {
         })
     }
 
-    fn stop(&self) {}
-
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         Ok(HashMap::new())
+    }
+
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        todo!()
     }
 }
 

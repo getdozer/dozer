@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::super::api_server::{ApiServer, CorsOptions};
+use super::super::{ApiServer, CorsOptions};
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, RoCacheEndpoint};
 use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
@@ -14,7 +14,6 @@ fn test_generate_oapi() {
     let oapi_generator = OpenApiGenerator::new(
         schema,
         secondary_indexes,
-        endpoint.name.to_owned(),
         endpoint,
         vec![format!("http://localhost:{}", "8080")],
     );
@@ -32,10 +31,7 @@ async fn list_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint {
-            cache,
-            endpoint: endpoint.clone(),
-        }],
+        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -94,10 +90,7 @@ async fn count_and_query_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint {
-            cache,
-            endpoint: endpoint.clone(),
-        }],
+        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -142,10 +135,7 @@ async fn get_route() {
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint {
-            cache,
-            endpoint: endpoint.clone(),
-        }],
+        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
     );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::get()

@@ -20,7 +20,7 @@ use dozer_types::{
         connection::EventsAuthentication,
         flags::Flags,
     },
-    types::{Field, OperationEvent, Record, Schema},
+    types::{Field, Record, Schema},
 };
 use serde_json::{json, Value};
 use tempdir::TempDir;
@@ -116,9 +116,8 @@ fn single_source_sink_impl(schema: Schema) {
             .write()
             .handle_message((
                 (1, 0),
-                IngestionMessage::OperationEvent(OperationEvent {
-                    seq_no: a as u64,
-                    operation: dozer_types::types::Operation::Insert { new: record },
+                IngestionMessage::OperationEvent(dozer_types::types::Operation::Insert {
+                    new: record,
                 }),
             ))
             .unwrap();

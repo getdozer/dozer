@@ -1,9 +1,8 @@
 use crate::connectors::postgres::helper;
+use crate::connectors::ColumnInfo;
 use crate::errors::{PostgresConnectorError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::types::{
-    Field, FieldDefinition, Operation, OperationEvent, Record, Schema, SourceDefinition,
-};
+use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SourceDefinition};
 use helper::postgres_type_to_dozer_type;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
@@ -58,7 +57,7 @@ impl Hash for MessageBody<'_> {
 
 pub struct XlogMapper {
     relations_map: HashMap<u32, Table>,
-    tables_columns: HashMap<u32, Vec<String>>,
+    tables_columns: HashMap<u32, Vec<ColumnInfo>>,
 }
 
 impl Default for XlogMapper {
@@ -68,7 +67,7 @@ impl Default for XlogMapper {
 }
 
 impl XlogMapper {
-    pub fn new(tables_columns: HashMap<u32, Vec<String>>) -> Self {
+    pub fn new(tables_columns: HashMap<u32, Vec<ColumnInfo>>) -> Self {
         XlogMapper {
             relations_map: HashMap::<u32, Table>::new(),
             tables_columns,
@@ -113,18 +112,15 @@ impl XlogMapper {
 
                 let values = Self::convert_values_to_fields(table, new_values, false)?;
 
-                let event = OperationEvent {
-                    operation: Operation::Insert {
-                        new: Record::new(
-                            Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id,
-                                version: table.rel_id as u16,
-                            }),
-                            values,
-                            None,
-                        ),
-                    },
-                    seq_no: 0,
+                let event = Operation::Insert {
+                    new: Record::new(
+                        Some(dozer_types::types::SchemaIdentifier {
+                            id: table.rel_id,
+                            version: table.rel_id as u16,
+                        }),
+                        values,
+                        None,
+                    ),
                 };
 
                 return Ok(Some(IngestionMessage::OperationEvent(event)));
@@ -136,26 +132,23 @@ impl XlogMapper {
                 let values = Self::convert_values_to_fields(table, new_values, false)?;
                 let old_values = Self::convert_old_value_to_fields(table, update)?;
 
-                let event = OperationEvent {
-                    operation: Operation::Update {
-                        old: Record::new(
-                            Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id,
-                                version: table.rel_id as u16,
-                            }),
-                            old_values,
-                            None,
-                        ),
-                        new: Record::new(
-                            Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id,
-                                version: table.rel_id as u16,
-                            }),
-                            values,
-                            None,
-                        ),
-                    },
-                    seq_no: 0,
+                let event = Operation::Update {
+                    old: Record::new(
+                        Some(dozer_types::types::SchemaIdentifier {
+                            id: table.rel_id,
+                            version: table.rel_id as u16,
+                        }),
+                        old_values,
+                        None,
+                    ),
+                    new: Record::new(
+                        Some(dozer_types::types::SchemaIdentifier {
+                            id: table.rel_id,
+                            version: table.rel_id as u16,
+                        }),
+                        values,
+                        None,
+                    ),
                 };
 
                 return Ok(Some(IngestionMessage::OperationEvent(event)));
@@ -167,18 +160,15 @@ impl XlogMapper {
 
                 let values = Self::convert_values_to_fields(table, key_values, true)?;
 
-                let event = OperationEvent {
-                    operation: Operation::Delete {
-                        old: Record::new(
-                            Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id,
-                                version: table.rel_id as u16,
-                            }),
-                            values,
-                            None,
-                        ),
-                    },
-                    seq_no: 0,
+                let event = Operation::Delete {
+                    old: Record::new(
+                        Some(dozer_types::types::SchemaIdentifier {
+                            id: table.rel_id,
+                            version: table.rel_id as u16,
+                        }),
+                        values,
+                        None,
+                    ),
                 };
 
                 return Ok(Some(IngestionMessage::OperationEvent(event)));
@@ -206,7 +196,9 @@ impl XlogMapper {
             .enumerate()
             .filter(|(_, column)| {
                 existing_columns.is_empty()
-                    || existing_columns.contains(&column.name().unwrap().to_string())
+                    || existing_columns
+                        .iter()
+                        .any(|c| c.name == *column.name().unwrap())
             })
             .map(|(idx, column)| TableColumn {
                 name: String::from(column.name().unwrap()),

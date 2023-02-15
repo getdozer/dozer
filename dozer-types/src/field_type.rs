@@ -1,5 +1,5 @@
 use crate::types::Field;
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset, Timelike, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 
@@ -12,6 +12,18 @@ impl From<bool> for Field {
 impl From<String> for Field {
     fn from(value: String) -> Self {
         Field::String(value)
+    }
+}
+
+impl From<&str> for Field {
+    fn from(value: &str) -> Self {
+        Field::String(value.to_string())
+    }
+}
+
+impl From<i8> for Field {
+    fn from(value: i8) -> Self {
+        Field::Int(value.into())
     }
 }
 
@@ -30,6 +42,30 @@ impl From<i32> for Field {
 impl From<i64> for Field {
     fn from(value: i64) -> Self {
         Field::Int(value)
+    }
+}
+
+impl From<u8> for Field {
+    fn from(value: u8) -> Self {
+        Field::UInt(value.into())
+    }
+}
+
+impl From<u16> for Field {
+    fn from(value: u16) -> Self {
+        Field::UInt(value.into())
+    }
+}
+
+impl From<u32> for Field {
+    fn from(value: u32) -> Self {
+        Field::UInt(value.into())
+    }
+}
+
+impl From<u64> for Field {
+    fn from(value: u64) -> Self {
+        Field::UInt(value)
     }
 }
 
@@ -66,5 +102,11 @@ impl From<DateTime<FixedOffset>> for Field {
 impl From<NaiveDate> for Field {
     fn from(value: NaiveDate) -> Self {
         Field::Date(value)
+    }
+}
+
+impl From<NaiveTime> for Field {
+    fn from(value: NaiveTime) -> Self {
+        Field::UInt(value.nanosecond().into())
     }
 }

@@ -70,7 +70,7 @@ pub fn create_reference_response(description: String, schema_reference_path: Str
 
 pub fn convert_cache_to_oapi_schema(
     cache_schema: dozer_types::types::Schema,
-    name: String,
+    name: &str,
 ) -> Schema {
     let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
     let mut required_properties: Vec<String> = Vec::new();

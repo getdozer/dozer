@@ -102,13 +102,13 @@ impl Orchestrator for SimpleOrchestrator {
         for ce in &self.config.endpoints {
             let mut cache_common_options = self.cache_common_options.clone();
             cache_common_options.set_path(cache_dir.clone(), ce.name.clone());
-            cache_endpoints.push(RoCacheEndpoint {
-                cache: Arc::new(
+            cache_endpoints.push(RoCacheEndpoint::new(
+                Arc::new(
                     LmdbRoCache::new(cache_common_options)
                         .map_err(OrchestrationError::CacheInitFailed)?,
                 ),
-                endpoint: ce.to_owned(),
-            });
+                ce.clone(),
+            ));
         }
 
         let ce2 = cache_endpoints.clone();
@@ -349,16 +349,18 @@ impl Orchestrator for SimpleOrchestrator {
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {
-            resources.push(e.name.clone());
+            resources.push(&e.name);
         }
 
-        // Copy common service to be included in descriptor.
-        resources.push("common".to_string());
-
-        ProtoGenerator::copy_common(&generated_path)
+        let common_resources = ProtoGenerator::copy_common(&generated_path)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+
+        // Copy common service to be included in descriptor.
+        resources.extend(common_resources.iter());
+
         // Generate a descriptor based on all proto files generated within sink.
-        ProtoGenerator::generate_descriptor(&generated_path, resources)
+        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
+        ProtoGenerator::generate_descriptor(&generated_path, &descriptor_path, &resources)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())
