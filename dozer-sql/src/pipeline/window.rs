@@ -7,7 +7,23 @@ use super::errors::WindowError;
 
 pub trait WindowFunction {
     fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError>;
-    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, WindowError>;
+
+    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, WindowError> {
+        let mut output_schema = schema.clone();
+        output_schema.fields.push(FieldDefinition::new(
+            String::from("window_start"),
+            FieldType::Timestamp,
+            false,
+            SourceDefinition::Dynamic,
+        ));
+        output_schema.fields.push(FieldDefinition::new(
+            String::from("window_end"),
+            FieldType::Timestamp,
+            false,
+            SourceDefinition::Dynamic,
+        ));
+        Ok(output_schema)
+    }
 }
 
 pub struct TumbleWindow {
@@ -49,23 +65,6 @@ impl WindowFunction for TumbleWindow {
         window_record.push_value(end);
 
         Ok(vec![window_record])
-    }
-
-    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, WindowError> {
-        let mut output_schema = schema.clone();
-        output_schema.fields.push(FieldDefinition::new(
-            String::from("window_start"),
-            FieldType::Timestamp,
-            false,
-            SourceDefinition::Dynamic,
-        ));
-        output_schema.fields.push(FieldDefinition::new(
-            String::from("window_end"),
-            FieldType::Timestamp,
-            false,
-            SourceDefinition::Dynamic,
-        ));
-        Ok(output_schema)
     }
 }
 
@@ -111,9 +110,5 @@ impl WindowFunction for HopWindow {
         }
 
         Ok(records)
-    }
-
-    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, WindowError> {
-        Ok(schema.clone())
     }
 }
