@@ -2,11 +2,13 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use lmdb::Database;
 use dozer_types::types::{Record, Schema};
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{PipelineError, SetError};
 use sqlparser::ast::{Select, SetOperator};
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_core::node::PortHandle;
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
+use dozer_types::serde_json::to_string;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SetAction {
@@ -39,11 +41,6 @@ pub struct SetOperation {
     pub op: SetOperator,
     pub left: Select,
     pub right: Select,
-    // pub left: SetTable,
-    // pub right: SetTable,
-    // pub schema: Schema,
-    // pub left_lookup_index: u32,
-    // pub right_lookup_index: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -62,9 +59,6 @@ impl SetOperation {
             op,
             left,
             right,
-            // schema: get_output_schema(left, right),
-            // left_lookup_index: get_lookup_index(left),
-            // right_lookup_index: get_lookup_index(right),
         }
     }
 
@@ -81,12 +75,20 @@ impl SetOperation {
         action: SetAction,
         from_port: PortHandle,
         record: &Record,
-        database: &Database,
-        transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(SetAction, Record, Vec<u8>)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
+        let set_records = match self.op {
+            SetOperator::Union => {
+                return self.execute_union(action, from_port, record, readers)
+            },
+            _ => {
+                return Err(PipelineError::InvalidOperandType((&self.op).to_string()))
+            }
+        };
+        set_records
+        // return Err(PipelineError::InvalidOperandType((&self.op).to_string()))
         // if the source port is under the left branch of the join
-        // if self.left..contains(&from_port) {
+        // if self.left.contains(&from_port) {
         //     let mut output_records = vec![];
         //
         //     // forward the record and the current join constraints to the left source
@@ -168,8 +170,35 @@ impl SetOperation {
         //
         //     return Ok(output_records);
         // } else {
-            return Err(PipelineError::InvalidOperandType("UNION".to_string()));
         // }
+    }
+
+    fn execute_union(
+        &self,
+        action: SetAction,
+        from_port: PortHandle,
+        record: &Record,
+        readers: &HashMap<u16, Box<dyn RecordReader>>,
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
+        let mut output_records: Vec<(SetAction, Record)> = vec![];
+
+        let reader = readers
+            .get(&from_port)
+            .ok_or(PipelineError::SetError(SetError::HistoryUnavailable(from_port)))?;
+
+        if let Some(record) = reader
+            .get(record.values[0].encode().as_slice(), record.version.unwrap())
+            .map_err(|err| PipelineError::SetError(SetError::HistoryRecordNotFound(
+                record.values[0].encode(),
+                record.version.unwrap(),
+                from_port,
+                err
+            )))?
+        {
+            output_records.push((action, record));
+        }
+
+        Ok(output_records)
     }
 }
 //
@@ -434,4 +463,3 @@ impl SetOperation {
 //
 //     Ok(vec![Expression::Column{ index: 0 }])
 // }
-

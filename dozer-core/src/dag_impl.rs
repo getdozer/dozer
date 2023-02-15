@@ -381,9 +381,6 @@ fn contains_port<T>(
         }
         NodeKind::Sink(s) => {
             let input_ports = s.get_input_ports();
-            info!("port {:?}", port);
-            info!("direction {:?}", direction);
-            info!("input_ports {:?}", input_ports);
             if direction == PortDirection::Output {
                 false
             } else {

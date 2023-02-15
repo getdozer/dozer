@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter, Write};
+use std::ops::Index;
 use dozer_types::node::NodeHandle;
 
 use crate::appsource::{AppSourceId, AppSourceManager};
@@ -7,8 +8,9 @@ use crate::node::{PortHandle, ProcessorFactory, SinkFactory};
 use crate::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
 
 use std::sync::Arc;
+use dozer_types::log::info;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PipelineEntryPoint {
     id: AppSourceId,
     port: PortHandle,
@@ -68,6 +70,18 @@ impl<T> AppPipeline<T> {
 
         for p in entry_point {
             self.entry_points.push((handle.clone(), p));
+        }
+    }
+
+    pub fn remove_entry_points(
+        &mut self,
+        id: &str,
+        entry_point: Vec<PipelineEntryPoint>,
+    ) {
+        let handle = NodeHandle::new(None, id.to_string());
+        for p in entry_point {
+            let idx = self.entry_points.iter().position(|(nh, ep)| *nh == handle.clone() && *ep == p).unwrap();
+            self.entry_points.remove(idx);
         }
     }
 
@@ -193,8 +207,6 @@ impl<T: Clone> App<T> {
             .sources
             .get(entry_points.iter().map(|e| e.0.clone()).collect())?;
 
-        dag.print_dot();
-
         // Connect to all pipelines
         for mapping in &mappings {
             let node_handle = NodeHandle::new(None, mapping.source.connection.clone());
@@ -204,8 +216,6 @@ impl<T: Clone> App<T> {
                 }
             }
         }
-
-        dag.print_dot();
 
         Ok(dag)
     }

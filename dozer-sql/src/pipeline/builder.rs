@@ -368,7 +368,7 @@ fn set_to_pipeline(
         .iter()
         .for_each(|ep| input_endpoints.push(ep.to_owned()));
 
-    let mut gen_set_name = format!("select_{}", uuid::Uuid::new_v4());
+    let mut gen_set_name = format!("set_{}", uuid::Uuid::new_v4());
 
     if table_info.override_name.is_some() {
         gen_set_name = table_info.override_name.to_owned().unwrap();
@@ -380,16 +380,19 @@ fn set_to_pipeline(
         input_endpoints.clone(),
     );
 
+    pipeline.remove_entry_points(&gen_set_name, input_endpoints.clone());
+
     let mut input_names: Vec<NameOrAlias> = Vec::new();
     get_input_names(&left_input_tables).iter().for_each(|name| input_names.push(name.clone()));
     get_input_names(&right_input_tables).iter().for_each(|name| input_names.push(name.clone()));
 
-    query_ctx.pipeline_map.values().for_each(|query_table_info|
+    // connecting nodes from left and right selection
+    query_ctx.pipeline_map.values().enumerate().for_each(|(idx, query_table_info)|
         pipeline.connect_nodes(
             &query_table_info.node,
             Some(query_table_info.port),
             &gen_set_name,
-            Some(DEFAULT_PORT_HANDLE as PortHandle),
+            Some(idx as PortHandle),
             true,
         ).unwrap()
     );

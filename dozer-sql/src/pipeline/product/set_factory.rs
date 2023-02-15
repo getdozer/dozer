@@ -6,8 +6,7 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
-
+use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint, SelectItem, SetOperator, TableWithJoins};
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::{
     builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
@@ -18,6 +17,12 @@ use crate::pipeline::{
     errors::PipelineError,
 };
 use sqlparser::ast::Expr as SqlExpr;
+use sqlparser::ast::Select;
+use dozer_types::errors::internal::BoxedError;
+use dozer_types::serde::Serialize;
+use crate::pipeline::errors::SetError::InvalidInputSchemas;
+use crate::pipeline::product::set::SetOperation;
+use crate::pipeline::product::set_processor::SetProcessor;
 
 use super::{
     join::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},
@@ -42,14 +47,22 @@ impl SetProcessorFactory {
 
 impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
+        let mut input_names: Vec<NameOrAlias> = Vec::new();
+        get_input_names(&self.left_input_tables).iter().for_each(|name| input_names.push(name.clone()));
+        get_input_names(&self.right_input_tables).iter().for_each(|name| input_names.push(name.clone()));
+
+        input_names
+            .iter()
+            .enumerate()
+            .map(|(number, _)| number as PortHandle)
+            .collect::<Vec<PortHandle>>()
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+                DEFAULT_PORT_HANDLE,
+                OutputPortType::Stateless,
+            )]
     }
 
     fn get_output_schema(
@@ -79,16 +92,59 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+        input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-    //     match build_join_tree(&self.input_tables, input_schemas) {
-    //         Ok((join_operator, source_names)) => {
-    //             Ok(Box::new(FromProcessor::new(join_operator, source_names)))
-    //         }
-    //         Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
-    //     }
-        Err(ExecutionError::InternalStringError("UNION test".to_string()))
+        match build_set_tree(&self.left_input_tables.clone(), &self.right_input_tables.clone(), input_schemas) {
+            Ok(source_names) => {
+                let left_select = Select {
+                    distinct: false,
+                    top: None,
+                    projection: vec![SelectItem::Wildcard{ 0: Default::default() }],
+                    into: None,
+                    from: vec![TableWithJoins {
+                        relation: self.left_input_tables.clone().relation.1,
+                        joins: vec![],
+                    }],
+                    lateral_views: vec![],
+                    selection: None,
+                    group_by: vec![],
+                    cluster_by: vec![],
+                    distribute_by: vec![],
+                    sort_by: vec![],
+                    having: None,
+                    qualify: None,
+                };
+
+                let right_select = Select {
+                    distinct: false,
+                    top: None,
+                    projection: vec![SelectItem::Wildcard{ 0: Default::default() }],
+                    into: None,
+                    from: vec![TableWithJoins {
+                        relation: self.right_input_tables.clone().relation.1,
+                        joins: vec![],
+                    }],
+                    lateral_views: vec![],
+                    selection: None,
+                    group_by: vec![],
+                    cluster_by: vec![],
+                    distribute_by: vec![],
+                    sort_by: vec![],
+                    having: None,
+                    qualify: None,
+                };
+                let set_operation = SetOperation {
+                    op: SetOperator::Union,
+                    left: left_select,
+                    right: right_select,
+                };
+                Ok(Box::new(SetProcessor::new(set_operation, source_names)))
+            }
+            Err(e) => {
+                Err(ExecutionError::InternalStringError(e.to_string()))
+            },
+        }
     }
 
     fn prepare(
@@ -106,100 +162,24 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
 /// # Errors
 ///
 /// This function will return an error if.
-pub fn build_join_tree(
-    join_tables: &IndexedTableWithJoins,
+pub fn build_set_tree(
+    left_tables: &IndexedTableWithJoins,
+    right_tables: &IndexedTableWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
-) -> Result<(JoinSource, HashMap<u16, String>), PipelineError> {
-    const RIGHT_JOIN_FLAG: u32 = 0x80000000;
-
-    let mut source_names = HashMap::new();
-
-    let port = 0 as PortHandle;
-    let left_schema = input_schemas
-        .get(&port)
-        .map_or(
-            Err(JoinError::InvalidJoinConstraint(
-                join_tables.relation.0.clone().0,
-            )),
-            Ok,
-        )
-        .unwrap()
-        .clone();
-    let relation_name = &join_tables.relation.0;
-
-    source_names.insert(port, relation_name.0.to_owned());
-
-    let mut left_extended_schema = extend_schema_source_def(&left_schema, relation_name);
-
-    let mut left_join_table = JoinSource::Table(JoinTable::new(port, left_extended_schema.clone()));
-
-    let mut join_tree_root = left_join_table.clone();
-
-    for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
-        let right_port = (index + 1) as PortHandle;
-        let right_schema = input_schemas.get(&right_port).map_or(
-            Err(JoinError::InvalidJoinConstraint(
-                relation_name.0.to_string(),
-            )),
-            Ok,
-        )?;
-
-        source_names.insert(right_port, relation_name.0.to_owned());
-        let right_extended_schema = extend_schema_source_def(right_schema, relation_name);
-        let right_join_table =
-            JoinSource::Table(JoinTable::new(right_port, right_extended_schema.clone()));
-
-        let join_schema = append_schema(&left_extended_schema, &right_extended_schema);
-
-        let (join_type, join_constraint) = match &join.join_operator {
-            sqlparser::ast::JoinOperator::Inner(constraint) => {
-                (JoinOperatorType::Inner, constraint)
-            }
-            sqlparser::ast::JoinOperator::LeftOuter(constraint) => {
-                (JoinOperatorType::LeftOuter, constraint)
-            }
-            sqlparser::ast::JoinOperator::RightOuter(constraint) => {
-                (JoinOperatorType::RightOuter, constraint)
-            }
-            _ => return Err(PipelineError::JoinError(JoinError::UnsupportedJoinType)),
-        };
-
-        let expression = match join_constraint {
-            JoinConstraint::On(expression) => expression,
-            _ => {
-                return Err(PipelineError::JoinError(
-                    JoinError::UnsupportedJoinConstraintType,
-                ))
-            }
-        };
-
-        let (left_keys, right_keys) = parse_join_constraint(
-            expression,
-            &left_join_table.get_output_schema(),
-            &right_join_table.get_output_schema(),
-        )?;
-        let join_op = JoinOperator::new(
-            join_type,
-            join_schema.clone(),
-            JoinBranch {
-                join_key: left_keys,
-                source: Box::new(left_join_table),
-                lookup_index: index as u32,
-            },
-            JoinBranch {
-                join_key: right_keys,
-                source: Box::new(right_join_table),
-                lookup_index: (index + 1) as u32 | RIGHT_JOIN_FLAG,
-            },
-        );
-
-        join_tree_root = JoinSource::Join(join_op.clone());
-
-        left_extended_schema = join_schema;
-        left_join_table = JoinSource::Join(join_op);
+) -> Result<HashMap<u16, String>, PipelineError> {
+// ) {
+    if (input_schemas.len() != 2) {
+        return Err(PipelineError::SetError(InvalidInputSchemas))
     }
 
-    Ok((join_tree_root, source_names))
+    const RIGHT_JOIN_FLAG: u32 = 0x80000000;
+    let mut source_names: HashMap<u16, String> = HashMap::new();
+    let mut ports: Vec<PortHandle> = Vec::new();
+    input_schemas.iter().for_each(|(k, v)| ports.push(*k));
+    source_names.insert(*ports.first().unwrap(), left_tables.clone().relation.0.0);
+    source_names.insert(*ports.last().unwrap(), right_tables.clone().relation.0.0);
+
+    Ok(source_names)
 }
 
 fn parse_join_constraint(
