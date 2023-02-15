@@ -4,12 +4,9 @@ use crate::errors::{ConnectorError, SnowflakeError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
 
-use dozer_types::parking_lot::RwLock;
-
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
 use odbc::create_environment_v3;
-use std::sync::Arc;
 
 #[derive(Default)]
 pub struct StreamConsumer {}
@@ -126,7 +123,7 @@ impl StreamConsumer {
         &mut self,
         client: &Client,
         table_name: &str,
-        ingestor: &Arc<RwLock<Ingestor>>,
+        ingestor: &Ingestor,
         table_idx: usize,
         iteration: u64,
     ) -> Result<(), ConnectorError> {
@@ -165,7 +162,6 @@ impl StreamConsumer {
                     table_idx,
                 )?;
                 ingestor
-                    .write()
                     .handle_message(((iteration, idx as u64), ingestion_message))
                     .map_err(ConnectorError::IngestorError)?;
             }

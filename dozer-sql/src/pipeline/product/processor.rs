@@ -7,7 +7,6 @@ use dozer_core::record_store::RecordReader;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::internal_err;
 
 use dozer_types::types::{Operation, Record};
 use lmdb::DatabaseFlags;
@@ -157,7 +156,7 @@ impl FromProcessor {
 
 impl Processor for FromProcessor {
     fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        internal_err!(self.init_store(txn))
+        self.init_store(txn).map_err(|e| InternalError(Box::new(e)))
     }
 
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {

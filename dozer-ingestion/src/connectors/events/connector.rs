@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::ReplicationChangesTrackingType;
-use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 
 use crate::connectors::ValidationResults;
 use crate::{
@@ -14,26 +13,19 @@ use crate::{
 pub struct EventsConnector {
     pub id: u64,
     pub name: String,
-    ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
 impl EventsConnector {
     pub fn new(id: u64, name: String) -> Self {
-        Self {
-            id,
-            name,
-            ingestor: None,
-        }
+        Self { id, name }
     }
 
-    pub fn push(&mut self, msg: IngestionMessage) -> Result<(), ConnectorError> {
-        let ingestor = self
-            .ingestor
-            .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?;
-
+    pub fn push(
+        &mut self,
+        ingestor: &Ingestor,
+        msg: IngestionMessage,
+    ) -> Result<(), ConnectorError> {
         ingestor
-            .write()
             .handle_message(((0, 0), msg))
             .map_err(ConnectorError::IngestorError)
     }
@@ -54,16 +46,12 @@ impl Connector for EventsConnector {
         Ok(vec![])
     }
 
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
-        _: Option<Vec<TableInfo>>,
+    fn start(
+        &self,
+        _from_seq: Option<(u64, u64)>,
+        _ingestor: Ingestor,
+        _tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        self.ingestor = Some(ingestor);
-        Ok(())
-    }
-
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         Ok(())
     }
 

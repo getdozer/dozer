@@ -9,7 +9,7 @@ use std::time::Instant;
 fn main() {
     dozer_tracing::init_telemetry(false).unwrap();
 
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
     let postgres_config = PostgresConfig {
         name: "test_c".to_string(),
         tables: Some(vec![TableInfo {
@@ -27,16 +27,15 @@ fn main() {
     };
 
     thread::spawn(move || -> Result<(), ConnectorError> {
-        let mut connector = PostgresConnector::new(1, postgres_config);
-        connector.initialize(ingestor, None)?;
-        connector.start(None)
+        let connector = PostgresConnector::new(1, postgres_config);
+        connector.start(None, ingestor, None)
     });
 
     let before = Instant::now();
     const BACKSPACE: char = 8u8 as char;
     let mut i = 0;
     loop {
-        let _msg = iterator.write().next().unwrap();
+        let _msg = iterator.next().unwrap();
         if i % 100 == 0 {
             info!(
                 "{}\rCount: {}, Elapsed time: {:.2?}",

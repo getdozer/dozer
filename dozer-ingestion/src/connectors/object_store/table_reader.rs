@@ -16,7 +16,6 @@ use datafusion::datasource::listing::{
 };
 use datafusion::prelude::SessionContext;
 use dozer_types::ingestion_types::{IngestionMessage, LocalStorage, S3Storage, Table};
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use object_store::aws::AmazonS3Builder;
@@ -40,9 +39,9 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         resolved_schema: SchemaRef,
         table_path: ListingTableUrl,
         listing_options: ListingOptions,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: Ingestor,
         table: &TableInfo,
-    ) -> Result<(), ObjectStoreConnectorError> {
+    ) -> Result<Ingestor, ObjectStoreConnectorError> {
         let mut idx = 0;
         let fields = resolved_schema.all_fields();
 
@@ -90,7 +89,6 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     .collect::<Result<Vec<_>, _>>()?;
 
                 ingestor
-                    .write()
                     .handle_message((
                         (0_u64, idx),
                         IngestionMessage::OperationEvent(Operation::Insert {
@@ -107,23 +105,20 @@ impl<T: Clone + Send + Sync> TableReader<T> {
             }
         }
 
-        Ok(())
+        Ok(ingestor)
     }
 }
 
 pub trait Reader<T> {
-    fn read_tables(
-        &self,
-        tables: Vec<TableInfo>,
-        ingestor: Arc<RwLock<Ingestor>>,
-    ) -> Result<(), ConnectorError>;
+    fn read_tables(&self, tables: Vec<TableInfo>, ingestor: Ingestor)
+        -> Result<(), ConnectorError>;
 }
 
 impl Reader<S3Storage> for TableReader<S3Storage> {
     fn read_tables(
         &self,
         tables: Vec<TableInfo>,
-        ingestor: Arc<RwLock<Ingestor>>,
+        mut ingestor: Ingestor,
     ) -> Result<(), ConnectorError> {
         let tables_map = get_tables_map(&self.config.tables);
         let details = get_details(&self.config.details)?;
@@ -140,8 +135,6 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
 
             let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 
-            let ingestor = ingestor.clone();
-
             let ctx = SessionContext::new();
             let s3 = AmazonS3Builder::new()
                 .with_bucket_name(&details.bucket_name)
@@ -154,24 +147,25 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
             ctx.runtime_env()
                 .register_object_store("s3", &details.bucket_name, Arc::new(s3));
 
-            rt.block_on(async move {
-                let resolved_schema = listing_options
-                    .infer_schema(&ctx.state(), &table_path)
-                    .await
-                    .map_err(|_| ObjectStoreConnectorError::InternalError)?;
+            ingestor = rt
+                .block_on(async move {
+                    let resolved_schema = listing_options
+                        .infer_schema(&ctx.state(), &table_path)
+                        .await
+                        .map_err(|_| ObjectStoreConnectorError::InternalError)?;
 
-                Self::read(
-                    id as u32,
-                    ctx,
-                    resolved_schema,
-                    table_path,
-                    listing_options,
-                    ingestor,
-                    table,
-                )
-                .await
-            })
-            .map_err(ConnectorError::DataFusionConnectorError)?;
+                    Self::read(
+                        id as u32,
+                        ctx,
+                        resolved_schema,
+                        table_path,
+                        listing_options,
+                        ingestor,
+                        table,
+                    )
+                    .await
+                })
+                .map_err(ConnectorError::DataFusionConnectorError)?;
         }
 
         Ok(())
@@ -182,7 +176,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
     fn read_tables(
         &self,
         tables: Vec<TableInfo>,
-        ingestor: Arc<RwLock<Ingestor>>,
+        mut ingestor: Ingestor,
     ) -> Result<(), ConnectorError> {
         let tables_map = get_tables_map(&self.config.tables);
         let details = get_details(&self.config.details)?;
@@ -197,8 +191,6 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
 
             let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 
-            let ingestor = ingestor.clone();
-
             let ctx = SessionContext::new();
             let ls = LocalFileSystem::new_with_prefix(&details.path)
                 .map_err(|_| ConnectorError::InitializationError)?;
@@ -206,7 +198,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
             ctx.runtime_env()
                 .register_object_store("local", &details.path, Arc::new(ls));
 
-            rt.block_on(async move {
+            ingestor = rt.block_on(async move {
                 let resolved_schema = listing_options
                     .infer_schema(&ctx.state(), &table_path)
                     .await

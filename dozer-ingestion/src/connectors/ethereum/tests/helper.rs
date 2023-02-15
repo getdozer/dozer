@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc, thread, time::Duration};
+use std::{collections::HashSet, thread, time::Duration};
 
 use crate::{
     connectors::{
@@ -12,7 +12,6 @@ use crate::{
 use dozer_types::{
     ingestion_types::{EthConfig, EthContract, EthFilter},
     log::info,
-    parking_lot::RwLock,
     types::Operation,
 };
 
@@ -48,11 +47,11 @@ pub async fn deploy_contract(wss_url: String, my_account: H160) -> Contract<WebS
 
 pub fn get_eth_producer(
     wss_url: String,
-    ingestor: Arc<RwLock<Ingestor>>,
+    ingestor: Ingestor,
     contract: Contract<WebSocket>,
 ) -> Result<(), ConnectorError> {
     let address = format!("{:?}", contract.address());
-    let mut eth_connector = EthConnector::new(
+    let eth_connector = EthConnector::new(
         1,
         EthConfig {
             filter: Some(EthFilter {
@@ -79,8 +78,7 @@ pub fn get_eth_producer(
         // schema.print().printstd();
     }
 
-    eth_connector.initialize(ingestor, None)?;
-    eth_connector.start(None)
+    eth_connector.start(None, ingestor, None)
 }
 
 pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>, Vec<Operation>) {
@@ -95,18 +93,17 @@ pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>
         .unwrap()
         .block_on(async { deploy_contract(wss_url.clone(), my_account).await });
 
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-    let ingestor_pr = ingestor;
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     let cloned_contract = contract.clone();
     let _t = thread::spawn(move || {
         info!("Initializing with WSS: {}", wss_url);
-        get_eth_producer(wss_url, ingestor_pr, cloned_contract).unwrap();
+        get_eth_producer(wss_url, ingestor, cloned_contract).unwrap();
     });
 
     let mut msgs = vec![];
     let mut op_index = HashSet::new();
-    while let Some(msg) = iterator.write().next_timeout(Duration::from_millis(400)) {
+    while let Some(msg) = iterator.next_timeout(Duration::from_millis(400)) {
         // Duplicates are to be expected in ethereum connector
         let ((_, seq_no), op) = msg;
         if op_index.insert(seq_no) {

@@ -11,7 +11,6 @@ use std::{
 use dozer_api::RwCacheEndpoint;
 use dozer_cache::cache::{expression::QueryExpression, test_utils, LmdbRwCache, RoCache};
 use dozer_types::{
-    ingestion_types::IngestionMessage,
     log::warn,
     models::{
         self,
@@ -20,7 +19,7 @@ use dozer_types::{
         connection::EventsAuthentication,
         flags::Flags,
     },
-    types::{Field, Record, Schema},
+    types::Schema,
 };
 use serde_json::{json, Value};
 use tempdir::TempDir;
@@ -29,7 +28,7 @@ use crate::pipeline::CacheSinkSettings;
 
 use super::executor::Executor;
 
-fn single_source_sink_impl(schema: Schema) {
+fn single_source_sink_impl(_schema: Schema) {
     let source = models::source::Source {
         id: Some("1".to_string()),
         name: "events".to_string(),
@@ -66,15 +65,15 @@ fn single_source_sink_impl(schema: Schema) {
     let r = running.clone();
     let executor_running = running;
 
-    let items: Vec<(i64, String, i64)> = vec![
-        (1, "yuri".to_string(), 521),
-        (2, "mega".to_string(), 521),
-        (3, "james".to_string(), 523),
-        (4, "james".to_string(), 524),
-        (5, "steff".to_string(), 526),
-        (6, "mega".to_string(), 527),
-        (7, "james".to_string(), 528),
-    ];
+    // let items: Vec<(i64, String, i64)> = vec![
+    //     (1, "yuri".to_string(), 521),
+    //     (2, "mega".to_string(), 521),
+    //     (3, "james".to_string(), 523),
+    //     (4, "james".to_string(), 524),
+    //     (5, "steff".to_string(), 526),
+    //     (6, "mega".to_string(), 527),
+    //     (7, "james".to_string(), 528),
+    // ];
 
     let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
     if tmp_dir.path().exists() {
@@ -93,7 +92,7 @@ fn single_source_sink_impl(schema: Schema) {
         tmp_path,
     );
     let flags = Flags::default();
-    let (dag_executor, ingestors) = executor
+    let dag_executor = executor
         .create_dag_executor(None, CacheSinkSettings::new(Some(flags), None))
         .unwrap();
 
@@ -103,23 +102,23 @@ fn single_source_sink_impl(schema: Schema) {
     });
 
     // Insert each record and query cache
-    let ingestor = ingestors.into_iter().next().unwrap();
-    for (a, b, c) in items {
-        let record = Record::new(
-            schema.identifier,
-            vec![Field::Int(a), Field::String(b), Field::Int(c)],
-            None,
-        );
-        ingestor
-            .write()
-            .handle_message((
-                (1, 0),
-                IngestionMessage::OperationEvent(dozer_types::types::Operation::Insert {
-                    new: record,
-                }),
-            ))
-            .unwrap();
-    }
+    // let ingestor = ingestors.into_iter().next().unwrap();
+    // for (a, b, c) in items {
+    //     let record = Record::new(
+    //         schema.identifier,
+    //         vec![Field::Int(a), Field::String(b), Field::Int(c)],
+    //         None,
+    //     );
+    //     ingestor
+    //         .write()
+    //         .handle_message((
+    //             (1, 0),
+    //             IngestionMessage::OperationEvent(dozer_types::types::Operation::Insert {
+    //                 new: record,
+    //             }),
+    //         ))
+    //         .unwrap();
+    // }
 
     // Allow for the thread to process the records
     thread::sleep(Duration::from_millis(3000));

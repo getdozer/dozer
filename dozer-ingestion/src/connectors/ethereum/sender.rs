@@ -9,7 +9,6 @@ use crate::{
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
 use dozer_types::log::{debug, info, trace, warn};
-use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
 
@@ -26,7 +25,7 @@ const MAX_RETRIES: usize = 3;
 pub struct EthDetails {
     wss_url: String,
     filter: EthFilter,
-    ingestor: Arc<RwLock<Ingestor>>,
+    ingestor: Ingestor,
     contracts: HashMap<String, ContractTuple>,
     pub tables: Option<Vec<TableInfo>>,
     pub schema_map: HashMap<H256, usize>,
@@ -39,7 +38,7 @@ impl EthDetails {
     pub fn new(
         wss_url: String,
         filter: EthFilter,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: Ingestor,
         contracts: HashMap<String, ContractTuple>,
         tables: Option<Vec<TableInfo>>,
         schema_map: HashMap<H256, usize>,
@@ -240,7 +239,6 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             // Write eth_log record
             details
                 .ingestor
-                .write()
                 .handle_message((
                     (
                         msg.block_number.expect("expected for non pending").as_u64(),
@@ -265,7 +263,6 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             trace!("Writing event : {:?}", op);
             details
                 .ingestor
-                .write()
                 .handle_message(((0, 0), IngestionMessage::OperationEvent(op)))
                 .map_err(ConnectorError::IngestorError)?;
         } else {

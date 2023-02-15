@@ -23,7 +23,7 @@ use dozer_types::models::connection::Connection;
 use OrchestrationError::ExecutionError;
 
 use crate::errors::OrchestrationError;
-use crate::pipeline::source_builder::{IngestorVec, SourceBuilder};
+use crate::pipeline::source_builder::SourceBuilder;
 
 pub struct Executor {
     config: Config,
@@ -84,7 +84,7 @@ impl Executor {
         let used_sources: Vec<String> = pipeline.get_entry_points_sources_names();
 
         let source_builder = SourceBuilder::new(used_sources, grouped_connections);
-        let asm = source_builder.build_source_manager(self.running.clone())?.0;
+        let asm = source_builder.build_source_manager()?;
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 
@@ -114,15 +114,14 @@ impl Executor {
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         settings: CacheSinkSettings,
-    ) -> Result<(DagExecutor<SchemaSQLContext>, IngestorVec), OrchestrationError> {
+    ) -> Result<DagExecutor<SchemaSQLContext>, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.config.clone(),
             self.cache_endpoints.clone(),
-            self.running.clone(),
             self.pipeline_dir.clone(),
         );
 
-        let (parent_dag, ingestors) = builder.build(notifier, PathBuf::default(), settings)?;
+        let dag = builder.build(notifier, PathBuf::default(), settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {
@@ -131,9 +130,9 @@ impl Executor {
             ));
         }
 
-        let exec = DagExecutor::new(&parent_dag, path.to_path_buf(), ExecutorOptions::default())?;
+        let exec = DagExecutor::new(&dag, path.to_path_buf(), ExecutorOptions::default())?;
 
-        Ok((exec, ingestors))
+        Ok(exec)
     }
 
     pub fn run_dag_executor(

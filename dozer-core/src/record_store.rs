@@ -1,6 +1,6 @@
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::{
-    InternalError, RecordNotFound, UnsupportedDeleteOperation, UnsupportedUpdateOperation,
+    RecordNotFound, UnsupportedDeleteOperation, UnsupportedUpdateOperation,
 };
 use crate::node::OutputPortType;
 use std::collections::VecDeque;
@@ -225,9 +225,7 @@ impl PrimaryKeyLookupRecordWriter {
         key.extend(version.to_le_bytes());
         let mut exclusive_tx = Box::new(tx.write());
         let mut store = PrefixTransaction::new(exclusive_tx.as_mut(), VERSIONED_RECORDS_INDEX_ID);
-        store
-            .del(self.db, &key, None)
-            .map_err(|e| InternalError(Box::new(e)))
+        Ok(store.del(self.db, &key, None)?)
     }
 
     fn push_pop_retention_queue(

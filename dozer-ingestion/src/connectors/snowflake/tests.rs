@@ -26,7 +26,7 @@ fn connector_disabled_test_e2e_connect_snowflake_and_read_from_stream() {
 
     let config = IngestionConfig::default();
 
-    let (ingestor, iterator) = Ingestor::initialize_channel(config);
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
     thread::spawn(|| {
         let tables: Vec<TableInfo> = vec![TableInfo {
@@ -36,15 +36,14 @@ fn connector_disabled_test_e2e_connect_snowflake_and_read_from_stream() {
             columns: None,
         }];
 
-        let mut connector = get_connector(connection).unwrap();
-        connector.initialize(ingestor, Some(tables)).unwrap();
-        let _ = connector.start(None);
+        let connector = get_connector(connection).unwrap();
+        let _ = connector.start(None, ingestor, Some(tables));
     });
 
     let mut i = 0;
     while i < 1000 {
         i += 1;
-        let op = iterator.write().next();
+        let op = iterator.next();
         match op {
             None => {}
             Some((_, _operation)) => {}
@@ -62,7 +61,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     let connection = config.connections.get(0).unwrap().clone();
     let client = get_client(&connection);
 
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     let mut rng = rand::thread_rng();
     let table_name = format!("schema_change_test_{}", rng.gen::<u32>());
@@ -97,7 +96,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     consumer
         .consume_stream(&client, &table_name, &ingestor, 0, 1)
         .unwrap();
-    iterator.write().next().unwrap();
+    iterator.next().unwrap();
 
     // Update table and insert record
     client
@@ -111,7 +110,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     consumer
         .consume_stream(&client, &table_name, &ingestor, 0, 1)
         .unwrap();
-    iterator.write().next().unwrap();
+    iterator.next().unwrap();
 
     client
         .execute_query(&conn, &format!("DROP TABLE {table_name};"))
