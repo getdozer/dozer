@@ -90,7 +90,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
         Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
         Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR => Ok(FieldType::String),
         Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
-        Type::BIT => Ok(FieldType::Binary),
+        Type::BIT | Type::BYTEA => Ok(FieldType::Binary),
         Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
         Type::NUMERIC => Ok(FieldType::Decimal),
         Type::JSONB => Ok(FieldType::Bson),
@@ -228,6 +228,14 @@ mod tests {
         };
     }
 
+    #[macro_export]
+    macro_rules! test_type_mapping {
+        ($a:expr,$b:expr) => {
+            let value = postgres_type_to_dozer_type($a);
+            assert_eq!(value.unwrap(), $b);
+        };
+    }
+
     #[test]
     fn it_converts_postgres_type_to_field() {
         test_conversion!("12", Type::INT8, Field::Int(12));
@@ -274,6 +282,26 @@ mod tests {
 
         test_conversion!("t", Type::BOOL, Field::Boolean(true));
         test_conversion!("f", Type::BOOL, Field::Boolean(false));
+
+        test_conversion!(
+            "(1.234,2.456)",
+            Type::POINT,
+            Field::Point(DozerPoint::from((1.234, 2.456)))
+        );
+    }
+
+    #[test]
+    fn it_maps_postgres_type_to_dozer_type() {
+        test_type_mapping!(Type::INT8, FieldType::Int);
+        test_type_mapping!(Type::FLOAT8, FieldType::Float);
+        test_type_mapping!(Type::VARCHAR, FieldType::String);
+        test_type_mapping!(Type::BYTEA, FieldType::Binary);
+        test_type_mapping!(Type::NUMERIC, FieldType::Decimal);
+        test_type_mapping!(Type::TIMESTAMP, FieldType::Timestamp);
+        test_type_mapping!(Type::TIMESTAMPTZ, FieldType::Timestamp);
+        test_type_mapping!(Type::JSONB, FieldType::Bson);
+        test_type_mapping!(Type::BOOL, FieldType::Boolean);
+        test_type_mapping!(Type::POINT, FieldType::Point);
     }
 
     #[test]

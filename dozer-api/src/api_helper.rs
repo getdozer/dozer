@@ -175,6 +175,7 @@ fn json_str_to_field(value: &str, typ: FieldType, nullable: bool) -> Result<Fiel
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::types::{DozerCoord, DozerPoint};
     use dozer_types::{
         chrono::{NaiveDate, Offset, TimeZone, Utc},
         ordered_float::OrderedFloat,
@@ -219,6 +220,14 @@ mod tests {
                 ]),
             ),
             (FieldType::Text, Field::Text("lorem ipsum".to_string())),
+            (
+                FieldType::Coord,
+                Field::Coord(DozerCoord::from((1.234, 2.567))),
+            ),
+            (
+                FieldType::Point,
+                Field::Point(DozerPoint::from((3.234, 4.567))),
+            ),
         ];
         for (field_type, field) in fields {
             test_field_conversion(field_type, field);

@@ -1,6 +1,5 @@
 use ahash::AHasher;
-use geo::{point, Coord, Point};
-use log::info;
+use geo::{coord, point, Coord, Point};
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -343,29 +342,32 @@ pub struct DozerCoord(pub Coord);
 impl Eq for DozerCoord {}
 
 impl PartialEq for DozerCoord {
-    fn eq(&self, _other: &Self) -> bool {
-        info!("F");
-        todo!("F")
+    fn eq(&self, other: &Self) -> bool {
+        self.0.x == other.0.x && self.0.y == other.0.y
     }
 }
 
 impl Ord for DozerCoord {
     fn cmp(&self, _other: &Self) -> Ordering {
-        info!("E");
-        todo!("E")
+        todo!("Cmp for DozerCoord not implemented")
     }
 }
 
 impl PartialOrd for DozerCoord {
     fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
-        info!("D");
-        todo!("D")
+        todo!("Partial_cmp for DozerCoord not implemented")
     }
 }
 
 impl Display for DozerCoord {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("{:?}", self.0.x_y()))
+    }
+}
+
+impl From<(f64, f64)> for DozerCoord {
+    fn from((x, y): (f64, f64)) -> Self {
+        Self(coord! {x: x, y: y})
     }
 }
 
@@ -383,23 +385,20 @@ pub struct DozerPoint(pub Point);
 impl Eq for DozerPoint {}
 
 impl PartialEq for DozerPoint {
-    fn eq(&self, _other: &Self) -> bool {
-        info!("C");
-        todo!("C")
+    fn eq(&self, other: &Self) -> bool {
+        self.0.x() == other.0.x() && self.0.y() == other.0.y()
     }
 }
 
 impl Ord for DozerPoint {
     fn cmp(&self, _other: &Self) -> Ordering {
-        info!("B");
-        todo!("B")
+        todo!("Cmp for DozerPoint not implemented")
     }
 }
 
 impl PartialOrd for DozerPoint {
     fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
-        info!("a");
-        todo!("A")
+        todo!("Partial_cmp for DozerPoint not implemented")
     }
 }
 
