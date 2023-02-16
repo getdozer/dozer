@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use dozer_types::node::NodeHandle;
 
 use crate::appsource::{AppSourceId, AppSourceManager};
@@ -7,7 +8,7 @@ use crate::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
 
 use std::sync::Arc;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PipelineEntryPoint {
     id: AppSourceId,
     port: PortHandle,
@@ -22,14 +23,28 @@ impl PipelineEntryPoint {
         &self.id
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NamespacedEdge {
-    edge: Edge,
+    pub edge: Edge,
     namespaced: bool,
 }
+
+impl Display for NamespacedEdge {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            format!("edge: [node: {}, port: {} -> node: {}, port: {}], , namespaced: {}",
+                self.edge.from.node, self.edge.from.port,
+                self.edge.to.node, self.edge.to.port,
+                self.namespaced
+            )
+            .as_str()
+        )
+    }
+}
+
 #[derive(Clone)]
 pub struct AppPipeline<T> {
-    edges: Vec<NamespacedEdge>,
+    pub edges: Vec<NamespacedEdge>,
     processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory<T>>)>,
     sinks: Vec<(NodeHandle, Arc<dyn SinkFactory<T>>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
@@ -53,6 +68,18 @@ impl<T> AppPipeline<T> {
 
         for p in entry_point {
             self.entry_points.push((handle.clone(), p));
+        }
+    }
+
+    pub fn remove_entry_points(
+        &mut self,
+        id: &str,
+        entry_point: Vec<PipelineEntryPoint>,
+    ) {
+        let handle = NodeHandle::new(None, id.to_string());
+        for p in entry_point {
+            let idx = self.entry_points.iter().position(|(nh, ep)| *nh == handle.clone() && *ep == p).unwrap();
+            self.entry_points.remove(idx);
         }
     }
 

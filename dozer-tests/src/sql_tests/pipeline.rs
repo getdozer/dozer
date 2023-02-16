@@ -34,7 +34,7 @@ use super::helper::get_table_create_sql;
 use super::SqlMapper;
 
 #[derive(Debug)]
-pub struct TestSourceFactory {
+pub(crate) struct TestSourceFactory {
     schemas: HashMap<u16, Schema>,
     name_to_port: HashMap<String, u16>,
     running: Arc<AtomicBool>,
