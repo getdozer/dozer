@@ -1,9 +1,7 @@
-use crate::connectors::object_store::helper::map_listing_options;
+use crate::connectors::object_store::helper::{get_details, map_listing_options};
 use crate::connectors::object_store::schema_helper::map_schema_to_dozer;
 use crate::connectors::TableInfo;
-use crate::errors::ObjectStoreObjectError::{
-    ListingPathParsingError, MissingStorageDetails, TableDefinitionNotFound,
-};
+use crate::errors::ObjectStoreObjectError::{ListingPathParsingError, TableDefinitionNotFound};
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crossbeam::channel;
 use crossbeam::channel::Receiver;
@@ -64,24 +62,13 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
                 ConnectorError::WrongConnectionConfiguration
             })?;
 
-        let mut cols = vec![];
-        let fields_list = match table.columns {
-            Some(columns) if !columns.is_empty() => {
-                for f in c.fields() {
-                    if columns.iter().any(|c| c.name == f.name().clone()) {
-                        cols.push(f.clone());
-                    }
-                }
-                cols.as_ref()
-            }
-            _ => c.fields(),
-        };
+        let fields_list = c.fields().iter().filter(|f| match table.columns.as_ref() {
+            Some(columns) if !columns.is_empty() => columns.iter().any(|c| &c.name == f.name()),
+            _ => true,
+        });
 
-        let fields = map_schema_to_dozer(fields_list).map_err(|e| {
-            ConnectorError::DataFusionConnectorError(
-                ObjectStoreConnectorError::DataFusionSchemaError(e),
-            )
-        })?;
+        let fields = map_schema_to_dozer(fields_list)
+            .map_err(|e| ObjectStoreConnectorError::DataFusionSchemaError(e))?;
 
         Ok(Schema {
             identifier: Some(SchemaIdentifier { id, version: 0 }),
@@ -113,46 +100,20 @@ impl Mapper<S3Storage> for SchemaMapper<S3Storage> {
 
         let tables_list = prepare_tables_for_mapping(tables, &tables_map);
 
-        let details = self.config.details.as_ref().map_or_else(
-            || {
-                Err(ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
-                ))
-            },
-            Ok,
-        )?;
+        let details = get_details(&self.config.details)?;
         let mut schemas = vec![];
 
         for (id, table) in tables_list.iter().enumerate() {
-            let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
-                || {
-                    Err(ConnectorError::DataFusionConnectorError(
-                        ObjectStoreConnectorError::DataFusionStorageObjectError(
-                            TableDefinitionNotFound,
-                        ),
-                    ))
-                },
-                Ok,
-            )?;
+            let data_fusion_table = get_table(&tables_map, table)?;
             let path = format!("s3://{}/{}/", details.bucket_name, data_fusion_table.prefix);
 
-            let table_path = ListingTableUrl::parse(path).map_err(|_| {
-                ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::DataFusionStorageObjectError(
-                        ListingPathParsingError,
-                    ),
-                )
-            })?;
+            let table_path = get_table_path(path)?;
 
             let listing_options = map_listing_options(data_fusion_table);
 
             let (tx, rx) = channel::bounded(1);
 
-            let rt = Runtime::new().map_err(|_| {
-                ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::RuntimeCreationError,
-                )
-            })?;
+            let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 
             let details = details.clone();
             let ctx = SessionContext::new();
@@ -204,38 +165,18 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
 
         let tables_list = prepare_tables_for_mapping(tables, &tables_map);
 
-        let details = self.config.details.as_ref().map_or_else(
-            || {
-                Err(ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
-                ))
-            },
-            Ok,
-        )?;
+        let details = get_details(&self.config.details)?;
 
         let mut schemas = vec![];
         for (id, table) in tables_list.iter().enumerate() {
-            let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
-                || {
-                    Err(ConnectorError::DataFusionConnectorError(
-                        ObjectStoreConnectorError::DataFusionStorageObjectError(
-                            TableDefinitionNotFound,
-                        ),
-                    ))
-                },
-                Ok,
-            )?;
+            let data_fusion_table = get_table(&tables_map, table)?;
             let path = format!("{}/{}/", details.path.clone(), data_fusion_table.prefix);
 
             let listing_options = map_listing_options(data_fusion_table);
 
             let (tx, rx) = channel::bounded(1);
 
-            let rt = Runtime::new().map_err(|_| {
-                ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::RuntimeCreationError,
-                )
-            })?;
+            let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 
             let details = details.clone();
             let ctx = SessionContext::new();
@@ -244,13 +185,7 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
             ctx.runtime_env()
                 .register_object_store("local", &details.path, Arc::new(ls));
 
-            let table_path = ListingTableUrl::parse(path).map_err(|_| {
-                ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::DataFusionStorageObjectError(
-                        ListingPathParsingError,
-                    ),
-                )
-            })?;
+            let table_path = get_table_path(path)?;
 
             rt.block_on(async move {
                 let resolved_schema = listing_options
@@ -272,4 +207,19 @@ impl Mapper<LocalStorage> for SchemaMapper<LocalStorage> {
 
         Ok(schemas)
     }
+}
+
+fn get_table<'a>(
+    tables_map: &'a HashMap<String, Table>,
+    table: &TableInfo,
+) -> Result<&'a Table, ObjectStoreConnectorError> {
+    tables_map.get(&table.table_name).ok_or(
+        ObjectStoreConnectorError::DataFusionStorageObjectError(TableDefinitionNotFound),
+    )
+}
+
+fn get_table_path(path: String) -> Result<ListingTableUrl, ObjectStoreConnectorError> {
+    ListingTableUrl::parse(path).map_err(|_| {
+        ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError)
+    })
 }

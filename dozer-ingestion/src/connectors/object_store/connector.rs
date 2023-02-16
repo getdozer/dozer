@@ -34,7 +34,7 @@ impl Connector for ObjectStoreConnector<S3Storage> {
 
     fn validate_schemas(
         &self,
-        _tables: &[crate::connectors::TableInfo],
+        _tables: &[TableInfo],
     ) -> Result<crate::connectors::ValidationResults, errors::ConnectorError> {
         Ok(HashMap::new())
     }
@@ -58,20 +58,17 @@ impl Connector for ObjectStoreConnector<S3Storage> {
     }
 
     fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
-        let tables = self
-            .tables
-            .as_ref()
-            .map_or_else(std::vec::Vec::new, |t| t.clone());
-
-        let reader = TableReader::new(self.config.clone());
+        let tables = match &self.tables {
+            Some(tables) if !tables.is_empty() => tables,
+            _ => return Ok(()),
+        };
 
         let ingestor = self
             .ingestor
             .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?
-            .clone();
+            .ok_or(ConnectorError::InitializationError)?;
 
-        reader.read_tables(tables, ingestor)
+        TableReader::new(self.config.clone()).read_tables(tables, ingestor)
     }
 
     fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
@@ -110,20 +107,17 @@ impl Connector for ObjectStoreConnector<LocalStorage> {
     }
 
     fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
-        let tables = self
-            .tables
-            .as_ref()
-            .map_or_else(std::vec::Vec::new, |t| t.clone());
-
-        let reader = TableReader::new(self.config.clone());
+        let tables = match &self.tables {
+            Some(tables) if !tables.is_empty() => tables,
+            _ => return Ok(()),
+        };
 
         let ingestor = self
             .ingestor
             .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?
-            .clone();
+            .ok_or(ConnectorError::InitializationError)?;
 
-        reader.read_tables(tables, ingestor)
+        TableReader::new(self.config.clone()).read_tables(tables, ingestor)
     }
 
     fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
