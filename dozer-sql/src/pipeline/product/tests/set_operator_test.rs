@@ -189,7 +189,6 @@ fn test_set_union() {
     for (idx, statement) in ast.iter().enumerate() {
         let left_input_tables = get_input_tables(&left_select.clone().from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
         let right_input_tables = get_input_tables(&right_select.clone().from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
-        info!("{}", statement);
 
         let set_factory = SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
         let input_ports = set_factory.get_input_ports();

@@ -35,14 +35,12 @@ impl SetProcessor {
         &self,
         from_port: PortHandle,
         record: &Record,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
             .execute(
                 SetAction::Delete,
-                from_port,
                 record,
-                reader,
             )
             .map_err(|err| ProductError::DeleteError(self.get_port_name(from_port), Box::new(err)))
     }
@@ -51,14 +49,12 @@ impl SetProcessor {
         &self,
         from_port: PortHandle,
         record: &Record,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
             .execute(
                 SetAction::Insert,
-                from_port,
                 record,
-                reader,
             )
             .map_err(|err| ProductError::InsertError(self.get_port_name(from_port), Box::new(err)))
     }
@@ -69,15 +65,13 @@ impl SetProcessor {
         from_port: PortHandle,
         old: &Record,
         new: &Record,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
         let old_records = self
             .operator
             .execute(
                 SetAction::Delete,
-                from_port,
                 old,
-                reader,
             )
             .map_err(|err| {
                 ProductError::UpdateOldError(self.get_port_name(from_port), Box::new(err))
@@ -87,9 +81,7 @@ impl SetProcessor {
             .operator
             .execute(
                 SetAction::Insert,
-                from_port,
                 new,
-                reader,
             )
             .map_err(|err| {
                 ProductError::UpdateNewError(self.get_port_name(from_port), Box::new(err))

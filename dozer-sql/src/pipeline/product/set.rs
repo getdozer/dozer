@@ -73,13 +73,11 @@ impl SetOperation {
     pub fn execute(
         &self,
         action: SetAction,
-        from_port: PortHandle,
         record: &Record,
-        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let set_records = match self.op {
             SetOperator::Union => {
-                return self.execute_union(action, from_port, record, readers)
+                return self.execute_union(action, record)
             },
             _ => {
                 return Err(PipelineError::InvalidOperandType((&self.op).to_string()))
@@ -176,27 +174,10 @@ impl SetOperation {
     fn execute_union(
         &self,
         action: SetAction,
-        from_port: PortHandle,
         record: &Record,
-        readers: &HashMap<u16, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let mut output_records: Vec<(SetAction, Record)> = vec![];
-
-        let reader = readers
-            .get(&from_port)
-            .ok_or(PipelineError::SetError(SetError::HistoryUnavailable(from_port)))?;
-
-        if let Some(record) = reader
-            .get(record.values[0].encode().as_slice(), record.version.unwrap())
-            .map_err(|err| PipelineError::SetError(SetError::HistoryRecordNotFound(
-                record.values[0].encode(),
-                record.version.unwrap(),
-                from_port,
-                err
-            )))?
-        {
-            output_records.push((action, record));
-        }
+        output_records.push((action, record.clone()));
 
         Ok(output_records)
     }
