@@ -26,23 +26,20 @@ pub struct SchemaMapper<T: Clone + Send + Sync> {
 
 fn prepare_tables_for_mapping(
     tables: Option<Vec<TableInfo>>,
-    tables_map: &HashMap<String, DataFusionTable>,
+    tables_map: &HashMap<String, Table>,
 ) -> Vec<TableInfo> {
-    tables.map_or_else(
-        || {
-            tables_map
-                .values()
-                .into_iter()
-                .map(|t| TableInfo {
-                    name: t.name.clone(),
-                    table_name: t.name.clone(),
-                    id: 0,
-                    columns: None,
-                })
-                .collect()
-        },
-        |t| t,
-    )
+    tables.unwrap_or_else(|| {
+        tables_map
+            .values()
+            .into_iter()
+            .map(|t| TableInfo {
+                name: t.name.clone(),
+                table_name: t.name.clone(),
+                id: 0,
+                columns: None,
+            })
+            .collect()
+    })
 }
 
 impl<T: Clone + Send + Sync> SchemaMapper<T> {
