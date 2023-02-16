@@ -13,7 +13,6 @@ use datafusion::datasource::listing::{
 };
 use datafusion::prelude::SessionContext;
 use dozer_types::ingestion_types::{IngestionMessage, LocalStorage, S3Storage, Table};
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
@@ -36,7 +35,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         ctx: SessionContext,
         table_path: ListingTableUrl,
         listing_options: ListingOptions,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: &Ingestor,
         table: &TableInfo,
     ) -> Result<(), ObjectStoreConnectorError> {
         let resolved_schema = listing_options
@@ -91,7 +90,6 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     .collect::<Result<Vec<_>, _>>()?;
 
                 ingestor
-                    .write()
                     .handle_message((
                         (0_u64, idx),
                         IngestionMessage::OperationEvent(Operation::Insert {
@@ -133,7 +131,7 @@ pub trait Reader<T> {
     fn read_tables(
         &self,
         tables: &[TableInfo],
-        ingestor: &Arc<RwLock<Ingestor>>,
+        ingestor: &Ingestor,
     ) -> Result<(), ConnectorError>;
 }
 
@@ -141,7 +139,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
     fn read_tables(
         &self,
         tables: &[TableInfo],
-        ingestor: &Arc<RwLock<Ingestor>>,
+        ingestor: &Ingestor,
     ) -> Result<(), ConnectorError> {
         for (id, table) in tables.iter().enumerate() {
             let params = self.config.table_params(&table.name)?;
@@ -167,7 +165,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
                 ctx,
                 table_path,
                 listing_options,
-                ingestor.clone(),
+                ingestor,
                 table,
             ))?;
         }

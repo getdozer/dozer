@@ -6,12 +6,10 @@ use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::models::app_config::Config;
 use dozer_types::models::connection::Authentication;
 
-use dozer_types::parking_lot::RwLock;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_yaml;
 use postgres::Client;
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -67,7 +65,7 @@ pub fn get_client_and_create_table(table_name: &str, auth: &Authentication) -> C
     client
 }
 
-pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionIterator>>, Client) {
+pub fn get_iterator_and_client(table_name: String) -> (IngestionIterator, Client) {
     let config = get_debezium_config("test.debezium.yaml");
 
     let client =
@@ -112,9 +110,8 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
             thread::sleep(Duration::from_secs(1));
         }
 
-        let mut connector = get_connector(connection).unwrap();
-        connector.initialize(ingestor, Some(tables)).unwrap();
-        let _ = connector.start(None);
+        let connector = get_connector(connection).unwrap();
+        let _ = connector.start(None, &ingestor, Some(tables));
     });
 
     (iterator, client)

@@ -1,7 +1,6 @@
 #[cfg(feature = "snowflake")]
 use odbc::create_environment_v3;
 use std::collections::HashMap;
-use std::sync::Arc;
 #[cfg(feature = "snowflake")]
 use std::time::Duration;
 
@@ -11,7 +10,6 @@ use crate::connectors::{Connector, ValidationResults};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::SnowflakeConfig;
-use dozer_types::parking_lot::RwLock;
 
 #[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
@@ -32,18 +30,11 @@ use crate::errors::{SnowflakeError, SnowflakeStreamError};
 pub struct SnowflakeConnector {
     name: String,
     config: SnowflakeConfig,
-    ingestor: Option<Arc<RwLock<Ingestor>>>,
-    tables: Option<Vec<TableInfo>>,
 }
 
 impl SnowflakeConnector {
     pub fn new(name: String, config: SnowflakeConfig) -> Self {
-        Self {
-            name,
-            config,
-            ingestor: None,
-            tables: None,
-        }
+        Self { name, config }
     }
 }
 
@@ -85,28 +76,17 @@ impl Connector for SnowflakeConnector {
         todo!()
     }
 
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    fn start(
+        &self,
+        from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        self.ingestor = Some(ingestor);
-        self.tables = tables;
-        Ok(())
-    }
-
-    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
-        let ingestor = self
-            .ingestor
-            .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?
-            .clone();
-
         Runtime::new().unwrap().block_on(async {
             run(
                 self.name.clone(),
                 self.config.clone(),
-                self.tables.clone(),
+                tables,
                 ingestor,
                 from_seq,
             )
@@ -132,7 +112,7 @@ async fn run(
     name: String,
     config: SnowflakeConfig,
     tables: Option<Vec<TableInfo>>,
-    ingestor: Arc<RwLock<Ingestor>>,
+    ingestor: &Ingestor,
     from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
@@ -142,7 +122,6 @@ async fn run(
         None => {}
         Some(tables) => {
             let stream_client = Client::new(&config);
-            let ingestor_stream = Arc::clone(&ingestor);
             let mut interval = time::interval(Duration::from_secs(5));
 
             let mut consumer = StreamConsumer::new();
@@ -184,7 +163,7 @@ async fn run(
                     consumer.consume_stream(
                         &stream_client,
                         &table.table_name,
-                        &ingestor_stream,
+                        ingestor,
                         idx,
                         iteration,
                     )?;
@@ -205,7 +184,7 @@ async fn run(
     _name: String,
     _config: SnowflakeConfig,
     _tables: Option<Vec<TableInfo>>,
-    _ingestor: Arc<RwLock<Ingestor>>,
+    _ingestor: &Ingestor,
     _from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     Ok(())

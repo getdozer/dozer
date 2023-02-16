@@ -40,8 +40,10 @@ pub enum ExecutionError {
         typ: SchemaType,
         source: IncompatibleSchemas,
     },
-    #[error("Channel disconnected")]
-    ChannelDisconnected,
+    #[error("Cannot send to channel")]
+    CannotSendToChannel,
+    #[error("Cannot receive from channel")]
+    CannotReceiveFromChannel,
     #[error("Cannot spawn worker thread: {0}")]
     CannotSpawnWorkerThread(#[from] std::io::Error),
     #[error("Internal thread panicked")]
@@ -101,6 +103,12 @@ pub enum ExecutionError {
 
     #[error("Failed to execute product processor: {0}")]
     ProductProcessorError(#[source] BoxedError),
+}
+
+impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {
+    fn from(_: crossbeam::channel::SendError<T>) -> Self {
+        ExecutionError::CannotSendToChannel
+    }
 }
 
 impl<T> From<daggy::WouldCycle<T>> for ExecutionError {

@@ -69,7 +69,7 @@ impl KafkaPostgres {
 fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
     let mut rng = rand::thread_rng();
     let table_name = format!("products_test_{}", rng.gen::<u32>());
-    let (iterator, client) = get_iterator_and_client(table_name.clone());
+    let (mut iterator, client) = get_iterator_and_client(table_name.clone());
 
     let mut pg_client = KafkaPostgres { client, table_name };
 
@@ -79,7 +79,7 @@ fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
 
     let mut i = 0;
     while i < 30 {
-        let op = iterator.write().next();
+        let op = iterator.next();
 
         if let Some((_, op)) = op {
             i += 1;

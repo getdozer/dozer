@@ -9,7 +9,6 @@ use crate::{
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter};
 
-use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
 use super::sender::{run, EthDetails};
@@ -23,10 +22,8 @@ pub struct EthConnector {
     config: EthConfig,
     // Address -> (contract, contract_name)
     contracts: HashMap<String, ContractTuple>,
-    tables: Option<Vec<TableInfo>>,
     // contract_signacture -> SchemaID
     schema_map: HashMap<H256, usize>,
-    ingestor: Option<Arc<RwLock<Ingestor>>>,
     conn_name: String,
 }
 
@@ -101,8 +98,6 @@ impl EthConnector {
             config,
             contracts,
             schema_map,
-            tables: None,
-            ingestor: None,
             conn_name,
         }
     }
@@ -164,26 +159,15 @@ impl Connector for EthConnector {
         Ok(schemas)
     }
 
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    fn start(
+        &self,
+        from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        self.ingestor = Some(ingestor);
-        self.tables = tables;
-        Ok(())
-    }
-
-    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
         let filter = self.config.filter.to_owned().unwrap_or_default();
-
-        let ingestor = self
-            .ingestor
-            .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?
-            .clone();
 
         Runtime::new().unwrap().block_on(async {
             let details = Arc::new(EthDetails::new(
@@ -191,7 +175,7 @@ impl Connector for EthConnector {
                 filter,
                 ingestor,
                 self.contracts.to_owned(),
-                self.tables.to_owned(),
+                tables,
                 self.schema_map.to_owned(),
                 from_seq,
                 self.conn_name.clone(),

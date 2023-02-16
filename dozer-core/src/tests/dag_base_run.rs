@@ -18,7 +18,7 @@ use dozer_types::node::NodeHandle;
 use dozer_types::types::{Operation, Schema};
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -173,17 +173,18 @@ fn test_run_dag_and_stop() {
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
+    let running = Arc::new(AtomicBool::new(true));
     let join_handle = DagExecutor::new(
         &dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
     .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
+    .start(running.clone())
     .unwrap();
 
     thread::sleep(Duration::from_millis(1000));
-    join_handle.stop();
+    running.store(false, Ordering::SeqCst);
     join_handle.join().unwrap();
 
     let dag_schemas = DagSchemas::new(&dag).unwrap();

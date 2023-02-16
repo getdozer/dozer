@@ -2,12 +2,9 @@ use std::borrow::Cow;
 
 use crossbeam::channel::{Receiver, Select};
 use dozer_types::log::debug;
-use dozer_types::{internal_err, types::Operation};
+use dozer_types::types::Operation;
 
-use crate::{
-    epoch::Epoch,
-    errors::ExecutionError::{self, InternalError},
-};
+use crate::{epoch::Epoch, errors::ExecutionError};
 
 use super::{name::Name, ExecutorOperation, InputPortState};
 
@@ -64,7 +61,13 @@ pub trait ReceiverLoop: Name {
         let mut sel = init_select(&receivers);
         loop {
             let index = sel.ready();
-            match internal_err!(receivers[index].recv().map(map_executor_operation))? {
+            let op = match receivers[index].recv() {
+                Ok(op) => map_executor_operation(op),
+                // Channel disconnected before receiving a terminate. The upstream node had an error.
+                Err(_) => return Err(ExecutionError::CannotReceiveFromChannel),
+            };
+
+            match op {
                 MappedExecutorOperation::Data { op } => {
                     self.on_op(index, op)?;
                 }
