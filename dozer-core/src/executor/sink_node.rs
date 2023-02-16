@@ -92,7 +92,6 @@ impl ReceiverLoop for SinkNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        info!("sink {:?}", self.sink);
         self.sink.process(
             self.port_handles[index],
             op,

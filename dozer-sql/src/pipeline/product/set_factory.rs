@@ -20,7 +20,6 @@ use sqlparser::ast::Expr as SqlExpr;
 use sqlparser::ast::Select;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::serde::Serialize;
-use crate::output;
 use crate::pipeline::errors::SetError;
 use crate::pipeline::errors::SetError::InvalidInputSchemas;
 use crate::pipeline::product::set::SetOperation;
@@ -166,7 +165,7 @@ pub fn build_set_tree(
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<HashMap<u16, String>, PipelineError> {
 // ) {
-    if (input_schemas.len() != 2) {
+    if input_schemas.len() != 2 {
         return Err(PipelineError::SetError(InvalidInputSchemas))
     }
 
