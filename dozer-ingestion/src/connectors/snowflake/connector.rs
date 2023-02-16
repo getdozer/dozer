@@ -79,7 +79,7 @@ impl Connector for SnowflakeConnector {
     fn start(
         &self,
         from_seq: Option<(u64, u64)>,
-        ingestor: Ingestor,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         Runtime::new().unwrap().block_on(async {
@@ -112,7 +112,7 @@ async fn run(
     name: String,
     config: SnowflakeConfig,
     tables: Option<Vec<TableInfo>>,
-    ingestor: Ingestor,
+    ingestor: &Ingestor,
     from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
@@ -163,7 +163,7 @@ async fn run(
                     consumer.consume_stream(
                         &stream_client,
                         &table.table_name,
-                        &ingestor,
+                        ingestor,
                         idx,
                         iteration,
                     )?;
@@ -184,7 +184,7 @@ async fn run(
     _name: String,
     _config: SnowflakeConfig,
     _tables: Option<Vec<TableInfo>>,
-    _ingestor: Ingestor,
+    _ingestor: &Ingestor,
     _from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     Ok(())

@@ -162,7 +162,7 @@ impl Connector for EthConnector {
     fn start(
         &self,
         from_seq: Option<(u64, u64)>,
-        ingestor: Ingestor,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node

@@ -16,14 +16,14 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 // 0.4.10
-pub struct PostgresSnapshotter {
+pub struct PostgresSnapshotter<'a> {
     pub tables: Option<Vec<TableInfo>>,
     pub conn_config: tokio_postgres::Config,
-    pub ingestor: Ingestor,
+    pub ingestor: &'a Ingestor,
     pub connector_id: u64,
 }
 
-impl PostgresSnapshotter {
+impl<'a> PostgresSnapshotter<'a> {
     pub fn get_tables(
         &self,
         tables: Option<Vec<TableInfo>>,

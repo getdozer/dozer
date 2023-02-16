@@ -37,13 +37,13 @@ pub enum ReplicationState {
     Replicating,
 }
 
-pub struct PostgresIterator {
+pub struct PostgresIterator<'a> {
     details: Arc<Details>,
-    ingestor: Ingestor,
+    ingestor: &'a Ingestor,
     connector_id: u64,
 }
 
-impl PostgresIterator {
+impl<'a> PostgresIterator<'a> {
     #![allow(clippy::too_many_arguments)]
     pub fn new(
         id: u64,
@@ -52,7 +52,7 @@ impl PostgresIterator {
         slot_name: String,
         tables: Option<Vec<TableInfo>>,
         replication_conn_config: tokio_postgres::Config,
-        ingestor: Ingestor,
+        ingestor: &'a Ingestor,
         conn_config: tokio_postgres::Config,
     ) -> Self {
         let details = Arc::new(Details {
@@ -71,7 +71,7 @@ impl PostgresIterator {
     }
 }
 
-impl PostgresIterator {
+impl<'a> PostgresIterator<'a> {
     pub fn start(self, lsn: Option<(PgLsn, u64)>) -> Result<(), ConnectorError> {
         let lsn = RefCell::new(lsn);
         let state = RefCell::new(ReplicationState::Pending);
@@ -89,15 +89,15 @@ impl PostgresIterator {
     }
 }
 
-pub struct PostgresIteratorHandler {
+pub struct PostgresIteratorHandler<'a> {
     pub details: Arc<Details>,
     pub lsn: RefCell<Option<(PgLsn, u64)>>,
     pub state: RefCell<ReplicationState>,
-    pub ingestor: Ingestor,
+    pub ingestor: &'a Ingestor,
     pub connector_id: u64,
 }
 
-impl PostgresIteratorHandler {
+impl<'a> PostgresIteratorHandler<'a> {
     /*
      Replication involves 3 states
         1) Pending
@@ -111,7 +111,7 @@ impl PostgresIteratorHandler {
         3) Replicating
         - Replicate CDC events using lsn
     */
-    pub fn _start(mut self) -> Result<(), ConnectorError> {
+    pub fn _start(&self) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
         let replication_conn_config = details.replication_conn_config.to_owned();
         let client = Arc::new(RefCell::new(
@@ -124,7 +124,7 @@ impl PostgresIteratorHandler {
         // - When there is gap between available lsn (in case when slot dropped and new created) and last lsn
         // - When publication tables changes
         let mut tables = details.tables.clone();
-        let ingestor = if self.lsn.clone().into_inner().is_none() {
+        if self.lsn.clone().into_inner().is_none() {
             debug!("\nCreating Slot....");
             if let Ok(true) = self.replication_slot_exists(client.clone()) {
                 // We dont have lsn, so we need to drop replication slot and start from scratch
@@ -169,16 +169,11 @@ impl PostgresIteratorHandler {
                 debug!("failed to commit txn for replication");
                 ConnectorError::PostgresConnectorError(PostgresConnectorError::CommitReplication)
             })?;
-
-            snapshotter.ingestor
-        } else {
-            self.ingestor
-        };
+        }
 
         self.state.replace(ReplicationState::Replicating);
 
         /*  ####################        Replicating         ######################  */
-        self.ingestor = ingestor;
         self.replicate(tables)
     }
 
@@ -244,7 +239,7 @@ impl PostgresIteratorHandler {
         Ok(!slot_query_row.is_empty())
     }
 
-    fn replicate(self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    fn replicate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
         let lsn = self.lsn.borrow();
         let (lsn, offset) = lsn

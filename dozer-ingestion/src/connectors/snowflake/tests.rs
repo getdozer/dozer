@@ -28,7 +28,7 @@ fn connector_disabled_test_e2e_connect_snowflake_and_read_from_stream() {
 
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
-    thread::spawn(|| {
+    thread::spawn(move || {
         let tables: Vec<TableInfo> = vec![TableInfo {
             name: source.table_name.clone(),
             table_name: source.table_name,
@@ -37,7 +37,7 @@ fn connector_disabled_test_e2e_connect_snowflake_and_read_from_stream() {
         }];
 
         let connector = get_connector(connection).unwrap();
-        let _ = connector.start(None, ingestor, Some(tables));
+        let _ = connector.start(None, &ingestor, Some(tables));
     });
 
     let mut i = 0;

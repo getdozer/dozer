@@ -39,9 +39,9 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         resolved_schema: SchemaRef,
         table_path: ListingTableUrl,
         listing_options: ListingOptions,
-        ingestor: Ingestor,
+        ingestor: &Ingestor,
         table: &TableInfo,
-    ) -> Result<Ingestor, ObjectStoreConnectorError> {
+    ) -> Result<(), ObjectStoreConnectorError> {
         let mut idx = 0;
         let fields = resolved_schema.all_fields();
 
@@ -105,20 +105,23 @@ impl<T: Clone + Send + Sync> TableReader<T> {
             }
         }
 
-        Ok(ingestor)
+        Ok(())
     }
 }
 
 pub trait Reader<T> {
-    fn read_tables(&self, tables: Vec<TableInfo>, ingestor: Ingestor)
-        -> Result<(), ConnectorError>;
+    fn read_tables(
+        &self,
+        tables: Vec<TableInfo>,
+        ingestor: &Ingestor,
+    ) -> Result<(), ConnectorError>;
 }
 
 impl Reader<S3Storage> for TableReader<S3Storage> {
     fn read_tables(
         &self,
         tables: Vec<TableInfo>,
-        mut ingestor: Ingestor,
+        ingestor: &Ingestor,
     ) -> Result<(), ConnectorError> {
         let tables_map = get_tables_map(&self.config.tables);
         let details = get_details(&self.config.details)?;
@@ -147,25 +150,24 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
             ctx.runtime_env()
                 .register_object_store("s3", &details.bucket_name, Arc::new(s3));
 
-            ingestor = rt
-                .block_on(async move {
-                    let resolved_schema = listing_options
-                        .infer_schema(&ctx.state(), &table_path)
-                        .await
-                        .map_err(|_| ObjectStoreConnectorError::InternalError)?;
-
-                    Self::read(
-                        id as u32,
-                        ctx,
-                        resolved_schema,
-                        table_path,
-                        listing_options,
-                        ingestor,
-                        table,
-                    )
+            rt.block_on(async move {
+                let resolved_schema = listing_options
+                    .infer_schema(&ctx.state(), &table_path)
                     .await
-                })
-                .map_err(ConnectorError::DataFusionConnectorError)?;
+                    .map_err(|_| ObjectStoreConnectorError::InternalError)?;
+
+                Self::read(
+                    id as u32,
+                    ctx,
+                    resolved_schema,
+                    table_path,
+                    listing_options,
+                    ingestor,
+                    table,
+                )
+                .await
+            })
+            .map_err(ConnectorError::DataFusionConnectorError)?;
         }
 
         Ok(())
@@ -176,7 +178,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
     fn read_tables(
         &self,
         tables: Vec<TableInfo>,
-        mut ingestor: Ingestor,
+        ingestor: &Ingestor,
     ) -> Result<(), ConnectorError> {
         let tables_map = get_tables_map(&self.config.tables);
         let details = get_details(&self.config.details)?;
@@ -198,7 +200,7 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
             ctx.runtime_env()
                 .register_object_store("local", &details.path, Arc::new(ls));
 
-            ingestor = rt.block_on(async move {
+            rt.block_on(async move {
                 let resolved_schema = listing_options
                     .infer_schema(&ctx.state(), &table_path)
                     .await

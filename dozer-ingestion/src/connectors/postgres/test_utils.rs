@@ -26,7 +26,7 @@ pub fn get_iterator(config: Connection, table_name: String) -> IngestionIterator
         }];
 
         let connector = get_connector(config).unwrap();
-        connector.start(None, ingestor, Some(tables)).unwrap();
+        connector.start(None, &ingestor, Some(tables)).unwrap();
     });
 
     iterator

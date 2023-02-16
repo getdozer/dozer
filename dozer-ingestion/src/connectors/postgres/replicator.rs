@@ -21,10 +21,10 @@ use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
 
-pub struct CDCHandler {
+pub struct CDCHandler<'a> {
     pub name: String,
     pub connector_id: u64,
-    pub ingestor: Ingestor,
+    pub ingestor: &'a Ingestor,
 
     pub replication_conn_config: tokio_postgres::Config,
     pub publication_name: String,
@@ -39,7 +39,7 @@ pub struct CDCHandler {
     pub seq_no: u64,
 }
 
-impl CDCHandler {
+impl<'a> CDCHandler<'a> {
     pub async fn start(&mut self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         let replication_conn_config = self.replication_conn_config.clone();
         let client: tokio_postgres::Client = helper::async_connect(replication_conn_config).await?;

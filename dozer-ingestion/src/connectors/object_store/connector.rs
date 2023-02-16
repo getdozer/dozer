@@ -44,7 +44,7 @@ impl Connector for ObjectStoreConnector<S3Storage> {
     fn start(
         &self,
         _from_seq: Option<(u64, u64)>,
-        ingestor: Ingestor,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         let tables = tables.unwrap_or_default();
@@ -85,7 +85,7 @@ impl Connector for ObjectStoreConnector<LocalStorage> {
     fn start(
         &self,
         _from_seq: Option<(u64, u64)>,
-        ingestor: Ingestor,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         let tables = tables.unwrap_or_default();

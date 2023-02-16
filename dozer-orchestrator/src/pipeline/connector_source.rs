@@ -175,7 +175,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         Ok(Box::new(ConnectorSource {
-            ingestor: Mutex::new(Some(ingestor)),
+            ingestor,
             iterator: Mutex::new(iterator),
             schema_port_map: self.schema_port_map.clone(),
             tables: self.tables.clone(),
@@ -186,7 +186,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
 
 #[derive(Debug)]
 pub struct ConnectorSource {
-    ingestor: Mutex<Option<Ingestor>>,
+    ingestor: Ingestor,
     iterator: Mutex<IngestionIterator>,
     schema_port_map: HashMap<u32, u16>,
     tables: Vec<TableInfo>,
@@ -202,46 +202,42 @@ impl Source for ConnectorSource {
         let connector = get_connector(self.connection.to_owned())
             .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
 
-        let ingestor = self
-            .ingestor
-            .lock()
-            .take()
-            .expect("Connector already started");
-        let tables = self.tables.clone();
-        let t = thread::spawn(move || {
-            match connector.start(from_seq, ingestor, Some(tables)) {
-                Ok(_) => {}
-                // If we get a channel error, it means the source sender thread has quit.
-                // Any error handling is done in that thread.
-                Err(ConnectorError::IngestorError(IngestorError::ChannelError(_))) => (),
-                Err(e) => std::panic::panic_any(e),
+        thread::scope(|scope| {
+            let t = scope.spawn(|| {
+                match connector.start(from_seq, &self.ingestor, Some(self.tables.clone())) {
+                    Ok(_) => {}
+                    // If we get a channel error, it means the source sender thread has quit.
+                    // Any error handling is done in that thread.
+                    Err(ConnectorError::IngestorError(IngestorError::ChannelError(_))) => (),
+                    Err(e) => std::panic::panic_any(e),
+                }
+            });
+
+            let mut iterator = self.iterator.lock();
+            for ((lsn, seq_no), op) in iterator.by_ref() {
+                let identifier = match &op {
+                    Operation::Delete { old } => old.schema_id.to_owned(),
+                    Operation::Insert { new } => new.schema_id.to_owned(),
+                    Operation::Update { old: _, new } => new.schema_id.to_owned(),
+                };
+                let schema_id = get_schema_id(identifier.as_ref())?;
+                let port = self.schema_port_map.get(&schema_id).map_or(
+                    Err(ExecutionError::SourceError(SourceError::PortError(
+                        schema_id.to_string(),
+                    ))),
+                    Ok,
+                )?;
+                fw.send(lsn, seq_no, op, *port)?
             }
-        });
 
-        let mut iterator = self.iterator.lock();
-        for ((lsn, seq_no), op) in iterator.by_ref() {
-            let identifier = match &op {
-                Operation::Delete { old } => old.schema_id.to_owned(),
-                Operation::Insert { new } => new.schema_id.to_owned(),
-                Operation::Update { old: _, new } => new.schema_id.to_owned(),
-            };
-            let schema_id = get_schema_id(identifier.as_ref())?;
-            let port = self.schema_port_map.get(&schema_id).map_or(
-                Err(ExecutionError::SourceError(SourceError::PortError(
-                    schema_id.to_string(),
-                ))),
-                Ok,
-            )?;
-            fw.send(lsn, seq_no, op, *port)?
-        }
+            // If we reach here, it means the connector thread has quit and the `ingestor` has been dropped.
+            // `join` will not block.
+            if let Err(e) = t.join() {
+                std::panic::panic_any(e);
+            }
 
-        // If we reach here, it means the connector thread has quit and the `ingestor` has been dropped.
-        // `join` will not block.
-        if let Err(e) = t.join() {
-            std::panic::panic_any(e);
-        }
-
-        Ok(())
+            Ok(())
+        })
     }
 }
 

@@ -39,7 +39,7 @@ pub trait Connector: Send + Sync {
     fn start(
         &self,
         from_seq: Option<(u64, u64)>,
-        ingestor: Ingestor,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;

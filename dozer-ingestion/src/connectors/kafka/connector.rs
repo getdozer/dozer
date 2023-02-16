@@ -46,7 +46,7 @@ impl Connector for KafkaConnector {
     fn start(
         &self,
         _from_seq: Option<(u64, u64)>,
-        ingestor: Ingestor,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
@@ -74,7 +74,7 @@ impl Connector for KafkaConnector {
     }
 }
 
-async fn run(broker: String, topic: &str, ingestor: Ingestor) -> Result<(), ConnectorError> {
+async fn run(broker: String, topic: &str, ingestor: &Ingestor) -> Result<(), ConnectorError> {
     let con = Consumer::from_hosts(vec![broker])
         .with_topic(topic.to_string())
         .with_fallback_offset(FetchOffset::Earliest)

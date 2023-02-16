@@ -78,7 +78,7 @@ pub struct DebeziumStreamConsumer {}
 impl DebeziumStreamConsumer {}
 
 impl StreamConsumer for DebeziumStreamConsumer {
-    fn run(&self, mut con: Consumer, ingestor: Ingestor) -> Result<(), ConnectorError> {
+    fn run(&self, mut con: Consumer, ingestor: &Ingestor) -> Result<(), ConnectorError> {
         loop {
             let mss = con.poll().map_err(|e| {
                 DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))

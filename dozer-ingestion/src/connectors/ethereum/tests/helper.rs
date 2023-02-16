@@ -78,7 +78,7 @@ pub fn get_eth_producer(
         // schema.print().printstd();
     }
 
-    eth_connector.start(None, ingestor, None)
+    eth_connector.start(None, &ingestor, None)
 }
 
 pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>, Vec<Operation>) {

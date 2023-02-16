@@ -49,7 +49,7 @@ impl Connector for EventsConnector {
     fn start(
         &self,
         _from_seq: Option<(u64, u64)>,
-        _ingestor: Ingestor,
+        _ingestor: &Ingestor,
         _tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         Ok(())

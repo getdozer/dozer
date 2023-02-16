@@ -95,7 +95,7 @@ impl Connector for PostgresConnector {
     fn start(
         &self,
         from_seq: Option<(u64, u64)>,
-        ingestor: Ingestor,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         let client = helper::connect(self.replication_conn_config.clone())

@@ -28,7 +28,7 @@ fn main() {
 
     thread::spawn(move || -> Result<(), ConnectorError> {
         let connector = PostgresConnector::new(1, postgres_config);
-        connector.start(None, ingestor, None)
+        connector.start(None, &ingestor, None)
     });
 
     let before = Instant::now();
