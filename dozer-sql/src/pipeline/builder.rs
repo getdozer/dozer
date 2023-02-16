@@ -255,19 +255,21 @@ fn select_to_pipeline(
                 Some(port_index as PortHandle),
                 true,
             )?;
-        } else if let Some(table_info) = query_ctx
-            .pipeline_map
-            .get(&(GLOBAL_NAMESPACE, table_name.0.clone()))
-        {
-            // Output tables are in global namespace
-            pipeline.connect_nodes(
-                &table_info.node,
-                Some(table_info.port),
-                &gen_product_name,
-                Some(port_index as PortHandle),
-                true,
-            )?;
-        } else {
+        }
+        // else if let Some(table_info) = query_ctx
+        //     .pipeline_map
+        //     .get(&(GLOBAL_NAMESPACE, table_name.0.clone()))
+        // {
+        //     // Output tables are in global namespace
+        //     pipeline.connect_nodes(
+        //         &table_info.node,
+        //         Some(table_info.port),
+        //         &gen_product_name,
+        //         Some(port_index as PortHandle),
+        //         true,
+        //     )?;
+        // }
+        else {
             // If not present in pipeline_map, insert into used_sources as this is coming from source
             query_ctx.used_sources.push(table_name.0.clone());
         }
@@ -332,14 +334,14 @@ fn select_to_pipeline(
             },
         );
 
-        query_ctx.pipeline_map.insert(
-            (GLOBAL_NAMESPACE, table_name),
-            QueryTableInfo {
-                node: gen_agg_name.clone(),
-                port: DEFAULT_PORT_HANDLE,
-                is_derived: table_info.is_derived,
-            },
-        );
+        // query_ctx.pipeline_map.insert(
+        //     (GLOBAL_NAMESPACE, table_name),
+        //     QueryTableInfo {
+        //         node: gen_agg_name.clone(),
+        //         port: DEFAULT_PORT_HANDLE,
+        //         is_derived: table_info.is_derived,
+        //     },
+        // );
     }
 
     Ok(gen_agg_name)
