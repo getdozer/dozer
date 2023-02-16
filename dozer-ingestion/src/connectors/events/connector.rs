@@ -63,7 +63,7 @@ impl Connector for EventsConnector {
         Ok(HashMap::new())
     }
 
-    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        todo!()
+    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        Ok(vec![])
     }
 }

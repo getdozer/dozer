@@ -43,6 +43,32 @@ pub trait Connector: Send + Sync {
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;
+
+    // This is a default table mapping from schemas. It will result in errors if connector has unsupported data types.
+    fn get_tables_default(
+        &self,
+        tables: Option<&[TableInfo]>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        Ok(self
+            .get_schemas(tables.map(|t| t.to_vec()))?
+            .iter()
+            .enumerate()
+            .map(|(id, (n, s, _))| TableInfo {
+                name: n.to_string(),
+                table_name: n.to_string(),
+                id: id as u32,
+                columns: Some(
+                    s.fields
+                        .iter()
+                        .map(|f| ColumnInfo {
+                            name: f.name.to_string(),
+                            data_type: Some(f.typ.to_string()),
+                        })
+                        .collect(),
+                ),
+            })
+            .collect::<Vec<TableInfo>>())
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]

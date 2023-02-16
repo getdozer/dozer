@@ -199,7 +199,7 @@ impl Connector for EthConnector {
         Ok(HashMap::new())
     }
 
-    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        todo!()
+    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        self.get_tables_default(tables)
     }
 }
