@@ -5,7 +5,7 @@ use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::types::{FieldDefinition, Schema};
+use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint, SelectItem, SetOperator, TableWithJoins};
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::{
@@ -20,6 +20,8 @@ use sqlparser::ast::Expr as SqlExpr;
 use sqlparser::ast::Select;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::serde::Serialize;
+use crate::output;
+use crate::pipeline::errors::SetError;
 use crate::pipeline::errors::SetError::InvalidInputSchemas;
 use crate::pipeline::product::set::SetOperation;
 use crate::pipeline::product::set_processor::SetProcessor;
@@ -72,22 +74,16 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        let mut output_schema = Schema::empty();
-
         let mut input_names: Vec<NameOrAlias> = Vec::new();
         get_input_names(&self.left_input_tables).iter().for_each(|name| input_names.push(name.clone()));
         get_input_names(&self.right_input_tables).iter().for_each(|name| input_names.push(name.clone()));
 
-        for (port, table) in input_names.iter().enumerate() {
-            if let Some((current_schema, _)) = input_schemas.get(&(port as PortHandle)) {
-                if current_schema.fields.iter().map(|f| output_schema.fields.contains(f)).all(|x| !x) {
-                    let current_extended_schema = extend_schema_source_def(current_schema, table);
-                    output_schema = append_schema(&output_schema, &current_extended_schema);
-                }
-            } else {
-                return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
-            }
-        }
+        let output_columns = validate_set_operation_input_schemas(input_schemas, input_names.clone()).unwrap();
+
+        let mut output_schema = Schema::empty();
+        output_schema.fields = output_columns;
+        output_schema.identifier = input_schemas.get(&0).unwrap().to_owned().0.identifier;
+        output_schema.primary_index = input_schemas.get(&0).unwrap().to_owned().0.primary_index;
 
         Ok((output_schema, SchemaSQLContext::default()))
     }
@@ -230,6 +226,41 @@ fn parse_join_constraint(
             JoinError::UnsupportedJoinConstraint(expression.to_string()),
         )),
     }
+}
+
+fn validate_set_operation_input_schemas(
+    input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    input_names: Vec<NameOrAlias>,
+) -> Result<Vec<FieldDefinition>, PipelineError> {
+    if input_schemas.clone().len() != input_names.len() {
+        return Err(PipelineError::SetError(SetError::InvalidInputSchemas))
+    }
+
+    let mut left_columns = input_schemas.get(&0).unwrap().to_owned().0.fields;
+    let mut right_columns = input_schemas.get(&1).unwrap().to_owned().0.fields;
+    left_columns.sort();
+    right_columns.sort();
+
+    let mut output_fields = Vec::new();
+    for (left, right) in left_columns.iter().zip(right_columns.iter()) {
+        if !is_similar_fields(left, right) {
+            return Err(PipelineError::SetError(SetError::InvalidInputSchemas))
+        }
+        output_fields.push(FieldDefinition::new(
+            left.name.clone(),
+            left.typ,
+            left.nullable,
+            SourceDefinition::Dynamic,
+        ));
+    }
+    Ok(output_fields)
+}
+
+fn is_similar_fields(
+    left: &FieldDefinition,
+    right: &FieldDefinition,
+) -> bool {
+    left.name == right.name && left.typ == right.typ && left.nullable == right.nullable
 }
 
 fn parse_join_eq_expression(

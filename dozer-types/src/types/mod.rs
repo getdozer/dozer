@@ -10,14 +10,14 @@ mod field;
 
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SourceDefinition {
     Table { connection: String, name: String },
     Alias { name: String },
     Dynamic,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FieldDefinition {
     pub name: String,
     pub typ: FieldType,

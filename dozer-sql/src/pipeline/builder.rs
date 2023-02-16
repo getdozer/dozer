@@ -8,7 +8,7 @@ use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::PipelineEntryPoint;
 use dozer_core::app::{AppPipeline, NamespacedEdge};
 use dozer_core::appsource::AppSourceId;
-use dozer_core::node::PortHandle;
+use dozer_core::node::{PortHandle, ProcessorFactory};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::log::info;
 use sqlparser::ast::{Join, SetOperator, TableFactor, TableWithJoins};
@@ -381,7 +381,7 @@ fn set_to_pipeline(
     )
     .unwrap();
 
-    let product = SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
+    let set_proc_fac = SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
 
     let mut input_endpoints: Vec<PipelineEntryPoint> = Vec::new();
     get_entry_points(
@@ -405,7 +405,7 @@ fn set_to_pipeline(
         gen_set_name = table_info.override_name.to_owned().unwrap();
     }
 
-    pipeline.add_processor(Arc::new(product), &gen_set_name, input_endpoints.clone());
+    pipeline.add_processor(Arc::new(set_proc_fac), &gen_set_name, input_endpoints.clone());
 
     pipeline.remove_entry_points(&gen_set_name, input_endpoints.clone());
 
@@ -521,6 +521,7 @@ pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias>
     }
     input_names
 }
+
 pub fn get_entry_points(
     input_tables: &IndexedTableWithJoins,
     pipeline_map: &mut HashMap<(usize, String), QueryTableInfo>,

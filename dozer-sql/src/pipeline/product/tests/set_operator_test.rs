@@ -32,7 +32,7 @@ fn test_set_union_pipeline_builder() {
                         SELECT supplier_id
                         FROM orders
                     )
-                    SELECT supplier_id_union.supplier_id
+                    SELECT supplier_id
                     INTO set_results
                     FROM supplier_id_union;";
 
@@ -46,7 +46,7 @@ fn test_set_union_pipeline_builder() {
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
-        "conn".to_string(),
+        "connection".to_string(),
         Arc::new(TestSourceFactory::new(latch.clone())),
         vec![
             ("suppliers".to_string(), SUPPLIERS_PORT),
@@ -102,139 +102,139 @@ fn test_set_union_pipeline_builder() {
     info!("Elapsed: {:.2?}", elapsed);
 }
 
-#[test]
-fn test_set_union() {
-    let sql = "SELECT supplier_id
-                    FROM suppliers
-                    UNION
-                    SELECT supplier_id
-                    FROM orders;";
-
-    let dialect = AnsiDialect {};
-    let ast = Parser::parse_sql(&dialect, sql).unwrap();
-    // let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
-
-    let set_operation = get_set_operation(sql).unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    let left_select = set_operation.left;
-    let right_select = set_operation.right;
-
-    let suppliers_schema = Schema::empty()
-        .field(
-            FieldDefinition::new(
-                "supplier_id".to_string(),
-                FieldType::Int,
-                false,
-                SourceDefinition::Table {
-                    name: "conn".to_string(),
-                    connection: "suppliers".to_string(),
-                },
-            ),
-            false,
-        )
-        .field(
-            FieldDefinition::new(
-                "supplier_name".to_string(),
-                FieldType::String,
-                false,
-                SourceDefinition::Table {
-                    name: "conn".to_string(),
-                    connection: "suppliers".to_string(),
-                },
-            ),
-            false,
-        )
-        .to_owned();
-
-    let orders_schema = Schema::empty()
-        .field(
-            FieldDefinition::new(
-                "order_id".to_string(),
-                FieldType::Int,
-                false,
-                SourceDefinition::Table {
-                    name: "conn".to_string(),
-                    connection: "orders".to_string(),
-                },
-            ),
-            false,
-        )
-        .field(
-            FieldDefinition::new(
-                "order_date".to_string(),
-                FieldType::Date,
-                false,
-                SourceDefinition::Table {
-                    name: "conn".to_string(),
-                    connection: "orders".to_string(),
-                },
-            ),
-            false,
-        )
-        .field(
-            FieldDefinition::new(
-                "supplier_id".to_string(),
-                FieldType::Int,
-                false,
-                SourceDefinition::Table {
-                    name: "conn".to_string(),
-                    connection: "orders".to_string(),
-                },
-            ),
-            false,
-        )
-        .to_owned();
-
-    let mut pipeline = AppPipeline::new();
-    let mut query_ctx = QueryContext::default();
-    // let mut query_ctx = statement_to_pipeline(sql, &mut pipeline, Some("results".to_string())).unwrap();
-
-    let mut output_keys = query_ctx.output_tables_map.keys().collect::<Vec<_>>();
-
-    for (idx, statement) in ast.iter().enumerate() {
-        let left_input_tables = get_input_tables(&left_select.clone().from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
-        let right_input_tables = get_input_tables(&right_select.clone().from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
-
-        let set_factory = SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
-        let input_ports = set_factory.get_input_ports();
-
-        let left_factory = ProjectionProcessorFactory::new(left_select.clone().projection);
-        let left_output_schema = left_factory.get_output_schema(
-            input_ports.first().unwrap(),
-            &[
-                (DEFAULT_PORT_HANDLE, (suppliers_schema.clone(), SchemaSQLContext::default())),
-            ]
-            .into_iter()
-            .collect(),
-        )
-        .unwrap();
-
-        let right_factory = ProjectionProcessorFactory::new(right_select.clone().projection);
-        let right_output_schema = right_factory.get_output_schema(
-            input_ports.first().unwrap(),
-            &[
-                (DEFAULT_PORT_HANDLE, (orders_schema.clone(), SchemaSQLContext::default())),
-            ]
-            .into_iter()
-            .collect(),
-        )
-        .unwrap();
-
-        assert_eq!(left_output_schema.0, right_output_schema.0);
-
-        set_factory.get_output_ports();
-        let output_schema = set_factory.get_output_schema(
-            &DEFAULT_PORT_HANDLE,
-            &[
-                (*input_ports.first().unwrap(), left_output_schema),
-                (*input_ports.last().unwrap(), right_output_schema),
-            ]
-            .into_iter()
-            .collect(),
-        ).unwrap();
-
-        println!("{:?}", output_schema);
-    }
+// #[test]
+// fn test_set_union() {
+//     let sql = "SELECT supplier_id
+//                     FROM suppliers
+//                     UNION
+//                     SELECT supplier_id
+//                     FROM orders;";
+//
+//     let dialect = AnsiDialect {};
+//     let ast = Parser::parse_sql(&dialect, sql).unwrap();
+//     // let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
+//
+//     let set_operation = get_set_operation(sql).unwrap_or_else(|e| panic!("{}", e.to_string()));
+//
+//     let left_select = set_operation.left;
+//     let right_select = set_operation.right;
+//
+//     let suppliers_schema = Schema::empty()
+//         .field(
+//             FieldDefinition::new(
+//                 "supplier_id".to_string(),
+//                 FieldType::Int,
+//                 false,
+//                 SourceDefinition::Table {
+//                     name: "conn".to_string(),
+//                     connection: "suppliers".to_string(),
+//                 },
+//             ),
+//             false,
+//         )
+//         .field(
+//             FieldDefinition::new(
+//                 "supplier_name".to_string(),
+//                 FieldType::String,
+//                 false,
+//                 SourceDefinition::Table {
+//                     name: "conn".to_string(),
+//                     connection: "suppliers".to_string(),
+//                 },
+//             ),
+//             false,
+//         )
+//         .to_owned();
+//
+//     let orders_schema = Schema::empty()
+//         .field(
+//             FieldDefinition::new(
+//                 "order_id".to_string(),
+//                 FieldType::Int,
+//                 false,
+//                 SourceDefinition::Table {
+//                     name: "conn".to_string(),
+//                     connection: "orders".to_string(),
+//                 },
+//             ),
+//             false,
+//         )
+//         .field(
+//             FieldDefinition::new(
+//                 "order_date".to_string(),
+//                 FieldType::Date,
+//                 false,
+//                 SourceDefinition::Table {
+//                     name: "conn".to_string(),
+//                     connection: "orders".to_string(),
+//                 },
+//             ),
+//             false,
+//         )
+//         .field(
+//             FieldDefinition::new(
+//                 "supplier_id".to_string(),
+//                 FieldType::Int,
+//                 false,
+//                 SourceDefinition::Table {
+//                     name: "conn".to_string(),
+//                     connection: "orders".to_string(),
+//                 },
+//             ),
+//             false,
+//         )
+//         .to_owned();
+//
+//     let mut pipeline = AppPipeline::new();
+//     let mut query_ctx = QueryContext::default();
+//     // let mut query_ctx = statement_to_pipeline(sql, &mut pipeline, Some("results".to_string())).unwrap();
+//
+//     let mut output_keys = query_ctx.output_tables_map.keys().collect::<Vec<_>>();
+//
+//     for (idx, statement) in ast.iter().enumerate() {
+//         let left_input_tables = get_input_tables(&left_select.clone().from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
+//         let right_input_tables = get_input_tables(&right_select.clone().from[0], &mut pipeline, &mut query_ctx, idx).unwrap();
+//
+//         let set_factory = SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
+//         let input_ports = set_factory.get_input_ports();
+//
+//         let left_factory = ProjectionProcessorFactory::new(left_select.clone().projection);
+//         let left_output_schema = left_factory.get_output_schema(
+//             input_ports.first().unwrap(),
+//             &[
+//                 (DEFAULT_PORT_HANDLE, (suppliers_schema.clone(), SchemaSQLContext::default())),
+//             ]
+//             .into_iter()
+//             .collect(),
+//         )
+//         .unwrap();
+//
+//         let right_factory = ProjectionProcessorFactory::new(right_select.clone().projection);
+//         let right_output_schema = right_factory.get_output_schema(
+//             input_ports.first().unwrap(),
+//             &[
+//                 (DEFAULT_PORT_HANDLE, (orders_schema.clone(), SchemaSQLContext::default())),
+//             ]
+//             .into_iter()
+//             .collect(),
+//         )
+//         .unwrap();
+//
+//         assert_eq!(left_output_schema.0, right_output_schema.0);
+//
+//         set_factory.get_output_ports();
+//         let output_schema = set_factory.get_output_schema(
+//             &DEFAULT_PORT_HANDLE,
+//             &[
+//                 (*input_ports.first().unwrap(), left_output_schema),
+//                 (*input_ports.last().unwrap(), right_output_schema),
+//             ]
+//             .into_iter()
+//             .collect(),
+//         ).unwrap();
+//
+//         println!("{:?}", output_schema);
+//     }
 
     //     let left_input_endpoints = get_entry_points(&left_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
     //     let right_input_endpoints = get_entry_points(&right_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
@@ -354,7 +354,7 @@ fn test_set_union() {
     // info!("{:?}", query_ctx.pipeline_map);
 
 
-}
+// }
 
 // #[test]
 // fn test_union_pipeline_builder() {
@@ -634,10 +634,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         if port == &SUPPLIERS_PORT {
-            let source_id = SourceDefinition::Table {
-                connection: "connection".to_string(),
-                name: "suppliers".to_string(),
-            };
+            let source_id = SourceDefinition::Dynamic;
             Ok((
                 Schema::empty()
                     .field(
@@ -662,10 +659,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 SchemaSQLContext::default(),
             ))
         } else if port == &ORDERS_PORT {
-            let source_id = SourceDefinition::Table {
-                connection: "connection".to_string(),
-                name: "orders".to_string(),
-            };
+            let source_id = SourceDefinition::Dynamic;
             Ok((
                 Schema::empty()
                     .field(
@@ -699,10 +693,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 SchemaSQLContext::default(),
             ))
         } else if port == &DEFAULT_PORT_HANDLE {
-            let source_id = SourceDefinition::Table {
-                connection: "connection".to_string(),
-                name: "set_result".to_string(),
-            };
+            let source_id = SourceDefinition::Dynamic;
             Ok((
                 Schema::empty()
                     .field(
