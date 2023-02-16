@@ -4,8 +4,8 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::product::set_factory::SetProcessorFactory;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
-use dozer_core::app::PipelineEntryPoint;
 use dozer_core::app::AppPipeline;
+use dozer_core::app::PipelineEntryPoint;
 use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -35,6 +35,7 @@ pub struct QueryTableInfo {
     // TODO add:indexes to the tables
 }
 
+const GLOBAL_NAMESPACE: usize = 10000000;
 pub struct TableInfo {
     pub name: NameOrAlias,
     pub override_name: Option<String>,
@@ -254,8 +255,20 @@ fn select_to_pipeline(
                 Some(port_index as PortHandle),
                 true,
             )?;
-            // If not present in pipeline_map, insert into used_sources as this is coming from source
+        } else if let Some(table_info) = query_ctx
+            .pipeline_map
+            .get(&(GLOBAL_NAMESPACE, table_name.0.clone()))
+        {
+            // Output tables are in global namespace
+            pipeline.connect_nodes(
+                &table_info.node,
+                Some(table_info.port),
+                &gen_product_name,
+                Some(port_index as PortHandle),
+                true,
+            )?;
         } else {
+            // If not present in pipeline_map, insert into used_sources as this is coming from source
             query_ctx.used_sources.push(table_name.0.clone());
         }
     }
@@ -311,11 +324,20 @@ fn select_to_pipeline(
     };
     if let Some(table_name) = output_table_name {
         query_ctx.output_tables_map.insert(
-            table_name,
+            table_name.clone(),
             QueryTableInfo {
                 node: gen_agg_name.clone(),
                 port: DEFAULT_PORT_HANDLE,
                 is_derived: false,
+            },
+        );
+
+        query_ctx.pipeline_map.insert(
+            (GLOBAL_NAMESPACE, table_name),
+            QueryTableInfo {
+                node: gen_agg_name.clone(),
+                port: DEFAULT_PORT_HANDLE,
+                is_derived: table_info.is_derived,
             },
         );
     }
@@ -363,13 +385,8 @@ fn set_to_pipeline(
         right_pipeline_idx,
     )?;
 
-    let left_input_tables = get_input_tables(
-        &left_select.from[0],
-        pipeline,
-        query_ctx,
-        left_pipeline_idx,
-    )
-    .unwrap();
+    let left_input_tables =
+        get_input_tables(&left_select.from[0], pipeline, query_ctx, left_pipeline_idx).unwrap();
     let right_input_tables = get_input_tables(
         &right_select.from[0],
         pipeline,
@@ -378,7 +395,8 @@ fn set_to_pipeline(
     )
     .unwrap();
 
-    let set_proc_fac = SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
+    let set_proc_fac =
+        SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
 
     let mut input_endpoints: Vec<PipelineEntryPoint> = Vec::new();
     get_entry_points(
@@ -402,7 +420,11 @@ fn set_to_pipeline(
         gen_set_name = table_info.override_name.to_owned().unwrap();
     }
 
-    pipeline.add_processor(Arc::new(set_proc_fac), &gen_set_name, input_endpoints.clone());
+    pipeline.add_processor(
+        Arc::new(set_proc_fac),
+        &gen_set_name,
+        input_endpoints.clone(),
+    );
 
     pipeline.remove_entry_points(&gen_set_name, input_endpoints.clone());
 
