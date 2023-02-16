@@ -2,10 +2,8 @@ use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{ColumnInfo, TableInfo};
-use dozer_ingestion::ingestion::Ingestor;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::source::Source;
-use dozer_types::parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -13,8 +11,6 @@ pub struct SourceBuilder {
     used_sources: Vec<String>,
     grouped_connections: HashMap<String, Vec<Source>>,
 }
-
-pub type IngestorVec = Vec<Arc<RwLock<Ingestor>>>;
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
