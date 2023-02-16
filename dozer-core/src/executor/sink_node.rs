@@ -4,6 +4,7 @@ use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::{log::debug, node::NodeHandle};
+use dozer_types::log::info;
 
 use crate::{
     epoch::Epoch,
@@ -91,6 +92,7 @@ impl ReceiverLoop for SinkNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
+        info!("sink {:?}", self.sink);
         self.sink.process(
             self.port_handles[index],
             op,

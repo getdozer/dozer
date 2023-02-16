@@ -25,11 +25,16 @@ use crate::pipeline::tests::utils::get_set_operation;
 
 #[test]
 fn test_set_union_pipeline_builder() {
-    let sql = "SELECT supplier_id
-                    FROM suppliers
-                    UNION
-                    SELECT supplier_id
-                    FROM orders;";
+    let sql = "WITH supplier_id_union AS (
+                        SELECT supplier_id
+                        FROM suppliers
+                        UNION
+                        SELECT supplier_id
+                        FROM orders
+                    )
+                    SELECT supplier_id_union.supplier_id
+                    INTO set_results
+                    FROM supplier_id_union;";
 
     dozer_tracing::init_telemetry(false).unwrap();
 
@@ -615,14 +620,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         Ok(vec![
             OutputPortDef::new(
                 SUPPLIERS_PORT,
-                OutputPortType::AutogenRowKeyLookup,
+                OutputPortType::Stateless,
             ),
             OutputPortDef::new(
                 ORDERS_PORT,
-                OutputPortType::AutogenRowKeyLookup,
-            ),
-            OutputPortDef::new(
-                DEFAULT_PORT_HANDLE,
                 OutputPortType::Stateless,
             ),
         ])

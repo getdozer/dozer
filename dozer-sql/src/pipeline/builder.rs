@@ -223,7 +223,7 @@ fn select_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
-) -> Result<(), PipelineError> {
+) -> Result<String, PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
         return Err(PipelineError::UnsupportedSqlError(
@@ -315,14 +315,14 @@ fn select_to_pipeline(
         query_ctx.output_tables_map.insert(
             table_name,
             QueryTableInfo {
-                node: gen_agg_name,
+                node: gen_agg_name.clone(),
                 port: DEFAULT_PORT_HANDLE,
                 is_derived: false,
             },
         );
     }
 
-    Ok(())
+    Ok(gen_agg_name)
 }
 
 fn set_to_pipeline(
@@ -348,8 +348,8 @@ fn set_to_pipeline(
         is_derived: false,
     };
 
-    select_to_pipeline(&left_table_info, left_select.clone(), pipeline, query_ctx, stateful, left_pipeline_idx)?;
-    select_to_pipeline(&right_table_info, right_select.clone(), pipeline, query_ctx, stateful, right_pipeline_idx)?;
+    let left_pipeline = select_to_pipeline(&left_table_info, left_select.clone(), pipeline, query_ctx, stateful, left_pipeline_idx)?;
+    let right_pipeline = select_to_pipeline(&right_table_info, right_select.clone(), pipeline, query_ctx, stateful, right_pipeline_idx)?;
 
     let left_input_tables =
         get_input_tables(&left_select.clone().from[0], pipeline, query_ctx, left_pipeline_idx)
@@ -397,18 +397,51 @@ fn set_to_pipeline(
         ).unwrap()
     );
 
-    for (_, table_name) in query_ctx.pipeline_map.keys() {
-        query_ctx.output_tables_map.remove_entry(table_name);
-    }
+    // for (_, table_name) in query_ctx.pipeline_map.keys() {
+    //     query_ctx.output_tables_map.remove_entry(table_name);
+    // }
+    // let left_table_info = query_ctx.pipeline_map.values().
+    //
+    //     pipeline.connect_nodes(
+    //     &query_table_info.node,
+    //     Some(query_table_info.port),
+    //     &gen_set_name,
+    //     Some(idx as PortHandle),
+    //     true,
+    // ).unwrap();
 
-    query_ctx.output_tables_map.insert(
-        gen_set_name.clone(),
+    // for (_, table_name) in query_ctx.pipeline_map.keys() {
+    //     query_ctx.output_tables_map.remove_entry(table_name);
+    // }
+    //
+    // query_ctx.pipeline_map.insert(
+    //     gen_set_name.clone(),
+    //     QueryTableInfo {
+    //         node: gen_set_name.clone(),
+    //         port: DEFAULT_PORT_HANDLE,
+    //         is_derived: false,
+    //     }
+    // );
+
+    query_ctx.pipeline_map.insert(
+        (pipeline_idx, table_info.name.0.to_string()),
         QueryTableInfo {
             node: gen_set_name.clone(),
             port: DEFAULT_PORT_HANDLE,
-            is_derived: false,
-        }
+            is_derived: table_info.is_derived,
+        },
     );
+
+    // query_ctx.output_tables_map.insert(
+    //     gen_set_name.clone(),
+    //     QueryTableInfo {
+    //         node: gen_set_name.clone(),
+    //         port: DEFAULT_PORT_HANDLE,
+    //         is_derived: false,
+    //     }
+    // );
+
+    info!("{:?}", query_ctx);
 
     Ok(())
 }

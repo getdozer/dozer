@@ -59,16 +59,7 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        let input_ports = self.get_input_ports();
         vec![
-            OutputPortDef::new(
-                *input_ports.first().unwrap(),
-                OutputPortType::AutogenRowKeyLookup,
-            ),
-            OutputPortDef::new(
-                *input_ports.last().unwrap(),
-                OutputPortType::AutogenRowKeyLookup,
-            ),
             OutputPortDef::new(
                 DEFAULT_PORT_HANDLE,
                 OutputPortType::Stateless,

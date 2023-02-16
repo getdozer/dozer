@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::hash::Hash;
 use lmdb::Database;
 use dozer_types::types::{Record, Schema};
 use crate::pipeline::errors::{PipelineError, SetError};
@@ -73,17 +74,18 @@ impl SetOperation {
     pub fn execute(
         &self,
         action: SetAction,
+        _from_port: PortHandle,
         record: &Record,
+        record_hash_map: &mut Vec<u64>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let set_records = match self.op {
+        match self.op {
             SetOperator::Union => {
-                return self.execute_union(action, record)
+                return self.execute_union(action, record, record_hash_map)
             },
             _ => {
                 return Err(PipelineError::InvalidOperandType((&self.op).to_string()))
             }
-        };
-        set_records
+        }
         // return Err(PipelineError::InvalidOperandType((&self.op).to_string()))
         // if the source port is under the left branch of the join
         // if self.left.contains(&from_port) {
@@ -175,10 +177,14 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
+        record_hash_map: &mut Vec<u64>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let mut output_records: Vec<(SetAction, Record)> = vec![];
-        output_records.push((action, record.clone()));
-
+        let lookup_key = Record::calculate_hash(&record);
+        if !record_hash_map.contains(&lookup_key) {
+            output_records.push((action, record.clone()));
+            record_hash_map.push(lookup_key);
+        }
         Ok(output_records)
     }
 }

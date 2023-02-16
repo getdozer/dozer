@@ -1,4 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
 
 use crate::errors::types::TypeError;
 use prettytable::{Cell, Row, Table};
@@ -129,7 +131,7 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
@@ -203,6 +205,12 @@ impl Record {
             res_buffer.extend(i);
         }
         res_buffer
+    }
+
+    pub fn calculate_hash<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
     }
 }
 

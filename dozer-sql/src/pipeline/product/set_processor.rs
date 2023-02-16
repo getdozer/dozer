@@ -20,6 +20,7 @@ pub struct SetProcessor {
     /// Set operations
     operator: SetOperation,
     source_names: HashMap<PortHandle, String>,
+    record_hash_map: Vec<u64>,
 }
 
 impl SetProcessor {
@@ -28,50 +29,54 @@ impl SetProcessor {
         Self {
             operator,
             source_names,
+            record_hash_map: Vec::new(),
         }
     }
 
     fn delete(
-        &self,
+        &mut self,
         from_port: PortHandle,
         record: &Record,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
             .execute(
                 SetAction::Delete,
+                from_port,
                 record,
+                &mut self.record_hash_map,
             )
             .map_err(|err| ProductError::DeleteError(self.get_port_name(from_port), Box::new(err)))
     }
 
     fn insert(
-        &self,
+        &mut self,
         from_port: PortHandle,
         record: &Record,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
             .execute(
                 SetAction::Insert,
+                from_port,
                 record,
+                &mut self.record_hash_map,
             )
             .map_err(|err| ProductError::InsertError(self.get_port_name(from_port), Box::new(err)))
     }
 
     #[allow(clippy::type_complexity)]
     fn update(
-        &self,
+        &mut self,
         from_port: PortHandle,
         old: &Record,
         new: &Record,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
         let old_records = self
             .operator
             .execute(
                 SetAction::Delete,
+                from_port,
                 old,
+                &mut self.record_hash_map,
             )
             .map_err(|err| {
                 ProductError::UpdateOldError(self.get_port_name(from_port), Box::new(err))
@@ -81,7 +86,9 @@ impl SetProcessor {
             .operator
             .execute(
                 SetAction::Insert,
+                from_port,
                 new,
+                &mut self.record_hash_map,
             )
             .map_err(|err| {
                 ProductError::UpdateNewError(self.get_port_name(from_port), Box::new(err))
@@ -113,7 +120,7 @@ impl Processor for SetProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         // match op.clone() {
         //     Operation::Delete { old } => info!("p{from_port}: - {:?}", old.values),
@@ -126,7 +133,7 @@ impl Processor for SetProcessor {
         match op {
             Operation::Delete { ref old } => {
                 let records = self
-                    .delete(from_port, old, reader)
+                    .delete(from_port, old)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record) in records.into_iter() {
@@ -142,7 +149,7 @@ impl Processor for SetProcessor {
             }
             Operation::Insert { ref new } => {
                 let records = self
-                    .insert(from_port, new, reader)
+                    .insert(from_port, new)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record) in records.into_iter() {
@@ -158,7 +165,7 @@ impl Processor for SetProcessor {
             }
             Operation::Update { ref old, ref new } => {
                 let (old_join_records, new_join_records) = self
-                    .update(from_port, old, new, reader)
+                    .update(from_port, old, new)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, old) in old_join_records.into_iter() {
