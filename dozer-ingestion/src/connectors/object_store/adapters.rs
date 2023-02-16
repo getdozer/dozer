@@ -1,5 +1,5 @@
-use crate::connectors::object_store::helper::{get_details, get_table};
-use crate::errors::ConnectorError;
+use crate::errors::ObjectStoreObjectError::{MissingStorageDetails, TableDefinitionNotFound};
+use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use dozer_types::ingestion_types::{LocalStorage, S3Storage, Table};
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::local::LocalFileSystem;
@@ -8,9 +8,24 @@ use object_store::ObjectStore;
 pub trait DozerObjectStore: Clone + Send + Sync {
     type ObjectStore: ObjectStore;
 
-    fn table_params<'a>(
-        &'a self,
+    fn table_params(
+        &self,
         table_name: &str,
+    ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError> {
+        let table = self
+            .tables()
+            .iter()
+            .find(|table| table.name == table_name)
+            .ok_or(ObjectStoreConnectorError::DataFusionStorageObjectError(
+                TableDefinitionNotFound,
+            ))?;
+
+        self.store_params(table)
+    }
+
+    fn store_params<'a>(
+        &'a self,
+        table: &'a Table,
     ) -> Result<DozerObjectStoreParams<'a, Self::ObjectStore>, ConnectorError>;
 
     fn tables(&self) -> &[Table];
@@ -27,11 +42,10 @@ pub struct DozerObjectStoreParams<'a, T: ObjectStore> {
 impl DozerObjectStore for S3Storage {
     type ObjectStore = AmazonS3;
 
-    fn table_params(
-        &self,
-        table_name: &str,
-    ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError> {
-        let table = get_table(&self.tables, table_name)?;
+    fn store_params<'a>(
+        &'a self,
+        table: &'a Table,
+    ) -> Result<DozerObjectStoreParams<'a, Self::ObjectStore>, ConnectorError> {
         let details = get_details(&self.details)?;
 
         let object_store = AmazonS3Builder::new()
@@ -59,11 +73,10 @@ impl DozerObjectStore for S3Storage {
 impl DozerObjectStore for LocalStorage {
     type ObjectStore = LocalFileSystem;
 
-    fn table_params(
-        &self,
-        table_name: &str,
-    ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError> {
-        let table = get_table(&self.tables, table_name)?;
+    fn store_params<'a>(
+        &'a self,
+        table: &'a Table,
+    ) -> Result<DozerObjectStoreParams<'a, Self::ObjectStore>, ConnectorError> {
         let path = get_details(&self.details)?.path.as_str();
 
         let object_store = LocalFileSystem::new_with_prefix(path)
@@ -81,4 +94,12 @@ impl DozerObjectStore for LocalStorage {
     fn tables(&self) -> &[Table] {
         &self.tables
     }
+}
+
+fn get_details<T>(details: &Option<T>) -> Result<&T, ObjectStoreConnectorError> {
+    details
+        .as_ref()
+        .ok_or(ObjectStoreConnectorError::DataFusionStorageObjectError(
+            MissingStorageDetails,
+        ))
 }
