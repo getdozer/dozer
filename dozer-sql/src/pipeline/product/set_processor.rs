@@ -1,18 +1,13 @@
 use std::collections::HashMap;
-use lmdb::{Database, DatabaseFlags};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
-use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
-use dozer_types::internal_err;
-use sqlparser::ast::Select;
-use dozer_types::log::info;
 use dozer_types::types::{Operation, Record};
-use crate::pipeline::errors::{PipelineError, ProductError};
+use crate::pipeline::errors::ProductError;
 use crate::pipeline::product::set::{SetAction, SetOperation};
 
 #[derive(Debug)]
@@ -106,7 +101,7 @@ impl SetProcessor {
 }
 
 impl Processor for SetProcessor {
-    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
+    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -122,14 +117,6 @@ impl Processor for SetProcessor {
         _transaction: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        // match op.clone() {
-        //     Operation::Delete { old } => info!("p{from_port}: - {:?}", old.values),
-        //     Operation::Insert { new } => info!("p{from_port}: + {:?}", new.values),
-        //     Operation::Update { old, new } => {
-        //         info!("p{from_port}: - {:?}, + {:?}", old.values, new.values)
-        //     }
-        // }
-
         match op {
             Operation::Delete { ref old } => {
                 let records = self

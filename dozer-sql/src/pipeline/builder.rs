@@ -2,15 +2,13 @@ use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
-use crate::pipeline::product;
 use crate::pipeline::product::set_factory::SetProcessorFactory;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::PipelineEntryPoint;
-use dozer_core::app::{AppPipeline, NamespacedEdge};
+use dozer_core::app::AppPipeline;
 use dozer_core::appsource::AppSourceId;
-use dozer_core::node::{PortHandle, ProcessorFactory};
+use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::log::info;
 use sqlparser::ast::{Join, SetOperator, TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
@@ -18,7 +16,6 @@ use sqlparser::{
     parser::Parser,
 };
 use std::collections::HashMap;
-use std::ops::Add;
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
@@ -349,7 +346,7 @@ fn set_to_pipeline(
         is_derived: false,
     };
 
-    let left_pipeline = select_to_pipeline(
+    let _left_pipeline = select_to_pipeline(
         &left_table_info,
         left_select.clone(),
         pipeline,
@@ -357,7 +354,7 @@ fn set_to_pipeline(
         stateful,
         left_pipeline_idx,
     )?;
-    let right_pipeline = select_to_pipeline(
+    let _right_pipeline = select_to_pipeline(
         &right_table_info,
         right_select.clone(),
         pipeline,
@@ -367,14 +364,14 @@ fn set_to_pipeline(
     )?;
 
     let left_input_tables = get_input_tables(
-        &left_select.clone().from[0],
+        &left_select.from[0],
         pipeline,
         query_ctx,
         left_pipeline_idx,
     )
     .unwrap();
     let right_input_tables = get_input_tables(
-        &right_select.clone().from[0],
+        &right_select.from[0],
         pipeline,
         query_ctx,
         right_pipeline_idx,
@@ -385,14 +382,14 @@ fn set_to_pipeline(
 
     let mut input_endpoints: Vec<PipelineEntryPoint> = Vec::new();
     get_entry_points(
-        &left_input_tables.clone(),
+        &left_input_tables,
         &mut query_ctx.pipeline_map,
         left_pipeline_idx,
     )?
     .iter()
     .for_each(|ep| input_endpoints.push(ep.to_owned()));
     get_entry_points(
-        &right_input_tables.clone(),
+        &right_input_tables,
         &mut query_ctx.pipeline_map,
         right_pipeline_idx,
     )?
@@ -437,28 +434,6 @@ fn set_to_pipeline(
     for (_, table_name) in query_ctx.pipeline_map.keys() {
         query_ctx.output_tables_map.remove_entry(table_name);
     }
-    // let left_table_info = query_ctx.pipeline_map.values().
-    //
-    //     pipeline.connect_nodes(
-    //     &query_table_info.node,
-    //     Some(query_table_info.port),
-    //     &gen_set_name,
-    //     Some(idx as PortHandle),
-    //     true,
-    // ).unwrap();
-
-    // for (_, table_name) in query_ctx.pipeline_map.keys() {
-    //     query_ctx.output_tables_map.remove_entry(table_name);
-    // }
-    //
-    // query_ctx.pipeline_map.insert(
-    //     gen_set_name.clone(),
-    //     QueryTableInfo {
-    //         node: gen_set_name.clone(),
-    //         port: DEFAULT_PORT_HANDLE,
-    //         is_derived: false,
-    //     }
-    // );
 
     query_ctx.pipeline_map.insert(
         (pipeline_idx, table_info.name.0.to_string()),
@@ -481,9 +456,6 @@ fn set_to_pipeline(
             },
         );
     }
-
-    info!("{:?}", query_ctx);
-
     Ok(())
 }
 

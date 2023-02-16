@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use sqlparser::dialect::AnsiDialect;
-use sqlparser::keywords::Keyword::ORDER;
-use sqlparser::parser::Parser;
 use tempdir::TempDir;
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
@@ -12,16 +9,13 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
+use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_types::chrono::NaiveDate;
 use dozer_types::log::{debug, info};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition};
-use crate::pipeline::builder::{get_input_tables, QueryContext, SchemaSQLContext, statement_to_pipeline};
-use crate::pipeline::product::set_factory::SetProcessorFactory;
-use crate::pipeline::projection::factory::ProjectionProcessorFactory;
-use crate::pipeline::tests::utils::get_set_operation;
+use crate::pipeline::builder::{SchemaSQLContext, statement_to_pipeline};
 
 #[test]
 fn test_set_union_pipeline_builder() {
@@ -39,7 +33,7 @@ fn test_set_union_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
     let mut pipeline: AppPipeline<SchemaSQLContext> = AppPipeline::new();
-    let mut query_ctx = statement_to_pipeline(sql, &mut pipeline, Some("set_results".to_string())).unwrap();
+    let query_ctx = statement_to_pipeline(sql, &mut pipeline, Some("set_results".to_string())).unwrap();
 
     let table_info = query_ctx.output_tables_map.get("set_results").unwrap();
     let latch = Arc::new(AtomicBool::new(true));

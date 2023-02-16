@@ -1,5 +1,4 @@
-use std::fmt::{Display, Formatter, Write};
-use std::ops::Index;
+use std::fmt::{Display, Formatter};
 use dozer_types::node::NodeHandle;
 
 use crate::appsource::{AppSourceId, AppSourceManager};
@@ -8,7 +7,6 @@ use crate::node::{PortHandle, ProcessorFactory, SinkFactory};
 use crate::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
 
 use std::sync::Arc;
-use dozer_types::log::info;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PipelineEntryPoint {

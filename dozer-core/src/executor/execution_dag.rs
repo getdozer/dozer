@@ -12,7 +12,6 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
-use dozer_types::log::info;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{

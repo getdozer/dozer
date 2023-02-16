@@ -4,7 +4,6 @@ use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::{log::debug, node::NodeHandle};
-use dozer_types::log::info;
 
 use crate::{
     epoch::Epoch,
