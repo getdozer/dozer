@@ -1012,9 +1012,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.1.5"
+version = "4.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3339b77607ffdf358f6b1146107785d6cdb2b3f251e1920e96c45a0fc08a7b18"
+checksum = "ec0b0588d44d4d63a87dbd75c136c166bbfd9a86a31cb89e09906521c7d3f5e3"
 dependencies = [
  "bitflags",
  "clap_derive",
@@ -1753,7 +1753,7 @@ checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
 name = "dozer-admin"
 version = "0.1.7"
 dependencies = [
- "clap 4.1.5",
+ "clap 4.1.6",
  "diesel",
  "diesel_migrations",
  "dotenvy",
@@ -1876,7 +1876,7 @@ dependencies = [
 name = "dozer-orchestrator"
 version = "0.1.7"
 dependencies = [
- "clap 4.1.5",
+ "clap 4.1.6",
  "crossterm",
  "ctrlc",
  "dotenvy",
@@ -1934,7 +1934,7 @@ name = "dozer-tests"
 version = "0.1.7"
 dependencies = [
  "bson",
- "clap 4.1.5",
+ "clap 4.1.6",
  "csv",
  "dozer-api",
  "dozer-cache",
