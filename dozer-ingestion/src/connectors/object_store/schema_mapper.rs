@@ -68,7 +68,7 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
         });
 
         let fields = map_schema_to_dozer(fields_list)
-            .map_err(|e| ObjectStoreConnectorError::DataFusionSchemaError(e))?;
+            .map_err(ObjectStoreConnectorError::DataFusionSchemaError)?;
 
         Ok(Schema {
             identifier: Some(SchemaIdentifier { id, version: 0 }),
