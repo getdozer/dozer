@@ -1,101 +1,238 @@
-use crate::errors::{validate_query, QueryValidationError, QueryValidationError::*};
-use dozer_types::serde_json::{self, Value};
+use dozer_types::serde::{
+    de::{self, Visitor},
+    ser::SerializeMap,
+    Deserialize, Deserializer, Serialize,
+};
+use dozer_types::serde_json::Value;
 
-use super::super::expression::{FilterExpression, Operator};
-use super::{SortDirection, SortOption};
+use super::super::expression::Operator;
 
-fn validate_field_name(key: &str) -> Result<(), QueryValidationError> {
-    if !key.eq("_")
-        && key
-            .chars()
-            .filter(|x| !x.eq(&'_'))
-            .all(|x| x.is_ascii_alphanumeric())
+pub struct OperatorAndValue {
+    pub operator: Operator,
+    pub value: Value,
+}
+
+impl<'de> Deserialize<'de> for OperatorAndValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
     {
-        Ok(())
-    } else {
-        Err(UnexpectedCharacter(key.to_owned()))
-    }
-}
+        struct OperatorAndValueVisitor {}
+        impl<'de> Visitor<'de> for OperatorAndValueVisitor {
+            type Value = OperatorAndValue;
 
-fn construct_simple_expression(
-    key: String,
-    op: Operator,
-    value: Value,
-) -> Result<FilterExpression, QueryValidationError> {
-    validate_query(
-        if let Value::String(string) = &value {
-            string.chars().all(|x| x.is_ascii())
-        } else {
-            true
-        },
-        SpecialCharacterError,
-    )?;
-    validate_query(
-        if let Value::Object(object) = &value {
-            !object.is_empty()
-        } else {
-            true
-        },
-        EmptyObjectAsValue,
-    )?;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("value or map from operator to value")
+            }
 
-    validate_query(
-        if let Value::Array(array) = &value {
-            !array.is_empty()
-        } else {
-            true
-        },
-        EmptyArrayAsValue,
-    )?;
-    let expression = FilterExpression::Simple(key, op, value);
-    Ok(expression)
-}
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::Bool(v),
+                })
+            }
 
-pub fn simple_expression(
-    key: String,
-    value: Value,
-) -> Result<FilterExpression, QueryValidationError> {
-    validate_field_name(&key)?;
-    match value {
-        Value::Object(pairs) => {
-            validate_query(pairs.len() <= 1, MoreThanOneStmt)?;
-            let (inner_key, scalar_value) = pairs.into_iter().next().ok_or(EmptyObjectAsValue)?;
-            let operator: Operator =
-                Operator::convert_str(&inner_key).ok_or(UnidentifiedOperator(inner_key))?;
+            fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::String(v.to_string()),
+                })
+            }
 
-            let expression = construct_simple_expression(key, operator, scalar_value)?;
-            Ok(expression)
+            fn visit_char<E>(self, v: char) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::String(v.to_string()),
+                })
+            }
+
+            fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_i16<E>(self, v: i16) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_i8<E>(self, v: i8) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::MapAccess<'de>,
+            {
+                if let Some((operator, value)) = map.next_entry()? {
+                    if map.next_entry::<Operator, Value>()?.is_some() {
+                        Err(de::Error::custom(
+                            "More than one statement passed in Simple Expression",
+                        ))
+                    } else {
+                        Ok(OperatorAndValue { operator, value })
+                    }
+                } else {
+                    Err(de::Error::custom("empty object passed as value"))
+                }
+            }
+
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::Null,
+                })
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::String(v.to_string()),
+                })
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::String(v),
+                })
+            }
+
+            fn visit_u16<E>(self, v: u16) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_u8<E>(self, v: u8) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::from(v),
+                })
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OperatorAndValue {
+                    operator: Operator::EQ,
+                    value: Value::Null,
+                })
+            }
         }
-        Value::Number(_) | Value::String(_) | Value::Bool(_) | Value::Null => {
-            let expression = construct_simple_expression(key, Operator::EQ, value)?;
-            Ok(expression)
+        deserializer.deserialize_any(OperatorAndValueVisitor {})
+    }
+}
+
+pub struct OperatorAndValueBorrow<'a> {
+    pub operator: &'a Operator,
+    pub value: &'a Value,
+}
+
+impl<'a> Serialize for OperatorAndValueBorrow<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: dozer_types::serde::Serializer,
+    {
+        match self.operator {
+            Operator::EQ => self.value.serialize(serializer),
+            _ => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry(self.operator, self.value)?;
+                map.end()
+            }
         }
-        Value::Array(_) => Err(InvalidExpression),
     }
-}
-
-pub fn and_expression(conditions: Value) -> Result<FilterExpression, QueryValidationError> {
-    let Value::Array(conditions) = conditions else {
-        return Err(InvalidAndExpression);
-    };
-
-    let mut expressions = vec![];
-    for condition in conditions {
-        let expr: FilterExpression =
-            serde_json::from_value(condition).map_err(|_| InvalidExpression)?;
-        expressions.push(expr);
-    }
-
-    validate_query(expressions.len() >= 2, InvalidAndExpression)?;
-
-    Ok(FilterExpression::And(expressions))
-}
-
-pub fn sort_option(key: String, value: Value) -> Result<SortOption, QueryValidationError> {
-    validate_field_name(&key)?;
-    let Value::String(direction) = value else {
-        return Err(OrderValueNotString);
-    };
-    let direction = SortDirection::convert_str(&direction).ok_or(UnidentifiedOrder(direction))?;
-    Ok(SortOption::new(key, direction))
 }

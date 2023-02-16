@@ -12,13 +12,12 @@ use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::app_config::Config;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 
 use dozer_api::RwCacheEndpoint;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 
-use super::source_builder::{IngestorVec, SourceBuilder};
+use super::source_builder::SourceBuilder;
 use super::validate::validate_grouped_connections;
 use crate::errors::OrchestrationError;
 use dozer_types::crossbeam;
@@ -39,21 +38,18 @@ pub struct PipelineBuilder {
     config: Config,
     cache_endpoints: Vec<RwCacheEndpoint>,
     pipeline_dir: PathBuf,
-    running: Arc<AtomicBool>,
     progress: MultiProgress,
 }
 impl PipelineBuilder {
     pub fn new(
         config: Config,
         cache_endpoints: Vec<RwCacheEndpoint>,
-        running: Arc<AtomicBool>,
         pipeline_dir: PathBuf,
     ) -> Self {
         Self {
             config,
             cache_endpoints,
             pipeline_dir,
-            running,
             progress: MultiProgress::new(),
         }
     }
@@ -64,7 +60,7 @@ impl PipelineBuilder {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
         settings: CacheSinkSettings,
-    ) -> Result<(dozer_core::Dag<SchemaSQLContext>, IngestorVec), OrchestrationError> {
+    ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let sources = self.config.sources.clone();
 
         let grouped_connections = SourceBuilder::group_connections(sources);
@@ -189,7 +185,7 @@ impl PipelineBuilder {
 
         pipelines.push(pipeline);
 
-        let (asm, ingestors) = source_builder.build_source_manager(self.running.clone())?;
+        let asm = source_builder.build_source_manager()?;
         let mut app = App::new(asm);
 
         Vec::into_iter(pipelines).for_each(|p| {
@@ -207,6 +203,6 @@ impl PipelineBuilder {
                 OrchestrationError::PipelineValidationError
             })?;
 
-        Ok((dag, ingestors))
+        Ok(dag)
     }
 }

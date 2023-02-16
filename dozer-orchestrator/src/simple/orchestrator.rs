@@ -218,7 +218,7 @@ impl Orchestrator for SimpleOrchestrator {
         let flags = get_flags(self.config.clone());
         let api_security = get_api_security_config(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
-        let dag_executor = executor.create_dag_executor(Some(sender), settings)?.0;
+        let dag_executor = executor.create_dag_executor(Some(sender), settings)?;
         executor.run_dag_executor(dag_executor)
     }
 
@@ -322,7 +322,6 @@ impl Orchestrator for SimpleOrchestrator {
         let builder = PipelineBuilder::new(
             self.config.clone(),
             cache_endpoints,
-            Arc::new(AtomicBool::new(true)),
             pipeline_home_dir.clone(),
         );
 
@@ -342,7 +341,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
-        let dag = builder.build(None, generated_path.clone(), settings)?.0;
+        let dag = builder.build(None, generated_path.clone(), settings)?;
         let dag_schemas = DagSchemas::new(&dag)?;
         // Every sink will initialize its schema in sink and also in a proto file.
         dag_schemas.prepare()?;

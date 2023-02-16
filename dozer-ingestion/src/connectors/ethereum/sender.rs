@@ -9,7 +9,6 @@ use crate::{
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
 use dozer_types::log::{debug, info, trace, warn};
-use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
 
@@ -23,10 +22,10 @@ use super::connector::{ContractTuple, EthConnector};
 
 const MAX_RETRIES: usize = 3;
 
-pub struct EthDetails {
+pub struct EthDetails<'a> {
     wss_url: String,
     filter: EthFilter,
-    ingestor: Arc<RwLock<Ingestor>>,
+    ingestor: &'a Ingestor,
     contracts: HashMap<String, ContractTuple>,
     pub tables: Option<Vec<TableInfo>>,
     pub schema_map: HashMap<H256, usize>,
@@ -34,12 +33,12 @@ pub struct EthDetails {
     pub conn_name: String,
 }
 
-impl EthDetails {
+impl<'a> EthDetails<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         wss_url: String,
         filter: EthFilter,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: &'a Ingestor,
         contracts: HashMap<String, ContractTuple>,
         tables: Option<Vec<TableInfo>>,
         schema_map: HashMap<H256, usize>,
@@ -60,7 +59,7 @@ impl EthDetails {
 }
 
 #[allow(unreachable_code)]
-pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
+pub async fn run(details: Arc<EthDetails<'_>>) -> Result<(), ConnectorError> {
     let client = helper::get_wss_client(&details.wss_url)
         .await
         .map_err(ConnectorError::EthError)?;
@@ -155,7 +154,7 @@ pub fn fetch_logs(
     block_end: u64,
     depth: usize,
     retries_left: usize,
-) -> BoxFuture<'static, Result<(), ConnectorError>> {
+) -> BoxFuture<'_, Result<(), ConnectorError>> {
     let filter = details.filter.clone();
     let depth_str = (0..depth)
         .map(|_| " ".to_string())
@@ -240,7 +239,6 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             // Write eth_log record
             details
                 .ingestor
-                .write()
                 .handle_message((
                     (
                         msg.block_number.expect("expected for non pending").as_u64(),
@@ -265,7 +263,6 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             trace!("Writing event : {:?}", op);
             details
                 .ingestor
-                .write()
                 .handle_message(((0, 0), IngestionMessage::OperationEvent(op)))
                 .map_err(ConnectorError::IngestorError)?;
         } else {

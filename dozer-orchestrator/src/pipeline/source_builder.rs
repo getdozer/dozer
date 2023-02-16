@@ -2,20 +2,15 @@ use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{ColumnInfo, TableInfo};
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::source::Source;
-use dozer_types::parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 pub struct SourceBuilder {
     used_sources: Vec<String>,
     grouped_connections: HashMap<String, Vec<Source>>,
 }
-
-pub type IngestorVec = Vec<Arc<RwLock<Ingestor>>>;
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
@@ -47,10 +42,8 @@ impl SourceBuilder {
 
     pub fn build_source_manager(
         &self,
-        running: Arc<AtomicBool>,
-    ) -> Result<(AppSourceManager<SchemaSQLContext>, IngestorVec), OrchestrationError> {
+    ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
         let mut asm = AppSourceManager::new();
-        let mut ingestors = vec![];
 
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
 
@@ -84,28 +77,18 @@ impl SourceBuilder {
                     }
                 }
 
-                let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-                let source_factory = ConnectorSourceFactory::new(
-                    Arc::clone(&ingestor),
-                    Arc::clone(&iterator),
-                    ports.clone(),
-                    tables,
-                    connection.clone(),
-                    running.clone(),
-                );
+                let source_factory =
+                    ConnectorSourceFactory::new(ports.clone(), tables, connection.clone());
 
                 asm.add(AppSource::new(
                     conn.clone(),
                     Arc::new(source_factory),
                     ports,
                 ))?;
-
-                ingestors.push(ingestor);
             }
         }
 
-        Ok((asm, ingestors))
+        Ok(asm)
     }
 
     pub fn group_connections(sources: Vec<Source>) -> HashMap<String, Vec<Source>> {
@@ -125,8 +108,6 @@ impl SourceBuilder {
 mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
     use dozer_types::models::app_config::Config;
-    use std::sync::atomic::AtomicBool;
-    use std::sync::Arc;
 
     use dozer_core::appsource::{AppSourceId, AppSourceMappings};
     use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -203,10 +184,7 @@ mod tests {
             tables,
             SourceBuilder::group_connections(config.sources.clone()),
         );
-        let asm = source_builder
-            .build_source_manager(Arc::new(AtomicBool::new(true)))
-            .unwrap()
-            .0;
+        let asm = source_builder.build_source_manager().unwrap();
 
         let conn_name_1 = config.connections.get(0).unwrap().name.clone();
         let conn_name_2 = config.connections.get(1).unwrap().name.clone();
@@ -236,10 +214,7 @@ mod tests {
             only_used_table_name,
             SourceBuilder::group_connections(config.sources.clone()),
         );
-        let asm = source_builder
-            .build_source_manager(Arc::new(AtomicBool::new(true)))
-            .unwrap()
-            .0;
+        let asm = source_builder.build_source_manager().unwrap();
 
         let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![AppSourceId::new(

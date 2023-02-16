@@ -1,17 +1,18 @@
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression},
-    lmdb::{cache::LmdbRwCache, tests::utils},
-    test_utils, RecordWithId, RoCache, RwCache,
+    expression::{FilterExpression, Operator, QueryExpression},
+    lmdb::{cache::LmdbRwCache, tests::utils::insert_rec_1},
+    test_utils::{query_from_filter, schema_1, schema_full_text, schema_multi_indices},
+    RecordWithId, RoCache, RwCache,
 };
 use dozer_types::{
-    serde_json::{self, json, Value},
+    serde_json::{from_value, json, Value},
     types::{Field, Record, Schema},
 };
 
 #[test]
 fn query_secondary() {
     let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
-    let (schema, seconary_indexes) = test_utils::schema_1();
+    let (schema, secondary_indexes) = schema_1();
     let mut record = Record::new(
         schema.identifier,
         vec![
@@ -23,26 +24,22 @@ fn query_secondary() {
     );
 
     cache
-        .insert_schema("sample", &schema, &seconary_indexes)
+        .insert_schema("sample", &schema, &secondary_indexes)
         .unwrap();
     cache.insert(&mut record).unwrap();
     assert!(record.version.is_some());
 
     let filter = FilterExpression::And(vec![
-        FilterExpression::Simple(
-            "a".to_string(),
-            expression::Operator::EQ,
-            serde_json::Value::from(1),
-        ),
+        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(1)),
         FilterExpression::Simple(
             "b".to_string(),
-            expression::Operator::EQ,
-            serde_json::Value::from("test".to_string()),
+            Operator::EQ,
+            Value::from("test".to_string()),
         ),
     ]);
 
     // Query with an expression
-    let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
+    let query = query_from_filter(filter);
 
     let records = cache.query("sample", &query).unwrap();
     assert_eq!(cache.count("sample", &query).unwrap(), 1);
@@ -50,7 +47,7 @@ fn query_secondary() {
     assert_eq!(records[0].record, record, "must be equal");
 
     // Full text query.
-    let (schema, secondary_indexes) = test_utils::schema_full_text();
+    let (schema, secondary_indexes) = schema_full_text();
     let mut record = Record::new(
         schema.identifier,
         vec![
@@ -66,19 +63,17 @@ fn query_secondary() {
     cache.insert(&mut record).unwrap();
     assert!(record.version.is_some());
 
-    let filter =
-        FilterExpression::Simple("foo".into(), expression::Operator::Contains, "good".into());
+    let filter = FilterExpression::Simple("foo".into(), Operator::Contains, "good".into());
 
-    let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
+    let query = query_from_filter(filter);
 
     let records = cache.query("full_text_sample", &query).unwrap();
     assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].record, record);
 
-    let filter =
-        FilterExpression::Simple("bar".into(), expression::Operator::Contains, "lamb".into());
-    let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
+    let filter = FilterExpression::Simple("bar".into(), Operator::Contains, "lamb".into());
+    let query = query_from_filter(filter);
     let records = cache.query("full_text_sample", &query).unwrap();
     assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
     assert_eq!(records.len(), 1);
@@ -88,10 +83,10 @@ fn query_secondary() {
 #[test]
 fn query_secondary_vars() {
     let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
-    let (schema, seconary_indexes) = test_utils::schema_1();
+    let (schema, secondary_indexes) = schema_1();
 
     cache
-        .insert_schema("sample", &schema, &seconary_indexes)
+        .insert_schema("sample", &schema, &secondary_indexes)
         .unwrap();
 
     let items = vec![
@@ -106,7 +101,7 @@ fn query_secondary_vars() {
     ];
     // 26 alphabets
     for val in items {
-        utils::insert_rec_1(&cache, &schema, val);
+        insert_rec_1(&cache, &schema, val);
     }
 
     test_query(json!({}), 8, &cache);
@@ -202,10 +197,10 @@ fn query_secondary_vars() {
 #[test]
 fn query_secondary_multi_indices() {
     let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
-    let (schema, seconary_indexes) = test_utils::schema_multi_indices();
+    let (schema, secondary_indexes) = schema_multi_indices();
 
     cache
-        .insert_schema("sample", &schema, &seconary_indexes)
+        .insert_schema("sample", &schema, &secondary_indexes)
         .unwrap();
 
     for (id, text) in [
@@ -226,23 +221,10 @@ fn query_secondary_multi_indices() {
         assert!(record.version.is_some());
     }
 
-    let query = QueryExpression::new(
-        Some(FilterExpression::And(vec![
-            FilterExpression::Simple(
-                "id".into(),
-                expression::Operator::GT,
-                serde_json::Value::from(2),
-            ),
-            FilterExpression::Simple(
-                "text".into(),
-                expression::Operator::Contains,
-                serde_json::Value::from("dance"),
-            ),
-        ])),
-        vec![],
-        Some(10),
-        0,
-    );
+    let query = query_from_filter(FilterExpression::And(vec![
+        FilterExpression::Simple("id".into(), Operator::GT, Value::from(2)),
+        FilterExpression::Simple("text".into(), Operator::Contains, Value::from("dance")),
+    ]));
 
     let records = cache.query("sample", &query).unwrap();
     assert_eq!(cache.count("sample", &query).unwrap(), 2);
@@ -270,7 +252,7 @@ fn query_secondary_multi_indices() {
 }
 
 fn test_query_err(query: Value, cache: &LmdbRwCache) {
-    let query = serde_json::from_value::<QueryExpression>(query).unwrap();
+    let query = from_value::<QueryExpression>(query).unwrap();
     let count_result = cache.count("sample", &query);
     let result = cache.query("sample", &query);
 
@@ -284,7 +266,7 @@ fn test_query_err(query: Value, cache: &LmdbRwCache) {
     ),);
 }
 fn test_query(query: Value, count: usize, cache: &LmdbRwCache) {
-    let query = serde_json::from_value::<QueryExpression>(query).unwrap();
+    let query = from_value::<QueryExpression>(query).unwrap();
     assert_eq!(cache.count("sample", &query).unwrap(), count);
     let records = cache.query("sample", &query).unwrap();
 
@@ -297,7 +279,7 @@ fn test_query_record(
     schema: &Schema,
     cache: &LmdbRwCache,
 ) {
-    let query = serde_json::from_value::<QueryExpression>(query).unwrap();
+    let query = from_value::<QueryExpression>(query).unwrap();
     assert_eq!(cache.count("sample", &query).unwrap(), expected.len());
     let records = cache.query("sample", &query).unwrap();
     let expected = expected

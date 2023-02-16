@@ -16,7 +16,6 @@ use datafusion::datasource::listing::{
 };
 use datafusion::prelude::SessionContext;
 use dozer_types::ingestion_types::{IngestionMessage, LocalStorage, S3Storage, Table};
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use object_store::aws::AmazonS3Builder;
@@ -40,7 +39,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         resolved_schema: SchemaRef,
         table_path: ListingTableUrl,
         listing_options: ListingOptions,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: &Ingestor,
         table: &TableInfo,
     ) -> Result<(), ObjectStoreConnectorError> {
         let mut idx = 0;
@@ -55,8 +54,8 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                 .map_err(ObjectStoreConnectorError::InternalDataFusionError)?,
         );
 
-        let columns: Vec<ColumnInfo> = match table.columns.clone() {
-            Some(columns_list) if !columns_list.is_empty() => columns_list.to_vec(),
+        let columns: Vec<ColumnInfo> = match &table.columns {
+            Some(columns_list) if !columns_list.is_empty() => columns_list.clone(),
             _ => fields
                 .iter()
                 .map(|f| ColumnInfo {
@@ -77,38 +76,32 @@ impl<T: Clone + Send + Sync> TableReader<T> {
             .map_err(|e| TableReaderError(StreamExecutionError(e)))?;
 
         tokio::pin!(data);
-        loop {
-            let item = data.next().await;
-            if let Some(Ok(batch)) = item {
-                for row in 0..batch.num_rows() {
-                    let mut fields = vec![];
-                    for col in 0..batch.num_columns() {
-                        let column = batch.column(col);
-                        fields.push(map_value_to_dozer_field(
-                            column,
-                            &row,
-                            resolved_schema.field(col).name(),
-                        )?);
-                    }
 
-                    ingestor
-                        .write()
-                        .handle_message((
-                            (0_u64, idx),
-                            IngestionMessage::OperationEvent(Operation::Insert {
-                                new: Record {
-                                    schema_id: Some(SchemaIdentifier { id, version: 0 }),
-                                    values: fields,
-                                    version: None,
-                                },
-                            }),
-                        ))
-                        .unwrap();
+        while let Some(Ok(batch)) = data.next().await {
+            for row in 0..batch.num_rows() {
+                let fields = batch
+                    .columns()
+                    .iter()
+                    .enumerate()
+                    .map(|(col, column)| {
+                        map_value_to_dozer_field(column, &row, resolved_schema.field(col).name())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
 
-                    idx += 1;
-                }
-            } else {
-                break;
+                ingestor
+                    .handle_message((
+                        (0_u64, idx),
+                        IngestionMessage::OperationEvent(Operation::Insert {
+                            new: Record {
+                                schema_id: Some(SchemaIdentifier { id, version: 0 }),
+                                values: fields,
+                                version: None,
+                            },
+                        }),
+                    ))
+                    .unwrap();
+
+                idx += 1;
             }
         }
 
@@ -120,7 +113,7 @@ pub trait Reader<T> {
     fn read_tables(
         &self,
         tables: Vec<TableInfo>,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: &Ingestor,
     ) -> Result<(), ConnectorError>;
 }
 
@@ -128,64 +121,31 @@ impl Reader<S3Storage> for TableReader<S3Storage> {
     fn read_tables(
         &self,
         tables: Vec<TableInfo>,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: &Ingestor,
     ) -> Result<(), ConnectorError> {
-        let tables_map: HashMap<String, Table> = self
-            .config
-            .tables
-            .clone()
-            .into_iter()
-            .map(|table| (table.name.clone(), table))
-            .collect();
-        let details = self.config.details.as_ref().map_or_else(
-            || {
-                Err(ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
-                ))
-            },
-            Ok,
-        )?;
+        let tables_map = get_tables_map(&self.config.tables);
+        let details = get_details(&self.config.details)?;
 
         for (id, table) in tables.iter().enumerate() {
-            let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
-                || {
-                    Err(ConnectorError::DataFusionConnectorError(
-                        ObjectStoreConnectorError::DataFusionStorageObjectError(
-                            TableDefinitionNotFound,
-                        ),
-                    ))
-                },
-                Ok,
+            let data_fusion_table = tables_map.get(&table.table_name).ok_or(
+                ObjectStoreConnectorError::DataFusionStorageObjectError(TableDefinitionNotFound),
             )?;
-            let path = format!("s3://{}/{}/", details.bucket_name, data_fusion_table.prefix);
 
-            let table_path = ListingTableUrl::parse(path).map_err(|_| {
-                ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::DataFusionStorageObjectError(
-                        ListingPathParsingError,
-                    ),
-                )
-            })?;
+            let path = format!("s3://{}/{}/", details.bucket_name, data_fusion_table.prefix);
+            let table_path = get_table_path(path)?;
 
             let listing_options = map_listing_options(data_fusion_table);
 
-            let rt = Runtime::new().map_err(|_| {
-                ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::RuntimeCreationError,
-                )
-            })?;
+            let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 
-            let ingestor = ingestor.clone();
-
-            let details = details.clone();
             let ctx = SessionContext::new();
             let s3 = AmazonS3Builder::new()
-                .with_bucket_name(details.bucket_name.to_owned())
-                .with_region(details.region.to_owned())
-                .with_access_key_id(details.access_key_id.to_owned())
-                .with_secret_access_key(details.secret_access_key.to_owned())
+                .with_bucket_name(&details.bucket_name)
+                .with_region(&details.region)
+                .with_access_key_id(&details.access_key_id)
+                .with_secret_access_key(&details.secret_access_key)
                 .build()
-                .map_or(Err(ConnectorError::InitializationError), Ok)?;
+                .map_err(|_| ConnectorError::InitializationError)?;
 
             ctx.runtime_env()
                 .register_object_store("s3", &details.bucket_name, Arc::new(s3));
@@ -218,55 +178,27 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
     fn read_tables(
         &self,
         tables: Vec<TableInfo>,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: &Ingestor,
     ) -> Result<(), ConnectorError> {
-        let tables_map: HashMap<String, Table> = self
-            .config
-            .tables
-            .clone()
-            .into_iter()
-            .map(|table| (table.name.clone(), table))
-            .collect();
-        let details = self.config.details.as_ref().map_or_else(
-            || {
-                Err(ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::DataFusionStorageObjectError(MissingStorageDetails),
-                ))
-            },
-            Ok,
-        )?;
+        let tables_map = get_tables_map(&self.config.tables);
+        let details = get_details(&self.config.details)?;
 
         for (id, table) in tables.iter().enumerate() {
-            let data_fusion_table = tables_map.get(&table.table_name).map_or_else(
-                || {
-                    Err(ConnectorError::DataFusionConnectorError(
-                        ObjectStoreConnectorError::DataFusionStorageObjectError(
-                            TableDefinitionNotFound,
-                        ),
-                    ))
-                },
-                Ok,
-            )?;
-            let path = format!("{}/{}/", details.path.clone(), data_fusion_table.prefix);
+            let data_fusion_table = get_table(&tables_map, table)?;
+
+            let path = format!("{}/{}/", details.path, data_fusion_table.prefix);
+            let table_path = get_table_path(path)?;
 
             let listing_options = map_listing_options(data_fusion_table);
 
-            let rt = Runtime::new().map_err(|_| {
-                ConnectorError::DataFusionConnectorError(
-                    ObjectStoreConnectorError::RuntimeCreationError,
-                )
-            })?;
-
-            let ingestor = ingestor.clone();
+            let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 
             let ctx = SessionContext::new();
-            let ls = LocalFileSystem::new_with_prefix(details.path.clone())
-                .map_or(Err(ConnectorError::InitializationError), Ok)?;
+            let ls = LocalFileSystem::new_with_prefix(&details.path)
+                .map_err(|_| ConnectorError::InitializationError)?;
 
             ctx.runtime_env()
                 .register_object_store("local", &details.path, Arc::new(ls));
-
-            let table_path = ListingTableUrl::parse(path.clone()).unwrap();
 
             rt.block_on(async move {
                 let resolved_schema = listing_options
@@ -289,4 +221,35 @@ impl Reader<LocalStorage> for TableReader<LocalStorage> {
 
         Ok(())
     }
+}
+
+fn get_details<T>(details: &Option<T>) -> Result<&T, ObjectStoreConnectorError> {
+    details
+        .as_ref()
+        .ok_or(ObjectStoreConnectorError::DataFusionStorageObjectError(
+            MissingStorageDetails,
+        ))
+}
+
+fn get_tables_map(tables: &[Table]) -> HashMap<String, Table> {
+    tables
+        .iter()
+        .cloned()
+        .map(|table| (table.name.clone(), table))
+        .collect()
+}
+
+fn get_table_path(path: String) -> Result<ListingTableUrl, ObjectStoreConnectorError> {
+    ListingTableUrl::parse(path).map_err(|_| {
+        ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError)
+    })
+}
+
+fn get_table<'a>(
+    tables_map: &'a HashMap<String, Table>,
+    table: &TableInfo,
+) -> Result<&'a Table, ObjectStoreConnectorError> {
+    tables_map.get(&table.table_name).ok_or(
+        ObjectStoreConnectorError::DataFusionStorageObjectError(TableDefinitionNotFound),
+    )
 }

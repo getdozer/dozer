@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
+use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression, Skip};
 use dozer_cache::cache::LmdbRwCache;
 use dozer_cache::cache::{index, test_utils, RoCache, RwCache};
 use dozer_types::serde_json::Value;
@@ -38,7 +38,7 @@ fn query(cache: &LmdbRwCache, _n: usize) {
         )),
         vec![],
         Some(10),
-        0,
+        Skip::Skip(0),
     );
 
     let _get_record = cache.query("benches", &exp).unwrap();

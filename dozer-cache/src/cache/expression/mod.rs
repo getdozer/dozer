@@ -1,4 +1,4 @@
-use dozer_types::serde::{self, Deserialize, Serialize};
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json::Value;
 mod query_helper;
 mod query_serde;
@@ -6,17 +6,24 @@ mod query_serde;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(crate = "self::serde")]
+#[derive(Clone, Debug, Copy, PartialEq)]
+pub enum Skip {
+    Skip(usize),
+    After(u64),
+}
+
+impl Default for Skip {
+    fn default() -> Self {
+        Skip::Skip(0)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct QueryExpression {
-    #[serde(rename = "$filter", default)]
     pub filter: Option<FilterExpression>,
-    #[serde(rename = "$order_by", default)]
     pub order_by: SortOptions,
-    #[serde(rename = "$limit")]
     pub limit: Option<usize>,
-    #[serde(rename = "$skip", default)]
-    pub skip: usize,
+    pub skip: Skip,
 }
 
 pub fn default_limit_for_query() -> usize {
@@ -54,7 +61,7 @@ impl QueryExpression {
         filter: Option<FilterExpression>,
         order_by: Vec<SortOption>,
         limit: Option<usize>,
-        skip: usize,
+        skip: Skip,
     ) -> Self {
         Self {
             filter,
@@ -72,45 +79,28 @@ pub enum FilterExpression {
     And(Vec<FilterExpression>),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub enum Operator {
+    #[serde(rename = "$lt")]
     LT,
+    #[serde(rename = "$lte")]
     LTE,
+    #[serde(rename = "$eq")]
     EQ,
+    #[serde(rename = "$gt")]
     GT,
+    #[serde(rename = "$gte")]
     GTE,
+    #[serde(rename = "$contains")]
     Contains,
+    #[serde(rename = "$matches_any")]
     MatchesAny,
+    #[serde(rename = "$matches_all")]
     MatchesAll,
 }
 
 impl Operator {
-    pub fn convert_str(s: &str) -> Option<Operator> {
-        match s {
-            "$lt" => Some(Operator::LT),
-            "$lte" => Some(Operator::LTE),
-            "$gt" => Some(Operator::GT),
-            "$gte" => Some(Operator::GTE),
-            "$eq" => Some(Operator::EQ),
-            "$contains" => Some(Operator::Contains),
-            "$matches_any" => Some(Operator::MatchesAny),
-            "$matches_all" => Some(Operator::MatchesAll),
-            _ => None,
-        }
-    }
-    pub fn to_str(&self) -> &'static str {
-        match self {
-            Operator::LT => "$lt",
-            Operator::LTE => "$lte",
-            Operator::EQ => "$eq",
-            Operator::GT => "$gt",
-            Operator::GTE => "$gte",
-            Operator::Contains => "$contains",
-            Operator::MatchesAny => "$matches_any",
-            Operator::MatchesAll => "$matches_all",
-        }
-    }
-
     pub fn supported_by_sorted_inverted(&self) -> bool {
         match self {
             Operator::LT | Operator::LTE | Operator::EQ | Operator::GT | Operator::GTE => true,
@@ -155,25 +145,10 @@ impl SortOption {
 pub struct SortOptions(pub Vec<SortOption>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(crate = "self::serde")]
+#[serde(crate = "dozer_types::serde")]
 pub enum SortDirection {
+    #[serde(rename = "asc")]
     Ascending,
+    #[serde(rename = "desc")]
     Descending,
-}
-
-impl SortDirection {
-    pub fn convert_str(s: &str) -> Option<Self> {
-        match s {
-            "asc" => Some(SortDirection::Ascending),
-            "desc" => Some(SortDirection::Descending),
-            _ => None,
-        }
-    }
-
-    pub fn to_str(&self) -> &'static str {
-        match self {
-            SortDirection::Ascending => "asc",
-            SortDirection::Descending => "desc",
-        }
-    }
 }
