@@ -1,3 +1,4 @@
+use dozer_types::log::error;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, ReplicationChangesTrackingType, Schema,
     SchemaIdentifier, SchemaWithChangesType, SourceDefinition,
@@ -63,9 +64,9 @@ pub fn get_contract_event_schemas(
                         version: 1,
                     }),
                     fields,
-                    primary_index: vec![0],
+                    primary_index: vec![],
                 },
-                ReplicationChangesTrackingType::FullChanges,
+                ReplicationChangesTrackingType::Nothing,
             ));
         }
     }
@@ -81,7 +82,16 @@ pub fn decode_event(
 ) -> Option<Operation> {
     let address = format!("{:?}", log.address);
 
-    if let Some(contract_tuple) = contracts.get(&address) {
+    let mut c = contracts.get(&address);
+
+    if c.is_none() {
+        // match on wildcard
+        let wild_card_contract = contracts
+            .iter()
+            .find(|(k, _)| k.to_string() == "*".to_string());
+        c = wild_card_contract.map(|c| c.1);
+    }
+    if let Some(contract_tuple) = c {
         // Topics 0, 1, 2 should be name, buyer, seller in most cases
         let name = log
             .topics
@@ -108,34 +118,38 @@ pub fn decode_event(
                 tables.iter().any(|t| t.table_name == table_name)
             });
             if is_table_required {
-                let parsed_event = event
-                    .parse_log(RawLog {
-                        topics: log.topics,
-                        data: log.data.0,
-                    })
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "parsing event failed: block_no: {}, txn_hash: {}. Have you included the right abi to address mapping ?",
-                            log.block_number.unwrap(),
-                            log.transaction_hash.unwrap()
-                        )
-                    });
-
-                let values = parsed_event
-                    .params
-                    .into_iter()
-                    .map(|p| map_abitype_to_field(p.value))
-                    .collect();
-                return Some(Operation::Insert {
-                    new: Record {
-                        schema_id: Some(SchemaIdentifier {
-                            id: schema_id as u32,
-                            version: 1,
-                        }),
-                        values,
-                        version: None,
-                    },
+                let parsed_event = event.parse_log(RawLog {
+                    topics: log.topics,
+                    data: log.data.0,
                 });
+
+                match parsed_event {
+                    Ok(parsed_event) => {
+                        let values = parsed_event
+                            .params
+                            .into_iter()
+                            .map(|p| map_abitype_to_field(p.value))
+                            .collect();
+                        return Some(Operation::Insert {
+                            new: Record {
+                                schema_id: Some(SchemaIdentifier {
+                                    id: schema_id as u32,
+                                    version: 1,
+                                }),
+                                values,
+                                version: None,
+                            },
+                        });
+                    }
+                    Err(_) => {
+                        error!(
+                            "parsing event failed: block_no: {}, txn_hash: {}. Have you included the right abi to address mapping ?",
+                                    log.block_number.unwrap(),
+                                    log.transaction_hash.unwrap()
+                                );
+                        return None;
+                    }
+                }
             }
         }
     }
