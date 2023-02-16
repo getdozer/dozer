@@ -11,7 +11,7 @@ connections:
     name: eth_logs
 sql: |
   -- Eth stats table
-  select block_number, sum(id) into eth_stats
+  select block_number, sum(id), py_udf('add', id) into eth_stats
   from eth_logs
   group by block_number;
 
