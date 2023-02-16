@@ -36,12 +36,12 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
                     .find(|(_idx, c)| c.name == connection_name);
 
                 if let Some(c) = c {
-                    id = id + 1;
+                    id += 1;
                     nodes.push(QueryNode {
                         name: c.1.name.clone(),
                         node_type: QueryNodeType::Connection as i32,
                         idx: c.0 as u32,
-                        id: id as u32,
+                        id,
                     });
 
                     connection_map.insert(c.1.name.clone(), id);
@@ -54,12 +54,12 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
             }
         };
 
-        id = id + 1;
+        id += 1;
         nodes.push(QueryNode {
             name: source.name.clone(),
             node_type: QueryNodeType::Source as i32,
             idx: idx as u32,
-            id: id as u32,
+            id,
         });
 
         source_map.insert(source.name.clone(), id);
@@ -77,17 +77,17 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
             name: name.clone(),
             node_type: QueryNodeType::Table as i32,
             idx: idx as u32,
-            id: id as u32,
+            id,
         });
     }
 
     for (idx, endpoint) in cfg.endpoints.iter().enumerate() {
-        id = id + 1;
+        id += 1;
         nodes.push(QueryNode {
             name: endpoint.name.clone(),
             node_type: QueryNodeType::Api as i32,
             idx: idx as u32,
-            id: id as u32,
+            id,
         });
         let e_id = id;
 
@@ -103,7 +103,7 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
                 });
             }
             (None, true) => {
-                id = id + 1;
+                id += 1;
                 transformed = true;
                 edges.push(QueryEdge {
                     from: TRANSFORMER_ID,
@@ -124,7 +124,7 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
             name: "transformer".to_string(),
             node_type: QueryNodeType::Transformer as i32,
             idx: 0,
-            id: TRANSFORMER_ID as u32,
+            id: TRANSFORMER_ID,
         });
     }
 

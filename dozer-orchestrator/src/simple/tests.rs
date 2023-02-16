@@ -42,7 +42,6 @@ fn single_source_sink_impl(schema: Schema) {
             name: "events".to_string(),
         }),
         refresh_config: Some(models::source::RefreshConfig::default()),
-        ..Default::default()
     };
 
     let table_name = "events";

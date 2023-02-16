@@ -67,7 +67,6 @@ pub fn get_endpoint() -> ApiEndpoint {
             primary_key: vec!["film_id".to_string()],
         }),
         table_name: "film".to_string(),
-        ..Default::default()
     }
 }
 
