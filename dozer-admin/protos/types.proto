@@ -2,13 +2,12 @@ syntax = "proto3";
 package dozer_admin_grpc;
 
 message AppConfig {
-  optional string id = 1;
   string app_name = 2;
   ApiConfig api = 3;
   repeated Connection connections = 4;
   repeated Source sources = 5;
   repeated Endpoint endpoints = 6;
-  string sql = 7;
+  optional string sql = 7;
   string home_dir = 8;
 }
 
@@ -94,12 +93,10 @@ message ColumnInfo {
 }
 
 message Endpoint {
-  string id = 1;
-  string app_id = 2;
-  string name = 3;
-  string path = 4;
-  string sql = 5;
-  ApiIndex index = 6;
+  string name = 1;
+  string table_name = 2;
+  string path = 3;
+  ApiIndex index = 4;
 }
 
 message ApiIndex { repeated string primary_key = 1; }

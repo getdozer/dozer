@@ -31,7 +31,6 @@ use super::executor::Executor;
 
 fn single_source_sink_impl(schema: Schema) {
     let source = models::source::Source {
-        id: Some("1".to_string()),
         name: "events".to_string(),
         table_name: "events".to_string(),
         columns: vec![],
@@ -51,7 +50,6 @@ fn single_source_sink_impl(schema: Schema) {
     let cache_endpoint = RwCacheEndpoint {
         cache: cache.clone(),
         endpoint: ApiEndpoint {
-            id: Some("1".to_string()),
             name: table_name.to_string(),
             path: "/events".to_string(),
             // sql: Some("select a, b from events group by a,b;".to_string()),

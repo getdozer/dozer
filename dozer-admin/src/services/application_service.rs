@@ -114,7 +114,7 @@ impl AppService {
             sources.push(serde_yaml::to_string(c).unwrap());
         }
 
-        for c in app.sources.iter() {
+        for c in app.endpoints.iter() {
             endpoints.push(serde_yaml::to_string(c).unwrap());
         }
 

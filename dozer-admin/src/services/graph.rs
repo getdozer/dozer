@@ -57,7 +57,7 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
         id = id + 1;
         nodes.push(QueryNode {
             name: source.name.clone(),
-            node_type: QueryNodeType::Connection as i32,
+            node_type: QueryNodeType::Source as i32,
             idx: idx as u32,
             id: id as u32,
         });
@@ -72,6 +72,15 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
     }
     const TRANSFORMER_ID: u32 = 10000;
     let mut transformed = false;
+    for (idx, name) in output_tables.iter().enumerate() {
+        nodes.push(QueryNode {
+            name: name.clone(),
+            node_type: QueryNodeType::Table as i32,
+            idx: idx as u32,
+            id: id as u32,
+        });
+    }
+
     for (idx, endpoint) in cfg.endpoints.iter().enumerate() {
         id = id + 1;
         nodes.push(QueryNode {
@@ -81,15 +90,6 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
             id: id as u32,
         });
         let e_id = id;
-
-        id = id + 1;
-
-        nodes.push(QueryNode {
-            name: endpoint.name.clone(),
-            node_type: QueryNodeType::Table as i32,
-            idx: 0,
-            id: id as u32,
-        });
 
         let s_id = source_map.get(&endpoint.table_name);
         let out_present = output_tables.contains(&endpoint.table_name);
@@ -103,6 +103,7 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
                 });
             }
             (None, true) => {
+                id = id + 1;
                 transformed = true;
                 edges.push(QueryEdge {
                     from: TRANSFORMER_ID,
