@@ -128,19 +128,11 @@ pub struct DozerObjectStoreParams<'a, T: ObjectStore> {
 }
 
 pub trait Reader<T> {
-    fn read_tables(
-        &self,
-        tables: &[TableInfo],
-        ingestor: &Ingestor,
-    ) -> Result<(), ConnectorError>;
+    fn read_tables(&self, tables: &[TableInfo], ingestor: &Ingestor) -> Result<(), ConnectorError>;
 }
 
 impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
-    fn read_tables(
-        &self,
-        tables: &[TableInfo],
-        ingestor: &Ingestor,
-    ) -> Result<(), ConnectorError> {
+    fn read_tables(&self, tables: &[TableInfo], ingestor: &Ingestor) -> Result<(), ConnectorError> {
         for (id, table) in tables.iter().enumerate() {
             let params = self.config.table_params(&table.name)?;
 
