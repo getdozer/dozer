@@ -1937,6 +1937,7 @@ dependencies = [
  "tonic-reflection",
  "tonic-web",
  "tower",
+ "tower-http",
  "tracing-actix-web",
 ]
 

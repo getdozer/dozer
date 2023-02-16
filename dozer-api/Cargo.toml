@@ -33,6 +33,7 @@ tracing-actix-web = "0.7.2"
 tower = "0.4.13"
 hyper = "0.14.24"
 actix-http = "3.3.0"
+tower-http = {version = "0.3.5", features = ["full"]}
 
 
 [build-dependencies]
