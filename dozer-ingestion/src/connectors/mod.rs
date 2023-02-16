@@ -16,12 +16,10 @@ use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
-use dozer_types::parking_lot::RwLock;
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::SchemaWithChangesType;
-use std::sync::Arc;
 
 pub mod snowflake;
 
@@ -38,12 +36,12 @@ pub trait Connector: Send + Sync {
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    fn start(
+        &self,
+        from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
-    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;
 }
 

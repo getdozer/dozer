@@ -10,7 +10,6 @@ use dozer_types::bytes;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::{error, info};
-use dozer_types::parking_lot::RwLock;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
@@ -18,15 +17,14 @@ use postgres_types::PgLsn;
 use std::collections::HashMap;
 
 use crate::connectors::{ColumnInfo, TableInfo};
-use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
 
-pub struct CDCHandler {
+pub struct CDCHandler<'a> {
     pub name: String,
     pub connector_id: u64,
-    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub ingestor: &'a Ingestor,
 
     pub replication_conn_config: tokio_postgres::Config,
     pub publication_name: String,
@@ -41,7 +39,7 @@ pub struct CDCHandler {
     pub seq_no: u64,
 }
 
-impl CDCHandler {
+impl<'a> CDCHandler<'a> {
     pub async fn start(&mut self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         let replication_conn_config = self.replication_conn_config.clone();
         let client: tokio_postgres::Client = helper::async_connect(replication_conn_config).await?;
@@ -138,7 +136,6 @@ impl CDCHandler {
                         self.seq_no += 1;
                         if self.offset == 0 {
                             self.ingestor
-                                .write()
                                 .handle_message(((self.begin_lsn, self.seq_no), ingestion_message))
                                 .map_err(ConnectorError::IngestorError)?;
                         } else {

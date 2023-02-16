@@ -6,13 +6,11 @@ use crate::errors::{ConnectorError, DebeziumError, DebeziumStreamError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
 
-use dozer_types::parking_lot::RwLock;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use kafka::consumer::Consumer;
-use std::sync::Arc;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
@@ -80,11 +78,7 @@ pub struct DebeziumStreamConsumer {}
 impl DebeziumStreamConsumer {}
 
 impl StreamConsumer for DebeziumStreamConsumer {
-    fn run(
-        &self,
-        mut con: Consumer,
-        ingestor: Arc<RwLock<Ingestor>>,
-    ) -> Result<(), ConnectorError> {
+    fn run(&self, mut con: Consumer, ingestor: &Ingestor) -> Result<(), ConnectorError> {
         loop {
             let mss = con.poll().map_err(|e| {
                 DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
@@ -142,7 +136,6 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 })?;
 
                                 ingestor
-                                    .write()
                                     .handle_message((
                                         (0, 0),
                                         IngestionMessage::OperationEvent(Operation::Update {
@@ -175,7 +168,6 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     })?;
 
                                 ingestor
-                                    .write()
                                     .handle_message((
                                         (0, 0),
                                         IngestionMessage::OperationEvent(Operation::Delete {
@@ -204,7 +196,6 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 })?;
 
                                 ingestor
-                                    .write()
                                     .handle_message((
                                         (0, 0),
                                         IngestionMessage::OperationEvent(Operation::Insert {

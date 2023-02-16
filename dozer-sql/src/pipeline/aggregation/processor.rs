@@ -10,7 +10,6 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::types::TypeError;
-use dozer_types::internal_err;
 use dozer_types::types::{Field, Operation, Record, Schema};
 
 use crate::pipeline::aggregation::aggregator::get_aggregator_from_aggregation_expression;
@@ -531,7 +530,7 @@ fn get_key(
 
 impl Processor for AggregationProcessor {
     fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        internal_err!(self.init_store(txn))
+        self.init_store(txn).map_err(|e| InternalError(Box::new(e)))
     }
 
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
@@ -548,7 +547,9 @@ impl Processor for AggregationProcessor {
     ) -> Result<(), ExecutionError> {
         match self.db {
             Some(d) => {
-                let ops = internal_err!(self.aggregate(&mut txn.write(), d, op))?;
+                let ops = self
+                    .aggregate(&mut txn.write(), d, op)
+                    .map_err(|e| InternalError(Box::new(e)))?;
                 for fop in ops {
                     fw.send(fop, DEFAULT_PORT_HANDLE)?;
                 }

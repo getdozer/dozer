@@ -1,7 +1,6 @@
 use crossbeam::channel::{bounded, Receiver};
 use dozer_types::ingestion_types::{IngestionMessage, IngestorError, IngestorForwarder};
 use dozer_types::log::warn;
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Operation;
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,6 +22,7 @@ impl IngestorForwarder for ChannelForwarder {
     }
 }
 #[derive(Debug)]
+/// `IngestionIterator` is the receiver side of a spsc channel. The sender side is `Ingestor`.
 pub struct IngestionIterator {
     pub rx: Receiver<((u64, u64), Operation)>,
 }
@@ -54,31 +54,24 @@ impl IngestionIterator {
 }
 
 #[derive(Debug)]
+/// `Ingestor` is the sender side of a spsc channel. The receiver side is `IngestionIterator`.
 pub struct Ingestor {
     pub sender: Arc<Box<dyn IngestorForwarder>>,
 }
 
 impl Ingestor {
-    pub fn initialize_channel(
-        config: IngestionConfig,
-    ) -> (Arc<RwLock<Ingestor>>, Arc<RwLock<IngestionIterator>>) {
+    pub fn initialize_channel(config: IngestionConfig) -> (Ingestor, IngestionIterator) {
         let (tx, rx) = bounded(config.forwarder_channel_cap);
         let sender: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
-        let ingestor = Arc::new(RwLock::new(Self::new(config, sender)));
+        let ingestor = Self { sender };
 
-        let iterator = Arc::new(RwLock::new(IngestionIterator { rx }));
+        let iterator = IngestionIterator { rx };
         (ingestor, iterator)
-    }
-    pub fn new(
-        _config: IngestionConfig,
-        sender: Arc<Box<dyn IngestorForwarder + 'static>>,
-    ) -> Self {
-        Self { sender }
     }
 
     pub fn handle_message(
-        &mut self,
+        &self,
         ((lsn, seq_no), message): ((u64, u64), IngestionMessage),
     ) -> Result<(), IngestorError> {
         match message {
@@ -94,8 +87,6 @@ impl Ingestor {
 
 #[cfg(test)]
 mod tests {
-    use crate::ingestion::IngestionConfig;
-
     use super::IngestionMessage::{Begin, Commit, OperationEvent};
     use super::{ChannelForwarder, Ingestor, IngestorForwarder};
     use crossbeam::channel::unbounded;
@@ -104,11 +95,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_handle() {
-        let config = IngestionConfig::default();
         let (tx, rx) = unbounded();
-        let forwarder: Arc<Box<dyn IngestorForwarder>> =
+        let sender: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
-        let mut ingestor = Ingestor::new(config, forwarder);
+        let ingestor = Ingestor { sender };
 
         // Expected seq no - 2
         let operation = Operation::Insert {

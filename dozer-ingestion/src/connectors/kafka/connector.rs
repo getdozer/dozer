@@ -1,11 +1,7 @@
-use std::sync::Arc;
-
 use crate::connectors::{Connector, ValidationResults};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
-
-use dozer_types::parking_lot::RwLock;
 
 use tokio::runtime::Runtime;
 
@@ -21,18 +17,11 @@ use crate::errors::DebeziumError::{DebeziumConnectionError, TopicNotDefined};
 pub struct KafkaConnector {
     pub id: u64,
     config: KafkaConfig,
-    ingestor: Option<Arc<RwLock<Ingestor>>>,
-    tables: Option<Vec<TableInfo>>,
 }
 
 impl KafkaConnector {
     pub fn new(id: u64, config: KafkaConfig) -> Self {
-        Self {
-            id,
-            config,
-            ingestor: None,
-            tables: None,
-        }
+        Self { id, config }
     }
 }
 
@@ -54,32 +43,19 @@ impl Connector for KafkaConnector {
         )
     }
 
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    fn start(
+        &self,
+        _from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        self.ingestor = Some(ingestor);
-        self.tables = tables;
-        Ok(())
-    }
-
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
-        let tables = self
-            .tables
-            .as_ref()
-            .map_or_else(|| Err(TopicNotDefined), Ok)?;
+        let tables = tables.as_ref().map_or_else(|| Err(TopicNotDefined), Ok)?;
         let topic = tables
             .get(0)
             .map_or(Err(TopicNotDefined), |table| Ok(&table.table_name))?;
 
         let broker = self.config.broker.to_owned();
-        let ingestor = self
-            .ingestor
-            .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?
-            .clone();
         Runtime::new()
             .unwrap()
             .block_on(async { run(broker, topic, ingestor).await })
@@ -98,11 +74,7 @@ impl Connector for KafkaConnector {
     }
 }
 
-async fn run(
-    broker: String,
-    topic: &str,
-    ingestor: Arc<RwLock<Ingestor>>,
-) -> Result<(), ConnectorError> {
+async fn run(broker: String, topic: &str, ingestor: &Ingestor) -> Result<(), ConnectorError> {
     let con = Consumer::from_hosts(vec![broker])
         .with_topic(topic.to_string())
         .with_fallback_offset(FetchOffset::Earliest)

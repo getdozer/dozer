@@ -42,9 +42,8 @@ fn run() -> Result<(), OrchestrationError> {
 
     let cli = Cli::parse();
     let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
     let running_api = running.clone();
-    set_ctrl_handler(r);
+    set_ctrl_handler(running.clone());
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
