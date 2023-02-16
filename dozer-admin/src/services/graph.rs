@@ -8,9 +8,12 @@ use dozer_types::models::app_config::Config;
 
 pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGraph, ErrorResponse> {
     // output tables from query context
-    let output_tables = match context {
-        Some(context) => context.output_tables_map.keys().cloned().collect(),
-        None => vec![],
+    let (output_tables, used_sources) = match context {
+        Some(context) => (
+            context.output_tables_map.keys().cloned().collect(),
+            context.used_sources.clone(),
+        ),
+        None => (vec![], vec![]),
     };
 
     let mut graph = QueryGraph::default();
@@ -20,6 +23,7 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
     let mut connection_map = HashMap::new();
 
     let mut source_map = HashMap::new();
+    let mut output_map = HashMap::new();
 
     let mut id = 0;
     for (idx, source) in cfg.sources.iter().enumerate() {
@@ -71,14 +75,15 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
         });
     }
     const TRANSFORMER_ID: u32 = 10000;
-    let mut transformed = false;
     for (idx, name) in output_tables.iter().enumerate() {
+        id += 1;
         nodes.push(QueryNode {
             name: name.clone(),
             node_type: QueryNodeType::Table as i32,
             idx: idx as u32,
             id,
         });
+        output_map.insert(name.clone(), id);
     }
 
     for (idx, endpoint) in cfg.endpoints.iter().enumerate() {
@@ -92,9 +97,9 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
         let e_id = id;
 
         let s_id = source_map.get(&endpoint.table_name);
-        let out_present = output_tables.contains(&endpoint.table_name);
+        let out_id = output_map.get(&endpoint.table_name);
 
-        match (s_id, out_present) {
+        match (s_id, out_id) {
             (Some(s_id), _) => {
                 edges.push(QueryEdge {
                     from: *s_id,
@@ -102,16 +107,15 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
                     schema: None,
                 });
             }
-            (None, true) => {
+            (None, Some(o_id)) => {
                 id += 1;
-                transformed = true;
                 edges.push(QueryEdge {
-                    from: TRANSFORMER_ID,
+                    from: *o_id,
                     to: e_id,
                     schema: None,
                 });
             }
-            (None, false) => {
+            (None, None) => {
                 return Err(ErrorResponse {
                     message: format!("table not found: {0}", endpoint.table_name),
                 })
@@ -119,13 +123,32 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
         }
     }
 
-    if transformed {
+    if !output_map.is_empty() {
         nodes.push(QueryNode {
             name: "transformer".to_string(),
             node_type: QueryNodeType::Transformer as i32,
             idx: 0,
             id: TRANSFORMER_ID,
         });
+
+        for s in used_sources {
+            let s_id = source_map
+                .get(&s)
+                .expect(&format!("source not found in SQL: {s}"));
+            edges.push(QueryEdge {
+                from: *s_id,
+                to: TRANSFORMER_ID,
+                schema: None,
+            });
+        }
+
+        for (_, o_id) in output_map.iter() {
+            edges.push(QueryEdge {
+                from: TRANSFORMER_ID,
+                to: *o_id,
+                schema: None,
+            });
+        }
     }
 
     graph.nodes = nodes;

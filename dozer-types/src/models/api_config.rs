@@ -25,12 +25,6 @@ pub struct ApiConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_pipeline_internal")]
     pub pipeline_internal: Option<ApiPipelineInternal>,
-    #[prost(string, optional, tag = "7")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(string, optional, tag = "8")]
-    pub id: Option<String>,
 }
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiRest {

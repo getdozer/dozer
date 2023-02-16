@@ -18,6 +18,7 @@ pub struct Source {
     pub connection: Option<Connection>,
     #[prost(oneof = "RefreshConfig", tags = "7")]
     #[serde(default = "default_refresh_config")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     /// setting for how to refresh the data; Default: RealTime
     pub refresh_config: Option<RefreshConfig>,
 }
