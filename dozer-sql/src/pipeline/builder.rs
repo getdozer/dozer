@@ -397,9 +397,9 @@ fn set_to_pipeline(
         ).unwrap()
     );
 
-    // for (_, table_name) in query_ctx.pipeline_map.keys() {
-    //     query_ctx.output_tables_map.remove_entry(table_name);
-    // }
+    for (_, table_name) in query_ctx.pipeline_map.keys() {
+        query_ctx.output_tables_map.remove_entry(table_name);
+    }
     // let left_table_info = query_ctx.pipeline_map.values().
     //
     //     pipeline.connect_nodes(
