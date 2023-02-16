@@ -142,7 +142,7 @@ impl Connector for EthConnector {
         let mut schemas = vec![(
             ETH_LOGS_TABLE.to_string(),
             helper::get_eth_schema(),
-            ReplicationChangesTrackingType::FullChanges,
+            ReplicationChangesTrackingType::Nothing,
         )];
 
         let event_schemas = helper::get_contract_event_schemas(
