@@ -7,6 +7,8 @@ use serde::{
     de::{self, IgnoredAny, Visitor},
     Deserialize, Deserializer, Serialize,
 };
+use crate::models::python_udf::PythonUDF;
+
 #[derive(Serialize, PartialEq, Eq, Clone, prost::Message)]
 /// The configuration for the app
 pub struct Config {
@@ -40,6 +42,11 @@ pub struct Config {
     #[prost(message, tag = "9")]
     /// flags to enable/disable features
     pub flags: Option<Flags>,
+
+    /// Python udf info
+    #[prost(message, repeated, tag = "10")]
+    pub python_udfs: Vec<PythonUDF>
+
 }
 
 pub fn default_home_dir() -> String {
@@ -72,6 +79,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut app_name = "".to_owned();
                 let mut sql = None;
                 let mut home_dir: String = default_home_dir();
+                let mut python_udfs = vec![];
                 while let Some(key) = access.next_key()? {
                     match key {
                         "app_name" => {
@@ -97,6 +105,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "home_dir" => {
                             home_dir = access.next_value::<String>()?;
+                        }
+                        "python_udfs" => {
+                            python_udfs = access.next_value::<Vec<PythonUDF>>()?
                         }
                         _ => {
                             access.next_value::<IgnoredAny>()?;
@@ -142,7 +153,7 @@ impl<'de> Deserialize<'de> for Config {
 
                 let sources = result_sources?;
 
-                let result_endpoints: Result<Vec<ApiEndpoint>, A::Error> = endpoints_value
+                let endpoints = endpoints_value
                     .iter()
                     .enumerate()
                     .map(|(idx, endpoint_value)| -> Result<ApiEndpoint, A::Error> {
@@ -152,8 +163,7 @@ impl<'de> Deserialize<'de> for Config {
                             })?;
                         Ok(endpoint)
                     })
-                    .collect();
-                let endpoints = result_endpoints?;
+                    .collect::<Result<Vec<ApiEndpoint>, A::Error>>()?;
 
                 Ok(Config {
                     app_name,
@@ -164,6 +174,7 @@ impl<'de> Deserialize<'de> for Config {
                     sql,
                     home_dir,
                     flags,
+                    python_udfs,
                 })
             }
         }

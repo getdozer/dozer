@@ -70,7 +70,6 @@ impl AggregationProcessor {
         input_schema: Schema,
         aggregation_schema: Schema,
     ) -> Result<Self, PipelineError> {
-        //
         let mut aggregators: Vec<(Expression, Aggregator)> = Vec::new();
         for measure in measures {
             aggregators.push(get_aggregator_from_aggregation_expression(

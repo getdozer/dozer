@@ -42,3 +42,10 @@ endpoints:
       primary_key:
         - block_number
         - id
+
+python_udfs:
+  - name: sum
+    path: ./scripts/sum.py
+
+  - name: add
+    path: ./scripts/add.py
