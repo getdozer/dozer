@@ -2,12 +2,12 @@ use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, flags::Flags,
     source::Source,
 };
+use crate::models::python_udf::PythonUDF;
 use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
 use serde::{
     de::{self, IgnoredAny, Visitor},
     Deserialize, Deserializer, Serialize,
 };
-use crate::models::python_udf::PythonUDF;
 
 #[derive(Serialize, PartialEq, Eq, Clone, prost::Message)]
 /// The configuration for the app
@@ -45,8 +45,7 @@ pub struct Config {
 
     /// Python udf info
     #[prost(message, repeated, tag = "10")]
-    pub python_udfs: Vec<PythonUDF>
-
+    pub python_udfs: Vec<PythonUDF>,
 }
 
 pub fn default_home_dir() -> String {
@@ -106,9 +105,7 @@ impl<'de> Deserialize<'de> for Config {
                         "home_dir" => {
                             home_dir = access.next_value::<String>()?;
                         }
-                        "python_udfs" => {
-                            python_udfs = access.next_value::<Vec<PythonUDF>>()?
-                        }
+                        "python_udfs" => python_udfs = access.next_value::<Vec<PythonUDF>>()?,
                         _ => {
                             access.next_value::<IgnoredAny>()?;
                         }

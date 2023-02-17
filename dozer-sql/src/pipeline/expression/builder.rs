@@ -99,7 +99,6 @@ impl ExpressionBuilder {
                 parse_aggregations,
                 sql_function,
                 schema,
-                expression,
             ),
             SqlExpr::Like {
                 negated,
@@ -246,7 +245,6 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
-        _expression: &SqlExpr,
     ) -> Result<Box<Expression>, PipelineError> {
         let function_name = sql_function.name.to_string().to_lowercase();
 
