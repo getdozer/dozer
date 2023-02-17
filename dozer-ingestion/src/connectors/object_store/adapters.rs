@@ -86,7 +86,7 @@ impl DozerObjectStore for LocalStorage {
             scheme: "local",
             host: path,
             object_store,
-            table_path: format!("s3://{path}/{}/", table.prefix),
+            table_path: format!("{path}/{}/", table.prefix),
             data_fusion_table: table,
         })
     }
