@@ -21,10 +21,12 @@ fn standard() {
         topics: vec![],
     };
     let expected_eth_config = EthConfig {
-        provider: Some(crate::ingestion_types::EthProvider::Log(EthLogConfig {
-            filter: Some(expected_eth_filter),
-            contracts: vec![],
-        })),
+        provider: Some(crate::ingestion_types::EthProviderConfig::Log(
+            EthLogConfig {
+                filter: Some(expected_eth_filter),
+                contracts: vec![],
+            },
+        )),
         wss_url: "wss://link".to_owned(),
     };
     let expected = Authentication::Ethereum(expected_eth_config);
@@ -47,10 +49,12 @@ fn config_without_empty_array() {
         topics: vec![],
     };
     let expected_eth_config = EthConfig {
-        provider: Some(crate::ingestion_types::EthProvider::Log(EthLogConfig {
-            filter: Some(expected_eth_filter),
-            contracts: vec![],
-        })),
+        provider: Some(crate::ingestion_types::EthProviderConfig::Log(
+            EthLogConfig {
+                filter: Some(expected_eth_filter),
+                contracts: vec![],
+            },
+        )),
         wss_url: "wss://link".to_owned(),
     };
     let expected = Authentication::Ethereum(expected_eth_config);

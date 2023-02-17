@@ -23,7 +23,8 @@ use dozer_types::types::SchemaWithChangesType;
 
 pub mod snowflake;
 
-use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
+use self::ethereum::EthLogProvider;
+use self::events::connector::EventsConnector;
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
 pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
@@ -103,9 +104,12 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             }
             Ok(Box::new(PostgresConnector::new(1, postgres_config)))
         }
-        Authentication::Ethereum(eth_config) => {
-            Ok(Box::new(EthConnector::new(2, eth_config, connection.name)))
-        }
+        Authentication::Ethereum(eth_config) => match eth_config.provider.unwrap() {
+            dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => Ok(Box::new(
+                EthLogProvider::new(2, eth_config.wss_url, log_config, connection.name),
+            )),
+            dozer_types::ingestion_types::EthProviderConfig::Trace(_) => todo!(),
+        },
         Authentication::Events(_) => Ok(Box::new(EventsConnector::new(3, connection.name))),
         Authentication::Snowflake(snowflake) => {
             let snowflake_config = snowflake;

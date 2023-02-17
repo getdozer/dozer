@@ -1,6 +1,6 @@
 use crate::errors::{CliError, OrchestrationError};
 use dozer_types::{
-    ingestion_types::{EthConfig, EthFilter, SnowflakeConfig},
+    ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig},
     log::info,
     models::{
         app_config::Config,
@@ -86,9 +86,11 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 topics: vec![],
             };
             let ethereum_auth = EthConfig {
-                filter: Some(eth_filter),
                 wss_url: "wss://link".to_owned(),
-                contracts: vec![],
+                provider: Some(EthProviderConfig::Log(EthLogConfig {
+                    filter: Some(eth_filter),
+                    contracts: vec![],
+                })),
             };
             let connection: Connection = Connection {
                 name: "ethereum".to_owned(),

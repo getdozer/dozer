@@ -45,18 +45,18 @@ pub struct EthFilter {
 pub struct EthConfig {
     #[prost(string, tag = "1")]
     pub wss_url: String,
-    #[prost(oneof = "EthProvider", tags = "2,3")]
-    pub provider: Option<EthProvider>,
+    #[prost(oneof = "EthProviderConfig", tags = "2,3")]
+    pub provider: Option<EthProviderConfig>,
 }
 
-impl Default for EthProvider {
+impl Default for EthProviderConfig {
     fn default() -> Self {
-        EthProvider::Log(EthLogConfig::default())
+        EthProviderConfig::Log(EthLogConfig::default())
     }
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
-pub enum EthProvider {
+pub enum EthProviderConfig {
     #[prost(message, tag = "2")]
     Log(EthLogConfig),
     #[prost(message, tag = "3")]
@@ -88,7 +88,7 @@ impl EthConfig {
         debug_assert!(self.provider.is_some());
         let provider = self.provider.as_ref().unwrap();
         match provider {
-            EthProvider::Log(log) => {
+            EthProviderConfig::Log(log) => {
                 table.add_row(row!["provider", "logs"]);
                 if let Some(filter) = &log.filter {
                     table.add_row(row!["filter", format!("{:?}", filter)]);
@@ -97,7 +97,7 @@ impl EthConfig {
                     table.add_row(row!["contracts", format!("{:?}", log.contracts)]);
                 }
             }
-            EthProvider::Trace(trace) => {
+            EthProviderConfig::Trace(trace) => {
                 table.add_row(row!["provider", "traces"]);
                 table.add_row(row!("trace", format!("{:?}", trace)));
             }

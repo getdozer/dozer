@@ -2,7 +2,7 @@ use std::{collections::HashSet, thread, time::Duration};
 
 use crate::{
     connectors::{
-        ethereum::{connector::EthConnector, helper},
+        ethereum::{helper, EthLogProvider},
         Connector,
     },
     errors::ConnectorError,
@@ -10,7 +10,7 @@ use crate::{
 };
 
 use dozer_types::{
-    ingestion_types::{EthConfig, EthContract, EthFilter},
+    ingestion_types::{EthConfig, EthContract, EthFilter, EthLogConfig, EthProviderConfig},
     log::info,
     types::Operation,
 };
@@ -51,9 +51,10 @@ pub fn get_eth_producer(
     contract: Contract<WebSocket>,
 ) -> Result<(), ConnectorError> {
     let address = format!("{:?}", contract.address());
-    let eth_connector = EthConnector::new(
+    let eth_connector = EthLogProvider::new(
         1,
-        EthConfig {
+        wss_url,
+        EthLogConfig {
             filter: Some(EthFilter {
                 from_block: Some(0),
                 to_block: None,
@@ -67,7 +68,6 @@ pub fn get_eth_producer(
                     .trim_end()
                     .to_string(),
             }],
-            wss_url,
         },
         "eth_test".to_string(),
     );

@@ -3,23 +3,23 @@ use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::{Connector, ValidationResults};
 use crate::ingestion::Ingestor;
-use crate::{
-    connectors::{ethereum::helper, TableInfo},
-    errors::ConnectorError,
-};
-use dozer_types::ingestion_types::{EthConfig, EthFilter};
+use crate::{connectors::TableInfo, errors::ConnectorError};
+use dozer_types::ingestion_types::{EthFilter, EthLogConfig};
 
 use dozer_types::serde_json;
 
+use super::helper;
 use super::sender::{run, EthDetails};
 use dozer_types::types::ReplicationChangesTrackingType;
 use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
-pub struct EthConnector {
+pub struct EthLogProvider {
     pub id: u64,
-    config: EthConfig,
+    pub wss_url: String,
+
+    config: EthLogConfig,
     // Address -> (contract, contract_name)
     contracts: HashMap<String, ContractTuple>,
     // contract_signacture -> SchemaID
@@ -32,7 +32,7 @@ pub struct EthConnector {
 pub struct ContractTuple(pub Contract, pub String);
 
 pub const ETH_LOGS_TABLE: &str = "eth_logs";
-impl EthConnector {
+impl EthLogProvider {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
 
@@ -81,7 +81,7 @@ impl EthConnector {
         builder.build()
     }
 
-    pub fn new(id: u64, config: EthConfig, conn_name: String) -> Self {
+    pub fn new(id: u64, wss_url: String, config: EthLogConfig, conn_name: String) -> Self {
         let mut contracts = HashMap::new();
 
         for c in &config.contracts {
@@ -95,6 +95,7 @@ impl EthConnector {
         let schema_map = Self::build_schema_map(&contracts);
         Self {
             id,
+            wss_url,
             config,
             contracts,
             schema_map,
@@ -122,7 +123,7 @@ impl EthConnector {
     }
 }
 
-impl Connector for EthConnector {
+impl Connector for EthLogProvider {
     fn get_schemas(
         &self,
         tables: Option<Vec<TableInfo>>,
@@ -166,7 +167,7 @@ impl Connector for EthConnector {
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
-        let wss_url = self.config.wss_url.to_owned();
+        let wss_url = self.wss_url.to_owned();
         let filter = self.config.filter.to_owned().unwrap_or_default();
 
         Runtime::new().unwrap().block_on(async {
