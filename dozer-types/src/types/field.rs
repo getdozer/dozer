@@ -83,7 +83,7 @@ impl Field {
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
             Field::Bson(b) => b.len(),
-            Field::Point(_p) => 18,
+            Field::Point(_p) => 16,
             Field::Null => 0,
         }
     }
@@ -141,21 +141,6 @@ impl Field {
         }
     }
 
-    pub fn decode_x_y(bytes: &[u8]) -> Result<(f64, f64), DeserializationError> {
-        let x = f64::from_be_bytes(
-            bytes[0..8]
-                .try_into()
-                .map_err(|_| DeserializationError::BadDataLength)?,
-        );
-        let y = f64::from_be_bytes(
-            bytes[9..17]
-                .try_into()
-                .map_err(|_| DeserializationError::BadDataLength)?,
-        );
-
-        Ok((x, y))
-    }
-
     pub fn decode(buf: &[u8]) -> Result<Field, DeserializationError> {
         Self::decode_borrow(buf).map(|field| field.to_owned())
     }
@@ -205,7 +190,9 @@ impl Field {
                 DATE_FORMAT,
             )?)),
             10 => Ok(FieldBorrow::Bson(val)),
-            11 => Ok(FieldBorrow::Point(DozerPoint::from(Self::decode_x_y(val)?))),
+            11 => Ok(FieldBorrow::Point(DozerPoint::from(
+                DozerPoint::from_bytes(val)?,
+            ))),
             12 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }

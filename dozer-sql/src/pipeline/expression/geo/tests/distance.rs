@@ -99,8 +99,8 @@ fn test_validate_distance() {
 #[test]
 fn test_distance() {
     let tests = vec![
-        ("", 1113.0264976969),
-        ("GEODESIC", 1113.0264976969),
+        ("", 1113.0264976969002),
+        ("GEODESIC", 1113.0264976969002),
         ("HAVERSINE", 1111.7814468418496),
         ("VINCENTY", 1113.0264975564357),
     ];

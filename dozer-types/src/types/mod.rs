@@ -5,9 +5,8 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::hash::{Hash, Hasher};
 
-use crate::errors::types::TypeError;
+use crate::errors::types::{DeserializationError, TypeError};
 use prettytable::{Cell, Row, Table};
-use prost::Message;
 use serde::{self, Deserialize, Serialize};
 
 mod field;
@@ -386,9 +385,24 @@ impl Display for DozerPoint {
 
 impl DozerPoint {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut x_bytes_vec = self.0.x().encode_to_vec();
-        let mut y_bytes_vec = self.0.y().encode_to_vec();
+        let mut x_bytes_vec = self.0.x().to_be_bytes().to_vec();
+        let mut y_bytes_vec = self.0.y().to_be_bytes().to_vec();
         x_bytes_vec.append(&mut y_bytes_vec);
         x_bytes_vec
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<(f64, f64), DeserializationError> {
+        let x = f64::from_be_bytes(
+            bytes[0..7]
+                .try_into()
+                .map_err(|_| DeserializationError::BadDataLength)?,
+        );
+        let y = f64::from_be_bytes(
+            bytes[8..15]
+                .try_into()
+                .map_err(|_| DeserializationError::BadDataLength)?,
+        );
+
+        Ok((x, y))
     }
 }
