@@ -161,7 +161,6 @@ fn field_to_json_value(field: Field) -> Value {
         Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
         Field::Bson(b) => Value::from(b),
-        Field::Coord(coord) => convert_x_y_to_object(&coord.0.x_y()),
         Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
         Field::Null => Value::Null,
     }
@@ -175,7 +174,7 @@ fn json_str_to_field(value: &str, typ: FieldType, nullable: bool) -> Result<Fiel
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::types::{DozerCoord, DozerPoint};
+    use dozer_types::types::DozerPoint;
     use dozer_types::{
         chrono::{NaiveDate, Offset, TimeZone, Utc},
         ordered_float::OrderedFloat,
@@ -220,10 +219,6 @@ mod tests {
                 ]),
             ),
             (FieldType::Text, Field::Text("lorem ipsum".to_string())),
-            (
-                FieldType::Coord,
-                Field::Coord(DozerCoord::from((1.234, 2.567))),
-            ),
             (
                 FieldType::Point,
                 Field::Point(DozerPoint::from((3.234, 4.567))),

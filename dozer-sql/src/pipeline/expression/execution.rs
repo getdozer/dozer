@@ -3,6 +3,7 @@ use crate::pipeline::errors::PipelineError;
 
 use uuid::Uuid;
 
+use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::python_udf::evaluate_py_udf;
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
@@ -30,6 +31,10 @@ pub enum Expression {
     },
     ScalarFunction {
         fun: ScalarFunctionType,
+        args: Vec<Expression>,
+    },
+    GeoFunction {
+        fun: GeoFunctionType,
         args: Vec<Expression>,
     },
     AggregateFunction {
@@ -139,6 +144,17 @@ impl Expression {
                 pattern,
                 escape: _,
             } => arg.to_string(schema) + " LIKE " + pattern.to_string(schema).as_str(),
+            Expression::GeoFunction { fun, args } => {
+                fun.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|e| e.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
         }
     }
 }
@@ -208,6 +224,7 @@ impl ExpressionExecutor for Expression {
                 escape,
             } => evaluate_like(schema, arg, pattern, *escape, record),
             Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
+            Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
         }
     }
 
@@ -260,6 +277,7 @@ impl ExpressionExecutor for Expression {
                 escape: _,
             } => get_like_operator_type(arg, pattern, schema),
             Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
+            Expression::GeoFunction { fun, args } => get_geo_function_type(fun, args, schema),
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,
                 false,
@@ -284,7 +302,6 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::UInt(_) => Some(FieldType::UInt),
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
-        Field::Coord(_) => Some(FieldType::Coord),
         Field::Point(_) => Some(FieldType::Point),
     }
 }

@@ -7,10 +7,9 @@ use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
 
-use geo::Coord;
 use std::fmt::{Display, Formatter};
 
-use crate::types::{DozerCoord, DozerPoint};
+use crate::types::DozerPoint;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -26,7 +25,6 @@ pub enum Field {
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
     Bson(Vec<u8>),
-    Coord(DozerCoord),
     Point(DozerPoint),
     Null,
 }
@@ -67,7 +65,6 @@ pub enum FieldBorrow<'a> {
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
     Bson(&'a [u8]),
-    Coord(DozerCoord),
     Point(DozerPoint),
     Null,
 }
@@ -86,7 +83,6 @@ impl Field {
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
             Field::Bson(b) => b.len(),
-            Field::Coord(_c) => 18,
             Field::Point(_p) => 18,
             Field::Null => 0,
         }
@@ -106,7 +102,6 @@ impl Field {
             Field::Date(t) => Cow::Owned(t.to_string().into()),
             Field::Bson(b) => Cow::Borrowed(b),
             Field::Null => Cow::Owned([].into()),
-            Field::Coord(c) => Cow::Owned(c.as_bytes()),
             Field::Point(p) => Cow::Owned(p.as_bytes()),
         }
     }
@@ -141,7 +136,6 @@ impl Field {
             Field::Timestamp(t) => FieldBorrow::Timestamp(*t),
             Field::Date(t) => FieldBorrow::Date(*t),
             Field::Bson(b) => FieldBorrow::Bson(b),
-            Field::Coord(c) => FieldBorrow::Coord(*c),
             Field::Point(p) => FieldBorrow::Point(*p),
             Field::Null => FieldBorrow::Null,
         }
@@ -211,11 +205,8 @@ impl Field {
                 DATE_FORMAT,
             )?)),
             10 => Ok(FieldBorrow::Bson(val)),
-            11 => Ok(FieldBorrow::Coord(DozerCoord(Coord::from(
-                Self::decode_x_y(val)?,
-            )))),
-            12 => Ok(FieldBorrow::Point(DozerPoint::from(Self::decode_x_y(val)?))),
-            13 => Ok(FieldBorrow::Null),
+            11 => Ok(FieldBorrow::Point(DozerPoint::from(Self::decode_x_y(val)?))),
+            12 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
@@ -233,7 +224,6 @@ impl Field {
             Field::Timestamp(_) => 8,
             Field::Date(_) => 9,
             Field::Bson(_) => 10,
-            Field::Coord(_) => 11,
             Field::Point(_) => 12,
             Field::Null => 13,
         }
@@ -312,13 +302,6 @@ impl Field {
     pub fn as_bson(&self) -> Option<&[u8]> {
         match self {
             Field::Bson(b) => Some(b),
-            _ => None,
-        }
-    }
-
-    pub fn as_coord(&self) -> Option<DozerCoord> {
-        match self {
-            Field::Coord(b) => Some(*b),
             _ => None,
         }
     }
@@ -475,6 +458,13 @@ impl Field {
         }
     }
 
+    pub fn to_point(&self) -> Option<&DozerPoint> {
+        match self {
+            Field::Point(p) => Some(p),
+            _ => None,
+        }
+    }
+
     pub fn to_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
@@ -498,7 +488,6 @@ impl Display for Field {
             Field::Date(v) => f.write_str(&format!("{v}")),
             Field::Bson(v) => f.write_str(&format!("{v:x?}")),
             Field::Null => f.write_str("NULL"),
-            Field::Coord(v) => f.write_str(&format!("{v} (Coord)")),
             Field::Point(v) => f.write_str(&format!("{v} (Point)")),
         }
     }
@@ -518,7 +507,6 @@ impl<'a> FieldBorrow<'a> {
             FieldBorrow::Timestamp(t) => Field::Timestamp(t),
             FieldBorrow::Date(d) => Field::Date(d),
             FieldBorrow::Bson(b) => Field::Bson(b.to_owned()),
-            FieldBorrow::Coord(c) => Field::Coord(c),
             FieldBorrow::Point(p) => Field::Point(p),
             FieldBorrow::Null => Field::Null,
         }
@@ -538,7 +526,6 @@ pub enum FieldType {
     Timestamp,
     Date,
     Bson,
-    Coord,
     Point,
 }
 
@@ -556,7 +543,6 @@ impl Display for FieldType {
             FieldType::Timestamp => f.write_str("timestamp"),
             FieldType::Date => f.write_str("date"),
             FieldType::Bson => f.write_str("bson"),
-            FieldType::Coord => f.write_str("coord"),
             FieldType::Point => f.write_str("point"),
         }
     }

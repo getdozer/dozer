@@ -145,3 +145,17 @@ macro_rules! arg_date {
         }
     };
 }
+
+#[macro_export]
+macro_rules! arg_point {
+    ($field: expr, $fct: expr, $idx: expr) => {
+        match $field.to_point() {
+            Some(e) => Ok(e),
+            _ => Err(PipelineError::InvalidFunctionArgument(
+                $fct.to_string(),
+                $field,
+                $idx,
+            )),
+        }
+    };
+}

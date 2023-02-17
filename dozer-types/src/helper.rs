@@ -52,9 +52,6 @@ pub fn json_value_to_field(
         (FieldType::Bson, _) => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Bson),
-        (FieldType::Coord, _) => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Coord),
         (FieldType::Point, _) => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),

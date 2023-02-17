@@ -1,5 +1,5 @@
 use ahash::AHasher;
-use geo::{coord, point, Coord, Point};
+use geo::{point, Point};
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -336,49 +336,6 @@ pub enum Operation {
     Update { old: Record, new: Record },
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct DozerCoord(pub Coord);
-
-impl Eq for DozerCoord {}
-
-impl PartialEq for DozerCoord {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.x == other.0.x && self.0.y == other.0.y
-    }
-}
-
-impl Ord for DozerCoord {
-    fn cmp(&self, _other: &Self) -> Ordering {
-        todo!("Cmp for DozerCoord not implemented")
-    }
-}
-
-impl PartialOrd for DozerCoord {
-    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
-        todo!("Partial_cmp for DozerCoord not implemented")
-    }
-}
-
-impl Display for DozerCoord {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("{:?}", self.0.x_y()))
-    }
-}
-
-impl From<(f64, f64)> for DozerCoord {
-    fn from((x, y): (f64, f64)) -> Self {
-        Self(coord! {x: x, y: y})
-    }
-}
-
-impl DozerCoord {
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut x_bytes_vec = self.0.x.encode_to_vec();
-        let mut y_bytes_vec = self.0.y.encode_to_vec();
-        x_bytes_vec.append(&mut y_bytes_vec);
-        x_bytes_vec
-    }
-}
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct DozerPoint(pub Point);
 

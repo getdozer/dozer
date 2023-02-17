@@ -142,7 +142,7 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
             max_items: None,
             unique_items: false,
         }),
-        FieldType::Coord | FieldType::Point => {
+        FieldType::Point => {
             let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
             let required: Vec<String> = vec!["x".to_string(), "y".to_string()];
 

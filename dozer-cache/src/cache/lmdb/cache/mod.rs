@@ -386,7 +386,6 @@ fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
             FieldType::Timestamp => debug_assert!(value.as_timestamp().is_some()),
             FieldType::Date => debug_assert!(value.as_date().is_some()),
             FieldType::Bson => debug_assert!(value.as_bson().is_some()),
-            FieldType::Coord => debug_assert!(value.as_coord().is_some()),
             FieldType::Point => debug_assert!(value.as_point().is_some()),
         }
     }

@@ -347,8 +347,7 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::Timestamp => Ok("google.protobuf.Timestamp".to_owned()),
         FieldType::Date => Ok("string".to_owned()),
         FieldType::Bson => Ok("google.protobuf.Any".to_owned()),
-        FieldType::Coord => Ok("dozer.types.CoordType".to_owned()),
-        FieldType::Point => Ok("dozer.types.CoordType".to_owned()),
+        FieldType::Point => Ok("dozer.types.PointType".to_owned()),
         _ => Err(GenerationError::DozerToProtoTypeNotSupported(format!(
             "{field_type:?}"
         ))),

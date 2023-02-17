@@ -66,13 +66,10 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
         GrpcTypes::value::Value::DoubleValue(n) => Value::F64(n),
-        GrpcTypes::value::Value::MapValue(c) => {
-            let mut h = HashMap::new();
-            for (key, value) in c.values {
-                h.insert(MapKey::String(key), Value::F32(value));
-            }
-            Value::Map(h)
-        }
+        GrpcTypes::value::Value::MapValue(c) => Value::Map(HashMap::from([
+            (MapKey::String("x".to_string()), Value::F64(c.x)),
+            (MapKey::String("y".to_string()), Value::F64(c.y)),
+        ])),
         _ => todo!(),
     })
 }

@@ -44,12 +44,6 @@ impl OpenApiGenerator {
 
                     FieldType::Text => Value::from("lorem ipsum".to_string()),
                     FieldType::Date => Value::from("2022-11-24"),
-                    FieldType::Coord => {
-                        let mut m = Map::new();
-                        m.insert("x".to_string(), Value::from(1.1));
-                        m.insert("y".to_string(), Value::from(2.2));
-                        Value::Object(m)
-                    }
                     FieldType::Point => {
                         let mut m = Map::new();
                         m.insert("x".to_string(), Value::from(3.3));
