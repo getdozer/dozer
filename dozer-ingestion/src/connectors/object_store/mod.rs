@@ -1,3 +1,4 @@
+mod adapters;
 pub mod connector;
 mod executor;
 mod helper;
