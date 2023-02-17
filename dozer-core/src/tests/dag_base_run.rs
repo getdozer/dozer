@@ -54,6 +54,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoopProcessor {}))
     }
@@ -63,10 +64,6 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(
         &self,
         _epoch_details: &Epoch,
@@ -214,6 +211,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
@@ -223,10 +221,6 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(
         &self,
         _epoch_details: &Epoch,

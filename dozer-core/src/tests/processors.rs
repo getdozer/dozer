@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+
+use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
+use dozer_types::types::Schema;
+
 use crate::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
@@ -23,11 +28,8 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        _input_schemas: &std::collections::HashMap<
-            PortHandle,
-            (dozer_types::types::Schema, NoneContext),
-        >,
-    ) -> Result<(dozer_types::types::Schema, NoneContext), crate::errors::ExecutionError> {
+        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), crate::errors::ExecutionError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )
@@ -35,8 +37,9 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
 
     fn build(
         &self,
-        _input_schemas: std::collections::HashMap<PortHandle, dozer_types::types::Schema>,
-        _output_schemas: std::collections::HashMap<PortHandle, dozer_types::types::Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, crate::errors::ExecutionError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
@@ -62,11 +65,8 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        _input_schemas: &std::collections::HashMap<
-            PortHandle,
-            (dozer_types::types::Schema, NoneContext),
-        >,
-    ) -> Result<(dozer_types::types::Schema, NoneContext), crate::errors::ExecutionError> {
+        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
+    ) -> Result<(Schema, NoneContext), crate::errors::ExecutionError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )
@@ -74,8 +74,9 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
 
     fn build(
         &self,
-        _input_schemas: std::collections::HashMap<PortHandle, dozer_types::types::Schema>,
-        _output_schemas: std::collections::HashMap<PortHandle, dozer_types::types::Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, crate::errors::ExecutionError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"

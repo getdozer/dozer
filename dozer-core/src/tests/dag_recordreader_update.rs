@@ -228,6 +228,7 @@ impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(RecordReaderProcessor { _ctr: 1 }))
     }
@@ -239,10 +240,6 @@ pub(crate) struct RecordReaderProcessor {
 }
 
 impl Processor for RecordReaderProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(
         &self,
         _epoch_details: &Epoch,

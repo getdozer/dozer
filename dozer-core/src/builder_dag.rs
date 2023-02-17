@@ -97,8 +97,11 @@ impl BuilderDag {
                     TempNodeKind::Source(source)
                 }
                 DagNodeKind::Processor(processor) => {
-                    let mut processor = processor.build(input_schemas, output_schemas)?;
-                    processor.init(&mut node_storage.master_txn.write())?;
+                    let processor = processor.build(
+                        input_schemas,
+                        output_schemas,
+                        &mut node_storage.master_txn.write(),
+                    )?;
                     TempNodeKind::Processor(processor)
                 }
                 DagNodeKind::Sink(sink) => {

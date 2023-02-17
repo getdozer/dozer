@@ -4,6 +4,7 @@ use crate::node::{
 };
 use crate::tests::app::NoneContext;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_types::{node::NodeHandle, types::Schema};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -82,6 +83,7 @@ impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         todo!()
     }

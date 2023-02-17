@@ -60,6 +60,7 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(ErrorProcessor {
             err_on: self.err_on,
@@ -77,10 +78,6 @@ struct ErrorProcessor {
 }
 
 impl Processor for ErrorProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }

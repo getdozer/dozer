@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    storage::lmdb_storage::LmdbExclusiveTransaction,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{FieldDefinition, Schema};
@@ -77,13 +78,18 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        match build_join_tree(&self.input_tables, input_schemas) {
-            Ok((join_operator, source_names)) => {
-                Ok(Box::new(FromProcessor::new(join_operator, source_names)))
-            }
-            Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
-        }
+        let build = || {
+            let (join_operator, source_names) = build_join_tree(&self.input_tables, input_schemas)?;
+            Ok::<Box<dyn Processor>, PipelineError>(Box::new(FromProcessor::new(
+                join_operator,
+                source_names,
+                txn,
+            )?))
+        };
+
+        build().map_err(|e| ExecutionError::InternalStringError(e.to_string()))
     }
 }
 

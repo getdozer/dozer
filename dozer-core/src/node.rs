@@ -76,11 +76,11 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
+        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError>;
 }
 
 pub trait Processor: Send + Sync + Debug {
-    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError>;
     fn commit(&self, epoch_details: &Epoch, tx: &SharedTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
