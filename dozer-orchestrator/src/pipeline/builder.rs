@@ -118,8 +118,6 @@ impl PipelineBuilder {
 
         let conn_ports = source_builder.get_ports();
 
-        let pipeline_ref = &mut pipeline;
-
         let cache_manager = LmdbCacheManager::new(cache_manager_options)
             .map_err(OrchestrationError::CacheInitFailed)?;
         for api_endpoint in &self.api_endpoints {
@@ -141,9 +139,9 @@ impl PipelineBuilder {
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
-                    pipeline_ref.add_sink(snk_factory, api_endpoint.name.as_str());
+                    pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
 
-                    pipeline_ref
+                    pipeline
                         .connect_nodes(
                             &table_info.node,
                             Some(table_info.port),
@@ -154,7 +152,7 @@ impl PipelineBuilder {
                         .map_err(ExecutionError)?;
                 }
                 OutputTableInfo::Original(table_info) => {
-                    pipeline_ref.add_sink(snk_factory, api_endpoint.name.as_str());
+                    pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
 
                     let conn_port = conn_ports
                         .get(&(
@@ -163,7 +161,7 @@ impl PipelineBuilder {
                         ))
                         .expect("port should be present based on source mapping");
 
-                    pipeline_ref
+                    pipeline
                         .connect_nodes(
                             &table_info.connection_name,
                             Some(*conn_port),
