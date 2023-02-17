@@ -153,7 +153,7 @@ impl Schema {
 }
 
 impl Display for Schema {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let table = self.print();
         table.fmt(f)
     }
@@ -384,11 +384,11 @@ impl Display for DozerPoint {
 }
 
 impl DozerPoint {
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut x_bytes_vec = self.0.x().to_be_bytes().to_vec();
-        let mut y_bytes_vec = self.0.y().to_be_bytes().to_vec();
-        x_bytes_vec.append(&mut y_bytes_vec);
-        x_bytes_vec
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut result = [0_u8; 16];
+        result[0..7].copy_from_slice(&self.0.x().to_be_bytes());
+        result[8..15].copy_from_slice(&self.0.y().to_be_bytes());
+        result
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<(f64, f64), DeserializationError> {
