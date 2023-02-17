@@ -1,5 +1,5 @@
 use crate::{
-    ingestion_types::{EthConfig, EthFilter},
+    ingestion_types::{EthConfig, EthFilter, EthLogConfig},
     models::connection::Authentication,
 };
 #[test]
@@ -21,9 +21,11 @@ fn standard() {
         topics: vec![],
     };
     let expected_eth_config = EthConfig {
-        filter: Some(expected_eth_filter),
+        provider: Some(crate::ingestion_types::EthProvider::Log(EthLogConfig {
+            filter: Some(expected_eth_filter),
+            contracts: vec![],
+        })),
         wss_url: "wss://link".to_owned(),
-        contracts: vec![],
     };
     let expected = Authentication::Ethereum(expected_eth_config);
     assert_eq!(expected, deserializer_result);
@@ -45,9 +47,11 @@ fn config_without_empty_array() {
         topics: vec![],
     };
     let expected_eth_config = EthConfig {
-        filter: Some(expected_eth_filter),
+        provider: Some(crate::ingestion_types::EthProvider::Log(EthLogConfig {
+            filter: Some(expected_eth_filter),
+            contracts: vec![],
+        })),
         wss_url: "wss://link".to_owned(),
-        contracts: vec![],
     };
     let expected = Authentication::Ethereum(expected_eth_config);
     assert_eq!(expected, deserializer_result);

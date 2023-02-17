@@ -43,49 +43,65 @@ pub struct EthFilter {
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EthConfig {
+    #[prost(string, tag = "1")]
+    pub wss_url: String,
+    #[prost(oneof = "EthProvider", tags = "2,3")]
+    pub provider: Option<EthProvider>,
+}
+
+impl Default for EthProvider {
+    fn default() -> Self {
+        EthProvider::Log(EthLogConfig::default())
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
+pub enum EthProvider {
+    #[prost(message, tag = "2")]
+    Log(EthLogConfig),
+    #[prost(message, tag = "3")]
+    Trace(EthTraceConfig),
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct EthLogConfig {
     #[prost(message, optional, tag = "1")]
     pub filter: Option<EthFilter>,
-    #[prost(string, tag = "2")]
-    pub wss_url: String,
-    #[prost(message, repeated, tag = "3")]
+    #[prost(message, repeated, tag = "2")]
     #[serde(default)]
     pub contracts: Vec<EthContract>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct EthTraceConfig {
+    // Starting block
+    #[prost(uint64, tag = "1")]
+    pub from_block: u64,
+    #[prost(uint64, optional, tag = "2")]
+    pub to_block: Option<u64>,
 }
 
 impl EthConfig {
     pub fn convert_to_table(&self) -> PrettyTable {
         let mut table = table!(["wss_url", self.wss_url]);
 
-        if let Some(filter) = &self.filter {
-            let mut addresses_table = table!();
-            for address in &filter.addresses {
-                addresses_table.add_row(row![address]);
+        debug_assert!(self.provider.is_some());
+        let provider = self.provider.as_ref().unwrap();
+        match provider {
+            EthProvider::Log(log) => {
+                table.add_row(row!["provider", "logs"]);
+                if let Some(filter) = &log.filter {
+                    table.add_row(row!["filter", format!("{:?}", filter)]);
+                }
+                if log.contracts.len() > 0 {
+                    table.add_row(row!["contracts", format!("{:?}", log.contracts)]);
+                }
             }
-
-            let mut topics_table = table!();
-            for topic in &filter.topics {
-                topics_table.add_row(row![topic]);
+            EthProvider::Trace(trace) => {
+                table.add_row(row!["provider", "traces"]);
+                table.add_row(row!("trace", format!("{:?}", trace)));
             }
-
-            let filter_table = table!(
-                [
-                    "from_block",
-                    filter
-                        .from_block
-                        .map_or("-------".to_string(), |f| f.to_string())
-                ],
-                [
-                    "to_block",
-                    filter
-                        .to_block
-                        .map_or("-------".to_string(), |f| f.to_string())
-                ],
-                ["addresses", addresses_table],
-                ["topics", topics_table]
-            );
-            table.add_row(row!["filter", filter_table]);
         }
-
         table
     }
 }
