@@ -13,7 +13,7 @@ use crate::{
     record_store::RecordReader,
 };
 
-use super::execution_dag::{ExecutionDag, NodeKind};
+use super::{builder_dag::NodeKind, execution_dag::ExecutionDag};
 use super::{name::Name, receiver_loop::ReceiverLoop, ExecutorOperation};
 
 /// A sink in the execution DAG.

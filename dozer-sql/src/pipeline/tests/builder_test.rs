@@ -104,10 +104,14 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 0..10000 {
             fw.send(

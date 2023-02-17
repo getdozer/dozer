@@ -58,10 +58,13 @@ pub trait SourceFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Source: Send + Sync + Debug {
+    /// Checks if the source can start from the given checkpoint.
+    /// If this function returns false, the executor will start the source from the beginning.
+    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError>;
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from: Option<(u64, u64)>,
+        last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError>;
 }
 

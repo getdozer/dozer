@@ -134,10 +134,14 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut idx = 0;
 

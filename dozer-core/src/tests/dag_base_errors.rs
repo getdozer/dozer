@@ -362,10 +362,14 @@ pub(crate) struct ErrGeneratorSource {
 }
 
 impl Source for ErrGeneratorSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        _checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {

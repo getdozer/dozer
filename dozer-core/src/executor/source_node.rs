@@ -20,11 +20,7 @@ use crate::{
     node::{PortHandle, Source},
 };
 
-use super::{
-    execution_dag::{ExecutionDag, NodeKind},
-    node::Node,
-    ExecutorOptions,
-};
+use super::{builder_dag::NodeKind, execution_dag::ExecutionDag, node::Node, ExecutorOptions};
 
 impl SourceChannelForwarder for InternalChannelSourceForwarder {
     fn send(

@@ -2,7 +2,7 @@ use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError::ReplicationTypeNotFound;
 use dozer_core::errors::{ExecutionError, SourceError};
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
-use dozer_ingestion::connectors::{get_connector, TableInfo};
+use dozer_ingestion::connectors::{get_connector, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -180,12 +180,14 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+        let connector = get_connector(self.connection.clone())
+            .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
         Ok(Box::new(ConnectorSource {
             ingestor,
             iterator: Mutex::new(iterator),
             schema_port_map: self.schema_port_map.clone(),
             tables: self.tables.clone(),
-            connection: self.connection.clone(),
+            connector,
         }))
     }
 }
@@ -196,21 +198,27 @@ pub struct ConnectorSource {
     iterator: Mutex<IngestionIterator>,
     schema_port_map: HashMap<u32, u16>,
     tables: Vec<TableInfo>,
-    connection: Connection,
+    connector: Box<dyn Connector>,
 }
 
 impl Source for ConnectorSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        // TODO: Query from connector.
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<(u64, u64)>,
+        last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let connector = get_connector(self.connection.to_owned())
-            .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
-
         thread::scope(|scope| {
             let t = scope.spawn(|| {
-                match connector.start(from_seq, &self.ingestor, Some(self.tables.clone())) {
+                match self.connector.start(
+                    last_checkpoint,
+                    &self.ingestor,
+                    Some(self.tables.clone()),
+                ) {
                     Ok(_) => {}
                     // If we get a channel error, it means the source sender thread has quit.
                     // Any error handling is done in that thread.

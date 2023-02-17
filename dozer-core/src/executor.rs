@@ -74,6 +74,7 @@ impl Display for ExecutorOperation {
     }
 }
 
+mod builder_dag;
 mod execution_dag;
 mod name;
 mod node;
@@ -86,11 +87,13 @@ use node::Node;
 use processor_node::ProcessorNode;
 use sink_node::SinkNode;
 
-use self::execution_dag::{ExecutionDag, NodeKind};
+use self::builder_dag::{BuilderDag, NodeKind};
+use self::execution_dag::ExecutionDag;
 use self::source_node::{create_source_nodes, SourceListenerNode, SourceSenderNode};
 
 pub struct DagExecutor<T: Clone> {
-    dag_metadata: DagMetadata<T>,
+    dag_schemas: DagSchemas<T>,
+    path: PathBuf,
     options: ExecutorOptions,
 }
 
@@ -105,18 +108,10 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let mut dag_metadata = DagMetadata::new(&dag_schemas, path.clone())?;
-        if !dag_metadata.check_consistency() {
-            DagMetadata::delete(&path, dag);
-            dag_metadata = DagMetadata::new(&dag_schemas, path)?;
-            assert!(
-                dag_metadata.check_consistency(),
-                "We just deleted all metadata"
-            );
-        }
 
         Ok(Self {
-            dag_metadata,
+            dag_schemas,
+            path,
             options,
         })
     }
@@ -129,8 +124,8 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
 
     pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
-        let mut execution_dag =
-            ExecutionDag::new(self.dag_metadata, self.options.channel_buffer_sz)?;
+        let builder_dag = BuilderDag::new(&self.dag_schemas, self.path)?;
+        let mut execution_dag = ExecutionDag::new(builder_dag, self.options.channel_buffer_sz)?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.

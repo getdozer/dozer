@@ -102,12 +102,16 @@ pub(crate) struct GeneratorSource {
 }
 
 impl Source for GeneratorSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(true)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<(u64, u64)>,
+        last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let start = from_seq.unwrap_or((0, 0)).0;
+        let start = last_checkpoint.unwrap_or((0, 0)).0;
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(
@@ -240,10 +244,14 @@ pub(crate) struct DualPortGeneratorSource {
 }
 
 impl Source for DualPortGeneratorSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             fw.send(
@@ -370,12 +378,16 @@ pub(crate) struct NoPkGeneratorSource {
 }
 
 impl Source for NoPkGeneratorSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(true)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<(u64, u64)>,
+        last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let start = from_seq.unwrap_or((0, 0)).0;
+        let start = last_checkpoint.unwrap_or((0, 0)).0;
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(
