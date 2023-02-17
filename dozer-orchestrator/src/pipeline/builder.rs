@@ -54,7 +54,6 @@ impl PipelineBuilder {
     pub fn build(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
-        api_dir: PathBuf,
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
@@ -132,9 +131,8 @@ impl PipelineBuilder {
                 &cache_manager,
                 api_endpoint.clone(),
                 notifier.clone(),
-                api_dir.clone(),
                 self.progress.clone(),
-                settings.to_owned(),
+                settings.clone(),
             )?);
 
             match table_info {

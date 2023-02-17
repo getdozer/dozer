@@ -180,7 +180,7 @@ impl Orchestrator for SimpleOrchestrator {
         );
         let flags = get_flags(self.config.clone());
         let api_security = get_api_security_config(self.config.clone());
-        let settings = CacheSinkSettings::new(flags, api_security);
+        let settings = CacheSinkSettings::new(get_api_dir(&self.config), flags, api_security);
         let dag_executor = executor.create_dag_executor(
             Some(sender),
             self.cache_manager_options.clone(),
@@ -284,9 +284,8 @@ impl Orchestrator for SimpleOrchestrator {
         );
 
         // Api Path
-        let generated_path = api_dir.join("generated");
-        if !generated_path.exists() {
-            fs::create_dir_all(generated_path.clone()).map_err(|e| InternalError(Box::new(e)))?;
+        if !api_dir.exists() {
+            fs::create_dir_all(api_dir.clone()).map_err(|e| InternalError(Box::new(e)))?;
         }
 
         // Pipeline path
@@ -298,13 +297,8 @@ impl Orchestrator for SimpleOrchestrator {
         })?;
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
-        let settings = CacheSinkSettings::new(flags, api_security);
-        let dag = builder.build(
-            None,
-            generated_path.clone(),
-            self.cache_manager_options.clone(),
-            settings,
-        )?;
+        let settings = CacheSinkSettings::new(api_dir.clone(), flags, api_security);
+        let dag = builder.build(None, self.cache_manager_options.clone(), settings)?;
         // Populate schemas.
         DagSchemas::new(&dag)?;
 
@@ -313,15 +307,15 @@ impl Orchestrator for SimpleOrchestrator {
             resources.push(&e.name);
         }
 
-        let common_resources = ProtoGenerator::copy_common(&generated_path)
+        let common_resources = ProtoGenerator::copy_common(&api_dir)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         // Copy common service to be included in descriptor.
         resources.extend(common_resources.iter());
 
         // Generate a descriptor based on all proto files generated within sink.
-        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
-        ProtoGenerator::generate_descriptor(&generated_path, &descriptor_path, &resources)
+        let descriptor_path = ProtoGenerator::descriptor_path(&api_dir);
+        ProtoGenerator::generate_descriptor(&api_dir, &descriptor_path, &resources)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())

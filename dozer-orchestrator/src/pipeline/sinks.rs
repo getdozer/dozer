@@ -45,12 +45,14 @@ pub fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
 }
 #[derive(Debug, Clone)]
 pub struct CacheSinkSettings {
+    api_dir: PathBuf,
     flags: Option<Flags>,
     api_security: Option<ApiSecurity>,
 }
 impl CacheSinkSettings {
-    pub fn new(flags: Option<Flags>, api_security: Option<ApiSecurity>) -> Self {
+    pub fn new(api_dir: PathBuf, flags: Option<Flags>, api_security: Option<ApiSecurity>) -> Self {
         Self {
+            api_dir,
             flags,
             api_security,
         }
@@ -62,7 +64,6 @@ pub struct CacheSinkFactory {
     cache: Arc<dyn RwCache>,
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineResponse>>,
-    generated_path: PathBuf,
     multi_pb: MultiProgress,
     settings: CacheSinkSettings,
 }
@@ -73,7 +74,6 @@ impl CacheSinkFactory {
         cache_manager: &dyn CacheManager,
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
-        generated_path: PathBuf,
         multi_pb: MultiProgress,
         settings: CacheSinkSettings,
     ) -> Result<Self, ExecutionError> {
@@ -103,7 +103,6 @@ impl CacheSinkFactory {
             cache: cache.into(),
             api_endpoint,
             notifier,
-            generated_path,
             multi_pb,
             settings,
         })
@@ -228,7 +227,7 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
             }
 
             ProtoGenerator::generate(
-                &self.generated_path,
+                &self.settings.api_dir,
                 &self.api_endpoint.name,
                 schema,
                 &self.settings.api_security,

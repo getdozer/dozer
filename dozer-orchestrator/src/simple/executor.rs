@@ -124,12 +124,7 @@ impl Executor {
             self.pipeline_dir.clone(),
         );
 
-        let dag = builder.build(
-            notifier,
-            PathBuf::default(),
-            cache_manager_options,
-            settings,
-        )?;
+        let dag = builder.build(notifier, cache_manager_options, settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {
