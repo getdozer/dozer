@@ -1,3 +1,4 @@
+use crate::builder_dag::{BuilderDag, NodeKind};
 use crate::dag_metadata::DagMetadata;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
@@ -74,7 +75,6 @@ impl Display for ExecutorOperation {
     }
 }
 
-mod builder_dag;
 mod execution_dag;
 mod name;
 mod node;
@@ -87,13 +87,11 @@ use node::Node;
 use processor_node::ProcessorNode;
 use sink_node::SinkNode;
 
-use self::builder_dag::{BuilderDag, NodeKind};
 use self::execution_dag::ExecutionDag;
 use self::source_node::{create_source_nodes, SourceListenerNode, SourceSenderNode};
 
-pub struct DagExecutor<T: Clone> {
-    dag_schemas: DagSchemas<T>,
-    path: PathBuf,
+pub struct DagExecutor {
+    builder_dag: BuilderDag,
     options: ExecutorOptions,
 }
 
@@ -101,22 +99,22 @@ pub struct DagExecutorJoinHandle {
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
 }
 
-impl<T: Clone + Debug + 'static> DagExecutor<T> {
-    pub fn new(
+impl DagExecutor {
+    pub fn new<T: Clone + Debug>(
         dag: &Dag<T>,
         path: PathBuf,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
+        let builder_dag = BuilderDag::new(&dag_schemas, path)?;
 
         Ok(Self {
-            dag_schemas,
-            path,
+            builder_dag,
             options,
         })
     }
 
-    pub fn validate(dag: &Dag<T>, path: PathBuf) -> Result<(), ExecutionError> {
+    pub fn validate<T: Clone + Debug>(dag: &Dag<T>, path: PathBuf) -> Result<(), ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
         DagMetadata::new(&dag_schemas, path)?;
         Ok(())
@@ -124,8 +122,8 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
 
     pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
-        let builder_dag = BuilderDag::new(&self.dag_schemas, self.path)?;
-        let mut execution_dag = ExecutionDag::new(builder_dag, self.options.channel_buffer_sz)?;
+        let mut execution_dag =
+            ExecutionDag::new(self.builder_dag, self.options.channel_buffer_sz)?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.

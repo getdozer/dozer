@@ -6,6 +6,7 @@ use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::{log::debug, node::NodeHandle};
 
 use crate::{
+    builder_dag::NodeKind,
     epoch::Epoch,
     errors::ExecutionError,
     forwarder::StateWriter,
@@ -13,7 +14,7 @@ use crate::{
     record_store::RecordReader,
 };
 
-use super::{builder_dag::NodeKind, execution_dag::ExecutionDag};
+use super::execution_dag::ExecutionDag;
 use super::{name::Name, receiver_loop::ReceiverLoop, ExecutorOperation};
 
 /// A sink in the execution DAG.

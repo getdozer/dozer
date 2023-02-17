@@ -6,6 +6,7 @@ use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::node::NodeHandle;
 
 use crate::{
+    builder_dag::NodeKind,
     errors::ExecutionError,
     forwarder::{ProcessorChannelManager, StateWriter},
     node::{PortHandle, Processor},
@@ -13,8 +14,7 @@ use crate::{
 };
 
 use super::{
-    builder_dag::NodeKind, execution_dag::ExecutionDag, name::Name, receiver_loop::ReceiverLoop,
-    ExecutorOperation,
+    execution_dag::ExecutionDag, name::Name, receiver_loop::ReceiverLoop, ExecutorOperation,
 };
 
 /// A processor in the execution DAG.

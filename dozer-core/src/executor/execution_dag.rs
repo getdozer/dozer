@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::{
+    builder_dag::{BuilderDag, NodeKind, NodeType},
     epoch::EpochManager,
     errors::ExecutionError,
     hash_map_to_vec::insert_vec_element,
@@ -20,10 +21,7 @@ use daggy::petgraph::{
     Direction,
 };
 
-use super::{
-    builder_dag::{BuilderDag, NodeKind, NodeType},
-    ExecutorOperation,
-};
+use super::ExecutorOperation;
 
 pub type SharedRecordWriter = Rc<RefCell<Option<Box<dyn RecordWriter>>>>;
 
