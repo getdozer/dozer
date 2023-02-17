@@ -49,6 +49,9 @@ pub enum Expression {
         pattern: Box<Expression>,
         escape: Option<char>,
     },
+    PythonUDF {
+
+    }
 }
 
 impl Expression {

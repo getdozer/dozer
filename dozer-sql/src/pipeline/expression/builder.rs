@@ -248,6 +248,11 @@ impl ExpressionBuilder {
     ) -> Result<Box<Expression>, PipelineError> {
         let function_name = sql_function.name.to_string().to_lowercase();
 
+        if function_name == "py_udf".to_string() {
+            // The function is from python udf.
+            return Self::parse_python_udf(sql_function, schema);
+        }
+
         match (
             AggregateFunctionType::new(function_name.as_str()),
             parse_aggregations,
@@ -476,6 +481,10 @@ impl ExpressionBuilder {
             Some(_) => id.value.clone(),
             None => id.value.clone(),
         }
+    }
+
+    fn parse_python_udf(function: &Function, schema: &Schema) -> Result<Box<Expression>, PipelineError> {
+        todo!()
     }
 }
 
