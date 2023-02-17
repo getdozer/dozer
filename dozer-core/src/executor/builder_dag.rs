@@ -102,8 +102,7 @@ impl BuilderDag {
                     TempNodeKind::Processor(processor)
                 }
                 DagNodeKind::Sink(sink) => {
-                    let mut sink = sink.build(input_schemas)?;
-                    sink.init(&mut node_storage.master_txn.write())?;
+                    let sink = sink.build(input_schemas)?;
                     TempNodeKind::Sink(sink)
                 }
             };

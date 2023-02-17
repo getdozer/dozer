@@ -114,7 +114,6 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Sink: Send + Sync + Debug {
-    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError>;
     fn commit(
         &mut self,
         epoch_details: &Epoch,

@@ -8,7 +8,7 @@ use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
@@ -500,11 +500,6 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn init(&mut self, _env: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        debug!("SINK: Initialising TestSink");
-        Ok(())
-    }
-
     fn process(
         &mut self,
         _from_port: PortHandle,

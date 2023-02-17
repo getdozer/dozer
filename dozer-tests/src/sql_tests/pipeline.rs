@@ -12,12 +12,11 @@ use dozer_core::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
-use dozer_types::log::debug;
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use std::collections::HashMap;
 
@@ -219,11 +218,6 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        debug!("SINK: Initialising TestSink");
-        Ok(())
-    }
-
     fn process(
         &mut self,
         _from_port: PortHandle,

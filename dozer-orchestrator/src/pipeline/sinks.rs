@@ -2,7 +2,7 @@ use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_api::grpc::types_helper;
-use dozer_cache::cache::expression::{QueryExpression, Skip};
+use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::{CacheManager, RwCache};
 use dozer_core::epoch::Epoch;
@@ -11,7 +11,6 @@ use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
@@ -257,7 +256,7 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
             sink_schemas,
             self.notifier.clone(),
             Some(self.multi_pb.clone()),
-        )))
+        )?))
     }
 }
 
@@ -312,25 +311,6 @@ impl Sink for CacheSink {
                 Box::new(e),
             ))
         })?;
-        Ok(())
-    }
-
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        let query = QueryExpression::new(None, vec![], None, Skip::Skip(0));
-        self.counter = self
-            .cache
-            .count(&self.api_endpoint.name, &query)
-            .map_err(|e| {
-                ExecutionError::SinkError(SinkError::CacheCountFailed(
-                    self.api_endpoint.name.clone(),
-                    Box::new(e),
-                ))
-            })?;
-
-        debug!(
-            "SINK: Initialising CacheSink: {} with count: {}",
-            self.api_endpoint.name, self.counter
-        );
         Ok(())
     }
 
@@ -406,16 +386,28 @@ impl CacheSink {
         input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
         notifier: Option<Sender<PipelineResponse>>,
         multi_pb: Option<MultiProgress>,
-    ) -> Self {
+    ) -> Result<Self, ExecutionError> {
+        let query = QueryExpression::with_no_limit();
+        let counter = cache.count(&api_endpoint.name, &query).map_err(|e| {
+            ExecutionError::SinkError(SinkError::CacheCountFailed(
+                api_endpoint.name.clone(),
+                Box::new(e),
+            ))
+        })?;
+
+        debug!(
+            "SINK: Initialising CacheSink: {} with count: {}",
+            api_endpoint.name, counter
+        );
         let pb = attach_progress(multi_pb);
-        Self {
+        Ok(Self {
             cache,
-            counter: 0,
+            counter,
             input_schemas,
             api_endpoint,
             pb,
             notifier,
-        }
+        })
     }
 }
 
