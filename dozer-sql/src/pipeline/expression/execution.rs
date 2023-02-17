@@ -261,7 +261,7 @@ impl ExpressionExecutor for Expression {
             } => get_like_operator_type(arg, pattern, schema),
             Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
-                return_type.clone(),
+                *return_type,
                 false,
                 SourceDefinition::Dynamic,
                 false,
