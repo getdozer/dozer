@@ -2,7 +2,6 @@ use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, flags::Flags,
     source::Source,
 };
-use crate::models::python_udf::PythonUDF;
 use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
 use serde::{
     de::{self, IgnoredAny, Visitor},
@@ -42,10 +41,6 @@ pub struct Config {
     #[prost(message, tag = "9")]
     /// flags to enable/disable features
     pub flags: Option<Flags>,
-
-    /// Python udf info
-    #[prost(message, repeated, tag = "10")]
-    pub python_udfs: Vec<PythonUDF>,
 }
 
 pub fn default_home_dir() -> String {
@@ -78,7 +73,6 @@ impl<'de> Deserialize<'de> for Config {
                 let mut app_name = "".to_owned();
                 let mut sql = None;
                 let mut home_dir: String = default_home_dir();
-                let mut python_udfs = vec![];
                 while let Some(key) = access.next_key()? {
                     match key {
                         "app_name" => {
@@ -105,7 +99,6 @@ impl<'de> Deserialize<'de> for Config {
                         "home_dir" => {
                             home_dir = access.next_value::<String>()?;
                         }
-                        "python_udfs" => python_udfs = access.next_value::<Vec<PythonUDF>>()?,
                         _ => {
                             access.next_value::<IgnoredAny>()?;
                         }
@@ -171,7 +164,6 @@ impl<'de> Deserialize<'de> for Config {
                     sql,
                     home_dir,
                     flags,
-                    python_udfs,
                 })
             }
         }

@@ -4,5 +4,4 @@ pub mod api_security;
 pub mod app_config;
 pub mod connection;
 pub mod flags;
-pub mod python_udf;
 pub mod source;

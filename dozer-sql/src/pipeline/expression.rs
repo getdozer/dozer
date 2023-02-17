@@ -7,6 +7,7 @@ pub mod execution;
 pub mod logical;
 pub mod mathematical;
 pub mod operator;
+pub mod python_udf;
 pub mod scalar;
 #[cfg(test)]
 mod tests;

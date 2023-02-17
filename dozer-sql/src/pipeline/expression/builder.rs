@@ -4,7 +4,7 @@ use dozer_types::{
     types::{Field, Schema},
 };
 
-use dozer_types::types::{FieldDefinition, SourceDefinition};
+use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
@@ -13,7 +13,7 @@ use sqlparser::ast::{
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
-    InvalidValue,
+    InvalidQuery, InvalidValue,
 };
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 
@@ -94,12 +94,9 @@ impl ExpressionBuilder {
             SqlExpr::Nested(expr) => {
                 Self::parse_sql_expression(context, parse_aggregations, expr, schema)
             }
-            SqlExpr::Function(sql_function) => Self::parse_sql_function(
-                context,
-                parse_aggregations,
-                sql_function,
-                schema,
-            ),
+            SqlExpr::Function(sql_function) => {
+                Self::parse_sql_function(context, parse_aggregations, sql_function, schema)
+            }
             SqlExpr::Like {
                 negated,
                 expr,
@@ -247,10 +244,10 @@ impl ExpressionBuilder {
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
         let function_name = sql_function.name.to_string().to_lowercase();
-
-        if function_name == "py_udf".to_string() {
+        if function_name.starts_with("py_") {
             // The function is from python udf.
-            return Self::parse_python_udf(sql_function, schema);
+            let udf_name = function_name.strip_prefix("py_").unwrap();
+            return Self::parse_python_udf(context, udf_name, sql_function, schema);
         }
 
         match (
@@ -483,8 +480,57 @@ impl ExpressionBuilder {
         }
     }
 
-    fn parse_python_udf(function: &Function, schema: &Schema) -> Result<Box<Expression>, PipelineError> {
-        todo!()
+    fn parse_python_udf(
+        context: &mut ExpressionContext,
+        name: &str,
+        function: &Function,
+        schema: &Schema,
+    ) -> Result<Box<Expression>, PipelineError> {
+        // First, get python function define by name.
+        // Then, transfer python function to Expression::PythonUDF
+        let args_len = function.args.len();
+        let mut arg_exprs = Vec::with_capacity(args_len);
+        let mut return_type = None;
+        for (idx, arg) in function.args.iter().enumerate() {
+            if idx == args_len - 1 {
+                // The last arg is Literal and it represents return type of udf
+                let expr = Self::parse_sql_function_arg(context, false, arg, schema)?;
+                return_type = Some(match *expr {
+                    Expression::Literal(field) => {
+                        match field {
+                            Field::String(s) => {
+                                match s.to_lowercase().as_str() {
+                                    "float" => FieldType::Float,
+                                    "uint" => FieldType::UInt,
+                                    "int" => FieldType::Int,
+                                    "boolean" => FieldType::Boolean,
+                                    "string" => FieldType::String,
+                                    "text" => FieldType::Text,
+                                    "binary" => FieldType::Binary,
+                                    "decimal" => FieldType::Decimal,
+                                    "timestamp" => FieldType::Timestamp,
+                                    "date" => FieldType::Date,
+                                    "bson" => FieldType::Bson,
+                                    _ => return Err(InvalidQuery(format!("Python udf's return type {s} isn't expected")))
+                                }
+                            }
+                            _ => unreachable!()
+                        }
+                    }
+                    _ => return Err(InvalidArgument("The last arg for python udf should be literal, which represents return type".to_string()))
+                })
+            }
+            arg_exprs.push(*Self::parse_sql_function_arg(context, false, arg, schema)?)
+        }
+        if return_type.is_none() {
+            return Err(InvalidQuery("Can't get python udf return type".to_string()));
+        }
+        let expr = Box::new(Expression::PythonUDF {
+            name: name.to_string(),
+            args: arg_exprs,
+            return_type: return_type.unwrap(),
+        });
+        Ok(expr)
     }
 }
 
