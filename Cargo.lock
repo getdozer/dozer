@@ -1756,7 +1756,6 @@ dependencies = [
  "clap 4.1.5",
  "diesel",
  "diesel_migrations",
- "dotenvy",
  "dozer-orchestrator",
  "dozer-tracing",
  "dozer-types",

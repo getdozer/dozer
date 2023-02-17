@@ -3,7 +3,6 @@ use crate::{
     db::pool::establish_connection,
     services::{application_service::AppService, connection_service::ConnectionService},
 };
-use dotenvy::dotenv;
 use dozer_types::{log::info, tracing::Level};
 use tonic::{transport::Server, Request, Response, Status};
 use tower_http::trace::{self, TraceLayer};
@@ -13,17 +12,16 @@ pub mod dozer_admin_grpc {
     pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("dozer_admin_grpc_descriptor");
 }
+use self::dozer_admin_grpc::{
+    GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
+    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, UpdateAppRequest,
+    ValidateConnectionRequest, ValidateConnectionResponse,
+};
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
     AppResponse, ConnectionResponse, CreateAppRequest, CreateConnectionRequest,
     GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetTablesRequest,
     GetTablesResponse, StartPipelineRequest, StartPipelineResponse, UpdateConnectionRequest,
-};
-
-use self::dozer_admin_grpc::{
-    GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
-    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, UpdateAppRequest,
-    ValidateConnectionRequest, ValidateConnectionResponse,
 };
 
 pub struct GrpcService {
@@ -188,7 +186,6 @@ pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::tra
     let port = config.port;
     let dozer_path = config.dozer_path;
     let addr = format!("{host:}:{port:}").parse().unwrap();
-    dotenv().ok();
     let database_url: String = get_db_path();
     let db_pool = establish_connection(database_url);
     let grpc_service = GrpcService {
