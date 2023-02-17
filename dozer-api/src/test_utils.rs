@@ -6,7 +6,7 @@ use dozer_types::{
 };
 use std::sync::Arc;
 
-use dozer_cache::cache::{LmdbRwCache, RecordWithId, RwCache};
+use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId, RoCache};
 
 pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![
@@ -104,8 +104,9 @@ fn get_films() -> Vec<Value> {
 pub fn initialize_cache(
     schema_name: &str,
     schema: Option<(dozer_types::types::Schema, Vec<IndexDefinition>)>,
-) -> Arc<LmdbRwCache> {
-    let cache = Arc::new(LmdbRwCache::new(Default::default(), Default::default()).unwrap());
+) -> Arc<dyn RoCache> {
+    let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
+    let cache = cache_manager.create_cache().unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     cache
         .insert_schema(schema_name, &schema, &secondary_indexes)
@@ -114,7 +115,15 @@ pub fn initialize_cache(
     for mut record in records {
         cache.insert(&mut record.record).unwrap();
     }
-    cache
+    cache.commit().unwrap();
+
+    let cache_name = cache.name().to_string();
+    drop(cache);
+    cache_manager
+        .open_ro_cache(&cache_name)
+        .unwrap()
+        .unwrap()
+        .into()
 }
 
 pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {

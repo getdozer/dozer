@@ -1,8 +1,9 @@
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression, Skip},
     index,
+    lmdb::cache::LmdbRwCache,
     test_utils::{self, query_from_filter},
-    LmdbRwCache, RoCache, RwCache,
+    RoCache, RwCache,
 };
 use dozer_types::{
     serde_json::Value,

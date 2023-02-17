@@ -3,10 +3,10 @@ use dozer_types::models::{
     api_security::ApiSecurity,
     app_config::Config,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-pub fn get_pipeline_dir(config: Config) -> PathBuf {
-    PathBuf::from(format!("{:}/pipeline", config.home_dir))
+pub fn get_pipeline_dir(config: &Config) -> PathBuf {
+    AsRef::<Path>::as_ref(&config.home_dir).join("pipeline")
 }
 pub fn get_pipeline_config(config: Config) -> ApiPipelineInternal {
     config
@@ -15,12 +15,12 @@ pub fn get_pipeline_config(config: Config) -> ApiPipelineInternal {
         .pipeline_internal
         .unwrap_or_default()
 }
-pub fn get_cache_dir(config: Config) -> PathBuf {
-    PathBuf::from(format!("{:}/cache", config.home_dir))
+pub fn get_cache_dir(config: &Config) -> PathBuf {
+    AsRef::<Path>::as_ref(&config.home_dir).join("cache")
 }
 
-pub fn get_api_dir(config: Config) -> PathBuf {
-    PathBuf::from(format!("{:}/api", config.home_dir))
+pub fn get_api_dir(config: &Config) -> PathBuf {
+    AsRef::<Path>::as_ref(&config.home_dir).join("api")
 }
 pub fn get_grpc_config(config: Config) -> ApiGrpc {
     config.api.unwrap_or_default().grpc.unwrap_or_default()
@@ -40,8 +40,8 @@ pub fn get_flags(config: Config) -> Option<dozer_types::models::flags::Flags> {
 }
 
 pub fn get_repl_history_path(config: &Config) -> PathBuf {
-    PathBuf::from(format!("{:}/history.txt", config.home_dir))
+    AsRef::<Path>::as_ref(&config.home_dir).join("history.txt")
 }
 pub fn get_sql_history_path(config: &Config) -> PathBuf {
-    PathBuf::from(format!("{:}/sql_history.txt", config.home_dir))
+    AsRef::<Path>::as_ref(&config.home_dir).join("sql_history.txt")
 }

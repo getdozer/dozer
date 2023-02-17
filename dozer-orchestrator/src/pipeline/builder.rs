@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use dozer_cache::cache::{CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -10,10 +11,9 @@ use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::indicatif::MultiProgress;
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
 use std::path::PathBuf;
-
-use dozer_api::RwCacheEndpoint;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 
@@ -36,19 +36,15 @@ pub struct OriginalTableInfo {
 
 pub struct PipelineBuilder {
     config: Config,
-    cache_endpoints: Vec<RwCacheEndpoint>,
+    api_endpoints: Vec<ApiEndpoint>,
     pipeline_dir: PathBuf,
     progress: MultiProgress,
 }
 impl PipelineBuilder {
-    pub fn new(
-        config: Config,
-        cache_endpoints: Vec<RwCacheEndpoint>,
-        pipeline_dir: PathBuf,
-    ) -> Self {
+    pub fn new(config: Config, api_endpoints: Vec<ApiEndpoint>, pipeline_dir: PathBuf) -> Self {
         Self {
             config,
-            cache_endpoints,
+            api_endpoints,
             pipeline_dir,
             progress: MultiProgress::new(),
         }
@@ -59,6 +55,7 @@ impl PipelineBuilder {
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
+        cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let sources = self.config.sources.clone();
@@ -105,13 +102,11 @@ impl PipelineBuilder {
             }
         }
         // Add Used Souces if direct from source
-        for cache_endpoint in self.cache_endpoints.iter().cloned() {
-            let api_endpoint = cache_endpoint.endpoint.clone();
-
-            let table_name = api_endpoint.table_name.clone();
+        for api_endpoint in &self.api_endpoints {
+            let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
-                .get(&table_name)
+                .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
             if let OutputTableInfo::Original(table_info) = table_info {
@@ -125,43 +120,41 @@ impl PipelineBuilder {
 
         let pipeline_ref = &mut pipeline;
 
-        for cache_endpoint in self.cache_endpoints.iter().cloned() {
-            let api_endpoint = cache_endpoint.endpoint.clone();
-
-            let cache = cache_endpoint.cache;
-
-            let table_name = api_endpoint.table_name.clone();
+        let cache_manager = LmdbCacheManager::new(cache_manager_options)
+            .map_err(OrchestrationError::CacheInitFailed)?;
+        for api_endpoint in &self.api_endpoints {
+            let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
-                .get(&table_name)
+                .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
             let snk_factory = Arc::new(CacheSinkFactory::new(
                 vec![DEFAULT_PORT_HANDLE],
-                cache,
-                api_endpoint,
+                &cache_manager,
+                api_endpoint.clone(),
                 notifier.clone(),
                 api_dir.clone(),
                 self.progress.clone(),
                 settings.to_owned(),
-            ));
+            )?);
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
-                    pipeline_ref.add_sink(snk_factory, cache_endpoint.endpoint.name.as_str());
+                    pipeline_ref.add_sink(snk_factory, api_endpoint.name.as_str());
 
                     pipeline_ref
                         .connect_nodes(
                             &table_info.node,
                             Some(table_info.port),
-                            cache_endpoint.endpoint.name.as_str(),
+                            api_endpoint.name.as_str(),
                             Some(DEFAULT_PORT_HANDLE),
                             true,
                         )
                         .map_err(ExecutionError)?;
                 }
                 OutputTableInfo::Original(table_info) => {
-                    pipeline_ref.add_sink(snk_factory, cache_endpoint.endpoint.name.as_str());
+                    pipeline_ref.add_sink(snk_factory, api_endpoint.name.as_str());
 
                     let conn_port = conn_ports
                         .get(&(
@@ -174,7 +167,7 @@ impl PipelineBuilder {
                         .connect_nodes(
                             &table_info.connection_name,
                             Some(*conn_port),
-                            cache_endpoint.endpoint.name.as_str(),
+                            api_endpoint.name.as_str(),
                             Some(DEFAULT_PORT_HANDLE),
                             false,
                         )

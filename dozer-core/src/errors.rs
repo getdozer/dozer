@@ -132,6 +132,20 @@ pub enum SinkError {
     #[error("Failed to initialize schema in Cache: {0:?}, Error: {1:?}.")]
     SchemaUpdateFailed(String, #[source] BoxedError),
 
+    #[error("Failed to open Cache: {0:?}, Error: {1:?}.")]
+    CacheOpenFailed(String, #[source] BoxedError),
+
+    #[error("Failed to create Cache: {0:?}, Error: {1:?}.")]
+    CacheCreateFailed(String, #[source] BoxedError),
+
+    #[error("Failed to create alias {alias:?} for Cache: {real_name:?}, Error: {source:?}.")]
+    CacheCreateAliasFailed {
+        alias: String,
+        real_name: String,
+        #[source]
+        source: BoxedError,
+    },
+
     #[error("Failed to begin transaction in Cache: {0:?}, Error: {1:?}.")]
     CacheBeginTransactionFailed(String, #[source] BoxedError),
 

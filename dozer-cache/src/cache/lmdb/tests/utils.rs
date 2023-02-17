@@ -1,7 +1,7 @@
 use dozer_storage::lmdb::Cursor;
 use dozer_types::types::{Field, Record, Schema};
 
-use crate::cache::{LmdbRwCache, RwCache};
+use crate::cache::{lmdb::cache::LmdbRwCache, RwCache};
 
 pub fn insert_rec_1(
     cache: &LmdbRwCache,

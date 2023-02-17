@@ -1,6 +1,6 @@
 use dozer_cache::cache::{
     expression::{QueryExpression, Skip},
-    LmdbRwCache, RoCache,
+    RoCache,
 };
 use dozer_types::types::Record;
 
@@ -9,7 +9,7 @@ use dozer_types::types::Record;
 ///
 /// Returns the query with `skip` 0 and `limit` 1000 and its results.
 pub fn validate(
-    cache: &LmdbRwCache,
+    cache: &dyn RoCache,
     schema_name: &str,
     mut query: QueryExpression,
 ) -> (QueryExpression, Vec<Record>) {
