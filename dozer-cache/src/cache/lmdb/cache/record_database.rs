@@ -55,13 +55,13 @@ impl RecordDatabase {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::{lmdb::utils::init_env, CacheOptions};
+    use crate::cache::lmdb::utils::{init_env, CacheOptions};
 
     use super::*;
 
     #[test]
     fn test_record_database() {
-        let mut env = init_env(&CacheOptions::default()).unwrap();
+        let mut env = init_env(&CacheOptions::default()).unwrap().0;
         let writer = RecordDatabase::new(&mut env, true).unwrap();
         let reader = RecordDatabase::new(&mut env, false).unwrap();
         let txn = env.create_txn().unwrap();

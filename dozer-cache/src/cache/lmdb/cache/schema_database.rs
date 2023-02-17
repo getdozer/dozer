@@ -141,13 +141,13 @@ fn get_schema_reverse_key(name: &str) -> Vec<u8> {
 mod tests {
     use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 
-    use crate::cache::{lmdb::utils::init_env, CacheOptions};
+    use crate::cache::lmdb::utils::{init_env, CacheOptions};
 
     use super::*;
 
     #[test]
     fn test_schema_database() {
-        let mut env = init_env(&CacheOptions::default()).unwrap();
+        let mut env = init_env(&CacheOptions::default()).unwrap().0;
         let writer = SchemaDatabase::new(&mut env, true).unwrap();
         let reader = SchemaDatabase::new(&mut env, false).unwrap();
 

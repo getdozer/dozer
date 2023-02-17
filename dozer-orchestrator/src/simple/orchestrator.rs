@@ -9,7 +9,6 @@ use crate::utils::{
 use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
-use dozer_api::RwCacheEndpoint;
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{
@@ -18,9 +17,7 @@ use dozer_api::{
     },
     rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{
-    CacheCommonOptions, CacheReadOptions, CacheWriteOptions, LmdbRoCache, LmdbRwCache,
-};
+use dozer_cache::cache::{CacheManager, CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
@@ -50,16 +47,18 @@ use tokio::sync::{broadcast, oneshot};
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
-    pub cache_common_options: CacheCommonOptions,
-    pub cache_read_options: CacheReadOptions,
-    pub cache_write_options: CacheWriteOptions,
+    pub cache_manager_options: CacheManagerOptions,
 }
 
 impl SimpleOrchestrator {
-    pub fn new(config: &Config) -> Self {
-        Self {
-            config: config.clone(),
+    pub fn new(config: Config) -> Self {
+        let cache_manager_options = CacheManagerOptions {
+            path: Some(get_cache_dir(&config)),
             ..Default::default()
+        };
+        Self {
+            config,
+            cache_manager_options,
         }
     }
     fn write_internal_config(&self) -> Result<(), OrchestrationError> {
@@ -92,23 +91,24 @@ impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
-        // gRPC notifier channel
-        let cache_dir = get_cache_dir(self.config.to_owned());
 
         // Flags
         let flags = self.config.flags.clone().unwrap_or_default();
 
+        let cache_manager = LmdbCacheManager::new(self.cache_manager_options.clone())
+            .map_err(OrchestrationError::CacheInitFailed)?;
         let mut cache_endpoints = vec![];
         for ce in &self.config.endpoints {
-            let mut cache_common_options = self.cache_common_options.clone();
-            cache_common_options.set_path(cache_dir.clone(), ce.name.clone());
-            cache_endpoints.push(RoCacheEndpoint::new(
-                Arc::new(
-                    LmdbRoCache::new(cache_common_options)
-                        .map_err(OrchestrationError::CacheInitFailed)?,
-                ),
-                ce.clone(),
-            ));
+            let cache = cache_manager
+                .open_ro_cache(&ce.name)
+                .map_err(OrchestrationError::CacheInitFailed)?
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Cache for endpoint {} not found. Did you run `dozer app run`?",
+                        ce.name
+                    )
+                });
+            cache_endpoints.push(RoCacheEndpoint::new(cache.into(), ce.clone()));
         }
 
         let ce2 = cache_endpoints.clone();
@@ -150,7 +150,7 @@ impl Orchestrator for SimpleOrchestrator {
 
             // Initialize GRPC Server
 
-            let api_dir = get_api_dir(self.config.to_owned());
+            let api_dir = get_api_dir(&self.config);
             let grpc_config = get_grpc_config(self.config.to_owned());
 
             let api_security = get_api_security_config(self.config.to_owned());
@@ -188,7 +188,7 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+        let pipeline_home_dir = get_pipeline_dir(&self.config);
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineResponse>();
         let internal_app_config = self.config.to_owned();
@@ -199,9 +199,20 @@ impl Orchestrator for SimpleOrchestrator {
             warn!("Shutting down internal pipeline server");
         });
 
-        let cache_dir = get_cache_dir(self.config.to_owned());
-
-        let cache_endpoints = self.get_rw_cache_endpoints(cache_dir)?;
+        let executor = Executor::new(
+            self.config.clone(),
+            self.config.endpoints.clone(),
+            running,
+            pipeline_home_dir,
+        );
+        let flags = get_flags(self.config.clone());
+        let api_security = get_api_security_config(self.config.clone());
+        let settings = CacheSinkSettings::new(flags, api_security);
+        let dag_executor = executor.create_dag_executor(
+            Some(sender),
+            self.cache_manager_options.clone(),
+            settings,
+        )?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -209,16 +220,6 @@ impl Orchestrator for SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        let executor = Executor::new(
-            self.config.clone(),
-            cache_endpoints,
-            running,
-            pipeline_home_dir,
-        );
-        let flags = get_flags(self.config.clone());
-        let api_security = get_api_security_config(self.config.clone());
-        let settings = CacheSinkSettings::new(flags, api_security);
-        let dag_executor = executor.create_dag_executor(Some(sender), settings)?;
         executor.run_dag_executor(dag_executor)
     }
 
@@ -288,9 +289,9 @@ impl Orchestrator for SimpleOrchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
         self.write_internal_config()
             .map_err(|e| InternalError(Box::new(e)))?;
-        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
-        let api_dir = get_api_dir(self.config.to_owned());
-        let cache_dir = get_cache_dir(self.config.to_owned());
+        let pipeline_home_dir = get_pipeline_dir(&self.config);
+        let api_dir = get_api_dir(&self.config);
+        let cache_dir = get_cache_dir(&self.config);
 
         info!(
             "Initiating app: {}",
@@ -317,11 +318,9 @@ impl Orchestrator for SimpleOrchestrator {
         print_api_endpoints(&self.config.endpoints);
         validate_endpoints(&self.config.endpoints)?;
 
-        let cache_endpoints = self.get_rw_cache_endpoints(cache_dir)?;
-
         let builder = PipelineBuilder::new(
             self.config.clone(),
-            cache_endpoints,
+            self.config.endpoints.clone(),
             pipeline_home_dir.clone(),
         );
 
@@ -341,7 +340,12 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
-        let dag = builder.build(None, generated_path.clone(), settings)?;
+        let dag = builder.build(
+            None,
+            generated_path.clone(),
+            self.cache_manager_options.clone(),
+            settings,
+        )?;
         let dag_schemas = DagSchemas::new(&dag)?;
         // Every sink will initialize its schema in sink and also in a proto file.
         dag_schemas.prepare()?;
@@ -373,27 +377,6 @@ impl Orchestrator for SimpleOrchestrator {
             fs::remove_dir_all(&home_dir).map_err(|e| InternalError(Box::new(e)))?;
         };
         Ok(())
-    }
-}
-
-impl SimpleOrchestrator {
-    fn get_rw_cache_endpoints(
-        &self,
-        cache_dir: PathBuf,
-    ) -> Result<Vec<RwCacheEndpoint>, OrchestrationError> {
-        let mut cache_endpoints = Vec::new();
-        for e in &self.config.endpoints {
-            let mut cache_common_options = self.cache_common_options.clone();
-            cache_common_options.set_path(cache_dir.clone(), e.name.clone());
-            cache_endpoints.push(RwCacheEndpoint {
-                cache: Arc::new(
-                    LmdbRwCache::new(cache_common_options, self.cache_write_options.clone())
-                        .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?,
-                ),
-                endpoint: e.to_owned(),
-            })
-        }
-        Ok(cache_endpoints)
     }
 }
 

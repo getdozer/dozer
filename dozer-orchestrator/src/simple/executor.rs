@@ -1,6 +1,8 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
+use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -8,7 +10,6 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use dozer_api::RwCacheEndpoint;
 use dozer_types::models::source::Source;
 
 use crate::pipeline::validate::validate;
@@ -27,20 +28,20 @@ use crate::pipeline::source_builder::SourceBuilder;
 
 pub struct Executor {
     config: Config,
-    cache_endpoints: Vec<RwCacheEndpoint>,
+    api_endpoints: Vec<ApiEndpoint>,
     pipeline_dir: PathBuf,
     running: Arc<AtomicBool>,
 }
 impl Executor {
     pub fn new(
         config: Config,
-        cache_endpoints: Vec<RwCacheEndpoint>,
+        api_endpoints: Vec<ApiEndpoint>,
         running: Arc<AtomicBool>,
         pipeline_dir: PathBuf,
     ) -> Self {
         Self {
             config,
-            cache_endpoints,
+            api_endpoints,
             pipeline_dir,
             running,
         }
@@ -113,15 +114,21 @@ impl Executor {
     pub fn create_dag_executor(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+        cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<DagExecutor<SchemaSQLContext>, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.config.clone(),
-            self.cache_endpoints.clone(),
+            self.api_endpoints.clone(),
             self.pipeline_dir.clone(),
         );
 
-        let dag = builder.build(notifier, PathBuf::default(), settings)?;
+        let dag = builder.build(
+            notifier,
+            PathBuf::default(),
+            cache_manager_options,
+            settings,
+        )?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {

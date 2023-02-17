@@ -7,9 +7,33 @@ use dozer_storage::{
 };
 use tempdir::TempDir;
 
-use super::{CacheOptions, CacheOptionsKind};
+use super::cache::{CacheCommonOptions, CacheWriteOptions};
 
-pub fn init_env(options: &CacheOptions) -> Result<LmdbEnvironmentManager, CacheError> {
+#[derive(Clone, Debug, Default)]
+pub struct CacheOptions {
+    pub common: CacheCommonOptions,
+    pub kind: CacheOptionsKind,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct CacheReadOptions {}
+
+#[derive(Clone, Debug)]
+pub enum CacheOptionsKind {
+    // Write Options
+    Write(CacheWriteOptions),
+
+    // Read Options
+    ReadOnly(CacheReadOptions),
+}
+
+impl Default for CacheOptionsKind {
+    fn default() -> Self {
+        Self::Write(CacheWriteOptions::default())
+    }
+}
+
+pub fn init_env(options: &CacheOptions) -> Result<(LmdbEnvironmentManager, String), CacheError> {
     match &options.kind {
         CacheOptionsKind::Write(write_options) => {
             let (base_path, name, _temp_dir) = match &options.common.path {
@@ -35,7 +59,10 @@ pub fn init_env(options: &CacheOptions) -> Result<LmdbEnvironmentManager, CacheE
                 EnvironmentFlags::empty(),
             );
 
-            Ok(LmdbEnvironmentManager::create(&base_path, name, options)?)
+            Ok((
+                LmdbEnvironmentManager::create(&base_path, name, options)?,
+                name.to_string(),
+            ))
         }
         CacheOptionsKind::ReadOnly(_) => {
             let (base_path, name) = options
@@ -51,11 +78,10 @@ pub fn init_env(options: &CacheOptions) -> Result<LmdbEnvironmentManager, CacheE
                 ..Default::default()
             };
 
-            Ok(LmdbEnvironmentManager::create(
-                base_path,
-                name,
-                env_options,
-            )?)
+            Ok((
+                LmdbEnvironmentManager::create(base_path, name, env_options)?,
+                name.to_string(),
+            ))
         }
     }
 }
@@ -65,7 +91,7 @@ mod tests {
     use dozer_storage::lmdb::{Cursor, DatabaseFlags, RoCursor, Transaction, WriteFlags};
     use dozer_types::types::Field;
 
-    use crate::cache::lmdb::{utils::init_env, CacheOptions};
+    use crate::cache::lmdb::utils::{init_env, CacheOptions};
 
     fn cursor_dump(mut cursor: RoCursor) -> Vec<(&[u8], &[u8])> {
         cursor
@@ -78,7 +104,7 @@ mod tests {
     #[test]
     fn duplicate_test_nested() {
         let options = CacheOptions::default();
-        let mut env = init_env(&options).unwrap();
+        let mut env = init_env(&options).unwrap().0;
 
         let db = env
             .create_database(
