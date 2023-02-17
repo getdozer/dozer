@@ -9,7 +9,7 @@ use std::{collections::BTreeMap, fs};
 
 pub fn init_dozer(config_path: String) -> Result<Dozer, CliError> {
     let config = load_config(config_path)?;
-    Ok(Dozer::new(&config))
+    Ok(Dozer::new(config))
 }
 
 pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {

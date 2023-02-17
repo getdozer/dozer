@@ -132,7 +132,7 @@ mod tests {
 
     use crate::cache::{
         expression::SortDirection,
-        lmdb::{utils::init_env, CacheOptions},
+        lmdb::utils::{init_env, CacheOptions},
     };
 
     use super::{CacheIterator, KeyEndpoint};
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_cache_iterator() {
         let options = CacheOptions::default();
-        let mut env = init_env(&options).unwrap();
+        let mut env = init_env(&options).unwrap().0;
         let db = env
             .create_database(None, Some(DatabaseFlags::DUP_SORT))
             .unwrap();

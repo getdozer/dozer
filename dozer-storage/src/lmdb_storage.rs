@@ -110,6 +110,10 @@ impl LmdbEnvironmentManager {
     pub fn begin_ro_txn(&self) -> Result<RoTransaction, StorageError> {
         Ok(self.inner.begin_ro_txn()?)
     }
+
+    pub fn begin_rw_txn(&mut self) -> Result<RwTransaction, StorageError> {
+        Ok(self.inner.begin_rw_txn()?)
+    }
 }
 
 #[derive(Debug, Clone)]

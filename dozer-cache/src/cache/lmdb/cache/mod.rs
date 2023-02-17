@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use dozer_storage::lmdb::{RoTransaction, RwTransaction, Transaction};
@@ -14,9 +15,8 @@ use dozer_types::types::{Schema, SchemaIdentifier};
 
 use super::super::{RoCache, RwCache};
 use super::indexer::Indexer;
-use super::{
-    utils, CacheCommonOptions, CacheOptions, CacheOptionsKind, CacheReadOptions, CacheWriteOptions,
-};
+use super::utils::{self, CacheReadOptions};
+use super::utils::{CacheOptions, CacheOptionsKind};
 use crate::cache::expression::QueryExpression;
 use crate::cache::index::get_primary_key;
 use crate::cache::RecordWithId;
@@ -37,6 +37,32 @@ use secondary_index_database::SecondaryIndexDatabase;
 
 pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), SecondaryIndexDatabase>;
 
+#[derive(Clone, Debug)]
+pub struct CacheCommonOptions {
+    // Total number of readers allowed
+    pub max_readers: u32,
+    // Max no of dbs
+    pub max_db_size: u32,
+
+    /// The chunk size when calculating intersection of index queries.
+    pub intersection_chunk_size: usize,
+
+    /// Provide a path where db will be created. If nothing is provided, will default to a temp location.
+    /// Db path will be `PathBuf.join(String)`.
+    pub path: Option<(PathBuf, String)>,
+}
+
+impl Default for CacheCommonOptions {
+    fn default() -> Self {
+        Self {
+            max_readers: 1000,
+            max_db_size: 1000,
+            intersection_chunk_size: 100,
+            path: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct LmdbRoCache {
     common: LmdbCacheCommon,
@@ -45,12 +71,27 @@ pub struct LmdbRoCache {
 
 impl LmdbRoCache {
     pub fn new(options: CacheCommonOptions) -> Result<Self, CacheError> {
-        let mut env = utils::init_env(&CacheOptions {
+        let (mut env, name) = utils::init_env(&CacheOptions {
             common: options.clone(),
             kind: CacheOptionsKind::ReadOnly(CacheReadOptions {}),
         })?;
-        let common = LmdbCacheCommon::new(&mut env, options, true)?;
+        let common = LmdbCacheCommon::new(&mut env, options, name, true)?;
         Ok(Self { common, env })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CacheWriteOptions {
+    // Total size allocated for data in a memory mapped file.
+    // This size is allocated at initialization.
+    pub max_size: usize,
+}
+
+impl Default for CacheWriteOptions {
+    fn default() -> Self {
+        Self {
+            max_size: 1024 * 1024 * 1024,
+        }
     }
 }
 
@@ -65,17 +106,21 @@ impl LmdbRwCache {
         common_options: CacheCommonOptions,
         write_options: CacheWriteOptions,
     ) -> Result<Self, CacheError> {
-        let mut env = utils::init_env(&CacheOptions {
+        let (mut env, name) = utils::init_env(&CacheOptions {
             common: common_options.clone(),
             kind: CacheOptionsKind::Write(write_options),
         })?;
-        let common = LmdbCacheCommon::new(&mut env, common_options, false)?;
+        let common = LmdbCacheCommon::new(&mut env, common_options, name, false)?;
         let txn = env.create_txn()?;
         Ok(Self { common, txn })
     }
 }
 
 impl<C: LmdbCache> RoCache for C {
+    fn name(&self) -> &str {
+        &self.common().name
+    }
+
     fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
@@ -354,12 +399,15 @@ pub struct LmdbCacheCommon {
     secondary_indexes: Arc<RwLock<SecondaryIndexDatabases>>,
     schema_db: SchemaDatabase,
     cache_options: CacheCommonOptions,
+    /// File name of the database.
+    name: String,
 }
 
 impl LmdbCacheCommon {
     fn new(
         env: &mut LmdbEnvironmentManager,
         options: CacheCommonOptions,
+        name: String,
         read_only: bool,
     ) -> Result<Self, CacheError> {
         // Create or open must have databases.
@@ -386,6 +434,7 @@ impl LmdbCacheCommon {
             secondary_indexes: Arc::new(RwLock::new(secondary_indexe_databases)),
             schema_db,
             cache_options: options,
+            name,
         })
     }
 }

@@ -57,7 +57,10 @@ mod tests {
         types::Field,
     };
 
-    use crate::cache::{index::get_secondary_index, lmdb::utils, CacheOptions};
+    use crate::cache::{
+        index::get_secondary_index,
+        lmdb::utils::{self, CacheOptions},
+    };
 
     use super::*;
 
@@ -140,7 +143,7 @@ mod tests {
 
     fn setup(num_fields: usize) -> (LmdbEnvironmentManager, Database) {
         let options = CacheOptions::default();
-        let mut env = utils::init_env(&options).unwrap();
+        let mut env = utils::init_env(&options).unwrap().0;
         let db = env
             .create_database(Some("test"), Some(DatabaseFlags::DUP_SORT))
             .unwrap();

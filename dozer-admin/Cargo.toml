@@ -28,7 +28,7 @@ tonic-reflection = "0.6.0"
 tower-http = {version = "0.3.5", features = ["full"]}
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 prost = "0.11.3"
-clap = {version = "4.1.5", features = ["derive"]}
+clap = {version = "4.1.6", features = ["derive"]}
 
 [build-dependencies]
 tonic-build = "0.8.2"
