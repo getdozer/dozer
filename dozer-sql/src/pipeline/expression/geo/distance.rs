@@ -2,8 +2,7 @@ use dozer_types::errors::types::TypeError::DistanceCalculationError;
 use std::str::FromStr;
 
 use crate::pipeline::errors::PipelineError::{
-    InvalidFunctionArgumentType, InvalidValue, NotEnoughArguments,
-    TooManyArguments,
+    InvalidFunctionArgumentType, InvalidValue, NotEnoughArguments, TooManyArguments,
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::{arg_point, arg_str};

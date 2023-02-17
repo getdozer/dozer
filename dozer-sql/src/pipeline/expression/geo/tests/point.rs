@@ -159,10 +159,7 @@ fn test_point_with_nullable_parameter() {
                 false,
             )
             .clone(),
-        vec![
-            Field::Float(OrderedFloat(1.0)),
-            Field::Null,
-        ],
+        vec![Field::Float(OrderedFloat(1.0)), Field::Null],
     );
     assert_eq!(f, Field::Null);
 }

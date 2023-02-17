@@ -1,7 +1,7 @@
 use crate::pipeline::errors::PipelineError::{
     InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,
 };
-use crate::pipeline::expression::execution::{Expression};
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::geo::distance::validate_distance;
 use crate::pipeline::expression::geo::tests::geo_common::run_geo_fct;
 use dozer_types::ordered_float::OrderedFloat;
@@ -166,10 +166,7 @@ fn test_distance_with_nullable_parameter() {
                 false,
             )
             .clone(),
-        vec![
-            Field::Point(DozerPoint::from((0.0, 1.0))),
-            Field::Null,
-        ],
+        vec![Field::Point(DozerPoint::from((0.0, 1.0))), Field::Null],
     );
 
     assert_eq!(f, Field::Null);
