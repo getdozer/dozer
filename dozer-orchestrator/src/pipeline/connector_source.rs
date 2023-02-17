@@ -119,13 +119,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
                 Ok(s.clone())
             })?;
 
-        let table_name = self
-            .ports
-            .iter()
-            .find(|(_, p)| **p == *port)
-            .unwrap()
-            .0
-            .clone();
+        let table_name = self.ports.iter().find(|(_, p)| **p == *port).unwrap().0;
         // Add source information to the schema.
         let mut fields = vec![];
         for field in schema.fields {
@@ -137,6 +131,10 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             fields.push(f);
         }
         schema.fields = fields;
+
+        use std::println as info;
+        info!("Source: Initializing input schema: {table_name}");
+        schema.print().printstd();
 
         Ok((schema, SchemaSQLContext::default()))
     }
@@ -156,23 +154,6 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
                 )
             })
             .collect()
-    }
-
-    fn prepare(
-        &self,
-        output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        use std::println as info;
-        for (port, schema) in output_schemas {
-            let (name, _) = self
-                .ports
-                .iter()
-                .find(|(_, p)| **p == port)
-                .map_or(Err(ExecutionError::PortNotFound(port.to_string())), Ok)?;
-            info!("Source: Initializing input schema: {name}");
-            schema.0.print().printstd();
-        }
-        Ok(())
     }
 
     fn build(

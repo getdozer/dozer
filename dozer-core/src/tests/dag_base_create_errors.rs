@@ -60,13 +60,6 @@ impl SourceFactory<NoneContext> for CreateErrSourceFactory {
         )])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -213,14 +206,6 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
             DEFAULT_PORT_HANDLE,
             OutputPortType::Stateless,
         )]
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 
     fn build(

@@ -70,12 +70,4 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
     }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }

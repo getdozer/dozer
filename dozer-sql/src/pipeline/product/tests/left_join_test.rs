@@ -193,13 +193,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             running: self.running.clone(),
         }))
     }
-
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
 #[derive(Debug)]

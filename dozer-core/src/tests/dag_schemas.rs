@@ -68,13 +68,6 @@ impl SourceFactory<NoneContext> for TestUsersSourceFactory {
         )])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -123,13 +116,6 @@ impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
         )])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -169,14 +155,6 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
             DEFAULT_PORT_HANDLE,
             OutputPortType::Stateless,
         )]
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 
     fn build(

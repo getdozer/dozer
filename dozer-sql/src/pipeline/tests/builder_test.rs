@@ -91,13 +91,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {}))
     }
-
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
 #[derive(Debug)]

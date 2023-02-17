@@ -65,14 +65,6 @@ impl ProcessorFactory<NoneContext> for PassthroughProcessorFactory {
         )]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -142,14 +134,6 @@ impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
             RECORD_READER_PROCESSOR_OUTPUT_PORT,
             OutputPortType::Stateless,
         )]
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 
     fn build(
@@ -338,14 +322,6 @@ impl ProcessorFactory<NoneContext> for NoPkRecordReaderProcessorFactory {
             RECORD_READER_PROCESSOR_OUTPUT_PORT,
             OutputPortType::Stateless,
         )]
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 
     fn build(

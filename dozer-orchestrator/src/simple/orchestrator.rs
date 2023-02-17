@@ -305,9 +305,8 @@ impl Orchestrator for SimpleOrchestrator {
             self.cache_manager_options.clone(),
             settings,
         )?;
-        let dag_schemas = DagSchemas::new(&dag)?;
-        // Every sink will initialize its schema in sink and also in a proto file.
-        dag_schemas.prepare()?;
+        // Populate schemas.
+        DagSchemas::new(&dag)?;
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {

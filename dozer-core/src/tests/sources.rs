@@ -77,13 +77,6 @@ impl SourceFactory<NoneContext> for GeneratorSourceFactory {
         )])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -219,13 +212,6 @@ impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
         ])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -353,13 +339,6 @@ impl SourceFactory<NoneContext> for NoPkGeneratorSourceFactory {
         )])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -434,13 +413,6 @@ impl SourceFactory<NoneContext> for ConnectivityTestSourceFactory {
             DEFAULT_PORT_HANDLE,
             OutputPortType::Stateless,
         )])
-    }
-
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        unimplemented!("This struct is for connectivity test, only output ports are defined")
     }
 
     fn build(

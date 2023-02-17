@@ -56,14 +56,6 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
         )]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -335,13 +327,6 @@ impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
             GENERATOR_SOURCE_OUTPUT_PORT,
             OutputPortType::Stateless,
         )])
-    }
-
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 
     fn build(

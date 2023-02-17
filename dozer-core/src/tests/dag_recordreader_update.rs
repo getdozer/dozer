@@ -85,13 +85,6 @@ impl SourceFactory<NoneContext> for GeneratorSourceFactory {
         )])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -229,14 +222,6 @@ impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
             RECORD_READER_PROCESSOR_OUTPUT_PORT,
             OutputPortType::Stateless,
         )]
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 
     fn build(

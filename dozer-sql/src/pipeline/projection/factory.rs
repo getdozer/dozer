@@ -123,14 +123,6 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
     }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
 pub(crate) fn parse_sql_select_item(

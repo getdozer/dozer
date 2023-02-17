@@ -33,22 +33,6 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
         )
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: std::collections::HashMap<
-            PortHandle,
-            (dozer_types::types::Schema, NoneContext),
-        >,
-        _output_schemas: std::collections::HashMap<
-            PortHandle,
-            (dozer_types::types::Schema, NoneContext),
-        >,
-    ) -> Result<(), crate::errors::ExecutionError> {
-        unimplemented!(
-            "This struct is for connectivity test, only input and output ports are defined"
-        )
-    }
-
     fn build(
         &self,
         _input_schemas: std::collections::HashMap<PortHandle, dozer_types::types::Schema>,
@@ -83,22 +67,6 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
             (dozer_types::types::Schema, NoneContext),
         >,
     ) -> Result<(dozer_types::types::Schema, NoneContext), crate::errors::ExecutionError> {
-        unimplemented!(
-            "This struct is for connectivity test, only input and output ports are defined"
-        )
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: std::collections::HashMap<
-            PortHandle,
-            (dozer_types::types::Schema, NoneContext),
-        >,
-        _output_schemas: std::collections::HashMap<
-            PortHandle,
-            (dozer_types::types::Schema, NoneContext),
-        >,
-    ) -> Result<(), crate::errors::ExecutionError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )

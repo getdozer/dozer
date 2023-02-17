@@ -89,12 +89,4 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
 
         Ok(processor)
     }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }

@@ -47,10 +47,6 @@ impl OutputPortDef {
 pub trait SourceFactory<T>: Send + Sync + Debug {
     fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), ExecutionError>;
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError>;
-    fn prepare(
-        &self,
-        output_schemas: HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
@@ -76,11 +72,6 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
     ) -> Result<(Schema, T), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
-    fn prepare(
-        &self,
-        input_schemas: HashMap<PortHandle, (Schema, T)>,
-        output_schemas: HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,

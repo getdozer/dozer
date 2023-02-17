@@ -106,13 +106,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             .collect())
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -326,7 +319,6 @@ impl TestPipeline {
         let dag = app.get_dag().unwrap();
 
         let dag_schemas = DagSchemas::new(&dag)?;
-        dag_schemas.prepare()?;
 
         let sink_index = (|| {
             for (node_index, node) in dag_schemas.graph().node_references() {
