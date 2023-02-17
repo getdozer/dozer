@@ -224,8 +224,8 @@ impl Field {
             Field::Timestamp(_) => 8,
             Field::Date(_) => 9,
             Field::Bson(_) => 10,
-            Field::Point(_) => 12,
-            Field::Null => 13,
+            Field::Point(_) => 11,
+            Field::Null => 12,
         }
     }
 
