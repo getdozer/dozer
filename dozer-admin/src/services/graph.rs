@@ -11,7 +11,7 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
     let (output_tables, used_sources) = match context {
         Some(context) => (
             context.output_tables_map.keys().cloned().collect(),
-            context.used_sources.clone(),
+            context.used_sources,
         ),
         None => (vec![], vec![]),
     };
@@ -134,7 +134,7 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
         for s in used_sources {
             let s_id = source_map
                 .get(&s)
-                .expect(&format!("source not found in SQL: {s}"));
+                .unwrap_or_else(|| panic!("source not found in SQL: {s}"));
             edges.push(QueryEdge {
                 from: *s_id,
                 to: TRANSFORMER_ID,
