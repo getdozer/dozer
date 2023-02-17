@@ -4,7 +4,8 @@ pub mod pipeline;
 pub mod simple;
 pub use dozer_api::grpc::internal_grpc;
 pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
-use dozer_core::errors::ExecutionError;
+use dozer_core::{app::AppPipeline, errors::ExecutionError};
+use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
 use dozer_types::{
     crossbeam::channel::Sender,
     log::debug,
@@ -53,6 +54,12 @@ pub use dozer_ingestion::{
     connectors::{get_connector, ColumnInfo, TableInfo},
     errors::ConnectorError,
 };
+pub use dozer_sql::pipeline::builder::QueryContext;
+
+pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, PipelineError> {
+    let mut pipeline = AppPipeline::new();
+    statement_to_pipeline(sql, &mut pipeline, None)
+}
 
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;

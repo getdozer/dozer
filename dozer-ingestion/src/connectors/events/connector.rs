@@ -64,6 +64,6 @@ impl Connector for EventsConnector {
     }
 
     fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        todo!()
+        Ok(vec![])
     }
 }

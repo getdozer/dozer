@@ -1,5 +1,4 @@
-use dozer_types::{constants::DEFAULT_HOME_DIR, serde_yaml};
-
+use super::graph;
 use crate::{
     db::{
         app::{Application, NewApplication},
@@ -7,12 +6,16 @@ use crate::{
         schema::apps::{self, dsl::*},
     },
     server::dozer_admin_grpc::{
-        AppResponse, CreateAppRequest, ErrorResponse, GetAppRequest, ListAppRequest,
-        ListAppResponse, Pagination, StartPipelineRequest, StartPipelineResponse, UpdateAppRequest,
+        AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
+        GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
+        Pagination, ParseRequest, ParseResponse, StartPipelineRequest, StartPipelineResponse,
+        UpdateAppRequest,
     },
 };
 use diesel::prelude::*;
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
+use dozer_orchestrator::wrapped_statement_to_pipeline;
+use dozer_types::{constants::DEFAULT_HOME_DIR, serde_yaml};
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -56,6 +59,70 @@ impl AppService {
                 message: "app_id is missing".to_string(),
             })
         }
+    }
+
+    pub fn parse(&self, input: ParseRequest) -> Result<ParseResponse, ErrorResponse> {
+        let context = wrapped_statement_to_pipeline(&input.sql).map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
+
+        Ok(ParseResponse {
+            used_sources: context.used_sources.clone(),
+            output_tables: context.output_tables_map.keys().cloned().collect(),
+        })
+    }
+
+    pub fn generate(
+        &self,
+        input: GenerateGraphRequest,
+    ) -> Result<GenerateGraphResponse, ErrorResponse> {
+        //validate config
+        let c = serde_yaml::from_str::<dozer_types::models::app_config::Config>(&input.config)
+            .map_err(|op| ErrorResponse {
+                message: op.to_string(),
+            })?;
+
+        let context = match &c.sql {
+            Some(sql) => Some(
+                wrapped_statement_to_pipeline(sql).map_err(|op| ErrorResponse {
+                    message: op.to_string(),
+                })?,
+            ),
+            None => None,
+        };
+        let g = graph::generate(context, &c)?;
+
+        Ok(GenerateGraphResponse { graph: Some(g) })
+    }
+
+    pub fn generate_yaml(
+        &self,
+        input: GenerateYamlRequest,
+    ) -> Result<GenerateYamlResponse, ErrorResponse> {
+        //validate config
+
+        let app = input.app.unwrap();
+        let mut connections = vec![];
+        let mut sources = vec![];
+        let mut endpoints = vec![];
+
+        for c in app.connections.iter() {
+            connections.push(serde_yaml::to_string(c).unwrap());
+        }
+
+        for c in app.sources.iter() {
+            sources.push(serde_yaml::to_string(c).unwrap());
+        }
+
+        for c in app.endpoints.iter() {
+            endpoints.push(serde_yaml::to_string(c).unwrap());
+        }
+
+        Ok(GenerateYamlResponse {
+            connections,
+            sources,
+            endpoints,
+        })
     }
 
     pub fn create(&self, input: CreateAppRequest) -> Result<AppResponse, ErrorResponse> {

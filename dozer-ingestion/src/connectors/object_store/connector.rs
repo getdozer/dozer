@@ -87,7 +87,7 @@ impl Connector for ObjectStoreConnector<LocalStorage> {
         TableReader::new(self.config.clone()).read_tables(&tables, ingestor)
     }
 
-    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> ConnectorResult<Vec<TableInfo>> {
-        todo!()
+    fn get_tables(&self, tables: Option<&[TableInfo]>) -> ConnectorResult<Vec<TableInfo>> {
+        self.get_tables_default(tables)
     }
 }

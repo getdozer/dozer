@@ -9,19 +9,17 @@ pub struct ApiIndex {
 
 #[derive(Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct ApiEndpoint {
-    #[prost(string, optional, tag = "1")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    #[prost(string, tag = "3")]
+    #[prost(string, tag = "1")]
     pub name: String,
-    #[prost(string, tag = "4")]
-    /// path of endpoint - e.g: /stocks
-    pub path: String,
-    #[prost(message, tag = "5")]
-    pub index: Option<ApiIndex>,
-    #[prost(string, tag = "6")]
+    #[prost(string, tag = "2")]
     /// name of the table in source database; Type: String
     pub table_name: String,
+
+    #[prost(string, tag = "3")]
+    /// path of endpoint - e.g: /stocks
+    pub path: String,
+    #[prost(message, tag = "4")]
+    pub index: Option<ApiIndex>,
 }
 
 impl Serialize for ApiEndpoint {

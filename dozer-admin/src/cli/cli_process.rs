@@ -1,9 +1,6 @@
 use std::{fs::File, path::Path, process::Command};
 
-use super::{
-    utils::{kill_process_at, reset_db},
-    AdminCliConfig,
-};
+use super::{utils::init_db, AdminCliConfig};
 use crate::server;
 
 use dozer_types::serde_yaml;
@@ -46,12 +43,11 @@ impl CliProcess {
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.get_internal_config();
 
-        reset_db();
-        kill_process_at(3000);
-        kill_process_at(self.config.to_owned().port as u16);
+        init_db();
 
         // start ui
         self.start_ui_server();
+
         server::start_admin_server(self.config.to_owned()).await?;
         Ok(())
     }

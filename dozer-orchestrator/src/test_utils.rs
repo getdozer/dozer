@@ -44,7 +44,6 @@ pub fn init_sink(
 }
 pub fn init_endpoint() -> ApiEndpoint {
     ApiEndpoint {
-        id: None,
         name: "films".to_string(),
         path: "/films".to_string(),
         index: Some(ApiIndex {
