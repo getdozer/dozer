@@ -177,9 +177,16 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 
     fn prepare(
         &self,
-        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
-        let (schema, _) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
+        Ok(())
+    }
+
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
 
         self.mapper
             .lock()
@@ -187,13 +194,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
             .create_tables(vec![("results", &get_table_create_sql("results", schema))])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
-        Ok(())
-    }
-
-    fn build(
-        &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink::new(self.mapper.clone())))
     }
 }
@@ -356,7 +356,7 @@ impl TestPipeline {
             tmp_dir.path().to_path_buf(),
             ExecutorOptions::default(),
         )
-        .unwrap_or_else(|_e| panic!("Unable to create exec"));
+        .unwrap_or_else(|e| panic!("Unable to create exec: {e}"));
         let join_handle = exec.start(self.running.clone())?;
 
         for (schema_name, op) in &self.ops {

@@ -444,15 +444,6 @@ mod tests {
 
         let (cache, mut sink) = test_utils::init_sink(&schema, secondary_indexes.clone());
 
-        let mut input_schemas = HashMap::new();
-        input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
-        // sink.update_schema(&input_schemas).unwrap();
-
-        // Initialing schemas
-        cache
-            .insert_schema("films", &schema, &secondary_indexes)
-            .unwrap();
-
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 
         let updated_values = vec![
