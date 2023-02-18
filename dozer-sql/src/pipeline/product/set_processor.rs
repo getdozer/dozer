@@ -1,29 +1,27 @@
-use std::collections::HashMap;
+use crate::pipeline::errors::ProductError;
+use crate::pipeline::product::set::{SetAction, SetOperation};
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record};
-use crate::pipeline::errors::ProductError;
-use crate::pipeline::product::set::{SetAction, SetOperation};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SetProcessor {
     /// Set operations
     operator: SetOperation,
-    source_names: HashMap<PortHandle, String>,
     record_hash_map: Vec<u64>,
 }
 
 impl SetProcessor {
     /// Creates a new [`FromProcessor`].
-    pub fn new(operator: SetOperation, source_names: HashMap<PortHandle, String>) -> Self {
+    pub fn new(operator: SetOperation) -> Self {
         Self {
             operator,
-            source_names,
             record_hash_map: Vec::new(),
         }
     }
@@ -40,7 +38,9 @@ impl SetProcessor {
                 record,
                 &mut self.record_hash_map,
             )
-            .map_err(|err| ProductError::DeleteError(self.get_port_name(from_port), Box::new(err)))
+            .map_err(|err| {
+                ProductError::DeleteError("UNION query error:".to_string(), Box::new(err))
+            })
     }
 
     fn insert(
@@ -55,7 +55,9 @@ impl SetProcessor {
                 record,
                 &mut self.record_hash_map,
             )
-            .map_err(|err| ProductError::InsertError(self.get_port_name(from_port), Box::new(err)))
+            .map_err(|err| {
+                ProductError::InsertError("UNION query error:".to_string(), Box::new(err))
+            })
     }
 
     #[allow(clippy::type_complexity)]
@@ -67,36 +69,19 @@ impl SetProcessor {
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
         let old_records = self
             .operator
-            .execute(
-                SetAction::Delete,
-                from_port,
-                old,
-                &mut self.record_hash_map,
-            )
+            .execute(SetAction::Delete, from_port, old, &mut self.record_hash_map)
             .map_err(|err| {
-                ProductError::UpdateOldError(self.get_port_name(from_port), Box::new(err))
+                ProductError::UpdateOldError("UNION query error:".to_string(), Box::new(err))
             })?;
 
         let new_records = self
             .operator
-            .execute(
-                SetAction::Insert,
-                from_port,
-                new,
-                &mut self.record_hash_map,
-            )
+            .execute(SetAction::Insert, from_port, new, &mut self.record_hash_map)
             .map_err(|err| {
-                ProductError::UpdateNewError(self.get_port_name(from_port), Box::new(err))
+                ProductError::UpdateNewError("UNION query error:".to_string(), Box::new(err))
             })?;
 
         Ok((old_records, new_records))
-    }
-
-    fn get_port_name(&self, from_port: u16) -> String {
-        self.source_names
-            .get(&from_port)
-            .unwrap_or(&from_port.to_string())
-            .to_string()
     }
 }
 

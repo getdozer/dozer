@@ -1,7 +1,7 @@
-use dozer_types::types::Record;
 use crate::pipeline::errors::PipelineError;
-use sqlparser::ast::{Select, SetOperator, SetQuantifier};
 use dozer_core::node::PortHandle;
+use dozer_types::types::Record;
+use sqlparser::ast::{SetOperator, SetQuantifier};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SetAction {
@@ -13,21 +13,14 @@ pub enum SetAction {
 #[derive(Clone, Debug)]
 pub struct SetOperation {
     pub op: SetOperator,
-    pub left: Select,
-    pub right: Select,
+
     pub quantifier: SetQuantifier,
 }
 
 impl SetOperation {
-    pub fn _new(
-        op: SetOperator,
-        left: Select,
-        right: Select,
-    ) -> Self {
+    pub fn _new(op: SetOperator) -> Self {
         Self {
             op,
-            left,
-            right,
             quantifier: SetQuantifier::None,
         }
     }
@@ -39,16 +32,12 @@ impl SetOperation {
         record: &Record,
         record_hash_map: &mut Vec<u64>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        match (self.op, self.quantifier ) {
-            (SetOperator::Union, SetQuantifier::All) => {
-                Ok(vec![(action, record.clone())])
-            },
+        match (self.op, self.quantifier) {
+            (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record.clone())]),
             (SetOperator::Union, SetQuantifier::None) => {
                 self.execute_union(action, record, record_hash_map)
-            },
-            _ => {
-                Err(PipelineError::InvalidOperandType(self.op.to_string()))
             }
+            _ => Err(PipelineError::InvalidOperandType(self.op.to_string())),
         }
     }
 

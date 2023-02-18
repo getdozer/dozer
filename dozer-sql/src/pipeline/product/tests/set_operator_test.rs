@@ -1,21 +1,25 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tempdir::TempDir;
+use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory};
+use dozer_core::node::{
+    OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
+};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::NaiveDate;
 use dozer_types::log::{debug, info};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition};
-use crate::pipeline::builder::{SchemaSQLContext, statement_to_pipeline};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tempdir::TempDir;
 
 #[test]
 fn test_set_union_pipeline_builder() {
@@ -33,7 +37,8 @@ fn test_set_union_pipeline_builder() {
     dozer_tracing::init_telemetry(false).unwrap();
 
     let mut pipeline: AppPipeline<SchemaSQLContext> = AppPipeline::new();
-    let query_ctx = statement_to_pipeline(sql, &mut pipeline, Some("set_results".to_string())).unwrap();
+    let query_ctx =
+        statement_to_pipeline(sql, &mut pipeline, Some("set_results".to_string())).unwrap();
 
     let table_info = query_ctx.output_tables_map.get("set_results").unwrap();
     let latch = Arc::new(AtomicBool::new(true));
@@ -230,123 +235,122 @@ fn test_set_union_pipeline_builder() {
 //         println!("{:?}", output_schema);
 //     }
 
-    //     let left_input_endpoints = get_entry_points(&left_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
-    //     let right_input_endpoints = get_entry_points(&right_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
-    //
-    //     let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
-    //     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
-    //     let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
-    //     pipeline.add_processor(Arc::new(left_factory), &gen_product_name, left_input_endpoints);
-    //     pipeline.add_processor(Arc::new(right_factory), &gen_product_name, right_input_endpoints);
-    //
-    //     let mut input_names: Vec<NameOrAlias> = Vec::new();
-    //     get_input_names(&left_input_tables).iter().for_each(|name| input_names.push(name.clone()));
-    //     get_input_names(&right_input_tables).iter().for_each(|name| input_names.push(name.clone()));
-    //     for (port_index, table_name) in input_names.iter().enumerate() {
-    //         if let Some(table_info) = query_ctx
-    //             .pipeline_map
-    //             .get(&(idx, table_name.0.clone()))
-    //         {
-    //             pipeline.connect_nodes(
-    //                 &table_info.node,
-    //                 Some(table_info.port),
-    //                 &gen_product_name,
-    //                 Some(port_index as PortHandle),
-    //                 true,
-    //             ).unwrap();
-    //             // If not present in pipeline_map, insert into used_sources as this is coming from source
-    //         } else {
-    //             query_ctx.used_sources.push(table_name.0.clone());
-    //         }
-    //     }
-    //
-    //     let left_aggregation = AggregationProcessorFactory::new(left_select.clone(), true);
-    //     let right_aggregation = AggregationProcessorFactory::new(right_select.clone(), true);
-    //
-    //     pipeline.add_processor(Arc::new(left_aggregation), &gen_agg_name, vec![]);
-    //     pipeline.add_processor(Arc::new(right_aggregation), &gen_agg_name, vec![]);
-    //
-    //     // Where clause
-    //     if let Some(selection) = left_select.clone().selection {
-    //         let selection = SelectionProcessorFactory::new(selection);
-    //         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
-    //
-    //         pipeline.connect_nodes(
-    //             &gen_product_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             &gen_selection_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             true,
-    //         ).unwrap();
-    //
-    //         pipeline.connect_nodes(
-    //             &gen_selection_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             &gen_agg_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             true,
-    //         ).unwrap();
-    //     } else {
-    //         pipeline.connect_nodes(
-    //             &gen_product_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             &gen_agg_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             true,
-    //         ).unwrap();
-    //     }
-    //
-    //     if let Some(selection) = right_select.clone().selection {
-    //         let selection = SelectionProcessorFactory::new(selection);
-    //         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
-    //
-    //         pipeline.connect_nodes(
-    //             &gen_product_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             &gen_selection_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             true,
-    //         ).unwrap();
-    //
-    //         pipeline.connect_nodes(
-    //             &gen_selection_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             &gen_agg_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             true,
-    //         ).unwrap();
-    //     } else {
-    //         pipeline.connect_nodes(
-    //             &gen_product_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             &gen_agg_name,
-    //             Some(DEFAULT_PORT_HANDLE),
-    //             true,
-    //         ).unwrap();
-    //     }
-    //
-    //     let table_name = "results".to_string();
-    //     query_ctx.pipeline_map.insert(
-    //         (idx, table_name.clone()),
-    //         QueryTableInfo {
-    //             node: gen_agg_name.clone(),
-    //             port: DEFAULT_PORT_HANDLE,
-    //             is_derived: false,
-    //         },
-    //     );
-    //
-    //     let table_name = query_ctx.output_tables_map.insert(
-    //         table_name,
-    //         QueryTableInfo {
-    //             node: gen_agg_name,
-    //             port: DEFAULT_PORT_HANDLE,
-    //             is_derived: false,
-    //         },
-    //     );
-    // }
-    //
-    // info!("{:?}", query_ctx.pipeline_map);
-
+//     let left_input_endpoints = get_entry_points(&left_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
+//     let right_input_endpoints = get_entry_points(&right_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
+//
+//     let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
+//     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
+//     let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
+//     pipeline.add_processor(Arc::new(left_factory), &gen_product_name, left_input_endpoints);
+//     pipeline.add_processor(Arc::new(right_factory), &gen_product_name, right_input_endpoints);
+//
+//     let mut input_names: Vec<NameOrAlias> = Vec::new();
+//     get_input_names(&left_input_tables).iter().for_each(|name| input_names.push(name.clone()));
+//     get_input_names(&right_input_tables).iter().for_each(|name| input_names.push(name.clone()));
+//     for (port_index, table_name) in input_names.iter().enumerate() {
+//         if let Some(table_info) = query_ctx
+//             .pipeline_map
+//             .get(&(idx, table_name.0.clone()))
+//         {
+//             pipeline.connect_nodes(
+//                 &table_info.node,
+//                 Some(table_info.port),
+//                 &gen_product_name,
+//                 Some(port_index as PortHandle),
+//                 true,
+//             ).unwrap();
+//             // If not present in pipeline_map, insert into used_sources as this is coming from source
+//         } else {
+//             query_ctx.used_sources.push(table_name.0.clone());
+//         }
+//     }
+//
+//     let left_aggregation = AggregationProcessorFactory::new(left_select.clone(), true);
+//     let right_aggregation = AggregationProcessorFactory::new(right_select.clone(), true);
+//
+//     pipeline.add_processor(Arc::new(left_aggregation), &gen_agg_name, vec![]);
+//     pipeline.add_processor(Arc::new(right_aggregation), &gen_agg_name, vec![]);
+//
+//     // Where clause
+//     if let Some(selection) = left_select.clone().selection {
+//         let selection = SelectionProcessorFactory::new(selection);
+//         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
+//
+//         pipeline.connect_nodes(
+//             &gen_product_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             &gen_selection_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             true,
+//         ).unwrap();
+//
+//         pipeline.connect_nodes(
+//             &gen_selection_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             &gen_agg_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             true,
+//         ).unwrap();
+//     } else {
+//         pipeline.connect_nodes(
+//             &gen_product_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             &gen_agg_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             true,
+//         ).unwrap();
+//     }
+//
+//     if let Some(selection) = right_select.clone().selection {
+//         let selection = SelectionProcessorFactory::new(selection);
+//         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
+//
+//         pipeline.connect_nodes(
+//             &gen_product_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             &gen_selection_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             true,
+//         ).unwrap();
+//
+//         pipeline.connect_nodes(
+//             &gen_selection_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             &gen_agg_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             true,
+//         ).unwrap();
+//     } else {
+//         pipeline.connect_nodes(
+//             &gen_product_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             &gen_agg_name,
+//             Some(DEFAULT_PORT_HANDLE),
+//             true,
+//         ).unwrap();
+//     }
+//
+//     let table_name = "results".to_string();
+//     query_ctx.pipeline_map.insert(
+//         (idx, table_name.clone()),
+//         QueryTableInfo {
+//             node: gen_agg_name.clone(),
+//             port: DEFAULT_PORT_HANDLE,
+//             is_derived: false,
+//         },
+//     );
+//
+//     let table_name = query_ctx.output_tables_map.insert(
+//         table_name,
+//         QueryTableInfo {
+//             node: gen_agg_name,
+//             port: DEFAULT_PORT_HANDLE,
+//             is_derived: false,
+//         },
+//     );
+// }
+//
+// info!("{:?}", query_ctx.pipeline_map);
 
 // }
 
@@ -612,14 +616,8 @@ impl TestSourceFactory {
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
         Ok(vec![
-            OutputPortDef::new(
-                SUPPLIERS_PORT,
-                OutputPortType::Stateless,
-            ),
-            OutputPortDef::new(
-                ORDERS_PORT,
-                OutputPortType::Stateless,
-            ),
+            OutputPortDef::new(SUPPLIERS_PORT, OutputPortType::Stateless),
+            OutputPortDef::new(ORDERS_PORT, OutputPortType::Stateless),
         ])
     }
 
@@ -645,7 +643,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("supplier_name"),
                             FieldType::String,
                             false,
-                            source_id.clone(),
+                            source_id,
                         ),
                         false,
                     )
@@ -695,7 +693,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             String::from("supplier_id"),
                             FieldType::Int,
                             false,
-                            source_id.clone(),
+                            source_id,
                         ),
                         true,
                     )
@@ -740,10 +738,7 @@ impl Source for TestSource {
                 Operation::Insert {
                     new: Record::new(
                         None,
-                        vec![
-                            Field::Int(1000),
-                            Field::String("Microsoft".to_string()),
-                        ],
+                        vec![Field::Int(1000), Field::String("Microsoft".to_string())],
                         Some(1),
                     ),
                 },
@@ -753,10 +748,7 @@ impl Source for TestSource {
                 Operation::Insert {
                     new: Record::new(
                         None,
-                        vec![
-                            Field::Int(2000),
-                            Field::String("Oracle".to_string()),
-                        ],
+                        vec![Field::Int(2000), Field::String("Oracle".to_string())],
                         Some(1),
                     ),
                 },
@@ -766,10 +758,7 @@ impl Source for TestSource {
                 Operation::Insert {
                     new: Record::new(
                         None,
-                        vec![
-                            Field::Int(3000),
-                            Field::String("Apple".to_string()),
-                        ],
+                        vec![Field::Int(3000), Field::String("Apple".to_string())],
                         Some(1),
                     ),
                 },
@@ -779,10 +768,7 @@ impl Source for TestSource {
                 Operation::Insert {
                     new: Record::new(
                         None,
-                        vec![
-                            Field::Int(4000),
-                            Field::String("Samsung".to_string()),
-                        ],
+                        vec![Field::Int(4000), Field::String("Samsung".to_string())],
                         Some(1),
                     ),
                 },
@@ -795,7 +781,7 @@ impl Source for TestSource {
                         vec![
                             Field::Int(1),
                             Field::Date(NaiveDate::from_ymd_opt(2015, 8, 1).unwrap()),
-                            Field::Int(2000)
+                            Field::Int(2000),
                         ],
                         Some(1),
                     ),
@@ -809,7 +795,7 @@ impl Source for TestSource {
                         vec![
                             Field::Int(2),
                             Field::Date(NaiveDate::from_ymd_opt(2015, 8, 1).unwrap()),
-                            Field::Int(6000)
+                            Field::Int(6000),
                         ],
                         Some(1),
                     ),
@@ -823,7 +809,7 @@ impl Source for TestSource {
                         vec![
                             Field::Int(3),
                             Field::Date(NaiveDate::from_ymd_opt(2015, 8, 2).unwrap()),
-                            Field::Int(7000)
+                            Field::Int(7000),
                         ],
                         Some(1),
                     ),
@@ -837,7 +823,7 @@ impl Source for TestSource {
                         vec![
                             Field::Int(4),
                             Field::Date(NaiveDate::from_ymd_opt(2015, 8, 3).unwrap()),
-                            Field::Int(8000)
+                            Field::Int(8000),
                         ],
                         Some(1),
                     ),

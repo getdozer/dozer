@@ -4,7 +4,7 @@ use std::sync::Arc;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_sql::pipeline::builder::{QueryTableInfo, SchemaSQLContext};
+use dozer_sql::pipeline::builder::{OutputNodeInfo, SchemaSQLContext};
 
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::app::App;
@@ -26,7 +26,7 @@ use dozer_types::log::{error, info};
 use OrchestrationError::ExecutionError;
 
 pub enum OutputTableInfo {
-    Transformed(QueryTableInfo),
+    Transformed(OutputNodeInfo),
     Original(OriginalTableInfo),
 }
 
