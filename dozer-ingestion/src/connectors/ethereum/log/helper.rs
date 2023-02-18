@@ -7,19 +7,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use web3::ethabi::RawLog;
-use web3::transports::WebSocket;
 use web3::types::{Log, H256};
 
 use crate::connectors::TableInfo;
 
-use super::provider::{ContractTuple, ETH_LOGS_TABLE};
+use super::connector::{ContractTuple, ETH_LOGS_TABLE};
 use super::sender::EthDetails;
-
-pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Error> {
-    Ok(web3::Web3::new(
-        web3::transports::WebSocket::new(url).await?,
-    ))
-}
 
 pub fn get_contract_event_schemas(
     contracts: HashMap<String, ContractTuple>,

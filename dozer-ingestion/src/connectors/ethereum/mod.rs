@@ -1,3 +1,5 @@
 pub mod helper;
 mod log;
-pub use log::EthLogProvider;
+mod trace;
+pub use log::EthLogConnector;
+pub use trace::EthTraceConnector;

@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
-pub struct EthLogProvider {
+pub struct EthLogConnector {
     pub id: u64,
     pub wss_url: String,
 
@@ -32,7 +32,7 @@ pub struct EthLogProvider {
 pub struct ContractTuple(pub Contract, pub String);
 
 pub const ETH_LOGS_TABLE: &str = "eth_logs";
-impl EthLogProvider {
+impl EthLogConnector {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
 
@@ -123,7 +123,7 @@ impl EthLogProvider {
     }
 }
 
-impl Connector for EthLogProvider {
+impl Connector for EthLogConnector {
     fn get_schemas(
         &self,
         tables: Option<Vec<TableInfo>>,

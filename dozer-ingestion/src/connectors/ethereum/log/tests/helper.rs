@@ -2,7 +2,7 @@ use std::{collections::HashSet, thread, time::Duration};
 
 use crate::{
     connectors::{
-        ethereum::{helper, EthLogProvider},
+        ethereum::{helper, EthLogConnector},
         Connector,
     },
     errors::ConnectorError,
@@ -51,7 +51,7 @@ pub fn get_eth_producer(
     contract: Contract<WebSocket>,
 ) -> Result<(), ConnectorError> {
     let address = format!("{:?}", contract.address());
-    let eth_connector = EthLogProvider::new(
+    let eth_connector = EthLogConnector::new(
         1,
         wss_url,
         EthLogConfig {

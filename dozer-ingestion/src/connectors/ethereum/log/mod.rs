@@ -1,7 +1,7 @@
+mod connector;
 mod helper;
-mod provider;
 mod sender;
-pub use provider::EthLogProvider;
+pub use connector::EthLogConnector;
 
 #[cfg(test)]
 mod tests;
