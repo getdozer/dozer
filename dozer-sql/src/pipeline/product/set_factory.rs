@@ -6,7 +6,7 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
-use sqlparser::ast::{SelectItem, SetOperator, TableWithJoins};
+use sqlparser::ast::{SelectItem, SetOperator, SetQuantifier, TableWithJoins};
 use crate::pipeline::expression::builder::NameOrAlias;
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
@@ -23,6 +23,7 @@ use crate::pipeline::product::set_processor::SetProcessor;
 pub struct SetProcessorFactory {
     left_input_tables: IndexedTableWithJoins,
     right_input_tables: IndexedTableWithJoins,
+    set_quantifier: SetQuantifier,
 }
 
 impl SetProcessorFactory {
@@ -30,8 +31,9 @@ impl SetProcessorFactory {
     pub fn new(
         left_input_tables: IndexedTableWithJoins,
         right_input_tables: IndexedTableWithJoins,
+        set_quantifier: SetQuantifier,
     ) -> Self {
-        Self { left_input_tables, right_input_tables }
+        Self { left_input_tables, right_input_tables, set_quantifier }
     }
 }
 
@@ -124,6 +126,7 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
                     op: SetOperator::Union,
                     left: left_select,
                     right: right_select,
+                    quantifier: self.set_quantifier,
                 };
                 Ok(Box::new(SetProcessor::new(set_operation, source_names)))
             }

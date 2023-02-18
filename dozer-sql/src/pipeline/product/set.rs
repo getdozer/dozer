@@ -1,6 +1,6 @@
 use dozer_types::types::Record;
 use crate::pipeline::errors::PipelineError;
-use sqlparser::ast::{Select, SetOperator};
+use sqlparser::ast::{Select, SetOperator, SetQuantifier};
 use dozer_core::node::PortHandle;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,6 +15,7 @@ pub struct SetOperation {
     pub op: SetOperator,
     pub left: Select,
     pub right: Select,
+    pub quantifier: SetQuantifier,
 }
 
 impl SetOperation {
@@ -27,6 +28,7 @@ impl SetOperation {
             op,
             left,
             right,
+            quantifier: SetQuantifier::None,
         }
     }
 
@@ -37,12 +39,15 @@ impl SetOperation {
         record: &Record,
         record_hash_map: &mut Vec<u64>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        match self.op {
-            SetOperator::Union => {
-                return self.execute_union(action, record, record_hash_map)
+        match (self.op, self.quantifier ) {
+            (SetOperator::Union, SetQuantifier::All) => {
+                Ok(vec![(action, record.clone())])
+            },
+            (SetOperator::Union, SetQuantifier::None) => {
+                self.execute_union(action, record, record_hash_map)
             },
             _ => {
-                return Err(PipelineError::InvalidOperandType((&self.op).to_string()))
+                Err(PipelineError::InvalidOperandType(self.op.to_string()))
             }
         }
     }
