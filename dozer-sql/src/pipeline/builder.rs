@@ -9,7 +9,7 @@ use dozer_core::app::PipelineEntryPoint;
 use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use sqlparser::ast::{Join, SetOperator, TableFactor, TableWithJoins};
+use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::AnsiDialect,
@@ -186,7 +186,7 @@ fn query_to_pipeline(
         }
         SetExpr::SetOperation {
             op,
-            set_quantifier: _set_quantifier,
+            set_quantifier,
             left,
             right,
         } => match op {
@@ -196,6 +196,7 @@ fn query_to_pipeline(
                         table_info,
                         *left_select,
                         *right_select,
+                        set_quantifier,
                         pipeline,
                         query_ctx,
                         stateful,
@@ -351,6 +352,7 @@ fn set_to_pipeline(
     table_info: &TableInfo,
     left_select: Select,
     right_select: Select,
+    set_quantifier: SetQuantifier,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
     stateful: bool,
@@ -397,8 +399,7 @@ fn set_to_pipeline(
     )
     .unwrap();
 
-    let set_proc_fac =
-        SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone());
+    let set_proc_fac = SetProcessorFactory::new(left_input_tables.clone(), right_input_tables.clone(), set_quantifier);
 
     let mut input_endpoints: Vec<PipelineEntryPoint> = Vec::new();
     get_entry_points(
