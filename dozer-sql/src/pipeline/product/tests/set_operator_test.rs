@@ -232,7 +232,6 @@ fn test_set_union_pipeline_builder() {
 //             .collect(),
 //         ).unwrap();
 //
-//         println!("{:?}", output_schema);
 //     }
 
 //     let left_input_endpoints = get_entry_points(&left_input_tables, &mut query_ctx.pipeline_map, idx).unwrap();
