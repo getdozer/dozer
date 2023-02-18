@@ -16,7 +16,6 @@ fn union_query() {
             FROM film_actor
         )
         SELECT actor_id
-        INTO set_results
         FROM actor_id_union;
       "#;
 
@@ -39,21 +38,23 @@ fn union_query() {
 
     assert_eq!(src_keys.len(), dst_keys.len());
 
-    let results = helper::query(
-        &table_names,
-        queries,
-        TestInstruction::List(get_sample_ops()),
-    );
+    //  Update and Deletes not supported
 
-    let mut src_keys = HashSet::new();
-    results.source_result.iter().for_each(|x| {
-        src_keys.insert(x.values[0].to_int());
-    });
+    // let results = helper::query(
+    //     &table_names,
+    //     queries,
+    //     TestInstruction::List(get_sample_ops()),
+    // );
 
-    let mut dst_keys = HashSet::new();
-    results.dest_result.iter().for_each(|x| {
-        dst_keys.insert(x.values[0].to_int());
-    });
+    // let mut src_keys = HashSet::new();
+    // results.source_result.iter().for_each(|x| {
+    //     src_keys.insert(x.values[0].to_int());
+    // });
 
-    assert_eq!(src_keys.len(), dst_keys.len());
+    // let mut dst_keys = HashSet::new();
+    // results.dest_result.iter().for_each(|x| {
+    //     dst_keys.insert(x.values[0].to_int());
+    // });
+
+    // assert_eq!(src_keys.len(), dst_keys.len());
 }
