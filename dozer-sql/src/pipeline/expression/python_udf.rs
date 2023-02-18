@@ -6,6 +6,8 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 use pyo3::types::PyTuple;
 use pyo3::Python;
+use std::env;
+use std::path::PathBuf;
 
 pub fn evaluate_py_udf(
     schema: &Schema,
@@ -18,7 +20,21 @@ pub fn evaluate_py_udf(
     for arg in args {
         values.push(arg.evaluate(record, schema)?)
     }
+
+    // Get the path of the Python interpreter in your virtual environment
+    let env_path = env::var("VIRTUAL_ENV").unwrap();
+    let py_path = format!("{env_path}/bin/python");
+    // Set the `PYTHON_SYS_EXECUTABLE` environment variable
+    env::set_var("PYTHON_SYS_EXECUTABLE", py_path);
+
     Python::with_gil(|py| -> Result<Field, PipelineError> {
+        // Get the directory containing the module
+        let module_dir = PathBuf::from(env_path);
+        // Import the `sys` module and append the module directory to the system path
+        let sys = py.import("sys")?;
+        let path = sys.getattr("path")?;
+        path.call_method1("append", (module_dir.to_string_lossy(),))?;
+
         let module = py.import("python_udf")?;
         let function = module.getattr(name)?;
 
