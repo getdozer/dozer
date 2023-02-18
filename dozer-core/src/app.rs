@@ -74,18 +74,6 @@ impl<T> AppPipeline<T> {
         }
     }
 
-    pub fn remove_entry_points(&mut self, id: &str, entry_point: Vec<PipelineEntryPoint>) {
-        let handle = NodeHandle::new(None, id.to_string());
-        for p in entry_point {
-            let idx = self
-                .entry_points
-                .iter()
-                .position(|(nh, ep)| *nh == handle.clone() && *ep == p)
-                .unwrap();
-            self.entry_points.remove(idx);
-        }
-    }
-
     pub fn add_sink(&mut self, sink: Arc<dyn SinkFactory<T>>, id: &str) {
         let handle = NodeHandle::new(None, id.to_string());
         self.sinks.push((handle, sink));
