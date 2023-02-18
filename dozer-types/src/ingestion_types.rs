@@ -94,15 +94,15 @@ impl EthConfig {
             EthProviderConfig::Log(log) => {
                 table.add_row(row!["provider", "logs"]);
                 if let Some(filter) = &log.filter {
-                    table.add_row(row!["filter", format!("{:?}", filter)]);
+                    table.add_row(row!["filter", format!("{filter:?}")]);
                 }
-                if log.contracts.len() > 0 {
+                if !log.contracts.is_empty() {
                     table.add_row(row!["contracts", format!("{:?}", log.contracts)]);
                 }
             }
             EthProviderConfig::Trace(trace) => {
                 table.add_row(row!["provider", "traces"]);
-                table.add_row(row!("trace", format!("{:?}", trace)));
+                table.add_row(row!("trace", format!("{trace:?}")));
             }
         }
         table

@@ -20,8 +20,8 @@ async fn test_get_block_traces() {
     let url = env::var("ETH_HTTPS_URL").unwrap();
     let client = helper::get_batch_http_client(&url).await.unwrap();
     let traces = get_block_traces(client, (1000000, 1000005)).await.unwrap();
-    println!("{:?}", traces);
-    assert!(traces.len() > 0, "Failed to get traces found");
+    println!("{traces:?}");
+    assert!(!traces.is_empty(), "Failed to get traces found");
 }
 
 #[test]

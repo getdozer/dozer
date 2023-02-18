@@ -79,9 +79,7 @@ pub fn decode_event(
 
     if c.is_none() {
         // match on wildcard
-        let wild_card_contract = contracts
-            .iter()
-            .find(|(k, _)| k.to_string() == "*".to_string());
+        let wild_card_contract = contracts.iter().find(|(k, _)| k.to_string() == *"*");
         c = wild_card_contract.map(|c| c.1);
     }
     if let Some(contract_tuple) = c {

@@ -94,7 +94,7 @@ pub async fn run(
         "Starting Eth Trace connector: {} from block {}",
         conn_name, config.from_block
     );
-    let mut batch_iter = BatchIterator {
+    let batch_iter = BatchIterator {
         current_block: config.from_block,
         to_block: config.to_block,
         batch_size: config.batch_size,
@@ -104,12 +104,11 @@ pub async fn run(
         .handle_message(((config.from_block, 0), IngestionMessage::Begin()))
         .map_err(ConnectorError::IngestorError)?;
 
-    while let Some(batch) = batch_iter.next() {
+    for batch in batch_iter {
         for retry in 0..RETRIES {
             debug_assert!(
                 retry >= RETRIES - 1,
-                "Eth Trace connector failed more than {} times",
-                RETRIES
+                "Eth Trace connector failed more than {RETRIES} times"
             );
             let res = get_block_traces(client_tuple.clone(), batch).await;
             if let Ok(arr) = res {

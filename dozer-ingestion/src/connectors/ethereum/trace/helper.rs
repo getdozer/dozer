@@ -48,7 +48,7 @@ pub async fn get_block_traces(
         let request = client.transport().prepare(
             "debug_traceBlockByNumber",
             vec![
-                format!("0x{:x}", block_no).into(),
+                format!("0x{block_no:x}").into(),
                 json!({
                         "tracer": "callTracer"
                     }
