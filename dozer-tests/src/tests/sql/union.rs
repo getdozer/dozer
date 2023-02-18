@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::{
-    helper::{self, get_sample_ops},
+    helper::{self},
     TestInstruction,
 };
 
