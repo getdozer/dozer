@@ -4,6 +4,7 @@ use crate::{
     tests::sql::TestInstruction,
     TestFramework,
 };
+use dozer_types::types::Record;
 
 pub fn get_tables() -> Vec<(&'static str, &'static str)> {
     vec![
@@ -42,11 +43,15 @@ pub fn get_tables() -> Vec<(&'static str, &'static str)> {
                 last_update timestamp NOT NULL
             );",
         ),
+        (
+            "t1",
+            "CREATE TABLE t1 (a integer NOT NULL, b integer NOT NULL);",
+        ),
     ]
 }
 
 // Pass empty table_names to get the whole list
-pub fn setup(table_names: &Vec<&'static str>) -> TestFramework {
+pub fn setup(table_names: &[&str]) -> TestFramework {
     let tables = if table_names.is_empty() {
         get_tables()
     } else {
@@ -102,9 +107,10 @@ pub fn get_sample_ops() -> Vec<(&'static str, String)> {
 }
 
 pub fn query(
-    table_names: &Vec<&'static str>,
+    table_names: &[&str],
     test: &str,
-    test_instruction: TestInstruction,
+    expected_results: Option<&[Record]>,
+    test_instruction: &TestInstruction,
 ) -> QueryResult {
     init();
 
@@ -127,38 +133,21 @@ pub fn query(
         TestInstruction::List(ref list) => list.clone(),
     };
 
-    framework.query(list, test.to_string()).unwrap()
+    framework
+        .query(list, expected_results, test.to_string())
+        .unwrap()
 }
 
+// If sql can't run in sqlite, you can pass `expected_results`.
 pub fn compare_with_sqlite(
-    table_names: &Vec<&'static str>,
-    queries: Vec<&str>,
+    table_names: &[&str],
+    queries: &[&str],
+    expected_results: Option<&[Record]>,
     test_instruction: TestInstruction,
 ) {
     init();
-
     for test in queries {
-        let mut framework = setup(table_names);
-
-        let list = match test_instruction {
-            TestInstruction::FromCsv(folder_name, ref names) => {
-                let mut list = vec![];
-
-                for name in names.clone() {
-                    let source = framework.source.lock().unwrap();
-                    let schema = source.get_schema(name);
-                    let inserts = get_inserts_from_csv(folder_name, name, schema).unwrap();
-                    for i in inserts {
-                        list.push((name, i.to_string()));
-                    }
-                }
-                list
-            }
-            TestInstruction::List(ref list) => list.clone(),
-        };
-
-        let result = framework.query(list, test.to_string()).unwrap();
-
+        let result = query(table_names, test, expected_results, &test_instruction);
         assert_eq!(result.source_result, result.dest_result, "Test: {test}");
     }
 }

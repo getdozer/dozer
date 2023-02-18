@@ -17,8 +17,11 @@ pub fn evaluate_py_udf(
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let mut values = vec![];
-    for arg in args {
-        values.push(arg.evaluate(record, schema)?)
+    for (idx, arg) in args.iter().enumerate() {
+        if idx == args.len() - 1 {
+            break;
+        }
+        values.push(arg.evaluate(record, schema)?);
     }
 
     // Get the path of the Python interpreter in your virtual environment
@@ -38,21 +41,7 @@ pub fn evaluate_py_udf(
         let module = py.import("python_udf")?;
         let function = module.getattr(name)?;
 
-        let args = PyTuple::empty(py);
-        for (idx, value) in values.iter().enumerate() {
-            match value {
-                Field::UInt(val) => args.set_item(idx, val)?,
-                Field::Int(val) => args.set_item(idx, val)?,
-                Field::Float(val) => args.set_item(idx, val.0)?,
-                Field::Boolean(val) => args.set_item(idx, val)?,
-                Field::String(val) => args.set_item(idx, val)?,
-                _ => {
-                    return Err(UnsupportedSqlError(GenericError(format!(
-                        "Arg type {value} isn't supported"
-                    ))));
-                }
-            }
-        }
+        let args = PyTuple::new(py, values);
         let res = function.call1(args)?;
         Ok(match return_type {
             FieldType::UInt => Field::UInt(res.extract::<u64>()?),

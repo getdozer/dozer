@@ -1990,6 +1990,7 @@ dependencies = [
  "parking_lot",
  "prettytable-rs",
  "prost",
+ "pyo3",
  "rust_decimal",
  "serde",
  "serde_json",
