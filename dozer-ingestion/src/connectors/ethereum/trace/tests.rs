@@ -26,7 +26,7 @@ async fn test_get_block_traces() {
 #[test]
 #[ignore]
 fn test_trace_iterator() {
-    let wss_url = env::var("ETH_HTTPS_URL").unwrap();
+    let https_url = env::var("ETH_HTTPS_URL").unwrap();
 
     dozer_tracing::init_telemetry(false).unwrap();
     let orig_hook = std::panic::take_hook();
@@ -38,12 +38,12 @@ fn test_trace_iterator() {
     let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     let _t = thread::spawn(move || {
-        info!("Initializing with WSS: {}", wss_url);
+        info!("Initializing with WSS: {}", https_url);
 
         let connector = EthTraceConnector::new(
             1,
-            wss_url,
             EthTraceConfig {
+                https_url,
                 from_block: 1000000,
                 to_block: Some(1000001),
                 batch_size: 100,

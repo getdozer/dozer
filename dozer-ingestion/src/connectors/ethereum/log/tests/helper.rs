@@ -53,8 +53,8 @@ pub fn get_eth_producer(
     let address = format!("{:?}", contract.address());
     let eth_connector = EthLogConnector::new(
         1,
-        wss_url,
         EthLogConfig {
+            wss_url,
             filter: Some(EthFilter {
                 from_block: Some(0),
                 to_block: None,

@@ -43,8 +43,6 @@ pub struct EthFilter {
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EthConfig {
-    #[prost(string, tag = "1")]
-    pub wss_url: String,
     #[prost(oneof = "EthProviderConfig", tags = "2,3")]
     pub provider: Option<EthProviderConfig>,
 }
@@ -65,34 +63,39 @@ pub enum EthProviderConfig {
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EthLogConfig {
-    #[prost(message, optional, tag = "1")]
+    #[prost(string, tag = "1")]
+    pub wss_url: String,
+    #[prost(message, optional, tag = "2")]
     pub filter: Option<EthFilter>,
-    #[prost(message, repeated, tag = "2")]
+    #[prost(message, repeated, tag = "3")]
     #[serde(default)]
     pub contracts: Vec<EthContract>,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EthTraceConfig {
+    #[prost(string, tag = "1")]
+    pub https_url: String,
     // Starting block
-    #[prost(uint64, tag = "1")]
+    #[prost(uint64, tag = "2")]
     pub from_block: u64,
-    #[prost(uint64, optional, tag = "2")]
+    #[prost(uint64, optional, tag = "3")]
     pub to_block: Option<u64>,
-    #[prost(uint64, tag = "3", default = 100)]
+    #[prost(uint64, tag = "4", default = 100)]
     #[serde(default)]
     pub batch_size: u64,
 }
 
 impl EthConfig {
     pub fn convert_to_table(&self) -> PrettyTable {
-        let mut table = table!(["wss_url", self.wss_url]);
+        let mut table = table!();
 
         debug_assert!(self.provider.is_some());
         let provider = self.provider.as_ref().unwrap();
         match provider {
             EthProviderConfig::Log(log) => {
                 table.add_row(row!["provider", "logs"]);
+                table.add_row(row!["wss_url", format!("{:?}", log.wss_url)]);
                 if let Some(filter) = &log.filter {
                     table.add_row(row!["filter", format!("{filter:?}")]);
                 }
@@ -101,6 +104,7 @@ impl EthConfig {
                 }
             }
             EthProviderConfig::Trace(trace) => {
+                table.add_row(row!["https_url", format!("{:?}", trace.https_url)]);
                 table.add_row(row!["provider", "traces"]);
                 table.add_row(row!("trace", format!("{trace:?}")));
             }

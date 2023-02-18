@@ -86,8 +86,8 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 topics: vec![],
             };
             let ethereum_auth = EthConfig {
-                wss_url: "wss://link".to_owned(),
                 provider: Some(EthProviderConfig::Log(EthLogConfig {
+                    wss_url: "wss://link".to_owned(),
                     filter: Some(eth_filter),
                     contracts: vec![],
                 })),

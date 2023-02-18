@@ -16,7 +16,6 @@ use tokio::runtime::Runtime;
 
 pub struct EthTraceConnector {
     pub id: u64,
-    pub https_url: String,
     pub config: EthTraceConfig,
     pub conn_name: String,
 }
@@ -24,10 +23,9 @@ pub struct EthTraceConnector {
 pub const ETH_TRACE_TABLE: &str = "eth_traces";
 pub const RETRIES: u16 = 10;
 impl EthTraceConnector {
-    pub fn new(id: u64, https_url: String, config: EthTraceConfig, conn_name: String) -> Self {
+    pub fn new(id: u64, config: EthTraceConfig, conn_name: String) -> Self {
         Self {
             id,
-            https_url,
             config,
             conn_name,
         }
@@ -60,11 +58,10 @@ impl Connector for EthTraceConnector {
         _tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         let config = self.config.clone();
-        let https_url = self.https_url.clone();
         let conn_name = self.conn_name.clone();
         Runtime::new()
             .unwrap()
-            .block_on(async { run(https_url, ingestor, config, conn_name).await })
+            .block_on(async { run(ingestor, config, conn_name).await })
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
@@ -81,12 +78,11 @@ impl Connector for EthTraceConnector {
 }
 
 pub async fn run(
-    https_url: String,
     ingestor: &Ingestor,
     config: EthTraceConfig,
     conn_name: String,
 ) -> Result<(), ConnectorError> {
-    let client_tuple = conn_helper::get_batch_http_client(&https_url)
+    let client_tuple = conn_helper::get_batch_http_client(&config.https_url)
         .await
         .map_err(ConnectorError::EthError)?;
 

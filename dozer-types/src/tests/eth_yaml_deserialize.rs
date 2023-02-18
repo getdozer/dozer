@@ -6,12 +6,13 @@ use crate::{
 fn standard() {
     let eth_config = r#"
   !Ethereum  
-  filter:
-    from_block: 0
-    addresses: []
-    topics: []
-  wss_url: wss://link
-  contracts: []
+    provider: !Log
+        wss_url: wss://link
+        filter:
+            from_block: 0
+            addresses: []
+            topics: []
+      contracts: []
   "#;
     let deserializer_result = serde_yaml::from_str::<Authentication>(eth_config).unwrap();
     let expected_eth_filter = EthFilter {
@@ -24,10 +25,10 @@ fn standard() {
         provider: Some(crate::ingestion_types::EthProviderConfig::Log(
             EthLogConfig {
                 filter: Some(expected_eth_filter),
+                wss_url: "wss://link".to_owned(),
                 contracts: vec![],
             },
         )),
-        wss_url: "wss://link".to_owned(),
     };
     let expected = Authentication::Ethereum(expected_eth_config);
     assert_eq!(expected, deserializer_result);
@@ -37,9 +38,10 @@ fn standard() {
 fn config_without_empty_array() {
     let eth_config = r#"
   !Ethereum  
-  filter:
-    from_block: 499203
-  wss_url: wss://link
+    provider: !Log
+        wss_url: wss://link
+        filter:
+        from_block: 499203
   "#;
     let deserializer_result = serde_yaml::from_str::<Authentication>(eth_config).unwrap();
     let expected_eth_filter = EthFilter {
@@ -51,11 +53,11 @@ fn config_without_empty_array() {
     let expected_eth_config = EthConfig {
         provider: Some(crate::ingestion_types::EthProviderConfig::Log(
             EthLogConfig {
+                wss_url: "wss://link".to_owned(),
                 filter: Some(expected_eth_filter),
                 contracts: vec![],
             },
         )),
-        wss_url: "wss://link".to_owned(),
     };
     let expected = Authentication::Ethereum(expected_eth_config);
     assert_eq!(expected, deserializer_result);

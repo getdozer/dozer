@@ -17,8 +17,6 @@ use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
 pub struct EthLogConnector {
     pub id: u64,
-    pub wss_url: String,
-
     config: EthLogConfig,
     // Address -> (contract, contract_name)
     contracts: HashMap<String, ContractTuple>,
@@ -81,7 +79,7 @@ impl EthLogConnector {
         builder.build()
     }
 
-    pub fn new(id: u64, wss_url: String, config: EthLogConfig, conn_name: String) -> Self {
+    pub fn new(id: u64, config: EthLogConfig, conn_name: String) -> Self {
         let mut contracts = HashMap::new();
 
         for c in &config.contracts {
@@ -95,7 +93,6 @@ impl EthLogConnector {
         let schema_map = Self::build_schema_map(&contracts);
         Self {
             id,
-            wss_url,
             config,
             contracts,
             schema_map,
@@ -167,7 +164,7 @@ impl Connector for EthLogConnector {
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
-        let wss_url = self.wss_url.to_owned();
+        let wss_url = self.config.wss_url.to_owned();
         let filter = self.config.filter.to_owned().unwrap_or_default();
 
         Runtime::new().unwrap().block_on(async {

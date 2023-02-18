@@ -106,10 +106,10 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         }
         Authentication::Ethereum(eth_config) => match eth_config.provider.unwrap() {
             dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => Ok(Box::new(
-                EthLogConnector::new(2, eth_config.wss_url, log_config, connection.name),
+                EthLogConnector::new(2, log_config, connection.name),
             )),
             dozer_types::ingestion_types::EthProviderConfig::Trace(trace_config) => Ok(Box::new(
-                EthTraceConnector::new(2, eth_config.wss_url, trace_config, connection.name),
+                EthTraceConnector::new(2, trace_config, connection.name),
             )),
         },
         Authentication::Events(_) => Ok(Box::new(EventsConnector::new(3, connection.name))),
