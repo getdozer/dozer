@@ -48,6 +48,7 @@ fn test_trace_iterator() {
                 from_block: 1000000,
                 to_block: Some(1000001),
             },
+            "test".to_string(),
         );
 
         let schemas = connector.get_schemas(None).unwrap();

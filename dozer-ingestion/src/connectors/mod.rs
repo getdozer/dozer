@@ -23,7 +23,7 @@ use dozer_types::types::SchemaWithChangesType;
 
 pub mod snowflake;
 
-use self::ethereum::EthLogConnector;
+use self::ethereum::{EthLogConnector, EthTraceConnector};
 use self::events::connector::EventsConnector;
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
@@ -108,7 +108,9 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => Ok(Box::new(
                 EthLogConnector::new(2, eth_config.wss_url, log_config, connection.name),
             )),
-            dozer_types::ingestion_types::EthProviderConfig::Trace(_) => todo!(),
+            dozer_types::ingestion_types::EthProviderConfig::Trace(trace_config) => Ok(Box::new(
+                EthTraceConnector::new(2, eth_config.wss_url, trace_config, connection.name),
+            )),
         },
         Authentication::Events(_) => Ok(Box::new(EventsConnector::new(3, connection.name))),
         Authentication::Snowflake(snowflake) => {

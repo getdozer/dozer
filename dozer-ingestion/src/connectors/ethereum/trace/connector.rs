@@ -9,7 +9,7 @@ use crate::{
     ingestion::Ingestor,
 };
 use dozer_types::ingestion_types::{EthTraceConfig, IngestionMessage};
-use dozer_types::log::error;
+use dozer_types::log::{error, info};
 use dozer_types::types::ReplicationChangesTrackingType;
 
 use tokio::runtime::Runtime;
@@ -18,16 +18,18 @@ pub struct EthTraceConnector {
     pub id: u64,
     pub wss_url: String,
     pub config: EthTraceConfig,
+    pub conn_name: String,
 }
 
 pub const ETH_TRACE_TABLE: &str = "eth_traces";
 pub const RETRIES: u16 = 10;
 impl EthTraceConnector {
-    pub fn new(id: u64, wss_url: String, config: EthTraceConfig) -> Self {
+    pub fn new(id: u64, wss_url: String, config: EthTraceConfig, conn_name: String) -> Self {
         Self {
             id,
             wss_url,
             config,
+            conn_name,
         }
     }
 }
@@ -60,9 +62,10 @@ impl Connector for EthTraceConnector {
         let from_block = self.config.from_block;
         let to_block = self.config.to_block;
         let wss_url = self.wss_url.clone();
+        let conn_name = self.conn_name.clone();
         Runtime::new()
             .unwrap()
-            .block_on(async { run(wss_url, ingestor, from_block, to_block).await })
+            .block_on(async { run(wss_url, ingestor, from_block, to_block, conn_name).await })
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
@@ -83,6 +86,7 @@ pub async fn run(
     ingestor: &Ingestor,
     from_block: u64,
     to_block: Option<u64>,
+    conn_name: String,
 ) -> Result<(), ConnectorError> {
     let client = conn_helper::get_wss_client(&wss_url)
         .await
@@ -90,6 +94,11 @@ pub async fn run(
 
     let mut current_block = from_block;
     let mut error_count = 0;
+
+    info!(
+        "Starting Eth Trace connector from block {} {}",
+        from_block, conn_name
+    );
     loop {
         debug_assert!(
             error_count < RETRIES,
@@ -102,6 +111,10 @@ pub async fn run(
             }
         }
         let results = get_block_traces(client.clone(), current_block).await;
+
+        ingestor
+            .handle_message(((current_block, 0), IngestionMessage::Begin()))
+            .map_err(ConnectorError::IngestorError)?;
 
         if let Ok(results) = results {
             for result in results {
