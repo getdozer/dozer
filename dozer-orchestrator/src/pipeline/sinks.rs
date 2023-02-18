@@ -170,7 +170,8 @@ impl CacheSinkFactory {
                 ],
 
                 // Create full text indexes for text fields
-                FieldType::Text => vec![IndexDefinition::FullText(idx)],
+                // FieldType::Text => vec![IndexDefinition::FullText(idx)],
+                FieldType::Text => vec![],
 
                 // Skip creating indexes
                 FieldType::Binary | FieldType::Bson => vec![],
