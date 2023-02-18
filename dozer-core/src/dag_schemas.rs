@@ -196,7 +196,6 @@ impl<T: Clone> DagHaveSchemas for DagSchemas<T> {
 }
 
 fn validate_connectivity<T>(dag: &Dag<T>) {
-    dag.print_dot();
     // Every source or processor has at least one outgoing edge.
     for (node_index, node) in dag.graph().node_references() {
         match &node.kind {

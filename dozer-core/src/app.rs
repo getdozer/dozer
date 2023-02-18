@@ -25,7 +25,7 @@ impl PipelineEntryPoint {
 }
 #[derive(Clone, Debug)]
 pub struct NamespacedEdge {
-    pub edge: Edge,
+    edge: Edge,
     namespaced: bool,
 }
 
@@ -47,7 +47,7 @@ impl Display for NamespacedEdge {
 
 #[derive(Clone)]
 pub struct AppPipeline<T> {
-    pub edges: Vec<NamespacedEdge>,
+    edges: Vec<NamespacedEdge>,
     processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory<T>>)>,
     sinks: Vec<(NodeHandle, Arc<dyn SinkFactory<T>>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
