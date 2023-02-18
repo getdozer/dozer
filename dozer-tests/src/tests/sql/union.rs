@@ -1,9 +1,6 @@
 use std::collections::HashSet;
 
-use super::{
-    helper::{self},
-    TestInstruction,
-};
+use super::{helper, TestInstruction};
 
 #[test]
 fn union_query() {
