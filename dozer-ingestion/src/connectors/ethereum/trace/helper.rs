@@ -1,3 +1,4 @@
+use dozer_types::log::{debug, error};
 use dozer_types::serde;
 use dozer_types::serde_json::{self, json};
 use dozer_types::types::{
@@ -6,11 +7,11 @@ use dozer_types::types::{
 use serde::{Deserialize, Serialize};
 
 use dozer_types::types::FieldDefinition;
+use web3::transports::{Batch, Http};
+use web3::types::{H160, U256};
+use web3::{BatchTransport, Transport, Web3};
 
-use web3::helpers::CallFuture;
-use web3::transports::WebSocket;
-use web3::types::{H160, U256, U64};
-use web3::{Transport, Web3};
+use crate::errors::ConnectorError;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(crate = "self::serde", rename_all = "camelCase")]
@@ -33,20 +34,56 @@ pub struct Trace {
     pub calls: Option<Vec<Trace>>,
 }
 
-pub fn get_block_traces(
-    client: Web3<WebSocket>,
-    block_no: u64,
-) -> CallFuture<Vec<TraceResult>, <WebSocket as Transport>::Out> {
-    CallFuture::new(client.transport().execute(
-        "debug_traceBlockByNumber",
-        vec![
-            serde_json::to_value(U64::from(block_no)).unwrap(),
-            json!({
-                    "tracer": "callTracer"
-                }
-            ),
-        ],
-    ))
+pub async fn get_block_traces(
+    tuple: (Web3<Batch<Http>>, Http),
+    batch: (u64, u64),
+) -> Result<Vec<TraceResult>, ConnectorError> {
+    let (client, transport) = tuple;
+    let mut requests = vec![];
+    let mut results = vec![];
+    debug!("Getting eth traces for block range: {:?}", batch);
+    let mut request_count = 0;
+    let (from, to) = batch;
+    for block_no in from..to {
+        let request = client.transport().prepare(
+            "debug_traceBlockByNumber",
+            vec![
+                format!("0x{:x}", block_no).into(),
+                json!({
+                        "tracer": "callTracer"
+                    }
+                ),
+            ],
+        );
+        requests.push(request);
+        request_count += 1;
+    }
+
+    let batch_results = transport.send_batch(requests).await.map_err(|e| {
+        error!("Error submitting batch: {:?}", e);
+        ConnectorError::EthError(e)
+    })?;
+
+    debug!(
+        "Requests: {:?}, Results: {:?}",
+        request_count,
+        batch_results.len(),
+    );
+
+    for (idx, res) in batch_results.iter().enumerate() {
+        let res = res.clone().map_err(|e| {
+            error!("Error getting trace: {:?}", e);
+            ConnectorError::EthError(e)
+        })?;
+
+        let r: Vec<TraceResult> =
+            serde_json::from_value(res).map_err(ConnectorError::map_serialization_error)?;
+
+        debug!("Idx: {} : Response: {:?}", idx, r);
+
+        results.extend(r);
+    }
+    Ok(results)
 }
 
 fn get_schema_id() -> SchemaIdentifier {

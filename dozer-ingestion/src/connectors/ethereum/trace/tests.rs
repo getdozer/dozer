@@ -17,9 +17,9 @@ use crate::{
 #[tokio::test]
 #[ignore]
 async fn test_get_block_traces() {
-    let url = env::var("ETH_WSS_URL").unwrap();
-    let client = helper::get_wss_client(&url).await.unwrap();
-    let traces = get_block_traces(client, 1000000).await.unwrap();
+    let url = env::var("ETH_HTTPS_URL").unwrap();
+    let client = helper::get_batch_http_client(&url).await.unwrap();
+    let traces = get_block_traces(client, (1000000, 1000005)).await.unwrap();
     println!("{:?}", traces);
     assert!(traces.len() > 0, "Failed to get traces found");
 }
@@ -27,7 +27,7 @@ async fn test_get_block_traces() {
 #[test]
 #[ignore]
 fn test_trace_iterator() {
-    let wss_url = env::var("ETH_WSS_URL").unwrap();
+    let wss_url = env::var("ETH_HTTPS_URL").unwrap();
 
     dozer_tracing::init_telemetry(false).unwrap();
     let orig_hook = std::panic::take_hook();
@@ -47,6 +47,7 @@ fn test_trace_iterator() {
             EthTraceConfig {
                 from_block: 1000000,
                 to_block: Some(1000001),
+                batch_size: 100,
             },
             "test".to_string(),
         );

@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 
 pub struct EthTraceConnector {
     pub id: u64,
-    pub wss_url: String,
+    pub https_url: String,
     pub config: EthTraceConfig,
     pub conn_name: String,
 }
@@ -24,10 +24,10 @@ pub struct EthTraceConnector {
 pub const ETH_TRACE_TABLE: &str = "eth_traces";
 pub const RETRIES: u16 = 10;
 impl EthTraceConnector {
-    pub fn new(id: u64, wss_url: String, config: EthTraceConfig, conn_name: String) -> Self {
+    pub fn new(id: u64, https_url: String, config: EthTraceConfig, conn_name: String) -> Self {
         Self {
             id,
-            wss_url,
+            https_url,
             config,
             conn_name,
         }
@@ -59,13 +59,12 @@ impl Connector for EthTraceConnector {
         ingestor: &Ingestor,
         _tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        let from_block = self.config.from_block;
-        let to_block = self.config.to_block;
-        let wss_url = self.wss_url.clone();
+        let config = self.config.clone();
+        let https_url = self.https_url.clone();
         let conn_name = self.conn_name.clone();
         Runtime::new()
             .unwrap()
-            .block_on(async { run(wss_url, ingestor, from_block, to_block, conn_name).await })
+            .block_on(async { run(https_url, ingestor, config, conn_name).await })
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
@@ -82,60 +81,83 @@ impl Connector for EthTraceConnector {
 }
 
 pub async fn run(
-    wss_url: String,
+    https_url: String,
     ingestor: &Ingestor,
-    from_block: u64,
-    to_block: Option<u64>,
+    config: EthTraceConfig,
     conn_name: String,
 ) -> Result<(), ConnectorError> {
-    let client = conn_helper::get_wss_client(&wss_url)
+    let client_tuple = conn_helper::get_batch_http_client(&https_url)
         .await
         .map_err(ConnectorError::EthError)?;
 
-    let mut current_block = from_block;
-    let mut error_count = 0;
-
     info!(
-        "Starting Eth Trace connector from block {} {}",
-        from_block, conn_name
+        "Starting Eth Trace connector: {} from block {}",
+        conn_name, config.from_block
     );
-    loop {
-        debug_assert!(
-            error_count < RETRIES,
-            "Eth Trace connector failed more than {} times",
-            RETRIES
-        );
-        if let Some(to_block) = to_block {
-            if current_block > to_block {
-                break;
-            }
-        }
-        let results = get_block_traces(client.clone(), current_block).await;
+    let mut batch_iter = BatchIterator {
+        current_block: config.from_block,
+        to_block: config.to_block,
+        batch_size: config.batch_size,
+    };
 
-        ingestor
-            .handle_message(((current_block, 0), IngestionMessage::Begin()))
-            .map_err(ConnectorError::IngestorError)?;
+    ingestor
+        .handle_message(((config.from_block, 0), IngestionMessage::Begin()))
+        .map_err(ConnectorError::IngestorError)?;
 
-        if let Ok(results) = results {
-            for result in results {
-                let ops = map_trace_to_ops(&result.result);
+    while let Some(batch) = batch_iter.next() {
+        for retry in 0..RETRIES {
+            debug_assert!(
+                retry >= RETRIES - 1,
+                "Eth Trace connector failed more than {} times",
+                RETRIES
+            );
+            let res = get_block_traces(client_tuple.clone(), batch).await;
+            if let Ok(arr) = res {
+                for result in arr {
+                    let ops = map_trace_to_ops(&result.result);
 
-                for op in ops {
-                    let message = IngestionMessage::OperationEvent(op);
-                    ingestor
-                        .handle_message(((current_block, 0), message))
-                        .map_err(ConnectorError::IngestorError)?;
+                    for op in ops {
+                        let message = IngestionMessage::OperationEvent(op);
+                        ingestor
+                            .handle_message(((batch.0, 0), message))
+                            .map_err(ConnectorError::IngestorError)?;
+                    }
                 }
-            }
-            error_count = 0;
-            current_block += 1;
-        } else {
-            error_count += 1;
-            error!("Failed to get traces for block {}", current_block);
-            if error_count < RETRIES {
-                error!("Retrying block .. {}", current_block);
+
+                break;
+            } else {
+                error!(
+                    "Failed to get traces for block {}.. Attempt {}",
+                    batch.0,
+                    retry + 1
+                );
             }
         }
     }
     Ok(())
+}
+
+struct BatchIterator {
+    current_block: u64,
+    to_block: Option<u64>,
+    batch_size: u64,
+}
+impl Iterator for BatchIterator {
+    type Item = (u64, u64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut end_block = self.current_block + self.batch_size;
+        if let Some(to_block) = self.to_block {
+            if self.current_block > to_block {
+                return None;
+            }
+
+            if end_block > to_block {
+                end_block = to_block;
+            }
+        }
+        let current_batch = (self.current_block, end_block);
+        self.current_block = end_block;
+        Some(current_batch)
+    }
 }

@@ -10,7 +10,7 @@ use crate::{
 };
 
 use dozer_types::{
-    ingestion_types::{EthConfig, EthContract, EthFilter, EthLogConfig, EthProviderConfig},
+    ingestion_types::{EthContract, EthFilter, EthLogConfig},
     log::info,
     types::Operation,
 };

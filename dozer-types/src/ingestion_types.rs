@@ -79,6 +79,9 @@ pub struct EthTraceConfig {
     pub from_block: u64,
     #[prost(uint64, optional, tag = "2")]
     pub to_block: Option<u64>,
+    #[prost(uint64, tag = "3", default = 100)]
+    #[serde(default)]
+    pub batch_size: u64,
 }
 
 impl EthConfig {
