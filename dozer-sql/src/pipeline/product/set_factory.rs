@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SetError;
-use crate::pipeline::errors::SetError::InvalidInputSchemas;
 use crate::pipeline::product::set::SetOperation;
 use crate::pipeline::product::set_processor::SetProcessor;
 use dozer_core::{
@@ -56,19 +55,13 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        match build_set_tree(input_schemas) {
-            Ok(_source_names) => {
-                let set_operation = SetOperation {
-                    op: SetOperator::Union,
-                    quantifier: self.set_quantifier,
-                };
-                Ok(Box::new(SetProcessor::new(set_operation)))
-            }
-            Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
-        }
+        Ok(Box::new(SetProcessor::new(SetOperation {
+            op: SetOperator::Union,
+            quantifier: self.set_quantifier,
+        })))
     }
 
     fn prepare(
@@ -78,24 +71,6 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
-}
-
-/// Returns an hashmap with the operations to execute the join.
-/// Each entry is linked on the left and/or the right to the other side of the Join operation
-///
-/// # Errors
-///
-/// This function will return an error if.
-pub fn build_set_tree(
-    input_schemas: HashMap<PortHandle, Schema>,
-) -> Result<HashMap<u16, String>, PipelineError> {
-    if input_schemas.len() != 2 {
-        return Err(PipelineError::SetError(InvalidInputSchemas));
-    }
-
-    let mut source_names: HashMap<u16, String> = HashMap::new();
-
-    Ok(source_names)
 }
 
 fn validate_set_operation_input_schemas(

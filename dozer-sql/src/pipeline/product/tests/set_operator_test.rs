@@ -56,7 +56,7 @@ fn test_set_union_pipeline_builder() {
     ))
     .unwrap();
 
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(7, latch)), "sink");
     pipeline
         .connect_nodes(
             &table_info.node,
@@ -616,8 +616,20 @@ impl TestSourceFactory {
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
         Ok(vec![
-            OutputPortDef::new(SUPPLIERS_PORT, OutputPortType::Stateless),
-            OutputPortDef::new(ORDERS_PORT, OutputPortType::Stateless),
+            OutputPortDef::new(
+                SUPPLIERS_PORT,
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                },
+            ),
+            OutputPortDef::new(
+                ORDERS_PORT,
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                },
+            ),
         ])
     }
 
@@ -684,22 +696,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     .clone(),
                 SchemaSQLContext::default(),
             ))
-        } else if port == &DEFAULT_PORT_HANDLE {
-            let source_id = SourceDefinition::Dynamic;
-            Ok((
-                Schema::empty()
-                    .field(
-                        FieldDefinition::new(
-                            String::from("supplier_id"),
-                            FieldType::Int,
-                            false,
-                            source_id,
-                        ),
-                        true,
-                    )
-                    .clone(),
-                SchemaSQLContext::default(),
-            ))
         } else {
             panic!("Invalid Port Handle {port}");
         }
@@ -742,7 +738,7 @@ impl Source for TestSource {
                         Some(1),
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                SUPPLIERS_PORT,
             ),
             (
                 Operation::Insert {
@@ -752,7 +748,7 @@ impl Source for TestSource {
                         Some(1),
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                SUPPLIERS_PORT,
             ),
             (
                 Operation::Insert {
@@ -762,7 +758,7 @@ impl Source for TestSource {
                         Some(1),
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                SUPPLIERS_PORT,
             ),
             (
                 Operation::Insert {
@@ -772,7 +768,7 @@ impl Source for TestSource {
                         Some(1),
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                SUPPLIERS_PORT,
             ),
             (
                 Operation::Insert {
@@ -786,7 +782,7 @@ impl Source for TestSource {
                         Some(1),
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                ORDERS_PORT,
             ),
             (
                 Operation::Insert {
@@ -800,7 +796,7 @@ impl Source for TestSource {
                         Some(1),
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                ORDERS_PORT,
             ),
             (
                 Operation::Insert {
@@ -814,7 +810,7 @@ impl Source for TestSource {
                         Some(1),
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                ORDERS_PORT,
             ),
             (
                 Operation::Insert {
@@ -828,7 +824,7 @@ impl Source for TestSource {
                         Some(1),
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                ORDERS_PORT,
             ),
         ];
 
