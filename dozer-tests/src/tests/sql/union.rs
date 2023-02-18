@@ -24,7 +24,7 @@ fn union_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::FromCsv("set_results", table_names.clone()),
+        TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
     let mut src_keys = HashSet::new();
