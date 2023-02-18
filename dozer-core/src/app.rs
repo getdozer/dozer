@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use dozer_types::node::NodeHandle;
+use std::fmt::{Display, Formatter};
 
 use crate::appsource::{AppSourceId, AppSourceManager};
 use crate::errors::ExecutionError;
@@ -32,12 +32,15 @@ pub struct NamespacedEdge {
 impl Display for NamespacedEdge {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(
-            format!("edge: [node: {}, port: {} -> node: {}, port: {}], , namespaced: {}",
-                self.edge.from.node, self.edge.from.port,
-                self.edge.to.node, self.edge.to.port,
+            format!(
+                "edge: [node: {}, port: {} -> node: {}, port: {}], , namespaced: {}",
+                self.edge.from.node,
+                self.edge.from.port,
+                self.edge.to.node,
+                self.edge.to.port,
                 self.namespaced
             )
-            .as_str()
+            .as_str(),
         )
     }
 }
@@ -71,14 +74,14 @@ impl<T> AppPipeline<T> {
         }
     }
 
-    pub fn remove_entry_points(
-        &mut self,
-        id: &str,
-        entry_point: Vec<PipelineEntryPoint>,
-    ) {
+    pub fn remove_entry_points(&mut self, id: &str, entry_point: Vec<PipelineEntryPoint>) {
         let handle = NodeHandle::new(None, id.to_string());
         for p in entry_point {
-            let idx = self.entry_points.iter().position(|(nh, ep)| *nh == handle.clone() && *ep == p).unwrap();
+            let idx = self
+                .entry_points
+                .iter()
+                .position(|(nh, ep)| *nh == handle.clone() && *ep == p)
+                .unwrap();
             self.entry_points.remove(idx);
         }
     }

@@ -6,10 +6,10 @@ use dozer_types::node::NodeHandle;
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 
+use dozer_types::log::info;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::sync::Arc;
-use dozer_types::log::info;
 
 pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
 

@@ -1,6 +1,6 @@
+use ahash::AHasher;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use ahash::AHasher;
 
 use crate::errors::types::TypeError;
 use prettytable::{Cell, Row, Table};

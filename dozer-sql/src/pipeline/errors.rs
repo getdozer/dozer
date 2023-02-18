@@ -123,7 +123,7 @@ pub enum SetError {
     #[error("History unavailable for SET source [{0}]")]
     HistoryUnavailable(u16),
     #[error(
-    "Record with key: {0:x?} version: {1} not available in History for SET source[{2}]\n{3}"
+        "Record with key: {0:x?} version: {1} not available in History for SET source[{2}]\n{3}"
     )]
     HistoryRecordNotFound(Vec<u8>, u32, u16, dozer_core::errors::ExecutionError),
 }
