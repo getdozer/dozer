@@ -42,6 +42,24 @@ pub struct EthFilter {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct GrpcConfig {
+    #[prost(string, tag = "1", default = "0.0.0.0")]
+    pub host: String,
+    #[prost(uint32, tag = "2", default = "8085")]
+    pub port: u32,
+    #[prost(oneof = "GrpcConfigSchemas", tags = "3,4")]
+    pub schemas: Option<GrpcConfigSchemas>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
+pub enum GrpcConfigSchemas {
+    #[prost(string, tag = "3")]
+    Inline(String),
+    #[prost(string, tag = "4")]
+    Path(String),
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EthConfig {
     #[prost(oneof = "EthProviderConfig", tags = "2,3")]
     pub provider: Option<EthProviderConfig>,
@@ -81,8 +99,7 @@ pub struct EthTraceConfig {
     pub from_block: u64,
     #[prost(uint64, optional, tag = "3")]
     pub to_block: Option<u64>,
-    #[prost(uint64, tag = "4", default = 100)]
-    #[serde(default)]
+    #[prost(uint64, tag = "4", default = "100")]
     pub batch_size: u64,
 }
 

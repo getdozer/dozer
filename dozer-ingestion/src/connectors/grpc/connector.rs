@@ -1,0 +1,165 @@
+use std::collections::HashMap;
+use std::path::Path;
+
+use dozer_types::ingestion_types::{GrpcConfig, IngestionMessage};
+use dozer_types::log::info;
+use dozer_types::serde_json;
+use dozer_types::types::{ReplicationChangesTrackingType, Schema, SchemaIdentifier};
+
+use super::ingest::IngestorServiceImpl;
+use crate::connectors::grpc::ingest_grpc;
+use crate::connectors::grpc::ingest_grpc::ingest_service_server::IngestServiceServer;
+use crate::connectors::ValidationResults;
+use crate::{
+    connectors::{Connector, TableInfo},
+    errors::ConnectorError,
+    ingestion::Ingestor,
+};
+use tonic::transport::Server;
+use tower_http::trace::TraceLayer;
+
+pub struct GrpcConnector {
+    pub id: u64,
+    pub name: String,
+    pub config: GrpcConfig,
+}
+
+impl GrpcConnector {
+    pub fn new(id: u64, name: String, config: GrpcConfig) -> Self {
+        Self { id, name, config }
+    }
+
+    pub fn push(
+        &mut self,
+        ingestor: Ingestor,
+        msg: IngestionMessage,
+    ) -> Result<(), ConnectorError> {
+        ingestor
+            .handle_message(((0, 0), msg))
+            .map_err(ConnectorError::IngestorError)
+    }
+
+    pub fn init_schemas(config: &GrpcConfig) -> Result<HashMap<String, Schema>, ConnectorError> {
+        let schemas = config.schemas.as_ref().map_or_else(
+            || {
+                Err(ConnectorError::InitializationError(
+                    "schemas not found".to_string(),
+                ))
+            },
+            |s| Ok(s),
+        )?;
+        let schemas_str = match schemas {
+            dozer_types::ingestion_types::GrpcConfigSchemas::Inline(schemas_str) => {
+                schemas_str.clone()
+            }
+            dozer_types::ingestion_types::GrpcConfigSchemas::Path(path) => {
+                let path = Path::new(path);
+                std::fs::read_to_string(path)
+                    .map_err(|e| ConnectorError::InitializationError(e.to_string()))?
+            }
+        };
+
+        let schema_map: HashMap<String, Schema> =
+            serde_json::from_str(&schemas_str).map_err(ConnectorError::map_serialization_error)?;
+        let schema_map_with_ports: HashMap<String, Schema> = schema_map
+            .into_iter()
+            .enumerate()
+            .map(|(id, (k, mut v))| {
+                v.identifier = Some(SchemaIdentifier {
+                    id: id as u32,
+                    version: 1,
+                });
+                (k, v)
+            })
+            .collect();
+        Ok(schema_map_with_ports)
+    }
+
+    pub fn serve(&self, ingestor: &Ingestor) -> Result<(), ConnectorError> {
+        let host = &self.config.host;
+        let port = self.config.port;
+
+        let addr = format!("{host:}:{port:}").parse().map_err(|e| {
+            ConnectorError::InitializationError(format!("Failed to parse address: {}", e))
+        })?;
+        let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
+        let schema_map = Self::init_schemas(&self.config)?;
+
+        rt.block_on(async {
+            // Ingestor will live as long as the server
+            // Refactor to use Arc
+            let ingestor =
+                unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
+            let schema_map = schema_map.clone();
+            let ingest_service = IngestorServiceImpl::new(&schema_map, &ingestor);
+            let ingest_service = tonic_web::config()
+                .allow_all_origins()
+                .enable(IngestServiceServer::new(ingest_service));
+
+            let reflection_service = tonic_reflection::server::Builder::configure()
+                .register_encoded_file_descriptor_set(ingest_grpc::FILE_DESCRIPTOR_SET)
+                .build()
+                .unwrap();
+            info!("Starting Dozer GRPC Ingestor  on http://{}:{} ", host, port,);
+            Server::builder()
+                .layer(TraceLayer::new_for_http())
+                .accept_http1(true)
+                .add_service(ingest_service)
+                .add_service(reflection_service)
+                .serve(addr)
+                .await
+        })
+        .map_err(|e| ConnectorError::InitializationError(e.to_string()))
+    }
+}
+
+impl Connector for GrpcConnector {
+    fn get_schemas(
+        &self,
+        _table_names: Option<Vec<TableInfo>>,
+    ) -> Result<
+        Vec<(
+            String,
+            dozer_types::types::Schema,
+            ReplicationChangesTrackingType,
+        )>,
+        ConnectorError,
+    > {
+        Ok(vec![])
+    }
+
+    fn start(
+        &self,
+        _from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
+        _tables: Option<Vec<TableInfo>>,
+    ) -> Result<(), ConnectorError> {
+        self.serve(ingestor)
+    }
+
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+        let schemas = Self::init_schemas(&self.config);
+        schemas.map(|_| ())
+    }
+
+    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
+        let mut results = HashMap::new();
+        let schemas = Self::init_schemas(&self.config)?;
+        for table in tables {
+            let r = schemas.get(&table.name).map_or(
+                Err(ConnectorError::InitializationError(format!(
+                    "Schema not found for table {}",
+                    table.name
+                ))),
+                |_| Ok(()),
+            );
+
+            results.insert(table.name.clone(), vec![(None, r)]);
+        }
+        Ok(results)
+    }
+
+    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        self.get_tables_default(tables)
+    }
+}
