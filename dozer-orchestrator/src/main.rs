@@ -42,7 +42,6 @@ fn run() -> Result<(), OrchestrationError> {
 
     let cli = Cli::parse();
     let running = Arc::new(AtomicBool::new(true));
-    let running_api = running.clone();
     set_ctrl_handler(running.clone());
     if let Some(cmd) = cli.cmd {
         // run individual servers
@@ -86,41 +85,6 @@ fn run() -> Result<(), OrchestrationError> {
         render_logo();
 
         let mut dozer = init_dozer(cli.config_path)?;
-
-        // TODO: remove this after checkpointing
-        dozer.clean()?;
-
-        let mut dozer_api = dozer.clone();
-
-        let (tx, rx) = channel::unbounded::<bool>();
-
-        if let Err(e) = dozer.migrate(false) {
-            if let OrchestrationError::InitializationFailed(_) = e {
-                warn!(
-                    "{} is already present. Skipping initialisation..",
-                    dozer.config.home_dir.to_owned()
-                )
-            } else {
-                return Err(e);
-            }
-        }
-
-        let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer.borrow_mut().run_apps(running, Some(tx)) {
-                std::panic::panic_any(e);
-            }
-        });
-
-        // Wait for pipeline to initialize caches before starting api server
-        rx.recv().unwrap();
-
-        thread::spawn(move || {
-            if let Err(e) = dozer_api.run_api(running_api) {
-                std::panic::panic_any(e);
-            }
-        });
-
-        pipeline_thread.join().unwrap();
-        Ok(())
+        dozer.run_all(running)
     }
 }

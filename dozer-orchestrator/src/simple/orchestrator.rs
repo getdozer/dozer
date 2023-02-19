@@ -2,6 +2,7 @@ use super::executor::Executor;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
+use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_flags, get_grpc_config,
     get_pipeline_config, get_pipeline_dir, get_rest_config,
@@ -28,10 +29,7 @@ use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::log::{info, warn};
-use dozer_types::models::api_config::ApiConfig;
-use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
-use dozer_types::prettytable::{row, Table};
 use dozer_types::serde_yaml;
 use dozer_types::tracing::error;
 use dozer_types::types::{Operation, Schema, SourceSchema};
@@ -304,17 +302,7 @@ impl Orchestrator for SimpleOrchestrator {
                 ));
             }
         }
-
-        info!(
-            "Home dir: {}",
-            get_colored_text(&self.config.home_dir, "35")
-        );
-        if let Some(api_config) = &self.config.api {
-            print_api_config(api_config)
-        }
-
-        print_api_endpoints(&self.config.endpoints);
-        validate_endpoints(&self.config.endpoints)?;
+        validate_config(&self.config)?;
 
         let builder = PipelineBuilder::new(
             self.config.clone(),
@@ -376,6 +364,46 @@ impl Orchestrator for SimpleOrchestrator {
         };
         Ok(())
     }
+
+    fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
+        let running_api = running.clone();
+        // TODO: remove this after checkpointing
+        self.clean()?;
+
+        let mut dozer_api = self.clone();
+
+        let (tx, rx) = channel::unbounded::<bool>();
+
+        if let Err(e) = self.migrate(false) {
+            if let OrchestrationError::InitializationFailed(_) = e {
+                warn!(
+                    "{} is already present. Skipping initialisation..",
+                    self.config.home_dir.to_owned()
+                )
+            } else {
+                return Err(e);
+            }
+        }
+
+        let mut dozer_pipeline = self.clone();
+        let pipeline_thread = thread::spawn(move || {
+            if let Err(e) = dozer_pipeline.run_apps(running, Some(tx)) {
+                std::panic::panic_any(e);
+            }
+        });
+
+        // Wait for pipeline to initialize caches before starting api server
+        rx.recv().unwrap();
+
+        thread::spawn(move || {
+            if let Err(e) = dozer_api.run_api(running_api) {
+                std::panic::panic_any(e);
+            }
+        });
+
+        pipeline_thread.join().unwrap();
+        Ok(())
+    }
 }
 
 pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
@@ -396,36 +424,4 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
             Ok(())
         },
     )
-}
-
-pub fn validate_endpoints(_endpoints: &[ApiEndpoint]) -> Result<(), OrchestrationError> {
-    Ok(())
-}
-
-fn print_api_config(api_config: &ApiConfig) {
-    info!("[API] {}", get_colored_text("Configuration", "35"));
-    let mut table_parent = Table::new();
-
-    table_parent.add_row(row!["Type", "IP", "Port"]);
-    if let Some(rest_config) = &api_config.rest {
-        table_parent.add_row(row!["REST", rest_config.host, rest_config.port]);
-    }
-
-    if let Some(grpc_config) = &api_config.grpc {
-        table_parent.add_row(row!["GRPC", grpc_config.host, grpc_config.port]);
-    }
-
-    table_parent.printstd();
-}
-
-fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
-    info!("[API] {}", get_colored_text("Endpoints", "35"));
-    let mut table_parent = Table::new();
-
-    table_parent.add_row(row!["Path", "Name", "Sql"]);
-    for endpoint in endpoints {
-        table_parent.add_row(row![endpoint.path, endpoint.name]);
-    }
-
-    table_parent.printstd();
 }

@@ -31,6 +31,7 @@ mod utils;
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
+    fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
@@ -49,7 +50,9 @@ pub trait Orchestrator {
 
 // Re-exports
 pub use dozer_ingestion::{
-    connectors::{get_connector, ColumnInfo, TableInfo},
+    connectors::{
+        get_connector, ingest_grpc, types as ingest_connector_types, ColumnInfo, TableInfo,
+    },
     errors::ConnectorError,
 };
 pub use dozer_sql::pipeline::builder::QueryContext;
