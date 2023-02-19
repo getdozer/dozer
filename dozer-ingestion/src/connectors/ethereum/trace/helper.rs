@@ -38,6 +38,7 @@ pub async fn get_block_traces(
     tuple: (Web3<Batch<Http>>, Http),
     batch: (u64, u64),
 ) -> Result<Vec<TraceResult>, ConnectorError> {
+    debug_assert!(batch.0 < batch.1, "Batch start must be less than batch end");
     let (client, transport) = tuple;
     let mut requests = vec![];
     let mut results = vec![];
@@ -59,10 +60,10 @@ pub async fn get_block_traces(
         request_count += 1;
     }
 
-    let batch_results = transport.send_batch(requests).await.map_err(|e| {
-        error!("Error submitting batch: {:?}", e);
-        ConnectorError::EthError(e)
-    })?;
+    let batch_results = transport
+        .send_batch(requests)
+        .await
+        .map_err(|e| ConnectorError::EthError(e))?;
 
     debug!(
         "Requests: {:?}, Results: {:?}",

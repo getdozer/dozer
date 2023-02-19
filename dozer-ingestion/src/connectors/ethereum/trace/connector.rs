@@ -65,7 +65,10 @@ impl Connector for EthTraceConnector {
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        Ok(())
+        let config = self.config.clone();
+        Runtime::new()
+            .unwrap()
+            .block_on(async { validate(config).await })
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
@@ -75,6 +78,18 @@ impl Connector for EthTraceConnector {
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
         self.get_tables_default(tables)
     }
+}
+
+pub async fn validate(config: EthTraceConfig) -> Result<(), ConnectorError> {
+    // Check if transport can be initialized
+    let tuple = conn_helper::get_batch_http_client(&config.https_url)
+        .await
+        .map_err(ConnectorError::EthError)?;
+
+    // Check if debug API is available
+    get_block_traces(tuple, (1000000, 1000005)).await?;
+
+    Ok(())
 }
 
 pub async fn run(
@@ -90,52 +105,64 @@ pub async fn run(
         "Starting Eth Trace connector: {} from block {}",
         conn_name, config.from_block
     );
-    let batch_iter = BatchIterator {
-        current_block: config.from_block,
-        to_block: config.to_block,
-        batch_size: config.batch_size,
-    };
+    let mut batch_iter = BatchIterator::new(config.from_block, config.to_block, config.batch_size);
 
     ingestor
         .handle_message(((config.from_block, 0), IngestionMessage::Begin()))
         .map_err(ConnectorError::IngestorError)?;
 
-    for batch in batch_iter {
+    let mut errors: Vec<ConnectorError> = vec![];
+    while let Some(batch) = batch_iter.next() {
         for retry in 0..RETRIES {
-            debug_assert!(
-                retry >= RETRIES - 1,
-                "Eth Trace connector failed more than {RETRIES} times"
-            );
+            if retry >= RETRIES - 1 {
+                error!("Eth Trace connector failed more than {RETRIES} times");
+                return Err(errors.pop().unwrap());
+            }
+
             let res = get_block_traces(client_tuple.clone(), batch).await;
-            if let Ok(arr) = res {
-                for result in arr {
-                    let ops = map_trace_to_ops(&result.result);
+            match res {
+                Ok(arr) => {
+                    for result in arr {
+                        let ops = map_trace_to_ops(&result.result);
 
-                    for op in ops {
-                        let message = IngestionMessage::OperationEvent(op);
-                        ingestor
-                            .handle_message(((batch.0, 0), message))
-                            .map_err(ConnectorError::IngestorError)?;
+                        for op in ops {
+                            let message = IngestionMessage::OperationEvent(op);
+                            ingestor
+                                .handle_message(((batch.0, 0), message))
+                                .map_err(ConnectorError::IngestorError)?;
+                        }
                     }
-                }
 
-                break;
-            } else {
-                error!(
-                    "Failed to get traces for block {}.. Attempt {}",
-                    batch.0,
-                    retry + 1
-                );
+                    break;
+                }
+                Err(e) => {
+                    errors.push(e);
+                    error!(
+                        "Failed to get traces for block {}.. Attempt {}",
+                        batch.0,
+                        retry + 1
+                    );
+                }
             }
         }
     }
     Ok(())
 }
 
-struct BatchIterator {
+pub struct BatchIterator {
     current_block: u64,
     to_block: Option<u64>,
     batch_size: u64,
+}
+
+impl BatchIterator {
+    pub fn new(current_block: u64, to_block: Option<u64>, batch_size: u64) -> Self {
+        Self {
+            current_block,
+            to_block,
+            batch_size,
+        }
+    }
 }
 impl Iterator for BatchIterator {
     type Item = (u64, u64);
@@ -147,8 +174,8 @@ impl Iterator for BatchIterator {
                 return None;
             }
 
-            if end_block > to_block {
-                end_block = to_block;
+            if end_block > to_block + 1 {
+                end_block = to_block + 1;
             }
         }
         let current_batch = (self.current_block, end_block);

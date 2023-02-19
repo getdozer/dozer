@@ -14,6 +14,20 @@ use crate::{
     ingestion::{IngestionConfig, Ingestor},
 };
 
+use super::connector::BatchIterator;
+
+#[test]
+fn test_iterator() {
+    let mut iter = BatchIterator::new(1, Some(2), 1);
+    assert_eq!(iter.next(), Some((1, 2)));
+    assert_eq!(iter.next(), Some((2, 3)));
+    assert_eq!(iter.next(), None);
+
+    let mut iter = BatchIterator::new(1, Some(1), 3);
+    assert_eq!(iter.next(), Some((1, 2)));
+    assert_eq!(iter.next(), None);
+}
+
 #[tokio::test]
 #[ignore]
 async fn test_get_block_traces() {
