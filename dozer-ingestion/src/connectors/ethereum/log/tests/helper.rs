@@ -12,7 +12,7 @@ use crate::{
 use dozer_types::{
     ingestion_types::{EthContract, EthFilter, EthLogConfig},
     log::info,
-    types::Operation,
+    types::{Operation, SourceSchema},
 };
 
 use tokio::runtime::Runtime;
@@ -73,9 +73,13 @@ pub fn get_eth_producer(
     );
 
     let schemas = eth_connector.get_schemas(None)?;
-    for (name, schema, _) in schemas {
+    for SourceSchema {
+        name,
+        schema,
+        replication_type: _,
+    } in schemas
+    {
         info!("Schema: {}, Id: {}", name, schema.identifier.unwrap().id);
-        // schema.print().printstd();
     }
 
     eth_connector.start(None, &ingestor, None)

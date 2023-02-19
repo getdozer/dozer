@@ -4,7 +4,7 @@ use std::path::Path;
 use dozer_types::ingestion_types::{GrpcConfig, IngestionMessage};
 use dozer_types::log::info;
 use dozer_types::serde_json;
-use dozer_types::types::{ReplicationChangesTrackingType, Schema, SchemaIdentifier};
+use dozer_types::types::{Schema, SchemaIdentifier, SourceSchema};
 
 use super::ingest::IngestorServiceImpl;
 use crate::connectors::grpc::ingest_grpc;
@@ -117,14 +117,7 @@ impl Connector for GrpcConnector {
     fn get_schemas(
         &self,
         _table_names: Option<Vec<TableInfo>>,
-    ) -> Result<
-        Vec<(
-            String,
-            dozer_types::types::Schema,
-            ReplicationChangesTrackingType,
-        )>,
-        ConnectorError,
-    > {
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
         Ok(vec![])
     }
 

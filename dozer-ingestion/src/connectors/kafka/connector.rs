@@ -3,10 +3,9 @@ use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
 
-use tokio::runtime::Runtime;
-
-use dozer_types::types::ReplicationChangesTrackingType;
+use dozer_types::types::SourceSchema;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
+use tokio::runtime::Runtime;
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
 use crate::connectors::kafka::debezium::schema_registry::SchemaRegistry;
@@ -29,14 +28,7 @@ impl Connector for KafkaConnector {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<
-        Vec<(
-            String,
-            dozer_types::types::Schema,
-            ReplicationChangesTrackingType,
-        )>,
-        ConnectorError,
-    > {
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
         self.config.schema_registry_url.clone().map_or(
             NoSchemaRegistry::get_schema(table_names.clone(), self.config.clone()),
             |_| SchemaRegistry::get_schema(table_names, self.config.clone()),

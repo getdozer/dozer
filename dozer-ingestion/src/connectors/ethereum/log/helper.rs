@@ -1,7 +1,7 @@
 use dozer_types::log::error;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, ReplicationChangesTrackingType, Schema,
-    SchemaIdentifier, SchemaWithChangesType, SourceDefinition,
+    SchemaIdentifier, SourceDefinition, SourceSchema,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ use super::sender::EthDetails;
 pub fn get_contract_event_schemas(
     contracts: HashMap<String, ContractTuple>,
     schema_map: HashMap<H256, usize>,
-) -> Vec<SchemaWithChangesType> {
+) -> Vec<SourceSchema> {
     let mut schemas = vec![];
 
     for (_, contract_tuple) in contracts {
@@ -49,7 +49,7 @@ pub fn get_contract_event_schemas(
                 .expect("schema is missing")
                 .to_owned();
 
-            schemas.push((
+            schemas.push(SourceSchema::new(
                 get_table_name(&contract_tuple, &event.name),
                 Schema {
                     identifier: Some(SchemaIdentifier {

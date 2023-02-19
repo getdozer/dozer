@@ -34,7 +34,7 @@ use dozer_types::models::app_config::Config;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::serde_yaml;
 use dozer_types::tracing::error;
-use dozer_types::types::{Operation, Schema, SchemaWithChangesType};
+use dozer_types::types::{Operation, Schema, SourceSchema};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -223,9 +223,7 @@ impl Orchestrator for SimpleOrchestrator {
         executor.run_dag_executor(dag_executor)
     }
 
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, Vec<SchemaWithChangesType>>, OrchestrationError> {
+    fn list_connectors(&self) -> Result<HashMap<String, Vec<SourceSchema>>, OrchestrationError> {
         Executor::get_tables(&self.config.connections)
     }
 

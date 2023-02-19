@@ -1,5 +1,5 @@
 use dozer_types::ingestion_types::{LocalStorage, S3Storage};
-use dozer_types::types::SchemaWithChangesType;
+use dozer_types::types::SourceSchema;
 use std::collections::HashMap;
 
 use crate::connectors::object_store::schema_mapper::{Mapper, SchemaMapper};
@@ -32,7 +32,7 @@ impl Connector for ObjectStoreConnector<S3Storage> {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> ConnectorResult<Vec<SchemaWithChangesType>> {
+    ) -> ConnectorResult<Vec<SourceSchema>> {
         let mapper = SchemaMapper::new(self.config.clone());
         mapper.get_schema(table_names)
     }
@@ -68,7 +68,7 @@ impl Connector for ObjectStoreConnector<LocalStorage> {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> ConnectorResult<Vec<SchemaWithChangesType>> {
+    ) -> ConnectorResult<Vec<SourceSchema>> {
         let mapper = SchemaMapper::new(self.config.clone());
         mapper.get_schema(table_names)
     }

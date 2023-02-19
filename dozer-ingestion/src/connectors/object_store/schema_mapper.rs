@@ -9,7 +9,7 @@ use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::prelude::SessionContext;
 use dozer_types::log::error;
 use dozer_types::types::ReplicationChangesTrackingType::Nothing;
-use dozer_types::types::{Schema, SchemaIdentifier, SchemaWithChangesType};
+use dozer_types::types::{Schema, SchemaIdentifier, SourceSchema};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -52,14 +52,14 @@ pub trait Mapper<T> {
     fn get_schema(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
+    ) -> Result<Vec<SourceSchema>, ConnectorError>;
 }
 
 impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
     fn get_schema(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 
         let tables_list = tables.unwrap_or_else(|| {
@@ -106,7 +106,7 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
 
                 let schema = self.map_schema(id as u32, resolved_schema, table)?;
 
-                Ok((table_name, schema, Nothing))
+                Ok(SourceSchema::new(table_name, schema, Nothing))
             })
             .collect()
     }

@@ -9,7 +9,7 @@ use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError}
 use dozer_types::{
     crossbeam::channel::Sender,
     log::debug,
-    types::{Operation, SchemaWithChangesType},
+    types::{Operation, SourceSchema},
 };
 use errors::OrchestrationError;
 use std::{
@@ -37,9 +37,7 @@ pub trait Orchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError>;
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, Vec<SchemaWithChangesType>>, OrchestrationError>;
+    fn list_connectors(&self) -> Result<HashMap<String, Vec<SourceSchema>>, OrchestrationError>;
     fn generate_token(&self) -> Result<String, OrchestrationError>;
     fn query(
         &self,

@@ -44,11 +44,21 @@ pub struct EthFilter {
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct GrpcConfig {
     #[prost(string, tag = "1", default = "0.0.0.0")]
+    #[serde(default = "default_ingest_host")]
     pub host: String,
     #[prost(uint32, tag = "2", default = "8085")]
+    #[serde(default = "default_ingest_port")]
     pub port: u32,
     #[prost(oneof = "GrpcConfigSchemas", tags = "3,4")]
     pub schemas: Option<GrpcConfigSchemas>,
+}
+
+fn default_ingest_host() -> String {
+    "0.0.0.0".to_owned()
+}
+
+fn default_ingest_port() -> u32 {
+    8085
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
@@ -99,8 +109,13 @@ pub struct EthTraceConfig {
     pub from_block: u64,
     #[prost(uint64, optional, tag = "3")]
     pub to_block: Option<u64>,
-    #[prost(uint64, tag = "4", default = "100")]
+    #[prost(uint64, tag = "4", default = "3")]
+    #[serde(default = "default_batch_size")]
     pub batch_size: u64,
+}
+
+fn default_batch_size() -> u64 {
+    3
 }
 
 impl EthConfig {

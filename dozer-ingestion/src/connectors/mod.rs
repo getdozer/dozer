@@ -19,7 +19,7 @@ use crate::connectors::object_store::connector::ObjectStoreConnector;
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
-use dozer_types::types::SchemaWithChangesType;
+use dozer_types::types::SourceSchema;
 
 pub mod snowflake;
 
@@ -36,7 +36,7 @@ pub trait Connector: Send + Sync {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
+    ) -> Result<Vec<SourceSchema>, ConnectorError>;
     fn start(
         &self,
         from_seq: Option<(u64, u64)>,
@@ -54,12 +54,13 @@ pub trait Connector: Send + Sync {
             .get_schemas(tables.map(|t| t.to_vec()))?
             .iter()
             .enumerate()
-            .map(|(id, (n, s, _))| TableInfo {
-                name: n.to_string(),
-                table_name: n.to_string(),
+            .map(|(id, s)| TableInfo {
+                name: s.name.to_string(),
+                table_name: s.name.to_string(),
                 id: id as u32,
                 columns: Some(
-                    s.fields
+                    s.schema
+                        .fields
                         .iter()
                         .map(|f| ColumnInfo {
                             name: f.name.to_string(),

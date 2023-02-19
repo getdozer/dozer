@@ -19,10 +19,10 @@ pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {
     for (c, tables) in connection_map {
         table_parent.add_row(row!["Connection", "Table", "Columns"]);
 
-        for (schema_name, schema, _) in tables {
-            let schema_table = schema.print();
+        for s in tables {
+            let schema_table = s.schema.print();
 
-            table_parent.add_row(row![c, schema_name, schema_table]);
+            table_parent.add_row(row![c, s.name, schema_table]);
         }
         table_parent.add_empty_row();
     }

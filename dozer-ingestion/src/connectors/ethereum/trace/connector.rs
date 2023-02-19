@@ -10,7 +10,7 @@ use crate::{
 };
 use dozer_types::ingestion_types::{EthTraceConfig, IngestionMessage};
 use dozer_types::log::{error, info};
-use dozer_types::types::ReplicationChangesTrackingType;
+use dozer_types::types::{ReplicationChangesTrackingType, SourceSchema};
 
 use tokio::runtime::Runtime;
 
@@ -36,15 +36,8 @@ impl Connector for EthTraceConnector {
     fn get_schemas(
         &self,
         _table_names: Option<Vec<TableInfo>>,
-    ) -> Result<
-        Vec<(
-            String,
-            dozer_types::types::Schema,
-            ReplicationChangesTrackingType,
-        )>,
-        ConnectorError,
-    > {
-        Ok(vec![(
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+        Ok(vec![SourceSchema::new(
             ETH_TRACE_TABLE.to_string(),
             helper::get_trace_schema(),
             ReplicationChangesTrackingType::Nothing,

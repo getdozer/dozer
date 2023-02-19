@@ -66,8 +66,8 @@ fn test_trace_iterator() {
         );
 
         let schemas = connector.get_schemas(None).unwrap();
-        for (_, schema, _) in schemas {
-            schema.print().printstd();
+        for s in schemas {
+            s.schema.print().printstd();
         }
         connector.start(None, &ingestor, None).unwrap();
     });

@@ -10,7 +10,7 @@ use dozer_types::serde_json;
 
 use super::helper;
 use super::sender::{run, EthDetails};
-use dozer_types::types::ReplicationChangesTrackingType;
+use dozer_types::types::{ReplicationChangesTrackingType, SourceSchema};
 use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
@@ -124,15 +124,8 @@ impl Connector for EthLogConnector {
     fn get_schemas(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<
-        Vec<(
-            String,
-            dozer_types::types::Schema,
-            ReplicationChangesTrackingType,
-        )>,
-        ConnectorError,
-    > {
-        let mut schemas = vec![(
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+        let mut schemas = vec![SourceSchema::new(
             ETH_LOGS_TABLE.to_string(),
             helper::get_eth_schema(),
             ReplicationChangesTrackingType::Nothing,
@@ -147,7 +140,7 @@ impl Connector for EthLogConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|(n, _, _)| tables.iter().any(|t| t.table_name == *n))
+                .filter(|s| tables.iter().any(|t| t.table_name == s.name))
                 .cloned()
                 .collect()
         } else {

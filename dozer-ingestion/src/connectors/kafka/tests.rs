@@ -156,8 +156,8 @@ fn connector_disabled_test_e2e_connect_debezium_json_and_get_schema() {
 
     pg_client.drop_table();
 
-    assert_eq!(topic, schemas.get(0).unwrap().0);
-    assert_eq!(4, schemas.get(0).unwrap().1.fields.len());
+    assert_eq!(topic, schemas.get(0).unwrap().name);
+    assert_eq!(4, schemas.get(0).unwrap().schema.fields.len());
 }
 
 #[ignore]
@@ -213,6 +213,6 @@ fn connector_disabled_test_e2e_connect_debezium_avro_and_get_schema() {
 
     pg_client.drop_table();
 
-    assert_eq!(topic, schemas.get(0).unwrap().0);
-    assert_eq!(4, schemas.get(0).unwrap().1.fields.len());
+    assert_eq!(topic, schemas.get(0).unwrap().name);
+    assert_eq!(4, schemas.get(0).unwrap().schema.fields.len());
 }
