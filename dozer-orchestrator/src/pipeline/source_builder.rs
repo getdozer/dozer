@@ -114,7 +114,6 @@ mod tests {
     use dozer_sql::pipeline::builder::SchemaSQLContext;
     use dozer_types::models::connection::{Connection, ConnectionConfig};
     use dozer_types::models::source::Source;
-    use dozer_types::types::SourceSchema;
 
     fn get_default_config() -> Config {
         let schema_str = include_str!("./schemas.json");
@@ -143,7 +142,7 @@ mod tests {
                     name: "customers".to_string(),
                     table_name: "customers".to_string(),
                     columns: vec!["id".to_string(), "name".to_string()],
-                    connection: Some(grpc_conn.clone()),
+                    connection: Some(grpc_conn),
                     refresh_config: None,
                 },
             ],

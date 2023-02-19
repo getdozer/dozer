@@ -2,7 +2,6 @@ use std::fs;
 
 use crate::errors::AdminError;
 use dozer_types::constants::DEFAULT_HOME_DIR;
-use dozer_types::models::api_config::default_api_config;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_yaml;
 pub mod cli_process;
@@ -44,7 +43,6 @@ fn default_home_dir() -> String {
 
 impl Default for AdminCliConfig {
     fn default() -> Self {
-        let default_config = default_api_config();
         Self {
             port: 8081,
             ui_port: 3000,
