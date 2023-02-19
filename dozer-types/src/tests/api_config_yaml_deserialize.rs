@@ -61,7 +61,7 @@ fn override_grpc_port() {
     let input_config = r#"
   app_name: working_app
   api:
-    grpc:
+    api_grpc:
       port: 4232
   home_dir: './.dozer' 
 "#;
@@ -122,7 +122,7 @@ fn override_grpc_and_rest_port_jwt() {
     let input_config = r#"
   app_name: working_app
   api:
-    grpc:
+    api_grpc:
       port: 4232
     rest:
       port: 3324
@@ -162,13 +162,13 @@ fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
     let input_config = r#"
   app_name: working_app
   api:
-    grpc:
+    api_grpc:
       port: 4232
     rest:
       port: 3324
     api_security: !Jwt
       Vv44T1GugX      
-    pipeline_internal:
+    app_grpc:
       home_dir: './pipeline_folder'
       port: 3993
     
