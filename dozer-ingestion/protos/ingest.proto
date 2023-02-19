@@ -19,4 +19,4 @@ message IngestRequest {
 
   uint32 seq_no = 5;
 }
-message IngestResponse {}
+message IngestResponse { uint32 seq_no = 1; }

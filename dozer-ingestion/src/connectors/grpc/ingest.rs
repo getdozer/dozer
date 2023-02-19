@@ -48,7 +48,7 @@ impl IngestorServiceImpl {
         ingestor
             .handle_message(((0, req.seq_no as u64), IngestionMessage::OperationEvent(op)))
             .map_err(|e| tonic::Status::internal(format!("ingestion error: {}", e)))?;
-        Ok(tonic::Response::new(IngestResponse {}))
+        Ok(tonic::Response::new(IngestResponse { seq_no: req.seq_no }))
     }
 }
 #[tonic::async_trait]
@@ -69,13 +69,19 @@ impl IngestService for IngestorServiceImpl {
 
         let ingestor = self.ingestor;
         let schema_map = self.schema_map;
-        tokio::spawn(async move {
+
+        let seq_no = tokio::spawn(async move {
+            let mut seq_no = 0;
             while let Some(result) = in_stream.next().await {
                 let req = result.unwrap();
+                seq_no = req.seq_no;
                 Self::insert(req, schema_map, ingestor).unwrap();
             }
-        });
-        Ok(tonic::Response::new(IngestResponse {}))
+            seq_no
+        })
+        .await
+        .map_err(|e| tonic::Status::internal(format!("ingestion stream error: {}", e)))?;
+        Ok(tonic::Response::new(IngestResponse { seq_no }))
     }
 }
 
