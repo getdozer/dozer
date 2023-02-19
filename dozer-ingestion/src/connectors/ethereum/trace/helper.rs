@@ -63,7 +63,7 @@ pub async fn get_block_traces(
     let batch_results = transport
         .send_batch(requests)
         .await
-        .map_err(|e| ConnectorError::EthError(e))?;
+        .map_err(ConnectorError::EthError)?;
 
     debug!(
         "Requests: {:?}, Results: {:?}",

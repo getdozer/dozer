@@ -46,7 +46,7 @@ impl GrpcConnector {
                     "schemas not found".to_string(),
                 ))
             },
-            |s| Ok(s),
+            Ok,
         )?;
         let schemas_str = match schemas {
             dozer_types::ingestion_types::GrpcConfigSchemas::Inline(schemas_str) => {
@@ -97,7 +97,7 @@ impl GrpcConnector {
         let port = self.config.port;
 
         let addr = format!("{host:}:{port:}").parse().map_err(|e| {
-            ConnectorError::InitializationError(format!("Failed to parse address: {}", e))
+            ConnectorError::InitializationError(format!("Failed to parse address: {e}"))
         })?;
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let schema_map = Self::get_schema_map(&self.config)?;
@@ -108,7 +108,7 @@ impl GrpcConnector {
             let ingestor =
                 unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
             let schema_map = schema_map.clone();
-            let ingest_service = IngestorServiceImpl::new(&schema_map, &ingestor);
+            let ingest_service = IngestorServiceImpl::new(&schema_map, ingestor);
             let ingest_service = tonic_web::config()
                 .allow_all_origins()
                 .enable(IngestServiceServer::new(ingest_service));

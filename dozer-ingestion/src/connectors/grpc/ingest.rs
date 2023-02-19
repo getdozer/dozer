@@ -35,19 +35,19 @@ impl IngestorServiceImpl {
 
         let op = match req.typ() {
             super::types::OperationType::Insert => Operation::Insert {
-                new: map_record(req.new.unwrap(), &schema),
+                new: map_record(req.new.unwrap(), schema),
             },
             super::types::OperationType::Delete => Operation::Delete {
-                old: map_record(req.old.unwrap(), &schema),
+                old: map_record(req.old.unwrap(), schema),
             },
             super::types::OperationType::Update => Operation::Update {
-                old: map_record(req.old.unwrap(), &schema),
-                new: map_record(req.new.unwrap(), &schema),
+                old: map_record(req.old.unwrap(), schema),
+                new: map_record(req.new.unwrap(), schema),
             },
         };
         ingestor
             .handle_message(((0, req.seq_no as u64), IngestionMessage::OperationEvent(op)))
-            .map_err(|e| tonic::Status::internal(format!("ingestion error: {}", e)))?;
+            .map_err(|e| tonic::Status::internal(format!("ingestion error: {e}")))?;
         Ok(tonic::Response::new(IngestResponse { seq_no: req.seq_no }))
     }
 }
@@ -80,7 +80,7 @@ impl IngestService for IngestorServiceImpl {
             seq_no
         })
         .await
-        .map_err(|e| tonic::Status::internal(format!("ingestion stream error: {}", e)))?;
+        .map_err(|e| tonic::Status::internal(format!("ingestion stream error: {e}")))?;
         Ok(tonic::Response::new(IngestResponse { seq_no }))
     }
 }
@@ -107,13 +107,13 @@ fn map_record(rec: super::types::Record, schema: &Schema) -> Record {
             }
             super::types::value::Value::ArrayValue(_) => todo!(),
             super::types::value::Value::DoubleValue(a) => {
-                dozer_types::types::Field::Float(OrderedFloat(*a as f64))
+                dozer_types::types::Field::Float(OrderedFloat(*a))
             }
         });
         values.push(v.unwrap_or(dozer_types::types::Field::Null));
     }
     Record {
-        schema_id: schema.identifier.clone(),
+        schema_id: schema.identifier,
         values,
         version: None,
     }

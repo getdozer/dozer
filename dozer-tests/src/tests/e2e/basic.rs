@@ -31,7 +31,7 @@ fn ingest_and_test() {
     // Start Dozer
     thread::spawn(move || {
         let mut dozer = Dozer::new(cfg);
-        dozer.run_all(running.clone()).unwrap();
+        dozer.run_all(running).unwrap();
     });
     Runtime::new().unwrap().block_on(async {
         // Query Dozer
@@ -39,7 +39,6 @@ fn ingest_and_test() {
         let mut res = IngestServiceClient::connect("http://[::1]:8085").await;
         for r in 0..retries {
             if res.is_ok() {
-                println!("connected to ingest after {r} times");
                 break;
             }
             if r == retries - 1 {
@@ -83,7 +82,6 @@ fn ingest_and_test() {
         let mut res = CommonGrpcServiceClient::connect("http://0.0.0.0:50051").await;
         for r in 0..retries {
             if res.is_ok() {
-                println!("connected to common service after {r} times");
                 break;
             }
             if r == retries - 1 {

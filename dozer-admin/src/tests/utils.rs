@@ -79,7 +79,7 @@ pub fn get_sample_config() -> String {
 fn setup_data(connection: &mut SqliteConnection, config_id: TestConfigId) {
     // let generated_app_id = uuid::Uuid::new_v4().to_string();
     // create app
-    insert_apps(connection, config_id.app_id.to_owned(), get_sample_config());
+    insert_apps(connection, config_id.app_id, get_sample_config());
 }
 
 fn insert_apps(connection: &mut SqliteConnection, app_id: String, config: String) {

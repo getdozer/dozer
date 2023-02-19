@@ -4,10 +4,9 @@ use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, Co
 use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, Orchestrator};
-use dozer_types::crossbeam::channel;
+
 use dozer_types::log::{error, info};
-use dozer_types::tracing::warn;
-use std::borrow::BorrowMut;
+
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;

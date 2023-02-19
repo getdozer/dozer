@@ -40,7 +40,7 @@ mod grpc_service {
             .unwrap();
         let created_id = create_result.id.clone();
         assert_eq!(
-            create_result.connection.to_owned().unwrap().name,
+            create_result.connection.unwrap().name,
             request.connection.unwrap().name
         );
 
