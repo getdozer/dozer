@@ -4,12 +4,12 @@ use std::thread;
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
-use dozer_types::models::connection::{Authentication, Connection};
+use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::serde_yaml;
 
 pub fn get_client() -> TestPostgresClient {
     let config =
-        serde_yaml::from_str::<Authentication>(load_config("test.postgres.auth.yaml")).unwrap();
+        serde_yaml::from_str::<ConnectionConfig>(load_config("test.postgres.auth.yaml")).unwrap();
 
     TestPostgresClient::new(&config)
 }

@@ -4,7 +4,7 @@ use dozer_types::{
     log::info,
     models::{
         app_config::Config,
-        connection::{Authentication, Connection, DBType, PostgresAuthentication},
+        connection::{Connection, ConnectionConfig, PostgresConfig},
     },
     serde_yaml,
 };
@@ -73,8 +73,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             let connection: Connection = Connection {
                 name: "snowflake".to_owned(),
-                authentication: Some(Authentication::Snowflake(snowflake_config)),
-                db_type: DBType::Ethereum as i32,
+                config: Some(ConnectionConfig::Snowflake(snowflake_config)),
             };
             connection
         }
@@ -85,7 +84,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 addresses: vec![],
                 topics: vec![],
             };
-            let ethereum_auth = EthConfig {
+            let ethereum_config = EthConfig {
                 provider: Some(EthProviderConfig::Log(EthLogConfig {
                     wss_url: "wss://link".to_owned(),
                     filter: Some(eth_filter),
@@ -94,13 +93,12 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             let connection: Connection = Connection {
                 name: "ethereum".to_owned(),
-                authentication: Some(Authentication::Ethereum(ethereum_auth)),
-                db_type: DBType::Ethereum as i32,
+                config: Some(ConnectionConfig::Ethereum(ethereum_config)),
             };
             connection
         }
         _ => {
-            let postgres_auth = PostgresAuthentication {
+            let postgres_config = PostgresConfig {
                 user: "postgres".to_owned(),
                 password: "postgres".to_owned(),
                 host: "localhost".to_owned(),
@@ -109,8 +107,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             let connection: Connection = Connection {
                 name: "postgres".to_owned(),
-                authentication: Some(Authentication::Postgres(postgres_auth)),
-                db_type: DBType::Postgres as i32,
+                config: Some(ConnectionConfig::Postgres(postgres_config)),
             };
             connection
         }

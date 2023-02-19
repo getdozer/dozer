@@ -107,25 +107,22 @@ impl SourceBuilder {
 #[cfg(test)]
 mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
+    use dozer_types::ingestion_types::GrpcConfig;
     use dozer_types::models::app_config::Config;
 
     use dozer_core::appsource::{AppSourceId, AppSourceMappings};
     use dozer_sql::pipeline::builder::SchemaSQLContext;
-    use dozer_types::models::connection::{
-        Authentication, Connection, DBType, EventsAuthentication,
-    };
+    use dozer_types::models::connection::{Connection, ConnectionConfig};
     use dozer_types::models::source::Source;
 
     fn get_default_config() -> Config {
         let events1_conn = Connection {
-            authentication: Some(Authentication::Events(EventsAuthentication {})),
-            db_type: DBType::Postgres.into(),
+            config: Some(ConnectionConfig::Grpc(GrpcConfig::default())),
             name: "pg_conn".to_string(),
         };
 
         let events2_conn = Connection {
-            authentication: Some(Authentication::Events(EventsAuthentication {})),
-            db_type: DBType::Snowflake.into(),
+            config: Some(ConnectionConfig::Grpc(GrpcConfig::default())),
             name: "snow".to_string(),
         };
 

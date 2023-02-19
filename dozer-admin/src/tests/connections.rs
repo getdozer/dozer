@@ -1,13 +1,12 @@
 #[cfg(test)]
 mod grpc_service {
-    use dozer_types::models::connection::{
-        Authentication, AuthenticationWrapper, DBType, EventsAuthentication,
-    };
+    use dozer_orchestrator::Connection;
+    use dozer_types::ingestion_types::GrpcConfig;
+    use dozer_types::models::connection::ConnectionConfig;
 
     use crate::server::dozer_admin_grpc::{
-        ConnectionResponse, CreateConnectionRequest, GetAllConnectionRequest,
-        GetAllConnectionResponse, GetTablesRequest, UpdateConnectionRequest,
-        ValidateConnectionRequest, ValidateConnectionResponse,
+        ConnectionRequest, ConnectionResponse, GetAllConnectionRequest, GetAllConnectionResponse,
+        GetTablesRequest, UpdateConnectionRequest, ValidateConnectionResponse,
     };
     use crate::services::connection_service::ConnectionService;
     use crate::tests::utils::database_url_for_test_env;
@@ -20,28 +19,29 @@ mod grpc_service {
         let connection_service = ConnectionService::new(db_pool);
 
         // Create
-        let request = CreateConnectionRequest {
-            name: "connection_name".to_owned(),
-            r#type: DBType::Events as i32,
-            authentication: Some(AuthenticationWrapper {
-                authentication: Some(Authentication::Events(EventsAuthentication {})),
+        let request = ConnectionRequest {
+            connection: Some(Connection {
+                name: "grpc_test".to_string(),
+                config: Some(ConnectionConfig::Grpc(GrpcConfig {
+                    host: "localhost".to_owned(),
+                    port: 50051,
+                    schemas: None,
+                })),
             }),
         };
+
+        // config: dozer_admin_grpc::connection_config::Config::Grpc(GrpcConfig {
+        //     host: "localhost".to_owned(),
+        //     port: 50051,
+        //     schemas: None,
+        // }),
         let create_result: ConnectionResponse = connection_service
             .create_connection(request.to_owned())
             .unwrap();
         let created_id = create_result.id.clone();
         assert_eq!(
             create_result.connection.to_owned().unwrap().name,
-            request.name
-        );
-        assert_eq!(
-            create_result.connection.to_owned().unwrap().db_type,
-            request.r#type
-        );
-        assert_eq!(
-            create_result.connection.unwrap().authentication,
-            request.authentication.unwrap().authentication
+            request.connection.unwrap().name
         );
 
         // List
@@ -56,12 +56,16 @@ mod grpc_service {
 
         let request = UpdateConnectionRequest {
             connection_id: created_id,
-            name: "updated_connection_name".to_owned(),
-            r#type: 0,
-            authentication: None,
+            connection: Some(Connection {
+                name: "updated_connection_name".to_owned(),
+                config: None,
+            }),
         };
         let result: ConnectionResponse = connection_service.update(request.to_owned()).unwrap();
-        assert_eq!(result.connection.unwrap().name, request.name);
+        assert_eq!(
+            result.connection.unwrap().name,
+            request.connection.unwrap().name
+        );
     }
 
     #[tokio::test]
@@ -87,11 +91,14 @@ mod grpc_service {
         let db_pool = establish_test_connection(test_db_connection);
         let connection_service = ConnectionService::new(db_pool);
         let result: ValidateConnectionResponse = connection_service
-            .validate_connection(ValidateConnectionRequest {
-                name: "test_connection".to_owned(),
-                r#type: DBType::Events as i32,
-                authentication: Some(AuthenticationWrapper {
-                    authentication: Some(Authentication::Events(EventsAuthentication {})),
+            .validate_connection(ConnectionRequest {
+                connection: Some(Connection {
+                    name: "grpc_test".to_string(),
+                    config: Some(ConnectionConfig::Grpc(GrpcConfig {
+                        host: "localhost".to_owned(),
+                        port: 50051,
+                        schemas: None,
+                    })),
                 }),
             })
             .await

@@ -86,6 +86,7 @@ impl Executor {
 
         let source_builder = SourceBuilder::new(used_sources, grouped_connections);
         let asm = source_builder.build_source_manager()?;
+
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 

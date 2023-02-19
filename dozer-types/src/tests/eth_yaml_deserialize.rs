@@ -1,6 +1,6 @@
 use crate::{
     ingestion_types::{EthConfig, EthFilter, EthLogConfig},
-    models::connection::Authentication,
+    models::connection::ConnectionConfig,
 };
 #[test]
 fn standard() {
@@ -14,7 +14,7 @@ fn standard() {
             topics: []
       contracts: []
   "#;
-    let deserializer_result = serde_yaml::from_str::<Authentication>(eth_config).unwrap();
+    let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(eth_config).unwrap();
     let expected_eth_filter = EthFilter {
         from_block: Some(0),
         to_block: None,
@@ -30,7 +30,7 @@ fn standard() {
             },
         )),
     };
-    let expected = Authentication::Ethereum(expected_eth_config);
+    let expected = ConnectionConfig::Ethereum(expected_eth_config);
     assert_eq!(expected, deserializer_result);
 }
 
@@ -43,7 +43,7 @@ fn config_without_empty_array() {
         filter:
         from_block: 499203
   "#;
-    let deserializer_result = serde_yaml::from_str::<Authentication>(eth_config).unwrap();
+    let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(eth_config).unwrap();
     let expected_eth_filter = EthFilter {
         from_block: Some(499203),
         to_block: None,
@@ -59,6 +59,6 @@ fn config_without_empty_array() {
             },
         )),
     };
-    let expected = Authentication::Ethereum(expected_eth_config);
+    let expected = ConnectionConfig::Ethereum(expected_eth_config);
     assert_eq!(expected, deserializer_result);
 }

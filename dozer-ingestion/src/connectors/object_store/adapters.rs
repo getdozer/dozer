@@ -54,7 +54,7 @@ impl DozerObjectStore for S3Storage {
             .with_access_key_id(&details.access_key_id)
             .with_secret_access_key(&details.secret_access_key)
             .build()
-            .map_err(|_| ConnectorError::InitializationError)?;
+            .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
 
         Ok(DozerObjectStoreParams {
             scheme: "s3",
@@ -80,7 +80,7 @@ impl DozerObjectStore for LocalStorage {
         let path = get_details(&self.details)?.path.as_str();
 
         let object_store = LocalFileSystem::new_with_prefix(path)
-            .map_err(|_| ConnectorError::InitializationError)?;
+            .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
 
         Ok(DozerObjectStoreParams {
             scheme: "local",

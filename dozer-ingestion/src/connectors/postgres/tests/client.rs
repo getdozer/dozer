@@ -1,5 +1,5 @@
 use crate::connectors::postgres::connection::helper::{connect, map_connection_config};
-use dozer_types::models::connection::Authentication;
+use dozer_types::models::connection::ConnectionConfig;
 use dozer_types::rust_decimal::Decimal;
 use postgres::Client;
 use std::fmt::Write;
@@ -10,7 +10,7 @@ pub struct TestPostgresClient {
 }
 
 impl TestPostgresClient {
-    pub fn new(auth: &Authentication) -> Self {
+    pub fn new(auth: &ConnectionConfig) -> Self {
         let postgres_config = map_connection_config(auth).unwrap();
 
         let client = connect(postgres_config.clone()).unwrap();

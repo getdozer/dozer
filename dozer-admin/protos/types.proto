@@ -12,36 +12,27 @@ message AppConfig {
 }
 
 message Connection {
-  oneof authentication {
-    PostgresAuthentication Postgres = 1;
-    EthereumAuthentication Ethereum = 2;
-    EventsAuthentication Events = 3;
-    SnowflakeAuthentication Snowflake = 4;
-    KafkaAuthentication Kafka = 5;
+  oneof config {
+    PostgresConfig Postgres = 1;
+    EthereumConfig Ethereum = 2;
+    GrpcConfig Grpc = 3;
+    SnowflakeConfig Snowflake = 4;
+    KafkaConfig Kafka = 5;
   }
-  DBType db_type = 8;
   string name = 9;
 }
 
-enum DBType {
-  Postgres = 0;
-  Snowflake = 1;
-  Ethereum = 2;
-  Events = 3;
-  Kafka = 4;
-}
-
-message Authentication {
-  oneof authentication {
-    PostgresAuthentication Postgres = 1;
-    EthereumAuthentication Ethereum = 2;
-    EventsAuthentication Events = 3;
-    SnowflakeAuthentication Snowflake = 4;
-    KafkaAuthentication Kafka = 5;
+message ConnectionConfig {
+  oneof config {
+    PostgresConfig Postgres = 1;
+    EthereumConfig Ethereum = 2;
+    GrpcConfig Grpc = 3;
+    SnowflakeConfig Snowflake = 4;
+    KafkaConfig Kafka = 5;
   }
 }
 
-message SnowflakeAuthentication {
+message SnowflakeConfig {
   string server = 1;
   string port = 2;
   string user = 3;
@@ -51,21 +42,34 @@ message SnowflakeAuthentication {
   string warehouse = 7;
   optional string driver = 8;
 }
-message PostgresAuthentication {
+message PostgresConfig {
   string user = 1;
   string password = 2;
   string host = 3;
   uint32 port = 4;
   string database = 5;
 }
-message KafkaAuthentication {
+
+message GrpcConfig {
+  string host = 3;
+  uint32 port = 4;
+  string schemas = 5;
+}
+
+message GrpcConfigSchemas {
+  oneof schemas {
+    string Inline = 1;
+    string Path = 2;
+  }
+}
+message KafkaConfig {
   string broker = 1;
   string topic = 2;
   optional string schema_registry_url = 3;
 }
-message EventsAuthentication { string database = 1; }
+message EventsConfig { string database = 1; }
 
-message EthereumAuthentication {
+message EthereumConfig {
   EthereumFilter filter = 1;
   string wss_url = 2;
   string name = 3;

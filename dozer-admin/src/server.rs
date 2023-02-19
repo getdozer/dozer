@@ -15,13 +15,13 @@ pub mod dozer_admin_grpc {
 use self::dozer_admin_grpc::{
     GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
     ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, UpdateAppRequest,
-    ValidateConnectionRequest, ValidateConnectionResponse,
+    ValidateConnectionResponse,
 };
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
-    AppResponse, ConnectionResponse, CreateAppRequest, CreateConnectionRequest,
-    GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetTablesRequest,
-    GetTablesResponse, StartPipelineRequest, StartPipelineResponse, UpdateConnectionRequest,
+    AppResponse, ConnectionRequest, ConnectionResponse, CreateAppRequest, GetAllConnectionRequest,
+    GetAllConnectionResponse, GetAppRequest, GetTablesRequest, GetTablesResponse,
+    StartPipelineRequest, StartPipelineResponse, UpdateConnectionRequest,
 };
 
 pub struct GrpcService {
@@ -108,7 +108,7 @@ impl DozerAdmin for GrpcService {
 
     async fn validate_connection(
         &self,
-        request: tonic::Request<ValidateConnectionRequest>,
+        request: tonic::Request<ConnectionRequest>,
     ) -> Result<tonic::Response<ValidateConnectionResponse>, tonic::Status> {
         let result = self
             .connection_service
@@ -121,7 +121,7 @@ impl DozerAdmin for GrpcService {
 
     async fn create_connection(
         &self,
-        request: Request<CreateConnectionRequest>,
+        request: Request<ConnectionRequest>,
     ) -> Result<Response<ConnectionResponse>, Status> {
         let result = self
             .connection_service
