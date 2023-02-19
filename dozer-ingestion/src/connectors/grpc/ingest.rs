@@ -37,8 +37,13 @@ impl IngestorServiceImpl {
             super::types::OperationType::Insert => Operation::Insert {
                 new: map_record(req.new.unwrap(), &schema),
             },
-            super::types::OperationType::Delete => todo!(),
-            super::types::OperationType::Update => todo!(),
+            super::types::OperationType::Delete => Operation::Delete {
+                old: map_record(req.old.unwrap(), &schema),
+            },
+            super::types::OperationType::Update => Operation::Update {
+                old: map_record(req.old.unwrap(), &schema),
+                new: map_record(req.new.unwrap(), &schema),
+            },
         };
         ingestor
             .handle_message(((0, req.seq_no as u64), IngestionMessage::OperationEvent(op)))
