@@ -34,7 +34,7 @@ impl Client {
         let rest = api.rest.unwrap_or_default();
         let rest_endpoint = format!("http://{}:{}", rest.host, rest.port);
 
-        let grpc = api.grpc.unwrap_or_default();
+        let grpc = api.api_grpc.unwrap_or_default();
         let grpc_endpoint_string = format!("http://{}:{}", grpc.host, grpc.port);
         let grpc_endpoint = Endpoint::from_shared(grpc_endpoint_string.clone())
             .unwrap_or_else(|e| panic!("Invalid grpc endpoint {grpc_endpoint_string}: {e}"));

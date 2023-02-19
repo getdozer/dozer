@@ -4,8 +4,8 @@ use crate::errors::OrchestrationError;
 use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_cache_dir, get_flags, get_grpc_config,
-    get_pipeline_config, get_pipeline_dir, get_rest_config,
+    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir, get_flags,
+    get_grpc_config, get_pipeline_dir, get_rest_config,
 };
 use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
@@ -30,14 +30,13 @@ use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
-use dozer_types::serde_yaml;
 use dozer_types::tracing::error;
 use dozer_types::types::{Operation, Schema, SourceSchema};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::{broadcast, oneshot};
@@ -58,30 +57,6 @@ impl SimpleOrchestrator {
             config,
             cache_manager_options,
         }
-    }
-    fn write_internal_config(&self) -> Result<(), OrchestrationError> {
-        let path = Path::new(&self.config.home_dir).join("internal_config");
-        if path.exists() {
-            fs::remove_dir_all(&path).unwrap();
-        }
-        fs::create_dir_all(&path).unwrap();
-        let yaml_path = path.join("config.yaml");
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(yaml_path)
-            .expect("Couldn't open file");
-        let api_config = self.config.api.to_owned().unwrap_or_default();
-        let api_internal = api_config.to_owned().api_internal.unwrap_or_default();
-        let pipeline_internal = api_config.pipeline_internal.unwrap_or_default();
-        let mut internal_content = serde_yaml::Value::default();
-        internal_content["api_internal"] = serde_yaml::to_value(api_internal)
-            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
-        internal_content["pipeline_internal"] = serde_yaml::to_value(pipeline_internal)
-            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
-        serde_yaml::to_writer(f, &internal_content)
-            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
-        Ok(())
     }
 }
 
@@ -128,7 +103,7 @@ impl Orchestrator for SimpleOrchestrator {
             });
             // Initiate Push Events
             // create broadcast channel
-            let pipeline_config = get_pipeline_config(self.config.to_owned());
+            let pipeline_config = get_app_grpc_config(self.config.to_owned());
 
             let rx1 = if flags.push_events {
                 let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
@@ -283,8 +258,6 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
-        self.write_internal_config()
-            .map_err(|e| InternalError(Box::new(e)))?;
         let pipeline_home_dir = get_pipeline_dir(&self.config);
         let api_dir = get_api_dir(&self.config);
         let cache_dir = get_cache_dir(&self.config);

@@ -69,7 +69,7 @@ impl Default for AdminCliConfig {
             dozer_config: None,
             home_dir: default_home_dir(),
             api_internal: default_config.api_internal.unwrap(),
-            pipeline_internal: default_config.pipeline_internal.unwrap(),
+            pipeline_internal: default_config.app_grpc.unwrap(),
             ui_path: "./ui".to_owned(),
             dozer_path: "./dozer".to_owned(),
         }

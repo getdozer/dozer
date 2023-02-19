@@ -32,9 +32,9 @@ async fn main() {
     let mut rest = api.rest.unwrap_or_default();
     rest.host = args.dozer_api_host.clone();
     api.rest = Some(rest);
-    let mut grpc = api.grpc.unwrap_or_default();
+    let mut grpc = api.api_grpc.unwrap_or_default();
     grpc.host = args.dozer_api_host;
-    api.grpc = Some(grpc);
+    api.api_grpc = Some(grpc);
     dozer_config.api = Some(api);
     run_test_client(dozer_config, &expectations).await;
 }

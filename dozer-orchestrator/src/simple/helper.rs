@@ -30,7 +30,7 @@ fn print_api_config(api_config: &ApiConfig) {
         table_parent.add_row(row!["REST", rest_config.host, rest_config.port]);
     }
 
-    if let Some(grpc_config) = &api_config.grpc {
+    if let Some(grpc_config) = &api_config.api_grpc {
         table_parent.add_row(row!["GRPC", grpc_config.host, grpc_config.port]);
     }
 
