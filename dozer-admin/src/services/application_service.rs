@@ -1,4 +1,7 @@
+use super::constants;
 use super::graph;
+use crate::server::dozer_admin_grpc::StopRequest;
+use crate::server::dozer_admin_grpc::StopResponse;
 use crate::{
     db::{
         app::{Application, NewApplication},
@@ -8,28 +11,31 @@ use crate::{
     server::dozer_admin_grpc::{
         AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
         GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
-        Pagination, ParseRequest, ParseResponse, StartPipelineRequest, StartPipelineResponse,
-        UpdateAppRequest,
+        Pagination, ParseRequest, ParseResponse, StartRequest, StartResponse, UpdateAppRequest,
     },
 };
 use diesel::prelude::*;
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
+use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::wrapped_statement_to_pipeline;
-use dozer_types::{constants::DEFAULT_HOME_DIR, serde_yaml};
-use std::fs;
-use std::path::Path;
-use std::process::{Command, Stdio};
+use dozer_orchestrator::Orchestrator;
+use dozer_types::parking_lot::RwLock;
+use dozer_types::serde_yaml;
+use std::collections::HashMap;
 
-use super::constants;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::thread;
 pub struct AppService {
     db_pool: DbPool,
-    dozer_path: String,
+    apps: Arc<RwLock<HashMap<String, Arc<AtomicBool>>>>,
 }
 impl AppService {
-    pub fn new(db_pool: DbPool, dozer_path: String) -> Self {
+    pub fn new(db_pool: DbPool) -> Self {
         Self {
             db_pool,
-            dozer_path,
+            apps: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -251,51 +257,37 @@ impl AppService {
         })
     }
 
-    pub fn start_pipeline(
-        &self,
-        input: StartPipelineRequest,
-    ) -> Result<StartPipelineResponse, ErrorResponse> {
-        let response: AppResponse = self.get_app(GetAppRequest {
-            app_id: Some(input.app_id),
-        })?;
-        let c: dozer_types::models::app_config::Config = response.app.unwrap();
+    pub fn start_dozer(&self, input: StartRequest) -> Result<StartResponse, ErrorResponse> {
+        let generated_id = uuid::Uuid::new_v4().to_string();
 
-        let path = Path::new(DEFAULT_HOME_DIR).join("api_config");
-        if path.exists() {
-            fs::remove_dir_all(&path).unwrap();
-        }
-        fs::create_dir_all(&path).unwrap();
-
-        let yaml_path = path.join(format!("dozer-config-{:}.yaml", response.id));
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(&yaml_path)
-            .expect("Couldn't open file");
-        serde_yaml::to_writer(f, &c).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-        })?;
-        let dozer_log_path = path;
-        let dozer_log_file = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(dozer_log_path.join(format!("logs-{:}-{:}.txt", c.app_name, response.id)))
-            .expect("Couldn't open file");
-        let errors_log_file = dozer_log_file.try_clone().map_err(|op| ErrorResponse {
-            message: op.to_string(),
-        })?;
-
-        // assumption 2 bin: dozer-admin + dozer always in same dir
-        let path_to_bin = &self.dozer_path;
-        let _execute_cli_output = Command::new(path_to_bin)
-            .arg("-c")
-            .arg(yaml_path.as_path().to_str().unwrap())
-            .stdout(Stdio::from(dozer_log_file))
-            .stderr(Stdio::from(errors_log_file))
-            .spawn()
+        //validate config
+        let c = serde_yaml::from_str::<dozer_types::models::app_config::Config>(&input.config)
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
-        Ok(StartPipelineResponse { success: true })
+        let running = Arc::new(AtomicBool::new(true));
+        let r = running.clone();
+        thread::spawn(move || {
+            let mut dozer = Dozer::new(c);
+            dozer.run_all(running).unwrap();
+        });
+        self.apps.write().insert(generated_id.clone(), r);
+        Ok(StartResponse {
+            success: true,
+            id: generated_id,
+        })
+    }
+
+    pub fn stop_dozer(&self, input: StopRequest) -> Result<StopResponse, ErrorResponse> {
+        let i = input.id;
+        self.apps.read().get(&i).map_or(
+            Err(ErrorResponse {
+                message: "Cannot find dozer with id : {i}".to_string(),
+            }),
+            |r| {
+                r.store(false, Ordering::Relaxed);
+                Ok(StopResponse { success: true })
+            },
+        )
     }
 }

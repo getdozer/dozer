@@ -4,8 +4,7 @@ mod grpc_service {
     use dozer_types::models::app_config::Config;
 
     use crate::server::dozer_admin_grpc::{
-        AppResponse, CreateAppRequest, ListAppRequest, ListAppResponse, StartPipelineRequest,
-        StartPipelineResponse, UpdateAppRequest,
+        AppResponse, CreateAppRequest, ListAppRequest, ListAppResponse, UpdateAppRequest,
     };
     use crate::services::application_service::AppService;
     use crate::tests::utils::database_url_for_test_env;
@@ -15,7 +14,7 @@ mod grpc_service {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
         let setup_ids = get_setup_ids();
-        let application_service = AppService::new(db_pool, "dozer".to_owned());
+        let application_service = AppService::new(db_pool);
 
         let config = generate_connection("Postgres");
         let config = Config {
@@ -50,20 +49,5 @@ mod grpc_service {
         };
         let result: AppResponse = application_service.update_app(request).unwrap();
         assert_eq!(result.app.unwrap().app_name, updated_config.app_name);
-    }
-
-    #[test]
-    #[ignore]
-    pub fn trigger_cli() {
-        let test_db_connection = database_url_for_test_env();
-        let db_pool = establish_test_connection(test_db_connection);
-        let application_service = AppService::new(db_pool, "dozer".to_owned());
-        let setup_ids = get_setup_ids();
-
-        let request = StartPipelineRequest {
-            app_id: setup_ids.app_id,
-        };
-        let result: StartPipelineResponse = application_service.start_pipeline(request).unwrap();
-        assert!(result.success);
     }
 }
