@@ -1,7 +1,7 @@
 #[allow(dead_code)]
 pub mod connector;
 mod ingest;
-mod ingest_grpc {
+pub mod ingest_grpc {
     tonic::include_proto!("dozer.ingest");
     pub(crate) const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("ingest");
 }
