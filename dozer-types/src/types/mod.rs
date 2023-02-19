@@ -72,10 +72,17 @@ pub enum ReplicationChangesTrackingType {
     Nothing,
 }
 
+impl Default for ReplicationChangesTrackingType {
+    fn default() -> Self {
+        ReplicationChangesTrackingType::Nothing
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SourceSchema {
     pub name: String,
     pub schema: Schema,
+    #[serde(default)]
     pub replication_type: ReplicationChangesTrackingType,
 }
 

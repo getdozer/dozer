@@ -39,7 +39,7 @@ impl GrpcConnector {
             .map_err(ConnectorError::IngestorError)
     }
 
-    pub fn init_schemas(config: &GrpcConfig) -> Result<HashMap<String, Schema>, ConnectorError> {
+    pub fn parse_schemas(config: &GrpcConfig) -> Result<Vec<SourceSchema>, ConnectorError> {
         let schemas = config.schemas.as_ref().map_or_else(
             || {
                 Err(ConnectorError::InitializationError(
@@ -59,20 +59,37 @@ impl GrpcConnector {
             }
         };
 
-        let schema_map: HashMap<String, Schema> =
+        let mut schemas: Vec<SourceSchema> =
             serde_json::from_str(&schemas_str).map_err(ConnectorError::map_serialization_error)?;
-        let schema_map_with_ports: HashMap<String, Schema> = schema_map
-            .into_iter()
+
+        schemas = schemas
+            .iter()
             .enumerate()
-            .map(|(id, (k, mut v))| {
-                v.identifier = Some(SchemaIdentifier {
+            .map(|(id, schema)| {
+                let mut s = schema.clone();
+                s.schema.identifier = Some(SchemaIdentifier {
                     id: id as u32,
                     version: 1,
                 });
-                (k, v)
+                s
             })
             .collect();
-        Ok(schema_map_with_ports)
+        Ok(schemas)
+    }
+
+    fn get_schema_map(config: &GrpcConfig) -> Result<HashMap<String, Schema>, ConnectorError> {
+        let schemas = Self::parse_schemas(config)?;
+        Ok(schemas
+            .into_iter()
+            .enumerate()
+            .map(|(id, mut v)| {
+                v.schema.identifier = Some(SchemaIdentifier {
+                    id: id as u32,
+                    version: 1,
+                });
+                (v.name, v.schema)
+            })
+            .collect())
     }
 
     pub fn serve(&self, ingestor: &Ingestor) -> Result<(), ConnectorError> {
@@ -83,7 +100,7 @@ impl GrpcConnector {
             ConnectorError::InitializationError(format!("Failed to parse address: {}", e))
         })?;
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
-        let schema_map = Self::init_schemas(&self.config)?;
+        let schema_map = Self::get_schema_map(&self.config)?;
 
         rt.block_on(async {
             // Ingestor will live as long as the server
@@ -116,9 +133,16 @@ impl GrpcConnector {
 impl Connector for GrpcConnector {
     fn get_schemas(
         &self,
-        _table_names: Option<Vec<TableInfo>>,
+        table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        Ok(vec![])
+        let schemas = Self::parse_schemas(&self.config)?;
+        let schemas = table_names.map_or(schemas.clone(), |names| {
+            schemas
+                .into_iter()
+                .filter(|s| names.iter().any(|n| n.name == s.name))
+                .collect()
+        });
+        Ok(schemas)
     }
 
     fn start(
@@ -131,13 +155,13 @@ impl Connector for GrpcConnector {
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let schemas = Self::init_schemas(&self.config);
+        let schemas = Self::parse_schemas(&self.config);
         schemas.map(|_| ())
     }
 
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         let mut results = HashMap::new();
-        let schemas = Self::init_schemas(&self.config)?;
+        let schemas = Self::get_schema_map(&self.config)?;
         for table in tables {
             let r = schemas.get(&table.name).map_or(
                 Err(ConnectorError::InitializationError(format!(
