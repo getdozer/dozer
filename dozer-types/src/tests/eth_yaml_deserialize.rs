@@ -12,7 +12,7 @@ fn standard() {
             from_block: 0
             addresses: []
             topics: []
-      contracts: []
+        contracts: []
   "#;
     let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(eth_config).unwrap();
     let expected_eth_filter = EthFilter {
@@ -41,7 +41,7 @@ fn config_without_empty_array() {
     provider: !Log
         wss_url: wss://link
         filter:
-        from_block: 499203
+            from_block: 499203
   "#;
     let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(eth_config).unwrap();
     let expected_eth_filter = EthFilter {

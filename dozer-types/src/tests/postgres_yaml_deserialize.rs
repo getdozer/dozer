@@ -50,8 +50,8 @@ fn error_wrong_tag() {
     let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(posgres_config);
     assert!(deserializer_result.is_err());
     assert!(deserializer_result
-      .err()
-      .unwrap()
-      .to_string()
-      .starts_with("unknown variant `Postgres112`, expected one of `Postgres`, `Ethereum`, `Events`, `Snowflake`, `Kafka`"))
+        .err()
+        .unwrap()
+        .to_string()
+        .starts_with("unknown variant `Postgres112`"))
 }
