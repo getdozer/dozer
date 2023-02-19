@@ -9,6 +9,8 @@ use pyo3::Python;
 use std::env;
 use std::path::PathBuf;
 
+const MODULE_NAME: &str = "python_udf";
+
 pub fn evaluate_py_udf(
     schema: &Schema,
     name: &str,
@@ -38,7 +40,7 @@ pub fn evaluate_py_udf(
         let path = sys.getattr("path")?;
         path.call_method1("append", (module_dir.to_string_lossy(),))?;
 
-        let module = py.import("python_udf")?;
+        let module = py.import(MODULE_NAME)?;
         let function = module.getattr(name)?;
 
         let args = PyTuple::new(py, values);
@@ -46,11 +48,7 @@ pub fn evaluate_py_udf(
         Ok(match return_type {
             FieldType::UInt => Field::UInt(res.extract::<u64>()?),
             FieldType::Int => Field::Int(res.extract::<i64>()?),
-            FieldType::Float => {
-                let res = Field::Float(OrderedFloat::from(res.extract::<f64>()?));
-                dbg!(&res);
-                res
-            }
+            FieldType::Float => Field::Float(OrderedFloat::from(res.extract::<f64>()?)),
             FieldType::Boolean => Field::Boolean(res.extract::<bool>()?),
             FieldType::String => Field::String(res.extract::<String>()?),
             FieldType::Text => Field::Text(res.extract::<String>()?),
