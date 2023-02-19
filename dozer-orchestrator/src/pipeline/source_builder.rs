@@ -176,12 +176,12 @@ mod tests {
                     Some(conn_name_1.clone()),
                 ),
                 AppSourceId::new(
-                    config.sources.get(2).unwrap().table_name.clone(),
+                    config.sources.get(1).unwrap().table_name.clone(),
                     Some(conn_name_1),
                 ),
             ])
             .unwrap();
 
-        assert_eq!(1, pg_source_mapping.get(0).unwrap().mappings.len());
+        assert_eq!(2, pg_source_mapping.get(0).unwrap().mappings.len());
     }
 }
