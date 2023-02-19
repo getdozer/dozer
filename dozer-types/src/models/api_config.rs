@@ -12,7 +12,7 @@ pub struct ApiConfig {
     pub rest: Option<RestApiOptions>,
     #[prost(message, tag = "3")]
     #[serde(default = "default_api_grpc")]
-    pub api_grpc: Option<GrpcApiOptions>,
+    pub grpc: Option<GrpcApiOptions>,
 
     #[prost(message, tag = "4")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -96,7 +96,7 @@ fn default_host() -> String {
 pub fn default_api_config() -> ApiConfig {
     ApiConfig {
         rest: default_api_rest(),
-        api_grpc: default_api_grpc(),
+        grpc: default_api_grpc(),
         app_grpc: default_app_grpc(),
         api_security: None,
     }

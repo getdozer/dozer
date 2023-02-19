@@ -29,7 +29,7 @@ fn override_rest_port() {
         cors: default_api_rest.cors,
     };
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
-    assert_eq!(api_config.api_grpc.unwrap(), default_api_grpc);
+    assert_eq!(api_config.grpc.unwrap(), default_api_grpc);
 }
 #[test]
 fn override_rest_host() {
@@ -54,14 +54,14 @@ fn override_rest_host() {
         cors: default_api_rest.cors,
     };
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
-    assert_eq!(api_config.api_grpc.unwrap(), default_api_grpc);
+    assert_eq!(api_config.grpc.unwrap(), default_api_grpc);
 }
 #[test]
 fn override_grpc_port() {
     let input_config = r#"
   app_name: working_app
   api:
-    api_grpc:
+    grpc:
       port: 4232
   home_dir: './.dozer' 
 "#;
@@ -80,7 +80,7 @@ fn override_grpc_port() {
         web: default_api_grpc.web,
     };
     assert_eq!(api_config.rest.unwrap(), default_api_rest);
-    assert_eq!(api_config.api_grpc.unwrap(), expected_grpc_config);
+    assert_eq!(api_config.grpc.unwrap(), expected_grpc_config);
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn override_grpc_and_rest_port() {
         cors: default_api_rest.cors,
     };
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
-    assert_eq!(api_config.api_grpc.unwrap(), expected_grpc_config);
+    assert_eq!(api_config.grpc.unwrap(), expected_grpc_config);
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn override_grpc_and_rest_port_jwt() {
     let input_config = r#"
   app_name: working_app
   api:
-    api_grpc:
+    grpc:
       port: 4232
     rest:
       port: 3324
@@ -150,7 +150,7 @@ fn override_grpc_and_rest_port_jwt() {
         cors: default_api_rest.cors,
     };
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
-    assert_eq!(api_config.api_grpc.unwrap(), expected_grpc_config);
+    assert_eq!(api_config.grpc.unwrap(), expected_grpc_config);
     let api_security = api_config.api_security;
     assert!(api_security.is_some());
     let api_security = api_security.unwrap();
@@ -162,7 +162,7 @@ fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
     let input_config = r#"
   app_name: working_app
   api:
-    api_grpc:
+    grpc:
       port: 4232
     rest:
       port: 3324
@@ -195,7 +195,7 @@ fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
         cors: default_api_rest.cors,
     };
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
-    assert_eq!(api_config.api_grpc.unwrap(), expected_grpc_config);
+    assert_eq!(api_config.grpc.unwrap(), expected_grpc_config);
     let api_security = api_config.api_security;
     assert!(api_security.is_some());
     let api_security = api_security.unwrap();

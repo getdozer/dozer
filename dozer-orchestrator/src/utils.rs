@@ -19,7 +19,7 @@ pub fn get_api_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("api")
 }
 pub fn get_grpc_config(config: Config) -> GrpcApiOptions {
-    config.api.unwrap_or_default().api_grpc.unwrap_or_default()
+    config.api.unwrap_or_default().grpc.unwrap_or_default()
 }
 pub fn get_api_config(config: Config) -> ApiConfig {
     config.api.unwrap_or_default()
