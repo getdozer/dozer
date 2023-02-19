@@ -166,9 +166,9 @@ fn connector_disabled_test_e2e_connect_snowflake_get_schemas_test() {
         }]))
         .unwrap();
 
-    let (schema_name, Schema { fields, .. }, _) = schemas.get(0).unwrap();
-    assert_eq!(schema_name, &table_name);
-    for field in fields {
+    let source_schema = schemas.get(0).unwrap();
+    assert_eq!(source_schema.name, table_name);
+    for field in source_schema.schema.fields {
         let expected_type = match field.name.as_str() {
             "INTEGER_COLUMN" => Int,
             "FLOAT_COLUMN" => Float,

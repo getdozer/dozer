@@ -390,7 +390,7 @@ impl Client {
         tables_indexes: HashMap<String, usize>,
         keys: HashMap<String, Vec<String>>,
         conn: &Connection<AutocommitOn>,
-    ) -> Result<Vec<SchemaWithChangesType>, SnowflakeError> {
+    ) -> Result<Vec<SourceSchema>, SnowflakeError> {
         let tables_condition = tables.map_or("".to_string(), |tables| {
             let mut buf = String::new();
             buf.write_str(" AND TABLE_NAME IN(").unwrap();
@@ -514,7 +514,7 @@ impl Client {
 
                         schema.primary_index = indexes;
 
-                        (name, schema, replication_type)
+                        SourceSchema::new(name, schema, replication_type)
                     })
                     .collect())
             }
