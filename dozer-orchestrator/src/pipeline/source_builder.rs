@@ -149,6 +149,11 @@ mod tests {
             endpoints: vec![],
             sql: None,
             home_dir: "test".to_string(),
+            cache_max_map_size: Default::default(),
+            pipeline_max_map_size: Default::default(),
+            pipeline_buffer_size: Default::default(),
+            commit_size: Default::default(),
+            commit_timeout: Default::default(),
         }
     }
 
