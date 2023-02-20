@@ -81,7 +81,7 @@ impl From<ApiError> for tonic::Status {
 
 #[derive(Error, Debug)]
 pub enum GenerationError {
-    #[error("transparent")]
+    #[error(transparent)]
     InternalError(#[from] BoxedError),
     #[error("directory path {0:?} does not exist")]
     DirPathNotExist(PathBuf),
