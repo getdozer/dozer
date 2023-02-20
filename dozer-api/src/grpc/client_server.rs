@@ -16,11 +16,7 @@ use crate::{errors::GRPCError, generator::protoc::generator::ProtoGenerator, RoC
 use dozer_types::tracing::Level;
 use dozer_types::{
     log::{info, warn},
-    models::{
-        api_config::{ApiGrpc, ApiPipelineInternal},
-        api_security::ApiSecurity,
-        flags::Flags,
-    },
+    models::{api_config::GrpcApiOptions, api_security::ApiSecurity, flags::Flags},
 };
 use futures_util::{FutureExt, StreamExt};
 use std::{collections::HashMap, path::PathBuf};
@@ -40,9 +36,9 @@ pub struct ApiServer {
 
 impl ApiServer {
     async fn connect_internal_client(
-        pipeline_config: ApiPipelineInternal,
+        app_grpc_config: GrpcApiOptions,
     ) -> Result<Streaming<PipelineResponse>, GRPCError> {
-        let address = format!("http://{:}:{:}", pipeline_config.host, pipeline_config.port);
+        let address = format!("http://{:}:{:}", app_grpc_config.host, app_grpc_config.port);
         let mut client = InternalPipelineServiceClient::connect(address)
             .await
             .map_err(|err| GRPCError::InternalError(Box::new(err)))?;
@@ -100,7 +96,7 @@ impl ApiServer {
     }
 
     pub fn new(
-        grpc_config: ApiGrpc,
+        grpc_config: GrpcApiOptions,
         api_dir: PathBuf,
         security: Option<ApiSecurity>,
         flags: Flags,
@@ -201,13 +197,13 @@ impl ApiServer {
 
     pub async fn setup_broad_cast_channel(
         tx: Sender<PipelineResponse>,
-        pipeline_config: ApiPipelineInternal,
+        app_grpc_config: GrpcApiOptions,
     ) -> Result<(), GRPCError> {
         info!(
             "Connecting to Internal service  on http://{}:{}",
-            pipeline_config.host, pipeline_config.port
+            app_grpc_config.host, app_grpc_config.port
         );
-        let mut stream = ApiServer::connect_internal_client(pipeline_config.to_owned()).await?;
+        let mut stream = ApiServer::connect_internal_client(app_grpc_config.to_owned()).await?;
         while let Some(event_response) = stream.next().await {
             if let Ok(event) = event_response {
                 let _ = tx.send(event);

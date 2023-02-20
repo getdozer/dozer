@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::panic::panic_any;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::thread::{self, Builder};
@@ -96,7 +96,6 @@ pub struct DagExecutor<T: Clone> {
 
 pub struct DagExecutorJoinHandle {
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
-    running: Arc<AtomicBool>,
 }
 
 impl<T: Clone + Debug + 'static> DagExecutor<T> {
@@ -154,10 +153,7 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
                 }
                 NodeKind::Processor(_) => {
                     let processor_node = ProcessorNode::new(&mut execution_dag, node_index);
-                    join_handles.insert(
-                        node_handle,
-                        start_processor(processor_node, running.clone())?,
-                    );
+                    join_handles.insert(node_handle, start_processor(processor_node)?);
                 }
                 NodeKind::Sink(_) => {
                     let sink_node = SinkNode::new(&mut execution_dag, node_index);
@@ -166,18 +162,11 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
             }
         }
 
-        Ok(DagExecutorJoinHandle {
-            join_handles,
-            running,
-        })
+        Ok(DagExecutorJoinHandle { join_handles })
     }
 }
 
 impl DagExecutorJoinHandle {
-    pub fn stop(&self) {
-        self.running.store(false, Ordering::SeqCst);
-    }
-
     pub fn join(mut self) -> Result<(), ExecutionError> {
         let handles: Vec<NodeHandle> = self.join_handles.iter().map(|e| e.0.clone()).collect();
 
@@ -206,38 +195,33 @@ fn start_source(
     source_listener: SourceListenerNode,
 ) -> Result<JoinHandle<()>, ExecutionError> {
     let handle = source_sender.handle().clone();
-    let running = source_sender.running().clone();
 
     let _st_handle = Builder::new()
         .name(format!("{handle}-sender"))
-        .spawn(move || {
-            if let Err(e) = source_sender.run() {
-                std::panic::panic_any(e);
-            }
+        .spawn(move || match source_sender.run() {
+            Ok(_) => {}
+            // Channel disconnection means the source listener has quit.
+            // Maybe it quit gracefully so we don't need to panic.
+            Err(ExecutionError::CannotSendToChannel) => {}
+            // Other errors result in panic.
+            Err(e) => std::panic::panic_any(e),
         })?;
 
     Ok(Builder::new()
         .name(format!("{handle}-listener"))
         .spawn(move || {
             if let Err(e) = source_listener.run() {
-                if running.load(Ordering::Relaxed) {
-                    std::panic::panic_any(e);
-                }
+                std::panic::panic_any(e);
             }
         })?)
 }
 
-fn start_processor(
-    processor: ProcessorNode,
-    running: Arc<AtomicBool>,
-) -> Result<JoinHandle<()>, ExecutionError> {
+fn start_processor(processor: ProcessorNode) -> Result<JoinHandle<()>, ExecutionError> {
     Ok(Builder::new()
         .name(processor.handle().to_string())
         .spawn(move || {
             if let Err(e) = processor.run() {
-                if running.load(Ordering::Relaxed) {
-                    std::panic::panic_any(e);
-                }
+                std::panic::panic_any(e);
             }
         })?)
 }

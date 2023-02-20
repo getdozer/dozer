@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::types::{
-    FieldDefinition, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
-    SchemaWithChangesType, SourceDefinition,
+    FieldDefinition, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
+    SourceSchema,
 };
 
 use crate::connectors::{ColumnInfo, TableInfo, ValidationResults};
@@ -115,7 +115,7 @@ impl SchemaHelper {
     pub fn get_schemas(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, PostgresConnectorError> {
+    ) -> Result<Vec<SourceSchema>, PostgresConnectorError> {
         let (results, tables_columns_map) = self.get_columns(tables.as_deref())?;
 
         let mut columns_map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> =
@@ -160,8 +160,8 @@ impl SchemaHelper {
 
     pub fn map_columns_to_schemas(
         map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)>,
-    ) -> Result<Vec<SchemaWithChangesType>, PostgresSchemaError> {
-        let mut schemas: Vec<SchemaWithChangesType> = Vec::new();
+    ) -> Result<Vec<SourceSchema>, PostgresSchemaError> {
+        let mut schemas: Vec<SourceSchema> = Vec::new();
         for (table_name, (fields, primary_keys, table_id, replication_type)) in map.into_iter() {
             let primary_index: Vec<usize> = primary_keys
                 .iter()
@@ -189,7 +189,7 @@ impl SchemaHelper {
                 )),
             }?;
 
-            schemas.push((table_name, schema, replication_type));
+            schemas.push(SourceSchema::new(table_name, schema, replication_type));
         }
 
         Self::validate_schema_replication_identity(&schemas)?;
@@ -198,14 +198,13 @@ impl SchemaHelper {
     }
 
     pub fn validate_schema_replication_identity(
-        schemas: &[SchemaWithChangesType],
+        schemas: &[SourceSchema],
     ) -> Result<(), PostgresSchemaError> {
-        let table_without_primary_index = schemas
-            .iter()
-            .find(|(_table_name, schema, _)| schema.primary_index.is_empty());
+        let table_without_primary_index =
+            schemas.iter().find(|s| s.schema.primary_index.is_empty());
 
         match table_without_primary_index {
-            Some((table_name, _, _)) => Err(PrimaryKeyIsMissingInSchema(table_name.clone())),
+            Some(s) => Err(PrimaryKeyIsMissingInSchema(s.name.clone())),
             None => Ok(()),
         }
     }

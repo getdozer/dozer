@@ -4,14 +4,12 @@ use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
 use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::models::app_config::Config;
-use dozer_types::models::connection::Authentication;
+use dozer_types::models::connection::ConnectionConfig;
 
-use dozer_types::parking_lot::RwLock;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_yaml;
 use postgres::Client;
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -25,7 +23,7 @@ pub struct DebeziumTestConfig {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumConnectorConfig {
-    pub postgres_source_authentication: Authentication,
+    pub postgres_source_authentication: ConnectionConfig,
     pub connector_url: String,
 }
 
@@ -39,7 +37,7 @@ pub fn get_debezium_config(file_name: &str) -> DebeziumTestConfig {
     DebeziumTestConfig { config, debezium }
 }
 
-pub fn get_client_and_create_table(table_name: &str, auth: &Authentication) -> Client {
+pub fn get_client_and_create_table(table_name: &str, auth: &ConnectionConfig) -> Client {
     let postgres_config = map_connection_config(auth).unwrap();
     let mut client = connect(postgres_config).unwrap();
 
@@ -67,7 +65,7 @@ pub fn get_client_and_create_table(table_name: &str, auth: &Authentication) -> C
     client
 }
 
-pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionIterator>>, Client) {
+pub fn get_iterator_and_client(table_name: String) -> (IngestionIterator, Client) {
     let config = get_debezium_config("test.debezium.yaml");
 
     let client =
@@ -97,12 +95,12 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
         }];
 
         let mut connection = config.config.connections.get(0).unwrap().clone();
-        if let Some(Authentication::Kafka(KafkaConfig {
+        if let Some(ConnectionConfig::Kafka(KafkaConfig {
             broker,
             schema_registry_url,
-        })) = connection.authentication
+        })) = connection.config
         {
-            connection.authentication = Some(Authentication::Kafka(KafkaConfig {
+            connection.config = Some(ConnectionConfig::Kafka(KafkaConfig {
                 broker,
                 schema_registry_url,
             }));
@@ -112,9 +110,8 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
             thread::sleep(Duration::from_secs(1));
         }
 
-        let mut connector = get_connector(connection).unwrap();
-        connector.initialize(ingestor, Some(tables)).unwrap();
-        let _ = connector.start(None);
+        let connector = get_connector(connection).unwrap();
+        let _ = connector.start(None, &ingestor, Some(tables));
     });
 
     (iterator, client)

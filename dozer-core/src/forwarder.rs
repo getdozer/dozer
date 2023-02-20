@@ -1,7 +1,7 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::epoch::{Epoch, EpochManager};
 use crate::errors::ExecutionError;
-use crate::errors::ExecutionError::{InternalError, InvalidPortHandle};
+use crate::errors::ExecutionError::InvalidPortHandle;
 use crate::executor::ExecutorOperation;
 use crate::node::PortHandle;
 use crate::record_store::RecordWriter;
@@ -9,7 +9,6 @@ use dozer_storage::common::Database;
 
 use crossbeam::channel::Sender;
 use dozer_storage::lmdb_storage::SharedTransaction;
-use dozer_types::internal_err;
 use dozer_types::log::debug;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Operation;
@@ -89,9 +88,9 @@ impl ChannelManager {
 
         if let Some((last_sender, senders)) = senders.split_last() {
             for sender in senders {
-                internal_err!(sender.send(exec_op.clone()))?;
+                sender.send(exec_op.clone())?;
             }
-            internal_err!(last_sender.send(exec_op))?;
+            last_sender.send(exec_op)?;
         }
 
         Ok(())
@@ -100,7 +99,7 @@ impl ChannelManager {
     fn send_terminate(&self) -> Result<(), ExecutionError> {
         for senders in self.senders.values() {
             for sender in senders {
-                internal_err!(sender.send(ExecutorOperation::Terminate))?;
+                sender.send(ExecutorOperation::Terminate)?;
             }
         }
 
@@ -113,9 +112,9 @@ impl ChannelManager {
 
         for senders in &self.senders {
             for sender in senders.1 {
-                internal_err!(sender.send(ExecutorOperation::Commit {
-                    epoch: epoch.clone()
-                }))?;
+                sender.send(ExecutorOperation::Commit {
+                    epoch: epoch.clone(),
+                })?;
             }
         }
 

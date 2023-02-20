@@ -1,8 +1,8 @@
-use std::{collections::HashSet, sync::Arc, thread, time::Duration};
+use std::{collections::HashSet, thread, time::Duration};
 
 use crate::{
     connectors::{
-        ethereum::{connector::EthConnector, helper},
+        ethereum::{helper, EthLogConnector},
         Connector,
     },
     errors::ConnectorError,
@@ -10,10 +10,9 @@ use crate::{
 };
 
 use dozer_types::{
-    ingestion_types::{EthConfig, EthContract, EthFilter},
+    ingestion_types::{EthContract, EthFilter, EthLogConfig},
     log::info,
-    parking_lot::RwLock,
-    types::Operation,
+    types::{Operation, SourceSchema},
 };
 
 use tokio::runtime::Runtime;
@@ -48,13 +47,14 @@ pub async fn deploy_contract(wss_url: String, my_account: H160) -> Contract<WebS
 
 pub fn get_eth_producer(
     wss_url: String,
-    ingestor: Arc<RwLock<Ingestor>>,
+    ingestor: Ingestor,
     contract: Contract<WebSocket>,
 ) -> Result<(), ConnectorError> {
     let address = format!("{:?}", contract.address());
-    let mut eth_connector = EthConnector::new(
+    let eth_connector = EthLogConnector::new(
         1,
-        EthConfig {
+        EthLogConfig {
+            wss_url,
             filter: Some(EthFilter {
                 from_block: Some(0),
                 to_block: None,
@@ -68,19 +68,21 @@ pub fn get_eth_producer(
                     .trim_end()
                     .to_string(),
             }],
-            wss_url,
         },
         "eth_test".to_string(),
     );
 
     let schemas = eth_connector.get_schemas(None)?;
-    for (name, schema, _) in schemas {
+    for SourceSchema {
+        name,
+        schema,
+        replication_type: _,
+    } in schemas
+    {
         info!("Schema: {}, Id: {}", name, schema.identifier.unwrap().id);
-        // schema.print().printstd();
     }
 
-    eth_connector.initialize(ingestor, None)?;
-    eth_connector.start(None)
+    eth_connector.start(None, &ingestor, None)
 }
 
 pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>, Vec<Operation>) {
@@ -95,18 +97,17 @@ pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>
         .unwrap()
         .block_on(async { deploy_contract(wss_url.clone(), my_account).await });
 
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-    let ingestor_pr = ingestor;
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     let cloned_contract = contract.clone();
     let _t = thread::spawn(move || {
         info!("Initializing with WSS: {}", wss_url);
-        get_eth_producer(wss_url, ingestor_pr, cloned_contract).unwrap();
+        get_eth_producer(wss_url, ingestor, cloned_contract).unwrap();
     });
 
     let mut msgs = vec![];
     let mut op_index = HashSet::new();
-    while let Some(msg) = iterator.write().next_timeout(Duration::from_millis(400)) {
+    while let Some(msg) = iterator.next_timeout(Duration::from_millis(400)) {
         // Duplicates are to be expected in ethereum connector
         let ((_, seq_no), op) = msg;
         if op_index.insert(seq_no) {

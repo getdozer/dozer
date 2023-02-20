@@ -13,21 +13,20 @@ use rand::Rng;
 fn connector_disabled_test_e2e_connect_postgres_stream() {
     let config = serde_yaml::from_str::<Config>(load_config("test.postgres.yaml")).unwrap();
     let connection = config.connections.get(0).unwrap().clone();
-    let mut client =
-        TestPostgresClient::new(&connection.authentication.to_owned().unwrap_or_default());
+    let mut client = TestPostgresClient::new(&connection.config.to_owned().unwrap_or_default());
 
     let mut rng = rand::thread_rng();
     let table_name = format!("products_test_{}", rng.gen::<u32>());
 
     client.create_simple_table("public", &table_name);
 
-    let iterator = get_iterator(connection, table_name.clone());
+    let mut iterator = get_iterator(connection, table_name.clone());
 
     client.insert_rows(&table_name, 10);
 
     let mut i = 1;
     while i < 10 {
-        let op = iterator.write().next();
+        let op = iterator.next();
         if let Some((_, Operation::Insert { new })) = op {
             assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
             i += 1;
@@ -36,7 +35,7 @@ fn connector_disabled_test_e2e_connect_postgres_stream() {
     client.insert_rows(&table_name, 10);
 
     while i < 20 {
-        let op = iterator.write().next();
+        let op = iterator.next();
 
         if let Some((_, Operation::Insert { new })) = op {
             assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));

@@ -1,12 +1,12 @@
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 use crate::errors::SnowflakeError;
-use dozer_types::models::connection::{Authentication, Connection};
+use dozer_types::models::connection::{Connection, ConnectionConfig};
 use odbc::create_environment_v3;
 
 pub fn get_client(connection: &Connection) -> Client {
-    let config = match connection.authentication.to_owned().unwrap_or_default() {
-        Authentication::Snowflake(snowflake_config) => Some(snowflake_config),
+    let config = match connection.config.to_owned().unwrap_or_default() {
+        ConnectionConfig::Snowflake(snowflake_config) => Some(snowflake_config),
         _ => None,
     };
 

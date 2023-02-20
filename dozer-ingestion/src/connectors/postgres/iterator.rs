@@ -4,7 +4,6 @@ use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 
-use dozer_types::parking_lot::RwLock;
 use std::cell::RefCell;
 use std::str::FromStr;
 
@@ -23,8 +22,6 @@ use tokio::runtime::Runtime;
 use tokio_postgres::SimpleQueryMessage;
 
 pub struct Details {
-    #[allow(dead_code)]
-    id: u64,
     name: String,
     publication_name: String,
     slot_name: String,
@@ -40,13 +37,13 @@ pub enum ReplicationState {
     Replicating,
 }
 
-pub struct PostgresIterator {
+pub struct PostgresIterator<'a> {
     details: Arc<Details>,
-    ingestor: Arc<RwLock<Ingestor>>,
+    ingestor: &'a Ingestor,
     connector_id: u64,
 }
 
-impl PostgresIterator {
+impl<'a> PostgresIterator<'a> {
     #![allow(clippy::too_many_arguments)]
     pub fn new(
         id: u64,
@@ -55,11 +52,10 @@ impl PostgresIterator {
         slot_name: String,
         tables: Option<Vec<TableInfo>>,
         replication_conn_config: tokio_postgres::Config,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: &'a Ingestor,
         conn_config: tokio_postgres::Config,
     ) -> Self {
         let details = Arc::new(Details {
-            id,
             name,
             publication_name,
             slot_name,
@@ -75,17 +71,16 @@ impl PostgresIterator {
     }
 }
 
-impl PostgresIterator {
-    pub fn start(&self, lsn: Option<(PgLsn, u64)>) -> Result<(), ConnectorError> {
+impl<'a> PostgresIterator<'a> {
+    pub fn start(self, lsn: Option<(PgLsn, u64)>) -> Result<(), ConnectorError> {
         let lsn = RefCell::new(lsn);
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
-        let ingestor = self.ingestor.clone();
         let connector_id = self.connector_id;
 
-        let mut stream_inner = PostgresIteratorHandler {
+        let stream_inner = PostgresIteratorHandler {
             details,
-            ingestor,
+            ingestor: self.ingestor,
             state,
             lsn,
             connector_id,
@@ -94,15 +89,15 @@ impl PostgresIterator {
     }
 }
 
-pub struct PostgresIteratorHandler {
+pub struct PostgresIteratorHandler<'a> {
     pub details: Arc<Details>,
     pub lsn: RefCell<Option<(PgLsn, u64)>>,
     pub state: RefCell<ReplicationState>,
-    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub ingestor: &'a Ingestor,
     pub connector_id: u64,
 }
 
-impl PostgresIteratorHandler {
+impl<'a> PostgresIteratorHandler<'a> {
     /*
      Replication involves 3 states
         1) Pending
@@ -116,7 +111,7 @@ impl PostgresIteratorHandler {
         3) Replicating
         - Replicate CDC events using lsn
     */
-    pub fn _start(&mut self) -> Result<(), ConnectorError> {
+    pub fn _start(&self) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
         let replication_conn_config = details.replication_conn_config.to_owned();
         let client = Arc::new(RefCell::new(
@@ -155,9 +150,7 @@ impl PostgresIteratorHandler {
                 ));
             }
 
-            self.state
-                .clone()
-                .replace(ReplicationState::SnapshotInProgress);
+            self.state.replace(ReplicationState::SnapshotInProgress);
 
             /* #####################        SnapshotInProgress         ###################### */
             debug!("\nInitializing snapshots...");
@@ -165,7 +158,7 @@ impl PostgresIteratorHandler {
             let snapshotter = PostgresSnapshotter {
                 tables: details.tables.clone(),
                 conn_config: details.conn_config.to_owned(),
-                ingestor: Arc::clone(&self.ingestor),
+                ingestor: self.ingestor,
                 connector_id: self.connector_id,
             };
             tables = snapshotter.sync_tables(details.tables.clone(), self.lsn.borrow().as_ref())?;
@@ -178,7 +171,7 @@ impl PostgresIteratorHandler {
             })?;
         }
 
-        self.state.clone().replace(ReplicationState::Replicating);
+        self.state.replace(ReplicationState::Replicating);
 
         /*  ####################        Replicating         ######################  */
         self.replicate(tables)
@@ -248,7 +241,6 @@ impl PostgresIteratorHandler {
 
     fn replicate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
-        let ingestor = self.ingestor.clone();
         let lsn = self.lsn.borrow();
         let (lsn, offset) = lsn
             .as_ref()
@@ -259,7 +251,7 @@ impl PostgresIteratorHandler {
         rt.block_on(async {
             let mut replicator = CDCHandler {
                 replication_conn_config: self.details.replication_conn_config.clone(),
-                ingestor,
+                ingestor: self.ingestor,
                 start_lsn: *lsn,
                 begin_lsn: 0,
                 offset_lsn: 0,

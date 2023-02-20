@@ -7,7 +7,7 @@ use std::{
 };
 
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
-use dozer_types::{internal_err, types::Operation};
+use dozer_types::types::Operation;
 use dozer_types::{
     log::debug,
     node::{NodeHandle, OpIdentifier},
@@ -15,7 +15,7 @@ use dozer_types::{
 
 use crate::{
     channels::SourceChannelForwarder,
-    errors::ExecutionError::{self, InternalError},
+    errors::ExecutionError,
     forwarder::{SourceChannelManager, StateWriter},
     node::{PortHandle, Source},
 };
@@ -34,7 +34,7 @@ impl SourceChannelForwarder for InternalChannelSourceForwarder {
         op: Operation,
         port: PortHandle,
     ) -> Result<(), ExecutionError> {
-        internal_err!(self.sender.send((port, txid, seq_in_tx, op)))
+        Ok(self.sender.send((port, txid, seq_in_tx, op))?)
     }
 }
 
@@ -47,19 +47,13 @@ pub struct SourceSenderNode {
     source: Box<dyn Source>,
     /// Last checkpointed output data sequence number.
     last_checkpoint: Option<OpIdentifier>,
-    /// The forwarder that will be passed to the source for outputig data.
+    /// The forwarder that will be passed to the source for outputting data.
     forwarder: InternalChannelSourceForwarder,
-    /// If the execution DAG should be running. Used for terminating the execution DAG.
-    running: Arc<AtomicBool>,
 }
 
 impl SourceSenderNode {
     pub fn handle(&self) -> &NodeHandle {
         &self.node_handle
-    }
-
-    pub fn running(&self) -> &Arc<AtomicBool> {
-        &self.running
     }
 }
 
@@ -70,7 +64,6 @@ impl Node for SourceSenderNode {
             self.last_checkpoint
                 .map(|op_id| (op_id.txid, op_id.seq_in_tx)),
         );
-        self.running.store(false, Ordering::SeqCst);
         debug!("[{}-sender] Quit", self.node_handle);
         result
     }
@@ -91,20 +84,30 @@ pub struct SourceListenerNode {
     channel_manager: SourceChannelManager,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum DataKind {
+    Data((PortHandle, u64, u64, Operation)),
+    NoDataBecauseOfTimeout,
+    NoDataBecauseOfChannelDisconnection,
+}
+
 impl SourceListenerNode {
     /// Returns if the node should terminate.
     fn send_and_trigger_commit_if_needed(
         &mut self,
-        data: Option<(PortHandle, u64, u64, Operation)>,
+        data: DataKind,
     ) -> Result<bool, ExecutionError> {
-        // First check if termination was requested.
-        let terminating = !self.running.load(Ordering::SeqCst);
+        // If termination was requested the or source quit, we try to terminate.
+        let terminating = data == DataKind::NoDataBecauseOfChannelDisconnection
+            || !self.running.load(Ordering::SeqCst);
         // If this commit was not requested with termination at the start, we shouldn't terminate either.
         let terminating = match data {
-            Some((port, txid, seq_in_tx, op)) => self
+            DataKind::Data((port, txid, seq_in_tx, op)) => self
                 .channel_manager
                 .send_and_trigger_commit_if_needed(txid, seq_in_tx, op, port, terminating)?,
-            None => self.channel_manager.trigger_commit_if_needed(terminating)?,
+            DataKind::NoDataBecauseOfTimeout | DataKind::NoDataBecauseOfChannelDisconnection => {
+                self.channel_manager.trigger_commit_if_needed(terminating)?
+            }
         };
         if terminating {
             self.channel_manager.terminate()?;
@@ -117,21 +120,17 @@ impl SourceListenerNode {
 impl Node for SourceListenerNode {
     fn run(mut self) -> Result<(), ExecutionError> {
         loop {
-            match self.receiver.recv_timeout(self.timeout) {
-                Ok(data) => {
-                    if self.send_and_trigger_commit_if_needed(Some(data))? {
-                        return Ok(());
-                    }
+            let terminating = match self.receiver.recv_timeout(self.timeout) {
+                Ok(data) => self.send_and_trigger_commit_if_needed(DataKind::Data(data))?,
+                Err(RecvTimeoutError::Timeout) => {
+                    self.send_and_trigger_commit_if_needed(DataKind::NoDataBecauseOfTimeout)?
                 }
-                Err(e) => {
-                    if self.send_and_trigger_commit_if_needed(None)? {
-                        return Ok(());
-                    }
-                    // Channel disconnected but running flag not set to false, the source sender must have panicked.
-                    if self.running.load(Ordering::SeqCst) && e == RecvTimeoutError::Disconnected {
-                        return Err(ExecutionError::ChannelDisconnected);
-                    }
-                }
+                Err(RecvTimeoutError::Disconnected) => self.send_and_trigger_commit_if_needed(
+                    DataKind::NoDataBecauseOfChannelDisconnection,
+                )?,
+            };
+            if terminating {
+                return Ok(());
             }
         }
     }
@@ -173,7 +172,6 @@ pub fn create_source_nodes(
         source,
         last_checkpoint,
         forwarder,
-        running: running.clone(),
     };
 
     // Create source sender node.

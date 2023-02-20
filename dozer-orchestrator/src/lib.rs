@@ -4,11 +4,12 @@ pub mod pipeline;
 pub mod simple;
 pub use dozer_api::grpc::internal_grpc;
 pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
-use dozer_core::errors::ExecutionError;
+use dozer_core::{app::AppPipeline, errors::ExecutionError};
+use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
 use dozer_types::{
     crossbeam::channel::Sender,
     log::debug,
-    types::{Operation, SchemaWithChangesType},
+    types::{Operation, SourceSchema},
 };
 use errors::OrchestrationError;
 use std::{
@@ -30,15 +31,14 @@ mod utils;
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
+    fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError>;
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, Vec<SchemaWithChangesType>>, OrchestrationError>;
+    fn list_connectors(&self) -> Result<HashMap<String, Vec<SourceSchema>>, OrchestrationError>;
     fn generate_token(&self) -> Result<String, OrchestrationError>;
     fn query(
         &self,
@@ -50,9 +50,17 @@ pub trait Orchestrator {
 
 // Re-exports
 pub use dozer_ingestion::{
-    connectors::{get_connector, ColumnInfo, TableInfo},
+    connectors::{
+        get_connector, ingest_grpc, types as ingest_connector_types, ColumnInfo, TableInfo,
+    },
     errors::ConnectorError,
 };
+pub use dozer_sql::pipeline::builder::QueryContext;
+
+pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, PipelineError> {
+    let mut pipeline = AppPipeline::new();
+    statement_to_pipeline(sql, &mut pipeline, None)
+}
 
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;

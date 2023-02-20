@@ -58,7 +58,6 @@ pub struct IndexedTableWithJoins {
     pub relation: (NameOrAlias, TableFactor),
     pub joins: Vec<(NameOrAlias, Join)>,
 }
-
 pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline<SchemaSQLContext>,

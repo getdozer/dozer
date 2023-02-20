@@ -1,138 +1,93 @@
 use dozer_types::ingestion_types::{LocalStorage, S3Storage};
+use dozer_types::types::SourceSchema;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::connectors::object_store::schema_mapper::{Mapper, SchemaMapper};
 use crate::connectors::object_store::table_reader::{Reader, TableReader};
-use crate::connectors::TableInfo;
-use crate::errors::ConnectorError;
-use crate::{connectors::Connector, errors, ingestion::Ingestor};
-use dozer_types::parking_lot::RwLock;
+use crate::connectors::{Connector, TableInfo, ValidationResults};
+use crate::ingestion::Ingestor;
+
+type ConnectorResult<T> = Result<T, crate::errors::ConnectorError>;
 
 pub struct ObjectStoreConnector<T: Clone> {
     pub id: u64,
     config: T,
-    ingestor: Option<Arc<RwLock<Ingestor>>>,
-    tables: Option<Vec<TableInfo>>,
 }
 
 impl<T: Clone> ObjectStoreConnector<T> {
     pub fn new(id: u64, config: T) -> Self {
-        Self {
-            id,
-            config,
-            ingestor: None,
-            tables: None,
-        }
+        Self { id, config }
     }
 }
 
 impl Connector for ObjectStoreConnector<S3Storage> {
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> ConnectorResult<()> {
         Ok(())
     }
 
-    fn validate_schemas(
-        &self,
-        _tables: &[crate::connectors::TableInfo],
-    ) -> Result<crate::connectors::ValidationResults, errors::ConnectorError> {
+    fn validate_schemas(&self, _tables: &[TableInfo]) -> ConnectorResult<ValidationResults> {
         Ok(HashMap::new())
     }
 
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<dozer_types::types::SchemaWithChangesType>, ConnectorError> {
-        let tables = table_names
-            .as_ref()
-            .map_or_else(std::vec::Vec::new, |t| t.clone());
+    ) -> ConnectorResult<Vec<SourceSchema>> {
         let mapper = SchemaMapper::new(self.config.clone());
-        mapper.get_schema(tables)
+        mapper.get_schema(table_names)
     }
 
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    fn start(
+        &self,
+        _from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<(), ConnectorError> {
-        self.ingestor = Some(ingestor);
-        self.tables = tables;
-        Ok(())
+    ) -> ConnectorResult<()> {
+        let tables = match tables {
+            Some(tables) if !tables.is_empty() => tables,
+            _ => return Ok(()),
+        };
+
+        TableReader::new(self.config.clone()).read_tables(&tables, ingestor)
     }
 
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
-        let tables = self
-            .tables
-            .as_ref()
-            .map_or_else(std::vec::Vec::new, |t| t.clone());
-
-        let reader = TableReader::new(self.config.clone());
-
-        let ingestor = self
-            .ingestor
-            .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?
-            .clone();
-
-        reader.read_tables(tables, ingestor)
-    }
-
-    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> ConnectorResult<Vec<TableInfo>> {
         todo!()
     }
 }
 
 impl Connector for ObjectStoreConnector<LocalStorage> {
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> ConnectorResult<()> {
         Ok(())
     }
 
-    fn validate_schemas(
-        &self,
-        _tables: &[crate::connectors::TableInfo],
-    ) -> Result<crate::connectors::ValidationResults, errors::ConnectorError> {
+    fn validate_schemas(&self, _tables: &[TableInfo]) -> ConnectorResult<ValidationResults> {
         Ok(HashMap::new())
     }
 
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<dozer_types::types::SchemaWithChangesType>, ConnectorError> {
-        let tables = table_names
-            .as_ref()
-            .map_or_else(std::vec::Vec::new, |t| t.clone());
+    ) -> ConnectorResult<Vec<SourceSchema>> {
         let mapper = SchemaMapper::new(self.config.clone());
-        mapper.get_schema(tables)
+        mapper.get_schema(table_names)
     }
 
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    fn start(
+        &self,
+        _from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<(), ConnectorError> {
-        self.ingestor = Some(ingestor);
-        self.tables = tables;
-        Ok(())
+    ) -> ConnectorResult<()> {
+        let tables = match tables {
+            Some(tables) if !tables.is_empty() => tables,
+            _ => return Ok(()),
+        };
+
+        TableReader::new(self.config.clone()).read_tables(&tables, ingestor)
     }
 
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
-        let tables = self
-            .tables
-            .as_ref()
-            .map_or_else(std::vec::Vec::new, |t| t.clone());
-
-        let reader = TableReader::new(self.config.clone());
-
-        let ingestor = self
-            .ingestor
-            .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?
-            .clone();
-
-        reader.read_tables(tables, ingestor)
-    }
-
-    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        todo!()
+    fn get_tables(&self, tables: Option<&[TableInfo]>) -> ConnectorResult<Vec<TableInfo>> {
+        self.get_tables_default(tables)
     }
 }

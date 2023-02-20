@@ -105,13 +105,16 @@ impl SecondaryIndexDatabase {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::{lmdb::utils::init_env, test_utils::schema_1, CacheOptions};
+    use crate::cache::{
+        lmdb::utils::{init_env, CacheOptions},
+        test_utils::schema_1,
+    };
 
     use super::*;
 
     #[test]
     fn test_secondary_index_database() {
-        let env = init_env(&CacheOptions::default()).unwrap();
+        let env = init_env(&CacheOptions::default()).unwrap().0;
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
         let (schema, secondary_indexes) = schema_1();

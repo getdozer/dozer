@@ -3,30 +3,25 @@ use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::{Connector, ValidationResults};
 use crate::ingestion::Ingestor;
-use crate::{
-    connectors::{ethereum::helper, TableInfo},
-    errors::ConnectorError,
-};
-use dozer_types::ingestion_types::{EthConfig, EthFilter};
+use crate::{connectors::TableInfo, errors::ConnectorError};
+use dozer_types::ingestion_types::{EthFilter, EthLogConfig};
 
-use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
+use super::helper;
 use super::sender::{run, EthDetails};
-use dozer_types::types::ReplicationChangesTrackingType;
+use dozer_types::types::{ReplicationChangesTrackingType, SourceSchema};
 use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
-pub struct EthConnector {
+pub struct EthLogConnector {
     pub id: u64,
-    config: EthConfig,
+    config: EthLogConfig,
     // Address -> (contract, contract_name)
     contracts: HashMap<String, ContractTuple>,
-    tables: Option<Vec<TableInfo>>,
     // contract_signacture -> SchemaID
     schema_map: HashMap<H256, usize>,
-    ingestor: Option<Arc<RwLock<Ingestor>>>,
     conn_name: String,
 }
 
@@ -35,7 +30,7 @@ pub struct EthConnector {
 pub struct ContractTuple(pub Contract, pub String);
 
 pub const ETH_LOGS_TABLE: &str = "eth_logs";
-impl EthConnector {
+impl EthLogConnector {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
 
@@ -84,7 +79,7 @@ impl EthConnector {
         builder.build()
     }
 
-    pub fn new(id: u64, config: EthConfig, conn_name: String) -> Self {
+    pub fn new(id: u64, config: EthLogConfig, conn_name: String) -> Self {
         let mut contracts = HashMap::new();
 
         for c in &config.contracts {
@@ -101,8 +96,6 @@ impl EthConnector {
             config,
             contracts,
             schema_map,
-            tables: None,
-            ingestor: None,
             conn_name,
         }
     }
@@ -127,19 +120,12 @@ impl EthConnector {
     }
 }
 
-impl Connector for EthConnector {
+impl Connector for EthLogConnector {
     fn get_schemas(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<
-        Vec<(
-            String,
-            dozer_types::types::Schema,
-            ReplicationChangesTrackingType,
-        )>,
-        ConnectorError,
-    > {
-        let mut schemas = vec![(
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+        let mut schemas = vec![SourceSchema::new(
             ETH_LOGS_TABLE.to_string(),
             helper::get_eth_schema(),
             ReplicationChangesTrackingType::Nothing,
@@ -154,7 +140,7 @@ impl Connector for EthConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|(n, _, _)| tables.iter().any(|t| t.table_name == *n))
+                .filter(|s| tables.iter().any(|t| t.table_name == s.name))
                 .cloned()
                 .collect()
         } else {
@@ -164,26 +150,15 @@ impl Connector for EthConnector {
         Ok(schemas)
     }
 
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    fn start(
+        &self,
+        from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        self.ingestor = Some(ingestor);
-        self.tables = tables;
-        Ok(())
-    }
-
-    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
         let filter = self.config.filter.to_owned().unwrap_or_default();
-
-        let ingestor = self
-            .ingestor
-            .as_ref()
-            .map_or(Err(ConnectorError::InitializationError), Ok)?
-            .clone();
 
         Runtime::new().unwrap().block_on(async {
             let details = Arc::new(EthDetails::new(
@@ -191,7 +166,7 @@ impl Connector for EthConnector {
                 filter,
                 ingestor,
                 self.contracts.to_owned(),
-                self.tables.to_owned(),
+                tables,
                 self.schema_map.to_owned(),
                 from_seq,
                 self.conn_name.clone(),
@@ -215,7 +190,7 @@ impl Connector for EthConnector {
         Ok(HashMap::new())
     }
 
-    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        todo!()
+    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
+        self.get_tables_default(tables)
     }
 }

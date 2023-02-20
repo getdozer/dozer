@@ -8,7 +8,6 @@ use crate::errors::ConnectorError;
 use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
 use crate::errors::PostgresConnectorError::{InvalidQueryError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::parking_lot::RwLock;
 
 use crate::errors::ConnectorError::PostgresConnectorError;
 use postgres::fallible_iterator::FallibleIterator;
@@ -17,14 +16,14 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 // 0.4.10
-pub struct PostgresSnapshotter {
+pub struct PostgresSnapshotter<'a> {
     pub tables: Option<Vec<TableInfo>>,
     pub conn_config: tokio_postgres::Config,
-    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub ingestor: &'a Ingestor,
     pub connector_id: u64,
 }
 
-impl PostgresSnapshotter {
+impl<'a> PostgresSnapshotter<'a> {
     pub fn get_tables(
         &self,
         tables: Option<Vec<TableInfo>>,
@@ -103,7 +102,6 @@ impl PostgresSnapshotter {
                         .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
 
                         self.ingestor
-                            .write()
                             .handle_message(((lsn, idx), IngestionMessage::OperationEvent(evt)))
                             .map_err(ConnectorError::IngestorError)?;
                     }

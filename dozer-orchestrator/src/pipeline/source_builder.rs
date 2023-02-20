@@ -2,20 +2,15 @@ use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{ColumnInfo, TableInfo};
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::source::Source;
-use dozer_types::parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 pub struct SourceBuilder {
     used_sources: Vec<String>,
     grouped_connections: HashMap<String, Vec<Source>>,
 }
-
-pub type IngestorVec = Vec<Arc<RwLock<Ingestor>>>;
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
@@ -47,10 +42,8 @@ impl SourceBuilder {
 
     pub fn build_source_manager(
         &self,
-        running: Arc<AtomicBool>,
-    ) -> Result<(AppSourceManager<SchemaSQLContext>, IngestorVec), OrchestrationError> {
+    ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
         let mut asm = AppSourceManager::new();
-        let mut ingestors = vec![];
 
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
 
@@ -84,28 +77,18 @@ impl SourceBuilder {
                     }
                 }
 
-                let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-                let source_factory = ConnectorSourceFactory::new(
-                    Arc::clone(&ingestor),
-                    Arc::clone(&iterator),
-                    ports.clone(),
-                    tables,
-                    connection.clone(),
-                    running.clone(),
-                );
+                let source_factory =
+                    ConnectorSourceFactory::new(ports.clone(), tables, connection.clone());
 
                 asm.add(AppSource::new(
                     conn.clone(),
                     Arc::new(source_factory),
                     ports,
                 ))?;
-
-                ingestors.push(ingestor);
             }
         }
 
-        Ok((asm, ingestors))
+        Ok(asm)
     }
 
     pub fn group_connections(sources: Vec<Source>) -> HashMap<String, Vec<Source>> {
@@ -124,71 +107,43 @@ impl SourceBuilder {
 #[cfg(test)]
 mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
+    use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
     use dozer_types::models::app_config::Config;
-    use std::sync::atomic::AtomicBool;
-    use std::sync::Arc;
 
     use dozer_core::appsource::{AppSourceId, AppSourceMappings};
     use dozer_sql::pipeline::builder::SchemaSQLContext;
-    use dozer_types::models::connection::{
-        Authentication, Connection, DBType, EventsAuthentication,
-    };
+    use dozer_types::models::connection::{Connection, ConnectionConfig};
     use dozer_types::models::source::Source;
 
     fn get_default_config() -> Config {
-        let events1_conn = Connection {
-            authentication: Some(Authentication::Events(EventsAuthentication {})),
-            db_type: DBType::Postgres.into(),
+        let schema_str = include_str!("./schemas.json");
+        let grpc_conn = Connection {
+            config: Some(ConnectionConfig::Grpc(GrpcConfig {
+                schemas: Some(GrpcConfigSchemas::Inline(schema_str.to_string())),
+                ..Default::default()
+            })),
             name: "pg_conn".to_string(),
-        };
-
-        let events2_conn = Connection {
-            authentication: Some(Authentication::Events(EventsAuthentication {})),
-            db_type: DBType::Snowflake.into(),
-            name: "snow".to_string(),
         };
 
         Config {
             app_name: "multi".to_string(),
             api: Default::default(),
             flags: Default::default(),
-            connections: vec![events1_conn.clone(), events2_conn.clone()],
+            connections: vec![grpc_conn.clone()],
             sources: vec![
                 Source {
-                    id: None,
+                    name: "users".to_string(),
+                    table_name: "users".to_string(),
+                    columns: vec!["id".to_string(), "name".to_string()],
+                    connection: Some(grpc_conn.clone()),
+                    refresh_config: None,
+                },
+                Source {
                     name: "customers".to_string(),
                     table_name: "customers".to_string(),
-                    columns: vec!["id".to_string()],
-                    connection: Some(events1_conn.clone()),
+                    columns: vec!["id".to_string(), "name".to_string()],
+                    connection: Some(grpc_conn),
                     refresh_config: None,
-                    app_id: None,
-                },
-                Source {
-                    id: None,
-                    name: "addresses".to_string(),
-                    table_name: "addresses".to_string(),
-                    columns: vec!["id".to_string()],
-                    connection: Some(events1_conn),
-                    refresh_config: None,
-                    app_id: None,
-                },
-                Source {
-                    id: None,
-                    name: "prices".to_string(),
-                    table_name: "prices".to_string(),
-                    columns: vec!["id".to_string()],
-                    connection: Some(events2_conn.clone()),
-                    refresh_config: None,
-                    app_id: None,
-                },
-                Source {
-                    id: None,
-                    name: "prices_history".to_string(),
-                    table_name: "prices_history".to_string(),
-                    columns: vec!["id".to_string()],
-                    connection: Some(events2_conn),
-                    refresh_config: None,
-                    app_id: None,
                 },
             ],
             endpoints: vec![],
@@ -211,58 +166,22 @@ mod tests {
             tables,
             SourceBuilder::group_connections(config.sources.clone()),
         );
-        let asm = source_builder
-            .build_source_manager(Arc::new(AtomicBool::new(true)))
-            .unwrap()
-            .0;
+        let asm = source_builder.build_source_manager().unwrap();
 
         let conn_name_1 = config.connections.get(0).unwrap().name.clone();
-        let conn_name_2 = config.connections.get(1).unwrap().name.clone();
         let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![
                 AppSourceId::new(
                     config.sources.get(0).unwrap().table_name.clone(),
-                    Some(conn_name_1),
+                    Some(conn_name_1.clone()),
                 ),
                 AppSourceId::new(
-                    config.sources.get(2).unwrap().table_name.clone(),
-                    Some(conn_name_2),
+                    config.sources.get(1).unwrap().table_name.clone(),
+                    Some(conn_name_1),
                 ),
             ])
             .unwrap();
 
-        assert_eq!(1, pg_source_mapping.get(0).unwrap().mappings.len());
-    }
-
-    #[test]
-    fn load_only_used_sources() {
-        let config = get_default_config();
-
-        let only_used_table_name = vec![config.sources.get(0).unwrap().table_name.clone()];
-        let conn_name = config.connections.get(0).unwrap().name.clone();
-        let source_builder = SourceBuilder::new(
-            only_used_table_name,
-            SourceBuilder::group_connections(config.sources.clone()),
-        );
-        let asm = source_builder
-            .build_source_manager(Arc::new(AtomicBool::new(true)))
-            .unwrap()
-            .0;
-
-        let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
-            .get(vec![AppSourceId::new(
-                config.sources.get(0).unwrap().table_name.clone(),
-                Some(conn_name.clone()),
-            )])
-            .unwrap();
-
-        assert_eq!(1, pg_source_mapping.get(0).unwrap().mappings.len());
-
-        assert!(asm
-            .get(vec![AppSourceId::new(
-                config.sources.get(0).unwrap().table_name.clone(),
-                Some(conn_name),
-            ),])
-            .is_ok())
+        assert_eq!(2, pg_source_mapping.get(0).unwrap().mappings.len());
     }
 }

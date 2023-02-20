@@ -5,13 +5,11 @@ use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::{Connector, TableInfo, ValidationResults};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
-use dozer_types::parking_lot::RwLock;
 use dozer_types::tracing::{error, info};
-use dozer_types::types::SchemaWithChangesType;
+use dozer_types::types::SourceSchema;
 use postgres::Client;
 use postgres_types::PgLsn;
 
-use std::sync::Arc;
 use tokio_postgres::config::ReplicationMode;
 use tokio_postgres::Config;
 
@@ -28,7 +26,6 @@ pub struct PostgresConnector {
     pub id: u64,
     name: String,
     tables: Option<Vec<TableInfo>>,
-    ingestor: Option<Arc<RwLock<Ingestor>>>,
     replication_conn_config: Config,
     conn_config: Config,
     schema_helper: SchemaHelper,
@@ -56,7 +53,6 @@ impl PostgresConnector {
             conn_config: config.config,
             replication_conn_config,
             tables: config.tables,
-            ingestor: None,
             schema_helper: helper,
         }
     }
@@ -90,26 +86,22 @@ impl Connector for PostgresConnector {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
         self.schema_helper
             .get_schemas(table_names)
             .map_err(ConnectorError::PostgresConnectorError)
     }
 
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    fn start(
+        &self,
+        from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         let client = helper::connect(self.replication_conn_config.clone())
             .map_err(ConnectorError::PostgresConnectorError)?;
-        self.tables = tables;
         self.create_publication(client)?;
-        self.ingestor = Some(ingestor);
-        Ok(())
-    }
 
-    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), from_seq);
 
         let iterator = PostgresIterator::new(
@@ -117,12 +109,9 @@ impl Connector for PostgresConnector {
             self.name.clone(),
             self.get_publication_name(),
             self.get_slot_name(),
-            self.tables.to_owned(),
+            tables,
             self.replication_conn_config.clone(),
-            self.ingestor
-                .as_ref()
-                .map_or(Err(ConnectorError::InitializationError), Ok)?
-                .clone(),
+            ingestor,
             self.conn_config.clone(),
         );
         iterator.start(lsn)

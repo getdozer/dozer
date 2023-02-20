@@ -5,16 +5,13 @@ use crate::{
         schema::connections::dsl::*,
     },
     server::dozer_admin_grpc::{
-        ConnectionResponse, CreateConnectionRequest, ErrorResponse, GetAllConnectionRequest,
+        ConnectionRequest, ConnectionResponse, ErrorResponse, GetAllConnectionRequest,
         GetAllConnectionResponse, GetTablesRequest, GetTablesResponse, Pagination, TableInfo,
-        UpdateConnectionRequest, ValidateConnectionRequest, ValidateConnectionResponse,
+        UpdateConnectionRequest, ValidateConnectionResponse,
     },
 };
 use dozer_orchestrator::get_connector;
-use dozer_types::{
-    log::error,
-    models::connection::{Authentication, Connection},
-};
+use dozer_types::{log::error, models::connection::Connection};
 use std::thread;
 
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
@@ -48,16 +45,10 @@ impl ConnectionService {
 impl ConnectionService {
     pub fn create_connection(
         &self,
-        input: CreateConnectionRequest,
+        input: ConnectionRequest,
     ) -> Result<ConnectionResponse, ErrorResponse> {
-        if let Some(authentication) = input.authentication {
-            let authentication = Authentication::from(authentication);
+        if let Some(c) = input.connection {
             let generated_id = uuid::Uuid::new_v4().to_string();
-            let c = dozer_types::models::connection::Connection {
-                db_type: input.r#type,
-                name: input.name,
-                authentication: Some(authentication),
-            };
 
             let new_connection =
                 NewConnection::from(c.clone(), generated_id.clone()).map_err(|err| {
@@ -168,13 +159,7 @@ impl ConnectionService {
         let mut db = self.db_pool.clone().get().map_err(|op| ErrorResponse {
             message: op.to_string(),
         })?;
-        let authentication = Authentication::from(request.authentication.unwrap_or_default());
-
-        let c = dozer_types::models::connection::Connection {
-            db_type: request.r#type,
-            name: request.name,
-            authentication: Some(authentication),
-        };
+        let c = request.connection.unwrap();
 
         let new_connection = NewConnection::from(c.clone(), request.connection_id.clone())
             .map_err(|err| ErrorResponse {
@@ -196,16 +181,11 @@ impl ConnectionService {
 
     pub async fn validate_connection(
         &self,
-        input: ValidateConnectionRequest,
+        input: ConnectionRequest,
     ) -> Result<ValidateConnectionResponse, ErrorResponse> {
-        let authentication = Authentication::from(input.authentication.unwrap_or_default());
-        let connection = Connection {
-            db_type: input.r#type,
-            authentication: Some(authentication),
-            name: input.name,
-        };
+        let c = input.connection.unwrap();
         let validate_result = thread::spawn(|| {
-            let connector = get_connector(connection).map_err(|err| err.to_string())?;
+            let connector = get_connector(c).map_err(|err| err.to_string())?;
             connector.validate(None).map_err(|err| err.to_string())
         });
         validate_result

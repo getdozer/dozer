@@ -13,9 +13,8 @@ diesel::table! {
 diesel::table! {
     connections (id) {
         id -> Text,
-        auth -> Text,
+        config -> Text,
         name -> Text,
-        db_type -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
