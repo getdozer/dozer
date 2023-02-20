@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use lmdb::{Database, DatabaseFlags};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_core::epoch::Epoch;
@@ -6,16 +7,23 @@ use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record};
-use crate::pipeline::errors::ProductError;
+use crate::pipeline::errors::{PipelineError, ProductError};
 use crate::pipeline::product::set::{SetAction, SetOperation};
+use dozer_core::errors::ExecutionError::InternalError;
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
+use dozer_types::parking_lot::RwLockWriteGuard;
+
+const SET_PREFIX: u32 = 100000;
 
 #[derive(Debug)]
 pub struct SetProcessor {
     /// Set operations
     operator: SetOperation,
     source_names: HashMap<PortHandle, String>,
-    record_hash_map: Vec<u64>,
+    /// Database to store Join indexes
+    db: Option<Database>,
 }
 
 impl SetProcessor {
@@ -24,21 +32,35 @@ impl SetProcessor {
         Self {
             operator,
             source_names,
-            record_hash_map: Vec::new(),
+            db: None,
         }
+    }
+
+    fn init_store(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), PipelineError> {
+        self.db = Some(txn.create_database(Some("set"), Some(DatabaseFlags::DUP_SORT))?);
+
+        Ok(())
     }
 
     fn delete(
         &mut self,
         from_port: PortHandle,
         record: &Record,
+        txn: &mut PrefixTransaction,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
+
         self.operator
             .execute(
                 SetAction::Delete,
-                from_port,
                 record,
-                &mut self.record_hash_map,
+                &database,
+                txn,
             )
             .map_err(|err| ProductError::DeleteError(self.get_port_name(from_port), Box::new(err)))
     }
@@ -47,13 +69,21 @@ impl SetProcessor {
         &mut self,
         from_port: PortHandle,
         record: &Record,
+        txn: &mut PrefixTransaction,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
+
         self.operator
             .execute(
                 SetAction::Insert,
-                from_port,
                 record,
-                &mut self.record_hash_map,
+                &database,
+                txn,
             )
             .map_err(|err| ProductError::InsertError(self.get_port_name(from_port), Box::new(err)))
     }
@@ -64,14 +94,22 @@ impl SetProcessor {
         from_port: PortHandle,
         old: &Record,
         new: &Record,
+        txn: &mut PrefixTransaction,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
+        let database = if self.db.is_some() {
+            self.db.unwrap()
+        } else {
+            return Err(ProductError::InvalidDatabase());
+        };
+
         let old_records = self
             .operator
             .execute(
                 SetAction::Delete,
-                from_port,
                 old,
-                &mut self.record_hash_map,
+                &database,
+                txn,
             )
             .map_err(|err| {
                 ProductError::UpdateOldError(self.get_port_name(from_port), Box::new(err))
@@ -81,9 +119,9 @@ impl SetProcessor {
             .operator
             .execute(
                 SetAction::Insert,
-                from_port,
                 new,
-                &mut self.record_hash_map,
+                &database,
+                txn,
             )
             .map_err(|err| {
                 ProductError::UpdateNewError(self.get_port_name(from_port), Box::new(err))
@@ -101,8 +139,8 @@ impl SetProcessor {
 }
 
 impl Processor for SetProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
+    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
+        internal_err!(self.init_store(txn))
     }
 
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
@@ -114,13 +152,15 @@ impl Processor for SetProcessor {
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _transaction: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        transaction: &SharedTransaction,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
+        let lmdb_txn = &mut transaction.write();
+        let ptx = &mut PrefixTransaction::new(lmdb_txn, SET_PREFIX);
         match op {
             Operation::Delete { ref old } => {
                 let records = self
-                    .delete(from_port, old)
+                    .delete(from_port, old, ptx, reader)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record) in records.into_iter() {
@@ -136,7 +176,7 @@ impl Processor for SetProcessor {
             }
             Operation::Insert { ref new } => {
                 let records = self
-                    .insert(from_port, new)
+                    .insert(from_port, new, ptx, reader)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record) in records.into_iter() {
@@ -151,11 +191,11 @@ impl Processor for SetProcessor {
                 }
             }
             Operation::Update { ref old, ref new } => {
-                let (old_join_records, new_join_records) = self
-                    .update(from_port, old, new)
+                let (old_records, new_records) = self
+                    .update(from_port, old, new, ptx, reader)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
-                for (action, old) in old_join_records.into_iter() {
+                for (action, old) in old_records.into_iter() {
                     match action {
                         SetAction::Insert => {
                             let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
@@ -166,7 +206,7 @@ impl Processor for SetProcessor {
                     }
                 }
 
-                for (action, new) in new_join_records.into_iter() {
+                for (action, new) in new_records.into_iter() {
                     match action {
                         SetAction::Insert => {
                             let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
