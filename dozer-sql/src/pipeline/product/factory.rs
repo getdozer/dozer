@@ -61,9 +61,9 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         let mut output_schema = Schema::empty();
 
         let input_names = get_input_names(&self.input_tables);
-        for (port, _table) in input_names.iter().enumerate() {
+        for (port, table) in input_names.iter().enumerate() {
             if let Some((current_schema, _)) = input_schemas.get(&(port as PortHandle)) {
-                let current_extended_schema = extend_schema_source_def(current_schema, _table);
+                let current_extended_schema = extend_schema_source_def(current_schema, table);
                 output_schema = append_schema(&output_schema, &current_extended_schema);
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));

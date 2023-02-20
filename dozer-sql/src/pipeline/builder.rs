@@ -2,13 +2,14 @@ use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
+use crate::pipeline::product::set_factory::SetProcessorFactory;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
 use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use sqlparser::ast::{Join, TableFactor, TableWithJoins};
+use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::AnsiDialect,
@@ -24,7 +25,7 @@ use super::product::factory::FromProcessorFactory;
 pub struct SchemaSQLContext {}
 
 #[derive(Debug, Clone)]
-pub struct QueryTableInfo {
+pub struct OutputNodeInfo {
     // Name to connect in dag
     pub node: String,
     // Port to connect in dag
@@ -43,10 +44,10 @@ pub struct TableInfo {
 #[derive(Debug, Clone, Default)]
 pub struct QueryContext {
     // Internal tables map, used to store the tables that are created by the queries
-    pub pipeline_map: HashMap<(usize, String), QueryTableInfo>,
+    pub pipeline_map: HashMap<(usize, String), OutputNodeInfo>,
 
     // Output tables map that are marked with "INTO" used to store the tables, these can be exposed to sinks.
-    pub output_tables_map: HashMap<String, QueryTableInfo>,
+    pub output_tables_map: HashMap<String, OutputNodeInfo>,
 
     // Used Sources
     pub used_sources: Vec<String>,
@@ -181,9 +182,29 @@ fn query_to_pipeline(
                 pipeline_idx,
             )?
         }
+        SetExpr::SetOperation {
+            op,
+            set_quantifier,
+            left,
+            right,
+        } => match op {
+            SetOperator::Union => {
+                set_to_pipeline(
+                    table_info,
+                    left,
+                    right,
+                    set_quantifier,
+                    pipeline,
+                    query_ctx,
+                    stateful,
+                    pipeline_idx,
+                )?;
+            }
+            _ => panic!("{:?} is not supported", op),
+        },
         _ => {
             return Err(PipelineError::UnsupportedSqlError(
-                UnsupportedSqlError::SelectOnlyError,
+                UnsupportedSqlError::GenericError("Unsupported query body structure".to_string()),
             ))
         }
     };
@@ -197,7 +218,7 @@ fn select_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
-) -> Result<(), PipelineError> {
+) -> Result<String, PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
         return Err(PipelineError::UnsupportedSqlError(
@@ -273,7 +294,7 @@ fn select_to_pipeline(
 
     query_ctx.pipeline_map.insert(
         (pipeline_idx, table_info.name.0.to_string()),
-        QueryTableInfo {
+        OutputNodeInfo {
             node: gen_agg_name.clone(),
             port: DEFAULT_PORT_HANDLE,
             is_derived: table_info.is_derived,
@@ -288,15 +309,167 @@ fn select_to_pipeline(
     if let Some(table_name) = output_table_name {
         query_ctx.output_tables_map.insert(
             table_name,
-            QueryTableInfo {
-                node: gen_agg_name,
+            OutputNodeInfo {
+                node: gen_agg_name.clone(),
                 port: DEFAULT_PORT_HANDLE,
                 is_derived: false,
             },
         );
     }
 
-    Ok(())
+    Ok(gen_agg_name)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn set_to_pipeline(
+    table_info: &TableInfo,
+    left_select: Box<SetExpr>,
+    right_select: Box<SetExpr>,
+    set_quantifier: SetQuantifier,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    query_ctx: &mut QueryContext,
+    stateful: bool,
+    pipeline_idx: usize,
+) -> Result<String, PipelineError> {
+    let gen_left_set_name = format!("set_left_{}", uuid::Uuid::new_v4());
+    let left_table_info = TableInfo {
+        name: NameOrAlias(gen_left_set_name.clone(), None),
+        override_name: None,
+        is_derived: false,
+    };
+    let gen_right_set_name = format!("set_right_{}", uuid::Uuid::new_v4());
+    let right_table_info = TableInfo {
+        name: NameOrAlias(gen_right_set_name.clone(), None),
+        override_name: None,
+        is_derived: false,
+    };
+
+    let _left_pipeline_name = match *left_select {
+        SetExpr::Select(select) => select_to_pipeline(
+            &left_table_info,
+            *select,
+            pipeline,
+            query_ctx,
+            stateful,
+            pipeline_idx,
+        )?,
+        SetExpr::SetOperation {
+            op: _,
+            set_quantifier,
+            left,
+            right,
+        } => set_to_pipeline(
+            &left_table_info,
+            left,
+            right,
+            set_quantifier,
+            pipeline,
+            query_ctx,
+            stateful,
+            pipeline_idx,
+        )?,
+        _ => {
+            return Err(PipelineError::InvalidQuery(
+                "Invalid UNION left Query".to_string(),
+            ))
+        }
+    };
+
+    let _right_pipeline_name = match *right_select {
+        SetExpr::Select(select) => select_to_pipeline(
+            &right_table_info,
+            *select,
+            pipeline,
+            query_ctx,
+            stateful,
+            pipeline_idx,
+        )?,
+        SetExpr::SetOperation {
+            op: _,
+            set_quantifier,
+            left,
+            right,
+        } => set_to_pipeline(
+            &right_table_info,
+            left,
+            right,
+            set_quantifier,
+            pipeline,
+            query_ctx,
+            stateful,
+            pipeline_idx,
+        )?,
+        _ => {
+            return Err(PipelineError::InvalidQuery(
+                "Invalid UNION right Query".to_string(),
+            ))
+        }
+    };
+
+    let left_pipeline_output_node = match query_ctx
+        .pipeline_map
+        .get(&(pipeline_idx, gen_left_set_name))
+    {
+        Some(pipeline) => pipeline,
+        None => {
+            return Err(PipelineError::InvalidQuery(
+                "Invalid UNION left Query".to_string(),
+            ))
+        }
+    };
+
+    let right_pipeline_output_node = match query_ctx
+        .pipeline_map
+        .get(&(pipeline_idx, gen_right_set_name))
+    {
+        Some(pipeline) => pipeline,
+        None => {
+            return Err(PipelineError::InvalidQuery(
+                "Invalid UNION Right Query".to_string(),
+            ))
+        }
+    };
+
+    let set_proc_fac = SetProcessorFactory::new(set_quantifier);
+
+    let mut gen_set_name = format!("set_{}", uuid::Uuid::new_v4());
+
+    if table_info.override_name.is_some() {
+        gen_set_name = table_info.override_name.to_owned().unwrap();
+    }
+
+    pipeline.add_processor(Arc::new(set_proc_fac), &gen_set_name, vec![]);
+
+    pipeline.connect_nodes(
+        &left_pipeline_output_node.node,
+        Some(left_pipeline_output_node.port),
+        &gen_set_name,
+        Some(0 as PortHandle),
+        true,
+    )?;
+
+    pipeline.connect_nodes(
+        &right_pipeline_output_node.node,
+        Some(right_pipeline_output_node.port),
+        &gen_set_name,
+        Some(1 as PortHandle),
+        true,
+    )?;
+
+    for (_, table_name) in query_ctx.pipeline_map.keys() {
+        query_ctx.output_tables_map.remove_entry(table_name);
+    }
+
+    query_ctx.pipeline_map.insert(
+        (pipeline_idx, table_info.name.0.to_string()),
+        OutputNodeInfo {
+            node: gen_set_name.clone(),
+            port: DEFAULT_PORT_HANDLE,
+            is_derived: table_info.is_derived,
+        },
+    );
+
+    Ok(gen_set_name)
 }
 
 /// Returns a vector of input port handles and relative table name
@@ -333,9 +506,10 @@ pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias>
     }
     input_names
 }
+
 pub fn get_entry_points(
     input_tables: &IndexedTableWithJoins,
-    pipeline_map: &mut HashMap<(usize, String), QueryTableInfo>,
+    pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
     pipeline_idx: usize,
 ) -> Result<Vec<PipelineEntryPoint>, PipelineError> {
     let mut endpoints = vec![];

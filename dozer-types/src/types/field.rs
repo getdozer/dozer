@@ -448,7 +448,7 @@ impl<'a> FieldBorrow<'a> {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FieldType {
     UInt,
     Int,

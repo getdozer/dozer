@@ -1,0 +1,67 @@
+app_name: dozer-eth-dashboard
+connections:
+  - db_type: Postgres
+    authentication: !Postgres
+      user: postgres
+      password: postgres
+      host: localhost
+      port: 5432
+      database: eth_addresses
+    name: eth_addresses
+
+  - db_type: Ethereum
+    authentication: !Ethereum
+      wss_url: "{{ETH_WSS_URL}}"
+      contracts:
+      filter:
+        from_block: 16262470
+        addresses:
+        topics:
+    name: eth_conn
+
+sources:
+  - name: eth_addresses
+    table_name: eth_addresses
+    connection: !Ref eth_addresses
+    columns:
+      - address
+      - name
+      - accounttype
+      - contracttype
+      - entity
+      - label
+      - tag1
+      - tag2
+      - tag3
+      - tag4
+      - tag5
+      - tag6
+  - name: eth_logs
+    table_name: eth_logs
+    connection: !Ref eth_conn
+    columns:
+      - id
+      - address
+      - block_hash
+      - block_number
+
+sql: |
+  -- Get address stats combining data from postgres and ethereum connectors
+  WITH eth_result AS (
+    SELECT address
+    FROM eth_addresses
+    UNION
+    SELECT address
+    FROM eth_logs
+  )
+  SELECT address
+  INTO eth_result_map
+  FROM eth_result;
+
+endpoints:
+  - name: addresses
+    path: /addresses
+    table_name: eth_result_map
+    index:
+      primary_key:
+        - address
