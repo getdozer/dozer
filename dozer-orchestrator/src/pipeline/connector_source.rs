@@ -4,30 +4,27 @@ use dozer_core::errors::{ExecutionError, SourceError};
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
-use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_types::ingestion_types::IngestorError;
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
-use dozer_types::parking_lot::RwLock;
+use dozer_types::parking_lot::Mutex;
 use dozer_types::types::{
     Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
+    SourceSchema,
 };
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::thread;
 
 #[derive(Debug)]
 pub struct ConnectorSourceFactory {
-    pub ingestor: Arc<RwLock<Ingestor>>,
-    pub iterator: Arc<RwLock<IngestionIterator>>,
     pub ports: HashMap<String, u16>,
     pub schema_port_map: HashMap<u32, u16>,
     pub schema_map: HashMap<u16, Schema>,
     pub replication_changes_type_map: HashMap<u16, ReplicationChangesTrackingType>,
     pub tables: Vec<TableInfo>,
     pub connection: Connection,
-    pub running: Arc<AtomicBool>,
 }
 
 fn map_replication_type_to_output_port_type(
@@ -50,25 +47,19 @@ fn map_replication_type_to_output_port_type(
 
 impl ConnectorSourceFactory {
     pub fn new(
-        ingestor: Arc<RwLock<Ingestor>>,
-        iterator: Arc<RwLock<IngestionIterator>>,
         ports: HashMap<String, u16>,
         tables: Vec<TableInfo>,
         connection: Connection,
-        running: Arc<AtomicBool>,
     ) -> Self {
         let (schema_map, schema_port_map, replication_changes_type_map) =
             Self::get_schema_map(connection.clone(), tables.clone(), ports.clone());
         Self {
-            ingestor,
-            iterator,
             ports,
             schema_port_map,
             schema_map,
             replication_changes_type_map,
             tables,
             connection,
-            running,
         }
     }
 
@@ -94,17 +85,22 @@ impl ConnectorSourceFactory {
         let mut replication_changes_type_map: HashMap<u16, ReplicationChangesTrackingType> =
             HashMap::new();
 
-        for (table_name, schema, replication_changes_type) in schema_tuples {
-            let source_name = tables_map.get(&table_name).unwrap();
+        for SourceSchema {
+            name,
+            schema,
+            replication_type,
+        } in schema_tuples
+        {
+            let source_name = tables_map.get(&name).unwrap();
             let port: u16 = *ports
                 .get(source_name)
-                .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
+                .map_or(Err(ExecutionError::PortNotFound(name.clone())), Ok)
                 .unwrap();
             let schema_id = get_schema_id(schema.identifier.as_ref()).unwrap();
 
             schema_port_map.insert(schema_id, port);
             schema_map.insert(port, schema);
-            replication_changes_type_map.insert(port, replication_changes_type);
+            replication_changes_type_map.insert(port, replication_type);
         }
 
         (schema_map, schema_port_map, replication_changes_type_map)
@@ -183,25 +179,24 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         Ok(Box::new(ConnectorSource {
-            ingestor: self.ingestor.clone(),
-            iterator: self.iterator.clone(),
+            ingestor,
+            iterator: Mutex::new(iterator),
             schema_port_map: self.schema_port_map.clone(),
             tables: self.tables.clone(),
             connection: self.connection.clone(),
-            running: self.running.clone(),
         }))
     }
 }
 
 #[derive(Debug)]
 pub struct ConnectorSource {
-    ingestor: Arc<RwLock<Ingestor>>,
-    iterator: Arc<RwLock<IngestionIterator>>,
+    ingestor: Ingestor,
+    iterator: Mutex<IngestionIterator>,
     schema_port_map: HashMap<u32, u16>,
     tables: Vec<TableInfo>,
     connection: Connection,
-    running: Arc<AtomicBool>,
 }
 
 impl Source for ConnectorSource {
@@ -210,28 +205,22 @@ impl Source for ConnectorSource {
         fw: &mut dyn SourceChannelForwarder,
         from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let mut connector = get_connector(self.connection.to_owned())
+        let connector = get_connector(self.connection.to_owned())
             .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
 
-        let ingestor = self.ingestor.clone();
-        let tables = self.tables.clone();
-        let con_fn = move || -> Result<(), ConnectorError> {
-            connector.initialize(ingestor, Some(tables))?;
-            connector.start(from_seq)?;
-            Ok(())
-        };
-        let running = self.running.clone();
-        let t = thread::spawn(move || {
-            if let Err(e) = con_fn() {
-                if running.load(Ordering::Relaxed) {
-                    std::panic::panic_any(e);
+        thread::scope(|scope| {
+            let t = scope.spawn(|| {
+                match connector.start(from_seq, &self.ingestor, Some(self.tables.clone())) {
+                    Ok(_) => {}
+                    // If we get a channel error, it means the source sender thread has quit.
+                    // Any error handling is done in that thread.
+                    Err(ConnectorError::IngestorError(IngestorError::ChannelError(_))) => (),
+                    Err(e) => std::panic::panic_any(e),
                 }
-            }
-        });
+            });
 
-        loop {
-            let msg = self.iterator.write().next();
-            if let Some(((lsn, seq_no), op)) = msg {
+            let mut iterator = self.iterator.lock();
+            for ((lsn, seq_no), op) in iterator.by_ref() {
                 let identifier = match &op {
                     Operation::Delete { old } => old.schema_id.to_owned(),
                     Operation::Insert { new } => new.schema_id.to_owned(),
@@ -245,14 +234,16 @@ impl Source for ConnectorSource {
                     Ok,
                 )?;
                 fw.send(lsn, seq_no, op, *port)?
-            } else {
-                break;
             }
-        }
 
-        t.join().unwrap();
+            // If we reach here, it means the connector thread has quit and the `ingestor` has been dropped.
+            // `join` will not block.
+            if let Err(e) = t.join() {
+                std::panic::panic_any(e);
+            }
 
-        Ok(())
+            Ok(())
+        })
     }
 }
 

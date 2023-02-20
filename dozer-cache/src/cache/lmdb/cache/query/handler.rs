@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use super::intersection::intersection;
 use super::iterator::{CacheIterator, KeyEndpoint};
+use crate::cache::expression::Skip;
 use crate::cache::lmdb::cache::{id_from_bytes, id_to_bytes, LmdbCacheCommon};
 use crate::cache::RecordWithId;
 use crate::cache::{
@@ -43,12 +44,15 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         let execution = planner.plan()?;
         match execution {
             Plan::IndexScans(index_scans) => Ok(self.build_index_scan(index_scans)?.count()),
-            Plan::SeqScan(_) => Ok(self
-                .common
-                .db
-                .count(self.txn)?
-                .saturating_sub(self.query.skip)
-                .min(self.query.limit.unwrap_or(usize::MAX))),
+            Plan::SeqScan(_) => Ok(match self.query.skip {
+                Skip::Skip(skip) => self
+                    .common
+                    .db
+                    .count(self.txn)?
+                    .saturating_sub(skip)
+                    .min(self.query.limit.unwrap_or(usize::MAX)),
+                Skip::After(_) => self.all_ids()?.count(),
+            }),
             Plan::ReturnEmpty => Ok(0),
         }
     }
@@ -65,22 +69,20 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         }
     }
 
-    pub fn all_ids(&self) -> Result<impl Iterator<Item = [u8; 8]> + '_, CacheError> {
+    pub fn all_ids(&self) -> Result<impl Iterator<Item = u64> + '_, CacheError> {
         let cursor = self.common.id.open_ro_cursor(self.txn)?;
-        Ok(CacheIterator::new(cursor, None, SortDirection::Ascending)
-            .skip(self.query.skip)
-            .take(self.query.limit.unwrap_or(usize::MAX))
-            .map(|(_, value)| {
-                value
-                    .try_into()
-                    .expect("All values must be u64 ids in id database")
-            }))
+        Ok(skip(
+            CacheIterator::new(cursor, None, SortDirection::Ascending)
+                .map(map_index_database_entry_to_id),
+            self.query.skip,
+        )
+        .take(self.query.limit.unwrap_or(usize::MAX)))
     }
 
     fn build_index_scan(
         &self,
         index_scans: Vec<IndexScan>,
-    ) -> Result<impl Iterator<Item = [u8; 8]> + '_, CacheError> {
+    ) -> Result<impl Iterator<Item = u64> + '_, CacheError> {
         debug_assert!(
             !index_scans.is_empty(),
             "Planner should not generate empty index scan"
@@ -92,25 +94,20 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             // Intersection of multiple index scans.
             let iterators = index_scans
                 .iter()
-                .map(|index_scan| {
-                    self.query_with_secondary_index(index_scan)
-                        .map(|iter| iter.map(id_from_bytes))
-                })
+                .map(|index_scan| self.query_with_secondary_index(index_scan))
                 .collect::<Result<Vec<_>, CacheError>>()?;
-            Either::Right(
-                intersection(iterators, self.common.cache_options.intersection_chunk_size)
-                    .map(id_to_bytes),
-            )
+            Either::Right(intersection(
+                iterators,
+                self.common.cache_options.intersection_chunk_size,
+            ))
         };
-        Ok(full_scan
-            .skip(self.query.skip)
-            .take(self.query.limit.unwrap_or(usize::MAX)))
+        Ok(skip(full_scan, self.query.skip).take(self.query.limit.unwrap_or(usize::MAX)))
     }
 
     fn query_with_secondary_index(
         &'a self,
         index_scan: &IndexScan,
-    ) -> Result<impl Iterator<Item = [u8; 8]> + 'a, CacheError> {
+    ) -> Result<impl Iterator<Item = u64> + 'a, CacheError> {
         let schema_id = self
             .schema
             .identifier
@@ -142,21 +139,18 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
                     true
                 }
             })
-            .map(|(_, id)| {
-                id.try_into()
-                    .expect("All values must be u64 ids in secondary index database")
-            }))
+            .map(map_index_database_entry_to_id))
     }
 
     fn collect_records(
         &self,
-        ids: impl Iterator<Item = [u8; 8]>,
+        ids: impl Iterator<Item = u64>,
     ) -> Result<Vec<RecordWithId>, CacheError> {
         ids.map(|id| {
             self.common
                 .db
-                .get(self.txn, id)
-                .map(|record| RecordWithId::new(id_from_bytes(id), record))
+                .get(self.txn, id_to_bytes(id))
+                .map(|record| RecordWithId::new(id, record))
         })
         .collect()
     }
@@ -352,4 +346,22 @@ fn get_key_interval_from_range_query(
             panic!("operator {other:?} is not supported by sorted inverted index range query")
         }
     }
+}
+
+fn map_index_database_entry_to_id((_, id): (&[u8], &[u8])) -> u64 {
+    id_from_bytes(
+        id.try_into()
+            .expect("All values must be u64 ids in index database"),
+    )
+}
+
+fn skip(iter: impl Iterator<Item = u64>, skip: Skip) -> impl Iterator<Item = u64> {
+    match skip {
+        Skip::Skip(n) => Either::Left(iter.skip(n)),
+        Skip::After(after) => Either::Right(skip_after(iter, after)),
+    }
+}
+
+fn skip_after(iter: impl Iterator<Item = u64>, after: u64) -> impl Iterator<Item = u64> {
+    iter.skip_while(move |id| *id != after).skip(1)
 }

@@ -135,7 +135,7 @@ async fn test_grpc_common_get_fields() {
 async fn test_grpc_common_on_event() {
     // start fake internal pipeline
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let default_pipeline_internal = default_api_config().app_grpc.unwrap_or_default();
     let _jh = tokio::spawn(start_fake_internal_grpc_pipeline(
         default_pipeline_internal.host,
         default_pipeline_internal.port,

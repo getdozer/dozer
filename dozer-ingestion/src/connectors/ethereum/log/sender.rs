@@ -2,14 +2,14 @@ use core::time;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::connectors::ethereum::log::connector::EthLogConnector;
 use crate::ingestion::Ingestor;
 use crate::{
-    connectors::{ethereum::helper, TableInfo},
+    connectors::{ethereum::helper as conn_helper, TableInfo},
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
 use dozer_types::log::{debug, info, trace, warn};
-use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
 
@@ -19,14 +19,15 @@ use web3::transports::WebSocket;
 use web3::types::{Log, H256};
 use web3::Web3;
 
-use super::connector::{ContractTuple, EthConnector};
+use super::connector::ContractTuple;
+use super::helper;
 
 const MAX_RETRIES: usize = 3;
 
-pub struct EthDetails {
+pub struct EthDetails<'a> {
     wss_url: String,
     filter: EthFilter,
-    ingestor: Arc<RwLock<Ingestor>>,
+    ingestor: &'a Ingestor,
     contracts: HashMap<String, ContractTuple>,
     pub tables: Option<Vec<TableInfo>>,
     pub schema_map: HashMap<H256, usize>,
@@ -34,12 +35,12 @@ pub struct EthDetails {
     pub conn_name: String,
 }
 
-impl EthDetails {
+impl<'a> EthDetails<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         wss_url: String,
         filter: EthFilter,
-        ingestor: Arc<RwLock<Ingestor>>,
+        ingestor: &'a Ingestor,
         contracts: HashMap<String, ContractTuple>,
         tables: Option<Vec<TableInfo>>,
         schema_map: HashMap<H256, usize>,
@@ -60,8 +61,8 @@ impl EthDetails {
 }
 
 #[allow(unreachable_code)]
-pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
-    let client = helper::get_wss_client(&details.wss_url)
+pub async fn run(details: Arc<EthDetails<'_>>) -> Result<(), ConnectorError> {
+    let client = conn_helper::get_wss_client(&details.wss_url)
         .await
         .map_err(ConnectorError::EthError)?;
 
@@ -125,7 +126,7 @@ pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
 
         let filter = client
             .eth_filter()
-            .create_logs_filter(EthConnector::build_filter(&filter))
+            .create_logs_filter(EthLogConnector::build_filter(&filter))
             .await
             .map_err(ConnectorError::EthError)?;
 
@@ -155,7 +156,7 @@ pub fn fetch_logs(
     block_end: u64,
     depth: usize,
     retries_left: usize,
-) -> BoxFuture<'static, Result<(), ConnectorError>> {
+) -> BoxFuture<'_, Result<(), ConnectorError>> {
     let filter = details.filter.clone();
     let depth_str = (0..depth)
         .map(|_| " ".to_string())
@@ -165,7 +166,7 @@ pub fn fetch_logs(
         let mut applied_filter = filter.clone();
         applied_filter.from_block = Some(block_start);
         applied_filter.to_block = Some(block_end);
-        let res = client.eth().logs(EthConnector::build_filter(&applied_filter)).await;
+        let res = client.eth().logs(EthLogConnector::build_filter(&applied_filter)).await;
 
         match res {
             Ok(logs) => {
@@ -240,7 +241,6 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             // Write eth_log record
             details
                 .ingestor
-                .write()
                 .handle_message((
                     (
                         msg.block_number.expect("expected for non pending").as_u64(),
@@ -265,7 +265,6 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             trace!("Writing event : {:?}", op);
             details
                 .ingestor
-                .write()
                 .handle_message(((0, 0), IngestionMessage::OperationEvent(op)))
                 .map_err(ConnectorError::IngestorError)?;
         } else {

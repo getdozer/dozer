@@ -1,5 +1,5 @@
 pub mod ethereum;
-pub mod events;
+pub mod grpc;
 pub mod kafka;
 pub mod object_store;
 pub mod postgres;
@@ -12,20 +12,21 @@ use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
-use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
+use dozer_types::models::connection::ConnectionConfig;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
-use dozer_types::parking_lot::RwLock;
+
+pub use crate::connectors::grpc::{ingest_grpc, types};
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
-use dozer_types::types::SchemaWithChangesType;
-use std::sync::Arc;
+use dozer_types::types::SourceSchema;
 
 pub mod snowflake;
 
-use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
+use self::ethereum::{EthLogConnector, EthTraceConnector};
+use self::grpc::connector::GrpcConnector;
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
 pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
@@ -37,14 +38,41 @@ pub trait Connector: Send + Sync {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
-    fn initialize(
-        &mut self,
-        ingestor: Arc<RwLock<Ingestor>>,
+    ) -> Result<Vec<SourceSchema>, ConnectorError>;
+    fn start(
+        &self,
+        from_seq: Option<(u64, u64)>,
+        ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
-    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;
+
+    // This is a default table mapping from schemas. It will result in errors if connector has unsupported data types.
+    fn get_tables_default(
+        &self,
+        tables: Option<&[TableInfo]>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        Ok(self
+            .get_schemas(tables.map(|t| t.to_vec()))?
+            .iter()
+            .enumerate()
+            .map(|(id, s)| TableInfo {
+                name: s.name.to_string(),
+                table_name: s.name.to_string(),
+                id: id as u32,
+                columns: Some(
+                    s.schema
+                        .fields
+                        .iter()
+                        .map(|f| ColumnInfo {
+                            name: f.name.to_string(),
+                            data_type: Some(f.typ.to_string()),
+                        })
+                        .collect(),
+                ),
+            })
+            .collect::<Vec<TableInfo>>())
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -64,10 +92,10 @@ pub struct ColumnInfo {
 }
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
-    let authentication = connection.authentication.unwrap_or_default();
-    match authentication {
-        Authentication::Postgres(_) => {
-            let config = map_connection_config(&authentication)?;
+    let config = connection.config.unwrap_or_default();
+    match config {
+        ConnectionConfig::Postgres(_) => {
+            let config = map_connection_config(&config)?;
             let postgres_config = PostgresConfig {
                 name: connection.name,
                 tables: None,
@@ -79,11 +107,20 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             }
             Ok(Box::new(PostgresConnector::new(1, postgres_config)))
         }
-        Authentication::Ethereum(eth_config) => {
-            Ok(Box::new(EthConnector::new(2, eth_config, connection.name)))
-        }
-        Authentication::Events(_) => Ok(Box::new(EventsConnector::new(3, connection.name))),
-        Authentication::Snowflake(snowflake) => {
+        ConnectionConfig::Ethereum(eth_config) => match eth_config.provider.unwrap() {
+            dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => Ok(Box::new(
+                EthLogConnector::new(2, log_config, connection.name),
+            )),
+            dozer_types::ingestion_types::EthProviderConfig::Trace(trace_config) => Ok(Box::new(
+                EthTraceConnector::new(2, trace_config, connection.name),
+            )),
+        },
+        ConnectionConfig::Grpc(grpc_config) => Ok(Box::new(GrpcConnector::new(
+            3,
+            connection.name,
+            grpc_config,
+        ))),
+        ConnectionConfig::Snowflake(snowflake) => {
             let snowflake_config = snowflake;
 
             Ok(Box::new(SnowflakeConnector::new(
@@ -91,24 +128,24 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 snowflake_config,
             )))
         }
-        Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
-        Authentication::S3Storage(object_store_config) => {
+        ConnectionConfig::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
+        ConnectionConfig::S3Storage(object_store_config) => {
             Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
         }
-        Authentication::LocalStorage(object_store_config) => {
+        ConnectionConfig::LocalStorage(object_store_config) => {
             Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
         }
     }
 }
 
 pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
-    match &connection.authentication {
-        Some(Authentication::Postgres(config)) => Some(config.convert_to_table()),
-        Some(Authentication::Ethereum(config)) => Some(config.convert_to_table()),
-        Some(Authentication::Snowflake(config)) => Some(config.convert_to_table()),
-        Some(Authentication::Kafka(config)) => Some(config.convert_to_table()),
-        Some(Authentication::S3Storage(config)) => Some(config.convert_to_table()),
-        Some(Authentication::LocalStorage(config)) => Some(config.convert_to_table()),
+    match &connection.config {
+        Some(ConnectionConfig::Postgres(config)) => Some(config.convert_to_table()),
+        Some(ConnectionConfig::Ethereum(config)) => Some(config.convert_to_table()),
+        Some(ConnectionConfig::Snowflake(config)) => Some(config.convert_to_table()),
+        Some(ConnectionConfig::Kafka(config)) => Some(config.convert_to_table()),
+        Some(ConnectionConfig::S3Storage(config)) => Some(config.convert_to_table()),
+        Some(ConnectionConfig::LocalStorage(config)) => Some(config.convert_to_table()),
         _ => None,
     }
 }

@@ -1,5 +1,7 @@
 use crate::models::{
-    api_config::{default_api_grpc, default_api_rest, default_pipeline_internal, ApiGrpc, ApiRest},
+    api_config::{
+        default_api_grpc, default_api_rest, default_app_grpc, GrpcApiOptions, RestApiOptions,
+    },
     api_security::ApiSecurity,
     app_config::Config,
 };
@@ -21,7 +23,7 @@ fn override_rest_port() {
     assert!(api_config.rest.is_some());
     let default_api_rest = default_api_rest().unwrap();
     let default_api_grpc = default_api_grpc().unwrap();
-    let expected_rest_config = ApiRest {
+    let expected_rest_config = RestApiOptions {
         port: 9876,
         host: default_api_rest.host,
         cors: default_api_rest.cors,
@@ -46,7 +48,7 @@ fn override_rest_host() {
     assert!(api_config.rest.is_some());
     let default_api_rest = default_api_rest().unwrap();
     let default_api_grpc = default_api_grpc().unwrap();
-    let expected_rest_config = ApiRest {
+    let expected_rest_config = RestApiOptions {
         port: default_api_rest.port,
         host: "localhost".to_owned(),
         cors: default_api_rest.cors,
@@ -71,7 +73,7 @@ fn override_grpc_port() {
     assert!(api_config.rest.is_some());
     let default_api_rest = default_api_rest().unwrap();
     let default_api_grpc = default_api_grpc().unwrap();
-    let expected_grpc_config = ApiGrpc {
+    let expected_grpc_config = GrpcApiOptions {
         port: 4232,
         host: default_api_grpc.host,
         cors: default_api_grpc.cors,
@@ -100,13 +102,13 @@ fn override_grpc_and_rest_port() {
     assert!(api_config.rest.is_some());
     let default_api_rest = default_api_rest().unwrap();
     let default_api_grpc = default_api_grpc().unwrap();
-    let expected_grpc_config = ApiGrpc {
+    let expected_grpc_config = GrpcApiOptions {
         port: 4232,
         host: default_api_grpc.host,
         cors: default_api_grpc.cors,
         web: default_api_grpc.web,
     };
-    let expected_rest_config = ApiRest {
+    let expected_rest_config = RestApiOptions {
         port: 3324,
         host: default_api_rest.host,
         cors: default_api_rest.cors,
@@ -136,13 +138,13 @@ fn override_grpc_and_rest_port_jwt() {
     assert!(api_config.rest.is_some());
     let default_api_rest = default_api_rest().unwrap();
     let default_api_grpc = default_api_grpc().unwrap();
-    let expected_grpc_config = ApiGrpc {
+    let expected_grpc_config = GrpcApiOptions {
         port: 4232,
         host: default_api_grpc.host,
         cors: default_api_grpc.cors,
         web: default_api_grpc.web,
     };
-    let expected_rest_config = ApiRest {
+    let expected_rest_config = RestApiOptions {
         port: 3324,
         host: default_api_rest.host,
         cors: default_api_rest.cors,
@@ -166,7 +168,7 @@ fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
       port: 3324
     api_security: !Jwt
       Vv44T1GugX      
-    pipeline_internal:
+    app_grpc:
       home_dir: './pipeline_folder'
       port: 3993
     
@@ -181,13 +183,13 @@ fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
     assert!(api_config.rest.is_some());
     let default_api_rest = default_api_rest().unwrap();
     let default_api_grpc = default_api_grpc().unwrap();
-    let expected_grpc_config = ApiGrpc {
+    let expected_grpc_config = GrpcApiOptions {
         port: 4232,
         host: default_api_grpc.host,
         cors: default_api_grpc.cors,
         web: default_api_grpc.web,
     };
-    let expected_rest_config = ApiRest {
+    let expected_rest_config = RestApiOptions {
         port: 3324,
         host: default_api_rest.host,
         cors: default_api_rest.cors,
@@ -200,11 +202,8 @@ fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
     let expected_api_security = ApiSecurity::Jwt("Vv44T1GugX".to_owned());
     assert_eq!(api_security, expected_api_security);
 
-    let pipeline_internal = api_config.pipeline_internal;
-    assert!(pipeline_internal.is_some());
-    let pipeline_internal = pipeline_internal.unwrap();
-    let default_pipeline_internal = default_pipeline_internal().unwrap();
-    assert_eq!(pipeline_internal.home_dir, "./pipeline_folder".to_owned());
-    assert_eq!(pipeline_internal.port, 3993);
-    assert_eq!(pipeline_internal.host, default_pipeline_internal.host);
+    let app_grpc = api_config.app_grpc.unwrap();
+    let default_app_grpc = default_app_grpc().unwrap();
+    assert_eq!(app_grpc.port, 3993);
+    assert_eq!(app_grpc.host, default_app_grpc.host);
 }

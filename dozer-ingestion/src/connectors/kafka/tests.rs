@@ -3,7 +3,7 @@ use crate::connectors::kafka::test_utils::{
     get_client_and_create_table, get_debezium_config, get_iterator_and_client,
 };
 use crate::connectors::{Connector, TableInfo};
-use dozer_types::models::connection::Authentication;
+use dozer_types::models::connection::ConnectionConfig;
 use dozer_types::{ingestion_types::KafkaConfig, rust_decimal::Decimal, types::Operation};
 use postgres::Client;
 use std::fmt::Write;
@@ -69,7 +69,7 @@ impl KafkaPostgres {
 fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
     let mut rng = rand::thread_rng();
     let table_name = format!("products_test_{}", rng.gen::<u32>());
-    let (iterator, client) = get_iterator_and_client(table_name.clone());
+    let (mut iterator, client) = get_iterator_and_client(table_name.clone());
 
     let mut pg_client = KafkaPostgres { client, table_name };
 
@@ -79,7 +79,7 @@ fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
 
     let mut i = 0;
     while i < 30 {
-        let op = iterator.write().next();
+        let op = iterator.next();
 
         if let Some((_, op)) = op {
             i += 1;
@@ -123,13 +123,13 @@ fn connector_disabled_test_e2e_connect_debezium_json_and_get_schema() {
     let mut pg_client = KafkaPostgres { client, table_name };
     pg_client.insert_rows(1);
 
-    let broker = if let Authentication::Kafka(KafkaConfig { broker, .. }) = config
+    let broker = if let ConnectionConfig::Kafka(KafkaConfig { broker, .. }) = config
         .config
         .connections
         .get(0)
         .unwrap()
         .clone()
-        .authentication
+        .config
         .unwrap_or_default()
     {
         broker
@@ -156,8 +156,8 @@ fn connector_disabled_test_e2e_connect_debezium_json_and_get_schema() {
 
     pg_client.drop_table();
 
-    assert_eq!(topic, schemas.get(0).unwrap().0);
-    assert_eq!(4, schemas.get(0).unwrap().1.fields.len());
+    assert_eq!(topic, schemas.get(0).unwrap().name);
+    assert_eq!(4, schemas.get(0).unwrap().schema.fields.len());
 }
 
 #[ignore]
@@ -176,7 +176,7 @@ fn connector_disabled_test_e2e_connect_debezium_avro_and_get_schema() {
     pg_client.insert_rows(1);
 
     let (broker, schema_registry_url) =
-        if let dozer_types::models::connection::Authentication::Kafka(KafkaConfig {
+        if let dozer_types::models::connection::ConnectionConfig::Kafka(KafkaConfig {
             broker,
             schema_registry_url,
             ..
@@ -186,7 +186,7 @@ fn connector_disabled_test_e2e_connect_debezium_avro_and_get_schema() {
             .get(0)
             .unwrap()
             .clone()
-            .authentication
+            .config
             .unwrap_or_default()
         {
             (broker, schema_registry_url)
@@ -213,6 +213,6 @@ fn connector_disabled_test_e2e_connect_debezium_avro_and_get_schema() {
 
     pg_client.drop_table();
 
-    assert_eq!(topic, schemas.get(0).unwrap().0);
-    assert_eq!(4, schemas.get(0).unwrap().1.fields.len());
+    assert_eq!(topic, schemas.get(0).unwrap().name);
+    assert_eq!(4, schemas.get(0).unwrap().schema.fields.len());
 }

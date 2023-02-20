@@ -1,14 +1,13 @@
 app_name: working_app
 connections:
-  - authentication: !Ethereum
-      filter:
-        from_block: 0
-        to_block: 1
-        addresses: []
-        topics: []
-      wss_url: "{{ETH_WSS_URL}}"
-      name: eth_logs
-    db_type: Ethereum
+  - config: !Ethereum
+      provider: !Log
+        filter:
+          from_block: 0
+          to_block: 1
+          addresses: []
+          topics: []
+        wss_url: "{{ETH_WSS_URL}}"
     name: eth_logs
 sql: |
   -- Eth stats table

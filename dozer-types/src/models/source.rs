@@ -3,27 +3,22 @@ use serde::{ser::SerializeStruct, Deserialize, Serialize};
 
 #[derive(Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct Source {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(string, optional, tag = "1")]
-    pub id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(string, optional, tag = "2")]
-    pub app_id: Option<String>,
-    #[prost(string, tag = "3")]
+    #[prost(string, tag = "1")]
     /// name of the source - to distinguish between multiple sources; Type: String
     pub name: String,
-    #[prost(string, tag = "4")]
+    #[prost(string, tag = "2")]
     /// name of the table in source database; Type: String
     pub table_name: String,
-    #[prost(string, repeated, tag = "5")]
+    #[prost(string, repeated, tag = "3")]
     /// list of columns gonna be used in the source table; Type: String[]
     pub columns: Vec<String>,
-    #[prost(message, tag = "6")]
+    #[prost(message, tag = "4")]
     #[serde(skip_deserializing)]
     /// reference to pre-defined connection name - syntax: `!Ref <connection_name>`; Type: `Ref!` tag
     pub connection: Option<Connection>,
     #[prost(oneof = "RefreshConfig", tags = "7")]
     #[serde(default = "default_refresh_config")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     /// setting for how to refresh the data; Default: RealTime
     pub refresh_config: Option<RefreshConfig>,
 }

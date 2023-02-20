@@ -9,9 +9,8 @@ create table apps (
 );
 create table connections (
     id TEXT NOT NULL PRIMARY KEY,
-    auth TEXT NOT NULL,
+    config TEXT NOT NULL,
     name TEXT NOT NULL,
-    db_type text NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

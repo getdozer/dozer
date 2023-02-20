@@ -2,6 +2,8 @@ use dozer_types::types::{
     FieldDefinition, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
 };
 
+use super::expression::{FilterExpression, QueryExpression, Skip};
+
 pub fn schema_0() -> (Schema, Vec<IndexDefinition>) {
     (
         Schema {
@@ -120,4 +122,8 @@ pub fn schema_multi_indices() -> (Schema, Vec<IndexDefinition>) {
             IndexDefinition::FullText(1),
         ],
     )
+}
+
+pub fn query_from_filter(filter: FilterExpression) -> QueryExpression {
+    QueryExpression::new(Some(filter), vec![], Some(10), Skip::Skip(0))
 }

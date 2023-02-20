@@ -1,13 +1,13 @@
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::error;
-use dozer_types::models::connection::Authentication;
+use dozer_types::models::connection::ConnectionConfig;
 use postgres::{Client, Config};
 use tokio_postgres::NoTls;
 
 pub fn map_connection_config(
-    auth_details: &Authentication,
+    auth_details: &ConnectionConfig,
 ) -> Result<tokio_postgres::Config, ConnectorError> {
-    if let Authentication::Postgres(postgres) = auth_details {
+    if let ConnectionConfig::Postgres(postgres) = auth_details {
         Ok(tokio_postgres::Config::new()
             .host(&postgres.host)
             .port(postgres.port as u16)

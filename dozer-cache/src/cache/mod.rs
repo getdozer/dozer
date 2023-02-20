@@ -7,10 +7,7 @@ use dozer_types::{
     serde::{Deserialize, Serialize},
     types::{IndexDefinition, Record, Schema, SchemaIdentifier},
 };
-pub use lmdb::{
-    cache::{LmdbRoCache, LmdbRwCache},
-    CacheCommonOptions, CacheOptions, CacheOptionsKind, CacheReadOptions, CacheWriteOptions,
-};
+pub use lmdb::cache_manager::{CacheManagerOptions, LmdbCacheManager};
 pub mod expression;
 pub mod index;
 mod plan;
@@ -29,7 +26,32 @@ impl RecordWithId {
     }
 }
 
+pub trait CacheManager: Send + Sync + Debug {
+    /// Opens a cache in read-write mode with given name or an alias with that name.
+    ///
+    /// If the name is both an alias and a real name, it's treated as an alias.
+    fn open_rw_cache(&self, name: &str) -> Result<Option<Box<dyn RwCache>>, CacheError>;
+
+    /// Opens a cache in read-only mode with given name or an alias with that name.
+    ///
+    /// If the name is both an alias and a real name, it's treated as an alias.
+    fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError>;
+
+    /// Creates a new cache, which can also be opened in read-only mode using `open_ro_cache`.
+    ///
+    /// The cache's name is unique.
+    fn create_cache(&self) -> Result<Box<dyn RwCache>, CacheError>;
+
+    /// Creates an alias `alias` for a cache with name `name`.
+    ///
+    /// If `alias` already exists, it's overwritten. If cache with name `name` doesn't exist, the alias is still recorded.
+    fn create_alias(&self, name: &str, alias: &str) -> Result<(), CacheError>;
+}
+
 pub trait RoCache: Send + Sync + Debug {
+    /// Returns the name of the cache.
+    fn name(&self) -> &str;
+
     // Schema Operations
     fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> Result<Schema, CacheError>;
     fn get_schema_and_indexes_by_name(

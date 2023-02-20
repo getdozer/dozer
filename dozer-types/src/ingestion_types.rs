@@ -42,50 +42,105 @@ pub struct EthFilter {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct GrpcConfig {
+    #[prost(string, tag = "1", default = "0.0.0.0")]
+    #[serde(default = "default_ingest_host")]
+    pub host: String,
+    #[prost(uint32, tag = "2", default = "8085")]
+    #[serde(default = "default_ingest_port")]
+    pub port: u32,
+    #[prost(oneof = "GrpcConfigSchemas", tags = "3,4")]
+    pub schemas: Option<GrpcConfigSchemas>,
+}
+
+fn default_ingest_host() -> String {
+    "0.0.0.0".to_owned()
+}
+
+fn default_ingest_port() -> u32 {
+    8085
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
+pub enum GrpcConfigSchemas {
+    #[prost(string, tag = "3")]
+    Inline(String),
+    #[prost(string, tag = "4")]
+    Path(String),
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EthConfig {
-    #[prost(message, optional, tag = "1")]
-    pub filter: Option<EthFilter>,
-    #[prost(string, tag = "2")]
+    #[prost(oneof = "EthProviderConfig", tags = "2,3")]
+    pub provider: Option<EthProviderConfig>,
+}
+
+impl Default for EthProviderConfig {
+    fn default() -> Self {
+        EthProviderConfig::Log(EthLogConfig::default())
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
+pub enum EthProviderConfig {
+    #[prost(message, tag = "2")]
+    Log(EthLogConfig),
+    #[prost(message, tag = "3")]
+    Trace(EthTraceConfig),
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct EthLogConfig {
+    #[prost(string, tag = "1")]
     pub wss_url: String,
+    #[prost(message, optional, tag = "2")]
+    pub filter: Option<EthFilter>,
     #[prost(message, repeated, tag = "3")]
     #[serde(default)]
     pub contracts: Vec<EthContract>,
 }
 
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct EthTraceConfig {
+    #[prost(string, tag = "1")]
+    pub https_url: String,
+    // Starting block
+    #[prost(uint64, tag = "2")]
+    pub from_block: u64,
+    #[prost(uint64, optional, tag = "3")]
+    pub to_block: Option<u64>,
+    #[prost(uint64, tag = "4", default = "3")]
+    #[serde(default = "default_batch_size")]
+    pub batch_size: u64,
+}
+
+fn default_batch_size() -> u64 {
+    3
+}
+
 impl EthConfig {
     pub fn convert_to_table(&self) -> PrettyTable {
-        let mut table = table!(["wss_url", self.wss_url]);
+        let mut table = table!();
 
-        if let Some(filter) = &self.filter {
-            let mut addresses_table = table!();
-            for address in &filter.addresses {
-                addresses_table.add_row(row![address]);
+        debug_assert!(self.provider.is_some());
+        let provider = self.provider.as_ref().unwrap();
+        match provider {
+            EthProviderConfig::Log(log) => {
+                table.add_row(row!["provider", "logs"]);
+                table.add_row(row!["wss_url", format!("{:?}", log.wss_url)]);
+                if let Some(filter) = &log.filter {
+                    table.add_row(row!["filter", format!("{filter:?}")]);
+                }
+                if !log.contracts.is_empty() {
+                    table.add_row(row!["contracts", format!("{:?}", log.contracts)]);
+                }
             }
-
-            let mut topics_table = table!();
-            for topic in &filter.topics {
-                topics_table.add_row(row![topic]);
+            EthProviderConfig::Trace(trace) => {
+                table.add_row(row!["https_url", format!("{:?}", trace.https_url)]);
+                table.add_row(row!["provider", "traces"]);
+                table.add_row(row!("trace", format!("{trace:?}")));
             }
-
-            let filter_table = table!(
-                [
-                    "from_block",
-                    filter
-                        .from_block
-                        .map_or("-------".to_string(), |f| f.to_string())
-                ],
-                [
-                    "to_block",
-                    filter
-                        .to_block
-                        .map_or("-------".to_string(), |f| f.to_string())
-                ],
-                ["addresses", addresses_table],
-                ["topics", topics_table]
-            );
-            table.add_row(row!["filter", filter_table]);
         }
-
         table
     }
 }

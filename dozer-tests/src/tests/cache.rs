@@ -1,4 +1,4 @@
-use dozer_cache::cache::{expression::QueryExpression, LmdbRwCache};
+use dozer_cache::cache::{expression::QueryExpression, RoCache};
 use dozer_types::{
     serde_json::{self, json, Value},
     types::IndexDefinition,
@@ -43,6 +43,7 @@ async fn test_cache_query() {
         json!({ "$order_by": { "rental_rate": "asc" } }),
         // only skip
         json!({ "$skip": 17 }),
+        json!({ "after": 9 }),
         // only limit
         json!({ "$limit": 21 }),
         // filter + order by
@@ -73,6 +74,19 @@ async fn test_cache_query() {
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$skip": 17 }),
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$skip": 17 }),
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$skip": 17 }),
+        json!({ "$filter": { "release_year": 2006 }, "$after": 9 }),
+        json!({ "$filter": { "release_year": 2006 }, "$after": 9 }),
+        json!({ "$filter": { "original_language_id": null }, "$after": 9 }),
+        json!({ "$filter": { "original_language_id": null }, "$after": 9 }),
+        json!({ "$filter": { "rental_rate": 0.99 }, "$after": 9 }),
+        json!({ "$filter": { "film_id": { "$lt": 317 } }, "$after": 9 }),
+        json!({ "$filter": { "film_id": { "$lt": 317 } }, "$after": 9 }),
+        json!({ "$filter": { "rental_rate": { "$gt": 2 } }, "$after": 9 }),
+        json!({ "$filter": { "rental_rate": { "$gt": 2 } }, "$after": 9 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$after": 113 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$after": 113 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$after": 113 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$after": 113 }),
         // filter + limit
         json!({ "$filter": { "release_year": 2006 }, "$limit ": 13 }),
         json!({ "$filter": { "release_year": 2006 }, "$limit ": 13 }),
@@ -91,12 +105,16 @@ async fn test_cache_query() {
         json!({ "$order_by": { "film_id": "desc" }, "$skip": 21 }),
         json!({ "$order_by": { "original_language_id": "asc" }, "$skip": 21 }),
         json!({ "$order_by": { "rental_rate": "asc" }, "$skip": 21 }),
+        json!({ "$order_by": { "film_id": "desc" }, "$after": 11 }),
+        json!({ "$order_by": { "original_language_id": "asc" }, "$after": 11 }),
+        json!({ "$order_by": { "rental_rate": "asc" }, "$after": 11 }),
         // order by + limit
         json!({ "$order_by": { "film_id": "desc" }, "$limit": 29 }),
         json!({ "$order_by": { "original_language_id": "asc" }, "$limit": 29 }),
         json!({ "$order_by": { "rental_rate": "asc" }, "$limit": 29 }),
         // skip + limit
         json!({ "$skip": 17, "$limit": 11 }),
+        json!({ "$after": 19, "$limit": 11 }),
         // filter + order by + skip
         json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "asc" }, "$skip": 7 }),
         json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "desc" }, "$skip": 7 }),
@@ -111,6 +129,19 @@ async fn test_cache_query() {
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "desc" }, "$skip": 7 }),
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$skip": 7 }),
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "desc" }, "$skip": 7 }),
+        json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "asc" }, "$after": 117 }),
+        json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "desc" }, "$after": 117 }),
+        json!({ "$filter": { "original_language_id": null }, "$order_by": { "film_id": "asc" }, "$after": 117 }),
+        json!({ "$filter": { "original_language_id": null }, "$order_by": { "film_id": "desc" }, "$after": 117 }),
+        json!({ "$filter": { "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$after": 117 }),
+        json!({ "$filter": { "film_id": { "$lt": 317 } }, "$order_by": { "film_id": "desc" }, "$after": 117 }),
+        json!({ "$filter": { "film_id": { "$lt": 317 } }, "$order_by": { "film_id": "desc" }, "$after": 117 }),
+        json!({ "$filter": { "rental_rate": { "$gt": 2 } }, "$order_by": { "rental_rate": "desc" }, "$after": 117 }),
+        json!({ "$filter": { "rental_rate": { "$gt": 2 } }, "$order_by": { "rental_rate": "desc" }, "$after": 117 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "asc" }, "$after": 117 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "desc" }, "$after": 117 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$after": 117 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "desc" }, "$after": 117 }),
         // filter + order by + limit
         json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "asc" }, "$limit": 71 }),
         json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "desc" }, "$limit": 71 }),
@@ -139,10 +170,26 @@ async fn test_cache_query() {
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "desc" }, "$skip": 7, "$limit": 19 }),
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$skip": 7, "$limit": 19 }),
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "desc" }, "$skip": 7, "$limit": 19 }),
+        json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "asc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "desc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "original_language_id": null }, "$order_by": { "film_id": "asc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "original_language_id": null }, "$order_by": { "film_id": "desc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "film_id": { "$lt": 317 } }, "$order_by": { "film_id": "desc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "film_id": { "$lt": 317 } }, "$order_by": { "film_id": "desc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "rental_rate": { "$gt": 2 } }, "$order_by": { "rental_rate": "desc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "rental_rate": { "$gt": 2 } }, "$order_by": { "rental_rate": "desc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "asc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "desc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$skip": 117, "$limit": 19 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "desc" }, "$skip": 117, "$limit": 19 }),
         // order by + skip + limit
         json!({ "$order_by": { "film_id": "desc" }, "$skip": 5, "$limit": 101 }),
         json!({ "$order_by": { "original_language_id": "asc" }, "$skip": 5, "$limit": 101 }),
         json!({ "$order_by": { "rental_rate": "asc" }, "$skip": 5, "$limit": 101 }),
+        json!({ "$order_by": { "film_id": "desc" }, "$after": 13, "$limit": 101 }),
+        json!({ "$order_by": { "original_language_id": "asc" }, "$after": 13, "$limit": 101 }),
+        json!({ "$order_by": { "rental_rate": "asc" }, "$after": 13, "$limit": 101 }),
         // filter + order by + skip + limit
         json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "asc" }, "$skip": 1, "$limit": 199 }),
         json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "desc" }, "$skip": 1, "$limit": 199 }),
@@ -157,17 +204,30 @@ async fn test_cache_query() {
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "desc" }, "$skip": 1, "$limit": 199 }),
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$skip": 1, "$limit": 199 }),
         json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "desc" }, "$skip": 1, "$limit": 199 }),
+        json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "asc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "release_year": 2006 }, "$order_by": { "film_id": "desc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "original_language_id": null }, "$order_by": { "film_id": "asc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "original_language_id": null }, "$order_by": { "film_id": "desc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "film_id": { "$lt": 317 } }, "$order_by": { "film_id": "desc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "film_id": { "$lt": 317 } }, "$order_by": { "film_id": "desc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "rental_rate": { "$gt": 2 } }, "$order_by": { "rental_rate": "desc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "rental_rate": { "$gt": 2 } }, "$order_by": { "rental_rate": "desc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "asc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006 },  "$order_by": { "film_id": "desc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "asc" }, "$after": 112, "$limit": 199 }),
+        json!({ "$filter": { "film_id": { "$gte": 113 }, "release_year": 2006, "rental_rate": 0.99 }, "$order_by": { "film_id": "desc" }, "$after": 112, "$limit": 199 }),
         // full text
         json!({ "$filter": { "special_features": { "$contains": "Trailers" } } }),
     ];
 
     for test_case in test_cases {
-        validate_query(&cache, schema_name, &collection, test_case).await;
+        validate_query(&*cache, schema_name, &collection, test_case).await;
     }
 }
 
 async fn validate_query(
-    cache: &LmdbRwCache,
+    cache: &dyn RoCache,
     schema_name: &str,
     collection: &Collection<Film>,
     query: Value,

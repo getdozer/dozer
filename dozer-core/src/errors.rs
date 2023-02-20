@@ -40,8 +40,10 @@ pub enum ExecutionError {
         typ: SchemaType,
         source: IncompatibleSchemas,
     },
-    #[error("Channel disconnected")]
-    ChannelDisconnected,
+    #[error("Cannot send to channel")]
+    CannotSendToChannel,
+    #[error("Cannot receive from channel")]
+    CannotReceiveFromChannel,
     #[error("Cannot spawn worker thread: {0}")]
     CannotSpawnWorkerThread(#[from] std::io::Error),
     #[error("Internal thread panicked")]
@@ -103,6 +105,12 @@ pub enum ExecutionError {
     ProductProcessorError(#[source] BoxedError),
 }
 
+impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {
+    fn from(_: crossbeam::channel::SendError<T>) -> Self {
+        ExecutionError::CannotSendToChannel
+    }
+}
+
 impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
     fn from(_: daggy::WouldCycle<T>) -> Self {
         ExecutionError::WouldCycle
@@ -123,6 +131,20 @@ pub enum IncompatibleSchemas {
 pub enum SinkError {
     #[error("Failed to initialize schema in Cache: {0:?}, Error: {1:?}.")]
     SchemaUpdateFailed(String, #[source] BoxedError),
+
+    #[error("Failed to open Cache: {0:?}, Error: {1:?}.")]
+    CacheOpenFailed(String, #[source] BoxedError),
+
+    #[error("Failed to create Cache: {0:?}, Error: {1:?}.")]
+    CacheCreateFailed(String, #[source] BoxedError),
+
+    #[error("Failed to create alias {alias:?} for Cache: {real_name:?}, Error: {source:?}.")]
+    CacheCreateAliasFailed {
+        alias: String,
+        real_name: String,
+        #[source]
+        source: BoxedError,
+    },
 
     #[error("Failed to begin transaction in Cache: {0:?}, Error: {1:?}.")]
     CacheBeginTransactionFailed(String, #[source] BoxedError),

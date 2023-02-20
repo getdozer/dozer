@@ -13,7 +13,7 @@ use actix_web::{
     rt, web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use dozer_types::{crossbeam::channel::Sender, log::info, models::api_config::ApiRest};
+use dozer_types::{crossbeam::channel::Sender, log::info, models::api_config::RestApiOptions};
 use dozer_types::{
     models::api_security::ApiSecurity,
     serde::{self, Deserialize, Serialize},
@@ -51,7 +51,7 @@ impl Default for ApiServer {
 }
 
 impl ApiServer {
-    pub fn new(rest_config: ApiRest, security: Option<ApiSecurity>) -> Self {
+    pub fn new(rest_config: RestApiOptions, security: Option<ApiSecurity>) -> Self {
         Self {
             shutdown_timeout: 0,
             port: rest_config.port as u16,

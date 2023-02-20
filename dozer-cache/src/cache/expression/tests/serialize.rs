@@ -1,5 +1,7 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
+use crate::cache::expression::QueryExpression;
+use crate::cache::expression::Skip;
 use crate::cache::expression::SortDirection::{Ascending, Descending};
 use crate::cache::expression::SortOption;
 use crate::cache::expression::SortOptions;
@@ -115,4 +117,105 @@ fn test_serialize_sort_options_impl(sort_options: Vec<SortOption>, json: Value) 
         serde_json::to_value(SortOptions(sort_options)).unwrap(),
         json,
     );
+}
+
+#[test]
+fn test_serialize_skip() {
+    test_serialize_skip_impl(Skip::Skip(0), json!({}));
+    test_serialize_skip_impl(Skip::Skip(1), json!({"$skip": 1}));
+    test_serialize_skip_impl(Skip::After(10), json!({"$after": 10}));
+}
+
+fn test_serialize_skip_impl(skip: Skip, json: Value) {
+    let query = QueryExpression {
+        skip,
+        limit: None,
+        ..Default::default()
+    };
+    assert_eq!(serde_json::to_value(query).unwrap(), json);
+}
+
+#[test]
+fn test_serialize_query_expression() {
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            filter: None,
+            limit: None,
+            ..Default::default()
+        },
+        json!({}),
+    );
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            filter: Some(FilterExpression::Simple(
+                "a".to_string(),
+                Operator::EQ,
+                Value::from(1),
+            )),
+            limit: None,
+            ..Default::default()
+        },
+        json!({"$filter": { "a": 1 }}),
+    );
+
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            order_by: Default::default(),
+            limit: None,
+            ..Default::default()
+        },
+        json!({}),
+    );
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            order_by: SortOptions(vec![SortOption::new("a".into(), Ascending)]),
+            limit: None,
+            ..Default::default()
+        },
+        json!({"$order_by": {"a": "asc"}}),
+    );
+
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            limit: None,
+            ..Default::default()
+        },
+        json!({}),
+    );
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            limit: Some(1),
+            ..Default::default()
+        },
+        json!({"$limit": 1}),
+    );
+
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            skip: Skip::Skip(0),
+            limit: None,
+            ..Default::default()
+        },
+        json!({}),
+    );
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            skip: Skip::Skip(1),
+            limit: None,
+            ..Default::default()
+        },
+        json!({"$skip": 1}),
+    );
+    test_serialize_query_expression_impl(
+        QueryExpression {
+            skip: Skip::After(10),
+            limit: None,
+            ..Default::default()
+        },
+        json!({"$after": 10}),
+    );
+}
+
+fn test_serialize_query_expression_impl(query: QueryExpression, json: Value) {
+    assert_eq!(serde_json::to_value(query).unwrap(), json);
 }

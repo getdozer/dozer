@@ -79,13 +79,13 @@ impl IdDatabase {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::{lmdb::utils::init_env, CacheOptions};
+    use crate::cache::lmdb::utils::{init_env, CacheOptions};
 
     use super::*;
 
     #[test]
     fn test_id_database() {
-        let mut env = init_env(&CacheOptions::default()).unwrap();
+        let mut env = init_env(&CacheOptions::default()).unwrap().0;
         let writer = IdDatabase::new(&mut env, true).unwrap();
         let reader = IdDatabase::new(&mut env, false).unwrap();
 

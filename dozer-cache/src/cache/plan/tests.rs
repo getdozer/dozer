@@ -1,8 +1,10 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
-    expression::{self, FilterExpression, Operator, QueryExpression, SortDirection, SortOption},
+    expression::{
+        self, FilterExpression, Operator, QueryExpression, Skip, SortDirection, SortOption,
+    },
     plan::{IndexScanKind, SortedInvertedRangeQuery},
-    test_utils,
+    test_utils::{self, query_from_filter},
 };
 
 use dozer_types::{serde_json::Value, types::Field};
@@ -11,16 +13,11 @@ use dozer_types::{serde_json::Value, types::Field};
 fn test_generate_plan_simple() {
     let (schema, secondary_indexes) = test_utils::schema_0();
 
-    let query = QueryExpression::new(
-        Some(FilterExpression::Simple(
-            "foo".to_string(),
-            expression::Operator::EQ,
-            Value::from("bar".to_string()),
-        )),
-        vec![],
-        Some(10),
-        0,
-    );
+    let query = query_from_filter(FilterExpression::Simple(
+        "foo".to_string(),
+        expression::Operator::EQ,
+        Value::from("bar".to_string()),
+    ));
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
@@ -53,7 +50,7 @@ fn test_generate_plan_and() {
             Value::from("test".to_string()),
         ),
     ]);
-    let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
+    let query = query_from_filter(filter);
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     // Pick the 3rd index
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
@@ -87,7 +84,7 @@ fn test_generate_plan_range_query_and_order_by() {
             direction: SortDirection::Descending,
         }],
         Some(10),
-        0,
+        Skip::Skip(0),
     );
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
@@ -119,16 +116,11 @@ fn test_generate_plan_range_query_and_order_by() {
 fn test_generate_plan_empty() {
     let (schema, secondary_indexes) = test_utils::schema_1();
 
-    let query = QueryExpression::new(
-        Some(FilterExpression::Simple(
-            "c".into(),
-            Operator::LT,
-            Value::Null,
-        )),
-        vec![],
-        Some(10),
-        0,
-    );
+    let query = query_from_filter(FilterExpression::Simple(
+        "c".into(),
+        Operator::LT,
+        Value::Null,
+    ));
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     assert!(matches!(planner.plan().unwrap(), Plan::ReturnEmpty));
 }

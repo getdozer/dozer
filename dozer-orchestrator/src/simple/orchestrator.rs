@@ -2,14 +2,14 @@ use super::executor::Executor;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
+use crate::simple::helper::validate_config;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_cache_dir, get_flags, get_grpc_config,
-    get_pipeline_config, get_pipeline_dir, get_rest_config,
+    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir, get_flags,
+    get_grpc_config, get_pipeline_dir, get_rest_config,
 };
 use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
-use dozer_api::RwCacheEndpoint;
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{
@@ -18,9 +18,7 @@ use dozer_api::{
     },
     rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{
-    CacheCommonOptions, CacheReadOptions, CacheWriteOptions, LmdbRoCache, LmdbRwCache,
-};
+use dozer_cache::cache::{CacheManager, CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
@@ -31,18 +29,14 @@ use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::log::{info, warn};
-use dozer_types::models::api_config::ApiConfig;
-use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
-use dozer_types::prettytable::{row, Table};
-use dozer_types::serde_yaml;
 use dozer_types::tracing::error;
-use dozer_types::types::{Operation, Schema, SchemaWithChangesType};
+use dozer_types::types::{Operation, Schema, SourceSchema};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::{broadcast, oneshot};
@@ -50,41 +44,19 @@ use tokio::sync::{broadcast, oneshot};
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
-    pub cache_common_options: CacheCommonOptions,
-    pub cache_read_options: CacheReadOptions,
-    pub cache_write_options: CacheWriteOptions,
+    pub cache_manager_options: CacheManagerOptions,
 }
 
 impl SimpleOrchestrator {
-    pub fn new(config: &Config) -> Self {
-        Self {
-            config: config.clone(),
+    pub fn new(config: Config) -> Self {
+        let cache_manager_options = CacheManagerOptions {
+            path: Some(get_cache_dir(&config)),
             ..Default::default()
+        };
+        Self {
+            config,
+            cache_manager_options,
         }
-    }
-    fn write_internal_config(&self) -> Result<(), OrchestrationError> {
-        let path = Path::new(&self.config.home_dir).join("internal_config");
-        if path.exists() {
-            fs::remove_dir_all(&path).unwrap();
-        }
-        fs::create_dir_all(&path).unwrap();
-        let yaml_path = path.join("config.yaml");
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(yaml_path)
-            .expect("Couldn't open file");
-        let api_config = self.config.api.to_owned().unwrap_or_default();
-        let api_internal = api_config.to_owned().api_internal.unwrap_or_default();
-        let pipeline_internal = api_config.pipeline_internal.unwrap_or_default();
-        let mut internal_content = serde_yaml::Value::default();
-        internal_content["api_internal"] = serde_yaml::to_value(api_internal)
-            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
-        internal_content["pipeline_internal"] = serde_yaml::to_value(pipeline_internal)
-            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
-        serde_yaml::to_writer(f, &internal_content)
-            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
-        Ok(())
     }
 }
 
@@ -92,23 +64,24 @@ impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
-        // gRPC notifier channel
-        let cache_dir = get_cache_dir(self.config.to_owned());
 
         // Flags
         let flags = self.config.flags.clone().unwrap_or_default();
 
+        let cache_manager = LmdbCacheManager::new(self.cache_manager_options.clone())
+            .map_err(OrchestrationError::CacheInitFailed)?;
         let mut cache_endpoints = vec![];
         for ce in &self.config.endpoints {
-            let mut cache_common_options = self.cache_common_options.clone();
-            cache_common_options.set_path(cache_dir.clone(), ce.name.clone());
-            cache_endpoints.push(RoCacheEndpoint::new(
-                Arc::new(
-                    LmdbRoCache::new(cache_common_options)
-                        .map_err(OrchestrationError::CacheInitFailed)?,
-                ),
-                ce.clone(),
-            ));
+            let cache = cache_manager
+                .open_ro_cache(&ce.name)
+                .map_err(OrchestrationError::CacheInitFailed)?
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Cache for endpoint {} not found. Did you run `dozer app run`?",
+                        ce.name
+                    )
+                });
+            cache_endpoints.push(RoCacheEndpoint::new(cache.into(), ce.clone()));
         }
 
         let ce2 = cache_endpoints.clone();
@@ -130,7 +103,7 @@ impl Orchestrator for SimpleOrchestrator {
             });
             // Initiate Push Events
             // create broadcast channel
-            let pipeline_config = get_pipeline_config(self.config.to_owned());
+            let pipeline_config = get_app_grpc_config(self.config.to_owned());
 
             let rx1 = if flags.push_events {
                 let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
@@ -150,7 +123,7 @@ impl Orchestrator for SimpleOrchestrator {
 
             // Initialize GRPC Server
 
-            let api_dir = get_api_dir(self.config.to_owned());
+            let api_dir = get_api_dir(&self.config);
             let grpc_config = get_grpc_config(self.config.to_owned());
 
             let api_security = get_api_security_config(self.config.to_owned());
@@ -188,7 +161,7 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+        let pipeline_home_dir = get_pipeline_dir(&self.config);
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineResponse>();
         let internal_app_config = self.config.to_owned();
@@ -199,9 +172,20 @@ impl Orchestrator for SimpleOrchestrator {
             warn!("Shutting down internal pipeline server");
         });
 
-        let cache_dir = get_cache_dir(self.config.to_owned());
-
-        let cache_endpoints = self.get_rw_cache_endpoints(cache_dir)?;
+        let executor = Executor::new(
+            self.config.clone(),
+            self.config.endpoints.clone(),
+            running,
+            pipeline_home_dir,
+        );
+        let flags = get_flags(self.config.clone());
+        let api_security = get_api_security_config(self.config.clone());
+        let settings = CacheSinkSettings::new(flags, api_security);
+        let dag_executor = executor.create_dag_executor(
+            Some(sender),
+            self.cache_manager_options.clone(),
+            settings,
+        )?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -209,22 +193,10 @@ impl Orchestrator for SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        let executor = Executor::new(
-            self.config.clone(),
-            cache_endpoints,
-            running,
-            pipeline_home_dir,
-        );
-        let flags = get_flags(self.config.clone());
-        let api_security = get_api_security_config(self.config.clone());
-        let settings = CacheSinkSettings::new(flags, api_security);
-        let dag_executor = executor.create_dag_executor(Some(sender), settings)?.0;
         executor.run_dag_executor(dag_executor)
     }
 
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, Vec<SchemaWithChangesType>>, OrchestrationError> {
+    fn list_connectors(&self) -> Result<HashMap<String, Vec<SourceSchema>>, OrchestrationError> {
         Executor::get_tables(&self.config.connections)
     }
 
@@ -286,11 +258,9 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
-        self.write_internal_config()
-            .map_err(|e| InternalError(Box::new(e)))?;
-        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
-        let api_dir = get_api_dir(self.config.to_owned());
-        let cache_dir = get_cache_dir(self.config.to_owned());
+        let pipeline_home_dir = get_pipeline_dir(&self.config);
+        let api_dir = get_api_dir(&self.config);
+        let cache_dir = get_cache_dir(&self.config);
 
         info!(
             "Initiating app: {}",
@@ -305,24 +275,11 @@ impl Orchestrator for SimpleOrchestrator {
                 ));
             }
         }
-
-        info!(
-            "Home dir: {}",
-            get_colored_text(&self.config.home_dir, "35")
-        );
-        if let Some(api_config) = &self.config.api {
-            print_api_config(api_config)
-        }
-
-        print_api_endpoints(&self.config.endpoints);
-        validate_endpoints(&self.config.endpoints)?;
-
-        let cache_endpoints = self.get_rw_cache_endpoints(cache_dir)?;
+        validate_config(&self.config)?;
 
         let builder = PipelineBuilder::new(
             self.config.clone(),
-            cache_endpoints,
-            Arc::new(AtomicBool::new(true)),
+            self.config.endpoints.clone(),
             pipeline_home_dir.clone(),
         );
 
@@ -342,7 +299,12 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(flags, api_security);
-        let dag = builder.build(None, generated_path.clone(), settings)?.0;
+        let dag = builder.build(
+            None,
+            generated_path.clone(),
+            self.cache_manager_options.clone(),
+            settings,
+        )?;
         let dag_schemas = DagSchemas::new(&dag)?;
         // Every sink will initialize its schema in sink and also in a proto file.
         dag_schemas.prepare()?;
@@ -375,26 +337,45 @@ impl Orchestrator for SimpleOrchestrator {
         };
         Ok(())
     }
-}
 
-impl SimpleOrchestrator {
-    fn get_rw_cache_endpoints(
-        &self,
-        cache_dir: PathBuf,
-    ) -> Result<Vec<RwCacheEndpoint>, OrchestrationError> {
-        let mut cache_endpoints = Vec::new();
-        for e in &self.config.endpoints {
-            let mut cache_common_options = self.cache_common_options.clone();
-            cache_common_options.set_path(cache_dir.clone(), e.name.clone());
-            cache_endpoints.push(RwCacheEndpoint {
-                cache: Arc::new(
-                    LmdbRwCache::new(cache_common_options, self.cache_write_options.clone())
-                        .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?,
-                ),
-                endpoint: e.to_owned(),
-            })
+    fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
+        let running_api = running.clone();
+        // TODO: remove this after checkpointing
+        self.clean()?;
+
+        let mut dozer_api = self.clone();
+
+        let (tx, rx) = channel::unbounded::<bool>();
+
+        if let Err(e) = self.migrate(false) {
+            if let OrchestrationError::InitializationFailed(_) = e {
+                warn!(
+                    "{} is already present. Skipping initialisation..",
+                    self.config.home_dir.to_owned()
+                )
+            } else {
+                return Err(e);
+            }
         }
-        Ok(cache_endpoints)
+
+        let mut dozer_pipeline = self.clone();
+        let pipeline_thread = thread::spawn(move || {
+            if let Err(e) = dozer_pipeline.run_apps(running, Some(tx)) {
+                std::panic::panic_any(e);
+            }
+        });
+
+        // Wait for pipeline to initialize caches before starting api server
+        rx.recv().unwrap();
+
+        thread::spawn(move || {
+            if let Err(e) = dozer_api.run_api(running_api) {
+                std::panic::panic_any(e);
+            }
+        });
+
+        pipeline_thread.join().unwrap();
+        Ok(())
     }
 }
 
@@ -416,36 +397,4 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
             Ok(())
         },
     )
-}
-
-pub fn validate_endpoints(_endpoints: &[ApiEndpoint]) -> Result<(), OrchestrationError> {
-    Ok(())
-}
-
-fn print_api_config(api_config: &ApiConfig) {
-    info!("[API] {}", get_colored_text("Configuration", "35"));
-    let mut table_parent = Table::new();
-
-    table_parent.add_row(row!["Type", "IP", "Port"]);
-    if let Some(rest_config) = &api_config.rest {
-        table_parent.add_row(row!["REST", rest_config.host, rest_config.port]);
-    }
-
-    if let Some(grpc_config) = &api_config.grpc {
-        table_parent.add_row(row!["GRPC", grpc_config.host, grpc_config.port]);
-    }
-
-    table_parent.printstd();
-}
-
-fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
-    info!("[API] {}", get_colored_text("Endpoints", "35"));
-    let mut table_parent = Table::new();
-
-    table_parent.add_row(row!["Path", "Name", "Sql"]);
-    for endpoint in endpoints {
-        table_parent.add_row(row![endpoint.path, endpoint.name]);
-    }
-
-    table_parent.printstd();
 }

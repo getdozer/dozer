@@ -1,6 +1,5 @@
-pub mod connector;
 pub mod helper;
-mod sender;
-
-#[cfg(test)]
-mod tests;
+mod log;
+mod trace;
+pub use log::EthLogConnector;
+pub use trace::EthTraceConnector;

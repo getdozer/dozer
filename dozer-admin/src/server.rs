@@ -3,7 +3,6 @@ use crate::{
     db::pool::establish_connection,
     services::{application_service::AppService, connection_service::ConnectionService},
 };
-use dotenvy::dotenv;
 use dozer_types::{log::info, tracing::Level};
 use tonic::{transport::Server, Request, Response, Status};
 use tower_http::trace::{self, TraceLayer};
@@ -13,16 +12,16 @@ pub mod dozer_admin_grpc {
     pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("dozer_admin_grpc_descriptor");
 }
+use self::dozer_admin_grpc::{
+    GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
+    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, StartRequest, StartResponse,
+    StopRequest, StopResponse, UpdateAppRequest, ValidateConnectionResponse,
+};
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
-    AppResponse, ConnectionResponse, CreateAppRequest, CreateConnectionRequest,
-    GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetTablesRequest,
-    GetTablesResponse, StartPipelineRequest, StartPipelineResponse, UpdateConnectionRequest,
-};
-
-use self::dozer_admin_grpc::{
-    ListAppRequest, ListAppResponse, UpdateAppRequest, ValidateConnectionRequest,
-    ValidateConnectionResponse,
+    AppResponse, ConnectionRequest, ConnectionResponse, CreateAppRequest, GetAllConnectionRequest,
+    GetAllConnectionResponse, GetAppRequest, GetTablesRequest, GetTablesResponse,
+    UpdateConnectionRequest,
 };
 
 pub struct GrpcService {
@@ -32,6 +31,39 @@ pub struct GrpcService {
 
 #[tonic::async_trait]
 impl DozerAdmin for GrpcService {
+    async fn parse_sql(
+        &self,
+        request: tonic::Request<ParseRequest>,
+    ) -> Result<tonic::Response<ParseResponse>, tonic::Status> {
+        let result = self.app_service.parse(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn generate_yaml(
+        &self,
+        request: tonic::Request<GenerateYamlRequest>,
+    ) -> Result<tonic::Response<GenerateYamlResponse>, tonic::Status> {
+        let result = self.app_service.generate_yaml(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn generate_graph(
+        &self,
+        request: tonic::Request<GenerateGraphRequest>,
+    ) -> Result<tonic::Response<GenerateGraphResponse>, tonic::Status> {
+        let result = self.app_service.generate(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
     async fn create_application(
         &self,
         request: tonic::Request<CreateAppRequest>,
@@ -76,7 +108,7 @@ impl DozerAdmin for GrpcService {
 
     async fn validate_connection(
         &self,
-        request: tonic::Request<ValidateConnectionRequest>,
+        request: tonic::Request<ConnectionRequest>,
     ) -> Result<tonic::Response<ValidateConnectionResponse>, tonic::Status> {
         let result = self
             .connection_service
@@ -89,7 +121,7 @@ impl DozerAdmin for GrpcService {
 
     async fn create_connection(
         &self,
-        request: Request<CreateConnectionRequest>,
+        request: Request<ConnectionRequest>,
     ) -> Result<Response<ConnectionResponse>, Status> {
         let result = self
             .connection_service
@@ -136,11 +168,22 @@ impl DozerAdmin for GrpcService {
         }
     }
 
-    async fn start_pipeline(
+    async fn start_dozer(
         &self,
-        request: tonic::Request<StartPipelineRequest>,
-    ) -> Result<tonic::Response<StartPipelineResponse>, tonic::Status> {
-        let result = self.app_service.start_pipeline(request.into_inner());
+        request: tonic::Request<StartRequest>,
+    ) -> Result<tonic::Response<StartResponse>, tonic::Status> {
+        let result = self.app_service.start_dozer(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn stop_dozer(
+        &self,
+        request: tonic::Request<StopRequest>,
+    ) -> Result<tonic::Response<StopResponse>, tonic::Status> {
+        let result = self.app_service.stop_dozer(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
@@ -152,14 +195,12 @@ pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::tra
     dozer_tracing::init_telemetry(false).unwrap();
     let host = config.host;
     let port = config.port;
-    let dozer_path = config.dozer_path;
     let addr = format!("{host:}:{port:}").parse().unwrap();
-    dotenv().ok();
     let database_url: String = get_db_path();
     let db_pool = establish_connection(database_url);
     let grpc_service = GrpcService {
         connection_service: ConnectionService::new(db_pool.to_owned()),
-        app_service: AppService::new(db_pool.to_owned(), dozer_path),
+        app_service: AppService::new(db_pool.to_owned()),
     };
     let server = DozerAdminServer::new(grpc_service);
     let server = tonic_web::config().allow_all_origins().enable(server);

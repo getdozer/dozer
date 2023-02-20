@@ -122,7 +122,7 @@ async fn _start_internal_pipeline_server(
     let internal_config = app_config
         .api
         .unwrap_or_default()
-        .pipeline_internal
+        .app_grpc
         .unwrap_or_default();
 
     info!(

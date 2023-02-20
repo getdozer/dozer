@@ -2,9 +2,9 @@ use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_api::grpc::types_helper;
-use dozer_cache::cache::expression::QueryExpression;
+use dozer_cache::cache::expression::{QueryExpression, Skip};
 use dozer_cache::cache::index::get_primary_key;
-use dozer_cache::cache::RwCache;
+use dozer_cache::cache::{CacheManager, RwCache};
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::{ExecutionError, SinkError};
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
@@ -71,22 +71,43 @@ pub struct CacheSinkFactory {
 impl CacheSinkFactory {
     pub fn new(
         input_ports: Vec<PortHandle>,
-        cache: Arc<dyn RwCache>,
+        cache_manager: &dyn CacheManager,
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
         generated_path: PathBuf,
         multi_pb: MultiProgress,
         settings: CacheSinkSettings,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ExecutionError> {
+        let alias = &api_endpoint.name;
+        let cache = if let Some(cache) = cache_manager.open_rw_cache(alias).map_err(|e| {
+            ExecutionError::SinkError(SinkError::CacheOpenFailed(alias.clone(), Box::new(e)))
+        })? {
+            cache
+        } else {
+            let cache = cache_manager.create_cache().map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheCreateFailed(alias.clone(), Box::new(e)))
+            })?;
+            cache_manager
+                .create_alias(cache.name(), alias)
+                .map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheCreateAliasFailed {
+                        alias: alias.clone(),
+                        real_name: cache.name().to_string(),
+                        source: Box::new(e),
+                    })
+                })?;
+            cache
+        };
+
+        Ok(Self {
             input_ports,
-            cache,
+            cache: cache.into(),
             api_endpoint,
             notifier,
             generated_path,
             multi_pb,
             settings,
-        }
+        })
     }
 
     fn get_output_schema(
@@ -149,7 +170,8 @@ impl CacheSinkFactory {
                 ],
 
                 // Create full text indexes for text fields
-                FieldType::Text => vec![IndexDefinition::FullText(idx)],
+                // FieldType::Text => vec![IndexDefinition::FullText(idx)],
+                FieldType::Text => vec![],
 
                 // Skip creating indexes
                 FieldType::Binary | FieldType::Bson => vec![],
@@ -294,7 +316,7 @@ impl Sink for CacheSink {
     }
 
     fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        let query = QueryExpression::new(None, vec![], None, 0);
+        let query = QueryExpression::new(None, vec![], None, Skip::Skip(0));
         self.counter = self
             .cache
             .count(&self.api_endpoint.name, &query)

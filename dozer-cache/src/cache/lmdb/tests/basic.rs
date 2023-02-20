@@ -1,13 +1,14 @@
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression},
-    index, test_utils, RoCache, RwCache,
+    expression::{self, FilterExpression, QueryExpression, Skip},
+    index,
+    lmdb::cache::LmdbRwCache,
+    test_utils::{self, query_from_filter},
+    RoCache, RwCache,
 };
 use dozer_types::{
     serde_json::Value,
     types::{Field, IndexDefinition, Record, Schema},
 };
-
-use super::super::cache::LmdbRwCache;
 
 fn _setup() -> (LmdbRwCache, Schema, Vec<IndexDefinition>) {
     let (schema, secondary_indexes) = test_utils::schema_0();
@@ -106,16 +107,11 @@ fn insert_and_query_record_impl(
     cache.insert(&mut record).unwrap();
 
     // Query with an expression
-    let exp = QueryExpression::new(
-        Some(FilterExpression::Simple(
-            "foo".to_string(),
-            expression::Operator::EQ,
-            Value::from("bar".to_string()),
-        )),
-        vec![],
-        Some(10),
-        0,
-    );
+    let exp = query_from_filter(FilterExpression::Simple(
+        "foo".to_string(),
+        expression::Operator::EQ,
+        Value::from("bar".to_string()),
+    ));
 
     query_and_test(&cache, &record, "docs", &exp);
 
@@ -124,7 +120,7 @@ fn insert_and_query_record_impl(
         &cache,
         &record,
         "docs",
-        &QueryExpression::new(None, vec![], Some(10), 0),
+        &QueryExpression::new(None, vec![], Some(10), Skip::Skip(0)),
     );
 }
 

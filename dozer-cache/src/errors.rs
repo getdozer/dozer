@@ -1,4 +1,3 @@
-use dozer_types::serde_json::Value;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 
@@ -7,8 +6,6 @@ use dozer_types::errors::types::{DeserializationError, SerializationError, TypeE
 
 #[derive(Error, Debug)]
 pub enum CacheError {
-    #[error(transparent)]
-    QueryValidation(#[from] QueryValidationError),
     #[error(transparent)]
     Internal(#[from] BoxedError),
     #[error(transparent)]
@@ -91,40 +88,6 @@ pub enum IndexError {
 }
 
 #[derive(Error, Debug)]
-pub enum QueryValidationError {
-    #[error("String cannot contain special character")]
-    SpecialCharacterError,
-    #[error("empty object passed as value")]
-    EmptyObjectAsValue,
-    #[error("empty array passed as value")]
-    EmptyArrayAsValue,
-
-    #[error("unexpected character : {0}")]
-    UnexpectedCharacter(String),
-
-    #[error("unexpected object: {0}")]
-    UnexpectedObject(Value),
-
-    #[error("unidentified operator {0}")]
-    UnidentifiedOperator(String),
-
-    #[error("More than one statement passed in Simple Expression")]
-    MoreThanOneStmt,
-
-    #[error("Invalid Expression")]
-    InvalidExpression,
-
-    #[error("Invalid Expression")]
-    InvalidAndExpression,
-
-    #[error("order value not a string")]
-    OrderValueNotString,
-
-    #[error("unidentified order {0}")]
-    UnidentifiedOrder(String),
-}
-
-#[derive(Error, Debug)]
 pub enum PlanError {
     #[error("Field {0:?} not found in query")]
     FieldNotFound(String),
@@ -138,15 +101,4 @@ pub enum PlanError {
     RangeQueryLimit,
     #[error("Matching index not found")]
     MatchingIndexNotFound,
-}
-
-pub fn validate_query(
-    condition: bool,
-    err: QueryValidationError,
-) -> Result<(), QueryValidationError> {
-    if !condition {
-        Err(err)
-    } else {
-        Ok(())
-    }
 }

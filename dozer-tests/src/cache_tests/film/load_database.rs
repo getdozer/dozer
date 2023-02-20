@@ -1,6 +1,6 @@
 use bson::doc;
 use csv::StringRecord;
-use dozer_cache::cache::{LmdbRwCache, RwCache};
+use dozer_cache::cache::{CacheManager, LmdbCacheManager, RoCache};
 use dozer_types::{chrono::DateTime, types::IndexDefinition};
 use mongodb::{options::ClientOptions, Client, Collection, IndexModel};
 
@@ -10,14 +10,15 @@ use super::{film_schema, Film};
 
 pub async fn load_database(
     secondary_indexes: &[IndexDefinition],
-) -> (LmdbRwCache, &'static str, Collection<Film>) {
+) -> (Box<dyn RoCache>, &'static str, Collection<Film>) {
     // Initialize tracing and data.
     init();
 
     // Create cache and insert schema.
     let schema = film_schema();
     let schema_name = "film";
-    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
+    let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
+    let cache = cache_manager.create_cache().unwrap();
     cache
         .insert_schema(schema_name, &schema, secondary_indexes)
         .unwrap();
@@ -58,8 +59,15 @@ pub async fn load_database(
             .await
             .unwrap();
     }
+    cache.commit().unwrap();
 
-    (cache, schema_name, mongo_collection)
+    let cache_name = cache.name().to_string();
+    drop(cache);
+    (
+        cache_manager.open_ro_cache(&cache_name).unwrap().unwrap(),
+        schema_name,
+        mongo_collection,
+    )
 }
 
 fn string_record_to_film(record: &StringRecord) -> Film {
