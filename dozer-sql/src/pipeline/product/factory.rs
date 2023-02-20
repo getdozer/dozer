@@ -6,17 +6,19 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
+use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint, TableFactor};
 
-use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{
-    builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
+    builder::SchemaSQLContext,
+    errors::JoinError,
+    expression::builder::{extend_schema_source_def, NameOrAlias},
     product::join::JoinBranch,
 };
 use crate::pipeline::{
     builder::{get_input_names, IndexedTableWithJoins},
     errors::PipelineError,
 };
+use crate::pipeline::{expression::builder::ExpressionBuilder, product::window::WindowFunction};
 use sqlparser::ast::Expr as SqlExpr;
 
 use super::{
@@ -109,6 +111,8 @@ pub fn build_join_tree(
 
     let mut source_names = HashMap::new();
 
+    if let Some(left_window) = window_from_relation(&join_tables.relation) {}
+
     let port = 0 as PortHandle;
     let left_schema = input_schemas
         .get(&port)
@@ -195,6 +199,35 @@ pub fn build_join_tree(
     }
 
     Ok((join_tree_root, source_names))
+}
+
+fn window_from_relation(relation: &(NameOrAlias, TableFactor)) -> Option<Box<dyn WindowFunction>> {
+    let name = match &relation.1 {
+        TableFactor::Table {
+            name,
+            alias,
+            args,
+            with_hints,
+        } => todo!(),
+        TableFactor::Derived {
+            lateral,
+            subquery,
+            alias,
+        } => todo!(),
+        TableFactor::TableFunction { expr, alias } => todo!(),
+        TableFactor::UNNEST {
+            alias,
+            array_expr,
+            with_offset,
+            with_offset_alias,
+        } => todo!(),
+        TableFactor::NestedJoin {
+            table_with_joins,
+            alias,
+        } => todo!(),
+    };
+
+    None
 }
 
 fn parse_join_constraint(

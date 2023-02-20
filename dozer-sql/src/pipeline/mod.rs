@@ -9,4 +9,3 @@ mod selection;
 
 #[cfg(test)]
 mod tests;
-mod window;

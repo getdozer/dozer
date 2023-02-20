@@ -3,7 +3,7 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
 };
 
-use crate::pipeline::window::{HopWindow, TumbleWindow, WindowFunction};
+use crate::pipeline::product::window::{HopWindow, TumbleWindow, WindowFunction};
 
 #[test]
 fn test_hop() {

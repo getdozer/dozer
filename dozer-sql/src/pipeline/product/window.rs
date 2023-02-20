@@ -2,8 +2,9 @@ use dozer_types::{
     chrono::{Duration, DurationRound},
     types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
 };
+use sqlparser::ast::TableFactor;
 
-use super::errors::WindowError;
+use crate::pipeline::{errors::WindowError, expression::builder::NameOrAlias};
 
 pub trait WindowFunction {
     fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError>;

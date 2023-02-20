@@ -535,7 +535,7 @@ fn test_pipeline_builder() {
 
     let context = statement_to_pipeline(
         "SELECT  name, dname, salary \
-        FROM TUMBLE('1','2','3','4') JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
+        FROM TUMBLE(user, salary, '2 MINUTES') JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
         &mut pipeline,
         Some("results".to_string())
     )
