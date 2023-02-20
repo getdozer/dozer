@@ -23,6 +23,82 @@ use tempdir::TempDir;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
+#[test]
+#[ignore]
+fn test_pipeline_builder() {
+    dozer_tracing::init_telemetry(false).unwrap();
+
+    let mut pipeline = AppPipeline::new();
+
+    let context = statement_to_pipeline(
+        "SELECT  name, dname, salary \
+        FROM TUMBLE(user, salary, '2 MINUTES') as user JOIN department ON u.department_id = department.did JOIN country ON u.country_id = country.cid ",
+        &mut pipeline,
+        Some("results".to_string())
+    )
+    .unwrap();
+
+    let table_info = context.output_tables_map.get("results").unwrap();
+
+    let latch = Arc::new(AtomicBool::new(true));
+
+    let mut asm = AppSourceManager::new();
+    asm.add(AppSource::new(
+        "conn".to_string(),
+        Arc::new(TestSourceFactory::new(latch.clone())),
+        vec![
+            ("user".to_string(), USER_PORT),
+            ("department".to_string(), DEPARTMENT_PORT),
+            ("country".to_string(), COUNTRY_PORT),
+        ]
+        .into_iter()
+        .collect(),
+    ))
+    .unwrap();
+
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
+    pipeline
+        .connect_nodes(
+            &table_info.node,
+            Some(table_info.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        )
+        .unwrap();
+
+    let mut app = App::new(asm);
+    app.add_pipeline(pipeline);
+
+    let dag = app.get_dag().unwrap();
+
+    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    if tmp_dir.path().exists() {
+        std::fs::remove_dir_all(tmp_dir.path())
+            .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+    }
+    std::fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
+    use std::time::Instant;
+    let now = Instant::now();
+
+    let tmp_dir = TempDir::new("test").unwrap();
+
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
+        ExecutorOptions::default(),
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
+
+    let elapsed = now.elapsed();
+    debug!("Elapsed: {:.2?}", elapsed);
+}
+
 const USER_PORT: u16 = 0 as PortHandle;
 const DEPARTMENT_PORT: u16 = 1 as PortHandle;
 const COUNTRY_PORT: u16 = 2 as PortHandle;
@@ -524,80 +600,4 @@ impl Sink for TestSink {
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
-}
-
-#[test]
-#[ignore]
-fn test_pipeline_builder() {
-    dozer_tracing::init_telemetry(false).unwrap();
-
-    let mut pipeline = AppPipeline::new();
-
-    let context = statement_to_pipeline(
-        "SELECT  name, dname, salary \
-        FROM TUMBLE(user, salary, '2 MINUTES') JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
-        &mut pipeline,
-        Some("results".to_string())
-    )
-    .unwrap();
-
-    let table_info = context.output_tables_map.get("results").unwrap();
-
-    let latch = Arc::new(AtomicBool::new(true));
-
-    let mut asm = AppSourceManager::new();
-    asm.add(AppSource::new(
-        "conn".to_string(),
-        Arc::new(TestSourceFactory::new(latch.clone())),
-        vec![
-            ("user".to_string(), USER_PORT),
-            ("department".to_string(), DEPARTMENT_PORT),
-            ("country".to_string(), COUNTRY_PORT),
-        ]
-        .into_iter()
-        .collect(),
-    ))
-    .unwrap();
-
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
-    pipeline
-        .connect_nodes(
-            &table_info.node,
-            Some(table_info.port),
-            "sink",
-            Some(DEFAULT_PORT_HANDLE),
-            true,
-        )
-        .unwrap();
-
-    let mut app = App::new(asm);
-    app.add_pipeline(pipeline);
-
-    let dag = app.get_dag().unwrap();
-
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-    if tmp_dir.path().exists() {
-        std::fs::remove_dir_all(tmp_dir.path())
-            .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-    }
-    std::fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-
-    use std::time::Instant;
-    let now = Instant::now();
-
-    let tmp_dir = TempDir::new("test").unwrap();
-
-    DagExecutor::new(
-        &dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
-    )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
-
-    let elapsed = now.elapsed();
-    debug!("Elapsed: {:.2?}", elapsed);
 }

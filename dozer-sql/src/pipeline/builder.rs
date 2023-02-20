@@ -17,7 +17,7 @@ use sqlparser::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::errors::UnsupportedSqlError;
+use super::errors::{SqlError, UnsupportedSqlError};
 use super::product::factory::FromProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
@@ -362,16 +362,176 @@ pub fn get_from_source(
     pipeline_idx: usize,
 ) -> Result<NameOrAlias, PipelineError> {
     match relation {
-        TableFactor::Table { name, alias, .. } => {
+        TableFactor::Table {
+            name, alias, args, ..
+        } => {
             let input_name = name
                 .0
                 .iter()
                 .map(ExpressionBuilder::normalize_ident)
                 .collect::<Vec<String>>()
                 .join(".");
+
             let alias_name = alias
                 .as_ref()
                 .map(|a| ExpressionBuilder::fullname_from_ident(&[a.name.clone()]));
+
+            // it's a Window function
+            if let Some(args) = args {
+                if !args.is_empty() && (input_name == "TUMBLE" || input_name == "HOP") {
+                    let table_arg = args.get(0).unwrap();
+                    match table_arg {
+                        sqlparser::ast::FunctionArg::Named { name, arg } => {
+                            todo!()
+                        }
+                        sqlparser::ast::FunctionArg::Unnamed(expr) => match expr {
+                            sqlparser::ast::FunctionArgExpr::Expr(expr) => match expr {
+                                sqlparser::ast::Expr::Identifier(_) => todo!(),
+                                sqlparser::ast::Expr::CompoundIdentifier(_) => todo!(),
+                                sqlparser::ast::Expr::JsonAccess {
+                                    left,
+                                    operator,
+                                    right,
+                                } => todo!(),
+                                sqlparser::ast::Expr::CompositeAccess { expr, key } => todo!(),
+                                sqlparser::ast::Expr::IsFalse(_) => todo!(),
+                                sqlparser::ast::Expr::IsNotFalse(_) => todo!(),
+                                sqlparser::ast::Expr::IsTrue(_) => todo!(),
+                                sqlparser::ast::Expr::IsNotTrue(_) => todo!(),
+                                sqlparser::ast::Expr::IsNull(_) => todo!(),
+                                sqlparser::ast::Expr::IsNotNull(_) => todo!(),
+                                sqlparser::ast::Expr::IsUnknown(_) => todo!(),
+                                sqlparser::ast::Expr::IsNotUnknown(_) => todo!(),
+                                sqlparser::ast::Expr::IsDistinctFrom(_, _) => todo!(),
+                                sqlparser::ast::Expr::IsNotDistinctFrom(_, _) => todo!(),
+                                sqlparser::ast::Expr::InList {
+                                    expr,
+                                    list,
+                                    negated,
+                                } => todo!(),
+                                sqlparser::ast::Expr::InSubquery {
+                                    expr,
+                                    subquery,
+                                    negated,
+                                } => todo!(),
+                                sqlparser::ast::Expr::InUnnest {
+                                    expr,
+                                    array_expr,
+                                    negated,
+                                } => todo!(),
+                                sqlparser::ast::Expr::Between {
+                                    expr,
+                                    negated,
+                                    low,
+                                    high,
+                                } => todo!(),
+                                sqlparser::ast::Expr::BinaryOp { left, op, right } => todo!(),
+                                sqlparser::ast::Expr::Like {
+                                    negated,
+                                    expr,
+                                    pattern,
+                                    escape_char,
+                                } => todo!(),
+                                sqlparser::ast::Expr::ILike {
+                                    negated,
+                                    expr,
+                                    pattern,
+                                    escape_char,
+                                } => todo!(),
+                                sqlparser::ast::Expr::SimilarTo {
+                                    negated,
+                                    expr,
+                                    pattern,
+                                    escape_char,
+                                } => todo!(),
+                                sqlparser::ast::Expr::AnyOp(_) => todo!(),
+                                sqlparser::ast::Expr::AllOp(_) => todo!(),
+                                sqlparser::ast::Expr::UnaryOp { op, expr } => todo!(),
+                                sqlparser::ast::Expr::Cast { expr, data_type } => todo!(),
+                                sqlparser::ast::Expr::TryCast { expr, data_type } => todo!(),
+                                sqlparser::ast::Expr::SafeCast { expr, data_type } => todo!(),
+                                sqlparser::ast::Expr::AtTimeZone {
+                                    timestamp,
+                                    time_zone,
+                                } => todo!(),
+                                sqlparser::ast::Expr::Extract { field, expr } => todo!(),
+                                sqlparser::ast::Expr::Ceil { expr, field } => todo!(),
+                                sqlparser::ast::Expr::Floor { expr, field } => todo!(),
+                                sqlparser::ast::Expr::Position { expr, r#in } => todo!(),
+                                sqlparser::ast::Expr::Substring {
+                                    expr,
+                                    substring_from,
+                                    substring_for,
+                                } => todo!(),
+                                sqlparser::ast::Expr::Trim {
+                                    expr,
+                                    trim_where,
+                                    trim_what,
+                                } => todo!(),
+                                sqlparser::ast::Expr::Overlay {
+                                    expr,
+                                    overlay_what,
+                                    overlay_from,
+                                    overlay_for,
+                                } => todo!(),
+                                sqlparser::ast::Expr::Collate { expr, collation } => todo!(),
+                                sqlparser::ast::Expr::Nested(_) => todo!(),
+                                sqlparser::ast::Expr::Value(_) => todo!(),
+                                sqlparser::ast::Expr::TypedString { data_type, value } => todo!(),
+                                sqlparser::ast::Expr::MapAccess { column, keys } => todo!(),
+                                sqlparser::ast::Expr::Function(_) => todo!(),
+                                sqlparser::ast::Expr::AggregateExpressionWithFilter {
+                                    expr,
+                                    filter,
+                                } => todo!(),
+                                sqlparser::ast::Expr::Case {
+                                    operand,
+                                    conditions,
+                                    results,
+                                    else_result,
+                                } => todo!(),
+                                sqlparser::ast::Expr::Exists { subquery, negated } => todo!(),
+                                sqlparser::ast::Expr::Subquery(_) => todo!(),
+                                sqlparser::ast::Expr::ArraySubquery(_) => todo!(),
+                                sqlparser::ast::Expr::ListAgg(_) => todo!(),
+                                sqlparser::ast::Expr::ArrayAgg(_) => todo!(),
+                                sqlparser::ast::Expr::GroupingSets(_) => todo!(),
+                                sqlparser::ast::Expr::Cube(_) => todo!(),
+                                sqlparser::ast::Expr::Rollup(_) => todo!(),
+                                sqlparser::ast::Expr::Tuple(_) => todo!(),
+                                sqlparser::ast::Expr::ArrayIndex { obj, indexes } => todo!(),
+                                sqlparser::ast::Expr::Array(_) => todo!(),
+                                sqlparser::ast::Expr::Interval {
+                                    value,
+                                    leading_field,
+                                    leading_precision,
+                                    last_field,
+                                    fractional_seconds_precision,
+                                } => todo!(),
+                                sqlparser::ast::Expr::MatchAgainst {
+                                    columns,
+                                    match_value,
+                                    opt_search_modifier,
+                                } => todo!(),
+                            },
+                            sqlparser::ast::FunctionArgExpr::QualifiedWildcard(_) => {
+                                return Err(PipelineError::SqlError(SqlError::WindowError(
+                                    input_name,
+                                )));
+                            }
+                            sqlparser::ast::FunctionArgExpr::Wildcard => {
+                                return Err(PipelineError::SqlError(SqlError::WindowError(
+                                    input_name,
+                                )));
+                            }
+                        },
+                    }
+
+                    let table_name = "".to_string();
+
+                    return Ok(NameOrAlias(table_name, alias_name));
+                }
+            }
 
             Ok(NameOrAlias(input_name, alias_name))
         }

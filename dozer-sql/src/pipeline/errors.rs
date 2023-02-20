@@ -88,6 +88,9 @@ pub enum PipelineError {
 
     #[error(transparent)]
     JoinError(#[from] JoinError),
+
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
 }
 
 #[derive(Error, Debug)]
@@ -112,6 +115,12 @@ pub enum UnsupportedSqlError {
 
     #[error("Unsupported SQL statement {0}")]
     GenericError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum SqlError {
+    #[error("The first argument of the {0} function must be a source name.")]
+    WindowError(String),
 }
 
 #[derive(Error, Debug)]
