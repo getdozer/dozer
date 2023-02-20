@@ -11,7 +11,7 @@ use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{
     FieldDefinition, FieldType, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
-    SchemaWithChangesType, SourceDefinition,
+    SourceDefinition, SourceSchema,
 };
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
@@ -82,7 +82,7 @@ impl SchemaRegistry {
     pub fn get_schema(
         table_names: Option<Vec<TableInfo>>,
         config: KafkaConfig,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let sr_settings = SrSettings::new(config.schema_registry_url.unwrap());
         table_names.map_or(Ok(vec![]), |tables| {
             tables.get(0).map_or(Ok(vec![]), |table| {
@@ -98,8 +98,7 @@ impl SchemaRegistry {
                         .collect()
                 });
 
-                let mut schema_data: Option<Result<Vec<SchemaWithChangesType>, ConnectorError>> =
-                    None;
+                let mut schema_data: Option<Result<Vec<SourceSchema>, ConnectorError>> = None;
                 let fields = schema_result.fields.map_or(vec![], |f| f);
                 for f in fields {
                     if f.name.clone().unwrap() == "before" {
@@ -142,7 +141,7 @@ impl SchemaRegistry {
                                     primary_index: pk_keys_indexes,
                                 };
 
-                                schema_data = Some(Ok(vec![(
+                                schema_data = Some(Ok(vec![SourceSchema::new(
                                     table.table_name.clone(),
                                     schema,
                                     ReplicationChangesTrackingType::FullChanges,

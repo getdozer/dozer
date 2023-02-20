@@ -7,7 +7,7 @@ use std::{
 
 use dozer_types::{
     log::info,
-    models::{app_config::Config, connection::Authentication},
+    models::{app_config::Config, connection::ConnectionConfig},
 };
 
 use crate::e2e_tests::{
@@ -329,27 +329,27 @@ fn write_dozer_config_for_running_in_docker_compose(
     };
 
     for connection in &mut config.connections {
-        let mut authentication = connection.authentication.clone().unwrap_or_default();
+        let mut config = connection.config.clone().unwrap_or_default();
 
-        match authentication {
-            Authentication::Postgres(mut postgres) => {
+        match config {
+            ConnectionConfig::Postgres(mut postgres) => {
                 postgres.host = connection.name.clone();
                 postgres.port = map_port(postgres.port as u16) as u32;
-                authentication = Authentication::Postgres(postgres);
+                config = ConnectionConfig::Postgres(postgres);
             }
-            Authentication::Ethereum(_) => (),
-            Authentication::Events(_) => (),
-            Authentication::Snowflake(_) => {
+            ConnectionConfig::Ethereum(_) => (),
+            ConnectionConfig::Grpc(_) => (),
+            ConnectionConfig::Snowflake(_) => {
                 todo!("Map snowflake host and port")
             }
-            Authentication::Kafka(_) => {
+            ConnectionConfig::Kafka(_) => {
                 todo!("Map kafka host and port")
             }
-            Authentication::S3Storage(_) => {}
-            Authentication::LocalStorage(_) => {}
+            ConnectionConfig::S3Storage(_) => {}
+            ConnectionConfig::LocalStorage(_) => {}
         }
 
-        connection.authentication = Some(authentication);
+        connection.config = Some(config);
     }
 
     let config_path = dir.join("dozer-config.yaml");

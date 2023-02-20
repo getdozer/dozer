@@ -1,0 +1,35 @@
+app_name: dozer-ingest-users
+connections:
+  - config: !Grpc
+      schemas: !Inline |
+        [{
+          "name": "users",
+          "schema": {
+            "fields": [
+              {
+                "name": "id",
+                "typ": "Int",
+                "nullable": false
+              },
+              {
+                "name": "name",
+                "typ": "String",
+                "nullable": true
+              }
+            ]
+          } 
+        }]
+    name: ingest
+
+sources:
+  - name: users
+    table_name: users
+    connection: !Ref ingest
+    columns:
+
+endpoints:
+  - name: users
+    path: /users
+    table_name: users
+    index:
+      primary_key:

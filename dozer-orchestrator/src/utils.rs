@@ -1,5 +1,5 @@
 use dozer_types::models::{
-    api_config::{ApiConfig, ApiGrpc, ApiPipelineInternal, ApiRest},
+    api_config::{ApiConfig, GrpcApiOptions, RestApiOptions},
     api_security::ApiSecurity,
     app_config::Config,
 };
@@ -8,12 +8,8 @@ use std::path::{Path, PathBuf};
 pub fn get_pipeline_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("pipeline")
 }
-pub fn get_pipeline_config(config: Config) -> ApiPipelineInternal {
-    config
-        .api
-        .unwrap_or_default()
-        .pipeline_internal
-        .unwrap_or_default()
+pub fn get_app_grpc_config(config: Config) -> GrpcApiOptions {
+    config.api.unwrap_or_default().app_grpc.unwrap_or_default()
 }
 pub fn get_cache_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("cache")
@@ -22,13 +18,13 @@ pub fn get_cache_dir(config: &Config) -> PathBuf {
 pub fn get_api_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("api")
 }
-pub fn get_grpc_config(config: Config) -> ApiGrpc {
+pub fn get_grpc_config(config: Config) -> GrpcApiOptions {
     config.api.unwrap_or_default().grpc.unwrap_or_default()
 }
 pub fn get_api_config(config: Config) -> ApiConfig {
     config.api.unwrap_or_default()
 }
-pub fn get_rest_config(config: Config) -> ApiRest {
+pub fn get_rest_config(config: Config) -> RestApiOptions {
     config.api.unwrap_or_default().rest.unwrap_or_default()
 }
 pub fn get_api_security_config(config: Config) -> Option<ApiSecurity> {

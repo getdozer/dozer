@@ -1,7 +1,6 @@
 app_name: 1-hypercharge-postgres-sample
 connections:
-  - db_type: Postgres
-    authentication: !Postgres
+  - config: !Postgres
       user: postgres
       password: postgres
       host: localhost

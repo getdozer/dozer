@@ -49,7 +49,7 @@ pub fn setup_pipeline() -> (Vec<RoCacheEndpoint>, Receiver<PipelineResponse>) {
     };
 
     let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
-    let default_api_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let default_api_internal = default_api_config().app_grpc.unwrap_or_default();
     tokio::spawn(async {
         ApiServer::setup_broad_cast_channel(tx, default_api_internal)
             .await
@@ -76,7 +76,7 @@ async fn test_grpc_count_and_query_common(
     access_token: Option<String>,
 ) -> Result<(CountFilmsResponse, QueryFilmsResponse), tonic::Status> {
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let default_pipeline_internal = default_api_config().app_grpc.unwrap_or_default();
     let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
         default_pipeline_internal.host,
         default_pipeline_internal.port,
@@ -219,7 +219,7 @@ async fn test_grpc_query_empty_body() {
 #[tokio::test]
 async fn test_typed_streaming1() {
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let default_pipeline_internal = default_api_config().app_grpc.unwrap_or_default();
     let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
         default_pipeline_internal.host,
         default_pipeline_internal.port,
@@ -258,7 +258,7 @@ async fn test_typed_streaming1() {
 #[tokio::test]
 async fn test_typed_streaming2() {
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let default_pipeline_internal = default_api_config().app_grpc.unwrap_or_default();
     let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
         default_pipeline_internal.host,
         default_pipeline_internal.port,
@@ -296,7 +296,7 @@ async fn test_typed_streaming2() {
 #[tokio::test]
 async fn test_typed_streaming3() {
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let default_pipeline_internal = default_api_config().app_grpc.unwrap_or_default();
     let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
         default_pipeline_internal.host,
         default_pipeline_internal.port,

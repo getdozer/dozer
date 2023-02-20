@@ -11,19 +11,25 @@ service DozerAdmin {
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc get_application(GetAppRequest) returns (AppResponse);
-  rpc validate_connection(ValidateConnectionRequest)
+  rpc validate_connection(ConnectionRequest)
       returns (ValidateConnectionResponse);
-  rpc create_connection(CreateConnectionRequest) returns (ConnectionResponse);
+  rpc create_connection(ConnectionRequest) returns (ConnectionResponse);
   rpc list_connections(GetAllConnectionRequest)
       returns (GetAllConnectionResponse);
   rpc get_tables(GetTablesRequest) returns (GetTablesResponse);
   rpc update_connection(UpdateConnectionRequest) returns (ConnectionResponse);
 
-  rpc start_pipeline(StartPipelineRequest) returns (StartPipelineResponse);
+  rpc start_dozer(StartRequest) returns (StartResponse);
+  rpc stop_dozer(StopRequest) returns (StopResponse);
 }
 
-message StartPipelineRequest { string app_id = 1; }
-message StartPipelineResponse { bool success = 1; }
+message StartRequest { string config = 1; }
+message StartResponse {
+  bool success = 1;
+  string id = 2;
+}
+message StopRequest { string id = 1; }
+message StopResponse { bool success = 1; }
 message CreateAppRequest { string config = 2; }
 message ParseRequest { string sql = 1; }
 message ParseResponse {
@@ -63,19 +69,8 @@ message UpdateAppRequest {
 }
 
 message GetAppRequest { optional string app_id = 1; }
-
-message ValidateConnectionRequest {
-  Authentication authentication = 1;
-  string name = 2;
-  DBType type = 3;
-}
+message ConnectionRequest { Connection connection = 1; }
 message ValidateConnectionResponse { bool success = 1; }
-message CreateConnectionRequest {
-  Authentication authentication = 1;
-  string name = 3;
-  DBType type = 4;
-}
-
 message ConnectionResponse {
   string id = 1;
   Connection connection = 2;
@@ -97,10 +92,8 @@ message GetAllConnectionResponse {
   Pagination pagination = 2;
 }
 message UpdateConnectionRequest {
-  Authentication authentication = 1;
+  Connection connection = 1;
   string connection_id = 3;
-  string name = 4;
-  DBType type = 5;
 }
 
 message Pagination {

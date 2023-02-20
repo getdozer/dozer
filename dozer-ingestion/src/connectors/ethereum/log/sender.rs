@@ -2,9 +2,10 @@ use core::time;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::connectors::ethereum::log::connector::EthLogConnector;
 use crate::ingestion::Ingestor;
 use crate::{
-    connectors::{ethereum::helper, TableInfo},
+    connectors::{ethereum::helper as conn_helper, TableInfo},
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
@@ -18,7 +19,8 @@ use web3::transports::WebSocket;
 use web3::types::{Log, H256};
 use web3::Web3;
 
-use super::connector::{ContractTuple, EthConnector};
+use super::connector::ContractTuple;
+use super::helper;
 
 const MAX_RETRIES: usize = 3;
 
@@ -60,7 +62,7 @@ impl<'a> EthDetails<'a> {
 
 #[allow(unreachable_code)]
 pub async fn run(details: Arc<EthDetails<'_>>) -> Result<(), ConnectorError> {
-    let client = helper::get_wss_client(&details.wss_url)
+    let client = conn_helper::get_wss_client(&details.wss_url)
         .await
         .map_err(ConnectorError::EthError)?;
 
@@ -124,7 +126,7 @@ pub async fn run(details: Arc<EthDetails<'_>>) -> Result<(), ConnectorError> {
 
         let filter = client
             .eth_filter()
-            .create_logs_filter(EthConnector::build_filter(&filter))
+            .create_logs_filter(EthLogConnector::build_filter(&filter))
             .await
             .map_err(ConnectorError::EthError)?;
 
@@ -164,7 +166,7 @@ pub fn fetch_logs(
         let mut applied_filter = filter.clone();
         applied_filter.from_block = Some(block_start);
         applied_filter.to_block = Some(block_end);
-        let res = client.eth().logs(EthConnector::build_filter(&applied_filter)).await;
+        let res = client.eth().logs(EthLogConnector::build_filter(&applied_filter)).await;
 
         match res {
             Ok(logs) => {

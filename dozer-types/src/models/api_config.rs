@@ -1,8 +1,5 @@
-use serde::{Deserialize, Serialize};
-
-use crate::constants::DEFAULT_HOME_DIR;
-
 use super::api_security::ApiSecurity;
+use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 #[serde(default = "default_api_config")]
 pub struct ApiConfig {
@@ -12,22 +9,18 @@ pub struct ApiConfig {
     pub api_security: Option<ApiSecurity>,
     #[prost(message, tag = "2")]
     #[serde(default = "default_api_rest")]
-    pub rest: Option<ApiRest>,
+    pub rest: Option<RestApiOptions>,
     #[prost(message, tag = "3")]
     #[serde(default = "default_api_grpc")]
-    pub grpc: Option<ApiGrpc>,
-    #[prost(bool, tag = "4")]
-    pub auth: bool,
-    #[prost(message, tag = "5")]
-    #[serde(default = "default_api_internal")]
-    pub api_internal: Option<ApiInternal>,
-    #[prost(message, tag = "6")]
+    pub grpc: Option<GrpcApiOptions>,
+
+    #[prost(message, tag = "4")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "default_pipeline_internal")]
-    pub pipeline_internal: Option<ApiPipelineInternal>,
+    #[serde(default = "default_app_grpc")]
+    pub app_grpc: Option<GrpcApiOptions>,
 }
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
-pub struct ApiRest {
+pub struct RestApiOptions {
     #[prost(uint32, tag = "1")]
     #[serde(default = "default_rest_port")]
     pub port: u32,
@@ -39,7 +32,7 @@ pub struct ApiRest {
     pub cors: bool,
 }
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
-pub struct ApiGrpc {
+pub struct GrpcApiOptions {
     #[prost(uint32, tag = "1")]
     #[serde(default = "default_grpc_port")]
     pub port: u32,
@@ -54,59 +47,30 @@ pub struct ApiGrpc {
     pub web: bool,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
-pub struct ApiPipelineInternal {
-    #[prost(uint32, tag = "1")]
-    #[serde(default = "default_pipeline_internal_port")]
-    pub port: u32,
-    #[prost(string, tag = "2")]
-    #[serde(default = "default_pipeline_internal_host")]
-    pub host: String,
-    #[prost(string, tag = "3")]
-    #[serde(default = "default_pipeline_internal_home_dir")]
-    pub home_dir: String,
-}
-
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
-pub struct ApiInternal {
-    #[prost(string, tag = "1")]
-    #[serde(default = "default_api_internal_home_dir")]
-    pub home_dir: String,
-}
-
-fn default_api_internal_home_dir() -> String {
-    format!("{:}/api", DEFAULT_HOME_DIR.to_owned())
-}
-fn default_api_internal() -> Option<ApiInternal> {
-    Some(ApiInternal {
-        home_dir: format!("{:}/api", DEFAULT_HOME_DIR.to_owned()),
-    })
-}
-fn default_pipeline_internal_port() -> u32 {
+fn default_app_grpc_port() -> u32 {
     50053
 }
-fn default_pipeline_internal_host() -> String {
+fn default_app_grpc_host() -> String {
     "0.0.0.0".to_owned()
 }
-fn default_pipeline_internal_home_dir() -> String {
-    format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned())
-}
-pub(crate) fn default_pipeline_internal() -> Option<ApiPipelineInternal> {
-    Some(ApiPipelineInternal {
-        port: default_pipeline_internal_port(),
-        host: default_pipeline_internal_host(),
-        home_dir: default_pipeline_internal_home_dir(),
+
+pub(crate) fn default_app_grpc() -> Option<GrpcApiOptions> {
+    Some(GrpcApiOptions {
+        port: default_app_grpc_port(),
+        host: default_app_grpc_host(),
+        cors: false,
+        web: false,
     })
 }
-pub(crate) fn default_api_rest() -> Option<ApiRest> {
-    Some(ApiRest {
+pub(crate) fn default_api_rest() -> Option<RestApiOptions> {
+    Some(RestApiOptions {
         port: default_rest_port(),
         host: default_host(),
         cors: default_cors(),
     })
 }
-pub(crate) fn default_api_grpc() -> Option<ApiGrpc> {
-    Some(ApiGrpc {
+pub(crate) fn default_api_grpc() -> Option<GrpcApiOptions> {
+    Some(GrpcApiOptions {
         port: default_grpc_port(),
         host: default_host(),
         cors: default_cors(),
@@ -133,9 +97,7 @@ pub fn default_api_config() -> ApiConfig {
     ApiConfig {
         rest: default_api_rest(),
         grpc: default_api_grpc(),
-        auth: false,
-        api_internal: default_api_internal(),
-        pipeline_internal: default_pipeline_internal(),
-        ..Default::default()
+        app_grpc: default_app_grpc(),
+        api_security: None,
     }
 }

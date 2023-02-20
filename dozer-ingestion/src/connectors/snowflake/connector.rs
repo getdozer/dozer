@@ -19,7 +19,7 @@ use crate::errors::SnowflakeError::ConnectionError;
 #[cfg(feature = "snowflake")]
 use dozer_types::log::{debug, info};
 
-use dozer_types::types::SchemaWithChangesType;
+use dozer_types::types::SourceSchema;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
@@ -43,7 +43,7 @@ impl Connector for SnowflakeConnector {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let client = Client::new(&self.config);
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
@@ -72,7 +72,7 @@ impl Connector for SnowflakeConnector {
     fn get_schemas(
         &self,
         _table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
         todo!()
     }
 

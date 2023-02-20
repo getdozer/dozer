@@ -4,7 +4,7 @@ use dozer_core::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
-use dozer_types::types::{Operation, SchemaWithChangesType};
+use dozer_types::types::{Operation, SourceSchema};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -86,6 +86,7 @@ impl Executor {
 
         let source_builder = SourceBuilder::new(used_sources, grouped_connections);
         let asm = source_builder.build_source_manager()?;
+
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 
@@ -98,7 +99,7 @@ impl Executor {
 
     pub fn get_tables(
         connections: &Vec<Connection>,
-    ) -> Result<HashMap<String, Vec<SchemaWithChangesType>>, OrchestrationError> {
+    ) -> Result<HashMap<String, Vec<SourceSchema>>, OrchestrationError> {
         let mut schema_map = HashMap::new();
         for connection in connections {
             validate(connection.to_owned(), None)?;

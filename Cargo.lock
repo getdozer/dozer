@@ -1862,6 +1862,8 @@ dependencies = [
  "postgres",
  "postgres-protocol",
  "postgres-types",
+ "prost",
+ "prost-reflect",
  "rand 0.8.5",
  "regex",
  "reqwest",
@@ -1869,6 +1871,11 @@ dependencies = [
  "serial_test",
  "tokio",
  "tokio-postgres",
+ "tonic",
+ "tonic-build",
+ "tonic-reflection",
+ "tonic-web",
+ "tower-http",
  "web3",
 ]
 

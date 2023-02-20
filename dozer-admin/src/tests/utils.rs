@@ -1,8 +1,7 @@
-use crate::db::connection::DbConnection;
 use diesel::{r2d2::ConnectionManager, RunQueryDsl, SqliteConnection};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
 use dozer_orchestrator::cli::generate_connection;
-use dozer_types::models::{app_config::Config, connection::DBType};
+use dozer_types::models::app_config::Config;
 use r2d2::{CustomizeConnection, Pool};
 use std::error::Error;
 type DB = diesel::sqlite::Sqlite;
@@ -41,15 +40,7 @@ fn prepare_test_db(connection: &mut SqliteConnection, config_id: TestConfigId) {
     run_migrations(connection).unwrap();
     setup_data(connection, config_id)
 }
-fn get_db_type_supported() -> Vec<DBType> {
-    vec![
-        DBType::Postgres,
-        DBType::Ethereum,
-        DBType::Events,
-        DBType::Snowflake,
-        DBType::Kafka,
-    ]
-}
+
 pub fn get_setup_ids() -> TestConfigId {
     let connection_ids: Vec<String> = vec![
         "9cd38b34-3100-4b61-99fb-ca3626b90f59".to_owned(),
@@ -85,68 +76,10 @@ pub fn get_sample_config() -> String {
     serde_yaml::to_string(&config).unwrap()
 }
 
-fn fake_dbconnection(db_type: DBType) -> DbConnection {
-    match db_type {
-        DBType::Postgres => DbConnection {
-            auth: r#"{"Postgres":{"user":"users","password":"postgres","host":"localhost","port":5432,"database":"postgres"}}"#.to_owned(),
-            name: "postgres_connection".to_owned(),
-            db_type: "postgres".to_owned(),
-            ..Default::default()
-        },
-        DBType::Ethereum => DbConnection {
-            auth: r#"{"Ethereum":{"filter":{"from_block":0,"addresses":[],"topics":[]},"wss_url":"wss:link","name":"eth_logs", "contracts": []}}"#.to_owned(),
-            name: "eth_connection".to_owned(),
-            db_type: "ethereum".to_owned(),
-            ..Default::default()
-        },
-        DBType::Events => DbConnection {
-            auth: r#"{"Events":{"database":"users"}}"#.to_owned(),
-            name: "events_connection".to_owned(),
-            db_type: "events".to_owned(),
-            ..Default::default()
-        },
-        DBType::Snowflake => DbConnection {
-            auth: r#"{"Snowflake":{"server":"tx06321.eu-north-1.aws.snowflakecomputing.com","port":"443","user":"karolisgud","password":"uQ@8S4856G9SHP6","database":"DOZER_SNOWFLAKE_SAMPLE_DATA","schema":"PUBLIC","warehouse":"TEST","driver":"{/opt/snowflake/snowflakeodbc/lib/universal/libSnowflake.dylib}"}}"#.to_owned(),
-            name: "snowflake_connection".to_owned(),
-            db_type: "snowflake".to_owned(),
-            ..Default::default()
-        },
-        DBType::Kafka => DbConnection {
-            auth: r#"{"Kafka":{"broker":"localhost:9092","topic":"dbserver1.public.products"}}"#.to_owned(),
-            name: "kafka_debezium_connection".to_owned(),
-            db_type: "kafka".to_owned(),
-            ..Default::default()
-        },
-        DBType::ObjectStore => DbConnection {
-            auth: r#"{"ObjectStore":{"access_key_id":"key","secret_access_key":"secret","region":"ap-southeast-1","bucket_name":"bucket"}}"#.to_owned(),
-            name: "object_store_connection".to_owned(),
-            db_type: "object_store".to_owned(),
-            ..Default::default()
-        }
-    }
-}
-
 fn setup_data(connection: &mut SqliteConnection, config_id: TestConfigId) {
     // let generated_app_id = uuid::Uuid::new_v4().to_string();
     // create app
-    insert_apps(connection, config_id.app_id.to_owned(), get_sample_config());
-
-    //let generated_postgres_connection_id = uuid::Uuid::new_v4().to_string();
-    let db_types = get_db_type_supported();
-    db_types.iter().enumerate().for_each(|(idx, db_type)| {
-        let db_connection = fake_dbconnection(db_type.to_owned());
-        if idx < config_id.connection_ids.len() {
-            insert_connections(
-                connection,
-                config_id.connection_ids[idx].to_owned(),
-                db_connection.db_type,
-                db_connection.auth,
-                db_connection.name,
-            );
-        }
-    });
-
-    //let generated_endpoint_id = uuid::Uuid::new_v4().to_string();
+    insert_apps(connection, config_id.app_id, get_sample_config());
 }
 
 fn insert_apps(connection: &mut SqliteConnection, app_id: String, config: String) {
@@ -154,20 +87,6 @@ fn insert_apps(connection: &mut SqliteConnection, app_id: String, config: String
         .execute(connection)
         .unwrap();
 }
-
-fn insert_connections(
-    connection: &mut SqliteConnection,
-    connection_id: String,
-    db_type: String,
-    auth: String,
-    name: String,
-) {
-    diesel::sql_query(
-        format!("INSERT INTO connections (id, auth, name, db_type, created_at, updated_at) VALUES('{connection_id}', '{auth}', '{name}', '{db_type}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"))
-    .execute(connection)
-    .unwrap();
-}
-
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 fn run_migrations(

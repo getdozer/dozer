@@ -4,10 +4,9 @@ use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, Co
 use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, Orchestrator};
-use dozer_types::crossbeam::channel;
+
 use dozer_types::log::{error, info};
-use dozer_types::tracing::warn;
-use std::borrow::BorrowMut;
+
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -42,7 +41,6 @@ fn run() -> Result<(), OrchestrationError> {
 
     let cli = Cli::parse();
     let running = Arc::new(AtomicBool::new(true));
-    let running_api = running.clone();
     set_ctrl_handler(running.clone());
     if let Some(cmd) = cli.cmd {
         // run individual servers
@@ -86,41 +84,6 @@ fn run() -> Result<(), OrchestrationError> {
         render_logo();
 
         let mut dozer = init_dozer(cli.config_path)?;
-
-        // TODO: remove this after checkpointing
-        dozer.clean()?;
-
-        let mut dozer_api = dozer.clone();
-
-        let (tx, rx) = channel::unbounded::<bool>();
-
-        if let Err(e) = dozer.migrate(false) {
-            if let OrchestrationError::InitializationFailed(_) = e {
-                warn!(
-                    "{} is already present. Skipping initialisation..",
-                    dozer.config.home_dir.to_owned()
-                )
-            } else {
-                return Err(e);
-            }
-        }
-
-        let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer.borrow_mut().run_apps(running, Some(tx)) {
-                std::panic::panic_any(e);
-            }
-        });
-
-        // Wait for pipeline to initialize caches before starting api server
-        rx.recv().unwrap();
-
-        thread::spawn(move || {
-            if let Err(e) = dozer_api.run_api(running_api) {
-                std::panic::panic_any(e);
-            }
-        });
-
-        pipeline_thread.join().unwrap();
-        Ok(())
+        dozer.run_all(running)
     }
 }

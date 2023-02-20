@@ -12,6 +12,7 @@ use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::types::{
     Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
+    SourceSchema,
 };
 use std::collections::HashMap;
 use std::thread;
@@ -84,17 +85,22 @@ impl ConnectorSourceFactory {
         let mut replication_changes_type_map: HashMap<u16, ReplicationChangesTrackingType> =
             HashMap::new();
 
-        for (table_name, schema, replication_changes_type) in schema_tuples {
-            let source_name = tables_map.get(&table_name).unwrap();
+        for SourceSchema {
+            name,
+            schema,
+            replication_type,
+        } in schema_tuples
+        {
+            let source_name = tables_map.get(&name).unwrap();
             let port: u16 = *ports
                 .get(source_name)
-                .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
+                .map_or(Err(ExecutionError::PortNotFound(name.clone())), Ok)
                 .unwrap();
             let schema_id = get_schema_id(schema.identifier.as_ref()).unwrap();
 
             schema_port_map.insert(schema_id, port);
             schema_map.insert(port, schema);
-            replication_changes_type_map.insert(port, replication_changes_type);
+            replication_changes_type_map.insert(port, replication_type);
         }
 
         (schema_map, schema_port_map, replication_changes_type_map)

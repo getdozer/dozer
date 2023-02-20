@@ -144,12 +144,11 @@ fn error_missing_field_inner() {
     app_name: working_app
     home_dir: './.dozer'
     connections:
-    - authentication: !Postgres
+    - config: !Postgres
         user: postgres
         host: localhost
         port: 5432
         database: users
-      db_type: Postgres
       name: users
     sources:
     - name: users
@@ -165,5 +164,5 @@ fn error_missing_field_inner() {
     assert!(error
         .unwrap()
         .to_string()
-        .starts_with("connections[0].authentication: missing field `password`"));
+        .starts_with("connections[0].config: missing field `password`"));
 }

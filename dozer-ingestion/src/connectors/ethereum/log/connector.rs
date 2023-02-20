@@ -3,23 +3,21 @@ use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::{Connector, ValidationResults};
 use crate::ingestion::Ingestor;
-use crate::{
-    connectors::{ethereum::helper, TableInfo},
-    errors::ConnectorError,
-};
-use dozer_types::ingestion_types::{EthConfig, EthFilter};
+use crate::{connectors::TableInfo, errors::ConnectorError};
+use dozer_types::ingestion_types::{EthFilter, EthLogConfig};
 
 use dozer_types::serde_json;
 
+use super::helper;
 use super::sender::{run, EthDetails};
-use dozer_types::types::ReplicationChangesTrackingType;
+use dozer_types::types::{ReplicationChangesTrackingType, SourceSchema};
 use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
-pub struct EthConnector {
+pub struct EthLogConnector {
     pub id: u64,
-    config: EthConfig,
+    config: EthLogConfig,
     // Address -> (contract, contract_name)
     contracts: HashMap<String, ContractTuple>,
     // contract_signacture -> SchemaID
@@ -32,7 +30,7 @@ pub struct EthConnector {
 pub struct ContractTuple(pub Contract, pub String);
 
 pub const ETH_LOGS_TABLE: &str = "eth_logs";
-impl EthConnector {
+impl EthLogConnector {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
 
@@ -81,7 +79,7 @@ impl EthConnector {
         builder.build()
     }
 
-    pub fn new(id: u64, config: EthConfig, conn_name: String) -> Self {
+    pub fn new(id: u64, config: EthLogConfig, conn_name: String) -> Self {
         let mut contracts = HashMap::new();
 
         for c in &config.contracts {
@@ -122,22 +120,15 @@ impl EthConnector {
     }
 }
 
-impl Connector for EthConnector {
+impl Connector for EthLogConnector {
     fn get_schemas(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<
-        Vec<(
-            String,
-            dozer_types::types::Schema,
-            ReplicationChangesTrackingType,
-        )>,
-        ConnectorError,
-    > {
-        let mut schemas = vec![(
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+        let mut schemas = vec![SourceSchema::new(
             ETH_LOGS_TABLE.to_string(),
             helper::get_eth_schema(),
-            ReplicationChangesTrackingType::FullChanges,
+            ReplicationChangesTrackingType::Nothing,
         )];
 
         let event_schemas = helper::get_contract_event_schemas(
@@ -149,7 +140,7 @@ impl Connector for EthConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|(n, _, _)| tables.iter().any(|t| t.table_name == *n))
+                .filter(|s| tables.iter().any(|t| t.table_name == s.name))
                 .cloned()
                 .collect()
         } else {

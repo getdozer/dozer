@@ -27,8 +27,8 @@ pub enum ConnectorError {
     #[error("Columns are expected in table_info")]
     ColumnsNotFound,
 
-    #[error("Failed to initialize connector")]
-    InitializationError,
+    #[error("Failed to initialize connector {0}")]
+    InitializationError(String),
 
     #[error("Failed to map configuration")]
     WrongConnectionConfiguration,

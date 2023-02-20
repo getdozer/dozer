@@ -14,12 +14,18 @@ pub enum SourceDefinition {
     Alias { name: String },
     Dynamic,
 }
+impl Default for SourceDefinition {
+    fn default() -> Self {
+        SourceDefinition::Dynamic
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FieldDefinition {
     pub name: String,
     pub typ: FieldType,
     pub nullable: bool,
+    #[serde(default)]
     pub source: SourceDefinition,
 }
 
@@ -55,6 +61,7 @@ pub struct Schema {
     /// Indexes of the fields forming the primary key for this schema. If the value is empty
     /// only Insert Operation are supported. Updates and Deletes are not supported without a
     /// primary key definition
+    #[serde(default)]
     pub primary_index: Vec<usize>,
 }
 
@@ -65,7 +72,33 @@ pub enum ReplicationChangesTrackingType {
     Nothing,
 }
 
-pub type SchemaWithChangesType = (String, Schema, ReplicationChangesTrackingType);
+impl Default for ReplicationChangesTrackingType {
+    fn default() -> Self {
+        ReplicationChangesTrackingType::Nothing
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct SourceSchema {
+    pub name: String,
+    pub schema: Schema,
+    #[serde(default)]
+    pub replication_type: ReplicationChangesTrackingType,
+}
+
+impl SourceSchema {
+    pub fn new(
+        name: String,
+        schema: Schema,
+        replication_type: ReplicationChangesTrackingType,
+    ) -> Self {
+        Self {
+            name,
+            schema,
+            replication_type,
+        }
+    }
+}
 
 impl Schema {
     pub fn empty() -> Schema {

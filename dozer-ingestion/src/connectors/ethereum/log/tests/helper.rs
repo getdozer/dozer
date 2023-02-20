@@ -2,7 +2,7 @@ use std::{collections::HashSet, thread, time::Duration};
 
 use crate::{
     connectors::{
-        ethereum::{connector::EthConnector, helper},
+        ethereum::{helper, EthLogConnector},
         Connector,
     },
     errors::ConnectorError,
@@ -10,9 +10,9 @@ use crate::{
 };
 
 use dozer_types::{
-    ingestion_types::{EthConfig, EthContract, EthFilter},
+    ingestion_types::{EthContract, EthFilter, EthLogConfig},
     log::info,
-    types::Operation,
+    types::{Operation, SourceSchema},
 };
 
 use tokio::runtime::Runtime;
@@ -51,9 +51,10 @@ pub fn get_eth_producer(
     contract: Contract<WebSocket>,
 ) -> Result<(), ConnectorError> {
     let address = format!("{:?}", contract.address());
-    let eth_connector = EthConnector::new(
+    let eth_connector = EthLogConnector::new(
         1,
-        EthConfig {
+        EthLogConfig {
+            wss_url,
             filter: Some(EthFilter {
                 from_block: Some(0),
                 to_block: None,
@@ -67,15 +68,18 @@ pub fn get_eth_producer(
                     .trim_end()
                     .to_string(),
             }],
-            wss_url,
         },
         "eth_test".to_string(),
     );
 
     let schemas = eth_connector.get_schemas(None)?;
-    for (name, schema, _) in schemas {
+    for SourceSchema {
+        name,
+        schema,
+        replication_type: _,
+    } in schemas
+    {
         info!("Schema: {}, Id: {}", name, schema.identifier.unwrap().id);
-        // schema.print().printstd();
     }
 
     eth_connector.start(None, &ingestor, None)
