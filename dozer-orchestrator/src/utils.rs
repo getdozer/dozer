@@ -15,6 +15,14 @@ pub fn get_cache_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("cache")
 }
 
+pub fn get_max_map_size(config: &Config) -> usize {
+    if let Some(max_map_size) = config.cache_max_map_size {
+        max_map_size.try_into().unwrap()
+    } else {
+        1024 * 1024 * 1024 * 1024
+    }
+}
+
 pub fn get_api_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("api")
 }
