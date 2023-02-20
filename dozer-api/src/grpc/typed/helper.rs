@@ -1,12 +1,14 @@
+use std::borrow::Cow;
 use crate::generator::protoc::generator::{
     CountResponseDesc, EventDesc, QueryResponseDesc, RecordDesc, RecordWithIdDesc,
     TokenResponseDesc,
 };
-use crate::grpc::types::{self as GrpcTypes};
+use crate::grpc::types::{self as GrpcTypes, PointType};
 use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
-use prost_reflect::{DynamicMessage, MapKey, Value};
-use std::collections::HashMap;
+use prost_reflect::{DynamicMessage, Value};
+use prost_reflect::Value::Message;
+use crate::grpc::types::value::Value::MapValue;
 
 use super::TypedResponse;
 
@@ -42,7 +44,13 @@ fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) ->
     // `record_desc` has more fields than `record.values` because it also contains the version field.
     // Here `zip` handles the case.
     for (field, value) in record_desc.message.fields().zip(record.values.into_iter()) {
-        if let Some(value) = interval_value_to_pb(value) {
+        let reflect_value = match &value.value {
+            None => None,
+            Some(MapValue(point)) => point_to_pb(&msg, field.name(), point),
+            Some(_) => interval_value_to_pb(value)
+        };
+
+        if let Some(value) = reflect_value {
             msg.set_field(&field, value);
         }
     }
@@ -53,6 +61,33 @@ fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) ->
     );
 
     msg
+}
+
+fn point_to_pb(msg: &DynamicMessage, field_name: &str, point: &PointType) -> Option<Value> {
+    let val = msg.get_field_by_name(field_name).expect("Field should present in message");
+    match val {
+        Cow::Borrowed(v) => {
+            match v {
+                Message(m) => {
+                    let mut m = m.clone();
+                    m.set_field_by_name("x", Value::F64(point.x));
+                    m.set_field_by_name("y", Value::F64(point.y));
+                    Some(Message(m))
+                },
+                v => Some(v.clone())
+            }
+        }
+        Cow::Owned(v) => {
+            match v {
+                Message(mut m) => {
+                    m.set_field_by_name("x", Value::F64(point.x));
+                    m.set_field_by_name("y", Value::F64(point.y));
+                    Some(Message(m))
+                },
+                v => Some(v)
+            }
+        }
+    }
 }
 
 fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value> {
@@ -66,10 +101,6 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
         GrpcTypes::value::Value::DoubleValue(n) => Value::F64(n),
-        GrpcTypes::value::Value::MapValue(c) => Value::Map(HashMap::from([
-            (MapKey::String("x".to_string()), Value::F64(c.x)),
-            (MapKey::String("y".to_string()), Value::F64(c.y)),
-        ])),
         _ => todo!(),
     })
 }

@@ -386,8 +386,8 @@ impl Display for DozerPoint {
 impl DozerPoint {
     pub fn to_bytes(&self) -> [u8; 16] {
         let mut result = [0_u8; 16];
-        result[0..7].copy_from_slice(&self.0.x().to_be_bytes());
-        result[8..15].copy_from_slice(&self.0.y().to_be_bytes());
+        result[0..8].copy_from_slice(&self.0.x().to_be_bytes());
+        result[8..16].copy_from_slice(&self.0.y().to_be_bytes());
         result
     }
 
