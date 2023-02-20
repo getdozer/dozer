@@ -90,7 +90,7 @@ pub struct CacheWriteOptions {
 impl Default for CacheWriteOptions {
     fn default() -> Self {
         Self {
-            max_size: 1024 * 1024 * 1024,
+            max_size: 1024 * 1024 * 1024 * 1024,
         }
     }
 }
