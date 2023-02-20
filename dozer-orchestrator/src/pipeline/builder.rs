@@ -141,7 +141,7 @@ impl PipelineBuilder {
                 OutputTableInfo::Transformed(table_info) => {
                     pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
 
-                    pipeline_ref
+                    pipeline
                         .connect_nodes(
                             &table_info.node,
                             Some(table_info.port),
@@ -161,7 +161,7 @@ impl PipelineBuilder {
                         ))
                         .expect("port should be present based on source mapping");
 
-                    pipeline_ref
+                    pipeline
                         .connect_nodes(
                             &table_info.connection_name,
                             Some(*conn_port),
