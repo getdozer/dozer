@@ -48,12 +48,12 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
 
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
+        _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let (input_schema, ctx) = input_schemas
-            .get(output_port)
-            .ok_or(ExecutionError::InvalidPortHandle(*output_port))?;
+            .get(&DEFAULT_PORT_HANDLE)
+            .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
         let planner = self.get_planner(input_schema.clone())?;
         Ok((planner.post_projection_schema, ctx.clone()))

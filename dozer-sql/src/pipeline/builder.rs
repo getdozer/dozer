@@ -189,8 +189,6 @@ fn query_to_pipeline(
             right,
         } => match op {
             SetOperator::Union => {
-                //match (*left, *right) {
-                //(SetExpr::Select(left_select), SetExpr::Select(right_select)) => {
                 set_to_pipeline(
                     table_info,
                     left,
@@ -201,8 +199,6 @@ fn query_to_pipeline(
                     stateful,
                     pipeline_idx,
                 )?;
-                //}
-                //_ => panic!("Only select queries are supported for UNION"),
             }
             _ => panic!("{:?} is not supported", op),
         },
@@ -255,8 +251,8 @@ fn select_to_pipeline(
                 Some(port_index as PortHandle),
                 true,
             )?;
-        } else {
             // If not present in pipeline_map, insert into used_sources as this is coming from source
+        } else {
             query_ctx.used_sources.push(table_name.0.clone());
         }
     }
@@ -319,15 +315,6 @@ fn select_to_pipeline(
                 is_derived: false,
             },
         );
-
-        // query_ctx.pipeline_map.insert(
-        //     (GLOBAL_NAMESPACE, table_name),
-        //     QueryTableInfo {
-        //         node: gen_agg_name.clone(),
-        //         port: DEFAULT_PORT_HANDLE,
-        //         is_derived: table_info.is_derived,
-        //     },
-        // );
     }
 
     Ok(gen_agg_name)
@@ -344,10 +331,6 @@ fn set_to_pipeline(
     stateful: bool,
     pipeline_idx: usize,
 ) -> Result<String, PipelineError> {
-    // separate pipeline for left & right select
-    // let left_pipeline_idx = pipeline_idx.wrapping_sub(1_usize);
-    // let right_pipeline_idx = pipeline_idx.wrapping_sub(2_usize);
-
     let gen_left_set_name = format!("set_left_{}", uuid::Uuid::new_v4());
     let left_table_info = TableInfo {
         name: NameOrAlias(gen_left_set_name.clone(), None),
@@ -385,7 +368,11 @@ fn set_to_pipeline(
             stateful,
             pipeline_idx,
         )?,
-        _ => todo!(),
+        _ => {
+            return Err(PipelineError::InvalidQuery(
+                "Invalid UNION left Query".to_string(),
+            ))
+        }
     };
 
     let _right_pipeline_name = match *right_select {
@@ -412,7 +399,11 @@ fn set_to_pipeline(
             stateful,
             pipeline_idx,
         )?,
-        _ => todo!(),
+        _ => {
+            return Err(PipelineError::InvalidQuery(
+                "Invalid UNION right Query".to_string(),
+            ))
+        }
     };
 
     let left_pipeline_output_node = match query_ctx
@@ -478,18 +469,6 @@ fn set_to_pipeline(
         },
     );
 
-    // let output_table_name = table_info.override_name.clone();
-
-    // if let Some(table_name) = output_table_name {
-    //     query_ctx.output_tables_map.insert(
-    //         table_name,
-    //         OutputNodeInfo {
-    //             node: gen_set_name.clone(),
-    //             port: DEFAULT_PORT_HANDLE,
-    //             is_derived: false,
-    //         },
-    //     );
-    // }
     Ok(gen_set_name)
 }
 
