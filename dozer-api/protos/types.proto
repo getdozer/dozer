@@ -94,7 +94,7 @@ message Value {
     bytes bytes_value = 7; // Binary data.
     ArrayValue array_value = 8; // Value array.
     double double_value = 9; // 64 bit floating point number.
-    PointType map_value = 10;
+    PointType point_value = 10;
   };
 }
 

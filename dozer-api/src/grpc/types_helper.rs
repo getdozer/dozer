@@ -55,7 +55,7 @@ pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
 
 fn map_x_y_to_prost_coord_map((x, y): (f64, f64)) -> Value {
     Value {
-        value: Some(value::Value::MapValue(PointType { x, y })),
+        value: Some(value::Value::PointValue(PointType { x, y })),
     }
 }
 

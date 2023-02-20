@@ -8,7 +8,7 @@ use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
 use prost_reflect::{DynamicMessage, Value};
 use prost_reflect::Value::Message;
-use crate::grpc::types::value::Value::MapValue;
+use crate::grpc::types::value::Value::PointValue;
 
 use super::TypedResponse;
 
@@ -46,7 +46,7 @@ fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) ->
     for (field, value) in record_desc.message.fields().zip(record.values.into_iter()) {
         let reflect_value = match &value.value {
             None => None,
-            Some(MapValue(point)) => point_to_pb(&msg, field.name(), point),
+            Some(PointValue(point)) => point_to_pb(&msg, field.name(), point),
             Some(_) => interval_value_to_pb(value)
         };
 
