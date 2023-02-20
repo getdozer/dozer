@@ -5,7 +5,7 @@ use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
 use crate::grpc::internal_grpc::PipelineResponse;
 use crate::grpc::shared_impl;
 use crate::grpc::types_helper::{map_field_definitions, map_record};
-use crate::{api_helper, RoCacheEndpoint};
+use crate::RoCacheEndpoint;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -91,7 +91,7 @@ impl CommonGrpcService for CommonService {
             access,
         )?;
 
-        let fields = map_field_definitions(schema.fields);
+        let fields = map_field_definitions(schema.fields.clone());
         let records = records.into_iter().map(map_record).collect();
         let reply = QueryResponse { fields, records };
 
@@ -146,16 +146,13 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(
-            &cache_endpoint.cache_reader,
-            &cache_endpoint.endpoint.name,
-            None,
-        )?;
-        let schema = api_helper
-            .get_schema()
-            .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
+        let schema = &cache_endpoint
+            .cache_reader
+            .get_schema_and_indexes_by_name(&endpoint)
+            .map_err(|_| Status::invalid_argument(endpoint))?
+            .0;
 
-        let fields = map_field_definitions(schema.fields);
+        let fields = map_field_definitions(schema.fields.clone());
 
         let primary_index = schema.primary_index.iter().map(|f| *f as i32).collect();
         Ok(Response::new(GetFieldsResponse {

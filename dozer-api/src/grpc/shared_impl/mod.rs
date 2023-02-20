@@ -9,7 +9,7 @@ use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Code, Response, Status};
 
-use crate::api_helper::ApiHelper;
+use crate::api_helper::{get_records, get_records_count};
 use crate::auth::Access;
 
 use super::internal_grpc::pipeline_response::ApiEvent;
@@ -44,23 +44,26 @@ pub fn count(
     query: Option<&str>,
     access: Option<Access>,
 ) -> Result<usize, Status> {
-    let query = parse_query(query, QueryExpression::with_no_limit)?;
-    let api_helper = ApiHelper::new(reader, endpoint_name, access)?;
-    api_helper.get_records_count(query).map_err(from_error)
+    let mut query = parse_query(query, QueryExpression::with_no_limit)?;
+    Ok(get_records_count(
+        reader,
+        endpoint_name,
+        &mut query,
+        access,
+    )?)
 }
 
-pub fn query(
-    reader: &CacheReader,
-    endpoint_name: &str,
+pub fn query<'a>(
+    reader: &'a CacheReader,
+    endpoint_name: &'a str,
     query: Option<&str>,
     access: Option<Access>,
-) -> Result<(Schema, Vec<RecordWithId>), Status> {
+) -> Result<(&'a Schema, Vec<RecordWithId>), Status> {
     let mut query = parse_query(query, QueryExpression::with_default_limit)?;
     if query.limit.is_none() {
         query.limit = Some(default_limit_for_query());
     }
-    let api_helper = ApiHelper::new(reader, endpoint_name, access)?;
-    let (schema, records) = api_helper.get_records(query).map_err(from_error)?;
+    let (schema, records) = get_records(reader, endpoint_name, &mut query, access)?;
     Ok((schema, records))
 }
 
@@ -69,9 +72,11 @@ pub fn on_event<T: Send + 'static>(
     endpoint_name: &str,
     filter: Option<&str>,
     mut broadcast_receiver: Option<Receiver<PipelineResponse>>,
-    access: Option<Access>,
+    _access: Option<Access>,
     event_mapper: impl Fn(Operation, String) -> Option<T> + Send + Sync + 'static,
 ) -> Result<Response<ReceiverStream<T>>, Status> {
+    // TODO: Use access.
+
     if broadcast_receiver.is_none() {
         return Err(Status::unavailable(
             "on_event is not enabled. This is currently an experimental feature. Enable it in the config.",
@@ -88,10 +93,11 @@ pub fn on_event<T: Send + 'static>(
         }
         None => None,
     };
-    let api_helper = ApiHelper::new(reader, endpoint_name, access)?;
-    let schema = api_helper
-        .get_schema()
-        .map_err(|_| Status::invalid_argument(endpoint_name))?;
+    let schema = reader
+        .get_schema_and_indexes_by_name(endpoint_name)
+        .map_err(|_| Status::invalid_argument(endpoint_name))?
+        .0
+        .clone();
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 

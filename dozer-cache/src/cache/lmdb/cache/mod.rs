@@ -102,7 +102,27 @@ pub struct LmdbRwCache {
 }
 
 impl LmdbRwCache {
-    pub fn new(
+    pub fn create(
+        schemas: impl IntoIterator<Item = (String, Schema, Vec<IndexDefinition>)>,
+        common_options: CacheCommonOptions,
+        write_options: CacheWriteOptions,
+    ) -> Result<Self, CacheError> {
+        let mut cache = Self::open(common_options, write_options)?;
+
+        let mut txn = cache.txn.write();
+        for (schema_name, schema, secondary_indexes) in schemas {
+            cache
+                .common
+                .insert_schema(&mut txn, schema_name, schema, secondary_indexes)?;
+        }
+
+        txn.commit_and_renew()?;
+        drop(txn);
+
+        Ok(cache)
+    }
+
+    pub fn open(
         common_options: CacheCommonOptions,
         write_options: CacheWriteOptions,
     ) -> Result<Self, CacheError> {
@@ -132,7 +152,12 @@ impl<C: LmdbCache> RoCache for C {
     fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
-        let handler = self.create_query_handler(txn, schema_name, query)?;
+        let (schema, secondary_indexes) = self
+            .common()
+            .schema_db
+            .get_schema_from_name(schema_name)
+            .ok_or_else(|| CacheError::SchemaNotFound(schema_name.to_string()))?;
+        let handler = LmdbQueryHandler::new(self.common(), txn, schema, secondary_indexes, query);
         handler.count()
     }
 
@@ -140,40 +165,67 @@ impl<C: LmdbCache> RoCache for C {
         &self,
         schema_name: &str,
         query: &QueryExpression,
-    ) -> Result<Vec<RecordWithId>, CacheError> {
+    ) -> Result<(&Schema, Vec<RecordWithId>), CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
-        let handler = self.create_query_handler(txn, schema_name, query)?;
-        handler.query()
+        let (schema, secondary_indexes) = self
+            .common()
+            .schema_db
+            .get_schema_from_name(schema_name)
+            .ok_or_else(|| CacheError::SchemaNotFound(schema_name.to_string()))?;
+        let handler = LmdbQueryHandler::new(self.common(), txn, schema, secondary_indexes, query);
+        let records = handler.query()?;
+        Ok((schema, records))
     }
 
     fn get_schema_and_indexes_by_name(
         &self,
         name: &str,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
-        let txn = self.begin_txn()?;
-        let txn = txn.as_txn();
-        let schema = self.common().schema_db.get_schema_from_name(txn, name)?;
+    ) -> Result<&(Schema, Vec<IndexDefinition>), CacheError> {
+        let schema = self
+            .common()
+            .schema_db
+            .get_schema_from_name(name)
+            .ok_or_else(|| CacheError::SchemaNotFound(name.to_string()))?;
         Ok(schema)
     }
 
-    fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> Result<Schema, CacheError> {
-        let txn = self.begin_txn()?;
-        let txn = txn.as_txn();
+    fn get_schema(&self, schema_identifier: SchemaIdentifier) -> Result<&Schema, CacheError> {
         self.common()
             .schema_db
-            .get_schema(txn, *schema_identifier)
+            .get_schema(schema_identifier)
             .map(|(schema, _)| schema)
+            .ok_or(CacheError::SchemaIdentifierNotFound(schema_identifier))
     }
 }
 
 impl RwCache for LmdbRwCache {
     fn insert(&self, record: &mut Record) -> Result<u64, CacheError> {
+        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(record)?;
         record.version = Some(INITIAL_RECORD_VERSION);
-        self.insert_impl(record)
+        self.insert_impl(record, schema, secondary_indexes)
     }
 
     fn delete(&self, key: &[u8]) -> Result<u32, CacheError> {
+        let (_, _, version) = self.delete_impl(key)?;
+        Ok(version)
+    }
+
+    fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError> {
+        let (schema, secondary_indexes, old_version) = self.delete_impl(key)?;
+        record.version = Some(old_version + 1);
+        self.insert_impl(record, schema, secondary_indexes)?;
+        Ok(old_version)
+    }
+
+    fn commit(&self) -> Result<(), CacheError> {
+        self.txn.write().commit_and_renew()?;
+        Ok(())
+    }
+}
+
+impl LmdbRwCache {
+    fn delete_impl(&self, key: &[u8]) -> Result<(&Schema, &[IndexDefinition], u32), CacheError> {
         let record = self.get(key)?.record;
         let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&record)?;
 
@@ -186,57 +238,19 @@ impl RwCache for LmdbRwCache {
         let indexer = Indexer {
             secondary_indexes: self.common.secondary_indexes.clone(),
         };
-        indexer.delete_indexes(txn, &record, &schema, &secondary_indexes, id)?;
-        Ok(record
+        indexer.delete_indexes(txn, &record, schema, secondary_indexes, id)?;
+        let version = record
             .version
-            .expect("All records in cache should have a version"))
+            .expect("All records in cache should have a version");
+        Ok((schema, secondary_indexes, version))
     }
 
-    fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError> {
-        let old_version = self.delete(key)?;
-        record.version = Some(old_version + 1);
-        self.insert_impl(record)?;
-        Ok(old_version)
-    }
-
-    fn insert_schema(
+    fn insert_impl(
         &self,
-        name: &str,
+        record: &Record,
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
-    ) -> Result<(), CacheError> {
-        let schema_id = schema
-            .identifier
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
-
-        // Create a db for each index
-        let mut txn = self.txn.write();
-        for (idx, index) in secondary_indexes.iter().enumerate() {
-            let db = SecondaryIndexDatabase::create(&mut txn, &schema_id, idx, index, true)?;
-            self.common
-                .secondary_indexes
-                .write()
-                .insert((schema_id, idx), db);
-        }
-
-        self.common
-            .schema_db
-            .insert(txn.txn_mut(), name, schema, secondary_indexes)?;
-
-        txn.commit_and_renew()?;
-        Ok(())
-    }
-
-    fn commit(&self) -> Result<(), CacheError> {
-        self.txn.write().commit_and_renew()?;
-        Ok(())
-    }
-}
-
-impl LmdbRwCache {
-    fn insert_impl(&self, record: &Record) -> Result<u64, CacheError> {
-        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(record)?;
-
+    ) -> Result<u64, CacheError> {
         let mut txn = self.txn.write();
         let txn = txn.txn_mut();
 
@@ -252,7 +266,7 @@ impl LmdbRwCache {
             secondary_indexes: self.common.secondary_indexes.clone(),
         };
 
-        indexer.build_indexes(txn, record, &schema, &secondary_indexes, id)?;
+        indexer.build_indexes(txn, record, schema, secondary_indexes, id)?;
 
         Ok(id_from_bytes(id))
     }
@@ -301,41 +315,20 @@ trait LmdbCache: Send + Sync + Debug {
     fn common(&self) -> &LmdbCacheCommon;
     fn begin_txn(&self) -> Result<Self::AsTransaction<'_>, CacheError>;
 
-    fn create_query_handler<'a, T: Transaction>(
-        &'a self,
-        txn: &'a T,
-        schema_name: &str,
-        query: &'a QueryExpression,
-    ) -> Result<LmdbQueryHandler<'a, T>, CacheError> {
-        let (schema, secondary_indexes) = self
-            .common()
-            .schema_db
-            .get_schema_from_name(txn, schema_name)?;
-
-        Ok(LmdbQueryHandler::new(
-            self.common(),
-            txn,
-            schema,
-            secondary_indexes,
-            query,
-        ))
-    }
-
     fn get_schema_and_indexes_from_record(
         &self,
         record: &Record,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
-        let schema_identifier = record
-            .schema_id
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
-        let (schema, secondary_indexes) = self
+    ) -> Result<&(Schema, Vec<IndexDefinition>), CacheError> {
+        let schema_identifier = record.schema_id.ok_or(CacheError::SchemaHasNoIdentifier)?;
+        let schema = self
             .common()
             .schema_db
-            .get_schema(self.begin_txn()?.as_txn(), schema_identifier)?;
+            .get_schema(schema_identifier)
+            .ok_or(CacheError::SchemaIdentifierNotFound(schema_identifier))?;
 
-        debug_check_schema_record_consistency(&schema, record);
+        debug_check_schema_record_consistency(&schema.0, record);
 
-        Ok((schema, secondary_indexes))
+        Ok(schema)
     }
 }
 
@@ -420,11 +413,8 @@ impl LmdbCacheCommon {
 
         // Open existing secondary index databases.
         let mut secondary_indexe_databases = HashMap::default();
-        let schemas = schema_db.get_all_schemas(env)?;
-        for (schema, secondary_indexes) in schemas {
-            let schema_id = schema
-                .identifier
-                .ok_or(CacheError::SchemaIdentifierNotFound)?;
+        for (schema, secondary_indexes) in schema_db.get_all_schemas() {
+            let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
             for (index, index_definition) in secondary_indexes.iter().enumerate() {
                 let db = SecondaryIndexDatabase::open(env, &schema_id, index, index_definition)?;
                 secondary_indexe_databases.insert((schema_id, index), db);
@@ -439,6 +429,27 @@ impl LmdbCacheCommon {
             cache_options: options,
             name,
         })
+    }
+
+    fn insert_schema(
+        &mut self,
+        txn: &mut LmdbExclusiveTransaction,
+        schema_name: String,
+        schema: Schema,
+        secondary_indexes: Vec<IndexDefinition>,
+    ) -> Result<(), CacheError> {
+        let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
+        for (index, index_definition) in secondary_indexes.iter().enumerate() {
+            let db =
+                SecondaryIndexDatabase::create(txn, &schema_id, index, index_definition, true)?;
+            self.secondary_indexes
+                .write()
+                .insert((schema_id, index), db);
+        }
+
+        self.schema_db
+            .insert(txn.txn_mut(), schema_name, schema, secondary_indexes)?;
+        Ok(())
     }
 }
 

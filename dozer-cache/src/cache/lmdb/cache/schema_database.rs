@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use dozer_storage::{
     errors::StorageError,
     lmdb::{Cursor, Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags},
@@ -10,112 +12,102 @@ use dozer_types::{
 
 use crate::errors::{CacheError, QueryError};
 
-#[derive(Debug, Clone, Copy)]
-pub struct SchemaDatabase(Database);
+#[derive(Debug, Clone)]
+pub struct SchemaDatabase {
+    inner: Database,
+    schemas: Vec<(Schema, Vec<IndexDefinition>)>,
+    schema_name_to_index: HashMap<String, usize>,
+    schema_id_to_index: HashMap<SchemaIdentifier, usize>,
+}
 
 impl SchemaDatabase {
     pub fn new(
         env: &mut LmdbEnvironmentManager,
         create_if_not_exist: bool,
     ) -> Result<Self, CacheError> {
+        // Open or create database.
         let flags = if create_if_not_exist {
             Some(DatabaseFlags::empty())
         } else {
             None
         };
         let db = env.create_database(Some("schemas"), flags)?;
-        Ok(Self(db))
+
+        // Collect existing schemas.
+        let txn = env.begin_ro_txn()?;
+        let mut schema_name_to_index = HashMap::new();
+        let mut schema_id_to_index = HashMap::new();
+        let schemas = get_all_schemas(&txn, db)?
+            .into_iter()
+            .enumerate()
+            .map(|(index, (name, schema, indexes))| {
+                schema_name_to_index.insert(name.to_string(), index);
+                let identifier = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
+                if schema_id_to_index.insert(identifier, index).is_some() {
+                    return Err(CacheError::DuplicateSchemaIdentifier(identifier));
+                }
+                Ok((schema, indexes))
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self {
+            inner: db,
+            schemas,
+            schema_name_to_index,
+            schema_id_to_index,
+        })
     }
 
     pub fn insert(
-        &self,
+        &mut self,
         txn: &mut RwTransaction,
-        schema_name: &str,
-        schema: &Schema,
-        secondary_indexes: &[IndexDefinition],
+        schema_name: String,
+        schema: Schema,
+        secondary_indexes: Vec<IndexDefinition>,
     ) -> Result<(), CacheError> {
-        let encoded: Vec<u8> = bincode::serialize(&(schema, secondary_indexes))
-            .map_err(CacheError::map_serialization_error)?;
-        let schema_id = schema
-            .identifier
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
-        let key = get_schema_key(schema_id);
+        let identifier = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
 
-        // Insert Schema with {id, version}
-        txn.put::<Vec<u8>, Vec<u8>>(self.0, &key, &encoded, WriteFlags::NO_OVERWRITE)
+        let encoded: Vec<u8> = bincode::serialize(&(&schema, &secondary_indexes))
+            .map_err(CacheError::map_serialization_error)?;
+
+        txn.put(self.inner, &schema_name, &encoded, WriteFlags::NO_OVERWRITE)
             .map_err(|e| CacheError::Query(QueryError::InsertValue(e)))?;
 
-        let schema_id_bytes =
-            bincode::serialize(&schema_id).map_err(CacheError::map_serialization_error)?;
-
-        // Insert Reverse key lookup for schema by name
-        let schema_key = get_schema_reverse_key(schema_name);
-
-        txn.put::<Vec<u8>, Vec<u8>>(
-            self.0,
-            &schema_key,
-            &schema_id_bytes,
-            WriteFlags::NO_OVERWRITE,
-        )
-        .map_err(|e| CacheError::Query(QueryError::InsertValue(e)))?;
+        let index = self.schemas.len();
+        self.schemas.push((schema, secondary_indexes));
+        self.schema_name_to_index.insert(schema_name, index);
+        if self.schema_id_to_index.insert(identifier, index).is_some() {
+            return Err(CacheError::DuplicateSchemaIdentifier(identifier));
+        }
 
         Ok(())
     }
 
-    pub fn get_schema_from_name<T: Transaction>(
-        &self,
-        txn: &T,
-        name: &str,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
-        let schema_reverse_key = get_schema_reverse_key(name);
-        let schema_identifier = txn
-            .get(self.0, &schema_reverse_key)
-            .map_err(|e| CacheError::Query(QueryError::GetValue(e)))?;
-        let schema_id: SchemaIdentifier = bincode::deserialize(schema_identifier)
-            .map_err(CacheError::map_deserialization_error)?;
-
-        let schema = self.get_schema(txn, schema_id)?;
-
-        Ok(schema)
+    pub fn get_schema_from_name(&self, name: &str) -> Option<&(Schema, Vec<IndexDefinition>)> {
+        self.schema_name_to_index
+            .get(name)
+            .map(|index| &self.schemas[*index])
     }
 
-    pub fn get_schema<T: Transaction>(
+    pub fn get_schema(
         &self,
-        txn: &T,
         identifier: SchemaIdentifier,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
-        let key = get_schema_key(identifier);
-        let schema = txn
-            .get(self.0, &key)
-            .map_err(|e| CacheError::Query(QueryError::GetSchema(e)))?;
-        let schema = bincode::deserialize(schema).map_err(CacheError::map_deserialization_error)?;
-        Ok(schema)
+    ) -> Option<&(Schema, Vec<IndexDefinition>)> {
+        self.schema_id_to_index
+            .get(&identifier)
+            .map(|index| &self.schemas[*index])
     }
 
-    pub fn get_all_schemas(
-        &self,
-        env: &mut LmdbEnvironmentManager,
-    ) -> Result<Vec<(Schema, Vec<IndexDefinition>)>, CacheError> {
-        let txn = env.begin_ro_txn()?;
-        let schemas = get_all_schemas(&txn, self.0)?;
-        txn.commit().map_err(StorageError::InternalDbError)?;
-        Ok(schemas)
+    pub fn get_all_schemas(&self) -> &[(Schema, Vec<IndexDefinition>)] {
+        &self.schemas
     }
 }
 
-fn get_schema_key(schema_id: SchemaIdentifier) -> Vec<u8> {
-    [
-        "sc".as_bytes(),
-        schema_id.id.to_be_bytes().as_ref(),
-        schema_id.version.to_be_bytes().as_ref(),
-    ]
-    .join("#".as_bytes())
-}
-
+#[allow(clippy::type_complexity)]
 fn get_all_schemas<T: Transaction>(
     txn: &T,
     db: Database,
-) -> Result<Vec<(Schema, Vec<IndexDefinition>)>, CacheError> {
+) -> Result<Vec<(&str, Schema, Vec<IndexDefinition>)>, CacheError> {
     let mut cursor = txn
         .open_ro_cursor(db)
         .map_err(|e| CacheError::Storage(StorageError::InternalDbError(e)))?;
@@ -123,18 +115,12 @@ fn get_all_schemas<T: Transaction>(
     let mut result = vec![];
     for item in cursor.iter_start() {
         let (key, value) = item.map_err(QueryError::GetValue)?;
-        if key.starts_with(b"sc#") {
-            let schema: (Schema, Vec<IndexDefinition>) =
-                bincode::deserialize(value).map_err(CacheError::map_deserialization_error)?;
-            result.push(schema);
-        }
+        let name = std::str::from_utf8(key).expect("Schema name should always be utf8 string");
+        let (schema, indexes): (Schema, Vec<IndexDefinition>) =
+            bincode::deserialize(value).map_err(CacheError::map_deserialization_error)?;
+        result.push((name, schema, indexes));
     }
     Ok(result)
-}
-const SCHEMA_NAME_PREFIX: &str = "schema_name_";
-
-fn get_schema_reverse_key(name: &str) -> Vec<u8> {
-    format!("{SCHEMA_NAME_PREFIX}{name}").into_bytes()
 }
 
 #[cfg(test)]
@@ -148,8 +134,7 @@ mod tests {
     #[test]
     fn test_schema_database() {
         let mut env = init_env(&CacheOptions::default()).unwrap().0;
-        let writer = SchemaDatabase::new(&mut env, true).unwrap();
-        let reader = SchemaDatabase::new(&mut env, false).unwrap();
+        let mut writer = SchemaDatabase::new(&mut env, true).unwrap();
 
         let schema_name = "test_schema";
         let schema = Schema {
@@ -164,42 +149,42 @@ mod tests {
         };
         let secondary_indexes = vec![IndexDefinition::SortedInverted(vec![0])];
 
+        let mut txn = env.begin_rw_txn().unwrap();
+        writer
+            .insert(
+                &mut txn,
+                schema_name.to_string(),
+                schema.clone(),
+                secondary_indexes.clone(),
+            )
+            .unwrap();
+        txn.commit().unwrap();
+
+        let reader = SchemaDatabase::new(&mut env, false).unwrap();
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
-        writer
-            .insert(txn.txn_mut(), schema_name, &schema, &secondary_indexes)
-            .unwrap();
-        txn.commit_and_renew().unwrap();
 
+        let expected = (schema, secondary_indexes);
+        assert_eq!(writer.get_schema_from_name(schema_name).unwrap(), &expected);
+        assert_eq!(reader.get_schema_from_name(schema_name).unwrap(), &expected);
         assert_eq!(
-            writer.get_schema_from_name(txn.txn(), schema_name).unwrap(),
-            (schema.clone(), secondary_indexes.clone())
+            writer.get_schema(expected.0.identifier.unwrap()).unwrap(),
+            &expected
         );
         assert_eq!(
-            reader.get_schema_from_name(txn.txn(), schema_name).unwrap(),
-            (schema.clone(), secondary_indexes.clone())
-        );
-        assert_eq!(
-            writer
-                .get_schema(txn.txn(), schema.identifier.unwrap())
-                .unwrap(),
-            (schema.clone(), secondary_indexes.clone())
-        );
-        assert_eq!(
-            reader
-                .get_schema(txn.txn(), schema.identifier.unwrap())
-                .unwrap(),
-            (schema.clone(), secondary_indexes.clone())
+            reader.get_schema(expected.0.identifier.unwrap()).unwrap(),
+            &expected
         );
         txn.commit_and_renew().unwrap();
 
+        let (schema, secondary_indexes) = expected;
         assert_eq!(
-            get_all_schemas(txn.txn(), writer.0).unwrap(),
-            vec![(schema.clone(), secondary_indexes.clone())]
+            get_all_schemas(txn.txn(), writer.inner).unwrap(),
+            vec![(schema_name, schema.clone(), secondary_indexes.clone())]
         );
         assert_eq!(
-            get_all_schemas(txn.txn(), reader.0).unwrap(),
-            vec![(schema, secondary_indexes)]
+            get_all_schemas(txn.txn(), reader.inner).unwrap(),
+            vec![(schema_name, schema, secondary_indexes)]
         );
     }
 }

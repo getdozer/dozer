@@ -28,7 +28,7 @@ fn test_generate_proto_and_descriptor() {
     ProtoGenerator::generate(
         tmp_dir_path,
         schema_name,
-        schema,
+        &schema,
         &api_security,
         &Some(flags),
     )
@@ -64,7 +64,7 @@ fn test_generate_proto_and_descriptor_with_security() {
     ProtoGenerator::generate(
         tmp_dir_path,
         schema_name,
-        schema,
+        &schema,
         &api_security,
         &Some(flags),
     )
@@ -106,7 +106,7 @@ fn test_generate_proto_and_descriptor_with_push_event_off() {
     ProtoGenerator::generate(
         tmp_dir_path,
         schema_name,
-        schema,
+        &schema,
         &Some(api_security),
         &None,
     )

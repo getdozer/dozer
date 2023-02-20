@@ -1,6 +1,9 @@
 use crate::cache::{
     expression::{FilterExpression, Operator, QueryExpression},
-    lmdb::{cache::LmdbRwCache, tests::utils::insert_rec_1},
+    lmdb::{
+        cache::LmdbRwCache,
+        tests::utils::{create_cache, insert_rec_1},
+    },
     test_utils::{query_from_filter, schema_1, schema_full_text, schema_multi_indices},
     RecordWithId, RoCache, RwCache,
 };
@@ -11,8 +14,25 @@ use dozer_types::{
 
 #[test]
 fn query_secondary() {
-    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
+    let schema_name = "sample";
     let (schema, secondary_indexes) = schema_1();
+
+    let full_text_schema_name = "full_text_sample";
+    let (full_text_schema, full_text_secondary_indexes) = schema_full_text();
+
+    let cache = LmdbRwCache::create(
+        [
+            (schema_name.to_string(), schema.clone(), secondary_indexes),
+            (
+                full_text_schema_name.to_string(),
+                full_text_schema.clone(),
+                full_text_secondary_indexes,
+            ),
+        ],
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
     let mut record = Record::new(
         schema.identifier,
         vec![
@@ -23,9 +43,6 @@ fn query_secondary() {
         None,
     );
 
-    cache
-        .insert_schema("sample", &schema, &secondary_indexes)
-        .unwrap();
     cache.insert(&mut record).unwrap();
     assert!(record.version.is_some());
 
@@ -41,15 +58,14 @@ fn query_secondary() {
     // Query with an expression
     let query = query_from_filter(filter);
 
-    let records = cache.query("sample", &query).unwrap();
-    assert_eq!(cache.count("sample", &query).unwrap(), 1);
+    let records = cache.query(schema_name, &query).unwrap().1;
+    assert_eq!(cache.count(schema_name, &query).unwrap(), 1);
     assert_eq!(records.len(), 1, "must be equal");
     assert_eq!(records[0].record, record, "must be equal");
 
     // Full text query.
-    let (schema, secondary_indexes) = schema_full_text();
     let mut record = Record::new(
-        schema.identifier,
+        full_text_schema.identifier,
         vec![
             Field::String("today is a good day".into()),
             Field::Text("marry has a little lamb".into()),
@@ -57,9 +73,6 @@ fn query_secondary() {
         None,
     );
 
-    cache
-        .insert_schema("full_text_sample", &schema, &secondary_indexes)
-        .unwrap();
     cache.insert(&mut record).unwrap();
     assert!(record.version.is_some());
 
@@ -67,27 +80,23 @@ fn query_secondary() {
 
     let query = query_from_filter(filter);
 
-    let records = cache.query("full_text_sample", &query).unwrap();
-    assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
+    let records = cache.query(full_text_schema_name, &query).unwrap().1;
+    assert_eq!(cache.count(full_text_schema_name, &query).unwrap(), 1);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].record, record);
 
     let filter = FilterExpression::Simple("bar".into(), Operator::Contains, "lamb".into());
     let query = query_from_filter(filter);
-    let records = cache.query("full_text_sample", &query).unwrap();
-    assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
+    let records = cache.query(full_text_schema_name, &query).unwrap().1;
+    assert_eq!(cache.count(full_text_schema_name, &query).unwrap(), 1);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].record, record);
 }
 
 #[test]
 fn query_secondary_vars() {
-    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
-    let (schema, secondary_indexes) = schema_1();
-
-    cache
-        .insert_schema("sample", &schema, &secondary_indexes)
-        .unwrap();
+    let schema_name = "sample";
+    let (cache, schema, _) = create_cache(schema_name, schema_1);
 
     let items = vec![
         (1, Some("yuri".to_string()), Some(521)),
@@ -104,7 +113,7 @@ fn query_secondary_vars() {
         insert_rec_1(&cache, &schema, val);
     }
 
-    test_query(json!({}), 8, &cache);
+    test_query(json!({}), 8, &cache, schema_name);
 
     test_query(
         json!({
@@ -112,24 +121,46 @@ fn query_secondary_vars() {
         }),
         8,
         &cache,
+        schema_name,
     );
 
-    test_query(json!({"$filter":{ "a": {"$eq": 1}}}), 1, &cache);
+    test_query(
+        json!({"$filter":{ "a": {"$eq": 1}}}),
+        1,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "a": {"$eq": null}}}), 0, &cache);
+    test_query(
+        json!({"$filter":{ "a": {"$eq": null}}}),
+        0,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$eq": 521}}}), 2, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$eq": 521}}}),
+        2,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$eq": null}}}), 1, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$eq": null}}}),
+        1,
+        &cache,
+        schema_name,
+    );
 
     test_query(
         json!({"$filter":{ "a": 1, "b": "yuri".to_string()}}),
         1,
         &cache,
+        schema_name,
     );
 
     // No compound index for a,c
-    test_query_err(json!({"$filter":{ "a": 1, "c": 521}}), &cache);
+    test_query_err(json!({"$filter":{ "a": 1, "c": 521}}), &cache, schema_name);
 
     test_query(
         json!({
@@ -138,6 +169,7 @@ fn query_secondary_vars() {
         }),
         2,
         &cache,
+        schema_name,
     );
 
     test_query_record(
@@ -148,24 +180,65 @@ fn query_secondary_vars() {
         vec![(0, 1, "yuri".to_string(), 521)],
         &schema,
         &cache,
+        schema_name,
     );
 
     // Range tests
-    test_query(json!({"$filter":{ "c": {"$lte": null}}}), 0, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$lte": null}}}),
+        0,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$lte": 521}}}), 2, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$lte": 521}}}),
+        2,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$gte": 521}}}), 7, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$gte": 521}}}),
+        7,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$gt": 521}}}), 5, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$gt": 521}}}),
+        5,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$lte": 524}}}), 4, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$lte": 524}}}),
+        4,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$lt": 524}}}), 3, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$lt": 524}}}),
+        3,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$lt": 600}}}), 7, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$lt": 600}}}),
+        7,
+        &cache,
+        schema_name,
+    );
 
-    test_query(json!({"$filter":{ "c": {"$gt": 200}}}), 7, &cache);
+    test_query(
+        json!({"$filter":{ "c": {"$gt": 200}}}),
+        7,
+        &cache,
+        schema_name,
+    );
 
     test_query_record(
         json!({
@@ -178,6 +251,7 @@ fn query_secondary_vars() {
         ],
         &schema,
         &cache,
+        schema_name,
     );
 
     test_query_record(
@@ -191,17 +265,14 @@ fn query_secondary_vars() {
         ],
         &schema,
         &cache,
+        schema_name,
     );
 }
 
 #[test]
 fn query_secondary_multi_indices() {
-    let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
-    let (schema, secondary_indexes) = schema_multi_indices();
-
-    cache
-        .insert_schema("sample", &schema, &secondary_indexes)
-        .unwrap();
+    let schema_name = "sample";
+    let (cache, schema, _) = create_cache(schema_name, schema_multi_indices);
 
     for (id, text) in [
         (1, "apple ball cake dance"),
@@ -226,8 +297,8 @@ fn query_secondary_multi_indices() {
         FilterExpression::Simple("text".into(), Operator::Contains, Value::from("dance")),
     ]));
 
-    let records = cache.query("sample", &query).unwrap();
-    assert_eq!(cache.count("sample", &query).unwrap(), 2);
+    let records = cache.query(schema_name, &query).unwrap().1;
+    assert_eq!(cache.count(schema_name, &query).unwrap(), 2);
     assert_eq!(
         records,
         vec![
@@ -251,10 +322,10 @@ fn query_secondary_multi_indices() {
     );
 }
 
-fn test_query_err(query: Value, cache: &LmdbRwCache) {
+fn test_query_err(query: Value, cache: &dyn RwCache, schema_name: &str) {
     let query = from_value::<QueryExpression>(query).unwrap();
-    let count_result = cache.count("sample", &query);
-    let result = cache.query("sample", &query);
+    let count_result = cache.count(schema_name, &query);
+    let result = cache.query(schema_name, &query);
 
     assert!(matches!(
         count_result.unwrap_err(),
@@ -265,10 +336,10 @@ fn test_query_err(query: Value, cache: &LmdbRwCache) {
         crate::errors::CacheError::Plan(_)
     ),);
 }
-fn test_query(query: Value, count: usize, cache: &LmdbRwCache) {
+fn test_query(query: Value, count: usize, cache: &dyn RwCache, schema_name: &str) {
     let query = from_value::<QueryExpression>(query).unwrap();
-    assert_eq!(cache.count("sample", &query).unwrap(), count);
-    let records = cache.query("sample", &query).unwrap();
+    assert_eq!(cache.count(schema_name, &query).unwrap(), count);
+    let records = cache.query(schema_name, &query).unwrap().1;
 
     assert_eq!(records.len(), count, "Count must be equal : {query:?}");
 }
@@ -277,11 +348,12 @@ fn test_query_record(
     query: Value,
     expected: Vec<(u64, i64, String, i64)>,
     schema: &Schema,
-    cache: &LmdbRwCache,
+    cache: &dyn RwCache,
+    schema_name: &str,
 ) {
     let query = from_value::<QueryExpression>(query).unwrap();
-    assert_eq!(cache.count("sample", &query).unwrap(), expected.len());
-    let records = cache.query("sample", &query).unwrap();
+    assert_eq!(cache.count(schema_name, &query).unwrap(), expected.len());
+    let records = cache.query(schema_name, &query).unwrap().1;
     let expected = expected
         .into_iter()
         .map(|(id, a, b, c)| {

@@ -9,7 +9,7 @@ use crate::{cache_tests::string_record_to_record, init::init, read_csv::read_csv
 use super::{film_schema, Film};
 
 pub async fn load_database(
-    secondary_indexes: &[IndexDefinition],
+    secondary_indexes: Vec<IndexDefinition>,
 ) -> (Box<dyn RoCache>, &'static str, Collection<Film>) {
     // Initialize tracing and data.
     init();
@@ -18,9 +18,12 @@ pub async fn load_database(
     let schema = film_schema();
     let schema_name = "film";
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
-    let cache = cache_manager.create_cache().unwrap();
-    cache
-        .insert_schema(schema_name, &schema, secondary_indexes)
+    let cache = cache_manager
+        .create_cache(vec![(
+            schema_name.to_string(),
+            schema.clone(),
+            secondary_indexes,
+        )])
         .unwrap();
 
     // Connect to mongodb and clear collection.
