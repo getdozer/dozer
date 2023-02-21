@@ -1,12 +1,13 @@
 use ahash::AHasher;
 use geo::{point, GeodesicDistance, Point};
 use ordered_float::OrderedFloat;
+use std::array::TryFromSliceError;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
-use crate::errors::types::{DeserializationError, TypeError};
+use crate::errors::types::TypeError;
 use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
@@ -413,18 +414,10 @@ impl DozerPoint {
         result
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<(f64, f64), DeserializationError> {
-        let x = f64::from_be_bytes(
-            bytes[0..7]
-                .try_into()
-                .map_err(|_| DeserializationError::BadDataLength)?,
-        );
-        let y = f64::from_be_bytes(
-            bytes[8..15]
-                .try_into()
-                .map_err(|_| DeserializationError::BadDataLength)?,
-        );
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, TryFromSliceError> {
+        let x = f64::from_be_bytes(bytes[0..8].try_into()?);
+        let y = f64::from_be_bytes(bytes[8..16].try_into()?);
 
-        Ok((x, y))
+        Ok(DozerPoint::from((x, y)))
     }
 }

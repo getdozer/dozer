@@ -191,9 +191,9 @@ impl Field {
                 DATE_FORMAT,
             )?)),
             10 => Ok(FieldBorrow::Bson(val)),
-            11 => Ok(FieldBorrow::Point(DozerPoint::from(
-                DozerPoint::from_bytes(val)?,
-            ))),
+            11 => Ok(FieldBorrow::Point(
+                DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
+            )),
             12 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
