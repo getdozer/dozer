@@ -12,7 +12,7 @@ use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::NaiveDate;
-use dozer_types::log::{debug, info};
+use dozer_types::log::debug;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
