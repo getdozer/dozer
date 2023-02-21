@@ -13,7 +13,7 @@ use super::cleanup::Cleanup;
 
 mod buildkite;
 mod local;
-mod running_env;
+pub mod running_env;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
 pub enum RunnerType {
@@ -81,7 +81,7 @@ fn run_command(bin: &str, args: &[&str]) {
     info!("Command done: {:?}", cmd);
 }
 
-fn run_docker_compose(docker_compose_path: &Path, service_name: &str) -> Cleanup {
+pub fn run_docker_compose(docker_compose_path: &Path, service_name: &str) -> Cleanup {
     let docker_compose_path = docker_compose_path
         .to_str()
         .unwrap_or_else(|| panic!("Non-UFT8 path {docker_compose_path:?}"));

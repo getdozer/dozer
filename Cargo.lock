@@ -1870,6 +1870,7 @@ dependencies = [
  "criterion",
  "crossbeam",
  "datafusion",
+ "dozer-tests",
  "dozer-tracing",
  "dozer-types",
  "futures",
