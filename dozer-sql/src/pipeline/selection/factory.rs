@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::pipeline::builder::SchemaSQLContext;
+use crate::pipeline::expression::builder::ExpressionBuilder;
 use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
@@ -9,8 +10,6 @@ use dozer_core::{
 };
 use dozer_types::types::Schema;
 use sqlparser::ast::Expr as SqlExpr;
-
-use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionContext};
 
 use super::processor::SelectionProcessor;
 
@@ -59,12 +58,7 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        match ExpressionBuilder::build(
-            &mut ExpressionContext::new(schema.fields.len()),
-            false,
-            &self.statement,
-            schema,
-        ) {
+        match ExpressionBuilder::new(schema.fields.len()).build(false, &self.statement, schema) {
             Ok(expression) => Ok(Box::new(SelectionProcessor::new(
                 schema.clone(),
                 expression,
