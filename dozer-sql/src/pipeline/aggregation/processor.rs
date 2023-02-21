@@ -70,7 +70,6 @@ impl AggregationProcessor {
         aggregation_schema: Schema,
         txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Self, PipelineError> {
-        //
         let mut aggregators: Vec<(Expression, Aggregator)> = Vec::new();
         for measure in measures {
             aggregators.push(get_aggregator_from_aggregation_expression(
