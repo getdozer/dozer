@@ -20,38 +20,18 @@ impl HealthGrpcService for HealthService {
     ) -> Result<Response<HealthCheckResponse>, Status> {
         let req = request.into_inner();
         let service = req.service.to_lowercase();
-        if service.is_empty() {
-            let not_serving = self
-                .serving_status
-                .values()
-                .any(|&x| x.eq(&ServingStatus::NotServing));
-            if not_serving {
-                let status = ServingStatus::NotServing as i32;
-                let rep = HealthCheckResponse { status };
-                Ok(Response::new(rep))
-            } else {
-                let status = ServingStatus::Serving as i32;
+        // currently supporting:
+        // - empty string
+        // - common (Common gRPC)
+        // - typed (Typed gRPC)
+        let serving_status = self.serving_status.get(&service);
+        match serving_status {
+            Some(serving_status) => {
+                let status = *serving_status as i32;
                 let rep = HealthCheckResponse { status };
                 Ok(Response::new(rep))
             }
-        } else {
-            // currently supporting:
-            // - common (Common gRPC)
-            // - typed (Typed gRPC)
-            let serving_status = self.serving_status.get(service.as_str());
-            match serving_status {
-                Some(_s) => {
-                    let serving_status = *serving_status.unwrap();
-                    let status = serving_status as i32;
-                    let rep = HealthCheckResponse { status };
-                    Ok(Response::new(rep))
-                }
-                None => {
-                    let status = ServingStatus::Unknown as i32;
-                    let rep = HealthCheckResponse { status };
-                    Ok(Response::new(rep))
-                }
-            }
+            None => Err(Status::not_found(service)),
         }
     }
 
