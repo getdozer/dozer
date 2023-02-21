@@ -10,7 +10,8 @@ members = [
   "dozer-cache",
   "dozer-tracing",
   "dozer-tests",
-  "dozer-admin"
+  "dozer-admin",
+  "dozer-wasm-lib"
 ]
 exclude = ["dozer-ingestion/tests/**/**", "config/**/**"]
 
