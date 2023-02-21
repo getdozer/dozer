@@ -1,7 +1,7 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType};
 use crate::errors::{ExecutionError, IncompatibleSchemas};
 use crate::node::PortHandle;
-use crate::{Dag, NodeKind};
+use crate::NodeKind;
 use daggy::petgraph::visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences, Topo};
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
@@ -17,7 +17,7 @@ use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(crate) const METADATA_DB_NAME: &str = "__META__";
 const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
@@ -171,10 +171,11 @@ impl<T: Clone> DagMetadata<T> {
         Ok(Self { path, graph })
     }
 
-    pub fn delete(path: &Path, dag: &Dag<T>) {
-        for node in dag.graph().raw_nodes() {
-            let env_name = node_environment_name(&node.weight.handle);
-            LmdbEnvironmentManager::remove(path, &env_name);
+    pub fn clear(&mut self) {
+        for node in self.graph.node_weights_mut() {
+            let env_name = node_environment_name(&node.handle);
+            LmdbEnvironmentManager::remove(&self.path, &env_name);
+            node.commits.clear();
         }
     }
 

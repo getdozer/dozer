@@ -53,20 +53,20 @@ jobs:
           restore-keys: |
             coverage-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
             coverage-${{ runner.os }}-cargo-
-
       - name: MongoDB in GitHub Actions
         uses: supercharge/mongodb-github-action@1.8.0
 
       - uses: ./.github/workflows/setup-snowflake-and-kafka
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features --no-fail-fast
+      - name: Cargo test
         env:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Cinstrument-coverage"
           LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
+        shell: bash
+        run: |
+          source ./dozer-tests/python_udf/virtualenv.sh
+          cargo test --all-features --no-fail-fast
 
       - uses: actions-rs/cargo@v1
         with:

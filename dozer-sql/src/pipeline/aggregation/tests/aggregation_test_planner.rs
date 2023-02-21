@@ -1,7 +1,6 @@
 use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
-use dozer_core::node::Processor;
 use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -79,26 +78,25 @@ fn test_planner_with_aggregator() {
 
     projection_planner.plan(*statement).unwrap();
 
-    let mut processor = AggregationProcessor::new(
-        projection_planner.groupby,
-        projection_planner.aggregation_output,
-        projection_planner.projection_output,
-        schema,
-        projection_planner.post_aggregation_schema,
-    )
-    .unwrap();
-
     let storage =
         LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
             .unwrap();
 
     let tx = storage.create_txn().unwrap();
-    processor.init(&mut tx.write()).unwrap();
+    let processor = AggregationProcessor::new(
+        projection_planner.groupby,
+        projection_planner.aggregation_output,
+        projection_planner.projection_output,
+        schema,
+        projection_planner.post_aggregation_schema,
+        &mut tx.write(),
+    )
+    .unwrap();
 
     let _r = processor
         .aggregate(
             &mut tx.write(),
-            processor.db.unwrap(),
+            processor.db,
             Operation::Insert {
                 new: Record::new(
                     None,
@@ -118,7 +116,7 @@ fn test_planner_with_aggregator() {
     let _r = processor
         .aggregate(
             &mut tx.write(),
-            processor.db.unwrap(),
+            processor.db,
             Operation::Insert {
                 new: Record::new(
                     None,

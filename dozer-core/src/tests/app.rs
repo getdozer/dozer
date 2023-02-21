@@ -40,13 +40,6 @@ impl SourceFactory<NoneContext> for NoneSourceFactory {
         todo!()
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,

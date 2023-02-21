@@ -12,8 +12,6 @@ use dozer_types::types::{Operation, Record};
 use lmdb::DatabaseFlags;
 use std::collections::HashMap;
 
-use dozer_core::errors::ExecutionError::InternalError;
-
 use super::join::{JoinAction, JoinSource};
 
 /// Cartesian Product Processor
@@ -23,25 +21,23 @@ pub struct FromProcessor {
     operator: JoinSource,
 
     /// Database to store Join indexes
-    db: Option<Database>,
+    db: Database,
 
     source_names: HashMap<PortHandle, String>,
 }
 
 impl FromProcessor {
     /// Creates a new [`FromProcessor`].
-    pub fn new(operator: JoinSource, source_names: HashMap<PortHandle, String>) -> Self {
-        Self {
+    pub fn new(
+        operator: JoinSource,
+        source_names: HashMap<PortHandle, String>,
+        txn: &mut LmdbExclusiveTransaction,
+    ) -> Result<Self, PipelineError> {
+        Ok(Self {
             operator,
-            db: None,
+            db: txn.create_database(Some("product"), Some(DatabaseFlags::DUP_SORT))?,
             source_names,
-        }
-    }
-
-    fn init_store(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), PipelineError> {
-        self.db = Some(txn.create_database(Some("product"), Some(DatabaseFlags::DUP_SORT))?);
-
-        Ok(())
+        })
     }
 
     fn delete(
@@ -51,18 +47,12 @@ impl FromProcessor {
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
-        let database = if self.db.is_some() {
-            self.db.unwrap()
-        } else {
-            return Err(ProductError::InvalidDatabase());
-        };
-
         self.operator
             .execute(
                 JoinAction::Delete,
                 from_port,
                 record,
-                &database,
+                &self.db,
                 transaction,
                 reader,
             )
@@ -76,18 +66,12 @@ impl FromProcessor {
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
-        let database = if self.db.is_some() {
-            self.db.unwrap()
-        } else {
-            return Err(ProductError::InvalidDatabase());
-        };
-
         self.operator
             .execute(
                 JoinAction::Insert,
                 from_port,
                 record,
-                &database,
+                &self.db,
                 transaction,
                 reader,
             )
@@ -109,19 +93,13 @@ impl FromProcessor {
         ),
         ProductError,
     > {
-        let database = if self.db.is_some() {
-            self.db.unwrap()
-        } else {
-            return Err(ProductError::InvalidDatabase());
-        };
-
         let old_records = self
             .operator
             .execute(
                 JoinAction::Delete,
                 from_port,
                 old,
-                &database,
+                &self.db,
                 transaction,
                 reader,
             )
@@ -135,7 +113,7 @@ impl FromProcessor {
                 JoinAction::Insert,
                 from_port,
                 new,
-                &database,
+                &self.db,
                 transaction,
                 reader,
             )
@@ -155,10 +133,6 @@ impl FromProcessor {
 }
 
 impl Processor for FromProcessor {
-    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        self.init_store(txn).map_err(|e| InternalError(Box::new(e)))
-    }
-
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }

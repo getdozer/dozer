@@ -5,6 +5,7 @@ use crate::pipeline::projection::processor::ProjectionProcessor;
 use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    storage::lmdb_storage::LmdbExclusiveTransaction,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::Schema;
@@ -63,6 +64,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -82,19 +84,12 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                     planner.projection_output,
                     input_schema.clone(),
                     planner.post_aggregation_schema,
+                    txn,
                 )
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
             ),
         };
 
         Ok(processor)
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 }

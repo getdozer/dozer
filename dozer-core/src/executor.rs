@@ -1,3 +1,4 @@
+use crate::builder_dag::{BuilderDag, NodeKind};
 use crate::dag_metadata::DagMetadata;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
@@ -89,11 +90,11 @@ use node::Node;
 use processor_node::ProcessorNode;
 use sink_node::SinkNode;
 
-use self::execution_dag::{ExecutionDag, NodeKind};
+use self::execution_dag::ExecutionDag;
 use self::source_node::{create_source_nodes, SourceListenerNode, SourceSenderNode};
 
-pub struct DagExecutor<T: Clone> {
-    dag_metadata: DagMetadata<T>,
+pub struct DagExecutor {
+    builder_dag: BuilderDag,
     options: ExecutorOptions,
 }
 
@@ -101,30 +102,22 @@ pub struct DagExecutorJoinHandle {
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
 }
 
-impl<T: Clone + Debug + 'static> DagExecutor<T> {
-    pub fn new(
+impl DagExecutor {
+    pub fn new<T: Clone + Debug>(
         dag: &Dag<T>,
         path: PathBuf,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let mut dag_metadata = DagMetadata::new(&dag_schemas, path.clone())?;
-        if !dag_metadata.check_consistency() {
-            DagMetadata::delete(&path, dag);
-            dag_metadata = DagMetadata::new(&dag_schemas, path)?;
-            assert!(
-                dag_metadata.check_consistency(),
-                "We just deleted all metadata"
-            );
-        }
+        let builder_dag = BuilderDag::new(&dag_schemas, path)?;
 
         Ok(Self {
-            dag_metadata,
+            builder_dag,
             options,
         })
     }
 
-    pub fn validate(dag: &Dag<T>, path: PathBuf) -> Result<(), ExecutionError> {
+    pub fn validate<T: Clone + Debug>(dag: &Dag<T>, path: PathBuf) -> Result<(), ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
         DagMetadata::new(&dag_schemas, path)?;
         Ok(())
@@ -133,7 +126,7 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
     pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
         let mut execution_dag = ExecutionDag::new(
-            self.dag_metadata,
+            self.builder_dag,
             self.options.channel_buffer_sz,
             self.options.max_map_size,
         )?;

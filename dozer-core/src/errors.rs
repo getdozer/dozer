@@ -76,7 +76,7 @@ pub enum ExecutionError {
     InternalTypeError(#[from] TypeError),
     #[error(transparent)]
     InternalDatabaseError(#[from] StorageError),
-    #[error(transparent)]
+    #[error("internal error: {0}")]
     InternalError(#[from] BoxedError),
     #[error(transparent)]
     SinkError(#[from] SinkError),

@@ -19,6 +19,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use tokio_postgres::Row;
 
+#[derive(Debug)]
 pub struct SchemaHelper {
     conn_config: tokio_postgres::Config,
     schema: String,

@@ -1,6 +1,7 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use chrono::{DateTime, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
+use pyo3::{PyObject, Python, ToPyObject};
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
@@ -22,6 +23,29 @@ pub enum Field {
     Date(NaiveDate),
     Bson(Vec<u8>),
     Null,
+}
+
+impl ToPyObject for Field {
+    fn to_object(&self, py: Python<'_>) -> PyObject {
+        match self {
+            Field::UInt(val) => val.to_object(py),
+            Field::Int(val) => val.to_object(py),
+            Field::Float(val) => val.0.to_object(py),
+            Field::Boolean(val) => val.to_object(py),
+            Field::String(val) => val.to_object(py),
+            Field::Text(val) => val.to_object(py),
+            Field::Binary(val) => val.to_object(py),
+            Field::Decimal(val) => val.to_f64().unwrap().to_object(py),
+            Field::Timestamp(val) => val.timestamp().to_object(py),
+            Field::Date(val) => {
+                pyo3::types::PyDate::new(py, val.year(), val.month() as u8, val.day() as u8)
+                    .unwrap()
+                    .to_object(py)
+            }
+            Field::Bson(val) => val.to_object(py),
+            Field::Null => unreachable!(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]

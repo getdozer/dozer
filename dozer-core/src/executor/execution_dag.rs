@@ -7,45 +7,23 @@ use std::{
     sync::Arc,
 };
 
+use crate::{
+    builder_dag::{BuilderDag, NodeKind, NodeType},
+    epoch::EpochManager,
+    errors::ExecutionError,
+    hash_map_to_vec::insert_vec_element,
+    node::PortHandle,
+    record_store::{create_record_store, RecordReader, RecordWriter},
+};
 use crossbeam::channel::{bounded, Receiver, Sender};
 use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
-use dozer_storage::lmdb_storage::LmdbEnvironmentOptions;
-use dozer_types::node::{NodeHandle, OpIdentifier};
 
-use crate::{
-    dag_metadata::{DagMetadata, NodeStorage},
-    dag_schemas::DagHaveSchemas,
-    epoch::EpochManager,
-    errors::ExecutionError,
-    hash_map_to_vec::insert_vec_element,
-    node::{PortHandle, Processor, Sink, Source},
-    record_store::{create_record_store, RecordReader, RecordWriter},
-    NodeKind as DagNodeKind,
-};
+use dozer_storage::lmdb_storage::LmdbEnvironmentOptions;
 
 use super::ExecutorOperation;
-
-#[derive(Debug)]
-/// Node in the execution DAG.
-pub struct NodeType {
-    /// The node handle.
-    pub handle: NodeHandle,
-    /// The node storage environment.
-    pub storage: NodeStorage,
-    /// The node kind. Will be moved to execution node.
-    pub kind: Option<NodeKind>,
-}
-
-#[derive(Debug)]
-/// Node kind, source, processor or sink.
-pub enum NodeKind {
-    Source(Box<dyn Source>, Option<OpIdentifier>),
-    Processor(Box<dyn Processor>),
-    Sink(Box<dyn Sink>),
-}
 
 pub type SharedRecordWriter = Rc<RefCell<Option<Box<dyn RecordWriter>>>>;
 
@@ -72,72 +50,34 @@ pub struct ExecutionDag {
 }
 
 impl ExecutionDag {
-    pub fn new<T: Clone>(
-        mut dag_metadata: DagMetadata<T>,
-        channel_buffer_sz: usize,
+    pub fn new(
+        mut builder_dag: BuilderDag,
+        channel_buf_sz: usize,
         max_map_size: usize,
     ) -> Result<Self, ExecutionError> {
         // Create new nodes.
         let mut nodes = vec![];
         let mut num_sources = 0;
-        let node_indexes = dag_metadata.graph().node_identifiers().collect::<Vec<_>>();
+        let node_indexes = builder_dag.graph().node_identifiers().collect::<Vec<_>>();
         for node_index in node_indexes {
-            // Get or create node storage.
-            let node_storage = if let Some(node_storage) =
-                dag_metadata.node_weight_mut(node_index).storage.take()
-            {
-                node_storage
-            } else {
-                dag_metadata.initialize_node_storage(
-                    node_index,
-                    LmdbEnvironmentOptions {
-                        max_map_sz: max_map_size,
-                        ..LmdbEnvironmentOptions::default()
-                    },
-                )?
-            };
+            let node = builder_dag
+                .node_weight_mut(node_index)
+                .take()
+                .expect("Builder dag should have created all nodes");
+            if matches!(
+                node.kind
+                    .as_ref()
+                    .expect("Builder dag should have created all nodes"),
+                NodeKind::Source(_, _)
+            ) {
+                num_sources += 1;
+            }
 
-            // Create and initialize source, processor or sink.
-            let node = &dag_metadata.graph()[node_index];
-            let input_schemas = dag_metadata.get_node_input_schemas(node_index);
-            let input_schemas = input_schemas
-                .into_iter()
-                .map(|(key, value)| (key, value.0))
-                .collect();
-            let output_schemas = dag_metadata.get_node_output_schemas(node_index);
-            let output_schemas = output_schemas
-                .into_iter()
-                .map(|(key, value)| (key, value.0))
-                .collect();
-
-            let node_kind = match &node.kind {
-                DagNodeKind::Source(source) => {
-                    num_sources += 1;
-                    let source = source.build(output_schemas)?;
-                    let last_checkpoint = node.commits.get(&node.handle).copied();
-                    NodeKind::Source(source, last_checkpoint)
-                }
-                DagNodeKind::Processor(processor) => {
-                    let mut processor = processor.build(input_schemas, output_schemas)?;
-                    processor.init(&mut node_storage.master_txn.write())?;
-                    NodeKind::Processor(processor)
-                }
-                DagNodeKind::Sink(sink) => {
-                    let mut sink = sink.build(input_schemas)?;
-                    sink.init(&mut node_storage.master_txn.write())?;
-                    NodeKind::Sink(sink)
-                }
-            };
-
-            nodes.push(Some(NodeType {
-                handle: node.handle.clone(),
-                storage: node_storage,
-                kind: Some(node_kind),
-            }));
+            nodes.push(Some(node));
         }
 
         // We only create record stored once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record store created.
-        let dag = dag_metadata.graph();
+        let dag = builder_dag.graph();
         let mut all_record_stores =
             vec![
                 HashMap::<PortHandle, (SharedRecordWriter, Option<Box<dyn RecordReader>>)>::new();
@@ -146,10 +86,10 @@ impl ExecutionDag {
 
         // Create new edges.
         let mut edges = vec![];
-        for dag_schema_edge in dag.raw_edges().iter() {
-            let source_node_index = dag_schema_edge.source().index();
-            let edge = &dag_schema_edge.weight;
-            let output_port = dag_schema_edge.weight.output_port;
+        for builder_dag_edge in dag.raw_edges().iter() {
+            let source_node_index = builder_dag_edge.source().index();
+            let edge = &builder_dag_edge.weight;
+            let output_port = builder_dag_edge.weight.output_port;
 
             // Create or get record store.
             let (record_writer, record_reader) =
@@ -200,7 +140,7 @@ impl ExecutionDag {
             |node_index, _| {
                 nodes[node_index.index()]
                     .take()
-                    .expect("We created all nodes")
+                    .expect("Builder dag should have all nodes")
             },
             |edge_index, _| {
                 edges[edge_index.index()]
