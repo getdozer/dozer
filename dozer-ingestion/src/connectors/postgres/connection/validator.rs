@@ -257,7 +257,7 @@ mod tests {
     use dozer_types::models::app_config::Config;
     use dozer_types::models::connection::ConnectionConfig;
     use serial_test::serial;
-    
+
     fn get_config(app_config: Config) -> tokio_postgres::Config {
         if let Some(ConnectionConfig::Postgres(connection)) =
             &app_config.connections.get(0).unwrap().config
