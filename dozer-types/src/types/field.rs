@@ -48,7 +48,7 @@ impl ToPyObject for Field {
             }
             Field::Bson(val) => val.to_object(py),
             Field::Null => unreachable!(),
-            Field::Point(_val) => todo!()
+            Field::Point(_val) => todo!(),
         }
     }
 }
