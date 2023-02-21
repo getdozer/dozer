@@ -1,9 +1,8 @@
 name: Dozer Pulls
 on:
-  workflow_run:
-    workflows: ["Dozer CI"]
-    types:
-      - requested
+  pull_request_target:
+    branches: [main]
+    types: [opened]
   pull_request_review:
     types: [submitted]
   pull_request_review_comment:
@@ -18,14 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Pull Request
-        if: ${{ github.event_name == 'workflow_run' || github.event_name == 'pull_request' || github.event.workflow_run.event == 'pull_request'  }}
+        if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'pull_request' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
           DISCORD_EMBEDS: '[ { 
-           "title": "`Pull request ${{ github.event.number }}` is ready for review",
+           "title": "New pull request #${{ github.event.pull_request.number }} by ${{ github.actor }}",
            "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.sender }}", "url": "https://github.com/${{ github.actor }}" },
           "fields": [
-            { "name": "Body", "value": "${{ github.event.pull_request.body }}" }
+            { "name": "Body", "value": "${{ github.event.pull_request.url }} \n ${{ github.event.pull_request.body }}" }
+
           ],
           "color": 990099
           }]'
