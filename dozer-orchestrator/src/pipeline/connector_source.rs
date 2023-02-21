@@ -77,8 +77,13 @@ impl ConnectorSourceFactory {
             tables_map.insert(t.table_name.clone(), t.name.clone());
         }
 
-        let connector = get_connector(connection).map_err(|e| InternalError(Box::new(e))).unwrap();
-        let schema_tuples = connector.get_schemas(Some(tables)).map_err(|e| InternalError(Box::new(e))).unwrap();
+        let connector = get_connector(connection)
+            .map_err(|e| InternalError(Box::new(e)))
+            .unwrap();
+        let schema_tuples = connector
+            .get_schemas(Some(tables))
+            .map_err(|e| InternalError(Box::new(e)))
+            .unwrap();
 
         let mut schema_map = HashMap::new();
         let mut schema_port_map: HashMap<u32, u16> = HashMap::new();
@@ -96,7 +101,9 @@ impl ConnectorSourceFactory {
                 .get(source_name)
                 .map_or(Err(ExecutionError::PortNotFound(name.clone())), Ok)
                 .unwrap();
-            let schema_id = get_schema_id(schema.identifier.as_ref()).map_err(|e| InternalError(Box::new(e))).unwrap();
+            let schema_id = get_schema_id(schema.identifier.as_ref())
+                .map_err(|e| InternalError(Box::new(e)))
+                .unwrap();
 
             schema_port_map.insert(schema_id, port);
             schema_map.insert(port, schema);
