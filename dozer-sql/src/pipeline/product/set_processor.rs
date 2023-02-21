@@ -5,7 +5,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
@@ -86,10 +86,6 @@ impl SetProcessor {
 }
 
 impl Processor for SetProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
