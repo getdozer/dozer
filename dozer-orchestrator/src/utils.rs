@@ -1,7 +1,10 @@
 use dozer_types::models::{
     api_config::{ApiConfig, GrpcApiOptions, RestApiOptions},
     api_security::ApiSecurity,
-    app_config::Config,
+    app_config::{
+        default_app_buffer_size, default_app_max_map_size, default_cache_max_map_size,
+        default_commit_size, default_commit_timeout, Config,
+    },
 };
 use std::{
     path::{Path, PathBuf},
@@ -18,44 +21,32 @@ pub fn get_cache_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("cache")
 }
 
-pub fn get_cache_max_map_size(config: &Config) -> usize {
-    if let Some(max_map_size) = config.cache_max_map_size {
-        max_map_size.try_into().unwrap()
-    } else {
-        1024 * 1024 * 1024 * 1024
-    }
+pub fn get_cache_max_map_size(config: &Config) -> u64 {
+    config
+        .cache_max_map_size
+        .unwrap_or(default_cache_max_map_size())
 }
 
-pub fn get_app_max_map_size(config: &Config) -> usize {
-    if let Some(max_map_size) = config.app_max_map_size {
-        max_map_size.try_into().unwrap()
-    } else {
-        1024 * 1024 * 1024 * 1024
-    }
+pub fn get_app_max_map_size(config: &Config) -> u64 {
+    config
+        .app_max_map_size
+        .unwrap_or(default_app_max_map_size())
 }
 
-pub fn get_commit_time_threshold(config: &Config) -> std::time::Duration {
+pub fn get_commit_time_threshold(config: &Config) -> Duration {
     if let Some(commit_time_threshold) = config.commit_timeout {
         Duration::from_millis(commit_time_threshold)
     } else {
-        Duration::from_millis(50)
+        Duration::from_millis(default_commit_timeout())
     }
 }
 
-pub fn get_buffer_size(config: &Config) -> usize {
-    if let Some(app_buffer_size) = config.app_buffer_size {
-        app_buffer_size as usize
-    } else {
-        20_000
-    }
+pub fn get_buffer_size(config: &Config) -> u32 {
+    config.app_buffer_size.unwrap_or(default_app_buffer_size())
 }
 
 pub fn get_commit_size(config: &Config) -> u32 {
-    if let Some(commit_size) = config.commit_size {
-        commit_size
-    } else {
-        10_000
-    }
+    config.commit_size.unwrap_or(default_commit_size())
 }
 
 pub fn get_api_dir(config: &Config) -> PathBuf {

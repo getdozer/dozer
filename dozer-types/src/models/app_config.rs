@@ -49,42 +49,27 @@ pub struct Config {
 
     /// Cache lmdb max map size
     #[prost(uint64, optional, tag = "10")]
-    #[serde(
-        default = "default_cache_max_map_size",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_max_map_size: Option<u64>,
 
     /// Pipeline lmdb max map size
     #[prost(uint64, optional, tag = "11")]
-    #[serde(
-        default = "default_app_max_map_size",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub app_max_map_size: Option<u64>,
 
     /// Pipeline buffer size
     #[prost(uint32, optional, tag = "12")]
-    #[serde(
-        default = "default_app_buffer_size",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub app_buffer_size: Option<u32>,
 
     /// Commit size
     #[prost(uint32, optional, tag = "13")]
-    #[serde(
-        default = "default_commit_size",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_size: Option<u32>,
 
     /// Commit timeout
     #[prost(uint64, optional, tag = "14")]
-    #[serde(
-        default = "default_commit_timeout",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_timeout: Option<u64>,
 }
 
@@ -92,24 +77,24 @@ pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
 }
 
-pub fn default_cache_max_map_size() -> Option<u64> {
-    Some(1024 * 1024 * 1024 * 1024)
+pub fn default_cache_max_map_size() -> u64 {
+    1024 * 1024 * 1024 * 1024
 }
 
-pub fn default_app_max_map_size() -> Option<u64> {
-    Some(1024 * 1024 * 1024 * 1024)
+pub fn default_app_max_map_size() -> u64 {
+    1024 * 1024 * 1024 * 1024
 }
 
-pub fn default_app_buffer_size() -> Option<u32> {
-    Some(20_000)
+pub fn default_app_buffer_size() -> u32 {
+    20_000
 }
 
-pub fn default_commit_size() -> Option<u32> {
-    Some(10_000)
+pub fn default_commit_size() -> u32 {
+    10_000
 }
 
-pub fn default_commit_timeout() -> Option<u64> {
-    Some(50)
+pub fn default_commit_timeout() -> u64 {
+    50
 }
 
 impl<'de> Deserialize<'de> for Config {
@@ -140,11 +125,11 @@ impl<'de> Deserialize<'de> for Config {
                 let mut sql = None;
                 let mut home_dir: String = default_home_dir();
 
-                let mut cache_max_map_size: Option<u64> = default_cache_max_map_size();
-                let mut app_max_map_size: Option<u64> = default_app_max_map_size();
-                let mut app_buffer_size: Option<u32> = default_app_buffer_size();
-                let mut commit_size: Option<u32> = default_commit_size();
-                let mut commit_timeout: Option<u64> = default_commit_timeout();
+                let mut cache_max_map_size: Option<u64> = Some(default_cache_max_map_size());
+                let mut app_max_map_size: Option<u64> = Some(default_app_max_map_size());
+                let mut app_buffer_size: Option<u32> = Some(default_app_buffer_size());
+                let mut commit_size: Option<u32> = Some(default_commit_size());
+                let mut commit_timeout: Option<u64> = Some(default_commit_timeout());
 
                 while let Some(key) = access.next_key()? {
                     match key {

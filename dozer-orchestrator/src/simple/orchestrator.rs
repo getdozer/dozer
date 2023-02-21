@@ -54,15 +54,15 @@ impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
         let cache_manager_options = CacheManagerOptions {
             path: Some(get_cache_dir(&config)),
-            max_size: get_cache_max_map_size(&config),
+            max_size: get_cache_max_map_size(&config) as usize,
             ..CacheManagerOptions::default()
         };
 
         let executor_options = ExecutorOptions {
             commit_sz: get_commit_size(&config),
-            channel_buffer_sz: get_buffer_size(&config),
+            channel_buffer_sz: get_buffer_size(&config) as usize,
             commit_time_threshold: get_commit_time_threshold(&config),
-            max_map_size: get_app_max_map_size(&config),
+            max_map_size: get_app_max_map_size(&config) as usize,
         };
         Self {
             config,
