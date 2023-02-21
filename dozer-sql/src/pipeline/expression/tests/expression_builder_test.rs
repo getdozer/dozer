@@ -47,13 +47,13 @@ fn test_simple_function() {
     );
     assert_eq!(
         e,
-        Box::new(Expression::ScalarFunction {
+        Expression::ScalarFunction {
             fun: ScalarFunctionType::Concat,
             args: vec![
                 Expression::Column { index: 0 },
                 Expression::Column { index: 1 }
             ]
-        })
+        }
     );
 }
 
@@ -88,7 +88,7 @@ fn test_simple_aggr_function() {
             }]
         }
     );
-    assert_eq!(e, Box::new(Expression::Column { index: 1 }));
+    assert_eq!(e, Expression::Column { index: 1 });
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn test_2_nested_aggr_function() {
             }]
         }
     );
-    assert_eq!(e, Box::new(Expression::Column { index: 2 }));
+    assert_eq!(e, Expression::Column { index: 2 });
 }
 
 #[test]
@@ -188,10 +188,10 @@ fn test_3_nested_aggr_function() {
     );
     assert_eq!(
         e,
-        Box::new(Expression::ScalarFunction {
+        Expression::ScalarFunction {
             fun: ScalarFunctionType::Round,
             args: vec![Expression::Column { index: 2 }]
-        })
+        }
     );
 }
 
@@ -243,13 +243,13 @@ fn test_3_nested_aggr_function_dup() {
     );
     assert_eq!(
         e,
-        Box::new(Expression::ScalarFunction {
+        Expression::ScalarFunction {
             fun: ScalarFunctionType::Concat,
             args: vec![
                 Expression::Column { index: 2 },
                 Expression::Column { index: 2 }
             ]
-        })
+        }
     );
 }
 
@@ -307,14 +307,14 @@ fn test_3_nested_aggr_function_and_sum() {
     );
     assert_eq!(
         e,
-        Box::new(Expression::BinaryOperator {
+        Expression::BinaryOperator {
             operator: BinaryOperatorType::Add,
             left: Box::new(Expression::ScalarFunction {
                 fun: ScalarFunctionType::Round,
                 args: vec![Expression::Column { index: 2 }]
             }),
             right: Box::new(Expression::Column { index: 3 })
-        })
+        }
     );
 }
 
@@ -372,7 +372,7 @@ fn test_3_nested_aggr_function_and_sum_3() {
     );
     assert_eq!(
         e,
-        Box::new(Expression::BinaryOperator {
+        Expression::BinaryOperator {
             operator: BinaryOperatorType::Add,
             left: Box::new(Expression::BinaryOperator {
                 operator: BinaryOperatorType::Add,
@@ -383,7 +383,7 @@ fn test_3_nested_aggr_function_and_sum_3() {
                 right: Box::new(Expression::Column { index: 3 })
             }),
             right: Box::new(Expression::Column { index: 0 })
-        })
+        }
     );
 }
 
@@ -456,14 +456,14 @@ fn test_name_resolution() {
     );
     assert_eq!(
         e,
-        Box::new(Expression::ScalarFunction {
+        Expression::ScalarFunction {
             fun: ScalarFunctionType::Concat,
             args: vec![
                 Expression::Column { index: 0 },
                 Expression::Column { index: 1 },
                 Expression::Column { index: 0 }
             ]
-        })
+        }
     );
 }
 
@@ -499,12 +499,12 @@ fn test_alias_resolution() {
     );
     assert_eq!(
         e,
-        Box::new(Expression::ScalarFunction {
+        Expression::ScalarFunction {
             fun: ScalarFunctionType::Concat,
             args: vec![
                 Expression::Column { index: 0 },
                 Expression::Column { index: 0 }
             ]
-        })
+        }
     );
 }
