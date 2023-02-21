@@ -137,7 +137,8 @@ fn test_distance() {
         } else {
             format!("SELECT DISTANCE(from, to, '{calculation_type}') FROM LOCATIONS")
         };
-        if let Field::Float(OrderedFloat(result)) = run_geo_fct(&sql, schema.clone(), input.clone()) {
+        if let Field::Float(OrderedFloat(result)) = run_geo_fct(&sql, schema.clone(), input.clone())
+        {
             assert!((result - expected_result) < 0.000000001);
         } else {
             panic!("Expected float");
