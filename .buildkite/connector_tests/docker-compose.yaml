@@ -1,5 +1,5 @@
 services:
-  dozer-tests:
+  dozer-connector-tests:
     build: .
     image: dozer-connector-tests
     volumes:
