@@ -25,11 +25,16 @@ pub fn on_event_to_typed_response(
         );
     }
 
-    if let Some(new) = op.new {
-        event.set_field(
-            &event_desc.new_field,
-            prost_reflect::Value::Message(internal_record_to_pb(new, &event_desc.record_desc)),
-        );
+    event.set_field(
+        &event_desc.new_field,
+        prost_reflect::Value::Message(internal_record_to_pb(
+            op.new.unwrap(),
+            &event_desc.record_desc,
+        )),
+    );
+
+    if let Some(new_id) = op.new_id {
+        event.set_field(&event_desc.new_id_field, prost_reflect::Value::U64(new_id));
     }
 
     TypedResponse::new(event)
