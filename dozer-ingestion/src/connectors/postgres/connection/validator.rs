@@ -326,7 +326,7 @@ mod tests {
     #[test]
     #[ignore]
     #[serial]
-    fn test_requested_tables_not_exist() {
+    fn test_connector_requested_tables_not_exist() {
         run_connector_test("postgres", |app_config| {
             let config = get_config(app_config);
             let mut client = postgres::Config::from(config.clone())
