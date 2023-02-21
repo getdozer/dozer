@@ -52,12 +52,9 @@ pub fn evaluate_py_udf(
             FieldType::Boolean => Field::Boolean(res.extract::<bool>()?),
             FieldType::String => Field::String(res.extract::<String>()?),
             FieldType::Text => Field::Text(res.extract::<String>()?),
-            FieldType::Binary
-            | FieldType::Point
-            | FieldType::Decimal
-            | FieldType::Timestamp
-            | FieldType::Date
-            | FieldType::Bson => {
+            FieldType::Binary => Field::Binary(res.extract::<Vec<u8>>()?),
+            FieldType::Null => Field::Null,
+            FieldType::Decimal|FieldType::Date | FieldType::Timestamp | FieldType::Point | FieldType::Bson => {
                 return Err(UnsupportedSqlError(GenericError(
                     "Unsupported return type for python udf".to_string(),
                 )))

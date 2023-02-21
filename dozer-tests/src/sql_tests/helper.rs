@@ -40,10 +40,10 @@ pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
                 FieldType::Int => "integer",
                 FieldType::String => "string",
                 FieldType::Text => "text",
-                FieldType::Float => "numeric",
+                FieldType::Float | FieldType::Binary => "numeric",
                 FieldType::Timestamp => "timestamp",
                 FieldType::Boolean => "bool",
-
+                FieldType::Null => "null",
                 typ => panic!("unsupported type {typ:?}"),
             };
             format!(
@@ -151,7 +151,8 @@ pub fn map_sqlite_to_record(
                 Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
             },
             FieldType::Date =>  convert_type!(Field::String, f, row, idx),
-            dozer_types::types::FieldType::Bson | FieldType::Point => {
+            FieldType::Null => Field::Null,
+            FieldType::Bson | FieldType::Point => {
                 panic!("type not supported : {:?}", f.typ.to_owned())
             }
         };
@@ -225,7 +226,8 @@ pub fn map_field_to_string(f: &Field) -> String {
         Field::Text(i) => i.to_string(),
         Field::Timestamp(i) => i.to_string(),
         Field::Date(i) => i.to_string(),
-        Field::Binary(_) | Field::Bson(_) => panic!("not supported {f:?}"),
+        Field::Binary(i) => ,
+        Field::Bson(_) => panic!("not supported {f:?}"),
         Field::Decimal(i) => i.to_string(),
         Field::Null => "null".to_string(),
         Field::Point(p) => format!("'{:?}'", p.0.x_y()),

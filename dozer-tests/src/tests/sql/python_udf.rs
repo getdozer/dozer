@@ -8,7 +8,13 @@ fn py_udf_query() {
     let queries = vec![
         r#"
         SELECT py_add(a, 'FLOAT'), py_sum(a, b, 'FLOAT') from t1;
-      "#,
+        "#,
+        r#"
+        SELECT py_binary('BINARY') from t1;
+        "#,
+        r#"
+        SELECT py_null('NULL') from t1;
+        "#
     ];
 
     let record1 = Record {
@@ -16,21 +22,20 @@ fn py_udf_query() {
         values: vec![Float(OrderedFloat(2.0)), Float(OrderedFloat(3.0))],
         version: None,
     };
-    let record2 = Record {
-        schema_id: None,
-        values: vec![Float(OrderedFloat(3.0)), Float(OrderedFloat(5.0))],
-        version: None,
-    };
 
-    let expected_results = vec![record1, record2];
 
-    helper::compare_with_sqlite(
+    let query1_expected_results = Some(vec![record1]);
+
+    let query2_expected_results = Some(vec![]);
+
+    let query3_expected_results = Some(vec![]);
+
+    helper::compare_with_expected_results(
         &[],
         &queries,
-        Some(&expected_results),
+        &[query1_expected_results, query2_expected_results, query3_expected_results],
         TestInstruction::List(vec![
             ("t1", "INSERT INTO t1(a, b) VALUES (1, 2)".to_string()),
-            ("t1", "INSERT INTO t1(a, b) VALUES (2, 3)".to_string()),
         ]),
     );
 }

@@ -61,6 +61,7 @@ enum Type {
   Date = 9; // ISO 8601 calendar date without timezone.
   Bson = 10; // BSON data.
   Point = 11; // Geo Point type.
+  Null = 12; // NULL type.
 }
 message SchemaEvent {
   string endpoint = 1;

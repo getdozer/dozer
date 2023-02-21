@@ -37,7 +37,7 @@ impl OpenApiGenerator {
                     FieldType::Float => Value::from(1.1),
                     FieldType::Boolean => Value::from(true),
                     FieldType::String => Value::from("foo".to_string()),
-                    FieldType::Binary
+                    FieldType::Null | FieldType::Binary
                     | FieldType::Decimal
                     | FieldType::Timestamp
                     | FieldType::Bson => Value::Null,

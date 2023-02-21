@@ -9,7 +9,6 @@ fn insert_only_queries() {
     helper::compare_with_sqlite(
         &["actor"],
         &queries,
-        None,
         TestInstruction::FromCsv("actor", vec!["actor"]),
     );
 }
@@ -31,7 +30,7 @@ fn nullable_queries() {
             ),
         ];
     let queries = get_sample_queries();
-    helper::compare_with_sqlite(&["actor"], &queries, None, TestInstruction::List(list));
+    helper::compare_with_sqlite(&["actor"], &queries, TestInstruction::List(list));
 }
 
 #[test]
@@ -40,5 +39,5 @@ fn changes_queries() {
 
     let list = helper::get_sample_ops();
 
-    helper::compare_with_sqlite(&["actor"], &queries, None, TestInstruction::List(list));
+    helper::compare_with_sqlite(&["actor"], &queries,  TestInstruction::List(list));
 }

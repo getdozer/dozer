@@ -31,7 +31,7 @@ impl TestFramework {
     pub fn query(
         &mut self,
         list: Vec<(&'static str, String)>,
-        expected_results: Option<&[Record]>,
+        expected_results: &Option<Vec<Record>>,
         final_sql: String,
     ) -> Result<QueryResult, FrameworkError> {
         let source_schema_map = self.source.lock().unwrap().schema_map.clone();

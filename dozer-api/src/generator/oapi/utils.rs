@@ -166,6 +166,7 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
                 max_properties: None,
             })
         }
+        FieldType::Null => unreachable!(),
     }
 }
 

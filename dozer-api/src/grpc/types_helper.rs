@@ -142,5 +142,6 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Bson => Type::Bson,
         FieldType::Date => Type::String,
         FieldType::Point => Type::Point,
+        FieldType::Null => Type::Null,
     }
 }
