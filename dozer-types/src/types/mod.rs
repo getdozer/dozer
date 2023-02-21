@@ -2,8 +2,8 @@ use ahash::AHasher;
 use geo::{point, Point};
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 
 use crate::errors::types::{DeserializationError, TypeError};
 use prettytable::{Cell, Row, Table};
@@ -292,6 +292,10 @@ impl Record {
                 Field::Bson(b) => {
                     hasher.write_u8(11);
                     hasher.write(b.as_ref());
+                }
+                Field::Point(p) => {
+                    hasher.write_u8(12);
+                    hasher.write(p.to_bytes().as_slice());
                 }
                 Field::Null => {
                     hasher.write_u8(0);
