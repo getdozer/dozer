@@ -101,7 +101,7 @@ jobs:
           path-to-lcov: ${{ steps.coverage.outputs.report }}
 
       - name: Discord notification
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
           DISCORD_EMBEDS: '[ { 
