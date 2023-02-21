@@ -1,14 +1,12 @@
-use crate::pipeline::errors::{PipelineError, ProductError, SetError};
+use crate::pipeline::errors::{PipelineError, ProductError};
 use crate::pipeline::product::set::{SetAction, SetOperation};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
+use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
-
-use dozer_core::errors::ExecutionError;
-use dozer_core::errors::ExecutionError::InternalError;
 use dozer_types::types::{Operation, Record};
 use lmdb::{Database, DatabaseFlags};
 use std::collections::HashMap;
@@ -18,19 +16,19 @@ pub struct SetProcessor {
     /// Set operations
     operator: SetOperation,
     /// Database to store Join indexes
-    db: Option<Database>,
+    db: Database,
 }
 
 impl SetProcessor {
     /// Creates a new [`FromProcessor`].
-    pub fn new(operator: SetOperation) -> Self {
-        Self { operator, db: None }
-    }
-
-    fn init_store(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), PipelineError> {
-        self.db = Some(txn.create_database(Some("set"), Some(DatabaseFlags::DUP_SORT))?);
-
-        Ok(())
+    pub fn new(
+        operator: SetOperation,
+        txn: &mut LmdbExclusiveTransaction,
+    ) -> Result<Self, PipelineError> {
+        Ok(Self {
+            operator,
+            db: txn.create_database(Some("set"), Some(DatabaseFlags::empty()))?,
+        })
     }
 
     fn delete(
@@ -40,16 +38,8 @@ impl SetProcessor {
         txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
-        let database = if self.db.is_some() {
-            self.db
-                .map_or(Err(SetError::DatabaseUnavailable), Ok)
-                .unwrap()
-        } else {
-            return Err(ProductError::InvalidDatabase());
-        };
-
         self.operator
-            .execute(SetAction::Delete, record, &database, txn)
+            .execute(SetAction::Delete, record, &self.db, txn)
             .map_err(|err| {
                 ProductError::DeleteError("UNION query error:".to_string(), Box::new(err))
             })
@@ -62,16 +52,8 @@ impl SetProcessor {
         txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
-        let database = if self.db.is_some() {
-            self.db
-                .map_or(Err(SetError::DatabaseUnavailable), Ok)
-                .unwrap()
-        } else {
-            return Err(ProductError::InvalidDatabase());
-        };
-
         self.operator
-            .execute(SetAction::Insert, record, &database, txn)
+            .execute(SetAction::Insert, record, &self.db, txn)
             .map_err(|err| {
                 ProductError::InsertError("UNION query error:".to_string(), Box::new(err))
             })
@@ -86,24 +68,16 @@ impl SetProcessor {
         txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
-        let database = if self.db.is_some() {
-            self.db
-                .map_or(Err(SetError::DatabaseUnavailable), Ok)
-                .unwrap()
-        } else {
-            return Err(ProductError::InvalidDatabase());
-        };
-
         let old_records = self
             .operator
-            .execute(SetAction::Delete, old, &database, txn)
+            .execute(SetAction::Delete, old, &self.db, txn)
             .map_err(|err| {
                 ProductError::UpdateOldError("UNION query error:".to_string(), Box::new(err))
             })?;
 
         let new_records = self
             .operator
-            .execute(SetAction::Insert, new, &database, txn)
+            .execute(SetAction::Insert, new, &self.db, txn)
             .map_err(|err| {
                 ProductError::UpdateNewError("UNION query error:".to_string(), Box::new(err))
             })?;
@@ -113,10 +87,6 @@ impl SetProcessor {
 }
 
 impl Processor for SetProcessor {
-    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        self.init_store(txn).map_err(|e| InternalError(Box::new(e)))
-    }
-
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }

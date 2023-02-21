@@ -9,7 +9,7 @@ use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::NaiveDate;
 use dozer_types::log::{debug, info};
@@ -27,6 +27,86 @@ fn test_set_union_pipeline_builder() {
                         SELECT supplier_id
                         FROM suppliers
                         UNION
+                        SELECT supplier_id
+                        FROM orders
+                    )
+                    SELECT supplier_id
+                    INTO set_results
+                    FROM supplier_id_union;";
+
+    dozer_tracing::init_telemetry(false).unwrap();
+
+    let mut pipeline: AppPipeline<SchemaSQLContext> = AppPipeline::new();
+    let query_ctx =
+        statement_to_pipeline(sql, &mut pipeline, Some("set_results".to_string())).unwrap();
+
+    let table_info = query_ctx.output_tables_map.get("set_results").unwrap();
+    let latch = Arc::new(AtomicBool::new(true));
+
+    let mut asm = AppSourceManager::new();
+    asm.add(AppSource::new(
+        "connection".to_string(),
+        Arc::new(TestSourceFactory::new(latch.clone())),
+        vec![
+            ("suppliers".to_string(), SUPPLIERS_PORT),
+            ("orders".to_string(), ORDERS_PORT),
+        ]
+        .into_iter()
+        .collect(),
+    ))
+    .unwrap();
+
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(7, latch)), "sink");
+    pipeline
+        .connect_nodes(
+            &table_info.node,
+            Some(table_info.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        )
+        .unwrap();
+
+    let mut app = App::new(asm);
+    app.add_pipeline(pipeline);
+
+    let dag = app.get_dag().unwrap();
+
+    dag.print_dot();
+
+    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    if tmp_dir.path().exists() {
+        std::fs::remove_dir_all(tmp_dir.path())
+            .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+    }
+    std::fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
+    use std::time::Instant;
+    let now = Instant::now();
+
+    let tmp_dir = TempDir::new("test").unwrap();
+
+    DagExecutor::new(
+        &dag,
+        tmp_dir.path().to_path_buf(),
+        ExecutorOptions::default(),
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
+
+    let elapsed = now.elapsed();
+    info!("Elapsed: {:.2?}", elapsed);
+}
+
+#[test]
+fn test_set_union_all_pipeline_builder() {
+    let sql = "WITH supplier_id_union AS (
+                        SELECT supplier_id
+                        FROM suppliers
+                        UNION ALL
                         SELECT supplier_id
                         FROM orders
                     )
@@ -211,13 +291,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             running: self.running.clone(),
         }))
     }
-
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
 #[derive(Debug)]
@@ -226,6 +299,10 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -397,11 +474,6 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn init(&mut self, _env: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        debug!("SINK: Initialising TestSink");
-        Ok(())
-    }
-    
     fn process(
         &mut self,
         _from_port: PortHandle,
