@@ -13,8 +13,8 @@ pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Opera
     match operation.to_owned() {
         DozerOperation::Delete { old } => Operation {
             typ: OperationType::Delete as i32,
-            old: Some(record_to_internal_record(old)),
-            new: None,
+            old: None,
+            new: Some(record_to_internal_record(old)),
             endpoint_name,
         },
         DozerOperation::Insert { new } => Operation {
