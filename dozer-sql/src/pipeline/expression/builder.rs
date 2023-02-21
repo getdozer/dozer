@@ -245,6 +245,8 @@ impl ExpressionBuilder {
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
         let function_name = sql_function.name.to_string().to_lowercase();
+
+        #[cfg(feature = "python")]
         if function_name.starts_with("py_") {
             // The function is from python udf.
             let udf_name = function_name.strip_prefix("py_").unwrap();
@@ -491,6 +493,7 @@ impl ExpressionBuilder {
         }
     }
 
+    #[cfg(feature = "python")]
     fn parse_python_udf(
         context: &mut ExpressionContext,
         name: &str,

@@ -5,7 +5,6 @@ use uuid::Uuid;
 
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
-use crate::pipeline::expression::python_udf::evaluate_py_udf;
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
@@ -55,6 +54,7 @@ pub enum Expression {
         pattern: Box<Expression>,
         escape: Option<char>,
     },
+    #[cfg(feature = "python")]
     PythonUDF {
         name: String,
         args: Vec<Expression>,
@@ -103,6 +103,7 @@ impl Expression {
                         .as_str()
                     + ")"
             }
+            #[cfg(feature = "python")]
             Expression::PythonUDF { name, args, .. } => {
                 name.to_string()
                     + "("
@@ -205,12 +206,17 @@ impl ExpressionExecutor for Expression {
                 right,
             } => operator.evaluate(schema, left, right, record),
             Expression::ScalarFunction { fun, args } => fun.evaluate(schema, args, record),
+
+            #[cfg(feature = "python")]
             Expression::PythonUDF {
                 name,
                 args,
                 return_type,
                 ..
-            } => evaluate_py_udf(schema, name, args, return_type, record),
+            } => {
+                use crate::pipeline::expression::python_udf::evaluate_py_udf;
+                evaluate_py_udf(schema, name, args, return_type, record)
+            }
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(
@@ -278,6 +284,7 @@ impl ExpressionExecutor for Expression {
             } => get_like_operator_type(arg, pattern, schema),
             Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
             Expression::GeoFunction { fun, args } => get_geo_function_type(fun, args, schema),
+            #[cfg(feature = "python")]
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,
                 false,
