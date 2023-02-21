@@ -1,10 +1,11 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::chrono::SecondsFormat;
+use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
     Field, FieldType, Operation as DozerOperation, Record as DozerRecord, DATE_FORMAT,
 };
 
-use crate::grpc::types::{value, Operation, OperationType, Record, Type, Value};
+use crate::grpc::types::{value, Operation, OperationType, PointType, Record, Type, Value};
 
 use super::types::RecordWithId;
 
@@ -53,6 +54,12 @@ pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
     }
 }
 
+fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) -> Value {
+    Value {
+        value: Some(value::Value::PointValue(PointType { x: x.0, y: y.0 })),
+    }
+}
+
 fn field_to_prost_value(f: Field) -> Value {
     match f {
         Field::UInt(n) => Value {
@@ -95,6 +102,7 @@ fn field_to_prost_value(f: Field) -> Value {
                 date.format(DATE_FORMAT).to_string(),
             )),
         },
+        Field::Point(point) => map_x_y_to_prost_coord_map(point.0.x_y()),
     }
 }
 
@@ -124,5 +132,6 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Timestamp => Type::Timestamp,
         FieldType::Bson => Type::Bson,
         FieldType::Date => Type::String,
+        FieldType::Point => Type::Point,
     }
 }

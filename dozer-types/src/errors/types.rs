@@ -1,3 +1,4 @@
+use geo::vincenty_distance::FailedToConvergeError;
 use thiserror::Error;
 
 use super::internal::BoxedError;
@@ -20,6 +21,8 @@ pub enum TypeError {
     SerializationError(#[source] SerializationError),
     #[error("Failed to parse the field: {0}")]
     DeserializationError(#[source] DeserializationError),
+    #[error("Failed to calculate distance: {0}")]
+    DistanceCalculationError(#[source] FailedToConvergeError),
 }
 
 #[derive(Error, Debug)]

@@ -159,7 +159,8 @@ impl CacheSinkFactory {
                 | FieldType::Boolean
                 | FieldType::Decimal
                 | FieldType::Timestamp
-                | FieldType::Date => vec![IndexDefinition::SortedInverted(vec![idx])],
+                | FieldType::Date
+                | FieldType::Point => vec![IndexDefinition::SortedInverted(vec![idx])],
 
                 // Create sorted inverted and full text indexes for string fields.
                 FieldType::String => vec![
@@ -441,7 +442,7 @@ mod tests {
             .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![idx]))
             .collect();
 
-        let (cache, mut sink) = test_utils::init_sink(&schema, secondary_indexes.clone());
+        let (cache, mut sink) = test_utils::init_sink(&schema, secondary_indexes);
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 

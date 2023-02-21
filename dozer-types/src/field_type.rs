@@ -1,5 +1,6 @@
-use crate::types::Field;
+use crate::types::{DozerPoint, Field};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset, Timelike, Utc};
+use geo::Point;
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 
@@ -108,5 +109,18 @@ impl From<NaiveDate> for Field {
 impl From<NaiveTime> for Field {
     fn from(value: NaiveTime) -> Self {
         Field::UInt(value.nanosecond().into())
+    }
+}
+
+impl From<Point<OrderedFloat<f64>>> for Field {
+    fn from(value: Point<OrderedFloat<f64>>) -> Self {
+        Field::Point(DozerPoint(value))
+    }
+}
+
+impl From<Point> for Field {
+    fn from(value: Point) -> Self {
+        let v = DozerPoint::from((value.x(), value.y()));
+        Field::Point(v)
     }
 }

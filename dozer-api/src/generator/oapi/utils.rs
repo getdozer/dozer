@@ -142,6 +142,30 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
             max_items: None,
             unique_items: false,
         }),
+        FieldType::Point => {
+            let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
+            let required: Vec<String> = vec!["x".to_string(), "y".to_string()];
+
+            for key in &required {
+                properties.insert(
+                    key.clone(),
+                    ReferenceOr::boxed_item(Schema {
+                        schema_data: Default::default(),
+                        schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(
+                            FieldType::Float,
+                        )),
+                    }),
+                );
+            }
+
+            Type::Object(ObjectType {
+                properties,
+                required,
+                additional_properties: None,
+                min_properties: None,
+                max_properties: None,
+            })
+        }
     }
 }
 

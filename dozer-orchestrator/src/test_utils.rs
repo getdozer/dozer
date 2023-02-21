@@ -39,7 +39,7 @@ pub fn init_sink(
     let endpoint = init_endpoint();
 
     cache
-        .insert_schema(&endpoint.name, &schema, &secondary_indexes)
+        .insert_schema(&endpoint.name, schema, &secondary_indexes)
         .unwrap();
 
     let mut input_schemas = HashMap::new();

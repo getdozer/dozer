@@ -8,7 +8,8 @@ use dozer_types::chrono::SecondsFormat;
 use dozer_types::errors::types::{DeserializationError, TypeError};
 use dozer_types::indexmap::IndexMap;
 use dozer_types::json_value_to_field;
-use dozer_types::serde_json::Value;
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::serde_json::{Map, Value};
 use dozer_types::types::{Field, FieldType, Schema, DATE_FORMAT};
 
 pub struct ApiHelper<'a> {
@@ -138,6 +139,13 @@ fn record_to_map(
     Ok(map)
 }
 
+fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Value {
+    let mut m = Map::new();
+    m.insert("x".to_string(), Value::from(x.0));
+    m.insert("y".to_string(), Value::from(y.0));
+    Value::Object(m)
+}
+
 /// Used in REST APIs for converting raw value back and forth.
 ///
 /// Should be consistent with `convert_cache_type_to_schema_type`.
@@ -154,6 +162,7 @@ fn field_to_json_value(field: Field) -> Value {
         Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
         Field::Bson(b) => Value::from(b),
+        Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
         Field::Null => Value::Null,
     }
 }
@@ -166,6 +175,7 @@ fn json_str_to_field(value: &str, typ: FieldType, nullable: bool) -> Result<Fiel
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::types::DozerPoint;
     use dozer_types::{
         chrono::{NaiveDate, Offset, TimeZone, Utc},
         ordered_float::OrderedFloat,
@@ -210,6 +220,10 @@ mod tests {
                 ]),
             ),
             (FieldType::Text, Field::Text("lorem ipsum".to_string())),
+            (
+                FieldType::Point,
+                Field::Point(DozerPoint::from((3.234, 4.567))),
+            ),
         ];
         for (field_type, field) in fields {
             test_field_conversion(field_type, field);
