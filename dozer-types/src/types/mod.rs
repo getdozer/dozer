@@ -1,5 +1,6 @@
 use ahash::AHasher;
-use geo::{point, Point};
+use geo::{point, GeodesicDistance, Point};
+use ordered_float::OrderedFloat;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -11,6 +12,7 @@ use serde::{self, Deserialize, Serialize};
 
 mod field;
 
+use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -339,45 +341,61 @@ pub enum Operation {
     Update { old: Record, new: Record },
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct DozerPoint(pub Point);
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct DozerPoint(pub Point<OrderedFloat<f64>>);
 
-impl Eq for DozerPoint {}
-
-impl PartialEq for DozerPoint {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.x() == other.0.x() && self.0.y() == other.0.y()
+impl GeodesicDistance<OrderedFloat<f64>> for DozerPoint {
+    fn geodesic_distance(&self, rhs: &Self) -> OrderedFloat<f64> {
+        let f = point! { x: self.0.x().0, y: self.0.y().0 };
+        let t = point! { x: rhs.0.x().0, y: rhs.0.y().0 };
+        OrderedFloat(f.geodesic_distance(&t))
     }
 }
 
 impl Ord for DozerPoint {
-    fn cmp(&self, _other: &Self) -> Ordering {
-        todo!("Cmp for DozerPoint not implemented")
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.0.x() == other.0.x() && self.0.y() == other.0.y() {
+            Ordering::Equal
+        } else if self.0.x() > other.0.x()
+            || (self.0.x() == other.0.x() && self.0.y() > other.0.y())
+        {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        }
     }
 }
 
 impl PartialOrd for DozerPoint {
-    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
-        todo!("Partial_cmp for DozerPoint not implemented")
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
 impl FromStr for DozerPoint {
-    type Err = ();
+    type Err = TypeError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.replace('(', "");
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        let s = str.replace('(', "");
         let s = s.replace(')', "");
         let mut cs = s.split(',');
-        let x = cs.next().unwrap().parse::<f64>().unwrap();
-        let y = cs.next().unwrap().parse::<f64>().unwrap();
-        Ok(Self(Point::from((x, y))))
+        let x = cs
+            .next()
+            .ok_or(InvalidFieldValue(s.clone()))?
+            .parse::<f64>()
+            .map_err(|_| InvalidFieldValue(s.clone()))?;
+        let y = cs
+            .next()
+            .ok_or(InvalidFieldValue(s.clone()))?
+            .parse::<f64>()
+            .map_err(|_| InvalidFieldValue(s.clone()))?;
+        Ok(Self(Point::from((OrderedFloat(x), OrderedFloat(y)))))
     }
 }
 
 impl From<(f64, f64)> for DozerPoint {
     fn from((x, y): (f64, f64)) -> Self {
-        Self(point! {x: x, y: y})
+        Self(point! {x: OrderedFloat(x), y: OrderedFloat(y)})
     }
 }
 

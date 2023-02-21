@@ -1,5 +1,6 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::chrono::SecondsFormat;
+use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
     Field, FieldType, Operation as DozerOperation, Record as DozerRecord, DATE_FORMAT,
 };
@@ -53,9 +54,9 @@ pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
     }
 }
 
-fn map_x_y_to_prost_coord_map((x, y): (f64, f64)) -> Value {
+fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) -> Value {
     Value {
-        value: Some(value::Value::PointValue(PointType { x, y })),
+        value: Some(value::Value::PointValue(PointType { x: x.0, y: y.0 })),
     }
 }
 

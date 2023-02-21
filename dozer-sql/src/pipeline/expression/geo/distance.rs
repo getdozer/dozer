@@ -104,8 +104,8 @@ pub(crate) fn evaluate_distance(
             },
         )?;
 
-        let distance: f64 = match calculation_type {
-            Algorithm::Geodesic => Ok(from.0.geodesic_distance(&to.0)),
+        let distance: OrderedFloat<f64> = match calculation_type {
+            Algorithm::Geodesic => Ok(from.geodesic_distance(to)),
             Algorithm::Haversine => Ok(from.0.haversine_distance(&to.0)),
             Algorithm::Vincenty => from
                 .0
@@ -113,6 +113,6 @@ pub(crate) fn evaluate_distance(
                 .map_err(DistanceCalculationError),
         }?;
 
-        Ok(Field::Float(OrderedFloat(distance)))
+        Ok(Field::Float(distance))
     }
 }

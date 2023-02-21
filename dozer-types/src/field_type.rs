@@ -112,8 +112,15 @@ impl From<NaiveTime> for Field {
     }
 }
 
+impl From<Point<OrderedFloat<f64>>> for Field {
+    fn from(value: Point<OrderedFloat<f64>>) -> Self {
+        Field::Point(DozerPoint(value))
+    }
+}
+
 impl From<Point> for Field {
     fn from(value: Point) -> Self {
-        Field::Point(DozerPoint(value))
+        let v = DozerPoint::from((value.x(), value.y()));
+        Field::Point(v)
     }
 }

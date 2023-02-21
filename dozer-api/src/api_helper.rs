@@ -8,6 +8,7 @@ use dozer_types::chrono::SecondsFormat;
 use dozer_types::errors::types::{DeserializationError, TypeError};
 use dozer_types::indexmap::IndexMap;
 use dozer_types::json_value_to_field;
+use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::serde_json::{Map, Value};
 use dozer_types::types::{Field, FieldType, Schema, DATE_FORMAT};
 
@@ -138,10 +139,10 @@ fn record_to_map(
     Ok(map)
 }
 
-fn convert_x_y_to_object((x, y): &(f64, f64)) -> Value {
+fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Value {
     let mut m = Map::new();
-    m.insert("x".to_string(), Value::from(*x));
-    m.insert("y".to_string(), Value::from(*y));
+    m.insert("x".to_string(), Value::from(x.0));
+    m.insert("y".to_string(), Value::from(y.0));
     Value::Object(m)
 }
 
