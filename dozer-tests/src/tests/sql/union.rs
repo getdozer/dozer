@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use crate::tests::sql::helper::get_sample_ops;
+use std::collections::HashSet;
 
 use super::{helper, TestInstruction};
 
