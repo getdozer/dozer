@@ -15,6 +15,7 @@ pub use bincode;
 pub use bytes;
 pub use chrono;
 pub use crossbeam;
+pub use geo;
 pub use indexmap;
 pub use indicatif;
 pub use log;

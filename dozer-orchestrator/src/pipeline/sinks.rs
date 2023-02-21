@@ -159,7 +159,8 @@ impl CacheSinkFactory {
                 | FieldType::Boolean
                 | FieldType::Decimal
                 | FieldType::Timestamp
-                | FieldType::Date => vec![IndexDefinition::SortedInverted(vec![idx])],
+                | FieldType::Date
+                | FieldType::Point => vec![IndexDefinition::SortedInverted(vec![idx])],
 
                 // Create sorted inverted and full text indexes for string fields.
                 FieldType::String => vec![
@@ -316,7 +317,7 @@ impl Sink for CacheSink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        mut op: Operation,
+        op: Operation,
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
@@ -329,8 +330,8 @@ impl Sink for CacheSink {
             .get(&from_port)
             .ok_or(ExecutionError::SchemaNotInitialized)?;
 
-        match &mut op {
-            Operation::Delete { old } => {
+        let mapped_op = match op {
+            Operation::Delete { mut old } => {
                 old.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 let version = self.cache.delete(&key).map_err(|e| {
@@ -340,36 +341,38 @@ impl Sink for CacheSink {
                     ))
                 })?;
                 old.version = Some(version);
+                types_helper::map_delete_operation(self.api_endpoint.name.clone(), old)
             }
-            Operation::Insert { new } => {
+            Operation::Insert { mut new } => {
                 new.schema_id = schema.identifier;
-                self.cache.insert(new).map_err(|e| {
+                let id = self.cache.insert(&mut new).map_err(|e| {
                     ExecutionError::SinkError(SinkError::CacheInsertFailed(
                         endpoint_name,
                         Box::new(e),
                     ))
                 })?;
+                types_helper::map_insert_operation(self.api_endpoint.name.clone(), new, id)
             }
-            Operation::Update { old, new } => {
+            Operation::Update { mut old, mut new } => {
                 old.schema_id = schema.identifier;
                 new.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
-                let old_version = self.cache.update(&key, new).map_err(|e| {
+                let old_version = self.cache.update(&key, &mut new).map_err(|e| {
                     ExecutionError::SinkError(SinkError::CacheUpdateFailed(
                         endpoint_name,
                         Box::new(e),
                     ))
                 })?;
                 old.version = Some(old_version);
+                types_helper::map_update_operation(self.api_endpoint.name.clone(), old, new)
             }
-        }
+        };
 
         if let Some(notifier) = &self.notifier {
-            let op = types_helper::map_operation(self.api_endpoint.name.clone(), &op);
             notifier
                 .try_send(PipelineResponse {
                     endpoint: self.api_endpoint.name.clone(),
-                    api_event: Some(ApiEvent::Op(op)),
+                    api_event: Some(ApiEvent::Op(mapped_op)),
                 })
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }

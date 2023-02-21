@@ -53,6 +53,7 @@ pub fn evaluate_py_udf(
             FieldType::String => Field::String(res.extract::<String>()?),
             FieldType::Text => Field::Text(res.extract::<String>()?),
             FieldType::Binary
+            | FieldType::Point
             | FieldType::Decimal
             | FieldType::Timestamp
             | FieldType::Date

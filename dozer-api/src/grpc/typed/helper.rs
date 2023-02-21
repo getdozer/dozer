@@ -25,11 +25,16 @@ pub fn on_event_to_typed_response(
         );
     }
 
-    if let Some(new) = op.new {
-        event.set_field(
-            &event_desc.new_field,
-            prost_reflect::Value::Message(internal_record_to_pb(new, &event_desc.record_desc)),
-        );
+    event.set_field(
+        &event_desc.new_field,
+        prost_reflect::Value::Message(internal_record_to_pb(
+            op.new.unwrap(),
+            &event_desc.record_desc,
+        )),
+    );
+
+    if let Some(new_id) = op.new_id {
+        event.set_field(&event_desc.new_id_field, prost_reflect::Value::U64(new_id));
     }
 
     TypedResponse::new(event)
@@ -41,8 +46,8 @@ fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) ->
     // `record_desc` has more fields than `record.values` because it also contains the version field.
     // Here `zip` handles the case.
     for (field, value) in record_desc.message.fields().zip(record.values.into_iter()) {
-        if let Some(value) = interval_value_to_pb(value) {
-            msg.set_field(&field, value);
+        if let Some(v) = interval_value_to_pb(value) {
+            msg.set_field(&field, v);
         }
     }
 
@@ -65,6 +70,7 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
         GrpcTypes::value::Value::DoubleValue(n) => Value::F64(n),
+        GrpcTypes::value::Value::PointValue(_p) => todo!(),
         _ => todo!(),
     })
 }
