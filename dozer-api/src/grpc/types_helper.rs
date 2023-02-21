@@ -1,34 +1,43 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{
-    Field, FieldType, Operation as DozerOperation, Record as DozerRecord, DATE_FORMAT,
-};
+use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 
 use crate::grpc::types::{value, Operation, OperationType, PointType, Record, Type, Value};
 
 use super::types::RecordWithId;
 
-pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Operation {
-    match operation.to_owned() {
-        DozerOperation::Delete { old } => Operation {
-            typ: OperationType::Delete as i32,
-            old: Some(record_to_internal_record(old)),
-            new: None,
-            endpoint_name,
-        },
-        DozerOperation::Insert { new } => Operation {
-            typ: OperationType::Insert as i32,
-            old: None,
-            new: Some(record_to_internal_record(new)),
-            endpoint_name,
-        },
-        DozerOperation::Update { old, new } => Operation {
-            typ: OperationType::Insert as i32,
-            old: Some(record_to_internal_record(old)),
-            new: Some(record_to_internal_record(new)),
-            endpoint_name,
-        },
+pub fn map_insert_operation(endpoint_name: String, record: DozerRecord, id: u64) -> Operation {
+    Operation {
+        typ: OperationType::Insert as i32,
+        old: None,
+        new: Some(record_to_internal_record(record)),
+        new_id: Some(id),
+        endpoint_name,
+    }
+}
+
+pub fn map_delete_operation(endpoint_name: String, record: DozerRecord) -> Operation {
+    Operation {
+        typ: OperationType::Delete as i32,
+        old: None,
+        new: Some(record_to_internal_record(record)),
+        new_id: None,
+        endpoint_name,
+    }
+}
+
+pub fn map_update_operation(
+    endpoint_name: String,
+    old: DozerRecord,
+    new: DozerRecord,
+) -> Operation {
+    Operation {
+        typ: OperationType::Update as i32,
+        old: Some(record_to_internal_record(old)),
+        new: Some(record_to_internal_record(new)),
+        new_id: None,
+        endpoint_name,
     }
 }
 

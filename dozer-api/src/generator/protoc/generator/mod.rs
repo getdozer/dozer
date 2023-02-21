@@ -77,6 +77,7 @@ pub struct EventDesc {
     pub typ_field: FieldDescriptor,
     pub old_field: FieldDescriptor,
     pub new_field: FieldDescriptor,
+    pub new_id_field: FieldDescriptor,
     pub record_desc: RecordDesc,
 }
 

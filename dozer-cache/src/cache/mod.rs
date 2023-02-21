@@ -79,8 +79,8 @@ pub trait RwCache: RoCache {
     ) -> Result<(), CacheError>;
 
     // Record Operations
-    /// Sets the version of the inserted record and inserts it into the cache.
-    fn insert(&self, record: &mut Record) -> Result<(), CacheError>;
+    /// Sets the version of the inserted record and inserts it into the cache. Returns the id of the newly inserted record.
+    fn insert(&self, record: &mut Record) -> Result<u64, CacheError>;
     /// Returns version of the deleted record.
     fn delete(&self, key: &[u8]) -> Result<u32, CacheError>;
     /// Sets the version of the updated record and updates it in the cache. Returns the version of the record before the update.

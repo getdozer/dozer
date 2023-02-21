@@ -73,7 +73,9 @@ message FilmEvent {
   // Old record data, only applicable for UPDATE type.
   optional Film old = 2;
   // New record data.
-  optional Film new = 3;
+  Film new = 3;
+  // New record id, only applicable for INSERT type.
+  optional uint64 new_id = 4;
 }
 
 /**
