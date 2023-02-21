@@ -15,7 +15,7 @@ pub(crate) fn evaluate_abs(
     match value {
         Field::Int(i) => Ok(Field::Int(i.abs())),
         Field::Float(f) => Ok(Field::Float(f.abs())),
-        _ => Err(PipelineError::InvalidFunctionArgument(
+        _ => Err(InvalidFunctionArgument(
             ScalarFunctionType::Abs.to_string(),
             value,
             0,

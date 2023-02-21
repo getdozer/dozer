@@ -1,6 +1,11 @@
 use ahash::AHasher;
+use geo::{point, GeodesicDistance, Point};
+use ordered_float::OrderedFloat;
+use std::array::TryFromSliceError;
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 
 use crate::errors::types::TypeError;
 use prettytable::{Cell, Row, Table};
@@ -8,6 +13,7 @@ use serde::{self, Deserialize, Serialize};
 
 mod field;
 
+use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -150,7 +156,7 @@ impl Schema {
 }
 
 impl Display for Schema {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let table = self.print();
         table.fmt(f)
     }
@@ -290,6 +296,10 @@ impl Record {
                     hasher.write_u8(11);
                     hasher.write(b.as_ref());
                 }
+                Field::Point(p) => {
+                    hasher.write_u8(12);
+                    hasher.write(p.to_bytes().as_slice());
+                }
                 Field::Null => {
                     hasher.write_u8(0);
                 }
@@ -330,4 +340,84 @@ pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct DozerPoint(pub Point<OrderedFloat<f64>>);
+
+impl GeodesicDistance<OrderedFloat<f64>> for DozerPoint {
+    fn geodesic_distance(&self, rhs: &Self) -> OrderedFloat<f64> {
+        let f = point! { x: self.0.x().0, y: self.0.y().0 };
+        let t = point! { x: rhs.0.x().0, y: rhs.0.y().0 };
+        OrderedFloat(f.geodesic_distance(&t))
+    }
+}
+
+impl Ord for DozerPoint {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.0.x() == other.0.x() && self.0.y() == other.0.y() {
+            Ordering::Equal
+        } else if self.0.x() > other.0.x()
+            || (self.0.x() == other.0.x() && self.0.y() > other.0.y())
+        {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        }
+    }
+}
+
+impl PartialOrd for DozerPoint {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl FromStr for DozerPoint {
+    type Err = TypeError;
+
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        let s = str.replace('(', "");
+        let s = s.replace(')', "");
+        let mut cs = s.split(',');
+        let x = cs
+            .next()
+            .ok_or(InvalidFieldValue(s.clone()))?
+            .parse::<f64>()
+            .map_err(|_| InvalidFieldValue(s.clone()))?;
+        let y = cs
+            .next()
+            .ok_or(InvalidFieldValue(s.clone()))?
+            .parse::<f64>()
+            .map_err(|_| InvalidFieldValue(s.clone()))?;
+        Ok(Self(Point::from((OrderedFloat(x), OrderedFloat(y)))))
+    }
+}
+
+impl From<(f64, f64)> for DozerPoint {
+    fn from((x, y): (f64, f64)) -> Self {
+        Self(point! {x: OrderedFloat(x), y: OrderedFloat(y)})
+    }
+}
+
+impl Display for DozerPoint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{:?}", self.0.x_y()))
+    }
+}
+
+impl DozerPoint {
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut result = [0_u8; 16];
+        result[0..8].copy_from_slice(&self.0.x().to_be_bytes());
+        result[8..16].copy_from_slice(&self.0.y().to_be_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, TryFromSliceError> {
+        let x = f64::from_be_bytes(bytes[0..8].try_into()?);
+        let y = f64::from_be_bytes(bytes[8..16].try_into()?);
+
+        Ok(DozerPoint::from((x, y)))
+    }
 }

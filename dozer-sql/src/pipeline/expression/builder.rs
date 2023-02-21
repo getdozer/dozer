@@ -18,7 +18,8 @@ use crate::pipeline::errors::PipelineError::{
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::expression::execution::Expression::ScalarFunction;
+use crate::pipeline::expression::execution::Expression::{GeoFunction, ScalarFunction};
+use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::expression::scalar::string::TrimType;
@@ -291,12 +292,22 @@ impl ExpressionBuilder {
                         schema,
                     )?);
                 }
-                let function_type = ScalarFunctionType::new(function_name.as_str())?;
 
-                Ok(Box::new(ScalarFunction {
-                    fun: function_type,
-                    args: function_args,
-                }))
+                ScalarFunctionType::new(function_name.as_str()).map_or_else(
+                    |_e| {
+                        let f = GeoFunctionType::new(function_name.as_str())?;
+                        Ok(Box::new(GeoFunction {
+                            fun: f,
+                            args: function_args.clone(),
+                        }))
+                    },
+                    |f| {
+                        Ok(Box::new(ScalarFunction {
+                            fun: f,
+                            args: function_args.clone(),
+                        }))
+                    },
+                )
             }
         }
     }

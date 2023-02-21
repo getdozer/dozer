@@ -159,7 +159,8 @@ impl CacheSinkFactory {
                 | FieldType::Boolean
                 | FieldType::Decimal
                 | FieldType::Timestamp
-                | FieldType::Date => vec![IndexDefinition::SortedInverted(vec![idx])],
+                | FieldType::Date
+                | FieldType::Point => vec![IndexDefinition::SortedInverted(vec![idx])],
 
                 // Create sorted inverted and full text indexes for string fields.
                 FieldType::String => vec![
