@@ -1,7 +1,6 @@
 app_name: dozer-eth-dashboard
 connections:
-  - db_type: Postgres
-    authentication: !Postgres
+  - config: !Postgres
       user: postgres
       password: postgres
       host: localhost
@@ -9,15 +8,15 @@ connections:
       database: eth_addresses
     name: eth_addresses
 
-  - db_type: Ethereum
-    authentication: !Ethereum
-      wss_url: "{{ETH_WSS_URL}}"
-      contracts:
-      filter:
-        from_block: 16262470
-        addresses:
-        topics:
-    name: eth_conn
+  - config: !Ethereum
+      provider: !Log
+        filter:
+          from_block: 0
+          to_block: 1
+          addresses: [ ]
+          topics: [ ]
+        wss_url: "{{ETH_WSS_URL}}"
+    name: eth_logs
 
 sources:
   - name: eth_addresses
@@ -38,7 +37,7 @@ sources:
       - tag6
   - name: eth_logs
     table_name: eth_logs
-    connection: !Ref eth_conn
+    connection: !Ref eth_logs
     columns:
       - id
       - address
