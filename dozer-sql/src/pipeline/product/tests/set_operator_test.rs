@@ -401,7 +401,7 @@ impl Sink for TestSink {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
-
+    
     fn process(
         &mut self,
         _from_port: PortHandle,

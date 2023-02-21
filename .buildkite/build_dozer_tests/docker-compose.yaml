@@ -8,5 +8,6 @@ services:
     working_dir: ${PWD}
     environment:
       - ETH_WSS_URL
+      - ETH_HTTPS_URL
       - RUST_LOG=info
       - DOZER_VERSION

@@ -27,7 +27,7 @@ impl Serialize for ApiEndpoint {
     where
         S: serde::Serializer,
     {
-        let mut state = serializer.serialize_struct("ApiEndpoint", 3)?;
+        let mut state = serializer.serialize_struct("ApiEndpoint", 4)?;
         state.serialize_field("name", &self.name)?;
         state.serialize_field("path", &self.path)?;
         state.serialize_field("index", &self.index)?;

@@ -22,6 +22,7 @@ pub struct PostgresConfig {
     pub config: Config,
 }
 
+#[derive(Debug)]
 pub struct PostgresConnector {
     pub id: u64,
     name: String,

@@ -14,6 +14,7 @@ use dozer_types::types::{ReplicationChangesTrackingType, SourceSchema};
 
 use tokio::runtime::Runtime;
 
+#[derive(Debug)]
 pub struct EthTraceConnector {
     pub id: u64,
     pub config: EthTraceConfig,

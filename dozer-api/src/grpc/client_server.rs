@@ -71,8 +71,7 @@ impl ApiServer {
                 })
         );
 
-        let generated_path = self.api_dir.join("generated");
-        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
+        let descriptor_path = ProtoGenerator::descriptor_path(&self.api_dir);
 
         let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(&descriptor_path)?;
 
@@ -133,6 +132,7 @@ impl ApiServer {
         let reflection_service = web_config.enable(reflection_service);
 
         let mut service_map: HashMap<String, ServingStatus> = HashMap::new();
+        service_map.insert("".to_string(), ServingStatus::Serving);
         service_map.insert(common::SERVICE_NAME.to_string(), ServingStatus::Serving);
         if typed_service.is_some() {
             service_map.insert(typed::SERVICE_NAME.to_string(), ServingStatus::Serving);

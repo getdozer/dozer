@@ -144,7 +144,7 @@ fn add_dozer_service(
             image: Some(get_dozer_image()),
             build: None,
             ports: vec![],
-            environment: vec![("ETH_WSS_URL".to_string())],
+            environment: vec!["ETH_WSS_URL".to_string(), "ETH_HTTPS_URL".to_string()],
             volumes: vec![format!(
                 "{dozer_config_path}:{dozer_config_path_in_container}"
             )],

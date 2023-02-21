@@ -38,20 +38,19 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
         )
         .unwrap();
 
-    let mut processor = processor_factory
-        .build(
-            HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-            HashMap::new(),
-        )
-        .unwrap();
-
     let tmp_dir = TempDir::new("test").unwrap();
     let storage =
         LmdbEnvironmentManager::create(tmp_dir.path(), "projection_test", Default::default())
             .unwrap();
 
     let tx = storage.create_txn().unwrap();
-    processor.init(&mut tx.write()).unwrap();
+    let mut processor = processor_factory
+        .build(
+            HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+            HashMap::new(),
+            &mut tx.write(),
+        )
+        .unwrap();
 
     let mut fw = TestChannelForwarder { operations: vec![] };
 

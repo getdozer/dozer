@@ -27,6 +27,7 @@ use tokio::time;
 #[cfg(feature = "snowflake")]
 use crate::errors::{SnowflakeError, SnowflakeStreamError};
 
+#[derive(Debug)]
 pub struct SnowflakeConnector {
     name: String,
     config: SnowflakeConfig,

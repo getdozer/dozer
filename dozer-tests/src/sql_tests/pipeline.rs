@@ -12,12 +12,11 @@ use dozer_core::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
-use dozer_types::log::debug;
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use std::collections::HashMap;
 
@@ -107,13 +106,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             .collect())
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -134,10 +126,14 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut idx = 0;
 
@@ -181,9 +177,16 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 
     fn prepare(
         &self,
-        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
-        let (schema, _) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
+        Ok(())
+    }
+
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
 
         self.mapper
             .lock()
@@ -191,13 +194,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
             .create_tables(vec![("results", &get_table_create_sql("results", schema))])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
-        Ok(())
-    }
-
-    fn build(
-        &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink::new(self.mapper.clone())))
     }
 }
@@ -215,11 +211,6 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        debug!("SINK: Initialising TestSink");
-        Ok(())
-    }
-
     fn process(
         &mut self,
         _from_port: PortHandle,
@@ -328,7 +319,6 @@ impl TestPipeline {
         let dag = app.get_dag().unwrap();
 
         let dag_schemas = DagSchemas::new(&dag)?;
-        dag_schemas.prepare()?;
 
         let sink_index = (|| {
             for (node_index, node) in dag_schemas.graph().node_references() {
@@ -366,7 +356,7 @@ impl TestPipeline {
             tmp_dir.path().to_path_buf(),
             ExecutorOptions::default(),
         )
-        .unwrap_or_else(|_e| panic!("Unable to create exec"));
+        .unwrap_or_else(|e| panic!("Unable to create exec: {e}"));
         let join_handle = exec.start(self.running.clone())?;
 
         for (schema_name, op) in &self.ops {

@@ -47,10 +47,6 @@ impl OutputPortDef {
 pub trait SourceFactory<T>: Send + Sync + Debug {
     fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), ExecutionError>;
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError>;
-    fn prepare(
-        &self,
-        output_schemas: HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
@@ -58,10 +54,13 @@ pub trait SourceFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Source: Send + Sync + Debug {
+    /// Checks if the source can start from the given checkpoint.
+    /// If this function returns false, the executor will start the source from the beginning.
+    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError>;
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from: Option<(u64, u64)>,
+        last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError>;
 }
 
@@ -73,20 +72,15 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
     ) -> Result<(Schema, T), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
-    fn prepare(
-        &self,
-        input_schemas: HashMap<PortHandle, (Schema, T)>,
-        output_schemas: HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
+        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError>;
 }
 
 pub trait Processor: Send + Sync + Debug {
-    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError>;
     fn commit(&self, epoch_details: &Epoch, tx: &SharedTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
@@ -111,7 +105,6 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Sink: Send + Sync + Debug {
-    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError>;
     fn commit(
         &mut self,
         epoch_details: &Epoch,

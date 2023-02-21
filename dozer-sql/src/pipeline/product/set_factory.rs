@@ -102,6 +102,7 @@ fn validate_set_operation_input_schemas(
         .to_owned()
         .0
         .fields;
+      
     left_columns.sort();
     right_columns.sort();
 

@@ -3,7 +3,7 @@ use crate::errors::ExecutionError;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::record_store::RecordReader;
 use crate::DEFAULT_PORT_HANDLE;
-use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Operation, Schema};
 
 use dozer_types::log::info;
@@ -61,10 +61,6 @@ pub(crate) struct CountingSink {
     running: Arc<AtomicBool>,
 }
 impl Sink for CountingSink {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(
         &mut self,
         _epoch_details: &Epoch,

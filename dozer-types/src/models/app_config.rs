@@ -7,6 +7,7 @@ use serde::{
     de::{self, IgnoredAny, Visitor},
     Deserialize, Deserializer, Serialize,
 };
+
 #[derive(Serialize, PartialEq, Eq, Clone, prost::Message)]
 /// The configuration for the app
 pub struct Config {
@@ -142,7 +143,7 @@ impl<'de> Deserialize<'de> for Config {
 
                 let sources = result_sources?;
 
-                let result_endpoints: Result<Vec<ApiEndpoint>, A::Error> = endpoints_value
+                let endpoints = endpoints_value
                     .iter()
                     .enumerate()
                     .map(|(idx, endpoint_value)| -> Result<ApiEndpoint, A::Error> {
@@ -152,8 +153,7 @@ impl<'de> Deserialize<'de> for Config {
                             })?;
                         Ok(endpoint)
                     })
-                    .collect();
-                let endpoints = result_endpoints?;
+                    .collect::<Result<Vec<ApiEndpoint>, A::Error>>()?;
 
                 Ok(Config {
                     app_name,

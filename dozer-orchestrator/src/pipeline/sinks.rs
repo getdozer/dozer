@@ -2,7 +2,7 @@ use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_api::grpc::types_helper;
-use dozer_cache::cache::expression::{QueryExpression, Skip};
+use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::{CacheManager, RwCache};
 use dozer_core::epoch::Epoch;
@@ -11,7 +11,6 @@ use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
@@ -46,12 +45,14 @@ pub fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
 }
 #[derive(Debug, Clone)]
 pub struct CacheSinkSettings {
+    api_dir: PathBuf,
     flags: Option<Flags>,
     api_security: Option<ApiSecurity>,
 }
 impl CacheSinkSettings {
-    pub fn new(flags: Option<Flags>, api_security: Option<ApiSecurity>) -> Self {
+    pub fn new(api_dir: PathBuf, flags: Option<Flags>, api_security: Option<ApiSecurity>) -> Self {
         Self {
+            api_dir,
             flags,
             api_security,
         }
@@ -63,7 +64,6 @@ pub struct CacheSinkFactory {
     cache: Arc<dyn RwCache>,
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineResponse>>,
-    generated_path: PathBuf,
     multi_pb: MultiProgress,
     settings: CacheSinkSettings,
 }
@@ -74,7 +74,6 @@ impl CacheSinkFactory {
         cache_manager: &dyn CacheManager,
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
-        generated_path: PathBuf,
         multi_pb: MultiProgress,
         settings: CacheSinkSettings,
     ) -> Result<Self, ExecutionError> {
@@ -104,7 +103,6 @@ impl CacheSinkFactory {
             cache: cache.into(),
             api_endpoint,
             notifier,
-            generated_path,
             multi_pb,
             settings,
         })
@@ -229,7 +227,7 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
             }
 
             ProtoGenerator::generate(
-                &self.generated_path,
+                &self.settings.api_dir,
                 &self.api_endpoint.name,
                 schema,
                 &self.settings.api_security,
@@ -257,7 +255,7 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
             sink_schemas,
             self.notifier.clone(),
             Some(self.multi_pb.clone()),
-        )))
+        )?))
     }
 }
 
@@ -312,25 +310,6 @@ impl Sink for CacheSink {
                 Box::new(e),
             ))
         })?;
-        Ok(())
-    }
-
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        let query = QueryExpression::new(None, vec![], None, Skip::Skip(0));
-        self.counter = self
-            .cache
-            .count(&self.api_endpoint.name, &query)
-            .map_err(|e| {
-                ExecutionError::SinkError(SinkError::CacheCountFailed(
-                    self.api_endpoint.name.clone(),
-                    Box::new(e),
-                ))
-            })?;
-
-        debug!(
-            "SINK: Initialising CacheSink: {} with count: {}",
-            self.api_endpoint.name, self.counter
-        );
         Ok(())
     }
 
@@ -406,16 +385,28 @@ impl CacheSink {
         input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
         notifier: Option<Sender<PipelineResponse>>,
         multi_pb: Option<MultiProgress>,
-    ) -> Self {
+    ) -> Result<Self, ExecutionError> {
+        let query = QueryExpression::with_no_limit();
+        let counter = cache.count(&api_endpoint.name, &query).map_err(|e| {
+            ExecutionError::SinkError(SinkError::CacheCountFailed(
+                api_endpoint.name.clone(),
+                Box::new(e),
+            ))
+        })?;
+
+        debug!(
+            "SINK: Initialising CacheSink: {} with count: {}",
+            api_endpoint.name, counter
+        );
         let pb = attach_progress(multi_pb);
-        Self {
+        Ok(Self {
             cache,
-            counter: 0,
+            counter,
             input_schemas,
             api_endpoint,
             pb,
             notifier,
-        }
+        })
     }
 }
 
@@ -451,15 +442,6 @@ mod tests {
             .collect();
 
         let (cache, mut sink) = test_utils::init_sink(&schema, secondary_indexes.clone());
-
-        let mut input_schemas = HashMap::new();
-        input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
-        // sink.update_schema(&input_schemas).unwrap();
-
-        // Initialing schemas
-        cache
-            .insert_schema("films", &schema, &secondary_indexes)
-            .unwrap();
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 

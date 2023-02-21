@@ -120,7 +120,9 @@ impl<'a> ProtoGeneratorImpl<'a> {
 
     pub fn generate_proto(&self) -> Result<(String, PathBuf), GenerationError> {
         if !Path::new(&self.folder_path).exists() {
-            return Err(GenerationError::DirPathNotExist);
+            return Err(GenerationError::DirPathNotExist(
+                self.folder_path.to_path_buf(),
+            ));
         }
 
         let metadata = self.get_metadata()?;

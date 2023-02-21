@@ -1,5 +1,5 @@
 use dozer_core::{
-    node::{PortHandle, Processor},
+    node::PortHandle,
     storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
     DEFAULT_PORT_HANDLE,
 };
@@ -35,17 +35,17 @@ pub(crate) fn init_processor(
         LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
             .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let mut processor = AggregationProcessor::new(
+    let tx = storage.create_txn().unwrap();
+
+    let processor = AggregationProcessor::new(
         projection_planner.groupby,
         projection_planner.aggregation_output,
         projection_planner.projection_output,
         input_schema.clone(),
         projection_planner.post_aggregation_schema,
+        &mut tx.write(),
     )
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    let tx = storage.create_txn().unwrap();
-    processor.init(&mut tx.write()).unwrap();
 
     Ok((processor, tx))
 }
@@ -211,7 +211,7 @@ pub fn get_date_field(val: &str) -> Field {
 macro_rules! output {
     ($processor:expr, $inp:expr, $tx:expr) => {
         $processor
-            .aggregate(&mut $tx.write(), $processor.db.unwrap(), $inp)
+            .aggregate(&mut $tx.write(), $processor.db, $inp)
             .unwrap_or_else(|_e| panic!("Error executing aggregate"))
     };
 }

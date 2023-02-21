@@ -6,6 +6,7 @@ pub mod join;
 
 pub mod helper;
 mod union;
+pub mod python_udf;
 
 #[derive(Clone, Debug)]
 pub enum TestInstruction {

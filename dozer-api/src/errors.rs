@@ -1,4 +1,6 @@
 #![allow(clippy::enum_variant_names)]
+use std::path::PathBuf;
+
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
@@ -81,8 +83,8 @@ impl From<ApiError> for tonic::Status {
 pub enum GenerationError {
     #[error(transparent)]
     InternalError(#[from] BoxedError),
-    #[error("directory path does not exist")]
-    DirPathNotExist,
+    #[error("directory path {0:?} does not exist")]
+    DirPathNotExist(PathBuf),
     #[error("DozerType to Proto type not supported: {0}")]
     DozerToProtoTypeNotSupported(String),
     #[error("Missing primary key to query by id: {0}")]
