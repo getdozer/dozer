@@ -54,6 +54,7 @@ pub enum Expression {
         pattern: Box<Expression>,
         escape: Option<char>,
     },
+    #[cfg(feature = "python")]
     PythonUDF {
         name: String,
         args: Vec<Expression>,
@@ -102,6 +103,7 @@ impl Expression {
                         .as_str()
                     + ")"
             }
+            #[cfg(feature = "python")]
             Expression::PythonUDF { name, args, .. } => {
                 name.to_string()
                     + "("
@@ -205,21 +207,15 @@ impl ExpressionExecutor for Expression {
             } => operator.evaluate(schema, left, right, record),
             Expression::ScalarFunction { fun, args } => fun.evaluate(schema, args, record),
 
-            #[allow(unused_variables)]
+            #[cfg(feature = "python")]
             Expression::PythonUDF {
                 name,
                 args,
                 return_type,
                 ..
             } => {
-                #[cfg(feature = "python")]
                 use crate::pipeline::expression::python_udf::evaluate_py_udf;
-
-                #[cfg(feature = "python")]
-                return evaluate_py_udf(schema, name, args, return_type, record);
-
-                #[cfg(not(feature = "python"))]
-                panic!("Python feature is not enabled. Please enable it to use Python UDFs")
+                evaluate_py_udf(schema, name, args, return_type, record)
             }
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
@@ -288,6 +284,7 @@ impl ExpressionExecutor for Expression {
             } => get_like_operator_type(arg, pattern, schema),
             Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
             Expression::GeoFunction { fun, args } => get_geo_function_type(fun, args, schema),
+            #[cfg(feature = "python")]
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,
                 false,
