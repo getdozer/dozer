@@ -30,7 +30,8 @@ The `--` before `eth` is how cargo knows following arguments are for the binary.
 
 ### Expected Environment Variables for Running the Tests
 
-- ETH_WSS_URL for Ethereum connector.
+- ETH_WSS_URL for Ethereum connector based on log.
+- ETH_HTTPS_URL for Ethereum connector based on trace.
 
 ## Add a Test Case
 
@@ -62,9 +63,22 @@ If there's no `Dockerfile` under the connection directory, it must contain a `se
 
 ## Run Tests Like in CI
 
-```rust
-cargo build --bin dozer-test-client
-cargo run --bin dozer-tests -- -r buildkite
+```bash
+export DOZER_VERSION=YOUR_TEST_TARGET_VERSION
 ```
 
-If `buildkite` runner type is used, the framework will not use local `dozer` binary or run test client in-process. Instead, it creates `docker-compose.yaml` files for the test cases, which contains all the connection services, the `dozer` service and the test client. A separate `docker compose` process is started to validate all the expectations using the client.
+The CI tests use the dozer image instead of a locally built binary. It reads `DOZER_VERSION` environment variable to determine the image tag.
+
+```bash
+docker compose -f ./buildkite/build_dozer_tests/docker-compose.yaml up
+```
+
+This command will build `dozer-tests` image, inside which `dozer-tests` and `dozer-test-client` can run. It also builds `dozer-test-client` binary under `target/debug/`, which will be used by test cases. After building is finished, the container runs `dozer-tests` to test all the test cases.
+
+After `dozer-tests` image and `dozer-test-client` binary is built, if you want to run a single test case:
+
+```bash
+cargo run --bin dozer-tests -- -r buildkite TEST_CASE_NAME
+```
+
+Note that you can't build `dozer-test-client` locally because your local machine's architecture may differ from `dozer-tests` image.
