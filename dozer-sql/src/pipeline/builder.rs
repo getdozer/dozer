@@ -200,7 +200,7 @@ fn query_to_pipeline(
                     pipeline_idx,
                 )?;
             }
-            _ => return Err(PipelineError::InvalidOperator(op.to_string()))
+            _ => return Err(PipelineError::InvalidOperator(op.to_string())),
         },
         _ => {
             return Err(PipelineError::UnsupportedSqlError(
