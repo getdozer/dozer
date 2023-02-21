@@ -152,11 +152,11 @@ mod tests {
             endpoints: vec![],
             sql: None,
             home_dir: "test".to_string(),
-            cache_max_map_size: default_cache_max_map_size(),
-            app_max_map_size: default_app_max_map_size(),
-            app_buffer_size: default_app_buffer_size(),
-            commit_size: default_commit_size(),
-            commit_timeout: default_commit_timeout(),
+            cache_max_map_size: Some(default_cache_max_map_size()),
+            app_max_map_size: Some(default_app_max_map_size()),
+            app_buffer_size: Some(default_app_buffer_size()),
+            commit_size: Some(default_commit_size()),
+            commit_timeout: Some(default_commit_timeout()),
         }
     }
 

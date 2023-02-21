@@ -1,3 +1,4 @@
+use dozer_core::executor::ExecutorOptions;
 use dozer_types::models::{
     api_config::{ApiConfig, GrpcApiOptions, RestApiOptions},
     api_security::ApiSecurity,
@@ -74,4 +75,13 @@ pub fn get_repl_history_path(config: &Config) -> PathBuf {
 }
 pub fn get_sql_history_path(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("sql_history.txt")
+}
+
+pub fn get_executor_options(config: &Config) -> ExecutorOptions {
+    ExecutorOptions {
+        commit_sz: get_commit_size(config),
+        channel_buffer_sz: get_buffer_size(config) as usize,
+        commit_time_threshold: get_commit_time_threshold(config),
+        max_map_size: get_app_max_map_size(config) as usize,
+    }
 }
