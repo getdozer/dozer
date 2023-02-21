@@ -133,13 +133,13 @@ pub(crate) fn parse_sql_select_item(
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
             match ExpressionBuilder::new(0).parse_sql_expression(true, sql_expr, schema) {
-                Ok(expr) => Ok((sql_expr.to_string(), *expr)),
+                Ok(expr) => Ok((sql_expr.to_string(), expr)),
                 Err(error) => Err(error),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => {
             match ExpressionBuilder::new(0).parse_sql_expression(true, expr, schema) {
-                Ok(expr) => Ok((alias.value.clone(), *expr)),
+                Ok(expr) => Ok((alias.value.clone(), expr)),
                 Err(error) => Err(error),
             }
         }

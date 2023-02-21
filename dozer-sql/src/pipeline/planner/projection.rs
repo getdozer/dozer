@@ -66,7 +66,7 @@ impl CommonPlanner {
                 self.aggregation_output.push(new_aggr);
             }
 
-            self.projection_output.push(*projection_expression.clone());
+            self.projection_output.push(projection_expression.clone());
             Self::append_to_schema(
                 &projection_expression,
                 alias,
@@ -102,7 +102,7 @@ impl CommonPlanner {
                 self.aggregation_output.push(new_aggr);
             }
 
-            self.projection_output.push(*projection_expression.clone());
+            self.projection_output.push(projection_expression.clone());
             Self::append_to_schema(
                 &projection_expression,
                 alias,
@@ -136,7 +136,7 @@ impl CommonPlanner {
         self.aggregation_output = aggregation_output;
         self.post_aggregation_schema = post_aggregation_schema;
 
-        self.having = Some(*having_expression);
+        self.having = Some(having_expression);
 
         Ok(())
     }
@@ -147,7 +147,7 @@ impl CommonPlanner {
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
             let groupby_expression = builder.build(false, &expr, &self.input_schema)?;
-            self.groupby.push(*groupby_expression.clone());
+            self.groupby.push(groupby_expression.clone());
         }
 
         Ok(())
