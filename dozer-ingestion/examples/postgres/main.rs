@@ -3,9 +3,9 @@ use dozer_ingestion::connectors::{Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
+use dozer_types::log::debug;
 use std::thread;
 use std::time::Instant;
-use dozer_types::log::debug;
 
 fn main() {
     dozer_tracing::init_telemetry(false).unwrap();
