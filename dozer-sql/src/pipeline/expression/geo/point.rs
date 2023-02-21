@@ -1,6 +1,6 @@
 use crate::arg_float;
 use crate::pipeline::errors::PipelineError::{
-    InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,
+    InvalidArgument, InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use dozer_types::types::{DozerPoint, Field, FieldType, Record, Schema};
@@ -49,8 +49,14 @@ pub(crate) fn evaluate_point(
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let _res_type = FieldType::Point;
-    let f_x = args.get(0).unwrap().evaluate(record, schema)?;
-    let f_y = args.get(1).unwrap().evaluate(record, schema)?;
+    let f_x = args
+        .get(0)
+        .ok_or(InvalidArgument("x".to_string()))?
+        .evaluate(record, schema)?;
+    let f_y = args
+        .get(1)
+        .ok_or(InvalidArgument("y".to_string()))?
+        .evaluate(record, schema)?;
 
     if f_x == Field::Null || f_y == Field::Null {
         Ok(Field::Null)

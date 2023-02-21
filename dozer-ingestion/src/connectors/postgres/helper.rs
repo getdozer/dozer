@@ -1,6 +1,7 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use crate::errors::PostgresSchemaError::{
-    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, ValueConversionError,
+    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, PointParseError,
+    StringParseError, ValueConversionError,
 };
 use crate::errors::{ConnectorError, PostgresSchemaError};
 use dozer_types::bytes::Bytes;
@@ -75,9 +76,9 @@ pub fn postgres_type_to_field(
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
                 Type::POINT => Ok(Field::Point(
                     String::from_utf8(v.to_vec())
-                        .unwrap()
+                        .map_err(StringParseError)?
                         .parse::<DozerPoint>()
-                        .unwrap(),
+                        .map_err(|_| PointParseError)?,
                 )),
                 _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
             })
