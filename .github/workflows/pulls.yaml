@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Pull Request
-        if: github.event_name == 'workflow_run'
+        if: ${{ github.event_name == 'workflow_run' || github.event_name == 'pull_request' || github.event.workflow_run.event == 'pull_request' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
           DISCORD_EMBEDS: '[ { 
@@ -32,7 +32,7 @@ jobs:
         uses: Ilshidur/action-discord@master 
 
       - name: Discord Pull Review
-        if: github.event_name == 'pull_request_review'
+        if: ${{ github.event_name == 'pull_request_review' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
           DISCORD_EMBEDS: '[ { 
@@ -46,7 +46,7 @@ jobs:
         uses: Ilshidur/action-discord@master 
 
       - name: Discord Pull Comment
-        if: github.event_name == 'pull_request_review_comment'
+        if: ${{ github.event_name == 'pull_request_review_comment' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
           DISCORD_EMBEDS: '[ { 

@@ -185,7 +185,7 @@ jobs:
 
 
       - name: Release notification
-       if: env.VERSION != 'dev'
+       if: ${{ env.VERSION != 'dev' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_HOOK }}
           DISCORD_EMBEDS: '[ { 
