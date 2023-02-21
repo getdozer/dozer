@@ -184,8 +184,8 @@ jobs:
             -d '{ "commit": "${{ github.sha }}", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ steps.build_push_ecr.outputs.SHORT_GITHUB_SHA }}" }, "ignore_pipeline_branch_filters": true }'
 
 
-       name: Release notification
-       if: env.VERSION != 'dev'
+      - name: Release notification
+       if: ${{ env.VERSION != 'dev' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_HOOK }}
           DISCORD_EMBEDS: '[ { 
