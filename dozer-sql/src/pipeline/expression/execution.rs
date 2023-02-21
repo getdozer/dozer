@@ -5,7 +5,6 @@ use uuid::Uuid;
 
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
-use crate::pipeline::expression::python_udf::evaluate_py_udf;
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
@@ -205,12 +204,23 @@ impl ExpressionExecutor for Expression {
                 right,
             } => operator.evaluate(schema, left, right, record),
             Expression::ScalarFunction { fun, args } => fun.evaluate(schema, args, record),
+
+            #[allow(unused_variables)]
             Expression::PythonUDF {
                 name,
                 args,
                 return_type,
                 ..
-            } => evaluate_py_udf(schema, name, args, return_type, record),
+            } => {
+                #[cfg(feature = "python")]
+                use crate::pipeline::expression::python_udf::evaluate_py_udf;
+
+                #[cfg(feature = "python")]
+                return evaluate_py_udf(schema, name, args, return_type, record);
+
+                #[cfg(not(feature = "python"))]
+                panic!("Python feature is not enabled. Please enable it to use Python UDFs")
+            }
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(

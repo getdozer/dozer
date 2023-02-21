@@ -26,7 +26,8 @@ fp_rust = "0.3.5"
 prettytable-rs = "0.10.0"
 indicatif = "0.17.3"
 geo = {version = "0.23.1", features = ["use-serde"]}
-pyo3 = "0.18.1"
+pyo3 = {version = "0.18.1", features = ["auto-initialize"],  optional = true}
 
 [features]
+python = ["dep:pyo3"]
 snowflake=[]
