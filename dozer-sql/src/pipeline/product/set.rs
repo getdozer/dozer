@@ -1,5 +1,5 @@
 use crate::pipeline::errors::PipelineError;
-use crate::{deserialize, deserialize_u8, try_unwrap};
+use crate::{deserialize, try_unwrap};
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_types::parking_lot::RwLockWriteGuard;
 use dozer_types::types::Record;
@@ -53,16 +53,16 @@ impl SetOperation {
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let lookup_key = record.get_values_hash().to_be_bytes();
         let write_txn = &mut txn.write();
+        let mut _count: u8 = 0_u8;
         match action {
             SetAction::Insert => {
-                self.update_set_db(&lookup_key, 1, false, write_txn, *database);
+                _count = self.update_set_db(&lookup_key, 1, false, write_txn, *database);
             }
             SetAction::Delete => {
-                self.update_set_db(&lookup_key, 1, true, write_txn, *database);
+                _count = self.update_set_db(&lookup_key, 1, true, write_txn, *database);
             }
         }
-        let curr_count = self.get_occurrence(&lookup_key, write_txn, *database)?;
-        if curr_count == 1 {
+        if _count == 1 {
             Ok(vec![(action, record.to_owned())])
         } else {
             Ok(vec![])
@@ -76,7 +76,7 @@ impl SetOperation {
         decr: bool,
         ptx: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
         set_db: Database,
-    ) {
+    ) -> u8 {
         let get_prev_count = try_unwrap!(ptx.get(set_db, key));
         let prev_count = match get_prev_count {
             Some(v) => u8::from_be_bytes(deserialize!(v)),
@@ -97,20 +97,6 @@ impl SetOperation {
         } else {
             try_unwrap!(ptx.put(set_db, key, new_count.to_be_bytes().as_slice()));
         }
-    }
-
-    fn get_occurrence(
-        &self,
-        key: &[u8],
-        ptx: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
-        set_db: Database,
-    ) -> Result<u8, PipelineError> {
-        let get_count = ptx.get(set_db, key);
-        if get_count.is_ok() {
-            let count = deserialize_u8!(try_unwrap!(get_count));
-            Ok(count)
-        } else {
-            Ok(0_u8)
-        }
+        new_count
     }
 }
