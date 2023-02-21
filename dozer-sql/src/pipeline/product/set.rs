@@ -1,20 +1,19 @@
 use crate::pipeline::errors::PipelineError;
-use std::borrow::BorrowMut;
-use std::collections::HashMap;
-use lmdb::Database;
-use dozer_types::types::Record;
-use crate::pipeline::errors::{PipelineError, SetError};
-use sqlparser::ast::{Select, SetOperator, SetQuantifier};
-use dozer_core::node::PortHandle;
-use dozer_types::types::Record;
-use sqlparser::ast::{SetOperator, SetQuantifier};
-use dozer_core::record_store::RecordReader;
-use dozer_core::storage::common::Seek;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
-use dozer_types::parking_lot::RwLockWriteGuard;
-use crate::pipeline::errors::SetError::HistoryUnavailable;
+
+
 use crate::{deserialize, deserialize_u8, try_unwrap};
+
+use dozer_core::record_store::RecordReader;
+
+
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
+
+use dozer_types::types::Record;
+use lmdb::Database;
+use sqlparser::ast::{SetOperator, SetQuantifier};
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_types::parking_lot::RwLockWriteGuard;
+
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum SetAction {
@@ -43,12 +42,12 @@ impl SetOperation {
         action: SetAction,
         record: &Record,
         database: &Database,
-        txn: &mut PrefixTransaction,
+        txn: &SharedTransaction,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record.clone())]),
             (SetOperator::Union, SetQuantifier::None) => {
-                self.execute_union(action, record, record_hash_map)
+                self.execute_union(action, record, database, txn)
             }
             _ => Err(PipelineError::InvalidOperandType(self.op.to_string())),
         }
@@ -59,22 +58,22 @@ impl SetOperation {
         action: SetAction,
         record: &Record,
         database: &Database,
-        txn: &mut PrefixTransaction,
+        txn: &SharedTransaction,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let lookup_key = record.get_values_hash().to_be_bytes();
+        let write_txn = &mut txn.write();
         match action {
             SetAction::Insert => {
-                self.update_set_db(&lookup_key, 1, false, txn, *database);
+                self.update_set_db(&lookup_key, 1, false, write_txn, *database);
             }
             SetAction::Delete => {
-                self.update_set_db(&lookup_key, 1, true, txn, *database);
+                self.update_set_db(&lookup_key, 1, true, write_txn, *database);
             }
         }
-        let curr_count = self.get_occurrence(&lookup_key, txn, *database)?;
+        let curr_count = self.get_occurrence(&lookup_key, write_txn, *database)?;
         if curr_count == 1 {
             Ok(vec![(action, record.to_owned())])
-        }
-        else {
+        } else {
             Ok(vec![])
         }
     }
@@ -84,7 +83,7 @@ impl SetOperation {
         key: &[u8],
         val_delta: u8,
         decr: bool,
-        ptx: &mut PrefixTransaction,
+        ptx: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
         set_db: Database,
     ) {
         let get_prev_count = try_unwrap!(ptx.get(set_db, key));
@@ -99,7 +98,11 @@ impl SetOperation {
             new_count = new_count.wrapping_add(val_delta);
         }
         if new_count < 1 {
-            try_unwrap!(ptx.del(set_db, key, Option::from(prev_count.to_be_bytes().as_slice())));
+            try_unwrap!(ptx.del(
+                set_db,
+                key,
+                Option::from(prev_count.to_be_bytes().as_slice())
+            ));
         } else {
             try_unwrap!(ptx.put(set_db, key, new_count.to_be_bytes().as_slice()));
         }
@@ -108,7 +111,7 @@ impl SetOperation {
     fn get_occurrence(
         &self,
         key: &[u8],
-        ptx: &mut PrefixTransaction,
+        ptx: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
         set_db: Database,
     ) -> Result<u8, PipelineError> {
         let get_count = ptx.get(set_db, key);

@@ -120,6 +120,8 @@ pub enum UnsupportedSqlError {
 pub enum SetError {
     #[error("Invalid input schemas have been populated")]
     InvalidInputSchemas,
+    #[error("Database unavailable for SET")]
+    DatabaseUnavailable,
     #[error("History unavailable for SET source [{0}]")]
     HistoryUnavailable(u16),
     #[error(
