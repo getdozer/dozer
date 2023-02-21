@@ -12,4 +12,5 @@ RUN apt-get install docker-ce-cli docker-compose-plugin -y
 # Install protoc
 RUN apt install protobuf-compiler -y
 
-CMD cargo test --package dozer-ingestion --no-run && cd dozer-ingestion && ../target/debug/deps/dozer_ingestion-9e944eedc0714603 test_connector_ --ignored
+#CMD cargo test --package dozer-ingestion test_connector_ -- --ignored && cd dozer-ingestion && ../target/debug/deps/dozer_ingestion-9e944eedc0714603 test_connector_ --ignored
+CMD cargo test --package dozer-ingestion test_connector_ -- --ignored
