@@ -64,9 +64,3 @@ pub enum ConnectionConfig {
     /// In yaml, present as tag: `!ObjectStore`
     LocalStorage(LocalStorage),
 }
-
-impl Default for ConnectionConfig {
-    fn default() -> Self {
-        ConnectionConfig::Postgres(PostgresConfig::default())
-    }
-}
