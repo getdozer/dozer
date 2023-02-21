@@ -1,0 +1,21 @@
+name: Dozer General
+
+on:
+  issues:
+    types: [opened, edited, milestoned]
+  discussion:
+    types: [created, edited]
+  discussion_comment:
+    types: [created, deleted, edited]
+concurrency:
+  group: general
+
+jobs:
+  notify:
+    name: Discord General
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_DISCUSSIONS_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
