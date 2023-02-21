@@ -568,10 +568,8 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
 }
 
 #[cfg(feature = "python")]
-use pyo3::{PyObject, Python, ToPyObject};
-#[cfg(feature = "python")]
-impl ToPyObject for Field {
-    fn to_object(&self, py: Python<'_>) -> PyObject {
+impl pyo3::ToPyObject for Field {
+    fn to_object(&self, py: pyo3::Python<'_>) -> pyo3::PyObject {
         match self {
             Field::UInt(val) => val.to_object(py),
             Field::Int(val) => val.to_object(py),

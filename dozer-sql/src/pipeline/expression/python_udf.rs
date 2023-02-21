@@ -18,16 +18,14 @@ pub fn evaluate_py_udf(
     return_type: &FieldType,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let mut values = vec![];
-    for (idx, arg) in args.iter().enumerate() {
-        if idx == args.len() - 1 {
-            break;
-        }
-        values.push(arg.evaluate(record, schema)?);
-    }
+    let values = args
+        .iter()
+        .take(args.len() - 1)
+        .map(|arg| arg.evaluate(record, schema))
+        .collect::<Result<Vec<_>, PipelineError>>()?;
 
     // Get the path of the Python interpreter in your virtual environment
-    let env_path = env::var("VIRTUAL_ENV").unwrap();
+    let env_path = env::var("VIRTUAL_ENV").map_err(|_| PipelineError::InvalidFunction(format!("Missing 'VIRTUAL_ENV' environment var")))?;
     let py_path = format!("{env_path}/bin/python");
     // Set the `PYTHON_SYS_EXECUTABLE` environment variable
     env::set_var("PYTHON_SYS_EXECUTABLE", py_path);
