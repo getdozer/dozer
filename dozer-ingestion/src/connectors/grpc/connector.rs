@@ -18,6 +18,7 @@ use crate::{
 use tonic::transport::Server;
 use tower_http::trace::TraceLayer;
 
+#[derive(Debug)]
 pub struct GrpcConnector {
     pub id: u64,
     pub name: String,

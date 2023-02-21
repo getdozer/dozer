@@ -5,6 +5,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SetError;
 use crate::pipeline::product::set::SetOperation;
 use crate::pipeline::product::set_processor::SetProcessor;
+use dozer_core::storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
@@ -57,19 +58,12 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(SetProcessor::new(SetOperation {
             op: SetOperator::Union,
             quantifier: self.set_quantifier,
         })))
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
     }
 }
 

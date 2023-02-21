@@ -13,6 +13,7 @@ use crate::connectors::kafka::debezium::stream_consumer::DebeziumStreamConsumer;
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
 use crate::errors::DebeziumError::{DebeziumConnectionError, TopicNotDefined};
 
+#[derive(Debug)]
 pub struct KafkaConnector {
     pub id: u64,
     config: KafkaConfig,

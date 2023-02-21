@@ -126,27 +126,6 @@ impl<T: Clone + Debug> DagSchemas<T> {
 
         schemas
     }
-
-    pub fn prepare(&self) -> Result<(), ExecutionError> {
-        for (node_index, node) in self.graph.node_references() {
-            match &node.kind {
-                NodeKind::Source(source) => {
-                    let output_schemas = self.get_node_output_schemas(node_index);
-                    source.prepare(output_schemas)?;
-                }
-                NodeKind::Processor(processor) => {
-                    let input_schemas = self.get_node_input_schemas(node_index);
-                    let output_schemas = self.get_node_output_schemas(node_index);
-                    processor.prepare(input_schemas, output_schemas)?;
-                }
-                NodeKind::Sink(sink) => {
-                    let input_schemas = self.get_node_input_schemas(node_index);
-                    sink.prepare(input_schemas)?;
-                }
-            }
-        }
-        Ok(())
-    }
 }
 
 pub trait DagHaveSchemas {
@@ -274,7 +253,9 @@ fn populate_schemas<T: Clone + Debug>(
             }
 
             NodeKind::Sink(sink) => {
-                validate_input_schemas(dag, &edges, node_index, sink.get_input_ports())?;
+                let input_schemas =
+                    validate_input_schemas(dag, &edges, node_index, sink.get_input_ports())?;
+                sink.prepare(input_schemas)?;
             }
         }
     }

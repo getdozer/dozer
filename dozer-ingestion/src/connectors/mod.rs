@@ -6,6 +6,7 @@ pub mod postgres;
 
 use crate::connectors::postgres::connection::helper::map_connection_config;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
@@ -31,7 +32,7 @@ use crate::connectors::snowflake::connector::SnowflakeConnector;
 
 pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
 
-pub trait Connector: Send + Sync {
+pub trait Connector: Send + Sync + Debug {
     fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;
 

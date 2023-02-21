@@ -1,5 +1,6 @@
 pub mod app;
 pub mod appsource;
+mod builder_dag;
 pub mod channels;
 mod dag_impl;
 pub use dag_impl::*;

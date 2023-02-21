@@ -15,6 +15,7 @@ use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
+#[derive(Debug)]
 pub struct EthLogConnector {
     pub id: u64,
     config: EthLogConfig,

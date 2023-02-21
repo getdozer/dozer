@@ -56,18 +56,11 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
         )]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(ErrorProcessor {
             err_on: self.err_on,
@@ -85,10 +78,6 @@ struct ErrorProcessor {
 }
 
 impl Processor for ErrorProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -337,13 +326,6 @@ impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
         )])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -362,10 +344,14 @@ pub(crate) struct ErrGeneratorSource {
 }
 
 impl Source for ErrGeneratorSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        _checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
@@ -480,10 +466,6 @@ pub(crate) struct ErrSink {
     panic: bool,
 }
 impl Sink for ErrSink {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }

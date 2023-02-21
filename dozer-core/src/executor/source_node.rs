@@ -14,17 +14,14 @@ use dozer_types::{
 };
 
 use crate::{
+    builder_dag::NodeKind,
     channels::SourceChannelForwarder,
     errors::ExecutionError,
     forwarder::{SourceChannelManager, StateWriter},
     node::{PortHandle, Source},
 };
 
-use super::{
-    execution_dag::{ExecutionDag, NodeKind},
-    node::Node,
-    ExecutorOptions,
-};
+use super::{execution_dag::ExecutionDag, node::Node, ExecutorOptions};
 
 impl SourceChannelForwarder for InternalChannelSourceForwarder {
     fn send(

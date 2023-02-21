@@ -71,8 +71,7 @@ impl ApiServer {
                 })
         );
 
-        let generated_path = self.api_dir.join("generated");
-        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
+        let descriptor_path = ProtoGenerator::descriptor_path(&self.api_dir);
 
         let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(&descriptor_path)?;
 

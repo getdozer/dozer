@@ -85,13 +85,6 @@ impl SourceFactory<NoneContext> for GeneratorSourceFactory {
         )])
     }
 
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -110,10 +103,14 @@ pub(crate) struct GeneratorSource {
 }
 
 impl Source for GeneratorSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut txid: u64 = 0;
 
@@ -227,18 +224,11 @@ impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
         )]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(RecordReaderProcessor { _ctr: 1 }))
     }
@@ -250,10 +240,6 @@ pub(crate) struct RecordReaderProcessor {
 }
 
 impl Processor for RecordReaderProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(
         &self,
         _epoch_details: &Epoch,

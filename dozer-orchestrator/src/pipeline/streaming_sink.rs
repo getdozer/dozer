@@ -7,10 +7,8 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_types::{
     crossbeam,
-    log::debug,
     types::{Operation, Schema},
 };
 use std::collections::HashMap;
@@ -56,11 +54,6 @@ pub struct StreamingSink {
 }
 
 impl Sink for StreamingSink {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        debug!("SINK: Initialising StreamingSink");
-        Ok(())
-    }
-
     fn process(
         &mut self,
         _from_port: PortHandle,
