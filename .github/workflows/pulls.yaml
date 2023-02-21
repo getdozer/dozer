@@ -1,0 +1,59 @@
+name: Dozer Pulls
+
+on:
+  pull_request_target:
+    branches: [main, release]
+    types: [ready_for_review]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created, deleted]
+concurrency:
+  group: pull
+
+jobs:
+  notify:
+    name: Discord Pull
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull Request
+        if: github.event_name == 'pull_request_target'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
+          DISCORD_EMBEDS: '[ { 
+           "title": "`Pull request ${{ github.event.number }}` is ready for review",
+           "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.sender }}", "url": "https://github.com/${{ github.actor }}" },
+          "fields": [
+            { "name": "Body", "value": "${{ github.event.pull_request.body }}" }
+          ],
+          "color": 990099
+          }]'
+        uses: Ilshidur/action-discord@master 
+
+      - name: Discord Pull Review
+        if: github.event_name == 'pull_request_review'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
+          DISCORD_EMBEDS: '[ { 
+           "title": "`Pull request ${{ github.event.number }}`: Review submitted",
+           "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{ github.actor }}" },
+          "fields": [
+            { "name": "Body", "value": "${{ github.event.review.body }}" }
+          ],
+          "color": 990099
+          }]'
+        uses: Ilshidur/action-discord@master 
+
+      - name: Discord Pull Comment
+        if: github.event_name == 'pull_request_review_comment'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
+          DISCORD_EMBEDS: '[ { 
+           "title": "`Pull request ${{ github.event.number }}`",
+           "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{ github.actor }}" },
+          "fields": [
+            { "name": "Body", "value": "${{ github.event.comment.body }}" }
+          ],
+          "color": 990099
+          }]'
+        uses: Ilshidur/action-discord@master 
