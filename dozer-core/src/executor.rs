@@ -109,7 +109,7 @@ impl DagExecutor {
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let builder_dag = BuilderDag::new(&dag_schemas, path)?;
+        let builder_dag = BuilderDag::new(&dag_schemas, path, options.max_map_size)?;
 
         Ok(Self {
             builder_dag,
@@ -125,11 +125,8 @@ impl DagExecutor {
 
     pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
-        let mut execution_dag = ExecutionDag::new(
-            self.builder_dag,
-            self.options.channel_buffer_sz,
-            self.options.max_map_size,
-        )?;
+        let mut execution_dag =
+            ExecutionDag::new(self.builder_dag, self.options.channel_buffer_sz)?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.

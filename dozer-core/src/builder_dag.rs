@@ -1,6 +1,7 @@
 use std::{fmt::Debug, path::PathBuf};
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
+use dozer_storage::lmdb_storage::LmdbEnvironmentOptions;
 use dozer_types::{
     node::{NodeHandle, OpIdentifier},
     types::Schema,
@@ -54,6 +55,7 @@ impl BuilderDag {
     pub fn new<T: Clone>(
         dag_schemas: &DagSchemas<T>,
         path: PathBuf,
+        max_map_size: usize,
     ) -> Result<Self, ExecutionError> {
         // Initial consistency check.
         let mut dag_metadata = DagMetadata::new(dag_schemas, path)?;
@@ -75,7 +77,13 @@ impl BuilderDag {
             {
                 node_storage
             } else {
-                dag_metadata.initialize_node_storage(node_index)?
+                dag_metadata.initialize_node_storage(
+                    node_index,
+                    LmdbEnvironmentOptions {
+                        max_map_sz: max_map_size,
+                        ..LmdbEnvironmentOptions::default()
+                    },
+                )?
             };
 
             // Create and initialize source, processor or sink.

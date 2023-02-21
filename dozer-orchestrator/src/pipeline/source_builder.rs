@@ -109,8 +109,8 @@ mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
     use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
     use dozer_types::models::app_config::{
-        default_cache_max_map_size, default_commit_size, default_commit_timeout,
-        default_pipeline_buffer_size, default_pipeline_max_map_size, Config,
+        default_app_buffer_size, default_app_max_map_size, default_cache_max_map_size,
+        default_commit_size, default_commit_timeout, Config,
     };
 
     use dozer_core::appsource::{AppSourceId, AppSourceMappings};
@@ -153,8 +153,8 @@ mod tests {
             sql: None,
             home_dir: "test".to_string(),
             cache_max_map_size: default_cache_max_map_size(),
-            pipeline_max_map_size: default_pipeline_max_map_size(),
-            pipeline_buffer_size: default_pipeline_buffer_size(),
+            app_max_map_size: default_app_max_map_size(),
+            app_buffer_size: default_app_buffer_size(),
             commit_size: default_commit_size(),
             commit_timeout: default_commit_timeout(),
         }

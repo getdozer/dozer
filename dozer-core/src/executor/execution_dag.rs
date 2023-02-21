@@ -21,8 +21,6 @@ use daggy::petgraph::{
     Direction,
 };
 
-use dozer_storage::lmdb_storage::LmdbEnvironmentOptions;
-
 use super::ExecutorOperation;
 
 pub type SharedRecordWriter = Rc<RefCell<Option<Box<dyn RecordWriter>>>>;
@@ -52,8 +50,7 @@ pub struct ExecutionDag {
 impl ExecutionDag {
     pub fn new(
         mut builder_dag: BuilderDag,
-        channel_buf_sz: usize,
-        max_map_size: usize,
+        channel_buffer_sz: usize,
     ) -> Result<Self, ExecutionError> {
         // Create new nodes.
         let mut nodes = vec![];
