@@ -1,19 +1,10 @@
 use crate::pipeline::errors::PipelineError;
-
-
 use crate::{deserialize, deserialize_u8, try_unwrap};
-
-use dozer_core::record_store::RecordReader;
-
-
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
-
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_types::parking_lot::RwLockWriteGuard;
 use dozer_types::types::Record;
 use lmdb::Database;
 use sqlparser::ast::{SetOperator, SetQuantifier};
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
-use dozer_types::parking_lot::RwLockWriteGuard;
-
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum SetAction {

@@ -5,17 +5,13 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 
+use dozer_core::errors::ExecutionError;
+use dozer_core::errors::ExecutionError::InternalError;
 use dozer_types::types::{Operation, Record};
 use lmdb::{Database, DatabaseFlags};
 use std::collections::HashMap;
-use std::ops::DerefMut;
-use dozer_core::errors::ExecutionError;
-use dozer_core::errors::ExecutionError::InternalError;
-
-const SET_PREFIX: u32 = 100000;
 
 #[derive(Debug)]
 pub struct SetProcessor {
@@ -45,7 +41,9 @@ impl SetProcessor {
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         let database = if self.db.is_some() {
-            self.db.map_or(Err(SetError::DatabaseUnavailable), Ok).unwrap()
+            self.db
+                .map_or(Err(SetError::DatabaseUnavailable), Ok)
+                .unwrap()
         } else {
             return Err(ProductError::InvalidDatabase());
         };
@@ -65,7 +63,9 @@ impl SetProcessor {
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         let database = if self.db.is_some() {
-            self.db.map_or(Err(SetError::DatabaseUnavailable), Ok).unwrap()
+            self.db
+                .map_or(Err(SetError::DatabaseUnavailable), Ok)
+                .unwrap()
         } else {
             return Err(ProductError::InvalidDatabase());
         };
@@ -87,7 +87,9 @@ impl SetProcessor {
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
         let database = if self.db.is_some() {
-            self.db.map_or(Err(SetError::DatabaseUnavailable), Ok).unwrap()
+            self.db
+                .map_or(Err(SetError::DatabaseUnavailable), Ok)
+                .unwrap()
         } else {
             return Err(ProductError::InvalidDatabase());
         };

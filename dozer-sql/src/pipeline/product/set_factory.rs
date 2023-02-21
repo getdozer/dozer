@@ -47,12 +47,20 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
 
         let mut output_schema = Schema::empty();
         output_schema.fields = output_columns;
-        output_schema.identifier = input_schemas.get(&0)
+        output_schema.identifier = input_schemas
+            .get(&0)
             .map_or(Err(SetError::InvalidInputSchemas), Ok)
-            .unwrap().to_owned().0.identifier;
-        output_schema.primary_index = input_schemas.get(&0)
+            .unwrap()
+            .to_owned()
+            .0
+            .identifier;
+        output_schema.primary_index = input_schemas
+            .get(&0)
             .map_or(Err(SetError::InvalidInputSchemas), Ok)
-            .unwrap().to_owned().0.primary_index;
+            .unwrap()
+            .to_owned()
+            .0
+            .primary_index;
 
         Ok((output_schema, SchemaSQLContext::default()))
     }
@@ -80,12 +88,20 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
 fn validate_set_operation_input_schemas(
     input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
 ) -> Result<Vec<FieldDefinition>, PipelineError> {
-    let mut left_columns = input_schemas.get(&0)
+    let mut left_columns = input_schemas
+        .get(&0)
         .map_or(Err(SetError::InvalidInputSchemas), Ok)
-        .unwrap().to_owned().0.fields;
-    let mut right_columns = input_schemas.get(&1)
+        .unwrap()
+        .to_owned()
+        .0
+        .fields;
+    let mut right_columns = input_schemas
+        .get(&1)
         .map_or(Err(SetError::InvalidInputSchemas), Ok)
-        .unwrap().to_owned().0.fields;
+        .unwrap()
+        .to_owned()
+        .0
+        .fields;
     left_columns.sort();
     right_columns.sort();
 
