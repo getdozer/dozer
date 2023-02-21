@@ -48,7 +48,10 @@ pub struct ExecutionDag {
 }
 
 impl ExecutionDag {
-    pub fn new(mut builder_dag: BuilderDag, channel_buf_sz: usize) -> Result<Self, ExecutionError> {
+    pub fn new(
+        mut builder_dag: BuilderDag,
+        channel_buffer_sz: usize,
+    ) -> Result<Self, ExecutionError> {
         // Create new nodes.
         let mut nodes = vec![];
         let mut num_sources = 0;
@@ -98,7 +101,7 @@ impl ExecutionDag {
                             output_port,
                             edge.output_port_type,
                             edge.schema.clone(),
-                            channel_buf_sz + 1,
+                            channel_buffer_sz + 1,
                         )?;
                         let (record_writer, record_reader) =
                             if let Some((record_writer, record_reader)) = record_store {
@@ -115,7 +118,7 @@ impl ExecutionDag {
                 };
 
             // Create channel.
-            let (sender, receiver) = bounded(channel_buf_sz);
+            let (sender, receiver) = bounded(channel_buffer_sz);
 
             // Create edge.
             let edge = EdgeType {

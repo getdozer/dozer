@@ -25,6 +25,8 @@ pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
+
+    pub max_map_size: usize,
 }
 
 impl Default for ExecutorOptions {
@@ -33,6 +35,7 @@ impl Default for ExecutorOptions {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
+            max_map_size: 1024 * 1024 * 1024 * 1024,
         }
     }
 }
@@ -106,7 +109,7 @@ impl DagExecutor {
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let builder_dag = BuilderDag::new(&dag_schemas, path)?;
+        let builder_dag = BuilderDag::new(&dag_schemas, path, options.max_map_size)?;
 
         Ok(Self {
             builder_dag,
