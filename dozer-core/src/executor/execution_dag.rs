@@ -12,6 +12,7 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
+use dozer_storage::lmdb_storage::LmdbEnvironmentOptions;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
@@ -73,7 +74,8 @@ pub struct ExecutionDag {
 impl ExecutionDag {
     pub fn new<T: Clone>(
         mut dag_metadata: DagMetadata<T>,
-        channel_buf_sz: usize,
+        channel_buffer_sz: usize,
+        max_map_size: usize,
     ) -> Result<Self, ExecutionError> {
         // Create new nodes.
         let mut nodes = vec![];
@@ -86,7 +88,13 @@ impl ExecutionDag {
             {
                 node_storage
             } else {
-                dag_metadata.initialize_node_storage(node_index)?
+                dag_metadata.initialize_node_storage(
+                    node_index,
+                    LmdbEnvironmentOptions {
+                        max_map_sz: max_map_size,
+                        ..LmdbEnvironmentOptions::default()
+                    },
+                )?
             };
 
             // Create and initialize source, processor or sink.
@@ -156,7 +164,7 @@ impl ExecutionDag {
                             output_port,
                             edge.output_port_type,
                             edge.schema.clone(),
-                            channel_buf_sz + 1,
+                            channel_buffer_sz + 1,
                         )?;
                         let (record_writer, record_reader) =
                             if let Some((record_writer, record_reader)) = record_store {
@@ -173,7 +181,7 @@ impl ExecutionDag {
                 };
 
             // Create channel.
-            let (sender, receiver) = bounded(channel_buf_sz);
+            let (sender, receiver) = bounded(channel_buffer_sz);
 
             // Create edge.
             let edge = EdgeType {

@@ -185,6 +185,7 @@ impl<T: Clone> DagMetadata<T> {
     pub fn initialize_node_storage(
         &self,
         node_index: NodeIndex,
+        storage_options: LmdbEnvironmentOptions,
     ) -> Result<NodeStorage, StorageError> {
         // Create the environment.
         let node = &self.graph[node_index];
@@ -192,11 +193,7 @@ impl<T: Clone> DagMetadata<T> {
         let node_handle = &node.handle;
         let env_name = node_environment_name(node_handle);
         debug_assert!(!LmdbEnvironmentManager::exists(&self.path, &env_name));
-        let mut env = LmdbEnvironmentManager::create(
-            &self.path,
-            &env_name,
-            LmdbEnvironmentOptions::default(),
-        )?;
+        let mut env = LmdbEnvironmentManager::create(&self.path, &env_name, storage_options)?;
         let meta_db = env.create_database(Some(METADATA_DB_NAME), Some(DatabaseFlags::empty()))?;
         let txn = env.create_txn()?;
 

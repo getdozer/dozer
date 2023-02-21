@@ -24,6 +24,8 @@ pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
+
+    pub max_map_size: usize,
 }
 
 impl Default for ExecutorOptions {
@@ -32,6 +34,7 @@ impl Default for ExecutorOptions {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
+            max_map_size: 1024 * 1024 * 1024 * 1024,
         }
     }
 }
@@ -129,8 +132,11 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
 
     pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
-        let mut execution_dag =
-            ExecutionDag::new(self.dag_metadata, self.options.channel_buffer_sz)?;
+        let mut execution_dag = ExecutionDag::new(
+            self.dag_metadata,
+            self.options.channel_buffer_sz,
+            self.options.max_map_size,
+        )?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.

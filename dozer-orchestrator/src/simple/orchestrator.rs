@@ -4,8 +4,9 @@ use crate::errors::OrchestrationError;
 use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir, get_flags,
-    get_grpc_config, get_max_map_size, get_pipeline_dir, get_rest_config,
+    get_api_dir, get_api_security_config, get_app_grpc_config, get_app_max_map_size,
+    get_buffer_size, get_cache_dir, get_cache_max_map_size, get_commit_size,
+    get_commit_time_threshold, get_flags, get_grpc_config, get_pipeline_dir, get_rest_config,
 };
 use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
@@ -22,6 +23,7 @@ use dozer_cache::cache::{CacheManager, CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
+use dozer_core::executor::ExecutorOptions;
 use dozer_core::petgraph::visit::{IntoEdgesDirected, IntoNodeReferences};
 use dozer_core::petgraph::Direction;
 use dozer_core::NodeKind;
@@ -45,18 +47,27 @@ use tokio::sync::{broadcast, oneshot};
 pub struct SimpleOrchestrator {
     pub config: Config,
     pub cache_manager_options: CacheManagerOptions,
+    pub executor_options: ExecutorOptions,
 }
 
 impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
         let cache_manager_options = CacheManagerOptions {
             path: Some(get_cache_dir(&config)),
-            max_size: get_max_map_size(&config),
-            ..Default::default()
+            max_size: get_cache_max_map_size(&config),
+            ..CacheManagerOptions::default()
+        };
+
+        let executor_options = ExecutorOptions {
+            commit_sz: get_commit_size(&config),
+            channel_buffer_sz: get_buffer_size(&config),
+            commit_time_threshold: get_commit_time_threshold(&config),
+            max_map_size: get_app_max_map_size(&config),
         };
         Self {
             config,
             cache_manager_options,
+            executor_options,
         }
     }
 }
@@ -186,6 +197,7 @@ impl Orchestrator for SimpleOrchestrator {
             Some(sender),
             self.cache_manager_options.clone(),
             settings,
+            self.executor_options.clone(),
         )?;
 
         if let Some(api_notifier) = api_notifier {

@@ -117,6 +117,7 @@ impl Executor {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
+        executor_options: ExecutorOptions,
     ) -> Result<DagExecutor<SchemaSQLContext>, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.config.clone(),
@@ -138,7 +139,7 @@ impl Executor {
             ));
         }
 
-        let exec = DagExecutor::new(&dag, path.to_path_buf(), ExecutorOptions::default())?;
+        let exec = DagExecutor::new(&dag, path.to_path_buf(), executor_options)?;
 
         Ok(exec)
     }
