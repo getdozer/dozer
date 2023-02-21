@@ -41,8 +41,9 @@ criterion = { version = "0.4.0", features = ["html_reports"] }
 serial_test = "1.0.0"
 rand = "0.8.5"
 include_dir = "0.7.3"
-dozer-tracing = {path = "../dozer-tracing"}
 hex-literal = "0.3.4"
+dozer-tracing = {path = "../dozer-tracing"}
+dozer-tests = { path = "../dozer-tests" }
 
 [build-dependencies]
 tonic-build = "0.8.2"
@@ -51,22 +52,3 @@ tonic-build = "0.8.2"
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
 snowflake = ["dep:odbc", "dep:include_dir"]
-# workaroud to ignore debezium benchmarking when running `cargo criterion` without any parameters
-debezium_bench = []
-postgres_bench = ["dep:include_dir"]
-
-# Temporary disalbe
-#[[bench]]
-#name = "snowflake"
-#harness = false
-#required-features = ["snowflake"]
-
-#[[bench]]
-#name = "debezium"
-#harness = false
-#required-features = ["debezium_bench"]
-#
-#[[bench]]
-#name = "postgres"
-#harness = false
-#required-features = ["postgres_bench"]
