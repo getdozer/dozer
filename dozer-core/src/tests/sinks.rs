@@ -6,7 +6,7 @@ use crate::DEFAULT_PORT_HANDLE;
 use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Operation, Schema};
 
-use dozer_types::log::info;
+use dozer_types::log::debug;
 use std::collections::HashMap;
 
 use crate::tests::app::NoneContext;
