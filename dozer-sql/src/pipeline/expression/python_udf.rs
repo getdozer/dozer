@@ -25,7 +25,9 @@ pub fn evaluate_py_udf(
         .collect::<Result<Vec<_>, PipelineError>>()?;
 
     // Get the path of the Python interpreter in your virtual environment
-    let env_path = env::var("VIRTUAL_ENV").map_err(|_| PipelineError::InvalidFunction(format!("Missing 'VIRTUAL_ENV' environment var")))?;
+    let env_path = env::var("VIRTUAL_ENV").map_err(|_| {
+        PipelineError::InvalidFunction("Missing 'VIRTUAL_ENV' environment var".to_string())
+    })?;
     let py_path = format!("{env_path}/bin/python");
     // Set the `PYTHON_SYS_EXECUTABLE` environment variable
     env::set_var("PYTHON_SYS_EXECUTABLE", py_path);
