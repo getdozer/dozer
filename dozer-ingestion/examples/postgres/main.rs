@@ -37,7 +37,7 @@ fn main() {
     loop {
         let _msg = iterator.next().unwrap();
         if i % 100 == 0 {
-            info!(
+            debug!(
                 "{}\rCount: {}, Elapsed time: {:.2?}",
                 BACKSPACE,
                 i,

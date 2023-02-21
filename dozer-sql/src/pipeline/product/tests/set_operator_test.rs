@@ -98,7 +98,7 @@ fn test_set_union_pipeline_builder() {
     .unwrap();
 
     let elapsed = now.elapsed();
-    info!("Elapsed: {:.2?}", elapsed);
+    debug!("Elapsed: {:.2?}", elapsed);
 }
 
 #[test]
@@ -178,7 +178,7 @@ fn test_set_union_all_pipeline_builder() {
     .unwrap();
 
     let elapsed = now.elapsed();
-    info!("Elapsed: {:.2?}", elapsed);
+    debug!("Elapsed: {:.2?}", elapsed);
 }
 
 const SUPPLIERS_PORT: u16 = 0 as PortHandle;
@@ -482,10 +482,10 @@ impl Sink for TestSink {
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match _op {
-            Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
-            Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
+            Operation::Delete { old } => debug!("o0:-> - {:?}", old.values),
+            Operation::Insert { new } => debug!("o0:-> + {:?}", new.values),
             Operation::Update { old, new } => {
-                info!("o0:-> - {:?}, + {:?}", old.values, new.values)
+                debug!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
         }
 

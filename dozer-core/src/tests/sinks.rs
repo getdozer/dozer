@@ -85,7 +85,7 @@ impl Sink for CountingSink {
     ) -> Result<(), ExecutionError> {
         self.current += 1;
         if self.current == self.expected {
-            info!(
+            debug!(
                 "Received {} messages. Notifying sender to exit!",
                 self.current
             );
