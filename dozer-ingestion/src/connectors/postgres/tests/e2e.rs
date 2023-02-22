@@ -13,7 +13,7 @@ use rand::Rng;
 fn connector_disabled_test_e2e_connect_postgres_stream() {
     let config = serde_yaml::from_str::<Config>(load_config("test.postgres.yaml")).unwrap();
     let connection = config.connections.get(0).unwrap().clone();
-    let mut client = TestPostgresClient::new(&connection.config.to_owned().unwrap_or_default());
+    let mut client = TestPostgresClient::new(&connection.config.to_owned().unwrap());
 
     let mut rng = rand::thread_rng();
     let table_name = format!("products_test_{}", rng.gen::<u32>());

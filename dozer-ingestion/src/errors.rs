@@ -22,6 +22,9 @@ use schema_registry_converter::error::SRCError;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
+    #[error("Missing `config` for connector {0}")]
+    MissingConfiguration(String),
+
     #[error("Table not found: {0}")]
     TableNotFound(String),
 

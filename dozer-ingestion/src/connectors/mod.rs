@@ -93,7 +93,9 @@ pub struct ColumnInfo {
 }
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
-    let config = connection.config.unwrap_or_default();
+    let config = connection
+        .config
+        .ok_or_else(|| ConnectorError::MissingConfiguration(connection.name.clone()))?;
     match config {
         ConnectionConfig::Postgres(_) => {
             let config = map_connection_config(&config)?;
