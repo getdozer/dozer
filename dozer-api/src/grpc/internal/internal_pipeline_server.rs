@@ -1,7 +1,6 @@
 use crate::grpc::internal_grpc::{
     internal_pipeline_service_server::{self, InternalPipelineService},
-    GetAppConfigRequest, GetAppConfigResponse, PipelineRequest, PipelineResponse,
-    RestartPipelineRequest, RestartPipelineResponse,
+    PipelineRequest, PipelineResponse,
 };
 use crossbeam::channel::Receiver;
 use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
@@ -14,19 +13,15 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
 
 pub struct InternalPipelineServer {
-    app_config: Config,
     receiver: broadcast::Receiver<PipelineResponse>,
 }
 impl InternalPipelineServer {
-    pub fn new(app_config: Config, receiver: Receiver<PipelineResponse>) -> Self {
+    pub fn new(receiver: Receiver<PipelineResponse>) -> Self {
         let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
         tokio::spawn(async move {
             Self::setup_broad_cast_channel(tx, receiver);
         });
-        Self {
-            app_config,
-            receiver: rx1,
-        }
+        Self { receiver: rx1 }
     }
 
     fn setup_broad_cast_channel(
@@ -89,21 +84,6 @@ impl InternalPipelineService for InternalPipelineServer {
             Box::pin(output_stream) as Self::StreamPipelineRequestStream
         ))
     }
-
-    async fn get_config(
-        &self,
-        _request: tonic::Request<GetAppConfigRequest>,
-    ) -> Result<tonic::Response<GetAppConfigResponse>, tonic::Status> {
-        Ok(Response::new(GetAppConfigResponse {
-            data: Some(self.app_config.to_owned()),
-        }))
-    }
-    async fn restart(
-        &self,
-        _request: tonic::Request<RestartPipelineRequest>,
-    ) -> Result<tonic::Response<RestartPipelineResponse>, tonic::Status> {
-        todo!();
-    }
 }
 
 pub fn start_internal_pipeline_server(
@@ -117,7 +97,7 @@ async fn _start_internal_pipeline_server(
     app_config: Config,
     receiver: Receiver<PipelineResponse>,
 ) -> Result<(), tonic::transport::Error> {
-    let server = InternalPipelineServer::new(app_config.to_owned(), receiver);
+    let server = InternalPipelineServer::new(receiver);
 
     let internal_config = app_config
         .api

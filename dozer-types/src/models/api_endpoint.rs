@@ -29,9 +29,9 @@ impl Serialize for ApiEndpoint {
     {
         let mut state = serializer.serialize_struct("ApiEndpoint", 4)?;
         state.serialize_field("name", &self.name)?;
+        state.serialize_field("table_name", &self.table_name)?;
         state.serialize_field("path", &self.path)?;
         state.serialize_field("index", &self.index)?;
-        state.serialize_field("table_name", &self.table_name)?;
 
         state.end()
     }
