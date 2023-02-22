@@ -1,9 +1,6 @@
 steps:
   - label: "Run connector tests"
-    plugins:
-      - docker-compose#v4.9.0:
-          config: .buildkite/connector_tests/docker-compose.yaml
-          run: dozer-connector-tests
+    command: "cargo test --package dozer-ingestion test_connector_ -- --ignored"
   - label: "Build and Run Tests"
     plugins:
       - docker-compose#v4.9.0:
