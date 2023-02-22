@@ -34,8 +34,6 @@ fn test_set_union_pipeline_builder() {
                     INTO set_results
                     FROM supplier_id_union;";
 
-    dozer_tracing::init_telemetry(false).unwrap();
-
     let mut pipeline: AppPipeline<SchemaSQLContext> = AppPipeline::new();
     let query_ctx =
         statement_to_pipeline(sql, &mut pipeline, Some("set_results".to_string())).unwrap();
