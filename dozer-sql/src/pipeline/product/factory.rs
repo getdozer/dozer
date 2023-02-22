@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    storage::lmdb_storage::LmdbExclusiveTransaction,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{FieldDefinition, Schema};
@@ -63,9 +64,9 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         let mut output_schema = Schema::empty();
 
         let input_names = get_input_names(&self.input_tables);
-        for (port, _table) in input_names.iter().enumerate() {
+        for (port, table) in input_names.iter().enumerate() {
             if let Some((current_schema, _)) = input_schemas.get(&(port as PortHandle)) {
-                let current_extended_schema = extend_schema_source_def(current_schema, _table);
+                let current_extended_schema = extend_schema_source_def(current_schema, table);
                 output_schema = append_schema(&output_schema, &current_extended_schema);
             } else {
                 return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
@@ -79,21 +80,18 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        match build_join_tree(&self.input_tables, input_schemas) {
-            Ok((join_operator, source_names)) => {
-                Ok(Box::new(FromProcessor::new(join_operator, source_names)))
-            }
-            Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
-        }
-    }
+        let build = || {
+            let (join_operator, source_names) = build_join_tree(&self.input_tables, input_schemas)?;
+            Ok::<Box<dyn Processor>, PipelineError>(Box::new(FromProcessor::new(
+                join_operator,
+                source_names,
+                txn,
+            )?))
+        };
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
+        build().map_err(|e| ExecutionError::InternalStringError(e.to_string()))
     }
 }
 

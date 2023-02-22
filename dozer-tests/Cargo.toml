@@ -37,3 +37,4 @@ tempdir = "0.3.7"
 
 [features]
 mongodb = ["dep:bson", "dep:mongodb", "dep:futures"]
+python=[]

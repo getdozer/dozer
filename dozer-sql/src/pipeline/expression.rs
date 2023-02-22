@@ -4,9 +4,13 @@ pub mod builder;
 pub mod cast;
 pub mod comparison;
 pub mod execution;
+pub mod geo;
 pub mod logical;
 pub mod mathematical;
 pub mod operator;
 pub mod scalar;
+
+#[cfg(feature = "python")]
+pub mod python_udf;
 #[cfg(test)]
 mod tests;

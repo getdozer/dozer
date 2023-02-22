@@ -16,7 +16,6 @@ use crate::pipeline::aggregation::aggregator::get_aggregator_from_aggregation_ex
 use dozer_core::epoch::Epoch;
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::common::Database;
-use dozer_core::storage::errors::StorageError::InvalidDatabase;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use lmdb::DatabaseFlags;
 use std::{collections::HashMap, mem::size_of_val};
@@ -44,9 +43,9 @@ pub struct AggregationProcessor {
     dimensions: Vec<Expression>,
     measures: Vec<(Expression, Aggregator)>,
     projections: Vec<Expression>,
-    pub db: Option<Database>,
-    meta_db: Option<Database>,
-    aggregators_db: Option<Database>,
+    pub db: Database,
+    meta_db: Database,
+    aggregators_db: Database,
     input_schema: Schema,
     aggregation_schema: Schema,
 }
@@ -69,8 +68,8 @@ impl AggregationProcessor {
         projections: Vec<Expression>,
         input_schema: Schema,
         aggregation_schema: Schema,
+        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Self, PipelineError> {
-        //
         let mut aggregators: Vec<(Expression, Aggregator)> = Vec::new();
         for measure in measures {
             aggregators.push(get_aggregator_from_aggregation_expression(
@@ -83,20 +82,12 @@ impl AggregationProcessor {
             dimensions,
             measures: aggregators,
             projections,
-            db: None,
-            meta_db: None,
-            aggregators_db: None,
+            db: txn.create_database(Some("aggr"), Some(DatabaseFlags::empty()))?,
+            meta_db: txn.create_database(Some("meta"), Some(DatabaseFlags::empty()))?,
+            aggregators_db: txn.create_database(Some("aggr_data"), Some(DatabaseFlags::empty()))?,
             input_schema,
             aggregation_schema,
         })
-    }
-
-    fn init_store(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), PipelineError> {
-        self.db = Some(txn.create_database(Some("aggr"), Some(DatabaseFlags::empty()))?);
-        self.aggregators_db =
-            Some(txn.create_database(Some("aggr_data"), Some(DatabaseFlags::empty()))?);
-        self.meta_db = Some(txn.create_database(Some("meta"), Some(DatabaseFlags::empty()))?);
-        Ok(())
     }
 
     fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
@@ -107,16 +98,12 @@ impl AggregationProcessor {
     }
 
     fn get_counter(&self, txn: &mut LmdbExclusiveTransaction) -> Result<u32, PipelineError> {
-        let meta_db = *self
-            .meta_db
-            .as_ref()
-            .ok_or(PipelineError::InternalStorageError(InvalidDatabase))?;
-        let curr_ctr = match txn.get(meta_db, &COUNTER_KEY.to_be_bytes())? {
+        let curr_ctr = match txn.get(self.meta_db, &COUNTER_KEY.to_be_bytes())? {
             Some(v) => u32::from_be_bytes(deserialize!(v)),
             None => 1_u32,
         };
         txn.put(
-            meta_db,
+            self.meta_db,
             &COUNTER_KEY.to_be_bytes(),
             &(curr_ctr + 1).to_be_bytes(),
         )?;
@@ -206,7 +193,7 @@ impl AggregationProcessor {
                             &inserted_field,
                             measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
-                            self.aggregators_db.unwrap(),
+                            self.aggregators_db,
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -217,7 +204,7 @@ impl AggregationProcessor {
                             &inserted_field,
                             measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
-                            self.aggregators_db.unwrap(),
+                            self.aggregators_db,
                         )?;
                         (prefix, r)
                     }
@@ -234,7 +221,7 @@ impl AggregationProcessor {
                             &deleted_field,
                             measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
-                            self.aggregators_db.unwrap(),
+                            self.aggregators_db,
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -245,7 +232,7 @@ impl AggregationProcessor {
                             &deleted_field,
                             measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
-                            self.aggregators_db.unwrap(),
+                            self.aggregators_db,
                         )?;
                         (prefix, r)
                     }
@@ -267,7 +254,7 @@ impl AggregationProcessor {
                             &updated_field,
                             measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
-                            self.aggregators_db.unwrap(),
+                            self.aggregators_db,
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -279,7 +266,7 @@ impl AggregationProcessor {
                             &updated_field,
                             measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
-                            self.aggregators_db.unwrap(),
+                            self.aggregators_db,
                         )?;
                         (prefix, r)
                     }
@@ -529,10 +516,6 @@ fn get_key(
 }
 
 impl Processor for AggregationProcessor {
-    fn init(&mut self, txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        self.init_store(txn).map_err(|e| InternalError(Box::new(e)))
-    }
-
     fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -545,17 +528,12 @@ impl Processor for AggregationProcessor {
         txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        match self.db {
-            Some(d) => {
-                let ops = self
-                    .aggregate(&mut txn.write(), d, op)
-                    .map_err(|e| InternalError(Box::new(e)))?;
-                for fop in ops {
-                    fw.send(fop, DEFAULT_PORT_HANDLE)?;
-                }
-                Ok(())
-            }
-            _ => Err(ExecutionError::InvalidDatabase),
+        let ops = self
+            .aggregate(&mut txn.write(), self.db, op)
+            .map_err(|e| InternalError(Box::new(e)))?;
+        for fop in ops {
+            fw.send(fop, DEFAULT_PORT_HANDLE)?;
         }
+        Ok(())
     }
 }

@@ -1,3 +1,4 @@
+use crate::builder_dag::{BuilderDag, NodeKind};
 use crate::dag_metadata::DagMetadata;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
@@ -24,6 +25,8 @@ pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
+
+    pub max_map_size: usize,
 }
 
 impl Default for ExecutorOptions {
@@ -32,6 +35,7 @@ impl Default for ExecutorOptions {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
+            max_map_size: 1024 * 1024 * 1024 * 1024,
         }
     }
 }
@@ -86,11 +90,11 @@ use node::Node;
 use processor_node::ProcessorNode;
 use sink_node::SinkNode;
 
-use self::execution_dag::{ExecutionDag, NodeKind};
+use self::execution_dag::ExecutionDag;
 use self::source_node::{create_source_nodes, SourceListenerNode, SourceSenderNode};
 
-pub struct DagExecutor<T: Clone> {
-    dag_metadata: DagMetadata<T>,
+pub struct DagExecutor {
+    builder_dag: BuilderDag,
     options: ExecutorOptions,
 }
 
@@ -98,30 +102,22 @@ pub struct DagExecutorJoinHandle {
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
 }
 
-impl<T: Clone + Debug + 'static> DagExecutor<T> {
-    pub fn new(
+impl DagExecutor {
+    pub fn new<T: Clone + Debug>(
         dag: &Dag<T>,
         path: PathBuf,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let mut dag_metadata = DagMetadata::new(&dag_schemas, path.clone())?;
-        if !dag_metadata.check_consistency() {
-            DagMetadata::delete(&path, dag);
-            dag_metadata = DagMetadata::new(&dag_schemas, path)?;
-            assert!(
-                dag_metadata.check_consistency(),
-                "We just deleted all metadata"
-            );
-        }
+        let builder_dag = BuilderDag::new(&dag_schemas, path, options.max_map_size)?;
 
         Ok(Self {
-            dag_metadata,
+            builder_dag,
             options,
         })
     }
 
-    pub fn validate(dag: &Dag<T>, path: PathBuf) -> Result<(), ExecutionError> {
+    pub fn validate<T: Clone + Debug>(dag: &Dag<T>, path: PathBuf) -> Result<(), ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
         DagMetadata::new(&dag_schemas, path)?;
         Ok(())
@@ -130,7 +126,7 @@ impl<T: Clone + Debug + 'static> DagExecutor<T> {
     pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
         let mut execution_dag =
-            ExecutionDag::new(self.dag_metadata, self.options.channel_buffer_sz)?;
+            ExecutionDag::new(self.builder_dag, self.options.channel_buffer_sz)?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.

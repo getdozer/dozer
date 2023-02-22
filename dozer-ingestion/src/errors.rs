@@ -13,6 +13,7 @@ use datafusion::error::DataFusionError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 use std::str::Utf8Error;
+use std::string::FromUtf8Error;
 
 use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
@@ -191,6 +192,12 @@ pub enum PostgresSchemaError {
 
     #[error("Value conversion error: {0}")]
     ValueConversionError(String),
+
+    #[error("String parse failed")]
+    StringParseError(#[source] FromUtf8Error),
+
+    #[error("Point parse failed")]
+    PointParseError,
 
     #[error("Unsupported replication type - '{0}'")]
     UnsupportedReplicationType(String),

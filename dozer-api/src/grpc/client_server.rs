@@ -13,6 +13,7 @@ use crate::grpc::health::HealthService;
 use crate::grpc::health_grpc::health_check_response::ServingStatus;
 use crate::grpc::{common, typed};
 use crate::{errors::GRPCError, generator::protoc::generator::ProtoGenerator, RoCacheEndpoint};
+use dozer_types::tracing::Level;
 use dozer_types::{
     log::{info, warn},
     models::{api_config::GrpcApiOptions, api_security::ApiSecurity, flags::Flags},
@@ -23,6 +24,7 @@ use tokio::sync::broadcast::{self, Receiver, Sender};
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
 use tower::Layer;
+use tower_http::trace::{self, TraceLayer};
 
 pub struct ApiServer {
     port: u16,
@@ -69,8 +71,7 @@ impl ApiServer {
                 })
         );
 
-        let generated_path = self.api_dir.join("generated");
-        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
+        let descriptor_path = ProtoGenerator::descriptor_path(&self.api_dir);
 
         let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(&descriptor_path)?;
 
@@ -131,6 +132,7 @@ impl ApiServer {
         let reflection_service = web_config.enable(reflection_service);
 
         let mut service_map: HashMap<String, ServingStatus> = HashMap::new();
+        service_map.insert("".to_string(), ServingStatus::Serving);
         service_map.insert(common::SERVICE_NAME.to_string(), ServingStatus::Serving);
         if typed_service.is_some() {
             service_map.insert(typed::SERVICE_NAME.to_string(), ServingStatus::Serving);
@@ -159,6 +161,11 @@ impl ApiServer {
 
         // Add services to server.
         let mut grpc_router = Server::builder()
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                    .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+            )
             .accept_http1(true)
             .concurrency_limit_per_connection(32)
             .add_service(common_service)

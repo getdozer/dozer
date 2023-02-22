@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionContext};
+use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Select, SelectItem};
-use std::vec;
 
 #[derive(Clone, Copy)]
 pub enum PrimaryKeyAction {
@@ -52,13 +51,12 @@ impl CommonPlanner {
         };
 
         for (expr, alias) in expr_items {
-            let mut context = ExpressionContext::new(
+            let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
-            let projection_expression =
-                ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
+            let projection_expression = builder.build(true, &expr, &self.input_schema)?;
 
-            for new_aggr in context.aggregations {
+            for new_aggr in builder.aggregations {
                 Self::append_to_schema(
                     &new_aggr,
                     alias.clone(),
@@ -68,7 +66,7 @@ impl CommonPlanner {
                 self.aggregation_output.push(new_aggr);
             }
 
-            self.projection_output.push(*projection_expression.clone());
+            self.projection_output.push(projection_expression.clone());
             Self::append_to_schema(
                 &projection_expression,
                 alias,
@@ -89,13 +87,12 @@ impl CommonPlanner {
         };
 
         for (expr, alias) in expr_items {
-            let mut context = ExpressionContext::new(
+            let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
-            let projection_expression =
-                ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
+            let projection_expression = builder.build(true, &expr, &self.input_schema)?;
 
-            for new_aggr in context.aggregations {
+            for new_aggr in builder.aggregations {
                 Self::append_to_schema(
                     &new_aggr,
                     alias.clone(),
@@ -105,7 +102,7 @@ impl CommonPlanner {
                 self.aggregation_output.push(new_aggr);
             }
 
-            self.projection_output.push(*projection_expression.clone());
+            self.projection_output.push(projection_expression.clone());
             Self::append_to_schema(
                 &projection_expression,
                 alias,
@@ -118,17 +115,16 @@ impl CommonPlanner {
     }
 
     fn add_having_item(&mut self, expr: Expr) -> Result<(), PipelineError> {
-        let mut context = ExpressionContext::from(
+        let mut builder = ExpressionBuilder::from(
             self.input_schema.fields.len(),
             self.aggregation_output.clone(),
         );
-        let having_expression =
-            ExpressionBuilder::build(&mut context, true, &expr, &self.input_schema)?;
+        let having_expression = builder.build(true, &expr, &self.input_schema)?;
 
         let mut post_aggregation_schema = self.input_schema.clone();
         let mut aggregation_output = Vec::new();
 
-        for new_aggr in context.aggregations {
+        for new_aggr in builder.aggregations {
             Self::append_to_schema(
                 &new_aggr,
                 None,
@@ -140,19 +136,18 @@ impl CommonPlanner {
         self.aggregation_output = aggregation_output;
         self.post_aggregation_schema = post_aggregation_schema;
 
-        self.having = Some(*having_expression);
+        self.having = Some(having_expression);
 
         Ok(())
     }
 
     fn add_groupby_items(&mut self, expr_items: Vec<Expr>) -> Result<(), PipelineError> {
         for expr in expr_items {
-            let mut context = ExpressionContext::new(
+            let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
-            let groupby_expression =
-                ExpressionBuilder::build(&mut context, false, &expr, &self.input_schema)?;
-            self.groupby.push(*groupby_expression.clone());
+            let groupby_expression = builder.build(false, &expr, &self.input_schema)?;
+            self.groupby.push(groupby_expression.clone());
         }
 
         Ok(())

@@ -1,10 +1,10 @@
+use crate::pipeline::errors::PipelineError;
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::AnsiDialect,
     parser::Parser,
 };
 
-use crate::pipeline::errors::PipelineError;
 pub fn get_select(sql: &str) -> Result<Box<Select>, PipelineError> {
     let dialect = AnsiDialect {};
 

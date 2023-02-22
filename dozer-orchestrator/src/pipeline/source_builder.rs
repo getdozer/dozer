@@ -108,7 +108,10 @@ impl SourceBuilder {
 mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
     use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
-    use dozer_types::models::app_config::Config;
+    use dozer_types::models::app_config::{
+        default_app_buffer_size, default_app_max_map_size, default_cache_max_map_size,
+        default_commit_size, default_commit_timeout, Config,
+    };
 
     use dozer_core::appsource::{AppSourceId, AppSourceMappings};
     use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -149,6 +152,11 @@ mod tests {
             endpoints: vec![],
             sql: None,
             home_dir: "test".to_string(),
+            cache_max_map_size: Some(default_cache_max_map_size()),
+            app_max_map_size: Some(default_app_max_map_size()),
+            app_buffer_size: Some(default_app_buffer_size()),
+            commit_size: Some(default_commit_size()),
+            commit_timeout: Some(default_commit_timeout()),
         }
     }
 

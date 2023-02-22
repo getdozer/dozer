@@ -73,6 +73,10 @@ pub enum PipelineError {
     #[error("The field identifier {0} is invalid. Correct format is: [[connection.]source.]field")]
     IllegalFieldIdentifier(String),
 
+    #[cfg(feature = "python")]
+    #[error("Python Error: {0}")]
+    PythonErr(dozer_types::pyo3::PyErr),
+
     // Error forwarding
     #[error(transparent)]
     InternalStorageError(#[from] StorageError),
@@ -91,6 +95,15 @@ pub enum PipelineError {
 
     #[error(transparent)]
     SqlError(#[from] SqlError),
+
+    #[error(transparent)]
+    SetError(#[from] SetError),
+}
+#[cfg(feature = "python")]
+impl From<dozer_types::pyo3::PyErr> for PipelineError {
+    fn from(py_err: dozer_types::pyo3::PyErr) -> Self {
+        PipelineError::PythonErr(py_err)
+    }
 }
 
 #[derive(Error, Debug)]
@@ -101,7 +114,7 @@ pub enum UnsupportedSqlError {
     CteFromError,
     #[error("Currently only SELECT operations are allowed")]
     SelectOnlyError,
-    #[error("Unsupported syntax in fROM clause")]
+    #[error("Unsupported syntax in FROM clause")]
     JoinTable,
 
     #[error("FROM clause doesn't support \"Comma Syntax\"")]
@@ -121,6 +134,18 @@ pub enum UnsupportedSqlError {
 pub enum SqlError {
     #[error("The first argument of the {0} function must be a source name.")]
     WindowError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum SetError {
+    #[error("Invalid input schemas have been populated")]
+    InvalidInputSchemas,
+    #[error("History unavailable for SET source [{0}]")]
+    HistoryUnavailable(u16),
+    #[error(
+        "Record with key: {0:x?} version: {1} not available in History for SET source[{2}]\n{3}"
+    )]
+    HistoryRecordNotFound(Vec<u8>, u32, u16, dozer_core::errors::ExecutionError),
 }
 
 #[derive(Error, Debug)]

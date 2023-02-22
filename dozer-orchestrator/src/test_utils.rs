@@ -36,10 +36,16 @@ pub fn init_sink(
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let cache: Arc<dyn RwCache> = cache_manager.create_cache().unwrap().into();
 
+    let endpoint = init_endpoint();
+
+    cache
+        .insert_schema(&endpoint.name, schema, &secondary_indexes)
+        .unwrap();
+
     let mut input_schemas = HashMap::new();
     input_schemas.insert(DEFAULT_PORT_HANDLE, (schema.clone(), secondary_indexes));
 
-    let sink = CacheSink::new(cache.clone(), init_endpoint(), input_schemas, None, None);
+    let sink = CacheSink::new(cache.clone(), init_endpoint(), input_schemas, None, None).unwrap();
     (cache, sink)
 }
 pub fn init_endpoint() -> ApiEndpoint {

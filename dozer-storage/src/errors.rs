@@ -17,8 +17,6 @@ pub enum StorageError {
     InvalidKey(String),
     #[error("Invalid record")]
     InvalidRecord,
-    #[error("Invalid database")]
-    InvalidDatabase,
 
     // Error forwarding
     #[error(transparent)]

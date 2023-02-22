@@ -328,6 +328,7 @@ fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
         FieldType::Timestamp => grpc_type == Type::Timestamp as i32,
         FieldType::Date => grpc_type == Type::Date as i32,
         FieldType::Bson => grpc_type == Type::Bson as i32,
+        FieldType::Point => grpc_type == Type::Point as i32,
     }
 }
 

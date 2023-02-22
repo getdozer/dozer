@@ -1,4 +1,5 @@
 use dozer_types::node::NodeHandle;
+use std::fmt::{Display, Formatter};
 
 use crate::appsource::{AppSourceId, AppSourceManager};
 use crate::errors::ExecutionError;
@@ -7,7 +8,7 @@ use crate::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
 
 use std::sync::Arc;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PipelineEntryPoint {
     id: AppSourceId,
     port: PortHandle,
@@ -22,11 +23,28 @@ impl PipelineEntryPoint {
         &self.id
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NamespacedEdge {
     edge: Edge,
     namespaced: bool,
 }
+
+impl Display for NamespacedEdge {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            format!(
+                "edge: [node: {}, port: {} -> node: {}, port: {}], , namespaced: {}",
+                self.edge.from.node,
+                self.edge.from.port,
+                self.edge.to.node,
+                self.edge.to.port,
+                self.namespaced
+            )
+            .as_str(),
+        )
+    }
+}
+
 #[derive(Clone)]
 pub struct AppPipeline<T> {
     edges: Vec<NamespacedEdge>,

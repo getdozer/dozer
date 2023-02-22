@@ -120,7 +120,9 @@ impl<'a> ProtoGeneratorImpl<'a> {
 
     pub fn generate_proto(&self) -> Result<(String, PathBuf), GenerationError> {
         if !Path::new(&self.folder_path).exists() {
-            return Err(GenerationError::DirPathNotExist);
+            return Err(GenerationError::DirPathNotExist(
+                self.folder_path.to_path_buf(),
+            ));
         }
 
         let metadata = self.get_metadata()?;
@@ -236,6 +238,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                     let typ_field = get_field(&message, "typ")?;
                     let old_field = get_field(&message, "old")?;
                     let new_field = get_field(&message, "new")?;
+                    let new_id_field = get_field(&message, "new_id")?;
                     let old_field_kind = old_field.kind();
                     let Kind::Message(record_message) = old_field_kind else {
                         return Err(GenerationError::ExpectedMessageField {
@@ -250,6 +253,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                             typ_field,
                             old_field,
                             new_field,
+                            new_id_field,
                             record_desc: record_desc_from_message(record_message)?,
                         },
                     });
@@ -345,6 +349,7 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::Timestamp => Ok("google.protobuf.Timestamp".to_owned()),
         FieldType::Date => Ok("string".to_owned()),
         FieldType::Bson => Ok("google.protobuf.Any".to_owned()),
+        FieldType::Point => Ok("dozer.types.PointType".to_owned()),
         _ => Err(GenerationError::DozerToProtoTypeNotSupported(format!(
             "{field_type:?}"
         ))),

@@ -65,18 +65,11 @@ impl ProcessorFactory<NoneContext> for PassthroughProcessorFactory {
         )]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(PassthroughProcessor {}))
     }
@@ -86,10 +79,6 @@ impl ProcessorFactory<NoneContext> for PassthroughProcessorFactory {
 pub(crate) struct PassthroughProcessor {}
 
 impl Processor for PassthroughProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(
         &self,
         _epoch_details: &Epoch,
@@ -144,18 +133,11 @@ impl ProcessorFactory<NoneContext> for RecordReaderProcessorFactory {
         )]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(RecordReaderProcessor { ctr: 1 }))
     }
@@ -167,10 +149,6 @@ pub(crate) struct RecordReaderProcessor {
 }
 
 impl Processor for RecordReaderProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(
         &self,
         _epoch_details: &Epoch,
@@ -340,18 +318,11 @@ impl ProcessorFactory<NoneContext> for NoPkRecordReaderProcessorFactory {
         )]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoPkRecordReaderProcessor { ctr: 1 }))
     }
@@ -363,10 +334,6 @@ pub(crate) struct NoPkRecordReaderProcessor {
 }
 
 impl Processor for NoPkRecordReaderProcessor {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn commit(
         &self,
         _epoch_details: &Epoch,

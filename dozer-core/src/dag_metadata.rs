@@ -1,7 +1,7 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType};
 use crate::errors::{ExecutionError, IncompatibleSchemas};
 use crate::node::PortHandle;
-use crate::{Dag, NodeKind};
+use crate::NodeKind;
 use daggy::petgraph::visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences, Topo};
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
@@ -17,7 +17,7 @@ use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(crate) const METADATA_DB_NAME: &str = "__META__";
 const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
@@ -171,10 +171,11 @@ impl<T: Clone> DagMetadata<T> {
         Ok(Self { path, graph })
     }
 
-    pub fn delete(path: &Path, dag: &Dag<T>) {
-        for node in dag.graph().raw_nodes() {
-            let env_name = node_environment_name(&node.weight.handle);
-            LmdbEnvironmentManager::remove(path, &env_name);
+    pub fn clear(&mut self) {
+        for node in self.graph.node_weights_mut() {
+            let env_name = node_environment_name(&node.handle);
+            LmdbEnvironmentManager::remove(&self.path, &env_name);
+            node.commits.clear();
         }
     }
 
@@ -185,6 +186,7 @@ impl<T: Clone> DagMetadata<T> {
     pub fn initialize_node_storage(
         &self,
         node_index: NodeIndex,
+        storage_options: LmdbEnvironmentOptions,
     ) -> Result<NodeStorage, StorageError> {
         // Create the environment.
         let node = &self.graph[node_index];
@@ -192,11 +194,7 @@ impl<T: Clone> DagMetadata<T> {
         let node_handle = &node.handle;
         let env_name = node_environment_name(node_handle);
         debug_assert!(!LmdbEnvironmentManager::exists(&self.path, &env_name));
-        let mut env = LmdbEnvironmentManager::create(
-            &self.path,
-            &env_name,
-            LmdbEnvironmentOptions::default(),
-        )?;
+        let mut env = LmdbEnvironmentManager::create(&self.path, &env_name, storage_options)?;
         let meta_db = env.create_database(Some(METADATA_DB_NAME), Some(DatabaseFlags::empty()))?;
         let txn = env.create_txn()?;
 

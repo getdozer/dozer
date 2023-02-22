@@ -53,20 +53,20 @@ jobs:
           restore-keys: |
             coverage-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
             coverage-${{ runner.os }}-cargo-
-
       - name: MongoDB in GitHub Actions
         uses: supercharge/mongodb-github-action@1.8.0
 
       - uses: ./.github/workflows/setup-snowflake-and-kafka
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features --no-fail-fast
+      - name: Cargo test
         env:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Cinstrument-coverage"
           LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
+        shell: bash
+        run: |
+          source ./dozer-tests/python_udf/virtualenv.sh
+          cargo test --all-features --no-fail-fast
 
       - uses: actions-rs/cargo@v1
         with:
@@ -99,3 +99,19 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ${{ steps.coverage.outputs.report }}
+
+      - name: Discord notification
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
+          DISCORD_EMBEDS: '[ { 
+           "title": " ${{ github.actor }} pushed to `main` :rocket:",
+           "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{ github.actor }}" },
+          "fields": [
+            { "name": "Commit", "value": "[${{ github.event.head_commit.id }}](${{ github.event.head_commit.url }})"},
+            { "name": "Repository", "value": "[getdozer/dozer](https://github.com/getdozer/dozer)" },
+            { "name": "Message", "value": "${{ github.event.head_commit.message }}"}
+          ],
+          "color": 990099
+          }]'
+        uses: Ilshidur/action-discord@master 

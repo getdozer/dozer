@@ -1,0 +1,32 @@
+name: Dozer Pulls
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created, deleted]
+  
+concurrency:
+  group: pull
+
+jobs:
+  notify:
+    name: Discord Pull
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull Request
+        if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'pull_request' }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
+          DISCORD_EMBEDS: '[ { 
+           "title": "New pull request #${{ github.event.pull_request.number }} by ${{ github.actor }}",
+           "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.sender }}", "url": "https://github.com/${{ github.actor }}" },
+          "fields": [
+            { "name": "Body", "value": "${{ github.event.pull_request.url }} \n ${{ github.event.pull_request.body }}" }
+
+          ],
+          "color": 990099
+          }]'
+        uses: Ilshidur/action-discord@master 

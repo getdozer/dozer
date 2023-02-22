@@ -19,20 +19,21 @@ tonic-build = "0.8.2"
 tokio = { version = "1", features = ["full"] }
 tonic = {version = "0.8.3"}
 prost = "0.11.0"
-prost-reflect = { version = "0.10.1", features = ["serde", "text-format"] } 
+prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] } 
 tonic-reflection = "0.6.0"
 Inflector = "0.11.4"
 futures-util = "0.3.26"
 prost-build = "0.11.6"
 tonic-web = "0.4.0"
 jsonwebtoken = "8.2.0"
-tokio-stream = "0.1.11"
+tokio-stream = "0.1.12"
 crossbeam = "0.8.2"
 async-trait = "0.1.64"
 tracing-actix-web = "0.7.2"
 tower = "0.4.13"
 hyper = "0.14.24"
 actix-http = "3.3.0"
+tower-http = {version = "0.3.5", features = ["full"]}
 
 
 [build-dependencies]

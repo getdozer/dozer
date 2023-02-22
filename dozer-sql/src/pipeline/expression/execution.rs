@@ -3,6 +3,7 @@ use crate::pipeline::errors::PipelineError;
 
 use uuid::Uuid;
 
+use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
@@ -31,6 +32,10 @@ pub enum Expression {
         fun: ScalarFunctionType,
         args: Vec<Expression>,
     },
+    GeoFunction {
+        fun: GeoFunctionType,
+        args: Vec<Expression>,
+    },
     AggregateFunction {
         fun: AggregateFunctionType,
         args: Vec<Expression>,
@@ -48,6 +53,12 @@ pub enum Expression {
         arg: Box<Expression>,
         pattern: Box<Expression>,
         escape: Option<char>,
+    },
+    #[cfg(feature = "python")]
+    PythonUDF {
+        name: String,
+        args: Vec<Expression>,
+        return_type: FieldType,
     },
 }
 
@@ -92,6 +103,18 @@ impl Expression {
                         .as_str()
                     + ")"
             }
+            #[cfg(feature = "python")]
+            Expression::PythonUDF { name, args, .. } => {
+                name.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|expr| expr.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
             Expression::Cast { arg, typ } => {
                 "CAST(".to_string()
                     + arg.to_string(schema).as_str()
@@ -122,6 +145,17 @@ impl Expression {
                 pattern,
                 escape: _,
             } => arg.to_string(schema) + " LIKE " + pattern.to_string(schema).as_str(),
+            Expression::GeoFunction { fun, args } => {
+                fun.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|e| e.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
         }
     }
 }
@@ -172,6 +206,17 @@ impl ExpressionExecutor for Expression {
                 right,
             } => operator.evaluate(schema, left, right, record),
             Expression::ScalarFunction { fun, args } => fun.evaluate(schema, args, record),
+
+            #[cfg(feature = "python")]
+            Expression::PythonUDF {
+                name,
+                args,
+                return_type,
+                ..
+            } => {
+                use crate::pipeline::expression::python_udf::evaluate_py_udf;
+                evaluate_py_udf(schema, name, args, return_type, record)
+            }
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(
@@ -185,6 +230,7 @@ impl ExpressionExecutor for Expression {
                 escape,
             } => evaluate_like(schema, arg, pattern, *escape, record),
             Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
+            Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
         }
     }
 
@@ -237,6 +283,14 @@ impl ExpressionExecutor for Expression {
                 escape: _,
             } => get_like_operator_type(arg, pattern, schema),
             Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
+            Expression::GeoFunction { fun, args } => get_geo_function_type(fun, args, schema),
+            #[cfg(feature = "python")]
+            Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
+                *return_type,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
         }
     }
 }
@@ -255,6 +309,7 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::UInt(_) => Some(FieldType::UInt),
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
+        Field::Point(_) => Some(FieldType::Point),
     }
 }
 
@@ -316,6 +371,18 @@ fn get_binary_operator_type(
         BinaryOperatorType::Add | BinaryOperatorType::Sub | BinaryOperatorType::Mul => {
             match (left_field_type.return_type, right_field_type.return_type) {
                 (FieldType::Int, FieldType::Int) => Ok(ExpressionType::new(
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (FieldType::UInt, FieldType::Int) => Ok(ExpressionType::new(
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (FieldType::Int, FieldType::UInt) => Ok(ExpressionType::new(
                     FieldType::Int,
                     false,
                     SourceDefinition::Dynamic,

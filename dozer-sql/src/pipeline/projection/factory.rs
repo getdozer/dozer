@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    storage::lmdb_storage::LmdbExclusiveTransaction,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Ident, SelectItem};
 
 use crate::pipeline::builder::SchemaSQLContext;
-use crate::pipeline::expression::builder::ExpressionContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -102,6 +102,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let schema = match input_schemas.get(&DEFAULT_PORT_HANDLE) {
             Some(schema) => Ok(schema),
@@ -123,14 +124,6 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
     }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
 pub(crate) fn parse_sql_select_item(
@@ -139,24 +132,14 @@ pub(crate) fn parse_sql_select_item(
 ) -> Result<(String, Expression), PipelineError> {
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
-            match ExpressionBuilder::parse_sql_expression(
-                &mut ExpressionContext::new(0),
-                true,
-                sql_expr,
-                schema,
-            ) {
-                Ok(expr) => Ok((sql_expr.to_string(), *expr)),
+            match ExpressionBuilder::new(0).parse_sql_expression(true, sql_expr, schema) {
+                Ok(expr) => Ok((sql_expr.to_string(), expr)),
                 Err(error) => Err(error),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => {
-            match ExpressionBuilder::parse_sql_expression(
-                &mut ExpressionContext::new(0),
-                true,
-                expr,
-                schema,
-            ) {
-                Ok(expr) => Ok((alias.value.clone(), *expr)),
+            match ExpressionBuilder::new(0).parse_sql_expression(true, expr, schema) {
+                Ok(expr) => Ok((alias.value.clone(), expr)),
                 Err(error) => Err(error),
             }
         }

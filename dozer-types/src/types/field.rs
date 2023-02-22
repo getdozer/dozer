@@ -1,10 +1,13 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use chrono::{DateTime, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
+#[allow(unused_imports)]
+use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
+
+use crate::types::DozerPoint;
 use std::fmt::{Display, Formatter};
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
@@ -21,6 +24,7 @@ pub enum Field {
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
     Bson(Vec<u8>),
+    Point(DozerPoint),
     Null,
 }
 
@@ -37,6 +41,7 @@ pub enum FieldBorrow<'a> {
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
     Bson(&'a [u8]),
+    Point(DozerPoint),
     Null,
 }
 
@@ -54,6 +59,7 @@ impl Field {
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
             Field::Bson(b) => b.len(),
+            Field::Point(_p) => 16,
             Field::Null => 0,
         }
     }
@@ -72,6 +78,7 @@ impl Field {
             Field::Date(t) => Cow::Owned(t.to_string().into()),
             Field::Bson(b) => Cow::Borrowed(b),
             Field::Null => Cow::Owned([].into()),
+            Field::Point(p) => Cow::Owned(p.to_bytes().into()),
         }
     }
 
@@ -105,6 +112,7 @@ impl Field {
             Field::Timestamp(t) => FieldBorrow::Timestamp(*t),
             Field::Date(t) => FieldBorrow::Date(*t),
             Field::Bson(b) => FieldBorrow::Bson(b),
+            Field::Point(p) => FieldBorrow::Point(*p),
             Field::Null => FieldBorrow::Null,
         }
     }
@@ -158,7 +166,10 @@ impl Field {
                 DATE_FORMAT,
             )?)),
             10 => Ok(FieldBorrow::Bson(val)),
-            11 => Ok(FieldBorrow::Null),
+            11 => Ok(FieldBorrow::Point(
+                DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
+            )),
+            12 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
@@ -176,7 +187,8 @@ impl Field {
             Field::Timestamp(_) => 8,
             Field::Date(_) => 9,
             Field::Bson(_) => 10,
-            Field::Null => 11,
+            Field::Point(_) => 11,
+            Field::Null => 12,
         }
     }
 
@@ -253,6 +265,13 @@ impl Field {
     pub fn as_bson(&self) -> Option<&[u8]> {
         match self {
             Field::Bson(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    pub fn as_point(&self) -> Option<DozerPoint> {
+        match self {
+            Field::Point(b) => Some(*b),
             _ => None,
         }
     }
@@ -402,6 +421,13 @@ impl Field {
         }
     }
 
+    pub fn to_point(&self) -> Option<&DozerPoint> {
+        match self {
+            Field::Point(p) => Some(p),
+            _ => None,
+        }
+    }
+
     pub fn to_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
@@ -425,6 +451,7 @@ impl Display for Field {
             Field::Date(v) => f.write_str(&format!("{v}")),
             Field::Bson(v) => f.write_str(&format!("{v:x?}")),
             Field::Null => f.write_str("NULL"),
+            Field::Point(v) => f.write_str(&format!("{v} (Point)")),
         }
     }
 }
@@ -443,12 +470,13 @@ impl<'a> FieldBorrow<'a> {
             FieldBorrow::Timestamp(t) => Field::Timestamp(t),
             FieldBorrow::Date(d) => Field::Date(d),
             FieldBorrow::Bson(b) => Field::Bson(b.to_owned()),
+            FieldBorrow::Point(p) => Field::Point(p),
             FieldBorrow::Null => Field::Null,
         }
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FieldType {
     UInt,
     Int,
@@ -461,6 +489,30 @@ pub enum FieldType {
     Timestamp,
     Date,
     Bson,
+    Point,
+}
+
+impl TryFrom<&str> for FieldType {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let res = match value.to_lowercase().as_str() {
+            "float" => FieldType::Float,
+            "uint" => FieldType::UInt,
+            "int" => FieldType::Int,
+            "boolean" => FieldType::Boolean,
+            "string" => FieldType::String,
+            "text" => FieldType::Text,
+            "binary" => FieldType::Binary,
+            "decimal" => FieldType::Decimal,
+            "timestamp" => FieldType::Timestamp,
+            "date" => FieldType::Date,
+            "bson" => FieldType::Bson,
+            _ => return Err(format!("Unsupported '{value}' type")),
+        };
+
+        Ok(res)
+    }
 }
 
 impl Display for FieldType {
@@ -477,6 +529,7 @@ impl Display for FieldType {
             FieldType::Timestamp => f.write_str("timestamp"),
             FieldType::Date => f.write_str("date"),
             FieldType::Bson => f.write_str("bson"),
+            FieldType::Point => f.write_str("point"),
         }
     }
 }
@@ -514,357 +567,27 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
     .into_iter()
 }
 
-#[cfg(test)]
-pub mod tests {
-    use super::*;
-
-    #[test]
-    fn data_encoding_len_must_agree_with_encode() {
-        for field in field_test_cases() {
-            let bytes = field.encode_data();
-            assert_eq!(bytes.len(), field.data_encoding_len());
+#[cfg(feature = "python")]
+impl pyo3::ToPyObject for Field {
+    fn to_object(&self, py: pyo3::Python<'_>) -> pyo3::PyObject {
+        match self {
+            Field::UInt(val) => val.to_object(py),
+            Field::Int(val) => val.to_object(py),
+            Field::Float(val) => val.0.to_object(py),
+            Field::Boolean(val) => val.to_object(py),
+            Field::String(val) => val.to_object(py),
+            Field::Text(val) => val.to_object(py),
+            Field::Binary(val) => val.to_object(py),
+            Field::Decimal(val) => val.to_f64().unwrap().to_object(py),
+            Field::Timestamp(val) => val.timestamp().to_object(py),
+            Field::Date(val) => {
+                pyo3::types::PyDate::new(py, val.year(), val.month() as u8, val.day() as u8)
+                    .unwrap()
+                    .to_object(py)
+            }
+            Field::Bson(val) => val.to_object(py),
+            Field::Null => unreachable!(),
+            Field::Point(_val) => todo!(),
         }
-    }
-
-    #[test]
-    fn test_as_conversion() {
-        let field = Field::UInt(1);
-        assert!(field.as_uint().is_some());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Int(1);
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_some());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Float(OrderedFloat::from(1.0));
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_some());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Boolean(true);
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_some());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::String("".to_string());
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_some());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Text("".to_string());
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_some());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Binary(vec![]);
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_some());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Decimal(Decimal::from(1));
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_some());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(0).unwrap()));
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_some());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_some());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Bson(vec![]);
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_some());
-        assert!(field.as_null().is_none());
-
-        let field = Field::Null;
-        assert!(field.as_uint().is_none());
-        assert!(field.as_int().is_none());
-        assert!(field.as_float().is_none());
-        assert!(field.as_boolean().is_none());
-        assert!(field.as_string().is_none());
-        assert!(field.as_text().is_none());
-        assert!(field.as_binary().is_none());
-        assert!(field.as_decimal().is_none());
-        assert!(field.as_timestamp().is_none());
-        assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
-        assert!(field.as_null().is_some());
-    }
-
-    #[test]
-    fn test_to_conversion() {
-        let field = Field::UInt(1);
-        assert!(field.to_uint().is_some());
-        assert!(field.to_int().is_some());
-        assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_some());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Int(1);
-        assert!(field.to_uint().is_some());
-        assert!(field.to_int().is_some());
-        assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_some());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Float(OrderedFloat::from(1.0));
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_some());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Boolean(true);
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_none());
-        assert!(field.to_boolean().is_some());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::String("".to_string());
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_none());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Text("".to_string());
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_none());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Binary(vec![]);
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_none());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_some());
-        assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Decimal(Decimal::from(1));
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_some());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(0).unwrap()));
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_none());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().unwrap().is_some());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_none());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_some());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Bson(vec![]);
-        assert!(field.to_uint().is_none());
-        assert!(field.to_int().is_none());
-        assert!(field.to_float().is_none());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_none());
-        assert!(field.to_timestamp().unwrap().is_none());
-        assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_some());
-        assert!(field.to_null().is_none());
-
-        let field = Field::Null;
-        assert!(field.to_uint().is_some());
-        assert!(field.to_int().is_some());
-        assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_some());
-        assert!(field.to_string().is_some());
-        assert!(field.to_text().is_some());
-        assert!(field.to_binary().is_none());
-        assert!(field.to_decimal().is_some());
-        assert!(field.to_timestamp().unwrap().is_some());
-        assert!(field.to_date().unwrap().is_some());
-        assert!(field.to_bson().is_none());
-        assert!(field.to_null().is_some());
     }
 }

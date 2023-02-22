@@ -19,3 +19,6 @@ dozer-tracing = {path = "../dozer-tracing"}
 
 [dev-dependencies]
 tempdir = "0.3.7"
+
+[features]
+python = []

@@ -4,8 +4,9 @@ use crate::errors::OrchestrationError;
 use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir, get_flags,
-    get_grpc_config, get_pipeline_dir, get_rest_config,
+    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir,
+    get_cache_max_map_size, get_executor_options, get_flags, get_grpc_config, get_pipeline_dir,
+    get_rest_config,
 };
 use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
@@ -51,7 +52,8 @@ impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
         let cache_manager_options = CacheManagerOptions {
             path: Some(get_cache_dir(&config)),
-            ..Default::default()
+            max_size: get_cache_max_map_size(&config) as usize,
+            ..CacheManagerOptions::default()
         };
         Self {
             config,
@@ -180,11 +182,12 @@ impl Orchestrator for SimpleOrchestrator {
         );
         let flags = get_flags(self.config.clone());
         let api_security = get_api_security_config(self.config.clone());
-        let settings = CacheSinkSettings::new(flags, api_security);
+        let settings = CacheSinkSettings::new(get_api_dir(&self.config), flags, api_security);
         let dag_executor = executor.create_dag_executor(
             Some(sender),
             self.cache_manager_options.clone(),
             settings,
+            get_executor_options(&self.config),
         )?;
 
         if let Some(api_notifier) = api_notifier {
@@ -284,9 +287,8 @@ impl Orchestrator for SimpleOrchestrator {
         );
 
         // Api Path
-        let generated_path = api_dir.join("generated");
-        if !generated_path.exists() {
-            fs::create_dir_all(generated_path.clone()).map_err(|e| InternalError(Box::new(e)))?;
+        if !api_dir.exists() {
+            fs::create_dir_all(api_dir.clone()).map_err(|e| InternalError(Box::new(e)))?;
         }
 
         // Pipeline path
@@ -298,31 +300,25 @@ impl Orchestrator for SimpleOrchestrator {
         })?;
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
-        let settings = CacheSinkSettings::new(flags, api_security);
-        let dag = builder.build(
-            None,
-            generated_path.clone(),
-            self.cache_manager_options.clone(),
-            settings,
-        )?;
-        let dag_schemas = DagSchemas::new(&dag)?;
-        // Every sink will initialize its schema in sink and also in a proto file.
-        dag_schemas.prepare()?;
+        let settings = CacheSinkSettings::new(api_dir.clone(), flags, api_security);
+        let dag = builder.build(None, self.cache_manager_options.clone(), settings)?;
+        // Populate schemas.
+        DagSchemas::new(&dag)?;
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {
             resources.push(&e.name);
         }
 
-        let common_resources = ProtoGenerator::copy_common(&generated_path)
+        let common_resources = ProtoGenerator::copy_common(&api_dir)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         // Copy common service to be included in descriptor.
         resources.extend(common_resources.iter());
 
         // Generate a descriptor based on all proto files generated within sink.
-        let descriptor_path = ProtoGenerator::descriptor_path(&generated_path);
-        ProtoGenerator::generate_descriptor(&generated_path, &descriptor_path, &resources)
+        let descriptor_path = ProtoGenerator::descriptor_path(&api_dir);
+        ProtoGenerator::generate_descriptor(&api_dir, &descriptor_path, &resources)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())

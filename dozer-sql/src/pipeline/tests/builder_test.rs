@@ -7,7 +7,7 @@ use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
@@ -91,23 +91,20 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {}))
     }
-
-    fn prepare(
-        &self,
-        _output_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
 #[derive(Debug)]
 pub struct TestSource {}
 
 impl Source for TestSource {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
+    }
+
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 0..10000 {
             fw.send(
@@ -167,11 +164,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn init(&mut self, _txn: &mut LmdbExclusiveTransaction) -> Result<(), ExecutionError> {
-        debug!("SINK: Initialising TestSink");
-        Ok(())
-    }
-
     fn process(
         &mut self,
         _from_port: PortHandle,

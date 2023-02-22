@@ -15,6 +15,7 @@ pub use bincode;
 pub use bytes;
 pub use chrono;
 pub use crossbeam;
+pub use geo;
 pub use indexmap;
 pub use indicatif;
 pub use log;
@@ -23,6 +24,8 @@ pub use parking_lot;
 #[macro_use]
 pub extern crate prettytable;
 
+#[cfg(feature = "python")]
+pub use pyo3;
 pub use rust_decimal;
 pub use serde;
 pub use serde_json;

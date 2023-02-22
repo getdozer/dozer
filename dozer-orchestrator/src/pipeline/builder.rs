@@ -5,7 +5,7 @@ use dozer_cache::cache::{CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_sql::pipeline::builder::{QueryTableInfo, SchemaSQLContext};
+use dozer_sql::pipeline::builder::{OutputNodeInfo, SchemaSQLContext};
 
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::app::App;
@@ -25,7 +25,7 @@ use dozer_types::log::{error, info};
 use OrchestrationError::ExecutionError;
 
 pub enum OutputTableInfo {
-    Transformed(QueryTableInfo),
+    Transformed(OutputNodeInfo),
     Original(OriginalTableInfo),
 }
 
@@ -54,7 +54,6 @@ impl PipelineBuilder {
     pub fn build(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
-        api_dir: PathBuf,
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
@@ -132,9 +131,8 @@ impl PipelineBuilder {
                 &cache_manager,
                 api_endpoint.clone(),
                 notifier.clone(),
-                api_dir.clone(),
                 self.progress.clone(),
-                settings.to_owned(),
+                settings.clone(),
             )?);
 
             match table_info {

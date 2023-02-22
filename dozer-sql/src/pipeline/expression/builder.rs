@@ -1,10 +1,7 @@
-#![allow(dead_code)]
 use dozer_types::{
     ordered_float::OrderedFloat,
-    types::{Field, Schema},
+    types::{Field, FieldDefinition, Schema, SourceDefinition},
 };
-
-use dozer_types::types::{FieldDefinition, SourceDefinition};
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
@@ -18,22 +15,22 @@ use crate::pipeline::errors::PipelineError::{
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::expression::execution::Expression::ScalarFunction;
+use crate::pipeline::expression::execution::Expression::{GeoFunction, ScalarFunction};
+use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::expression::scalar::string::TrimType;
 
 use super::cast::CastOperatorType;
-pub struct ExpressionBuilder;
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct ExpressionContext {
+pub struct ExpressionBuilder {
     // Must be an aggregation function
     pub aggregations: Vec<Expression>,
     pub offset: usize,
 }
 
-impl ExpressionContext {
+impl ExpressionBuilder {
     pub fn new(offset: usize) -> Self {
         Self {
             aggregations: Vec::new(),
@@ -47,31 +44,28 @@ impl ExpressionContext {
             offset,
         }
     }
-}
 
-impl ExpressionBuilder {
     pub fn build(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         sql_expression: &SqlExpr,
         schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
-        Self::parse_sql_expression(context, parse_aggregations, sql_expression, schema)
+    ) -> Result<Expression, PipelineError> {
+        self.parse_sql_expression(parse_aggregations, sql_expression, schema)
     }
 
     pub(crate) fn parse_sql_expression(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         expression: &SqlExpr,
         schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
+    ) -> Result<Expression, PipelineError> {
         match expression {
             SqlExpr::Trim {
                 expr,
                 trim_where,
                 trim_what,
-            } => Self::parse_sql_trim_function(
-                context,
+            } => self.parse_sql_trim_function(
                 parse_aggregations,
                 expr,
                 trim_where,
@@ -81,33 +75,26 @@ impl ExpressionBuilder {
             SqlExpr::Identifier(ident) => Self::parse_sql_column(&[ident.clone()], schema),
             SqlExpr::CompoundIdentifier(ident) => Self::parse_sql_column(ident, schema),
             SqlExpr::Value(SqlValue::Number(n, _)) => Self::parse_sql_number(n),
-            SqlExpr::Value(SqlValue::Null) => Ok(Box::new(Expression::Literal(Field::Null))),
+            SqlExpr::Value(SqlValue::Null) => Ok(Expression::Literal(Field::Null)),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Self::parse_sql_string(s)
             }
             SqlExpr::UnaryOp { expr, op } => {
-                Self::parse_sql_unary_op(context, parse_aggregations, op, expr, schema)
+                self.parse_sql_unary_op(parse_aggregations, op, expr, schema)
             }
             SqlExpr::BinaryOp { left, op, right } => {
-                Self::parse_sql_binary_op(context, parse_aggregations, left, op, right, schema)
+                self.parse_sql_binary_op(parse_aggregations, left, op, right, schema)
             }
-            SqlExpr::Nested(expr) => {
-                Self::parse_sql_expression(context, parse_aggregations, expr, schema)
+            SqlExpr::Nested(expr) => self.parse_sql_expression(parse_aggregations, expr, schema),
+            SqlExpr::Function(sql_function) => {
+                self.parse_sql_function(parse_aggregations, sql_function, schema)
             }
-            SqlExpr::Function(sql_function) => Self::parse_sql_function(
-                context,
-                parse_aggregations,
-                sql_function,
-                schema,
-                expression,
-            ),
             SqlExpr::Like {
                 negated,
                 expr,
                 pattern,
                 escape_char,
-            } => Self::parse_sql_like_operator(
-                context,
+            } => self.parse_sql_like_operator(
                 parse_aggregations,
                 negated,
                 expr,
@@ -116,16 +103,13 @@ impl ExpressionBuilder {
                 schema,
             ),
             SqlExpr::Cast { expr, data_type } => {
-                Self::parse_sql_cast_operator(context, parse_aggregations, expr, data_type, schema)
+                self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema)
             }
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
 
-    fn parse_sql_column(
-        ident: &[Ident],
-        schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
+    fn parse_sql_column(ident: &[Ident], schema: &Schema) -> Result<Expression, PipelineError> {
         let (src_field, src_table_or_alias, src_connection) = match ident.len() {
             1 => (&ident[0].value, None, None),
             2 => (&ident[1].value, Some(&ident[0].value), None),
@@ -151,9 +135,9 @@ impl ExpressionBuilder {
             .collect();
 
         match matching_by_field.len() {
-            1 => Ok(Box::new(Expression::Column {
+            1 => Ok(Expression::Column {
                 index: matching_by_field[0].0,
-            })),
+            }),
             _ => match src_table_or_alias {
                 None => Err(InvalidExpression(
                     ident
@@ -175,9 +159,9 @@ impl ExpressionBuilder {
                             .collect();
 
                     match matching_by_table_or_alias.len() {
-                        1 => Ok(Box::new(Expression::Column {
+                        1 => Ok(Expression::Column {
                             index: matching_by_table_or_alias[0].0,
-                        })),
+                        }),
                         _ => match src_connection {
                             None => Err(InvalidExpression(
                                 ident
@@ -198,9 +182,9 @@ impl ExpressionBuilder {
                                         .collect();
 
                                 match matching_by_connection.len() {
-                                    1 => Ok(Box::new(Expression::Column {
+                                    1 => Ok(Expression::Column {
                                         index: matching_by_connection[0].0,
-                                    })),
+                                    }),
                                     _ => Err(InvalidExpression(
                                         ident
                                             .iter()
@@ -216,21 +200,20 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_trim_function(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         expr: &Expr,
         trim_where: &Option<TrimWhereField>,
         trim_what: &Option<Box<Expr>>,
         schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
-        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
+    ) -> Result<Expression, PipelineError> {
+        let arg = Box::new(self.parse_sql_expression(parse_aggregations, expr, schema)?);
         let what = match trim_what {
-            Some(e) => Some(Self::parse_sql_expression(
-                context,
+            Some(e) => Some(Box::new(self.parse_sql_expression(
                 parse_aggregations,
                 e,
                 schema,
-            )?),
+            )?)),
             _ => None,
         };
         let typ = trim_where.as_ref().map(|e| match e {
@@ -238,17 +221,23 @@ impl ExpressionBuilder {
             TrimWhereField::Leading => TrimType::Leading,
             TrimWhereField::Trailing => TrimType::Trailing,
         });
-        Ok(Box::new(Expression::Trim { arg, what, typ }))
+        Ok(Expression::Trim { arg, what, typ })
     }
 
     fn parse_sql_function(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
-        _expression: &SqlExpr,
-    ) -> Result<Box<Expression>, PipelineError> {
+    ) -> Result<Expression, PipelineError> {
         let function_name = sql_function.name.to_string().to_lowercase();
+
+        #[cfg(feature = "python")]
+        if function_name.starts_with("py_") {
+            // The function is from python udf.
+            let udf_name = function_name.strip_prefix("py_").unwrap();
+            return self.parse_python_udf(udf_name, sql_function, schema);
+        }
 
         match (
             AggregateFunctionType::new(function_name.as_str()),
@@ -257,14 +246,14 @@ impl ExpressionBuilder {
             (Ok(aggr), true) => {
                 let mut arg_expr: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
-                    let aggregation = *Self::parse_sql_function_arg(context, true, arg, schema)?;
+                    let aggregation = self.parse_sql_function_arg(true, arg, schema)?;
                     arg_expr.push(aggregation);
                 }
                 let measure = Expression::AggregateFunction {
                     fun: aggr,
                     args: arg_expr,
                 };
-                let index = match context
+                let index = match self
                     .aggregations
                     .iter()
                     .enumerate()
@@ -272,52 +261,61 @@ impl ExpressionBuilder {
                 {
                     Some((index, _existing)) => index,
                     _ => {
-                        context.aggregations.push(measure);
-                        context.aggregations.len() - 1
+                        self.aggregations.push(measure);
+                        self.aggregations.len() - 1
                     }
                 };
-                Ok(Box::new(Expression::Column {
-                    index: context.offset + index,
-                }))
+                Ok(Expression::Column {
+                    index: self.offset + index,
+                })
             }
             (Ok(_agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
             (Err(_), _) => {
                 let mut function_args: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
-                    function_args.push(*Self::parse_sql_function_arg(
-                        context,
+                    function_args.push(self.parse_sql_function_arg(
                         parse_aggregations,
                         arg,
                         schema,
                     )?);
                 }
-                let function_type = ScalarFunctionType::new(function_name.as_str())?;
 
-                Ok(Box::new(ScalarFunction {
-                    fun: function_type,
-                    args: function_args,
-                }))
+                ScalarFunctionType::new(function_name.as_str()).map_or_else(
+                    |_e| {
+                        let f = GeoFunctionType::new(function_name.as_str())?;
+                        Ok(GeoFunction {
+                            fun: f,
+                            args: function_args.clone(),
+                        })
+                    },
+                    |f| {
+                        Ok(ScalarFunction {
+                            fun: f,
+                            args: function_args.clone(),
+                        })
+                    },
+                )
             }
         }
     }
 
     fn parse_sql_function_arg(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         argument: &FunctionArg,
         schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
+    ) -> Result<Expression, PipelineError> {
         match argument {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Expr(arg),
-            } => Self::parse_sql_expression(context, parse_aggregations, arg, schema),
+            } => self.parse_sql_expression(parse_aggregations, arg, schema),
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
             } => Err(InvalidArgument(format!("{argument:?}"))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
-                Self::parse_sql_expression(context, parse_aggregations, arg, schema)
+                self.parse_sql_expression(parse_aggregations, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
                 Err(InvalidArgument(format!("{argument:?}")))
@@ -333,13 +331,13 @@ impl ExpressionBuilder {
     }
 
     fn parse_sql_unary_op(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
-        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
+    ) -> Result<Expression, PipelineError> {
+        let arg = Box::new(self.parse_sql_expression(parse_aggregations, expr, schema)?);
         let operator = match op {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
@@ -347,19 +345,19 @@ impl ExpressionBuilder {
             _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
-        Ok(Box::new(Expression::UnaryOperator { operator, arg }))
+        Ok(Expression::UnaryOperator { operator, arg })
     }
 
     fn parse_sql_binary_op(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         left: &SqlExpr,
         op: &SqlBinaryOperator,
         right: &SqlExpr,
         schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
-        let left_op = Self::parse_sql_expression(context, parse_aggregations, left, schema)?;
-        let right_op = Self::parse_sql_expression(context, parse_aggregations, right, schema)?;
+    ) -> Result<Expression, PipelineError> {
+        let left_op = self.parse_sql_expression(parse_aggregations, left, schema)?;
+        let right_op = self.parse_sql_expression(parse_aggregations, right, schema)?;
 
         let operator = match op {
             SqlBinaryOperator::Gt => BinaryOperatorType::Gt,
@@ -378,57 +376,57 @@ impl ExpressionBuilder {
             _ => return Err(InvalidOperator(format!("{op:?}"))),
         };
 
-        Ok(Box::new(Expression::BinaryOperator {
-            left: left_op,
+        Ok(Expression::BinaryOperator {
+            left: Box::new(left_op),
             operator,
-            right: right_op,
-        }))
+            right: Box::new(right_op),
+        })
     }
 
-    fn parse_sql_number(n: &str) -> Result<Box<Expression>, PipelineError> {
+    fn parse_sql_number(n: &str) -> Result<Expression, PipelineError> {
         match n.parse::<i64>() {
-            Ok(n) => Ok(Box::new(Expression::Literal(Field::Int(n)))),
+            Ok(n) => Ok(Expression::Literal(Field::Int(n))),
             Err(_) => match n.parse::<f64>() {
-                Ok(f) => Ok(Box::new(Expression::Literal(Field::Float(OrderedFloat(f))))),
+                Ok(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
                 Err(_) => Err(InvalidValue(n.to_string())),
             },
         }
     }
 
     fn parse_sql_like_operator(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         negated: &bool,
         expr: &Expr,
         pattern: &Expr,
         escape_char: &Option<char>,
         schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
-        let arg = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
-        let pattern = Self::parse_sql_expression(context, parse_aggregations, pattern, schema)?;
-        let like_expression = Box::new(Expression::Like {
-            arg,
-            pattern,
+    ) -> Result<Expression, PipelineError> {
+        let arg = self.parse_sql_expression(parse_aggregations, expr, schema)?;
+        let pattern = self.parse_sql_expression(parse_aggregations, pattern, schema)?;
+        let like_expression = Expression::Like {
+            arg: Box::new(arg),
+            pattern: Box::new(pattern),
             escape: *escape_char,
-        });
+        };
         if *negated {
-            Ok(Box::new(Expression::UnaryOperator {
+            Ok(Expression::UnaryOperator {
                 operator: UnaryOperatorType::Not,
-                arg: like_expression,
-            }))
+                arg: Box::new(like_expression),
+            })
         } else {
             Ok(like_expression)
         }
     }
 
     fn parse_sql_cast_operator(
-        context: &mut ExpressionContext,
+        &mut self,
         parse_aggregations: bool,
         expr: &Expr,
         data_type: &DataType,
         schema: &Schema,
-    ) -> Result<Box<Expression>, PipelineError> {
-        let expression = Self::parse_sql_expression(context, parse_aggregations, expr, schema)?;
+    ) -> Result<Expression, PipelineError> {
+        let expression = self.parse_sql_expression(parse_aggregations, expr, schema)?;
         let cast_to = match data_type {
             DataType::Decimal(_) => CastOperatorType::Decimal,
             DataType::Binary(_) => CastOperatorType::Binary,
@@ -455,14 +453,14 @@ impl ExpressionBuilder {
                 "Unsupported Cast type {data_type}"
             )))?,
         };
-        Ok(Box::new(Expression::Cast {
-            arg: expression,
+        Ok(Expression::Cast {
+            arg: Box::new(expression),
             typ: cast_to,
-        }))
+        })
     }
 
-    fn parse_sql_string(s: &str) -> Result<Box<Expression>, PipelineError> {
-        Ok(Box::new(Expression::Literal(Field::String(s.to_owned()))))
+    fn parse_sql_string(s: &str) -> Result<Expression, PipelineError> {
+        Ok(Expression::Literal(Field::String(s.to_owned())))
     }
 
     pub fn fullname_from_ident(ident: &[Ident]) -> String {
@@ -478,6 +476,43 @@ impl ExpressionBuilder {
             Some(_) => id.value.clone(),
             None => id.value.clone(),
         }
+    }
+
+    #[cfg(feature = "python")]
+    fn parse_python_udf(
+        &mut self,
+        name: &str,
+        function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        // First, get python function define by name.
+        // Then, transfer python function to Expression::PythonUDF
+
+        use dozer_types::types::FieldType;
+        use PipelineError::InvalidQuery;
+
+        let args = function
+            .args
+            .iter()
+            .map(|argument| self.parse_sql_function_arg(false, argument, schema))
+            .collect::<Result<Vec<_>, PipelineError>>()?;
+
+        let last_arg = args
+            .last()
+            .ok_or_else(|| InvalidQuery("Can't get python udf return type".to_string()))?;
+
+        let return_type = match last_arg {
+            Expression::Literal(Field::String(s)) => {
+                FieldType::try_from(s.as_str()).map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?
+            }
+            _ => return Err(InvalidArgument("The last arg for python udf should be a string literal, which represents return type".to_string())),
+        };
+
+        Ok(Expression::PythonUDF {
+            name: name.to_string(),
+            args,
+            return_type,
+        })
     }
 }
 

@@ -16,7 +16,8 @@ fn join_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::FromCsv("actor", table_names.clone()),
+        None,
+        &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
     let mut src_keys = HashSet::new();
@@ -34,7 +35,8 @@ fn join_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::List(get_sample_ops()),
+        None,
+        &TestInstruction::List(get_sample_ops()),
     );
 
     let mut src_keys = HashSet::new();
@@ -62,7 +64,8 @@ fn multi_join_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::FromCsv("actor", table_names.clone()),
+        None,
+        &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
     let mut src_keys = HashSet::new();
@@ -80,7 +83,8 @@ fn multi_join_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::List(get_sample_ops()),
+        None,
+        &TestInstruction::List(get_sample_ops()),
     );
 
     let mut src_keys = HashSet::new();
@@ -107,7 +111,8 @@ fn join_alias_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::FromCsv("actor", table_names.clone()),
+        None,
+        &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
     let mut src_keys = HashSet::new();
@@ -125,7 +130,8 @@ fn join_alias_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::List(get_sample_ops()),
+        None,
+        &TestInstruction::List(get_sample_ops()),
     );
 
     let mut src_keys = HashSet::new();
@@ -154,7 +160,8 @@ fn join_cte_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::FromCsv("actor", table_names.clone()),
+        None,
+        &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
     let mut src_keys = HashSet::new();
@@ -172,7 +179,8 @@ fn join_cte_query() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::List(get_sample_ops()),
+        None,
+        &TestInstruction::List(get_sample_ops()),
     );
 
     let mut src_keys = HashSet::new();
@@ -199,7 +207,8 @@ fn include_right_joins() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::FromCsv("actor", table_names.clone()),
+        None,
+        &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
     let mut src_keys = HashSet::new();
@@ -217,7 +226,8 @@ fn include_right_joins() {
     let results = helper::query(
         &table_names,
         queries,
-        TestInstruction::List(get_sample_ops()),
+        None,
+        &TestInstruction::List(get_sample_ops()),
     );
 
     let mut src_keys = HashSet::new();

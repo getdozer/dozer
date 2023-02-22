@@ -17,8 +17,9 @@ fn agg_query() {
     ];
 
     helper::compare_with_sqlite(
-        &vec!["film", "actor"],
-        queries,
+        &["film", "actor"],
+        &queries,
+        None,
         TestInstruction::FromCsv("actor", vec!["film", "actor"]),
     );
 }
@@ -33,8 +34,9 @@ fn agg_updates_query() {
     ];
 
     helper::compare_with_sqlite(
-        &vec!["actor"],
-        queries,
+        &["actor"],
+        &queries,
+        None,
         TestInstruction::List(get_sample_ops()),
     );
 }

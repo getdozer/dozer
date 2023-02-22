@@ -117,19 +117,15 @@ impl Executor {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
-    ) -> Result<DagExecutor<SchemaSQLContext>, OrchestrationError> {
+        executor_options: ExecutorOptions,
+    ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.config.clone(),
             self.api_endpoints.clone(),
             self.pipeline_dir.clone(),
         );
 
-        let dag = builder.build(
-            notifier,
-            PathBuf::default(),
-            cache_manager_options,
-            settings,
-        )?;
+        let dag = builder.build(notifier, cache_manager_options, settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {
@@ -138,15 +134,12 @@ impl Executor {
             ));
         }
 
-        let exec = DagExecutor::new(&dag, path.to_path_buf(), ExecutorOptions::default())?;
+        let exec = DagExecutor::new(&dag, path.to_path_buf(), executor_options)?;
 
         Ok(exec)
     }
 
-    pub fn run_dag_executor(
-        &self,
-        dag_executor: DagExecutor<SchemaSQLContext>,
-    ) -> Result<(), OrchestrationError> {
+    pub fn run_dag_executor(&self, dag_executor: DagExecutor) -> Result<(), OrchestrationError> {
         let join_handle = dag_executor.start(self.running.clone())?;
         join_handle.join().map_err(ExecutionError)
     }

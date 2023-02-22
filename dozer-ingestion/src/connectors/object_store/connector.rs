@@ -9,6 +9,7 @@ use crate::ingestion::Ingestor;
 
 type ConnectorResult<T> = Result<T, crate::errors::ConnectorError>;
 
+#[derive(Debug)]
 pub struct ObjectStoreConnector<T: Clone> {
     pub id: u64,
     config: T,

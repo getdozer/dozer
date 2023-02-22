@@ -22,11 +22,11 @@ tempdir = "0.3.7"
 clap = {version = "4.1.6", features = ["derive"]}
 ctrlc = "3.2.5"
 tonic = "0.8.3"
-tokio-stream = "0.1.11"
+tokio-stream = "0.1.12"
 include_dir = "0.7.3"
 handlebars = "4.3.6"
 rustyline = "10.1.1"
-rustyline-derive = "0.7.0"
+rustyline-derive = "0.8.0"
 crossterm = "0.26.0"
 futures = "0.3.26"
 dozer-storage = { path = "../dozer-storage" }
