@@ -13,6 +13,8 @@ use lmdb::Database;
 
 use crate::pipeline::errors::JoinError;
 
+use super::window::WindowType;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinAction {
     Insert,
@@ -90,11 +92,17 @@ pub struct JoinTable {
     port: PortHandle,
 
     pub schema: Schema,
+
+    window: Option<WindowType>,
 }
 
 impl JoinTable {
-    pub fn new(port: PortHandle, schema: Schema) -> Self {
-        Self { port, schema }
+    pub fn new(port: PortHandle, schema: Schema, window: Option<WindowType>) -> Self {
+        Self {
+            port,
+            schema,
+            window,
+        }
     }
 
     pub fn get_source(&self) -> PortHandle {

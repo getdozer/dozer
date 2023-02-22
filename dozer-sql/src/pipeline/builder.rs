@@ -555,7 +555,7 @@ pub fn get_from_source(
                 if !args.is_empty() && (input_name == "TUMBLE" || input_name == "HOP") {
                     let table_arg = args.get(0).unwrap();
 
-                    let table_name: String = get_source_from_function(table_arg)?;
+                    let table_name: String = get_source_from_function(&input_name, table_arg)?;
 
                     return Ok(NameOrAlias(table_name, alias_name));
                 }
@@ -600,8 +600,19 @@ fn get_source_from_function(
     table_arg: &FunctionArg,
 ) -> Result<String, SqlError> {
     match table_arg {
-        FunctionArg::Named { name: _, arg: _ } => Err(SqlError::WindowError(function_name)),
-        FunctionArg::Unnamed(expr) => {}
+        FunctionArg::Named { name: _, arg: _ } => {
+            Err(SqlError::WindowError(function_name.to_owned()))
+        }
+        FunctionArg::Unnamed(expr) => match expr {
+            sqlparser::ast::FunctionArgExpr::Expr(expr) => match expr {
+                sqlparser::ast::Expr::Identifier(ident) => {
+                    Ok(ExpressionBuilder::normalize_ident(ident))
+                }
+                _ => Err(SqlError::WindowError(function_name.to_owned())),
+            },
+            sqlparser::ast::FunctionArgExpr::QualifiedWildcard(_) => todo!(),
+            sqlparser::ast::FunctionArgExpr::Wildcard => todo!(),
+        },
     }
 }
 

@@ -7,19 +7,19 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint, TableFactor};
+use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
+use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::JoinError,
-    expression::builder::{extend_schema_source_def, NameOrAlias},
-    product::join::JoinBranch,
+    expression::builder::extend_schema_source_def,
+    product::{join::JoinBranch, window_builder::window_from_relation},
 };
 use crate::pipeline::{
     builder::{get_input_names, IndexedTableWithJoins},
     errors::PipelineError,
 };
-use crate::pipeline::{expression::builder::ExpressionBuilder, product::window::WindowFunction};
 use sqlparser::ast::Expr as SqlExpr;
 
 use super::{
@@ -109,7 +109,7 @@ pub fn build_join_tree(
 
     let mut source_names = HashMap::new();
 
-    if let Some(left_window) = window_from_relation(&join_tables.relation) {}
+    if let Some(left_window) = window_from_relation(&join_tables.relation.1)? {};
 
     let port = 0 as PortHandle;
     let left_schema = input_schemas
@@ -128,7 +128,8 @@ pub fn build_join_tree(
 
     let mut left_extended_schema = extend_schema_source_def(&left_schema, relation_name);
 
-    let mut left_join_table = JoinSource::Table(JoinTable::new(port, left_extended_schema.clone()));
+    let mut left_join_table =
+        JoinSource::Table(JoinTable::new(port, left_extended_schema.clone(), None));
 
     let mut join_tree_root = left_join_table.clone();
 
@@ -143,8 +144,11 @@ pub fn build_join_tree(
 
         source_names.insert(right_port, relation_name.0.to_owned());
         let right_extended_schema = extend_schema_source_def(right_schema, relation_name);
-        let right_join_table =
-            JoinSource::Table(JoinTable::new(right_port, right_extended_schema.clone()));
+        let right_join_table = JoinSource::Table(JoinTable::new(
+            right_port,
+            right_extended_schema.clone(),
+            None,
+        ));
 
         let join_schema = append_schema(&left_extended_schema, &right_extended_schema);
 
@@ -197,35 +201,6 @@ pub fn build_join_tree(
     }
 
     Ok((join_tree_root, source_names))
-}
-
-fn window_from_relation(relation: &(NameOrAlias, TableFactor)) -> Option<Box<dyn WindowFunction>> {
-    let name = match &relation.1 {
-        TableFactor::Table {
-            name,
-            alias,
-            args,
-            with_hints,
-        } => todo!(),
-        TableFactor::Derived {
-            lateral,
-            subquery,
-            alias,
-        } => todo!(),
-        TableFactor::TableFunction { expr, alias } => todo!(),
-        TableFactor::UNNEST {
-            alias,
-            array_expr,
-            with_offset,
-            with_offset_alias,
-        } => todo!(),
-        TableFactor::NestedJoin {
-            table_with_joins,
-            alias,
-        } => todo!(),
-    };
-
-    None
 }
 
 fn parse_join_constraint(

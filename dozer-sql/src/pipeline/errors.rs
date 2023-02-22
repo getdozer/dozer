@@ -200,6 +200,18 @@ pub enum JoinError {
 
     #[error("Error reading key: {0:x?} from the JOIN index\n{1}")]
     IndexGetError(Vec<u8>, StorageError),
+
+    #[error("Invalid function {0:x?} in the FROM clause")]
+    UnsupportedTableFunction(String),
+
+    #[error("Column name not specified for the WINDOW function in the FROM clause")]
+    WindowMissingColumnArgument,
+
+    #[error("Interval not specified for the WINDOW function in the FROM clause")]
+    WindowMissingIntervalArgument,
+
+    #[error("Hop size not specified for the WINDOW function in the FROM clause")]
+    WindowMissingHopSizeArgument,
 }
 
 #[derive(Error, Debug)]

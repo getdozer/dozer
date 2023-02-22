@@ -2,12 +2,36 @@ use dozer_types::{
     chrono::{Duration, DurationRound},
     types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
 };
-use sqlparser::ast::TableFactor;
 
-use crate::pipeline::{errors::WindowError, expression::builder::NameOrAlias};
+use crate::pipeline::errors::WindowError;
 
-pub trait WindowFunction {
-    fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError>;
+#[derive(Clone, Debug)]
+pub enum WindowType {
+    Tumble {
+        column_index: usize,
+        interval: Duration,
+    },
+    Hop {
+        column_index: usize,
+        hop_size: Duration,
+        interval: Duration,
+    },
+}
+
+impl WindowType {
+    fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
+        match self {
+            WindowType::Tumble {
+                column_index,
+                interval,
+            } => execute_tumble_window(record, *column_index, *interval),
+            WindowType::Hop {
+                column_index,
+                hop_size,
+                interval,
+            } => execute_hop_window(record, *column_index, *hop_size, *interval),
+        }
+    }
 
     fn get_output_schema(&self, schema: &Schema) -> Result<Schema, WindowError> {
         let mut output_schema = schema.clone();
@@ -27,102 +51,81 @@ pub trait WindowFunction {
     }
 }
 
-pub struct TumbleWindow {
-    column_index: usize,
-    interval: Duration,
-}
-
-impl TumbleWindow {
-    pub fn new(column_index: usize, interval: Duration) -> Self {
-        Self {
-            column_index,
-            interval,
-        }
-    }
-
-    fn tumble(&self, field: &Field) -> Result<(Field, Field), WindowError> {
-        if let Field::Timestamp(ts) = field {
-            let start = ts
-                .duration_trunc(self.interval)
-                .map_err(WindowError::TumbleRoundingError)?;
-            let end = start + self.interval;
-            Ok((Field::Timestamp(start), Field::Timestamp(end)))
-        } else {
-            Err(WindowError::TumbleInvalidColumnType())
-        }
-    }
-}
-
-impl WindowFunction for TumbleWindow {
-    fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
-        let field = record
-            .get_value(self.column_index)
-            .map_err(|_err| WindowError::TumbleInvalidColumnIndex())?;
-
-        let (start, end) = self.tumble(field)?;
-
-        let mut window_record = record.clone();
-        window_record.push_value(start);
-        window_record.push_value(end);
-
-        Ok(vec![window_record])
-    }
-}
-
-pub struct HopWindow {
+fn execute_hop_window(
+    record: &Record,
     column_index: usize,
     hop_size: Duration,
     interval: Duration,
-}
+) -> Result<Vec<Record>, WindowError> {
+    let field = record
+        .get_value(column_index)
+        .map_err(|_err| WindowError::TumbleInvalidColumnIndex())?;
 
-impl HopWindow {
-    pub fn new(column_index: usize, hop_size: Duration, interval: Duration) -> Self {
-        Self {
-            column_index,
-            hop_size,
-            interval,
-        }
+    let windows = hop(field, hop_size, interval)?;
+
+    let mut records = vec![];
+    for (start, end) in windows.iter() {
+        let mut window_record = record.clone();
+        window_record.push_value(start.clone());
+        window_record.push_value(end.clone());
+        records.push(window_record);
     }
 
-    fn hop(&self, field: &Field) -> Result<Vec<(Field, Field)>, WindowError> {
-        if let Field::Timestamp(ts) = field {
-            let starting_time = ts
-                .duration_trunc(self.hop_size)
-                .map_err(WindowError::TumbleRoundingError)?
-                - self.interval;
+    Ok(records)
+}
 
-            let mut windows = vec![];
-            let mut current = starting_time;
-            while current < starting_time + self.interval {
-                let start = current;
-                let end = current + self.interval;
-                windows.push((Field::Timestamp(start), Field::Timestamp(end)));
-                current += self.hop_size;
-            }
+fn hop(
+    field: &Field,
+    hop_size: Duration,
+    interval: Duration,
+) -> Result<Vec<(Field, Field)>, WindowError> {
+    if let Field::Timestamp(ts) = field {
+        let starting_time = ts
+            .duration_trunc(hop_size)
+            .map_err(WindowError::TumbleRoundingError)?
+            - interval;
 
-            Ok(windows)
-        } else {
-            Err(WindowError::TumbleInvalidColumnType())
+        let mut windows = vec![];
+        let mut current = starting_time;
+        while current < starting_time + interval {
+            let start = current;
+            let end = current + interval;
+            windows.push((Field::Timestamp(start), Field::Timestamp(end)));
+            current += hop_size;
         }
+
+        Ok(windows)
+    } else {
+        Err(WindowError::TumbleInvalidColumnType())
     }
 }
 
-impl WindowFunction for HopWindow {
-    fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
-        let field = record
-            .get_value(self.column_index)
-            .map_err(|_err| WindowError::TumbleInvalidColumnIndex())?;
+fn execute_tumble_window(
+    record: &Record,
+    column_index: usize,
+    interval: Duration,
+) -> Result<Vec<Record>, WindowError> {
+    let field = record
+        .get_value(column_index)
+        .map_err(|_err| WindowError::TumbleInvalidColumnIndex())?;
 
-        let windows = self.hop(field)?;
+    let (start, end) = tumble(field, interval)?;
 
-        let mut records = vec![];
-        for (start, end) in windows.iter() {
-            let mut window_record = record.clone();
-            window_record.push_value(start.clone());
-            window_record.push_value(end.clone());
-            records.push(window_record);
-        }
+    let mut window_record = record.clone();
+    window_record.push_value(start);
+    window_record.push_value(end);
 
-        Ok(records)
+    Ok(vec![window_record])
+}
+
+fn tumble(field: &Field, interval: Duration) -> Result<(Field, Field), WindowError> {
+    if let Field::Timestamp(ts) = field {
+        let start = ts
+            .duration_trunc(interval)
+            .map_err(WindowError::TumbleRoundingError)?;
+        let end = start + interval;
+        Ok((Field::Timestamp(start), Field::Timestamp(end)))
+    } else {
+        Err(WindowError::TumbleInvalidColumnType())
     }
 }
