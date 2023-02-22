@@ -155,7 +155,7 @@ impl Connector for PostgresConnector {
                 };
                 match validate_slot(&mut client, &slot_info, self.tables.as_ref()) {
                     Ok(_) => Ok(true),
-                    Err(e) => Err(ConnectorError::PostgresConnectorError(e)),
+                    Err(_e) => Ok(false),
                 }
             }
         }

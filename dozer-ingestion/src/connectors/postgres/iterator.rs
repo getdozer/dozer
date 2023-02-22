@@ -163,7 +163,7 @@ impl<'a> PostgresIteratorHandler<'a> {
                 ingestor: self.ingestor,
                 connector_id: self.connector_id,
             };
-            tables = snapshotter.sync_tables(details.tables.clone(), self.lsn.borrow().as_ref())?;
+            tables = snapshotter.sync_tables(details.tables.clone())?;
 
             debug!("\nInitialized with tables: {:?}", tables);
 
