@@ -30,15 +30,15 @@ Every connector to external database needs to implement connector trait (/dozer-
 
 
 * ```fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;```<br/>
-  This function is supposed to validate connector configuration and connection to database.                                                                                                                           
+  This function is supposed to validate connector configuration and connection to database.                                     
   <br/>
 * ```fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;```<br/>
-  This function's purpose is to validate schemas, which are used as sources for data ingestion. It should return error when column type is not supported by existing dozer types.                                                                                                                                       
+  This function's purpose is to validate schemas, which are used as sources for data ingestion. It should return error when column type is not supported by existing dozer types.                                                                                                          
   <br/>
-* ```fn get_schemas(&self,table_names: Option<Vec<TableInfo>>,) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;```<br/>
-  This function is used for getting mapped external database schema to dozer schema. Also, as result of schema definition, developer also should provide `ReplicationChangesTrackingType` (described below)                                                                                                                                                      
+* ```fn get_schemas(&self, table_names: Option<Vec<TableInfo>>) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;```<br/>
+  This function is used for getting mapped external database schema to dozer schema. Also, as result of schema definition, developer also should provide `ReplicationChangesTrackingType` (described below)                                      
   <br/>
-* ```fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>```<br/>
+* ```fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;```<br/>
   Using this method, developer can fetch all available tables from connector.                                                                          
   <br/>
 * ```fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;```<br/>
