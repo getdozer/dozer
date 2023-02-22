@@ -22,7 +22,21 @@ macro_rules! define_math_operator {
                 Field::Float(left_v) => match right_p {
                     Field::Int(right_v) => Ok(Field::Float($fct(
                         left_v,
-                        OrderedFloat::<f64>::from_i64(right_v).unwrap(),
+                        OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                            PipelineError::InvalidOperandType(format!(
+                                "Unable to cast {} to float",
+                                right_v
+                            )),
+                        )?,
+                    ))),
+                    Field::UInt(right_v) => Ok(Field::Float($fct(
+                        left_v,
+                        OrderedFloat::<f64>::from_u64(right_v).ok_or(
+                            PipelineError::InvalidOperandType(format!(
+                                "Unable to cast {} to float",
+                                right_v
+                            )),
+                        )?,
                     ))),
                     Field::Float(right_v) => Ok(Field::Float($fct(left_v, right_v))),
                     _ => Err(PipelineError::InvalidOperandType($op.to_string())),
@@ -31,14 +45,98 @@ macro_rules! define_math_operator {
                     Field::Int(right_v) => {
                         return match ($t) {
                             1 => Ok(Field::Float($fct(
-                                OrderedFloat::<f64>::from_i64(left_v).unwrap(),
-                                OrderedFloat::<f64>::from_i64(right_v).unwrap(),
+                                OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                    PipelineError::InvalidOperandType(format!(
+                                        "Unable to cast {} to float",
+                                        left_v
+                                    )),
+                                )?,
+                                OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                    PipelineError::InvalidOperandType(format!(
+                                        "Unable to cast {} to float",
+                                        right_v
+                                    )),
+                                )?,
                             ))),
                             _ => Ok(Field::Int($fct(left_v, right_v))),
                         };
                     }
+                    Field::UInt(right_v) => {
+                        return match ($t) {
+                            1 => Ok(Field::Float($fct(
+                                OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                    PipelineError::InvalidOperandType(format!(
+                                        "Unable to cast {} to float",
+                                        left_v
+                                    )),
+                                )?,
+                                OrderedFloat::<f64>::from_u64(right_v).ok_or(
+                                    PipelineError::InvalidOperandType(format!(
+                                        "Unable to cast {} to float",
+                                        right_v
+                                    )),
+                                )?,
+                            ))),
+                            _ => Ok(Field::Int($fct(left_v, right_v as i64))),
+                        };
+                    }
                     Field::Float(right_v) => Ok(Field::Float($fct(
-                        OrderedFloat::<f64>::from_i64(left_v).unwrap(),
+                        OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                            PipelineError::InvalidOperandType(format!(
+                                "Unable to cast {} to float",
+                                left_v
+                            )),
+                        )?,
+                        right_v,
+                    ))),
+                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                },
+                Field::UInt(left_v) => match right_p {
+                    Field::Int(right_v) => {
+                        return match ($t) {
+                            1 => Ok(Field::Float($fct(
+                                OrderedFloat::<f64>::from_u64(left_v).ok_or(
+                                    PipelineError::InvalidOperandType(format!(
+                                        "Unable to cast {} to float",
+                                        left_v
+                                    )),
+                                )?,
+                                OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                    PipelineError::InvalidOperandType(format!(
+                                        "Unable to cast {} to float",
+                                        right_v
+                                    )),
+                                )?,
+                            ))),
+                            _ => Ok(Field::Int($fct(left_v as i64, right_v))),
+                        };
+                    }
+                    Field::UInt(right_v) => {
+                        return match ($t) {
+                            1 => Ok(Field::Float($fct(
+                                OrderedFloat::<f64>::from_u64(left_v).ok_or(
+                                    PipelineError::InvalidOperandType(format!(
+                                        "Unable to cast {} to float",
+                                        left_v
+                                    )),
+                                )?,
+                                OrderedFloat::<f64>::from_u64(right_v).ok_or(
+                                    PipelineError::InvalidOperandType(format!(
+                                        "Unable to cast {} to float",
+                                        right_v
+                                    )),
+                                )?,
+                            ))),
+                            _ => Ok(Field::UInt($fct(left_v, right_v))),
+                        };
+                    }
+                    Field::Float(right_v) => Ok(Field::Float($fct(
+                        OrderedFloat::<f64>::from_u64(left_v).ok_or(
+                            PipelineError::InvalidOperandType(format!(
+                                "Unable to cast {} to float",
+                                left_v
+                            )),
+                        )?,
                         right_v,
                     ))),
                     _ => Err(PipelineError::InvalidOperandType($op.to_string())),
