@@ -1,9 +1,12 @@
 use crate::pipeline::errors::PipelineError;
-use dozer_core::node::PortHandle;
+use crate::{deserialize, try_unwrap};
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_types::parking_lot::RwLockWriteGuard;
 use dozer_types::types::Record;
+use lmdb::Database;
 use sqlparser::ast::{SetOperator, SetQuantifier};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum SetAction {
     Insert,
     Delete,
@@ -28,14 +31,14 @@ impl SetOperation {
     pub fn execute(
         &self,
         action: SetAction,
-        _from_port: PortHandle,
         record: &Record,
-        record_hash_map: &mut Vec<u64>,
+        database: &Database,
+        txn: &SharedTransaction,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record.clone())]),
             (SetOperator::Union, SetQuantifier::None) => {
-                self.execute_union(action, record, record_hash_map)
+                self.execute_union(action, record, database, txn)
             }
             _ => Err(PipelineError::InvalidOperandType(self.op.to_string())),
         }
@@ -45,14 +48,81 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_hash_map: &mut Vec<u64>,
+        database: &Database,
+        txn: &SharedTransaction,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let mut output_records: Vec<(SetAction, Record)> = vec![];
-        let lookup_key = record.get_values_hash();
-        if !record_hash_map.contains(&lookup_key) {
-            output_records.push((action, record.clone()));
-            record_hash_map.push(lookup_key);
+        let lookup_key = record.get_values_hash().to_be_bytes();
+        let write_txn = &mut txn.write();
+        match action {
+            SetAction::Insert => {
+                self.union_insert(action, record, &lookup_key, write_txn, *database)
+            }
+            SetAction::Delete => {
+                self.union_delete(action, record, &lookup_key, write_txn, *database)
+            }
         }
-        Ok(output_records)
+    }
+
+    fn union_insert(
+        &self,
+        action: SetAction,
+        record: &Record,
+        key: &[u8],
+        write_txn: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
+        set_db: Database,
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
+        let _count = self.update_set_db(key, 1, false, write_txn, set_db);
+        if _count == 1 {
+            Ok(vec![(action, record.to_owned())])
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn union_delete(
+        &self,
+        action: SetAction,
+        record: &Record,
+        key: &[u8],
+        write_txn: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
+        set_db: Database,
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
+        let _count = self.update_set_db(key, 1, true, write_txn, set_db);
+        if _count == 0 {
+            Ok(vec![(action, record.to_owned())])
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn update_set_db(
+        &self,
+        key: &[u8],
+        val_delta: u8,
+        decr: bool,
+        ptx: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
+        set_db: Database,
+    ) -> u8 {
+        let get_prev_count = try_unwrap!(ptx.get(set_db, key));
+        let prev_count = match get_prev_count {
+            Some(v) => u8::from_be_bytes(deserialize!(v)),
+            None => 0_u8,
+        };
+        let mut new_count = prev_count;
+        if decr {
+            new_count = new_count.wrapping_sub(val_delta);
+        } else {
+            new_count = new_count.wrapping_add(val_delta);
+        }
+        if new_count < 1 {
+            try_unwrap!(ptx.del(
+                set_db,
+                key,
+                Option::from(prev_count.to_be_bytes().as_slice())
+            ));
+        } else {
+            try_unwrap!(ptx.put(set_db, key, new_count.to_be_bytes().as_slice()));
+        }
+        new_count
     }
 }

@@ -2,7 +2,8 @@ use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresC
 use dozer_ingestion::connectors::{Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-use dozer_types::tracing::info;
+
+use dozer_types::log::debug;
 use std::thread;
 use std::time::Instant;
 
@@ -37,7 +38,7 @@ fn main() {
     loop {
         let _msg = iterator.next().unwrap();
         if i % 100 == 0 {
-            info!(
+            debug!(
                 "{}\rCount: {}, Elapsed time: {:.2?}",
                 BACKSPACE,
                 i,

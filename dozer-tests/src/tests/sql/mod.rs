@@ -7,6 +7,7 @@ pub mod join;
 pub mod helper;
 #[cfg(feature = "python")]
 pub mod python_udf;
+mod union;
 
 #[derive(Clone, Debug)]
 pub enum TestInstruction {

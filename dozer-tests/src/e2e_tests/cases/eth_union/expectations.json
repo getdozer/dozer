@@ -1,0 +1,22 @@
+[
+    "HealthyService",
+    {
+        "Endpoint": {
+            "endpoint": "addresses",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "address",
+                                "typ": "String",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+]
