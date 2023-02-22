@@ -14,8 +14,9 @@ pub mod dozer_admin_grpc {
 }
 use self::dozer_admin_grpc::{
     GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
-    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, StartRequest, StartResponse,
-    StopRequest, StopResponse, UpdateAppRequest, ValidateConnectionResponse,
+    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, ParseYamlRequest,
+    ParseYamlResponse, StartRequest, StartResponse, StopRequest, StopResponse, UpdateAppRequest,
+    ValidateConnectionResponse,
 };
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
@@ -35,7 +36,18 @@ impl DozerAdmin for GrpcService {
         &self,
         request: tonic::Request<ParseRequest>,
     ) -> Result<tonic::Response<ParseResponse>, tonic::Status> {
-        let result = self.app_service.parse(request.into_inner());
+        let result = self.app_service.parse_sql(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn parse_yaml(
+        &self,
+        request: tonic::Request<ParseYamlRequest>,
+    ) -> Result<tonic::Response<ParseYamlResponse>, tonic::Status> {
+        let result = self.app_service.parse_yaml(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),

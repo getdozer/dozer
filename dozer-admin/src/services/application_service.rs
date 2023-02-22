@@ -11,7 +11,8 @@ use crate::{
     server::dozer_admin_grpc::{
         AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
         GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
-        Pagination, ParseRequest, ParseResponse, StartRequest, StartResponse, UpdateAppRequest,
+        Pagination, ParseRequest, ParseResponse, ParseYamlRequest, ParseYamlResponse, StartRequest,
+        StartResponse, UpdateAppRequest,
     },
 };
 use diesel::prelude::*;
@@ -67,7 +68,7 @@ impl AppService {
         }
     }
 
-    pub fn parse(&self, input: ParseRequest) -> Result<ParseResponse, ErrorResponse> {
+    pub fn parse_sql(&self, input: ParseRequest) -> Result<ParseResponse, ErrorResponse> {
         let context = wrapped_statement_to_pipeline(&input.sql).map_err(|op| ErrorResponse {
             message: op.to_string(),
         })?;
@@ -129,6 +130,14 @@ impl AppService {
             sources,
             endpoints,
         })
+    }
+
+    pub fn parse_yaml(&self, input: ParseYamlRequest) -> Result<ParseYamlResponse, ErrorResponse> {
+        let app = serde_yaml::from_str::<dozer_types::models::app_config::Config>(&input.config)
+            .map_err(|op| ErrorResponse {
+                message: op.to_string(),
+            })?;
+        Ok(ParseYamlResponse { app: Some(app) })
     }
 
     pub fn create(&self, input: CreateAppRequest) -> Result<AppResponse, ErrorResponse> {
