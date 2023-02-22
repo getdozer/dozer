@@ -57,15 +57,20 @@ impl SetOperation {
         match action {
             SetAction::Insert => {
                 _count = self.update_set_db(&lookup_key, 1, false, write_txn, *database);
+                if _count == 1 {
+                    Ok(vec![(action, record.to_owned())])
+                } else {
+                    Ok(vec![])
+                }
             }
             SetAction::Delete => {
                 _count = self.update_set_db(&lookup_key, 1, true, write_txn, *database);
+                if _count == 0 {
+                    Ok(vec![(action, record.to_owned())])
+                } else {
+                    Ok(vec![])
+                }
             }
-        }
-        if _count == 1 {
-            Ok(vec![(action, record.to_owned())])
-        } else {
-            Ok(vec![])
         }
     }
 

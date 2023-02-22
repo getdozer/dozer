@@ -60,7 +60,7 @@ fn union_query() {
 #[test]
 fn union_all_query() {
     let queries = r#"
-        WITH actor_id_union AS (
+        WITH actor_id_union_all AS (
             SELECT actor_id
             FROM actor
             UNION ALL
@@ -68,7 +68,7 @@ fn union_all_query() {
             FROM film_actor
         )
         SELECT actor_id
-        FROM actor_id_union;
+        FROM actor_id_union_all;
       "#;
 
     let table_names = vec!["actor", "film_actor"];
