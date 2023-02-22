@@ -9,6 +9,7 @@ use dozer_types::types::{
 };
 use sqlparser::ast::{Expr, ObjectName};
 use std::error::Error;
+use std::str;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -43,7 +44,6 @@ pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
                 FieldType::Float | FieldType::Binary => "numeric",
                 FieldType::Timestamp => "timestamp",
                 FieldType::Boolean => "bool",
-                FieldType::Null => "null",
                 typ => panic!("unsupported type {typ:?}"),
             };
             format!(
@@ -151,7 +151,6 @@ pub fn map_sqlite_to_record(
                 Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
             },
             FieldType::Date =>  convert_type!(Field::String, f, row, idx),
-            FieldType::Null => Field::Null,
             FieldType::Bson | FieldType::Point => {
                 panic!("type not supported : {:?}", f.typ.to_owned())
             }
@@ -185,16 +184,16 @@ pub fn parse_exp_to_string(exp: &Expr) -> String {
 
 pub fn parse_exp_to_field(exp: &Expr) -> Field {
     match &exp {
-        sqlparser::ast::Expr::Value(value) => match value {
+        Expr::Value(value) => match value {
             sqlparser::ast::Value::Number(str, _) => parse_sql_number(str).unwrap(),
             sqlparser::ast::Value::SingleQuotedString(str) => Field::String(str.to_owned()),
             sqlparser::ast::Value::Boolean(b) => Field::Boolean(*b),
             sqlparser::ast::Value::Null => Field::Null,
             _ => {
-                panic!("not supported")
+                panic!("{}", format!("{value} not supported"))
             }
         },
-        _ => panic!("not supported"),
+        _ => panic!("{}", format!("{exp} not supported")),
     }
 }
 pub fn get_primary_key_value(schema: &Schema, rec: &Record) -> Field {
@@ -226,7 +225,7 @@ pub fn map_field_to_string(f: &Field) -> String {
         Field::Text(i) => i.to_string(),
         Field::Timestamp(i) => i.to_string(),
         Field::Date(i) => i.to_string(),
-        Field::Binary(i) => ,
+        Field::Binary(i) => str::from_utf8(i).unwrap().to_string(),
         Field::Bson(_) => panic!("not supported {f:?}"),
         Field::Decimal(i) => i.to_string(),
         Field::Null => "null".to_string(),

@@ -158,7 +158,7 @@ pub fn compare_with_expected_results(
     test_instruction: TestInstruction,
 ) {
     init();
-    for (idx,test) in queries.iter().enumerate() {
+    for (idx, test) in queries.iter().enumerate() {
         let result = query(table_names, test, &expected_results[idx], &test_instruction);
         assert_eq!(result.source_result, result.dest_result, "Test: {test}");
     }

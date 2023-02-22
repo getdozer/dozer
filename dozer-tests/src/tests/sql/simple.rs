@@ -39,5 +39,5 @@ fn changes_queries() {
 
     let list = helper::get_sample_ops();
 
-    helper::compare_with_sqlite(&["actor"], &queries,  TestInstruction::List(list));
+    helper::compare_with_sqlite(&["actor"], &queries, TestInstruction::List(list));
 }

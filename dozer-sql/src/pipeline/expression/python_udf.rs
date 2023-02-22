@@ -15,7 +15,7 @@ pub fn evaluate_py_udf(
     schema: &Schema,
     name: &str,
     args: &[Expression],
-    return_type: &FieldType,
+    return_type: &Option<FieldType>,
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let values = args
@@ -45,7 +45,10 @@ pub fn evaluate_py_udf(
 
         let args = PyTuple::new(py, values);
         let res = function.call1(args)?;
-        Ok(match return_type {
+        if return_type.is_none() {
+            return Ok(Field::Null);
+        }
+        Ok(match return_type.unwrap() {
             FieldType::UInt => Field::UInt(res.extract::<u64>()?),
             FieldType::Int => Field::Int(res.extract::<i64>()?),
             FieldType::Float => Field::Float(OrderedFloat::from(res.extract::<f64>()?)),
@@ -53,8 +56,11 @@ pub fn evaluate_py_udf(
             FieldType::String => Field::String(res.extract::<String>()?),
             FieldType::Text => Field::Text(res.extract::<String>()?),
             FieldType::Binary => Field::Binary(res.extract::<Vec<u8>>()?),
-            FieldType::Null => Field::Null,
-            FieldType::Decimal|FieldType::Date | FieldType::Timestamp | FieldType::Point | FieldType::Bson => {
+            FieldType::Decimal
+            | FieldType::Date
+            | FieldType::Timestamp
+            | FieldType::Point
+            | FieldType::Bson => {
                 return Err(UnsupportedSqlError(GenericError(
                     "Unsupported return type for python udf".to_string(),
                 )))

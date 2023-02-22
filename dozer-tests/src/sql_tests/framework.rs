@@ -53,7 +53,7 @@ impl TestFramework {
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
         let source_result = if let Some(..) = expected_results {
-            expected_results.unwrap().to_vec()
+            expected_results.as_ref().unwrap().to_vec()
         } else {
             query_sqlite(self.source.clone(), &final_sql, &output_schema)
                 .map_err(|e| FrameworkError::InternalError(Box::new(e)))?
