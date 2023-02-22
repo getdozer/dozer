@@ -492,6 +492,29 @@ pub enum FieldType {
     Point,
 }
 
+impl TryFrom<&str> for FieldType {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let res = match value.to_lowercase().as_str() {
+            "float" => FieldType::Float,
+            "uint" => FieldType::UInt,
+            "int" => FieldType::Int,
+            "boolean" => FieldType::Boolean,
+            "string" => FieldType::String,
+            "text" => FieldType::Text,
+            "binary" => FieldType::Binary,
+            "decimal" => FieldType::Decimal,
+            "timestamp" => FieldType::Timestamp,
+            "date" => FieldType::Date,
+            "bson" => FieldType::Bson,
+            _ => return Err(format!("Unsupported '{value}' type")),
+        };
+
+        Ok(res)
+    }
+}
+
 impl Display for FieldType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -545,10 +568,8 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
 }
 
 #[cfg(feature = "python")]
-use pyo3::{PyObject, Python, ToPyObject};
-#[cfg(feature = "python")]
-impl ToPyObject for Field {
-    fn to_object(&self, py: Python<'_>) -> PyObject {
+impl pyo3::ToPyObject for Field {
+    fn to_object(&self, py: pyo3::Python<'_>) -> pyo3::PyObject {
         match self {
             Field::UInt(val) => val.to_object(py),
             Field::Int(val) => val.to_object(py),
