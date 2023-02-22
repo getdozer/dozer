@@ -29,19 +29,20 @@ Each of the connectors implements a [set of methods defined](https://github.com/
 Every connector to external database needs to implement connector trait (/dozer-ingestion/src/connectors/mod.rs)
 
 
-* ```fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;``` 
+* ```fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;```<br/>
   This function is supposed to validate connector configuration and connection to database.                                                                                                                           
-
-* ```fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;```
+  <br/>
+* ```fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;```<br/>
   This function's purpose is to validate schemas, which are used as sources for data ingestion. It should return error when column type is not supported by existing dozer types.                                                                                                                                       
-
-* ```fn get_schemas(&self,table_names: Option<Vec<TableInfo>>,) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;``` 
+  <br/>
+* ```fn get_schemas(&self,table_names: Option<Vec<TableInfo>>,) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;```<br/>
   This function is used for getting mapped external database schema to dozer schema. Also, as result of schema definition, developer also should provide `ReplicationChangesTrackingType` (described below)                                                                                                                                                      
-* ```fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>```
+  <br/>
+* ```fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>```<br/>
   Using this method, developer can fetch all available tables from connector.                                                                          
-
-* ```fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;```         
-  This function is responsible for all ingestion processes. It has single parameter, which is used to resume ingestion it was stopped. That tuple contains two values - `(u64, u64)`, first value is lsn of transaction and second value is seq no of last consumer record in transaction. It is used to allow connector to continue from middle of transaction.
+  <br/>
+* ```fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;```<br/>
+  This function is responsible for all ingestion processes. It has single parameter, which is used to resume ingestion it was stopped. That tuple contains two values - `(u64, u64)`, first value is lsn of transaction and second value is seq no of last consumer record in transaction. It is used to allow connector to continue from middle of transaction.<br/>
 
 ## Connector functions usage in dozer commands
 Dozer uses connector methods in 3 different commands. During `connector ls` execution, dozer just fetches schemas. To get schemas we use `get_schemas` method.
