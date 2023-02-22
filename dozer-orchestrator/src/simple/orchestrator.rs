@@ -4,8 +4,9 @@ use crate::errors::OrchestrationError;
 use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir, get_flags,
-    get_grpc_config, get_pipeline_dir, get_rest_config,
+    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir,
+    get_cache_max_map_size, get_executor_options, get_flags, get_grpc_config, get_pipeline_dir,
+    get_rest_config,
 };
 use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
@@ -51,7 +52,8 @@ impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
         let cache_manager_options = CacheManagerOptions {
             path: Some(get_cache_dir(&config)),
-            ..Default::default()
+            max_size: get_cache_max_map_size(&config) as usize,
+            ..CacheManagerOptions::default()
         };
         Self {
             config,
@@ -185,6 +187,7 @@ impl Orchestrator for SimpleOrchestrator {
             Some(sender),
             self.cache_manager_options.clone(),
             settings,
+            get_executor_options(&self.config),
         )?;
 
         if let Some(api_notifier) = api_notifier {

@@ -808,6 +808,7 @@ fn test_op_satisfies_filter() {
                     typ: typ as _,
                     old: old.cloned(),
                     new: Some(new.clone()),
+                    new_id: None,
                     endpoint_name: "".into()
                 },
                 filter,

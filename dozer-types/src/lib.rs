@@ -24,6 +24,8 @@ pub use parking_lot;
 #[macro_use]
 pub extern crate prettytable;
 
+#[cfg(feature = "python")]
+pub use pyo3;
 pub use rust_decimal;
 pub use serde;
 pub use serde_json;

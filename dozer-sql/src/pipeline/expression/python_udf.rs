@@ -3,9 +3,9 @@ use crate::pipeline::errors::PipelineError::UnsupportedSqlError;
 use crate::pipeline::errors::UnsupportedSqlError::GenericError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::pyo3::types::PyTuple;
+use dozer_types::pyo3::Python;
 use dozer_types::types::{Field, FieldType, Record, Schema};
-use pyo3::types::PyTuple;
-use pyo3::Python;
 use std::env;
 use std::path::PathBuf;
 
@@ -18,16 +18,16 @@ pub fn evaluate_py_udf(
     return_type: &FieldType,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let mut values = vec![];
-    for (idx, arg) in args.iter().enumerate() {
-        if idx == args.len() - 1 {
-            break;
-        }
-        values.push(arg.evaluate(record, schema)?);
-    }
+    let values = args
+        .iter()
+        .take(args.len() - 1)
+        .map(|arg| arg.evaluate(record, schema))
+        .collect::<Result<Vec<_>, PipelineError>>()?;
 
     // Get the path of the Python interpreter in your virtual environment
-    let env_path = env::var("VIRTUAL_ENV").unwrap();
+    let env_path = env::var("VIRTUAL_ENV").map_err(|_| {
+        PipelineError::InvalidFunction("Missing 'VIRTUAL_ENV' environment var".to_string())
+    })?;
     let py_path = format!("{env_path}/bin/python");
     // Set the `PYTHON_SYS_EXECUTABLE` environment variable
     env::set_var("PYTHON_SYS_EXECUTABLE", py_path);

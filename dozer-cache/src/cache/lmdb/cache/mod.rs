@@ -90,7 +90,7 @@ pub struct CacheWriteOptions {
 impl Default for CacheWriteOptions {
     fn default() -> Self {
         Self {
-            max_size: 1024 * 1024 * 1024,
+            max_size: 1024 * 1024 * 1024 * 1024,
         }
     }
 }
@@ -168,7 +168,7 @@ impl<C: LmdbCache> RoCache for C {
 }
 
 impl RwCache for LmdbRwCache {
-    fn insert(&self, record: &mut Record) -> Result<(), CacheError> {
+    fn insert(&self, record: &mut Record) -> Result<u64, CacheError> {
         record.version = Some(INITIAL_RECORD_VERSION);
         self.insert_impl(record)
     }
@@ -234,7 +234,7 @@ impl RwCache for LmdbRwCache {
 }
 
 impl LmdbRwCache {
-    fn insert_impl(&self, record: &Record) -> Result<(), CacheError> {
+    fn insert_impl(&self, record: &Record) -> Result<u64, CacheError> {
         let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(record)?;
 
         let mut txn = self.txn.write();
@@ -252,7 +252,9 @@ impl LmdbRwCache {
             secondary_indexes: self.common.secondary_indexes.clone(),
         };
 
-        indexer.build_indexes(txn, record, &schema, &secondary_indexes, id)
+        indexer.build_indexes(txn, record, &schema, &secondary_indexes, id)?;
+
+        Ok(id_from_bytes(id))
     }
 }
 

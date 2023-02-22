@@ -74,7 +74,9 @@ message {{pascal_name}}Event {
   // Old record data, only applicable for UPDATE type.
   optional {{pascal_name}} old = 2;
   // New record data.
-  optional {{pascal_name}} new = 3;
+  {{pascal_name}} new = 3;
+  // New record id, only applicable for INSERT type.
+  optional uint64 new_id = 4;
 }
 {{/if}}
 /**

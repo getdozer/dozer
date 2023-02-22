@@ -12,12 +12,12 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SelectionProcessor {
-    expression: Box<Expression>,
+    expression: Expression,
     input_schema: Schema,
 }
 
 impl SelectionProcessor {
-    pub fn new(input_schema: Schema, expression: Box<Expression>) -> Self {
+    pub fn new(input_schema: Schema, expression: Expression) -> Self {
         Self {
             input_schema,
             expression,

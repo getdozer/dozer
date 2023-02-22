@@ -7,7 +7,6 @@ use dozer_types::errors::types::{DeserializationError, TypeError};
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType, Record};
-use pyo3::PyErr;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
@@ -72,8 +71,10 @@ pub enum PipelineError {
     AmbiguousFieldIdentifier(String),
     #[error("The field identifier {0} is invalid. Correct format is: [[connection.]source.]field")]
     IllegalFieldIdentifier(String),
+
+    #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
-    PythonErr(PyErr),
+    PythonErr(dozer_types::pyo3::PyErr),
 
     // Error forwarding
     #[error(transparent)]
@@ -94,9 +95,9 @@ pub enum PipelineError {
     #[error(transparent)]
     SetError(#[from] SetError),
 }
-
-impl From<PyErr> for PipelineError {
-    fn from(py_err: PyErr) -> Self {
+#[cfg(feature = "python")]
+impl From<dozer_types::pyo3::PyErr> for PipelineError {
+    fn from(py_err: dozer_types::pyo3::PyErr) -> Self {
         PipelineError::PythonErr(py_err)
     }
 }
