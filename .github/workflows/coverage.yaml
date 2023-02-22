@@ -66,7 +66,7 @@ jobs:
         shell: bash
         run: |
           source ./dozer-tests/python_udf/virtualenv.sh
-          cargo test --all-features --no-fail-fast
+          cargo test --all-features --no-fail-fast --features python
 
       - uses: actions-rs/cargo@v1
         with:
