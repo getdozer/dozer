@@ -1,7 +1,6 @@
 use crate::grpc::internal_grpc::{
     internal_pipeline_service_server::{InternalPipelineService, InternalPipelineServiceServer},
-    GetAppConfigRequest, GetAppConfigResponse, PipelineRequest, RestartPipelineRequest,
-    RestartPipelineResponse,
+    PipelineRequest,
 };
 use crate::grpc::{
     internal_grpc::{pipeline_response::ApiEvent, PipelineResponse},
@@ -55,18 +54,6 @@ impl InternalPipelineService for FakeInternalPipelineServer {
         Ok(Response::new(
             Box::pin(output_stream) as Self::StreamPipelineRequestStream
         ))
-    }
-    async fn get_config(
-        &self,
-        _request: tonic::Request<GetAppConfigRequest>,
-    ) -> Result<tonic::Response<GetAppConfigResponse>, tonic::Status> {
-        todo!();
-    }
-    async fn restart(
-        &self,
-        _request: tonic::Request<RestartPipelineRequest>,
-    ) -> Result<tonic::Response<RestartPipelineResponse>, tonic::Status> {
-        todo!();
     }
 }
 struct InternalIterator {
