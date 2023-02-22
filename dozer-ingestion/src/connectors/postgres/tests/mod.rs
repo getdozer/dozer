@@ -1,3 +1,3 @@
 pub mod client;
-#[cfg(test)]
+mod continue_replication_tests;
 mod e2e;

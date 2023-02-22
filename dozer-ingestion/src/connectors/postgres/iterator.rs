@@ -10,16 +10,14 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::connectors::postgres::connection::helper;
+use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
 use crate::connectors::postgres::replicator::CDCHandler;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
-use crate::errors::ConnectorError::UnexpectedQueryMessageError;
 use crate::errors::PostgresConnectorError::{
-    LSNNotStoredError, LsnNotReturnedFromReplicationSlot, LsnParseError,
+    InvalidQueryError, LSNNotStoredError, LsnNotReturnedFromReplicationSlot, LsnParseError,
 };
-use postgres::Client;
 use postgres_types::PgLsn;
 use tokio::runtime::Runtime;
-use tokio_postgres::SimpleQueryMessage;
 
 pub struct Details {
     name: String,
@@ -126,9 +124,12 @@ impl<'a> PostgresIteratorHandler<'a> {
         let mut tables = details.tables.clone();
         if self.lsn.clone().into_inner().is_none() {
             debug!("\nCreating Slot....");
-            if let Ok(true) = self.replication_slot_exists(client.clone()) {
+            if let Ok(true) =
+                ReplicationSlotHelper::replication_slot_exists(client.clone(), &details.slot_name)
+            {
                 // We dont have lsn, so we need to drop replication slot and start from scratch
-                self.drop_replication_slot(client.clone());
+                ReplicationSlotHelper::drop_replication_slot(client.clone(), &details.slot_name)
+                    .map_err(InvalidQueryError)?;
             }
 
             client
@@ -139,7 +140,8 @@ impl<'a> PostgresIteratorHandler<'a> {
                     PostgresConnectorError::BeginReplication
                 })?;
 
-            let replication_slot_lsn = self.create_replication_slot(client.clone())?;
+            let replication_slot_lsn =
+                ReplicationSlotHelper::create_replication_slot(client.clone(), &details.slot_name)?;
             if let Some(lsn) = replication_slot_lsn {
                 let parsed_lsn =
                     PgLsn::from_str(&lsn).map_err(|_| LsnParseError(lsn.to_string()))?;
@@ -175,68 +177,6 @@ impl<'a> PostgresIteratorHandler<'a> {
 
         /*  ####################        Replicating         ######################  */
         self.replicate(tables)
-    }
-
-    fn drop_replication_slot(&self, client: Arc<RefCell<Client>>) {
-        let slot = self.details.slot_name.clone();
-        let res = client
-            .borrow_mut()
-            .simple_query(format!("select pg_drop_replication_slot('{slot}');").as_ref());
-        match res {
-            Ok(_) => debug!("dropped replication slot {}", slot),
-            Err(_) => debug!("failed to drop replication slot..."),
-        };
-    }
-
-    fn create_replication_slot(
-        &self,
-        client: Arc<RefCell<Client>>,
-    ) -> Result<Option<String>, ConnectorError> {
-        let details = Arc::clone(&self.details);
-
-        let create_replication_slot_query = format!(
-            r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "pgoutput" USE_SNAPSHOT"#,
-            details.slot_name
-        );
-
-        let slot_query_row = client
-            .borrow_mut()
-            .simple_query(&create_replication_slot_query)
-            .map_err(|_e| {
-                let slot_name = self.details.slot_name.clone();
-                debug!("failed to create replication slot {}", slot_name);
-                ConnectorError::PostgresConnectorError(PostgresConnectorError::CreateSlotError(
-                    slot_name,
-                ))
-            })?;
-
-        if let SimpleQueryMessage::Row(row) = &slot_query_row[0] {
-            Ok(row.get("consistent_point").map(|lsn| lsn.to_string()))
-        } else {
-            Err(UnexpectedQueryMessageError)
-        }
-    }
-
-    fn replication_slot_exists(
-        &self,
-        client: Arc<RefCell<Client>>,
-    ) -> Result<bool, ConnectorError> {
-        let details = Arc::clone(&self.details);
-
-        let replication_slot_info_query = format!(
-            r#"SELECT * FROM pg_replication_slots where slot_name = '{}';"#,
-            details.slot_name
-        );
-
-        let slot_query_row = client
-            .borrow_mut()
-            .simple_query(&replication_slot_info_query)
-            .map_err(|_e| {
-                debug!("failed to begin txn for replication");
-                ConnectorError::PostgresConnectorError(PostgresConnectorError::FetchReplicationSlot)
-            })?;
-
-        Ok(!slot_query_row.is_empty())
     }
 
     fn replicate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {

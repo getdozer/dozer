@@ -19,6 +19,7 @@ use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
 use schema_registry_converter::error::SRCError;
+use tokio_postgres::Error;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
@@ -110,7 +111,7 @@ pub enum PostgresConnectorError {
     ColumnNotFound(String, String),
 
     #[error("Failed to create a replication slot : {0}")]
-    CreateSlotError(String),
+    CreateSlotError(String, #[source] Error),
 
     #[error("Failed to create publication")]
     CreatePublicationError,
@@ -135,6 +136,9 @@ pub enum PostgresConnectorError {
 
     #[error("Slot {0} is already used by another process")]
     SlotIsInUseError(String),
+
+    #[error("Table {0} changes is not replicated to slot")]
+    MissingTableInReplicationSlot(String),
 
     #[error("Start lsn is before first available lsn - {0} < {1}")]
     StartLsnIsBeforeLastFlushedLsnError(String, String),

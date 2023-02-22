@@ -40,9 +40,11 @@ pub trait Connector: Send + Sync + Debug {
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError>;
+
+    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError>;
     fn start(
         &self,
-        from_seq: Option<(u64, u64)>,
+        last_checkpoint: Option<(u64, u64)>,
         ingestor: &Ingestor,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;

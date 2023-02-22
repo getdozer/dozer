@@ -1,15 +1,17 @@
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 
-use crate::connectors::postgres::connection::validator::validate_connection;
+use crate::connectors::postgres::connection::validator::{validate_connection, validate_slot};
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::{Connector, TableInfo, ValidationResults};
-use crate::errors::{ConnectorError, PostgresConnectorError};
+use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::tracing::{error, info};
 use dozer_types::types::SourceSchema;
 use postgres::Client;
 use postgres_types::PgLsn;
 
+use crate::errors::ConnectorError::PostgresConnectorError;
+use crate::errors::PostgresConnectorError::{CreatePublicationError, DropPublicationError};
 use tokio_postgres::config::ReplicationMode;
 use tokio_postgres::Config;
 
@@ -138,6 +140,26 @@ impl Connector for PostgresConnector {
     fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
         self.schema_helper.get_tables(None)
     }
+
+    fn can_start_from(&self, (lsn, _): (u64, u64)) -> Result<bool, ConnectorError> {
+        match lsn {
+            // LSN 0 is used for snapshotting. After snapshot is completed lsn should be > 0.
+            // At the moment continue reading from snapshot is not supported
+            0 => Ok(false),
+            _ => {
+                let mut client =
+                    helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?;
+                let slot_info = ReplicationSlotInfo {
+                    name: self.get_slot_name(),
+                    start_lsn: PgLsn::from(lsn),
+                };
+                match validate_slot(&mut client, &slot_info, self.tables.as_ref()) {
+                    Ok(_) => Ok(true),
+                    Err(e) => Err(ConnectorError::PostgresConnectorError(e)),
+                }
+            }
+        }
+    }
 }
 
 impl PostgresConnector {
@@ -145,11 +167,11 @@ impl PostgresConnector {
         format!("dozer_publication_{}", self.name)
     }
 
-    fn get_slot_name(&self) -> String {
+    pub fn get_slot_name(&self) -> String {
         format!("dozer_slot_{}", self.name)
     }
 
-    fn create_publication(&self, mut client: Client) -> Result<(), ConnectorError> {
+    pub fn create_publication(&self, mut client: Client) -> Result<(), ConnectorError> {
         let publication_name = self.get_publication_name();
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
@@ -163,14 +185,14 @@ impl PostgresConnector {
             .simple_query(format!("DROP PUBLICATION IF EXISTS {publication_name}").as_str())
             .map_err(|e| {
                 error!("failed to drop publication {}", e.to_string());
-                PostgresConnectorError::DropPublicationError
+                DropPublicationError
             })?;
 
         client
             .simple_query(format!("CREATE PUBLICATION {publication_name} FOR {table_str}").as_str())
             .map_err(|e| {
                 error!("failed to create publication {}", e.to_string());
-                PostgresConnectorError::CreatePublicationError
+                CreatePublicationError
             })?;
         Ok(())
     }

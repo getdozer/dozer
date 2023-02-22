@@ -3,9 +3,10 @@ use crate::connectors::postgres::connector::ReplicationSlotInfo;
 use crate::connectors::TableInfo;
 use crate::errors::PostgresConnectorError;
 use crate::errors::PostgresConnectorError::{
-    ColumnNameNotValid, ConnectionFailure, InvalidQueryError, NoAvailableSlotsError,
-    ReplicationIsNotAvailableForUserError, SlotIsInUseError, SlotNotExistError,
-    StartLsnIsBeforeLastFlushedLsnError, TableError, TableNameNotValid, WALLevelIsNotCorrect,
+    ColumnNameNotValid, ConnectionFailure, InvalidQueryError, MissingTableInReplicationSlot,
+    NoAvailableSlotsError, ReplicationIsNotAvailableForUserError, SlotIsInUseError,
+    SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableError, TableNameNotValid,
+    WALLevelIsNotCorrect,
 };
 use dozer_types::indicatif::ProgressStyle;
 use postgres::Client;
@@ -59,7 +60,7 @@ pub fn validate_connection(
             Validations::WALLevel => validate_wal_level(client.borrow_mut())?,
             Validations::Slot => {
                 if let Some(replication_details) = &replication_info {
-                    validate_slot(client.borrow_mut(), replication_details)?;
+                    validate_slot(client.borrow_mut(), replication_details, tables)?;
                 } else {
                     validate_limit_of_replications(client.borrow_mut())?;
                 }
@@ -188,16 +189,17 @@ fn validate_tables(
     }
 }
 
-fn validate_slot(
+pub fn validate_slot(
     client: &mut Client,
     replication_info: &ReplicationSlotInfo,
+    tables: Option<&Vec<TableInfo>>,
 ) -> Result<(), PostgresConnectorError> {
     let result = client
         .query_one(
             "SELECT active, confirmed_flush_lsn FROM pg_replication_slots WHERE slot_name = $1",
             &[&replication_info.name],
         )
-        .map_err(|_e| SlotNotExistError(replication_info.name.clone()))?;
+        .map_err(InvalidQueryError)?;
 
     let is_already_running: bool = result.try_get(0).map_err(InvalidQueryError)?;
     if is_already_running {
@@ -207,13 +209,36 @@ fn validate_slot(
     let flush_lsn: PgLsn = result.try_get(1).map_err(InvalidQueryError)?;
 
     if flush_lsn.gt(&replication_info.start_lsn) {
-        Err(StartLsnIsBeforeLastFlushedLsnError(
+        return Err(StartLsnIsBeforeLastFlushedLsnError(
             flush_lsn.to_string(),
             replication_info.start_lsn.to_string(),
-        ))
-    } else {
-        Ok(())
+        ));
     }
+
+    if let Some(tables_list) = tables {
+        let result = client
+            .query(
+                "SELECT pc.relname FROM pg_publication pb
+                    LEFT OUTER JOIN pg_publication_rel pbl on pb.oid = pbl.prpubid
+                    LEFT OUTER JOIN pg_class pc on pc.oid = pbl.prrelid
+                WHERE pubname = $1",
+                &[&replication_info.name],
+            )
+            .map_err(|_e| SlotNotExistError(replication_info.name.clone()))?;
+
+        let mut publication_tables: Vec<String> = vec![];
+        for row in result {
+            publication_tables.push(row.get(0));
+        }
+
+        for t in tables_list {
+            if !publication_tables.contains(&t.table_name) {
+                return Err(MissingTableInReplicationSlot(t.table_name.clone()));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn validate_limit_of_replications(client: &mut Client) -> Result<(), PostgresConnectorError> {
