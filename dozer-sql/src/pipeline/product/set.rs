@@ -53,24 +53,45 @@ impl SetOperation {
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let lookup_key = record.get_values_hash().to_be_bytes();
         let write_txn = &mut txn.write();
-        let mut _count: u8 = 0_u8;
         match action {
             SetAction::Insert => {
-                _count = self.update_set_db(&lookup_key, 1, false, write_txn, *database);
-                if _count == 1 {
-                    Ok(vec![(action, record.to_owned())])
-                } else {
-                    Ok(vec![])
-                }
+                self.union_insert(action, record, &lookup_key, write_txn, *database)
             }
             SetAction::Delete => {
-                _count = self.update_set_db(&lookup_key, 1, true, write_txn, *database);
-                if _count == 0 {
-                    Ok(vec![(action, record.to_owned())])
-                } else {
-                    Ok(vec![])
-                }
+                self.union_delete(action, record, &lookup_key, write_txn, *database)
             }
+        }
+    }
+
+    fn union_insert(
+        &self,
+        action: SetAction,
+        record: &Record,
+        key: &[u8],
+        write_txn: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
+        set_db: Database,
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
+        let _count = self.update_set_db(key, 1, false, write_txn, set_db);
+        if _count == 1 {
+            Ok(vec![(action, record.to_owned())])
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn union_delete(
+        &self,
+        action: SetAction,
+        record: &Record,
+        key: &[u8],
+        write_txn: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
+        set_db: Database,
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
+        let _count = self.update_set_db(key, 1, true, write_txn, set_db);
+        if _count == 0 {
+            Ok(vec![(action, record.to_owned())])
+        } else {
+            Ok(vec![])
         }
     }
 
