@@ -150,6 +150,7 @@ pub fn compare_with_sqlite(
     }
 }
 
+#[allow(dead_code)]
 // If sql can't run in sqlite, you can pass `expected_results`.
 pub fn compare_with_expected_results(
     table_names: &[&str],

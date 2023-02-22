@@ -297,16 +297,14 @@ impl ExpressionExecutor for Expression {
                             false,
                         ))
                     }
-                    Some(field_type) => {
-                        Ok(ExpressionType::new(
-                            *field_type,
-                            false,
-                            SourceDefinition::Dynamic,
-                            false,
-                        ))
-                    }
+                    Some(field_type) => Ok(ExpressionType::new(
+                        *field_type,
+                        false,
+                        SourceDefinition::Dynamic,
+                        false,
+                    )),
                 }
-            },
+            }
         }
     }
 }
