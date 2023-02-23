@@ -84,6 +84,16 @@ message PointType {
   double y = 2;
 }
 
+// rust-decimal as a message
+message RustDecimal {
+  // the sign of the Decimal value, 0 meaning positive and 1 meaning negative
+  uint32 flags = 1;
+  // the lo, mid, hi, and flags fields contain the representation of the Decimal value as a 96-bit integer
+  uint32 lo = 2;
+  uint32 mid = 3;
+  uint32 hi = 4;
+}
+
 // A field value.
 message Value {
   // A field value.
@@ -97,6 +107,7 @@ message Value {
     ArrayValue array_value = 8; // Value array.
     double double_value = 9; // 64 bit floating point number.
     PointType point_value = 10;
+    RustDecimal decimal_value = 11;
   };
 }
 
