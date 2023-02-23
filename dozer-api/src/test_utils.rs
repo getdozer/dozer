@@ -7,8 +7,8 @@ use dozer_types::{
 use std::sync::Arc;
 
 use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId, RoCache};
-use dozer_types::rust_decimal::Decimal;
 use dozer_types::rust_decimal::prelude::FromPrimitive;
+use dozer_types::rust_decimal::Decimal;
 
 pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![

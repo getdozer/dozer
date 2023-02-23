@@ -4,7 +4,9 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 
-use crate::grpc::types::{value, Operation, OperationType, PointType, Record, Type, Value, RustDecimal};
+use crate::grpc::types::{
+    value, Operation, OperationType, PointType, Record, RustDecimal, Type, Value,
+};
 
 use super::types::RecordWithId;
 
