@@ -21,7 +21,7 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
           DISCORD_EMBEDS: '[ { 
-           "title": " Pull request [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.issue_url }}) opened by ${{ github.actor }}",
+           "title": " Pull request [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }}) opened by ${{ github.actor }}",
            "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{ github.actor }}" },
           "fields": [
             { "name": "Title", "value": ${{ toJSON(github.event.pull_request.title) }} },
