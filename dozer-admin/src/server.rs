@@ -1,7 +1,4 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::atomic::Ordering;
 
 use crate::{
     cli::{utils::get_db_path, AdminCliConfig},
@@ -211,15 +208,13 @@ impl DozerAdmin for GrpcService {
 pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::transport::Error> {
     dozer_tracing::init_telemetry(false).unwrap();
 
-    let running = Arc::new(AtomicBool::new(true));
-
     let host = config.host;
     let port = config.port;
     let addr = format!("{host:}:{port:}").parse().unwrap();
     let database_url: String = get_db_path();
 
     let db_pool = establish_connection(database_url);
-    let app_service = AppService::new(db_pool.to_owned(), running.to_owned());
+    let app_service = AppService::new(db_pool.to_owned());
     let grpc_service = GrpcService {
         connection_service: ConnectionService::new(db_pool.to_owned()),
         app_service: app_service.to_owned(),

@@ -33,14 +33,12 @@ use std::thread;
 pub struct AppService {
     db_pool: DbPool,
     pub apps: Arc<RwLock<HashMap<String, Arc<AtomicBool>>>>,
-    running: Arc<AtomicBool>,
 }
 impl AppService {
-    pub fn new(db_pool: DbPool, running: Arc<AtomicBool>) -> Self {
+    pub fn new(db_pool: DbPool) -> Self {
         Self {
             db_pool,
             apps: Arc::new(RwLock::new(HashMap::new())),
-            running,
         }
     }
 }
