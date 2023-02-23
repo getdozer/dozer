@@ -367,7 +367,7 @@ pub enum ObjectStoreSchemaError {
     DurationConversionError,
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum ObjectStoreObjectError {
     #[error("Missing storage details")]
     MissingStorageDetails,
@@ -375,8 +375,8 @@ pub enum ObjectStoreObjectError {
     #[error("Table definition not found")]
     TableDefinitionNotFound,
 
-    #[error("Listing path parsing error")]
-    ListingPathParsingError,
+    #[error("Listing path parsing error: {0}")]
+    ListingPathParsingError(#[source] DataFusionError),
 }
 
 #[derive(Error, Debug)]
