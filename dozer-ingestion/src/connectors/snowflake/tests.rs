@@ -6,10 +6,10 @@ use dozer_types::types::FieldType::{
     Binary, Boolean, Date, Decimal, Float, Int, String, Timestamp,
 };
 
+use dozer_types::models::connection::ConnectionConfig;
 use odbc::create_environment_v3;
 use rand::Rng;
 use std::thread;
-use dozer_types::models::connection::ConnectionConfig;
 
 use crate::errors::ConnectorError::TableNotFound;
 use crate::test_util::run_connector_test;
@@ -243,14 +243,23 @@ fn test_connector_is_stream_created() {
             .unwrap();
 
         let result = StreamConsumer::is_stream_created(&client, &table_name).unwrap();
-        assert!(!result, "Stream was not created yet, so result of check should be false");
+        assert!(
+            !result,
+            "Stream was not created yet, so result of check should be false"
+        );
 
         StreamConsumer::create_stream(&client, &table_name).unwrap();
         let result = StreamConsumer::is_stream_created(&client, &table_name).unwrap();
-        assert!(result, "Stream is created, so result of check should be true");
+        assert!(
+            result,
+            "Stream is created, so result of check should be true"
+        );
 
         StreamConsumer::drop_stream(&client, &table_name).unwrap();
         let result = StreamConsumer::is_stream_created(&client, &table_name).unwrap();
-        assert!(!result, "Stream was dropped, so result of check should be false");
+        assert!(
+            !result,
+            "Stream was dropped, so result of check should be false"
+        );
     });
 }
