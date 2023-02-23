@@ -127,6 +127,14 @@ pub enum UnsupportedSqlError {
 }
 
 #[derive(Error, Debug)]
+pub enum SqlError {
+    #[error("SQL Error: The first argument of the {0} function must be a source name.")]
+    WindowError(String),
+    #[error("SQL Error: Invalid column name {0}.")]
+    InvalidColumn(String),
+}
+
+#[derive(Error, Debug)]
 pub enum SetError {
     #[error("Invalid input schemas have been populated")]
     InvalidInputSchemas,
