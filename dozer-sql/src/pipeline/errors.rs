@@ -94,6 +94,9 @@ pub enum PipelineError {
 
     #[error(transparent)]
     SetError(#[from] SetError),
+
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
 }
 #[cfg(feature = "python")]
 impl From<dozer_types::pyo3::PyErr> for PipelineError {
@@ -124,6 +127,14 @@ pub enum UnsupportedSqlError {
 
     #[error("Unsupported SQL statement {0}")]
     GenericError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum SqlError {
+    #[error("SQL Error: The first argument of the {0} function must be a source name.")]
+    WindowError(String),
+    #[error("SQL Error: Invalid column name {0}.")]
+    InvalidColumn(String),
 }
 
 #[derive(Error, Debug)]

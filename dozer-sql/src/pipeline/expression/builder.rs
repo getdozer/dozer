@@ -7,11 +7,11 @@ use sqlparser::ast::{
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
-use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
     InvalidValue,
 };
+use crate::pipeline::errors::{PipelineError, SqlError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
@@ -119,11 +119,11 @@ impl ExpressionBuilder {
                 Some(&ident[0].value),
             ),
             _ => {
-                return Err(InvalidExpression(
+                return Err(PipelineError::SqlError(SqlError::InvalidColumn(
                     ident
                         .iter()
                         .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-                ))
+                )));
             }
         };
 
@@ -139,11 +139,11 @@ impl ExpressionBuilder {
                 index: matching_by_field[0].0,
             }),
             _ => match src_table_or_alias {
-                None => Err(InvalidExpression(
+                None => Err(PipelineError::SqlError(SqlError::InvalidColumn(
                     ident
                         .iter()
                         .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-                )),
+                ))),
                 Some(src_table_or_alias) => {
                     let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> =
                         matching_by_field
@@ -163,11 +163,11 @@ impl ExpressionBuilder {
                             index: matching_by_table_or_alias[0].0,
                         }),
                         _ => match src_connection {
-                            None => Err(InvalidExpression(
+                            None => Err(PipelineError::SqlError(SqlError::InvalidColumn(
                                 ident
                                     .iter()
                                     .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-                            )),
+                            ))),
                             Some(src_connection) => {
                                 let matching_by_connection: Vec<(usize, &FieldDefinition)> =
                                     matching_by_table_or_alias
@@ -185,11 +185,11 @@ impl ExpressionBuilder {
                                     1 => Ok(Expression::Column {
                                         index: matching_by_connection[0].0,
                                     }),
-                                    _ => Err(InvalidExpression(
+                                    _ => Err(PipelineError::SqlError(SqlError::InvalidColumn(
                                         ident
                                             .iter()
                                             .fold(String::new(), |a, b| a + "." + b.value.as_str()),
-                                    )),
+                                    ))),
                                 }
                             }
                         },
