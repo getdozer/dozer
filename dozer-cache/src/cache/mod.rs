@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use self::expression::QueryExpression;
 use crate::errors::CacheError;
 use dozer_types::{
+    node::SourceStates,
     serde::{Deserialize, Serialize},
     types::{IndexDefinition, Record, Schema, SchemaIdentifier},
 };
@@ -83,5 +84,7 @@ pub trait RwCache: RoCache {
     /// Sets the version of the updated record and updates it in the cache. Returns the version of the record before the update.
     fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError>;
     /// Commits the current transaction.
-    fn commit(&self) -> Result<(), CacheError>;
+    fn commit(&self, checkpoint: &SourceStates) -> Result<(), CacheError>;
+    /// Get the current checkpoint.
+    fn get_checkpoint(&self) -> Result<SourceStates, CacheError>;
 }

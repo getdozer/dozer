@@ -305,13 +305,11 @@ pub fn write_source_metadata<'a>(
     Ok(())
 }
 
-fn serialize_source_metadata(node_handle: &NodeHandle, op_id: OpIdentifier) -> (Vec<u8>, Vec<u8>) {
+fn serialize_source_metadata(node_handle: &NodeHandle, op_id: OpIdentifier) -> (Vec<u8>, [u8; 16]) {
     let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
     key.extend(node_handle.to_bytes());
 
-    let mut value: Vec<u8> = Vec::with_capacity(16);
-    value.extend(op_id.txid.to_be_bytes());
-    value.extend(op_id.seq_in_tx.to_be_bytes());
+    let value = op_id.to_bytes();
 
     (key, value)
 }
@@ -320,9 +318,8 @@ fn deserialize_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, OpIdent
     debug_assert!(key[0] == SOURCE_ID_IDENTIFIER);
     let source = NodeHandle::from_bytes(&key[1..]);
 
-    let txid = u64::from_be_bytes(value[0..8].try_into().unwrap());
-    let seq_in_tx = u64::from_be_bytes(value[8..16].try_into().unwrap());
-    (source, OpIdentifier { txid, seq_in_tx })
+    let op_id = OpIdentifier::from_bytes(value.try_into().unwrap());
+    (source, op_id)
 }
 
 fn validate_schemas<T>(

@@ -286,11 +286,11 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         let endpoint_name = self.api_endpoint.name.clone();
         // Update Counter on commit
         self.pb.set_position(self.counter as u64);
-        self.cache.commit().map_err(|e| {
+        self.cache.commit(&epoch.details).map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(
                 endpoint_name,
                 Box::new(e),

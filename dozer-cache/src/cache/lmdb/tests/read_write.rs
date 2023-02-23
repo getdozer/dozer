@@ -37,7 +37,7 @@ fn read_and_write() {
     for val in items.clone() {
         lmdb_utils::insert_rec_1(&cache_writer, &schema, val.clone());
     }
-    cache_writer.commit().unwrap();
+    cache_writer.commit(&Default::default()).unwrap();
 
     let read_options = CacheCommonOptions {
         path: Some(path),
