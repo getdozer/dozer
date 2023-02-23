@@ -129,8 +129,11 @@ pub fn build_join_tree(
 
     let mut left_extended_schema = extend_schema_source_def(&left_schema, relation_name);
 
-    let mut left_join_table =
-        JoinSource::Table(JoinTable::new(port, left_extended_schema.clone(), None));
+    let mut left_join_table = JoinSource::Table(JoinTable::new(
+        port,
+        left_extended_schema.clone(),
+        left_window,
+    ));
 
     let mut join_tree_root = left_join_table.clone();
 
@@ -143,12 +146,14 @@ pub fn build_join_tree(
             Ok,
         )?;
 
+        let right_window = window_from_relation(&join.relation, &left_schema)?;
+
         source_names.insert(right_port, relation_name.0.to_owned());
         let right_extended_schema = extend_schema_source_def(right_schema, relation_name);
         let right_join_table = JoinSource::Table(JoinTable::new(
             right_port,
             right_extended_schema.clone(),
-            None,
+            right_window,
         ));
 
         let join_schema = append_schema(&left_extended_schema, &right_extended_schema);

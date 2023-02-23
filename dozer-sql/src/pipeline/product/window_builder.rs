@@ -170,11 +170,11 @@ fn parse_duration_string(duration_string: &str) -> Result<Duration, JoinError> {
     let duration_unit = duration_tokens[1].to_uppercase();
 
     match duration_unit.as_str() {
-        "MILLISECONDS" => Ok(Duration::milliseconds(duration_value)),
-        "SECONDS" => Ok(Duration::seconds(duration_value)),
-        "MINUTES" => Ok(Duration::minutes(duration_value)),
-        "HOURS" => Ok(Duration::hours(duration_value)),
-        "DAYS" => Ok(Duration::days(duration_value)),
+        "MILLISECOND" | "MILLISECONDS" => Ok(Duration::milliseconds(duration_value)),
+        "SECOND" | "SECONDS" => Ok(Duration::seconds(duration_value)),
+        "MINUTE" | "MINUTES" => Ok(Duration::minutes(duration_value)),
+        "HOUR" | "HOURS" => Ok(Duration::hours(duration_value)),
+        "DAY" | "DAYS" => Ok(Duration::days(duration_value)),
         _ => Err(JoinError::WindowInvalidInterval(duration_string)),
     }
 }
