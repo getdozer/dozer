@@ -1,5 +1,8 @@
 #[cfg(test)]
 mod grpc_service {
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+
     use dozer_orchestrator::cli::generate_connection;
     use dozer_types::models::app_config::Config;
 
@@ -14,7 +17,7 @@ mod grpc_service {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
         let setup_ids = get_setup_ids();
-        let application_service = AppService::new(db_pool);
+        let application_service = AppService::new(db_pool, Arc::new(AtomicBool::new(true)));
 
         let config = generate_connection("Postgres");
         let config = Config {

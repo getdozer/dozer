@@ -28,15 +28,19 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
+
+#[derive(Clone)]
 pub struct AppService {
     db_pool: DbPool,
-    apps: Arc<RwLock<HashMap<String, Arc<AtomicBool>>>>,
+    pub apps: Arc<RwLock<HashMap<String, Arc<AtomicBool>>>>,
+    running: Arc<AtomicBool>,
 }
 impl AppService {
-    pub fn new(db_pool: DbPool) -> Self {
+    pub fn new(db_pool: DbPool, running: Arc<AtomicBool>) -> Self {
         Self {
             db_pool,
             apps: Arc::new(RwLock::new(HashMap::new())),
+            running,
         }
     }
 }
