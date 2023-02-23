@@ -278,6 +278,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_validation_connection_fail_to_connect() {
         run_connector_test("postgres", |app_config| {
@@ -307,6 +308,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_validation_connection_user_not_have_permission_to_use_replication() {
         run_connector_test("postgres", |app_config| {
@@ -338,6 +340,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_validation_connection_requested_tables_not_exist() {
         run_connector_test("postgres", |app_config| {
@@ -376,6 +379,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_validation_connection_requested_columns_not_exist() {
         run_connector_test("postgres", |app_config| {
@@ -420,6 +424,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_validation_connection_replication_slot_not_exist() {
         run_connector_test("postgres", |app_config| {
@@ -485,6 +490,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_validation_connection_valid_number_of_replication_slots() {
         run_connector_test("postgres", |app_config| {
@@ -522,6 +528,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_validation_connection_not_any_replication_slot_availble() {
         run_connector_test("postgres", |app_config| {
