@@ -14,10 +14,11 @@ use dozer_types::crossbeam::channel::Sender;
 use dozer_types::grpc_types::internal::pipeline_response::ApiEvent;
 use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use dozer_types::log::debug;
+use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
+use dozer_types::node::SourceStates;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::HashMap;
@@ -199,12 +200,14 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
+        checkpoint: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         // Create cache.
         let (schema, secondary_indexes) = self.get_output_schema(input_schemas)?;
         let cache = open_or_create_cache(
             &*self.cache_manager,
             &self.api_endpoint.name,
+            checkpoint,
             schema,
             secondary_indexes,
         )?;
@@ -247,22 +250,45 @@ fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
 fn open_or_create_cache(
     cache_manager: &dyn CacheManager,
     name: &str,
+    checkpoint: &SourceStates,
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
 ) -> Result<Box<dyn RwCache>, ExecutionError> {
-    if let Some(cache) = cache_manager.open_rw_cache(name).map_err(|e| {
-        ExecutionError::SinkError(SinkError::CacheOpenFailed(name.to_string(), Box::new(e)))
-    })? {
-        Ok(cache)
-    } else {
-        let cache = cache_manager
+    let append_only = schema.primary_index.is_empty();
+
+    let create_cache = || {
+        cache_manager
             .create_cache(vec![(name.to_string(), schema, secondary_indexes)])
             .map_err(|e| {
                 ExecutionError::SinkError(SinkError::CacheCreateFailed(
                     name.to_string(),
                     Box::new(e),
                 ))
-            })?;
+            })
+    };
+
+    if let Some(cache) = cache_manager.open_rw_cache(name).map_err(|e| {
+        ExecutionError::SinkError(SinkError::CacheOpenFailed(name.to_string(), Box::new(e)))
+    })? {
+        if append_only {
+            debug!("Cache {} is append only", name);
+            Ok(cache)
+        } else if &cache.get_checkpoint().map_err(|e| {
+            ExecutionError::SinkError(SinkError::CacheGetCheckpointFailed(
+                name.to_string(),
+                Box::new(e),
+            ))
+        })? == checkpoint
+        {
+            debug!("Cache {} is consistent with the pipeline", name);
+            Ok(cache)
+        } else {
+            info!("Cache {} contains data that is outdated, writing to a new cache while serving the old one", name);
+            create_cache()
+        }
+    } else {
+        debug!("Cache {} does not exist", name);
+        let cache = create_cache()?;
         cache_manager
             .create_alias(cache.name(), name)
             .map_err(|e| {

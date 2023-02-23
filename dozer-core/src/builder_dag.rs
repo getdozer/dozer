@@ -113,7 +113,7 @@ impl BuilderDag {
                     TempNodeKind::Processor(processor)
                 }
                 DagNodeKind::Sink(sink) => {
-                    let sink = sink.build(input_schemas)?;
+                    let sink = sink.build(input_schemas, &node.commits)?;
                     TempNodeKind::Sink(sink)
                 }
             };

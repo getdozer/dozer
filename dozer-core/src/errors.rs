@@ -146,6 +146,9 @@ pub enum SinkError {
         source: BoxedError,
     },
 
+    #[error("Failed to get checkpoint in Cache: {0:?}, Error: {1:?}.")]
+    CacheGetCheckpointFailed(String, #[source] BoxedError),
+
     #[error("Failed to begin transaction in Cache: {0:?}, Error: {1:?}.")]
     CacheBeginTransactionFailed(String, #[source] BoxedError),
 

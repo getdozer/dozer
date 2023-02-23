@@ -9,6 +9,7 @@ use dozer_core::{
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::{
     crossbeam,
+    node::SourceStates,
     types::{Operation, Schema},
 };
 use std::collections::HashMap;
@@ -32,6 +33,7 @@ impl SinkFactory<SchemaSQLContext> for StreamingSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _checkpoint: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(StreamingSink {
             current: 0,

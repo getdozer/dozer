@@ -4,6 +4,7 @@ use crate::errors::ExecutionError;
 use crate::record_store::RecordReader;
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 
+use dozer_types::node::SourceStates;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -101,6 +102,7 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
+        checkpoint: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError>;
 }
 
