@@ -1,12 +1,9 @@
 use crate::pipeline::CacheSink;
-use dozer_cache::cache::{CacheManager, LmdbCacheManager, RwCache};
-use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_cache::cache::{CacheManager, LmdbCacheManager};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::types::{
     FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
 };
-use std::collections::HashMap;
-use std::sync::Arc;
 
 pub fn get_schema() -> Schema {
     Schema {
@@ -30,23 +27,16 @@ pub fn get_schema() -> Schema {
 }
 
 pub fn init_sink(
-    schema: &Schema,
+    schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
-) -> (Arc<dyn RwCache>, CacheSink) {
+) -> (LmdbCacheManager, CacheSink) {
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
-    let cache: Arc<dyn RwCache> = cache_manager.create_cache().unwrap().into();
-
-    let endpoint = init_endpoint();
-
-    cache
-        .insert_schema(&endpoint.name, schema, &secondary_indexes)
+    let api_endpoint = init_endpoint();
+    let cache = cache_manager
+        .create_cache(vec![(api_endpoint.name, schema, secondary_indexes)])
         .unwrap();
-
-    let mut input_schemas = HashMap::new();
-    input_schemas.insert(DEFAULT_PORT_HANDLE, (schema.clone(), secondary_indexes));
-
-    let sink = CacheSink::new(cache.clone(), init_endpoint(), input_schemas, None, None).unwrap();
-    (cache, sink)
+    let cache = CacheSink::new(cache, init_endpoint(), None, None).unwrap();
+    (cache_manager, cache)
 }
 pub fn init_endpoint() -> ApiEndpoint {
     ApiEndpoint {

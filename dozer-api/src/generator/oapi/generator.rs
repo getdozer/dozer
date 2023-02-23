@@ -11,13 +11,13 @@ use openapiv3::*;
 use serde_json::{json, Value};
 use tempdir::TempDir;
 
-pub struct OpenApiGenerator {
-    schema: dozer_types::types::Schema,
-    secondary_indexes: Vec<IndexDefinition>,
+pub struct OpenApiGenerator<'a> {
+    schema: &'a dozer_types::types::Schema,
+    secondary_indexes: &'a [IndexDefinition],
     endpoint: ApiEndpoint,
     server_host: Vec<String>,
 }
-impl OpenApiGenerator {
+impl<'a> OpenApiGenerator<'a> {
     fn get_singular_name(&self) -> String {
         self.endpoint.name.to_string()
     }
@@ -244,7 +244,7 @@ impl OpenApiGenerator {
     }
 }
 
-impl OpenApiGenerator {
+impl<'a> OpenApiGenerator<'a> {
     pub fn generate_oas3(&self) -> Result<OpenAPI, GenerationError> {
         let component_schemas = self.generate_component_schema();
         let paths_available = self._generate_available_paths();
@@ -289,8 +289,8 @@ impl OpenApiGenerator {
     }
 
     pub fn new(
-        schema: dozer_types::types::Schema,
-        secondary_indexes: Vec<IndexDefinition>,
+        schema: &'a dozer_types::types::Schema,
+        secondary_indexes: &'a [IndexDefinition],
         endpoint: ApiEndpoint,
         server_host: Vec<String>,
     ) -> Self {

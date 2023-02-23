@@ -5,6 +5,7 @@ use dozer_storage::{
     lmdb::{Database, DatabaseFlags},
     lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction},
 };
+use dozer_types::types::{IndexDefinition, Schema};
 use tempdir::TempDir;
 
 use crate::{
@@ -92,7 +93,7 @@ impl CacheManager for LmdbCacheManager {
         let txn = self.txn.read();
         let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
         if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
-            let cache = LmdbRwCache::new(
+            let cache = LmdbRwCache::open(
                 self.cache_common_options(real_name.to_string()),
                 self.cache_write_options(),
             )?;
@@ -113,9 +114,16 @@ impl CacheManager for LmdbCacheManager {
         }
     }
 
-    fn create_cache(&self) -> Result<Box<dyn RwCache>, CacheError> {
+    fn create_cache(
+        &self,
+        schemas: Vec<(String, Schema, Vec<IndexDefinition>)>,
+    ) -> Result<Box<dyn RwCache>, CacheError> {
         let name = self.generate_unique_name();
-        let cache = LmdbRwCache::new(self.cache_common_options(name), self.cache_write_options())?;
+        let cache = LmdbRwCache::create(
+            schemas,
+            self.cache_common_options(name),
+            self.cache_write_options(),
+        )?;
         Ok(Box::new(cache))
     }
 
@@ -169,7 +177,11 @@ mod tests {
     #[test]
     fn test_lmdb_cache_manager() {
         let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
-        let real_name = cache_manager.create_cache().unwrap().name().to_string();
+        let real_name = cache_manager
+            .create_cache(vec![])
+            .unwrap()
+            .name()
+            .to_string();
         // Test open with real name.
         assert_eq!(
             cache_manager
@@ -217,7 +229,11 @@ mod tests {
             real_name
         );
         // If name is both alias and real name, alias shadows real name.
-        let real_name2 = cache_manager.create_cache().unwrap().name().to_string();
+        let real_name2 = cache_manager
+            .create_cache(vec![])
+            .unwrap()
+            .name()
+            .to_string();
         cache_manager.create_alias(&real_name, &real_name2).unwrap();
         assert_eq!(
             cache_manager

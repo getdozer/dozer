@@ -41,7 +41,7 @@ impl CacheReader {
     pub fn get_schema_and_indexes_by_name(
         &self,
         name: &str,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
+    ) -> Result<&(Schema, Vec<IndexDefinition>), CacheError> {
         self.cache.get_schema_and_indexes_by_name(name)
     }
 
@@ -62,7 +62,7 @@ impl CacheReader {
         schema_name: &str,
         query: &mut QueryExpression,
         access_filter: AccessFilter,
-    ) -> Result<Vec<RecordWithId>, CacheError> {
+    ) -> Result<(&Schema, Vec<RecordWithId>), CacheError> {
         self.apply_access_filter(query, access_filter);
         self.cache.query(schema_name, query)
     }
@@ -79,6 +79,7 @@ impl CacheReader {
 
     // Apply filter if specified in access
     fn apply_access_filter(&self, query: &mut QueryExpression, access_filter: AccessFilter) {
+        // TODO: Use `fields` in `access_filter`.
         if let Some(access_filter) = access_filter.filter {
             let filter = match query.filter.take() {
                 Some(query_filter) => FilterExpression::And(vec![access_filter, query_filter]),

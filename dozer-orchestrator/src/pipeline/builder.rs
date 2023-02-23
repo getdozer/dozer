@@ -117,8 +117,10 @@ impl PipelineBuilder {
 
         let conn_ports = source_builder.get_ports();
 
-        let cache_manager = LmdbCacheManager::new(cache_manager_options)
-            .map_err(OrchestrationError::CacheInitFailed)?;
+        let cache_manager = Arc::new(
+            LmdbCacheManager::new(cache_manager_options)
+                .map_err(OrchestrationError::CacheInitFailed)?,
+        );
         for api_endpoint in &self.api_endpoints {
             let table_name = &api_endpoint.table_name;
 
@@ -127,8 +129,7 @@ impl PipelineBuilder {
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
             let snk_factory = Arc::new(CacheSinkFactory::new(
-                vec![DEFAULT_PORT_HANDLE],
-                &cache_manager,
+                cache_manager.clone(),
                 api_endpoint.clone(),
                 notifier.clone(),
                 self.progress.clone(),

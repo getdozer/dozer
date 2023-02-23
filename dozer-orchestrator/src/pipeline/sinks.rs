@@ -10,6 +10,7 @@ use dozer_core::errors::{ExecutionError, SinkError};
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
+use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -60,8 +61,7 @@ impl CacheSinkSettings {
 }
 #[derive(Debug)]
 pub struct CacheSinkFactory {
-    input_ports: Vec<PortHandle>,
-    cache: Arc<dyn RwCache>,
+    cache_manager: Arc<dyn CacheManager>,
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineResponse>>,
     multi_pb: MultiProgress,
@@ -70,37 +70,14 @@ pub struct CacheSinkFactory {
 
 impl CacheSinkFactory {
     pub fn new(
-        input_ports: Vec<PortHandle>,
-        cache_manager: &dyn CacheManager,
+        cache_manager: Arc<dyn CacheManager>,
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
         multi_pb: MultiProgress,
         settings: CacheSinkSettings,
     ) -> Result<Self, ExecutionError> {
-        let alias = &api_endpoint.name;
-        let cache = if let Some(cache) = cache_manager.open_rw_cache(alias).map_err(|e| {
-            ExecutionError::SinkError(SinkError::CacheOpenFailed(alias.clone(), Box::new(e)))
-        })? {
-            cache
-        } else {
-            let cache = cache_manager.create_cache().map_err(|e| {
-                ExecutionError::SinkError(SinkError::CacheCreateFailed(alias.clone(), Box::new(e)))
-            })?;
-            cache_manager
-                .create_alias(cache.name(), alias)
-                .map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheCreateAliasFailed {
-                        alias: alias.clone(),
-                        real_name: cache.name().to_string(),
-                        source: Box::new(e),
-                    })
-                })?;
-            cache
-        };
-
         Ok(Self {
-            input_ports,
-            cache: cache.into(),
+            cache_manager,
             api_endpoint,
             notifier,
             multi_pb,
@@ -110,10 +87,12 @@ impl CacheSinkFactory {
 
     fn get_output_schema(
         &self,
-        schema_id: u16,
-        schema: &Schema,
+        mut input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<(Schema, Vec<IndexDefinition>), ExecutionError> {
-        let mut schema = schema.clone();
+        debug_assert!(input_schemas.len() == 1);
+        let mut schema = input_schemas
+            .remove(&DEFAULT_PORT_HANDLE)
+            .expect("Input schema should be on default port");
 
         // Generated Cache index based on api_index
         let configured_index = create_primary_indexes(
@@ -142,7 +121,7 @@ impl CacheSinkFactory {
         schema.primary_index = index;
 
         schema.identifier = Some(SchemaIdentifier {
-            id: schema_id as u32,
+            id: DEFAULT_PORT_HANDLE as u32,
             version: 1,
         });
 
@@ -182,7 +161,7 @@ impl CacheSinkFactory {
 
 impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn prepare(
@@ -190,52 +169,29 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
         input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         use std::println as stdinfo;
-        // Insert schemas into cache
-        debug!(
-            "SinkFactory: Initialising CacheSinkFactory: {}",
+        stdinfo!(
+            "SINK: Initializing output schema: {}",
             self.api_endpoint.name
         );
-        for (schema_id, (schema, _ctx)) in input_schemas.into_iter() {
-            stdinfo!(
-                "SINK: Initializing output schema: {}",
-                self.api_endpoint.name
-            );
-            let (pipeline_schema, secondary_indexes) =
-                self.get_output_schema(schema_id, &schema)?;
-            pipeline_schema.print().printstd();
 
-            if self
-                .cache
-                .get_schema_and_indexes_by_name(&self.api_endpoint.name)
-                .is_err()
-            {
-                self.cache
-                    .insert_schema(
-                        &self.api_endpoint.name,
-                        &pipeline_schema,
-                        &secondary_indexes,
-                    )
-                    .map_err(|e| {
-                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(
-                            self.api_endpoint.name.clone(),
-                            Box::new(e),
-                        ))
-                    })?;
-                debug!(
-                    "SinkFactory: Inserted schema for {}",
-                    self.api_endpoint.name
-                );
-            }
+        // Get output schema.
+        let (schema, _) = self.get_output_schema(
+            input_schemas
+                .into_iter()
+                .map(|(key, (schema, _))| (key, schema))
+                .collect(),
+        )?;
+        schema.print().printstd();
 
-            ProtoGenerator::generate(
-                &self.settings.api_dir,
-                &self.api_endpoint.name,
-                schema,
-                &self.settings.api_security,
-                &self.settings.flags,
-            )
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        }
+        // Generate proto files.
+        ProtoGenerator::generate(
+            &self.settings.api_dir,
+            &self.api_endpoint.name,
+            &schema,
+            &self.settings.api_security,
+            &self.settings.flags,
+        )
+        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
         Ok(())
     }
@@ -244,16 +200,18 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
-        let mut sink_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)> = HashMap::new();
-        // Insert schemas into cache
-        for (k, schema) in input_schemas {
-            let (schema, secondary_indexes) = self.get_output_schema(k, &schema)?;
-            sink_schemas.insert(k, (schema, secondary_indexes));
-        }
+        // Create cache.
+        let (schema, secondary_indexes) = self.get_output_schema(input_schemas)?;
+        let cache = open_or_create_cache(
+            &*self.cache_manager,
+            &self.api_endpoint.name,
+            schema,
+            secondary_indexes,
+        )?;
+
         Ok(Box::new(CacheSink::new(
-            self.cache.clone(),
+            cache,
             self.api_endpoint.clone(),
-            sink_schemas,
             self.notifier.clone(),
             Some(self.multi_pb.clone()),
         )?))
@@ -286,11 +244,42 @@ fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
         .collect()
 }
 
+fn open_or_create_cache(
+    cache_manager: &dyn CacheManager,
+    name: &str,
+    schema: Schema,
+    secondary_indexes: Vec<IndexDefinition>,
+) -> Result<Box<dyn RwCache>, ExecutionError> {
+    if let Some(cache) = cache_manager.open_rw_cache(name).map_err(|e| {
+        ExecutionError::SinkError(SinkError::CacheOpenFailed(name.to_string(), Box::new(e)))
+    })? {
+        Ok(cache)
+    } else {
+        let cache = cache_manager
+            .create_cache(vec![(name.to_string(), schema, secondary_indexes)])
+            .map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheCreateFailed(
+                    name.to_string(),
+                    Box::new(e),
+                ))
+            })?;
+        cache_manager
+            .create_alias(cache.name(), name)
+            .map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheCreateAliasFailed {
+                    alias: name.to_string(),
+                    real_name: cache.name().to_string(),
+                    source: Box::new(e),
+                })
+            })?;
+        Ok(cache)
+    }
+}
+
 #[derive(Debug)]
 pub struct CacheSink {
-    cache: Arc<dyn RwCache>,
+    cache: Box<dyn RwCache>,
     counter: usize,
-    input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
     notifier: Option<Sender<PipelineResponse>>,
@@ -316,19 +305,19 @@ impl Sink for CacheSink {
 
     fn process(
         &mut self,
-        from_port: PortHandle,
+        _from_port: PortHandle,
         op: Operation,
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
 
-        let endpoint_name = self.api_endpoint.name.clone();
-
-        let (schema, _) = self
-            .input_schemas
-            .get(&from_port)
-            .ok_or(ExecutionError::SchemaNotInitialized)?;
+        let endpoint_name = &self.api_endpoint.name;
+        let schema = &self
+            .cache
+            .get_schema_and_indexes_by_name(endpoint_name)
+            .map_err(|_| ExecutionError::SchemaNotInitialized)?
+            .0;
 
         let mapped_op = match op {
             Operation::Delete { mut old } => {
@@ -336,7 +325,7 @@ impl Sink for CacheSink {
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 let version = self.cache.delete(&key).map_err(|e| {
                     ExecutionError::SinkError(SinkError::CacheDeleteFailed(
-                        endpoint_name,
+                        endpoint_name.clone(),
                         Box::new(e),
                     ))
                 })?;
@@ -347,7 +336,7 @@ impl Sink for CacheSink {
                 new.schema_id = schema.identifier;
                 let id = self.cache.insert(&mut new).map_err(|e| {
                     ExecutionError::SinkError(SinkError::CacheInsertFailed(
-                        endpoint_name,
+                        endpoint_name.clone(),
                         Box::new(e),
                     ))
                 })?;
@@ -359,7 +348,7 @@ impl Sink for CacheSink {
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 let old_version = self.cache.update(&key, &mut new).map_err(|e| {
                     ExecutionError::SinkError(SinkError::CacheUpdateFailed(
-                        endpoint_name,
+                        endpoint_name.clone(),
                         Box::new(e),
                     ))
                 })?;
@@ -383,9 +372,8 @@ impl Sink for CacheSink {
 
 impl CacheSink {
     pub fn new(
-        cache: Arc<dyn RwCache>,
+        cache: Box<dyn RwCache>,
         api_endpoint: ApiEndpoint,
-        input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
         notifier: Option<Sender<PipelineResponse>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<Self, ExecutionError> {
@@ -405,7 +393,6 @@ impl CacheSink {
         Ok(Self {
             cache,
             counter,
-            input_schemas,
             api_endpoint,
             pb,
             notifier,
@@ -418,7 +405,7 @@ mod tests {
 
     use crate::test_utils;
 
-    use dozer_cache::cache::index;
+    use dozer_cache::cache::{index, CacheManager};
     use dozer_core::node::Sink;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
     use dozer_core::DEFAULT_PORT_HANDLE;
@@ -444,7 +431,11 @@ mod tests {
             .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![idx]))
             .collect();
 
-        let (cache, mut sink) = test_utils::init_sink(&schema, secondary_indexes);
+        let (cache_manager, mut sink) = test_utils::init_sink(schema.clone(), secondary_indexes);
+        let cache = cache_manager
+            .open_ro_cache(sink.cache.name())
+            .unwrap()
+            .unwrap();
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 

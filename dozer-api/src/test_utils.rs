@@ -105,10 +105,13 @@ pub fn initialize_cache(
     schema: Option<(dozer_types::types::Schema, Vec<IndexDefinition>)>,
 ) -> Arc<dyn RoCache> {
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
-    let cache = cache_manager.create_cache().unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
-    cache
-        .insert_schema(schema_name, &schema, &secondary_indexes)
+    let cache = cache_manager
+        .create_cache(vec![(
+            schema_name.to_string(),
+            schema.clone(),
+            secondary_indexes,
+        )])
         .unwrap();
     let records = get_sample_records(schema);
     for mut record in records {
