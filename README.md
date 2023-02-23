@@ -45,11 +45,8 @@ Check out our website and sign up for [Early Access](https:///getdozer.io) to ou
 
 ## Quick Start
 Refer to our [getting started](https://getdozer.io/docs/category/getting-started) and [examples section](https://getdozer.io/docs/category/what-can-you-build-with-dozer) for more details.
-#### 1) End-to-end hypercharge postgres example
-```bash
-docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up
-```
-#### 2) Real time Ethereum stats example
+#### 1) [End-to-end hypercharge postgres example](https://github.com/getdozer/dozer-samples/tree/main/banking-postgres#financial-data-postgres-sample)
+#### 2) [Real time Ethereum stats example](https://github.com/getdozer/dozer-samples/tree/main/ethereum-sample)
 Get a websocket url from one of the hosted eth node providers such as [Infura](https://www.infura.io/product/ethereum) and initialize the env variable `ETH_WSS_URL`.
 ```bash
 # Intialize ETH Web Socker Url
