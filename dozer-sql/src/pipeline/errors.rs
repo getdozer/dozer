@@ -94,6 +94,9 @@ pub enum PipelineError {
 
     #[error(transparent)]
     SetError(#[from] SetError),
+
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
 }
 #[cfg(feature = "python")]
 impl From<dozer_types::pyo3::PyErr> for PipelineError {
