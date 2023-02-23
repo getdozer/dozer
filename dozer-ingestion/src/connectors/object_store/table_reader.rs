@@ -117,8 +117,8 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
         for (id, table) in tables.iter().enumerate() {
             let params = self.config.table_params(&table.name)?;
 
-            let table_path = ListingTableUrl::parse(params.table_path).map_err(|_| {
-                ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError)
+            let table_path = ListingTableUrl::parse(params.table_path).map_err(|e| {
+                ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError(e))
             })?;
 
             let listing_options = map_listing_options(params.data_fusion_table);
