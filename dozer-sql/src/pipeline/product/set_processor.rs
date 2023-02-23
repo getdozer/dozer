@@ -1,43 +1,45 @@
-use crate::pipeline::errors::ProductError;
+use crate::pipeline::errors::{PipelineError, ProductError};
 use crate::pipeline::product::set::{SetAction, SetOperation};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::SharedTransaction;
+use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record};
+use lmdb::{Database, DatabaseFlags};
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SetProcessor {
     /// Set operations
     operator: SetOperation,
-    record_hash_map: Vec<u64>,
+    /// Database to store Join indexes
+    db: Database,
 }
 
 impl SetProcessor {
     /// Creates a new [`FromProcessor`].
-    pub fn new(operator: SetOperation) -> Self {
-        Self {
+    pub fn new(
+        operator: SetOperation,
+        txn: &mut LmdbExclusiveTransaction,
+    ) -> Result<Self, PipelineError> {
+        Ok(Self {
             operator,
-            record_hash_map: Vec::new(),
-        }
+            db: txn.create_database(Some("set"), Some(DatabaseFlags::empty()))?,
+        })
     }
 
     fn delete(
         &mut self,
-        from_port: PortHandle,
+        _from_port: PortHandle,
         record: &Record,
+        txn: &SharedTransaction,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
-            .execute(
-                SetAction::Delete,
-                from_port,
-                record,
-                &mut self.record_hash_map,
-            )
+            .execute(SetAction::Delete, record, &self.db, txn)
             .map_err(|err| {
                 ProductError::DeleteError("UNION query error:".to_string(), Box::new(err))
             })
@@ -45,16 +47,13 @@ impl SetProcessor {
 
     fn insert(
         &mut self,
-        from_port: PortHandle,
+        _from_port: PortHandle,
         record: &Record,
+        txn: &SharedTransaction,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
-            .execute(
-                SetAction::Insert,
-                from_port,
-                record,
-                &mut self.record_hash_map,
-            )
+            .execute(SetAction::Insert, record, &self.db, txn)
             .map_err(|err| {
                 ProductError::InsertError("UNION query error:".to_string(), Box::new(err))
             })
@@ -63,20 +62,22 @@ impl SetProcessor {
     #[allow(clippy::type_complexity)]
     fn update(
         &mut self,
-        from_port: PortHandle,
+        _from_port: PortHandle,
         old: &Record,
         new: &Record,
+        txn: &SharedTransaction,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
         let old_records = self
             .operator
-            .execute(SetAction::Delete, from_port, old, &mut self.record_hash_map)
+            .execute(SetAction::Delete, old, &self.db, txn)
             .map_err(|err| {
                 ProductError::UpdateOldError("UNION query error:".to_string(), Box::new(err))
             })?;
 
         let new_records = self
             .operator
-            .execute(SetAction::Insert, from_port, new, &mut self.record_hash_map)
+            .execute(SetAction::Insert, new, &self.db, txn)
             .map_err(|err| {
                 ProductError::UpdateNewError("UNION query error:".to_string(), Box::new(err))
             })?;
@@ -95,13 +96,13 @@ impl Processor for SetProcessor {
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _transaction: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        transaction: &SharedTransaction,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {
                 let records = self
-                    .delete(from_port, old)
+                    .delete(from_port, old, transaction, reader)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record) in records.into_iter() {
@@ -117,7 +118,7 @@ impl Processor for SetProcessor {
             }
             Operation::Insert { ref new } => {
                 let records = self
-                    .insert(from_port, new)
+                    .insert(from_port, new, transaction, reader)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record) in records.into_iter() {
@@ -132,11 +133,11 @@ impl Processor for SetProcessor {
                 }
             }
             Operation::Update { ref old, ref new } => {
-                let (old_join_records, new_join_records) = self
-                    .update(from_port, old, new)
+                let (old_records, new_records) = self
+                    .update(from_port, old, new, transaction, reader)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
-                for (action, old) in old_join_records.into_iter() {
+                for (action, old) in old_records.into_iter() {
                     match action {
                         SetAction::Insert => {
                             let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
@@ -147,7 +148,7 @@ impl Processor for SetProcessor {
                     }
                 }
 
-                for (action, new) in new_join_records.into_iter() {
+                for (action, new) in new_records.into_iter() {
                     match action {
                         SetAction::Insert => {
                             let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);

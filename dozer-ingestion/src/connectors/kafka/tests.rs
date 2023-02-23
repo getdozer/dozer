@@ -130,7 +130,7 @@ fn connector_disabled_test_e2e_connect_debezium_json_and_get_schema() {
         .unwrap()
         .clone()
         .config
-        .unwrap_or_default()
+        .unwrap()
     {
         broker
     } else {
@@ -187,7 +187,7 @@ fn connector_disabled_test_e2e_connect_debezium_avro_and_get_schema() {
             .unwrap()
             .clone()
             .config
-            .unwrap_or_default()
+            .unwrap()
         {
             (broker, schema_registry_url)
         } else {

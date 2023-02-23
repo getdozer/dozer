@@ -23,12 +23,6 @@
                                 "typ": "UInt",
                                 "nullable": false,
                                 "source": "Dynamic"
-                            },
-                            {
-                                "name": "add(id,float)",
-                                "typ": "Float",
-                                "nullable": false,
-                                "source": "Dynamic"
                             }
                         ]
                     }

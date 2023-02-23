@@ -329,13 +329,15 @@ fn write_dozer_config_for_running_in_docker_compose(
     };
 
     for connection in &mut config.connections {
-        let mut config = connection.config.clone().unwrap_or_default();
+        let config = connection
+            .config
+            .as_mut()
+            .expect("Connection should always have config");
 
         match config {
-            ConnectionConfig::Postgres(mut postgres) => {
+            ConnectionConfig::Postgres(postgres) => {
                 postgres.host = connection.name.clone();
                 postgres.port = map_port(postgres.port as u16) as u32;
-                config = ConnectionConfig::Postgres(postgres);
             }
             ConnectionConfig::Ethereum(_) => (),
             ConnectionConfig::Grpc(_) => (),
@@ -348,8 +350,6 @@ fn write_dozer_config_for_running_in_docker_compose(
             ConnectionConfig::S3Storage(_) => {}
             ConnectionConfig::LocalStorage(_) => {}
         }
-
-        connection.config = Some(config);
     }
 
     let config_path = dir.join("dozer-config.yaml");

@@ -1,4 +1,4 @@
-app_name: 1-hypercharge-postgres-sample
+app_name: pg_nested_aggregation
 connections:
   - config: !Postgres
       user: postgres
@@ -42,7 +42,7 @@ sources:
 sql: |
   SELECT
     id,
-    (ROUND(SUM(ROUND(open, 2))) + SUM(close)) AS nested_col
+    ROUND(SUM(ROUND(open, 2))) + SUM(close) AS nested_col
   INTO stocks_data
   FROM stocks
   GROUP BY id;

@@ -5,12 +5,11 @@ use dozer_types::models::connection::{Connection, ConnectionConfig};
 use odbc::create_environment_v3;
 
 pub fn get_client(connection: &Connection) -> Client {
-    let config = match connection.config.to_owned().unwrap_or_default() {
-        ConnectionConfig::Snowflake(snowflake_config) => Some(snowflake_config),
-        _ => None,
+    let ConnectionConfig::Snowflake(config) = connection.config.as_ref().expect("Expecting connection config") else {
+        panic!("Expecting Snowflake connection config")
     };
 
-    Client::new(&config.unwrap())
+    Client::new(config)
 }
 
 pub fn remove_streams(connection: Connection, table_name: &str) -> Result<bool, SnowflakeError> {
