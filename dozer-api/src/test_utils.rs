@@ -7,6 +7,8 @@ use dozer_types::{
 use std::sync::Arc;
 
 use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId, RoCache};
+use dozer_types::rust_decimal::Decimal;
+use dozer_types::rust_decimal::prelude::FromPrimitive;
 
 pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![
@@ -25,6 +27,12 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
         FieldDefinition {
             name: "rental_rate".to_string(),
             typ: FieldType::Float,
+            nullable: true,
+            source: SourceDefinition::Dynamic,
+        },
+        FieldDefinition {
+            name: "rental_rate_dec".to_string(),
+            typ: FieldType::Decimal,
             nullable: true,
             source: SourceDefinition::Dynamic,
         },
@@ -75,6 +83,7 @@ fn get_films() -> Vec<Value> {
         json!({
           "description": "A Amazing Panorama of a Mad Scientist And a Husband who must Meet a Woman in The Outback",
           "rental_rate": null,
+          "rental_rate_dec": 8.124567,
           "release_year": 2006,
           "film_id": 268,
           "updated_at": null
@@ -82,6 +91,7 @@ fn get_films() -> Vec<Value> {
         json!({
           "film_id": 524,
           "release_year": 2006,
+          "rental_rate_dec": 8.124567,
           "rental_rate": null,
           "description": "A Intrepid Display of a Pastry Chef And a Cat who must Kill a A Shark in Ancient China",
           "updated_at": null
@@ -93,6 +103,7 @@ fn get_films() -> Vec<Value> {
             "film_id": film_id,
             "description": format!("Film {film_id}"),
             "rental_rate": null,
+            "rental_rate_dec": 8.124567,
             "release_year": 2006,
             "updated_at": null
         }));
@@ -144,6 +155,7 @@ pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {
                     Field::UInt(film_id),
                     Field::String(description.to_string()),
                     Field::Null,
+                    Field::Decimal(Decimal::from_f64(8.124567).unwrap()),
                     Field::UInt(release_year),
                     Field::Null,
                 ],
