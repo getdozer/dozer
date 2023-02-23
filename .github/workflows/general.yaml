@@ -3,6 +3,8 @@ name: Dozer General
 on:
   issues:
     types: [opened, edited, milestoned]
+  issue_comment:
+    types: [created, deleted, edited]
   discussion:
     types: [created, edited]
   discussion_comment:
