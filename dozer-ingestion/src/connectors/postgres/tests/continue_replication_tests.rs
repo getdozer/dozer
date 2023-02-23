@@ -3,18 +3,18 @@ mod tests {
     use crate::connectors::postgres::connection::helper;
     use crate::connectors::postgres::connection::helper::map_connection_config;
     use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
-    use crate::connectors::Connector;
-    use crate::test_util::run_connector_test;
-    use core::cell::RefCell;
-    use std::sync::Arc;
-    use tokio_postgres::config::ReplicationMode;
     use crate::connectors::postgres::test_utils::create_slot;
+    use crate::connectors::postgres::tests::client::TestPostgresClient;
+    use crate::connectors::Connector;
     use crate::connectors::TableInfo;
     use crate::ingestion::{IngestionConfig, Ingestor};
+    use crate::test_util::run_connector_test;
+    use core::cell::RefCell;
     use rand::Rng;
-    use std::thread;
-    use crate::connectors::postgres::tests::client::TestPostgresClient;
     use serial_test::serial;
+    use std::sync::Arc;
+    use std::thread;
+    use tokio_postgres::config::ReplicationMode;
 
     #[test]
     #[serial]
@@ -51,7 +51,7 @@ mod tests {
             let client = helper::connect(replication_conn_config.clone()).unwrap();
             let client_ref = Arc::new(RefCell::new(client));
             let slot_name = connector.get_slot_name();
-            let parsed_lsn = create_slot(client_ref.clone(), &slot_name);
+            let parsed_lsn = create_slot(client_ref, &slot_name);
 
             let result = connector
                 .can_start_from((u64::from(parsed_lsn), 0))
@@ -109,14 +109,18 @@ mod tests {
             let client_ref = Arc::new(RefCell::new(client));
 
             let slot_name = connector.get_slot_name();
-            let parsed_lsn = create_slot(client_ref.clone(), &slot_name);
+            let parsed_lsn = create_slot(client_ref, &slot_name);
 
             let config = IngestionConfig::default();
             let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
             thread::spawn(move || {
                 let connector = PostgresConnector::new(1, postgres_config);
-                let _ = connector.start(Some((u64::from(parsed_lsn), 1_u64)), &ingestor, Some(tables));
+                let _ = connector.start(
+                    Some((u64::from(parsed_lsn), 1_u64)),
+                    &ingestor,
+                    Some(tables),
+                );
             });
 
             test_client.insert_rows(&table_name, 2, None);

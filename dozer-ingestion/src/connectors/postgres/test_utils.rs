@@ -1,17 +1,17 @@
-use std::cell::RefCell;
 use crate::connectors::postgres::tests::client::TestPostgresClient;
-use std::thread;
 use postgres::Client;
 use postgres_types::PgLsn;
+use std::cell::RefCell;
+use std::thread;
 
+use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::serde_yaml;
-use std::sync::Arc;
-use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
 use std::str::FromStr;
+use std::sync::Arc;
 
 pub fn get_client() -> TestPostgresClient {
     let config =
@@ -44,10 +44,9 @@ pub fn create_slot(client_ref: Arc<RefCell<Client>>, slot_name: &str) -> PgLsn {
         .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
         .unwrap();
 
-    let created_lsn =
-        ReplicationSlotHelper::create_replication_slot(client_ref.clone(), slot_name)
-            .unwrap()
-            .unwrap();
+    let created_lsn = ReplicationSlotHelper::create_replication_slot(client_ref.clone(), slot_name)
+        .unwrap()
+        .unwrap();
     client_ref.borrow_mut().simple_query("COMMIT;").unwrap();
 
     PgLsn::from_str(&created_lsn).unwrap()
