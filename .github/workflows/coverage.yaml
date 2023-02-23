@@ -2,7 +2,7 @@ name: Dozer Coverage
 
 on:
   push:
-    branches: [main]
+    branches: [main, coverage-yaml-dev]
   pull_request:
     branches: [main]
 
@@ -99,3 +99,26 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ${{ steps.coverage.outputs.report }}
+
+    discord_notification:
+      if: ${{ github.event_name == 'push' }}
+
+      - name: Get commit message
+        id: get_commit_message
+        run: |
+          echo "::set-output name=commit_message::$(git log -1 --format="%s" ${{ github.sha }})"
+
+      - name: Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
+          DISCORD_EMBEDS: '[ { 
+           "title": " ${{ github.actor }} pushed to `${{ github.ref_name }}` :rocket:",
+           "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{ github.actor }}" },
+          "fields": [
+            { "name": "Commit", "value": "[${{ github.event.head_commit.id }}](${{ github.event.head_commit.url }})"},
+            { "name": "Repository", "value": "[getdozer/dozer](https://github.com/getdozer/dozer)" },
+            { "name": "Message", "value": "${{ steps.get_commit_message.outputs.commit_message }}"}
+          ],
+          "color": 990099
+          }]'
+        uses: Ilshidur/action-discord@master
