@@ -19,7 +19,7 @@ pub enum WindowType {
 }
 
 impl WindowType {
-    fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
+    pub fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
         match self {
             WindowType::Tumble {
                 column_index,
@@ -33,7 +33,7 @@ impl WindowType {
         }
     }
 
-    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, WindowError> {
+    pub fn get_output_schema(&self, schema: &Schema) -> Result<Schema, WindowError> {
         let mut output_schema = schema.clone();
         output_schema.fields.push(FieldDefinition::new(
             String::from("window_start"),

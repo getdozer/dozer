@@ -3,7 +3,7 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
 };
 
-use crate::pipeline::product::window::{HopWindow, TumbleWindow, WindowFunction};
+use crate::pipeline::product::window::WindowType;
 
 #[test]
 fn test_hop() {
@@ -16,7 +16,11 @@ fn test_hop() {
         Some(1),
     );
 
-    let window = HopWindow::new(1, Duration::minutes(1), Duration::minutes(5));
+    let window = WindowType::Hop {
+        column_index: 1,
+        hop_size: Duration::minutes(1),
+        interval: Duration::minutes(5),
+    };
     let result = window.execute(&record).unwrap();
     assert_eq!(result.len(), 5);
     let window_record = result.get(0).unwrap();
@@ -61,7 +65,11 @@ fn test_tumble() {
         Some(1),
     );
 
-    let window = TumbleWindow::new(1, Duration::minutes(5));
+    let window = WindowType::Tumble {
+        column_index: 1,
+        interval: Duration::minutes(5),
+    };
+
     let result = window.execute(&record).unwrap();
     assert_eq!(result.len(), 1);
     let window_record = result.get(0).unwrap();
@@ -103,7 +111,11 @@ fn test_window_schema() {
         )
         .clone();
 
-    let window = TumbleWindow::new(3, Duration::seconds(10));
+    let window = WindowType::Tumble {
+        column_index: 3,
+        interval: Duration::seconds(10),
+    };
+
     let result = window.get_output_schema(&schema).unwrap();
 
     let expected_schema = Schema::empty()

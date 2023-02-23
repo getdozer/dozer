@@ -109,8 +109,6 @@ pub fn build_join_tree(
 
     let mut source_names = HashMap::new();
 
-    if let Some(left_window) = window_from_relation(&join_tables.relation.1)? {};
-
     let port = 0 as PortHandle;
     let left_schema = input_schemas
         .get(&port)
@@ -122,6 +120,9 @@ pub fn build_join_tree(
         )
         .unwrap()
         .clone();
+
+    let left_window = window_from_relation(&join_tables.relation.1, &left_schema)?;
+
     let relation_name = &join_tables.relation.0;
 
     source_names.insert(port, relation_name.0.to_owned());

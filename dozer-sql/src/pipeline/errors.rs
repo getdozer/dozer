@@ -203,17 +203,38 @@ pub enum JoinError {
     #[error("Error reading key: {0:x?} from the JOIN index\n{1}")]
     IndexGetError(Vec<u8>, StorageError),
 
-    #[error("Invalid function {0:x?} in the FROM clause")]
-    UnsupportedTableFunction(String),
+    #[error("Error in the FROM clause, Invalid function {0:x?}")]
+    UnsupportedRelationFunction(String),
 
-    #[error("Column name not specified for the WINDOW function in the FROM clause")]
+    #[error("Column name not specified in the window function")]
     WindowMissingColumnArgument,
 
-    #[error("Interval not specified for the WINDOW function in the FROM clause")]
+    #[error("Interval not specified in the window function")]
     WindowMissingIntervalArgument,
 
-    #[error("Hop size not specified for the WINDOW function in the FROM clause")]
+    #[error("Hop size not specified in the window function")]
     WindowMissingHopSizeArgument,
+
+    #[error("Invalid time reference column {0} in the window function")]
+    WindowInvalidColumn(String),
+
+    #[error("Invalid time interval '{0}' specified in the window function")]
+    WindowInvalidInterval(String),
+
+    #[error("Invalid time hop '{0}' specified in the window function")]
+    WindowInvalidHop(String),
+
+    #[error("Error in the FROM clause, Derived Table is not supported")]
+    UnsupportedDerivedTable,
+
+    #[error("Error in the FROM clause, Table Function is not supported")]
+    UnsupportedTableFunction,
+
+    #[error("Error in the FROM clause, UNNEST is not supported")]
+    UnsupportedUnnest,
+
+    #[error("This type of Nested Join is not supported")]
+    UnsupportedNestedJoin,
 }
 
 #[derive(Error, Debug)]
