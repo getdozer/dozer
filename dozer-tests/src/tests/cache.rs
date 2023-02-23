@@ -24,7 +24,7 @@ async fn test_cache_query() {
         IndexDefinition::FullText(12),
     ];
 
-    let (cache, schema_name, collection) = load_database(&secondary_indexes).await;
+    let (cache, schema_name, collection) = load_database(secondary_indexes).await;
 
     let test_cases = vec![
         // empty

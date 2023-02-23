@@ -31,7 +31,7 @@ struct ProtoMetadata {
 
 pub struct ProtoGeneratorImpl<'a> {
     handlebars: Handlebars<'a>,
-    schema: dozer_types::types::Schema,
+    schema: &'a dozer_types::types::Schema,
     names: Names,
     folder_path: &'a Path,
     security: &'a Option<ApiSecurity>,
@@ -41,12 +41,12 @@ pub struct ProtoGeneratorImpl<'a> {
 impl<'a> ProtoGeneratorImpl<'a> {
     pub fn new(
         schema_name: &str,
-        schema: Schema,
+        schema: &'a Schema,
         folder_path: &'a Path,
         security: &'a Option<ApiSecurity>,
         flags: &'a Option<Flags>,
     ) -> Result<Self, GenerationError> {
-        let names = Names::new(schema_name, &schema);
+        let names = Names::new(schema_name, schema);
         let mut generator = Self {
             handlebars: Handlebars::new(),
             schema,

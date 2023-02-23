@@ -113,7 +113,7 @@ impl ProtoGenerator {
     pub fn generate(
         folder_path: &Path,
         schema_name: &str,
-        schema: Schema,
+        schema: &Schema,
         security: &Option<ApiSecurity>,
         flags: &Option<Flags>,
     ) -> Result<(), GenerationError> {

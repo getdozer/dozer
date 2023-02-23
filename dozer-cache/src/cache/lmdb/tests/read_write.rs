@@ -11,7 +11,10 @@ fn read_and_write() {
 
     // write and read from cache from two different threads.
 
-    let cache_writer = LmdbRwCache::new(
+    let schema_name = "sample";
+    let (schema, secondary_indexes) = test_utils::schema_1();
+    let cache_writer = LmdbRwCache::create(
+        [(schema_name.to_string(), schema.clone(), secondary_indexes)],
         CacheCommonOptions {
             max_readers: 1,
             max_db_size: 100,
@@ -24,11 +27,6 @@ fn read_and_write() {
     )
     .unwrap();
 
-    let (schema, secondary_indexes) = test_utils::schema_1();
-
-    cache_writer
-        .insert_schema("sample", &schema, &secondary_indexes)
-        .unwrap();
     let items = vec![
         (1, Some("a".to_string()), Some(521)),
         (2, Some("a".to_string()), None),
@@ -67,6 +65,7 @@ fn read_and_write() {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .unwrap()
+        .1;
     assert_eq!(records.len(), 1);
 }
