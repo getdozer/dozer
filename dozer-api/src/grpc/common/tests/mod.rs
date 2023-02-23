@@ -118,11 +118,6 @@ async fn test_grpc_common_get_fields() {
                 nullable: true
             },
             FieldDefinition {
-                typ: Type::Decimal as i32,
-                name: "rental_rate_dec".to_string(),
-                nullable: true
-            },
-            FieldDefinition {
                 typ: Type::UInt as i32,
                 name: "release_year".to_string(),
                 nullable: true
