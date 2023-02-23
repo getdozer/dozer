@@ -1,7 +1,7 @@
 name: Dozer Pulls
 on:
   pull_request_target:
-    branches: [main]
+    branches: [main, pull-yaml-dev]
     types: [opened]
   pull_request_review:
     types: [submitted]
@@ -21,11 +21,12 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_GITHUB_WEBOOK }}
           DISCORD_EMBEDS: '[ { 
-           "title": "New pull request #${{ github.event.pull_request.number }} by ${{ github.actor }}",
-           "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.sender }}", "url": "https://github.com/${{ github.actor }}" },
+           "title": " Pull request [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.issue_url }}) opened by ${{ github.actor }}",
+           "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{ github.actor }}" },
           "fields": [
-            { "name": "Body", "value": "${{ github.event.pull_request.url }} \n ${{ github.event.pull_request.body }}" }
-
+            { "name": "Title", "value": ${{ toJSON(github.event.pull_request.title) }} },
+            { "name": "Repository", "value": "[getdozer/dozer](https://github.com/getdozer/dozer)" },
+            { "name": "Body", "value": ${{ toJSON(github.event.pull_request.body) }}}
           ],
           "color": 990099
           }]'
