@@ -51,7 +51,8 @@ impl TestPostgresClient {
         self.execute_query(&format!("CREATE SCHEMA {schema}"));
     }
 
-    pub fn insert_rows(&mut self, table_name: &str, count: u64) {
+    pub fn insert_rows(&mut self, table_name: &str, count: u64, offset: Option<u64>) {
+        let offset = offset.map_or(0, |o| o);
         let mut buf = String::new();
         for i in 0..count {
             if i > 0 {
@@ -59,8 +60,8 @@ impl TestPostgresClient {
             }
             buf.write_fmt(format_args!(
                 "(\'Product {}\',\'Product {} description\',{})",
-                i,
-                i,
+                i + offset,
+                i + offset,
                 Decimal::new((i * 41) as i64, 2)
             ))
             .unwrap();

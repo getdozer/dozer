@@ -70,16 +70,11 @@ impl PostgresConnector {
                 None
             },
             |(lsn, checkpoint)| {
-                if lsn > 0 || checkpoint > 0 {
-                    info!(
-                        "[{}] Starting replication from checkpoint ({}/{})",
-                        conn_name, lsn, checkpoint
-                    );
-                    Some((PgLsn::from(lsn), checkpoint))
-                } else {
-                    info!("[{}] Starting replication from empty database", conn_name);
-                    None
-                }
+                info!(
+                    "[{}] Starting replication from checkpoint ({}/{})",
+                    conn_name, lsn, checkpoint
+                );
+                Some((PgLsn::from(lsn), checkpoint))
             },
         )
     }
