@@ -24,11 +24,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-pub fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
+fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
     multi_pb.as_ref().map(|m| m.add(pb.clone()));
     pb.set_style(
-        ProgressStyle::with_template("{spinner:.blue} {msg}")
+        ProgressStyle::with_template("{spinner:.blue} {msg}: Count: {pos}, {per_sec}")
             .unwrap()
             // For more spinners check out the cli-spinners project:
             // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
@@ -289,11 +289,7 @@ impl Sink for CacheSink {
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         let endpoint_name = self.api_endpoint.name.clone();
         // Update Counter on commit
-        self.pb.set_message(format!(
-            "{}: Count: {}",
-            self.api_endpoint.name.to_owned(),
-            self.counter,
-        ));
+        self.pb.set_position(self.counter as u64);
         self.cache.commit().map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(
                 endpoint_name,
@@ -390,6 +386,7 @@ impl CacheSink {
             api_endpoint.name, counter
         );
         let pb = attach_progress(multi_pb);
+        pb.set_message(api_endpoint.name.clone());
         Ok(Self {
             cache,
             counter,
