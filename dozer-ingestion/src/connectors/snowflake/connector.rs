@@ -14,7 +14,9 @@ use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 #[cfg(feature = "snowflake")]
 use dozer_types::log::{debug, info};
 
+#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
+
 use dozer_types::types::SourceSchema;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
@@ -40,6 +42,12 @@ impl Connector for SnowflakeConnector {
         Ok(())
     }
 
+    #[cfg(not(feature = "snowflake"))]
+    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
+        todo!()
+    }
+
+    #[cfg(feature = "snowflake")]
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         SchemaHelper::validate_schemas(&self.config, tables)
     }
