@@ -32,12 +32,6 @@ mod tests {
 
             let connector = PostgresConnector::new(1, postgres_config);
 
-            let result = connector.can_start_from((0, 0)).unwrap();
-            assert!(
-                !result,
-                "Snapshotting not completed, so connector cannot resume from given lsn"
-            );
-
             let result = connector.can_start_from((1, 0)).unwrap();
             assert!(!result, "Cannot continue, because slot doesnt exist");
 

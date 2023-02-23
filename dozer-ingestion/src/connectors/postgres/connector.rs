@@ -142,22 +142,15 @@ impl Connector for PostgresConnector {
     }
 
     fn can_start_from(&self, (lsn, _): (u64, u64)) -> Result<bool, ConnectorError> {
-        match lsn {
-            // LSN 0 is used for snapshotting. After snapshot is completed lsn should be > 0.
-            // At the moment continue reading from snapshot is not supported
-            0 => Ok(false),
-            _ => {
-                let mut client =
-                    helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?;
-                let slot_info = ReplicationSlotInfo {
-                    name: self.get_slot_name(),
-                    start_lsn: PgLsn::from(lsn),
-                };
-                match validate_slot(&mut client, &slot_info, self.tables.as_ref()) {
-                    Ok(_) => Ok(true),
-                    Err(_e) => Ok(false),
-                }
-            }
+        let mut client =
+            helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?;
+        let slot_info = ReplicationSlotInfo {
+            name: self.get_slot_name(),
+            start_lsn: PgLsn::from(lsn),
+        };
+        match validate_slot(&mut client, &slot_info, self.tables.as_ref()) {
+            Ok(_) => Ok(true),
+            Err(_e) => Ok(false),
         }
     }
 }
