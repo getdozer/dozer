@@ -1,7 +1,4 @@
 #[cfg(feature = "snowflake")]
-use odbc::create_environment_v3;
-use std::collections::HashMap;
-#[cfg(feature = "snowflake")]
 use std::time::Duration;
 
 #[cfg(feature = "snowflake")]
@@ -13,12 +10,11 @@ use dozer_types::ingestion_types::SnowflakeConfig;
 
 #[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
-#[cfg(feature = "snowflake")]
-use crate::errors::SnowflakeError::ConnectionError;
 
 #[cfg(feature = "snowflake")]
 use dozer_types::log::{debug, info};
 
+use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use dozer_types::types::SourceSchema;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
@@ -40,33 +36,20 @@ impl SnowflakeConnector {
 }
 
 impl Connector for SnowflakeConnector {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+        Ok(())
+    }
+
+    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
+        SchemaHelper::validate_schemas(&self.config, tables)
+    }
+
     #[cfg(feature = "snowflake")]
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let client = Client::new(&self.config);
-        let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-        let conn = env
-            .connect_with_connection_string(&client.get_conn_string())
-            .map_err(|e| ConnectionError(Box::new(e)))?;
-
-        let keys = client
-            .fetch_keys(&conn)
-            .map_err(ConnectorError::SnowflakeError)?;
-
-        let tables_indexes = table_names.clone().map_or(HashMap::new(), |tables| {
-            let mut result = HashMap::new();
-            for (idx, table) in tables.iter().enumerate() {
-                result.insert(table.table_name.clone(), idx);
-            }
-
-            result
-        });
-
-        client
-            .fetch_tables(table_names, tables_indexes, keys, &conn)
-            .map_err(ConnectorError::SnowflakeError)
+        SchemaHelper::get_schema(&self.config, table_names)
     }
 
     #[cfg(not(feature = "snowflake"))]
@@ -93,14 +76,6 @@ impl Connector for SnowflakeConnector {
             )
             .await
         })
-    }
-
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        Ok(())
-    }
-
-    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        Ok(HashMap::new())
     }
 
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {

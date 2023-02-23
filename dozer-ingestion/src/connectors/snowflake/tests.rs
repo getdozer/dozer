@@ -13,7 +13,8 @@ use odbc::create_environment_v3;
 use rand::Rng;
 use std::thread;
 
-use crate::test_util::load_config;
+use crate::errors::ConnectorError::TableNotFound;
+use crate::test_util::{load_config, run_connector_test};
 
 #[ignore]
 #[test]
@@ -189,4 +190,41 @@ fn connector_disabled_test_e2e_connect_snowflake_get_schemas_test() {
     client
         .execute_query(&conn, &format!("DROP TABLE {table_name};"))
         .unwrap();
+}
+
+#[ignore]
+#[test]
+fn test_connector_missing_table_validator() {
+    run_connector_test("snowflake", |config| {
+        let connection = config.connections.get(0).unwrap();
+        let connector = get_connector(connection.clone()).unwrap();
+
+        let not_existing_table = "not_existing_table".to_string();
+        let result = connector
+            .validate_schemas(&[TableInfo {
+                name: not_existing_table.clone(),
+                table_name: not_existing_table,
+                id: 0,
+                columns: None,
+            }])
+            .unwrap();
+
+        let error = result.get("not_existing_table").unwrap().get(0).unwrap();
+        assert_eq!(error.0, None);
+        assert!(error.1.is_err());
+        assert!(matches!(error.1, Err(TableNotFound(_))));
+
+        let existing_table = &config.sources.get(0).unwrap().table_name;
+        let result = connector
+            .validate_schemas(&[TableInfo {
+                name: existing_table.clone(),
+                table_name: existing_table.clone(),
+                id: 0,
+                columns: None,
+            }])
+            .unwrap();
+
+        let errors = result.get(existing_table).unwrap();
+        assert!(errors.is_empty());
+    });
 }
