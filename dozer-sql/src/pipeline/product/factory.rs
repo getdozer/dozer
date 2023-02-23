@@ -110,13 +110,9 @@ pub fn build_join_tree(
     let port = 0 as PortHandle;
     let left_schema = input_schemas
         .get(&port)
-        .map_or(
-            Err(JoinError::InvalidJoinConstraint(
-                join_tables.relation.0.clone().0,
-            )),
-            Ok,
-        )
-        .unwrap()
+        .ok_or(JoinError::InvalidJoinConstraint(
+            join_tables.relation.0.clone().0,
+        ))?
         .clone();
     let relation_name = &join_tables.relation.0;
 

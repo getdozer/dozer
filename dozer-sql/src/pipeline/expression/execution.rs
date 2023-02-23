@@ -251,7 +251,9 @@ impl ExpressionExecutor for Expression {
                 }
             }
             Expression::Column { index } => {
-                let t = schema.fields.get(*index).unwrap();
+                let t = schema.fields.get(*index)        .ok_or(JoinError::InvalidJoinConstraint(
+                    join_tables.relation.0.clone().0,
+                ))?
 
                 Ok(ExpressionType::new(
                     t.typ,
