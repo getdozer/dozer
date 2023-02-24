@@ -1533,7 +1533,7 @@ dependencies = [
  "pin-project-lite",
  "rand 0.8.5",
  "smallvec",
- "sqlparser 0.30.0",
+ "sqlparser",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -1554,7 +1554,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
- "sqlparser 0.30.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -1567,7 +1567,7 @@ dependencies = [
  "arrow",
  "datafusion-common",
  "log",
- "sqlparser 0.30.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -1640,7 +1640,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser 0.30.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -1941,7 +1941,7 @@ dependencies = [
  "lmdb-rkv",
  "lmdb-rkv-sys",
  "num-traits",
- "sqlparser 0.30.0",
+ "sqlparser",
  "tempdir",
  "uuid 1.3.0",
 ]
@@ -1975,7 +1975,7 @@ dependencies = [
  "mongodb",
  "reqwest",
  "rusqlite",
- "sqlparser 0.24.0",
+ "sqlparser",
  "tempdir",
  "tokio",
 ]
@@ -5499,15 +5499,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dccf47db1b41fa1573ed27ccf5e08e3ca771cb994f776668c5ebda893b248fc"
 dependencies = [
  "lock_api",
-]
-
-[[package]]
-name = "sqlparser"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dac9c312566fdfc45a38ecf1924013c82af2a7d5315e46f67b1cc987f12be260"
-dependencies = [
- "log",
 ]
 
 [[package]]
