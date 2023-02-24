@@ -126,7 +126,7 @@ pub enum PostgresConnectorError {
     CommitReplication,
 
     #[error("fetch of replication slot info failed")]
-    FetchReplicationSlot,
+    FetchReplicationSlotError(#[source] tokio_postgres::Error),
 
     #[error("No slots available or all available slots are used")]
     NoAvailableSlotsError,
