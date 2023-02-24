@@ -5,8 +5,3 @@ def add(a):
 
 def sum(a, b):
     return a + b
-
-
-# no return value
-def null():
-    print("Hello, World!")

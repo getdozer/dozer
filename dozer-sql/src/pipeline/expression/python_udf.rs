@@ -15,7 +15,7 @@ pub fn evaluate_py_udf(
     schema: &Schema,
     name: &str,
     args: &[Expression],
-    return_type: &Option<FieldType>,
+    return_type: &FieldType,
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let values = args
@@ -45,10 +45,8 @@ pub fn evaluate_py_udf(
 
         let args = PyTuple::new(py, values);
         let res = function.call1(args)?;
-        if return_type.is_none() {
-            return Ok(Field::Null);
-        }
-        Ok(match return_type.unwrap() {
+
+        Ok(match return_type {
             FieldType::UInt => Field::UInt(res.extract::<u64>()?),
             FieldType::Int => Field::Int(res.extract::<i64>()?),
             FieldType::Float => Field::Float(OrderedFloat::from(res.extract::<f64>()?)),

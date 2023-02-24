@@ -58,7 +58,7 @@ pub enum Expression {
     PythonUDF {
         name: String,
         args: Vec<Expression>,
-        return_type: Option<FieldType>,
+        return_type: FieldType,
     },
 }
 
@@ -285,26 +285,12 @@ impl ExpressionExecutor for Expression {
             Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
             Expression::GeoFunction { fun, args } => get_geo_function_type(fun, args, schema),
             #[cfg(feature = "python")]
-            Expression::PythonUDF { return_type, .. } => {
-                match return_type {
-                    None => {
-                        // FiledType::Int is just a mock
-                        // Fixme: if we should add NULL to FieldType?
-                        Ok(ExpressionType::new(
-                            FieldType::Int,
-                            true,
-                            SourceDefinition::Dynamic,
-                            false,
-                        ))
-                    }
-                    Some(field_type) => Ok(ExpressionType::new(
-                        *field_type,
-                        false,
-                        SourceDefinition::Dynamic,
-                        false,
-                    )),
-                }
-            }
+            Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
+                *return_type,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
         }
     }
 }

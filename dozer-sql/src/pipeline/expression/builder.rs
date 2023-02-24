@@ -503,11 +503,7 @@ impl ExpressionBuilder {
 
         let return_type = match last_arg {
             Expression::Literal(Field::String(s)) => {
-                if &s.to_lowercase() == "null" {
-                    None
-                }else {
-                    Some(FieldType::try_from(s.as_str()).map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?)
-                }
+                FieldType::try_from(s.as_str()).map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?
             }
             _ => return Err(InvalidArgument("The last arg for python udf should be a string literal, which represents return type".to_string())),
         };
