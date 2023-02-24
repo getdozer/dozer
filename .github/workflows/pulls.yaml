@@ -26,7 +26,7 @@ jobs:
           "fields": [
             { "name": "Pull Request", "value": "[${{ github.event.pull_request.title }}](${{ github.event.pull_request.html_url }})" },
             { "name": "Repository", "value": "[getdozer/dozer](https://github.com/getdozer/dozer)" },
-            { "name": "Message", "value": ${{ toJSON(github.event.pull_request.body) }}}
+            { "name": "Message", "value": ${{ toJSON(github.event.pull_request.body || github.event.pull_request.title) }}}
           ],
           "color": 990099
           }]'
