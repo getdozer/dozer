@@ -9,7 +9,7 @@ use crate::{
     types::{Commit, Operation},
 };
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug)]
 pub enum IngestionMessage {
     Begin(),
     OperationEvent(Operation),

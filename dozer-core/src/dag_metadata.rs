@@ -13,6 +13,7 @@ use dozer_storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbEnvironmentOptions, LmdbExclusiveTransaction, SharedTransaction,
 };
 use dozer_types::bincode;
+use dozer_types::log::debug;
 use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
@@ -73,6 +74,11 @@ impl<T: Clone> DagMetadata<T> {
 
             // Create new env if it doesn't exist.
             if !LmdbEnvironmentManager::exists(&path, &env_name) {
+                debug!(
+                    "[checkpoint] Node [{}] is at checkpoint {:?}",
+                    node.handle,
+                    SourceStates::new()
+                );
                 nodes.push(Some(NodeType {
                     handle: node.handle.clone(),
                     storage: None,
@@ -149,6 +155,10 @@ impl<T: Clone> DagMetadata<T> {
             )?;
 
             // Create node.
+            debug!(
+                "[checkpoint] Node [{}] is at checkpoint {:?}",
+                node.handle, commits
+            );
             nodes.push(Some(NodeType {
                 handle: node.handle.clone(),
                 storage: Some(NodeStorage {
@@ -244,6 +254,12 @@ impl<T: Clone> DagMetadata<T> {
             }
 
             if all_parent_commits != self.graph[node_index].commits {
+                debug!(
+                    "Node [{}] has inconsistent commits: parents: {:?}, self: {:?}",
+                    self.graph[node_index].handle,
+                    all_parent_commits,
+                    self.graph[node_index].commits
+                );
                 return false;
             }
         }

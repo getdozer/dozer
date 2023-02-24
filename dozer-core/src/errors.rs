@@ -182,6 +182,6 @@ pub enum JoinError {
 
 #[derive(Error, Debug)]
 pub enum SourceError {
-    #[error("Failed to find table in Source: {0:?}")]
-    PortError(String),
+    #[error("Failed to find table in Source: {0}")]
+    PortError(u32),
 }

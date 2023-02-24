@@ -90,28 +90,34 @@ impl LmdbCacheManager {
 
 impl CacheManager for LmdbCacheManager {
     fn open_rw_cache(&self, name: &str) -> Result<Option<Box<dyn RwCache>>, CacheError> {
-        let txn = self.txn.read();
+        let mut txn = self.txn.write();
         let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
-        if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
-            let cache = LmdbRwCache::open(
-                self.cache_common_options(real_name.to_string()),
-                self.cache_write_options(),
-            )?;
-            Ok(Some(Box::new(cache)))
-        } else {
-            Ok(None)
-        }
+        let cache: Option<Box<dyn RwCache>> =
+            if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
+                let cache = LmdbRwCache::open(
+                    self.cache_common_options(real_name.to_string()),
+                    self.cache_write_options(),
+                )?;
+                Some(Box::new(cache))
+            } else {
+                None
+            };
+        txn.commit_and_renew()?;
+        Ok(cache)
     }
 
     fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError> {
-        let txn = self.txn.read();
+        let mut txn = self.txn.write();
         let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
-        if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
-            let cache = LmdbRoCache::new(self.cache_common_options(real_name.to_string()))?;
-            Ok(Some(Box::new(cache)))
-        } else {
-            Ok(None)
-        }
+        let cache: Option<Box<dyn RoCache>> =
+            if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
+                let cache = LmdbRoCache::new(self.cache_common_options(real_name.to_string()))?;
+                Some(Box::new(cache))
+            } else {
+                None
+            };
+        txn.commit_and_renew()?;
+        Ok(cache)
     }
 
     fn create_cache(

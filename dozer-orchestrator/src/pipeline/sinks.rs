@@ -204,17 +204,12 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         // Create cache.
         let (schema, secondary_indexes) = self.get_output_schema(input_schemas)?;
-        let cache = open_or_create_cache(
-            &*self.cache_manager,
-            &self.api_endpoint.name,
+        Ok(Box::new(CacheSink::new(
+            self.cache_manager.clone(),
+            self.api_endpoint.clone(),
             checkpoint,
             schema,
             secondary_indexes,
-        )?;
-
-        Ok(Box::new(CacheSink::new(
-            cache,
-            self.api_endpoint.clone(),
             self.notifier.clone(),
             Some(self.multi_pb.clone()),
         )?))
@@ -267,50 +262,64 @@ fn open_or_create_cache(
             })
     };
 
-    if let Some(cache) = cache_manager.open_rw_cache(name).map_err(|e| {
+    let cache = cache_manager.open_rw_cache(name).map_err(|e| {
         ExecutionError::SinkError(SinkError::CacheOpenFailed(name.to_string(), Box::new(e)))
-    })? {
+    })?;
+    if let Some(cache) = cache {
         if append_only {
             debug!("Cache {} is append only", name);
             Ok(cache)
-        } else if &cache.get_checkpoint().map_err(|e| {
-            ExecutionError::SinkError(SinkError::CacheGetCheckpointFailed(
-                name.to_string(),
-                Box::new(e),
-            ))
-        })? == checkpoint
-        {
-            debug!("Cache {} is consistent with the pipeline", name);
-            Ok(cache)
         } else {
-            let old_name = cache.name();
-            let cache = create_cache()?;
-            info!(
-                "[pipeline] Cache {} contains outdated data, writing to {} while serving {}",
-                name,
-                cache.name(),
-                old_name
-            );
-            Ok(cache)
+            let cache_checkpoint = cache.get_checkpoint().map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheGetCheckpointFailed(
+                    name.to_string(),
+                    Box::new(e),
+                ))
+            })?;
+            if &cache_checkpoint == checkpoint {
+                debug!("Cache {} is consistent with the pipeline", name);
+                Ok(cache)
+            } else {
+                let old_name = cache.name();
+                let cache = create_cache()?;
+                debug!(
+                    "[pipeline] Cache {} is at {:?}, while pipeline is at {:?}",
+                    name, cache_checkpoint, checkpoint
+                );
+                info!(
+                    "[pipeline] Cache {} writing to {} while serving {}",
+                    name,
+                    cache.name(),
+                    old_name
+                );
+                Ok(cache)
+            }
         }
     } else {
         debug!("Cache {} does not exist", name);
         let cache = create_cache()?;
-        cache_manager
-            .create_alias(cache.name(), name)
-            .map_err(|e| {
-                ExecutionError::SinkError(SinkError::CacheCreateAliasFailed {
-                    alias: name.to_string(),
-                    real_name: cache.name().to_string(),
-                    source: Box::new(e),
-                })
-            })?;
+        create_alias(cache_manager, cache.name(), name)?;
         Ok(cache)
     }
 }
 
+fn create_alias(
+    cache_manager: &dyn CacheManager,
+    name: &str,
+    alias: &str,
+) -> Result<(), ExecutionError> {
+    cache_manager.create_alias(name, alias).map_err(|e| {
+        ExecutionError::SinkError(SinkError::CacheCreateAliasFailed {
+            alias: alias.to_string(),
+            real_name: name.to_string(),
+            source: Box::new(e),
+        })
+    })
+}
+
 #[derive(Debug)]
 pub struct CacheSink {
+    cache_manager: Arc<dyn CacheManager>,
     cache: Box<dyn RwCache>,
     counter: usize,
     api_endpoint: ApiEndpoint,
@@ -348,7 +357,7 @@ impl Sink for CacheSink {
             .map_err(|_| ExecutionError::SchemaNotInitialized)?
             .0;
 
-        let mapped_op = match op {
+        let api_event = match op {
             Operation::Delete { mut old } => {
                 old.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
@@ -359,7 +368,10 @@ impl Sink for CacheSink {
                     ))
                 })?;
                 old.version = Some(version);
-                types_helper::map_delete_operation(self.api_endpoint.name.clone(), old)
+                ApiEvent::Op(types_helper::map_delete_operation(
+                    self.api_endpoint.name.clone(),
+                    old,
+                ))
             }
             Operation::Insert { mut new } => {
                 new.schema_id = schema.identifier;
@@ -369,7 +381,11 @@ impl Sink for CacheSink {
                         Box::new(e),
                     ))
                 })?;
-                types_helper::map_insert_operation(self.api_endpoint.name.clone(), new, id)
+                ApiEvent::Op(types_helper::map_insert_operation(
+                    self.api_endpoint.name.clone(),
+                    new,
+                    id,
+                ))
             }
             Operation::Update { mut old, mut new } => {
                 old.schema_id = schema.identifier;
@@ -382,7 +398,19 @@ impl Sink for CacheSink {
                     ))
                 })?;
                 old.version = Some(old_version);
-                types_helper::map_update_operation(self.api_endpoint.name.clone(), old, new)
+                ApiEvent::Op(types_helper::map_update_operation(
+                    self.api_endpoint.name.clone(),
+                    old,
+                    new,
+                ))
+            }
+            // FIXME: Maybe we should only switch cache when all source nodes snapshotting are done? (by chubei 2023-02-24)
+            Operation::SnapshottingDone {} => {
+                let real_name = self.cache.name();
+                create_alias(&*self.cache_manager, real_name, &self.api_endpoint.name)?;
+                ApiEvent::AliasRedirected(dozer_api::grpc::internal_grpc::AliasRedirected {
+                    real_name: real_name.to_string(),
+                })
             }
         };
 
@@ -390,7 +418,7 @@ impl Sink for CacheSink {
             notifier
                 .try_send(PipelineResponse {
                     endpoint: self.api_endpoint.name.clone(),
-                    api_event: Some(ApiEvent::Op(mapped_op)),
+                    api_event: Some(api_event),
                 })
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
@@ -401,12 +429,22 @@ impl Sink for CacheSink {
 
 impl CacheSink {
     pub fn new(
-        cache: Box<dyn RwCache>,
+        cache_manager: Arc<dyn CacheManager>,
         api_endpoint: ApiEndpoint,
+        checkpoint: &SourceStates,
+        schema: Schema,
+        secondary_indexes: Vec<IndexDefinition>,
         notifier: Option<Sender<PipelineResponse>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<Self, ExecutionError> {
         let query = QueryExpression::with_no_limit();
+        let cache = open_or_create_cache(
+            &*cache_manager,
+            &api_endpoint.name,
+            checkpoint,
+            schema,
+            secondary_indexes,
+        )?;
         let counter = cache.count(&api_endpoint.name, &query).map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCountFailed(
                 api_endpoint.name.clone(),
@@ -421,6 +459,7 @@ impl CacheSink {
         let pb = attach_progress(multi_pb);
         pb.set_message(api_endpoint.name.clone());
         Ok(Self {
+            cache_manager,
             cache,
             counter,
             api_endpoint,

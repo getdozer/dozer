@@ -3,6 +3,7 @@ use std::{fmt::Debug, path::PathBuf};
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_storage::lmdb_storage::LmdbEnvironmentOptions;
 use dozer_types::{
+    log::info,
     node::{NodeHandle, OpIdentifier},
     types::Schema,
 };
@@ -60,6 +61,7 @@ impl BuilderDag {
         // Initial consistency check.
         let mut dag_metadata = DagMetadata::new(dag_schemas, path)?;
         if !dag_metadata.check_consistency() {
+            info!("[pipeline] Inconsistent, resetting");
             dag_metadata.clear();
             assert!(
                 dag_metadata.check_consistency(),
@@ -127,6 +129,10 @@ impl BuilderDag {
                 let node = &dag_metadata.graph()[node_index];
                 if let Some(checkpoint) = node.commits.get(&node.handle) {
                     if !source.can_start_from((checkpoint.txid, checkpoint.seq_in_tx))? {
+                        info!(
+                            "[pipeline] [{}] can not start from {:?}, resetting",
+                            node.handle, checkpoint
+                        );
                         dag_metadata.clear();
                     }
                 }
