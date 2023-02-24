@@ -1,0 +1,18 @@
+version: '3.9'
+services:
+  postgres:
+    container_name: postgres-advance-banking
+    image: public.ecr.aws/getdozer/dozer-samples-pg-banking:latest
+    command: postgres -c hba_file=/var/lib/banking/pg_hba.conf
+    environment:
+      POSTGRES_DB: banking
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      ALLOW_IP_RANGE: 0.0.0.0/0
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -h 0.0.0.0 -d banking" ]
+      interval: 10s
+      timeout: 60s
+      retries: 30

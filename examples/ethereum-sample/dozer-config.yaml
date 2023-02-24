@@ -1,0 +1,194 @@
+app_name: dozer-eth-dashboard
+connections:
+  - config: !Postgres
+      user: postgres
+      password: postgres
+      host: host.docker.internal
+      port: 5436
+      database: eth_addresses
+    name: eth_addresses
+
+  - config: !Ethereum
+      provider: !Trace
+        https_url: "{{ETH_HTTPS_URL}}"
+        from_block: 1000000
+        to_block:
+        batch_size: 3
+    name: eth_conn1
+
+  - config: !Ethereum
+      provider: !Log
+        filter:
+          from_block:
+          to_block:
+          addresses:
+          topics:
+        wss_url: "{{ETH_WSS_URL}}"
+    name: eth_conn2
+
+sources:
+  - name: eth_addresses
+    table_name: eth_addresses
+    connection: !Ref eth_addresses
+    columns:
+
+  - name: eth_traces
+    table_name: eth_traces
+    connection: !Ref eth_conn1
+    columns:
+
+  - name: eth_logs
+    table_name: eth_logs
+    connection: !Ref eth_conn2
+    columns:
+      - id
+      - address
+      - block_hash
+      - block_number
+      - transaction_hash
+      - transaction_index
+      - log_index
+      - transaction_log_index
+      - log_type
+
+sql: |
+  -- [[ Get wallet balances ]]
+  WITH cte_1 AS (
+    -- debits
+    SELECT
+      to AS address,
+      (1 * CAST(value AS FLOAT)) AS value
+    FROM eth_traces
+    WHERE to <> ''
+    AND (
+      (type_field <> 'delegatecall' AND type_field <> 'callcode' AND type_field <> 'staticcall')
+      OR type_field = ''
+    )
+    UNION ALL
+    -- credits
+    SELECT
+      from AS address,
+       (-1 * CAST(value AS FLOAT)) AS value
+    FROM eth_traces
+    WHERE from <> ''
+     AND (
+       (type_field <> 'delegatecall' AND type_field <> 'callcode' AND type_field <> 'staticcall')
+       OR type_field = ''
+     )
+  )
+  -- convert to Eth from Gwei
+  SELECT 
+    address, 
+    ROUND(SUM(value / (1000000000 * 1000000000)), 2) AS balance
+  INTO balances
+  FROM cte_1
+  GROUP BY address;
+  
+  -- [[ Get block stats ]]
+  SELECT
+    COUNT(id) AS transaction_count,
+    block_number
+  INTO block_stats
+  FROM eth_logs
+  GROUP BY block_number;
+  
+  -- [[ Get address details ]] 
+  SELECT
+    el.address AS address,
+    el.block_hash AS block_hash,
+    el.block_number AS block_number,
+    el.transaction_hash AS transaction_hash,
+    ea.tag1 AS contract_type
+  INTO addresses
+  FROM eth_logs el
+  INNER JOIN eth_addresses ea
+    ON el.address = ea.address
+  WHERE (ea.tag1 <> ''
+    AND ea.tag1 <> 'Phish / Hack'
+    AND ea.tag1 <> 'Old Contract'
+    AND ea.tag1 <> 'Scamming'
+    AND ea.tag1 <> 'Phishing'
+    AND ea.tag1 <> 'Parity Bug'
+    AND ea.tag1 <> 'Upbit Hack'
+    AND ea.tag1 <> 'Verified Contract'
+    AND ea.tag1 <> 'Token Contract'
+    AND ea.tag1 <> 'Token Sale'
+    AND ea.tag1 <> 'Contract Deployer'
+    AND ea.tag1 <> 'Gitcoin Grants'
+    AND ea.tag1 <> 'Gambling'
+    AND ea.tag1 <> 'Mining'
+    AND ea.tag1 <> 'Set Social Trading'
+    AND ea.tag1 <> 'Social'
+    AND ea.tag1 <> 'Set Protocol'
+  );
+  
+  -- [[ Get hot contracts ]]
+  WITH cte_3 AS (
+    SELECT
+      el.address AS address,
+      el.block_hash AS block_hash,
+      el.block_number AS block_number,
+      el.transaction_hash AS transaction_hash,
+      ea.name AS contract_type
+    FROM eth_logs el
+    INNER JOIN eth_addresses ea
+      ON el.address = ea.address
+  )
+  SELECT
+    contract_type,
+    count(address) AS depositor_count
+  INTO hot_contracts
+  FROM cte_3
+  GROUP BY contract_type;
+
+  -- [[ Top addresses ]]
+  SELECT
+    address,
+    COUNT(transaction_hash) AS txn_count
+  INTO top_addresses
+  FROM eth_logs
+  GROUP BY address;
+
+endpoints:
+  - name: addresses
+    path: /addresses
+    table_name: addresses
+    index:
+      primary_key:
+
+  - name: top_addresses
+    path: /top_addresses
+    table_name: top_addresses
+    index:
+      primary_key:
+        - address
+
+  - name: traces
+    path: /traces
+    table_name: eth_traces
+    index:
+      primary_key:
+
+  - name: balances
+    path: /balances
+    table_name: balances
+    index:
+      primary_key:
+        - address
+
+  - name: block_stats
+    path: /block_stats
+    table_name: block_stats
+    index:
+      primary_key:
+        - block_number
+
+  - name: hot_contracts
+    path: /hot_contracts
+    table_name: hot_contracts
+    index:
+      primary_key:
+        - contract_type
+
+flags:
+  push_events: true

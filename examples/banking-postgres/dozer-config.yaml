@@ -1,0 +1,51 @@
+app_name: postgres-advance-banking
+connections:
+  - config: !Postgres
+      user: postgres
+      password: postgres
+      host: host.docker.internal
+      port: 5433
+      database: banking
+    name: banking
+
+sources:
+  - name: district
+    table_name: completeddistrict
+    connection: !Ref banking
+    columns:
+      - district_id
+      - city
+      - state_name
+      - state_abbrev
+      - region
+      - division
+  - name: client
+    table_name: completedclient
+    connection: !Ref banking
+    columns:
+      - client_id
+      - sex
+      - first
+      - last
+      - phone
+      - email
+      - city
+      - district_id
+
+sql: |
+  SELECT
+    d.city AS city,
+    COUNT(client_id) AS num_clients
+  INTO dist_clients
+  FROM client AS c
+  JOIN district AS d
+    ON d.district_id = c.district_id
+  GROUP BY d.city;
+
+endpoints:
+  - name: dist_clients
+    path: /dist_clients
+    table_name: dist_clients
+    index:
+      primary_key:
+        - city

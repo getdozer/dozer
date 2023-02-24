@@ -1,15 +1,13 @@
 version: '3.9'
 services:
   dozer:
-    container_name: dozer
+    container_name: dozer-dev
     depends_on:
       postgres:
         condition: service_healthy
-
     links:
       - postgres
-
-    image: public.ecr.aws/k7k6x1d4/dozer:latest
+    image: public.ecr.aws/getdozer/dozer:dev
     ports:
       # REST APIs are published on port 8080
       - "8080:8080"
@@ -23,25 +21,24 @@ services:
     tty: true
 
   postgres:
-    container_name: quick-start-postgres
-    image: public.ecr.aws/k7k6x1d4/dozer-samples-pg-stocks
-    command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
+    container_name: banking-postgres
+    image: debezium/postgres:13
+    volumes:
+      - ./pg_hba.conf:/var/lib/banking/pg_hba.conf
+      - ./scripts/banking_data.sql:/docker-entrypoint-initdb.d/init.sql
+    command: postgres -c hba_file=/var/lib/banking/pg_hba.conf
     environment:
-      POSTGRES_DB: stocks
+      POSTGRES_DB: banking
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       ALLOW_IP_RANGE: 0.0.0.0/0
     ports:
-      - '5434:5432'
+      - '5433:5432'
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U postgres  -h 0.0.0.0 -d stocks"
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      test: [ "CMD-SHELL", "pg_isready -h 0.0.0.0 -U postgres -d banking" ]
+      interval: 10s
+      timeout: 60s
+      retries: 30
 
 volumes:
   sample-data:

@@ -1,9 +1,13 @@
 version: '3.9'
 services:
   dozer:
-    image: public.ecr.aws/k7k6x1d4/dozer:latest
+    image: public.ecr.aws/getdozer/dozer:dev
     environment:
-      - ETH_WSS_URL
+      - SN_SERVER
+      - SN_USER
+      - SN_PASSWORD
+      - SN_DATABASE
+      - SN_WAREHOUSE
     ports:
       # REST APIs are published on port 8080
       - "8080:8080"

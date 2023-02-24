@@ -1,0 +1,37 @@
+connections:
+  - config : !LocalStorage
+      details:
+        path: .
+      tables:
+        - !Table
+          name: trips
+          prefix: /trips
+          file_type: parquet
+          extension: .parquet
+        - !Table
+          name: zones
+          prefix: /zones
+          file_type: csv
+          extension: .csv
+    name: ny_taxi
+
+sql: |
+  SELECT trip_miles, trip_time, puz.Zone as pickup_location, doz.Zone as dropout_location
+  INTO trips_cache
+  FROM trips 
+  INNER JOIN zones puz ON trips.PULocationID = puz.LocationID
+  INNER JOIN zones doz ON trips.DOLocationID = doz.LocationID;
+sources:
+  - name: zones
+    table_name: zones
+    connection: !Ref ny_taxi
+    columns:
+  - name: trips
+    table_name: trips
+    connection: !Ref ny_taxi
+    columns:
+
+endpoints:
+  - name: trips_cache
+    path: /trips
+    table_name: trips_cache
