@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod grpc_service {
+
     use dozer_orchestrator::cli::generate_connection;
     use dozer_types::models::app_config::Config;
 

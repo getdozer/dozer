@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use crate::{
     cli::{utils::get_db_path, AdminCliConfig},
     db::pool::establish_connection,
@@ -14,8 +16,9 @@ pub mod dozer_admin_grpc {
 }
 use self::dozer_admin_grpc::{
     GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
-    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, StartRequest, StartResponse,
-    StopRequest, StopResponse, UpdateAppRequest, ValidateConnectionResponse,
+    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, ParseYamlRequest,
+    ParseYamlResponse, StartRequest, StartResponse, StopRequest, StopResponse, UpdateAppRequest,
+    ValidateConnectionResponse,
 };
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
@@ -35,7 +38,18 @@ impl DozerAdmin for GrpcService {
         &self,
         request: tonic::Request<ParseRequest>,
     ) -> Result<tonic::Response<ParseResponse>, tonic::Status> {
-        let result = self.app_service.parse(request.into_inner());
+        let result = self.app_service.parse_sql(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn parse_yaml(
+        &self,
+        request: tonic::Request<ParseYamlRequest>,
+    ) -> Result<tonic::Response<ParseYamlResponse>, tonic::Status> {
+        let result = self.app_service.parse_yaml(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
@@ -193,14 +207,17 @@ impl DozerAdmin for GrpcService {
 
 pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::transport::Error> {
     dozer_tracing::init_telemetry(false).unwrap();
+
     let host = config.host;
     let port = config.port;
     let addr = format!("{host:}:{port:}").parse().unwrap();
     let database_url: String = get_db_path();
+
     let db_pool = establish_connection(database_url);
+    let app_service = AppService::new(db_pool.to_owned());
     let grpc_service = GrpcService {
         connection_service: ConnectionService::new(db_pool.to_owned()),
-        app_service: AppService::new(db_pool.to_owned()),
+        app_service: app_service.to_owned(),
     };
     let server = DozerAdminServer::new(grpc_service);
     let server = tonic_web::config().allow_all_origins().enable(server);
@@ -221,5 +238,10 @@ pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::tra
         .add_service(reflection_service)
         .add_service(server)
         .serve(addr)
-        .await
+        .await?;
+
+    for (_, r) in app_service.apps.write().iter_mut() {
+        r.store(false, Ordering::Relaxed);
+    }
+    Ok(())
 }
