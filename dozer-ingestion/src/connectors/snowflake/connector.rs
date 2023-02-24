@@ -109,11 +109,11 @@ async fn run(
             let mut interval = time::interval(Duration::from_secs(5));
 
             let mut consumer = StreamConsumer::new();
-            let mut iteration = 1;
+            let mut iteration = 0;
             loop {
                 for (idx, table) in tables.iter().enumerate() {
                     // We only check stream status on first iteration
-                    if iteration == 1 {
+                    if iteration == 0 {
                         match from_seq {
                             None | Some((0, _)) => {
                                 info!("[{}][{}] Creating new stream", name, table.table_name);

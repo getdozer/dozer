@@ -6,12 +6,16 @@ use dozer_types::types::FieldType::{
     Binary, Boolean, Date, Decimal, Float, Int, String, Timestamp,
 };
 
+use dozer_types::models::connection::ConnectionConfig;
 use odbc::create_environment_v3;
 use rand::Rng;
 use std::thread;
 
 use crate::errors::ConnectorError::TableNotFound;
 use crate::test_util::run_connector_test;
+
+use crate::connectors::snowflake::connection::client::Client;
+use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
 #[ignore]
 #[test]
@@ -48,13 +52,14 @@ fn test_connector_and_read_from_stream() {
         let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
         let connection_config = connection.clone();
+        let table = TableInfo {
+            name: table_name.clone(),
+            table_name: table_name.clone(),
+            id: 0,
+            columns: None,
+        };
         thread::spawn(move || {
-            let tables: Vec<TableInfo> = vec![TableInfo {
-                name: source.table_name.clone(),
-                table_name: source.table_name,
-                id: 0,
-                columns: None,
-            }];
+            let tables: Vec<TableInfo> = vec![table];
 
             let connector = get_connector(connection_config).unwrap();
             let _ = connector.start(None, &ingestor, Some(tables));
@@ -62,12 +67,32 @@ fn test_connector_and_read_from_stream() {
 
         let mut i = 0;
         while i < 100 {
-            i += 1;
             let op = iterator.next();
             match op {
                 None => {}
-                Some((_, _operation)) => {}
+                Some(((lsn, seq_no), _operation)) => {
+                    assert_eq!(lsn, 0);
+                    assert_eq!(seq_no, i);
+                }
             }
+            i += 1;
+        }
+
+        assert_eq!(100, i);
+
+        client.execute_query(&conn, &format!("INSERT INTO {table_name} SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1000.CUSTOMER LIMIT 100 OFFSET 100")).unwrap();
+
+        let mut i = 0;
+        while i < 100 {
+            let op = iterator.next();
+            match op {
+                None => {}
+                Some(((lsn, seq_no), _operation)) => {
+                    assert_eq!(lsn, 1);
+                    assert_eq!(seq_no, i);
+                }
+            }
+            i += 1;
         }
 
         assert_eq!(100, i);
@@ -183,5 +208,58 @@ fn test_connector_missing_table_validator() {
 
         let errors = result.get(existing_table).unwrap();
         assert!(errors.is_empty());
+    });
+}
+
+#[ignore]
+#[test]
+fn test_connector_is_stream_created() {
+    run_connector_test("snowflake", |config| {
+        let connection = config.connections.get(0).unwrap();
+        let snowflake_config = match connection.config.as_ref().unwrap() {
+            ConnectionConfig::Snowflake(snowflake_config) => snowflake_config.clone(),
+            _ => {
+                panic!("Snowflake config expected");
+            }
+        };
+
+        let client = Client::new(&snowflake_config);
+        let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
+        let conn = env
+            .connect_with_connection_string(&client.get_conn_string())
+            .unwrap();
+
+        let mut rng = rand::thread_rng();
+        let table_name = format!("STREAM_EXIST_TEST_{}", rng.gen::<u32>());
+
+        client
+            .execute_query(
+                &conn,
+                &format!(
+                    "CREATE TABLE {table_name} (id  INTEGER)
+                        data_retention_time_in_days = 0; "
+                ),
+            )
+            .unwrap();
+
+        let result = StreamConsumer::is_stream_created(&client, &table_name).unwrap();
+        assert!(
+            !result,
+            "Stream was not created yet, so result of check should be false"
+        );
+
+        StreamConsumer::create_stream(&client, &table_name).unwrap();
+        let result = StreamConsumer::is_stream_created(&client, &table_name).unwrap();
+        assert!(
+            result,
+            "Stream is created, so result of check should be true"
+        );
+
+        StreamConsumer::drop_stream(&client, &table_name).unwrap();
+        let result = StreamConsumer::is_stream_created(&client, &table_name).unwrap();
+        assert!(
+            !result,
+            "Stream was dropped, so result of check should be false"
+        );
     });
 }
