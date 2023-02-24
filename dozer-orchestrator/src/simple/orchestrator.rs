@@ -8,7 +8,7 @@ use crate::utils::{
     get_cache_max_map_size, get_executor_options, get_flags, get_grpc_config, get_pipeline_dir,
     get_rest_config,
 };
-use crate::{flatten_joinhandle, Orchestrator};
+use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{
@@ -16,7 +16,7 @@ use dozer_api::{
     grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
     rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{CacheManagerOptions, LmdbCacheManager};
+use dozer_cache::cache::{CacheManager, CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
@@ -32,13 +32,14 @@ use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 use dozer_types::types::{Operation, Schema, SourceSchema};
 use futures::stream::FuturesUnordered;
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::oneshot;
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -70,15 +71,12 @@ impl Orchestrator for SimpleOrchestrator {
 
         let cache_manager = LmdbCacheManager::new(self.cache_manager_options.clone())
             .map_err(OrchestrationError::CacheInitFailed)?;
-        let mut cache_endpoints = vec![];
-        for endpoint in &self.config.endpoints {
-            cache_endpoints.push(Arc::new(RoCacheEndpoint::new(
-                &cache_manager,
-                endpoint.clone(),
-            )?));
-        }
-
-        let cache_endpoints2 = cache_endpoints.clone();
+        let cache_endpoints = self
+            .config
+            .endpoints
+            .iter()
+            .map(|endpoint| RoCacheEndpoint::new(&cache_manager, endpoint.clone()).map(Arc::new))
+            .collect::<Result<Vec<_>, _>>()?;
 
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
@@ -88,49 +86,60 @@ impl Orchestrator for SimpleOrchestrator {
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
             let security = get_api_security_config(self.config.to_owned());
+            let cache_endpoints_for_rest = cache_endpoints.clone();
             let rest_handle = tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
-                    .run(cache_endpoints, tx)
+                    .run(cache_endpoints_for_rest, tx)
                     .await
                     .map_err(OrchestrationError::ApiServerFailed)
             });
-            // Initiate Push Events
-            // create broadcast channel
-            let pipeline_config = get_app_grpc_config(self.config.to_owned());
 
-            let rx1 = if flags.push_events {
-                let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
+            // Initiate push events
+            let app_grpc_config = get_app_grpc_config(self.config.to_owned());
+            let (pipeline_response_receiver, future) =
+                grpc::ApiServer::setup_broad_cast_channel(app_grpc_config)
+                    .await
+                    .map_err(OrchestrationError::GrpcServerFailed)?;
+            let future = future.map_err(OrchestrationError::GrpcServerFailed);
+            futures.push(flatten_join_handle(tokio::spawn(future)));
 
-                let handle = tokio::spawn(async move {
-                    grpc::ApiServer::setup_broad_cast_channel(tx, pipeline_config)
-                        .await
-                        .map_err(OrchestrationError::GrpcServerFailed)
-                });
-
-                futures.push(flatten_joinhandle(handle));
-
-                Some(rx1)
+            // Listen to endpoint redirect events.
+            let (
+                pipeline_response_receiver_for_endpoint_redirect,
+                pipeline_response_receiver_for_grpc_server,
+            ) = if flags.dynamic {
+                (
+                    pipeline_response_receiver.resubscribe(),
+                    Some(pipeline_response_receiver),
+                )
             } else {
-                None
+                (pipeline_response_receiver, None)
             };
+            tokio::spawn(redirect_cache_endpoints(
+                Box::new(cache_manager),
+                cache_endpoints.clone(),
+                pipeline_response_receiver_for_endpoint_redirect,
+            ));
 
-            // Initialize GRPC Server
-
+            // Initialize gRPC Server
             let api_dir = get_api_dir(&self.config);
             let grpc_config = get_grpc_config(self.config.to_owned());
-
             let api_security = get_api_security_config(self.config.to_owned());
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
             let grpc_handle = tokio::spawn(async move {
                 grpc_server
-                    .run(cache_endpoints2, receiver_shutdown, rx1)
+                    .run(
+                        cache_endpoints,
+                        receiver_shutdown,
+                        pipeline_response_receiver_for_grpc_server,
+                    )
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
 
-            futures.push(flatten_joinhandle(rest_handle));
-            futures.push(flatten_joinhandle(grpc_handle));
+            futures.push(flatten_join_handle(rest_handle));
+            futures.push(flatten_join_handle(grpc_handle));
 
             while let Some(result) = futures.next().await {
                 result?;
@@ -385,4 +394,33 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
             Ok(())
         },
     )
+}
+
+async fn redirect_cache_endpoints(
+    cache_manager: Box<dyn CacheManager>,
+    cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
+    mut pipeline_response_receiver: Receiver<PipelineResponse>,
+) -> Result<(), OrchestrationError> {
+    loop {
+        let response = pipeline_response_receiver
+            .recv()
+            .await
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+        if let dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent::AliasRedirected(
+            crate::internal_grpc::AliasRedirected { real_name },
+        ) = response.api_event.unwrap()
+        {
+            info!(
+                "[api] Redirecting cache {} to {}",
+                response.endpoint, real_name
+            );
+            for cache_endpoint in &cache_endpoints {
+                if cache_endpoint.endpoint().name == response.endpoint {
+                    cache_endpoint
+                        .redirect_cache(&*cache_manager)
+                        .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+                }
+            }
+        }
+    }
 }

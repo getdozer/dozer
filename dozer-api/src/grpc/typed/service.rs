@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     auth::{Access, Authorizer},
-    errors::{GRPCError, GenerationError},
+    errors::{GenerationError, GrpcError},
     generator::protoc::generator::{
         CountResponseDesc, EventDesc, ProtoGenerator, QueryResponseDesc, ServiceDesc,
         TokenResponseDesc,
@@ -61,7 +61,7 @@ impl TypedService {
         cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
         security: Option<ApiSecurity>,
-    ) -> Result<Self, GRPCError> {
+    ) -> Result<Self, GrpcError> {
         let endpoint_map = cache_endpoints
             .into_iter()
             .map(|cache_endpoint| {

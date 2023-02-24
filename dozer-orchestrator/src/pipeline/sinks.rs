@@ -283,8 +283,15 @@ fn open_or_create_cache(
             debug!("Cache {} is consistent with the pipeline", name);
             Ok(cache)
         } else {
-            info!("Cache {} contains data that is outdated, writing to a new cache while serving the old one", name);
-            create_cache()
+            let old_name = cache.name();
+            let cache = create_cache()?;
+            info!(
+                "[pipeline] Cache {} contains outdated data, writing to {} while serving {}",
+                name,
+                cache.name(),
+                old_name
+            );
+            Ok(cache)
         }
     } else {
         debug!("Cache {} does not exist", name);

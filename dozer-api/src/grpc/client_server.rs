@@ -16,7 +16,7 @@ use dozer_types::{
     log::{info, warn},
     models::{api_config::GrpcApiOptions, api_security::ApiSecurity, flags::Flags},
 };
-use futures_util::{FutureExt, StreamExt};
+use futures_util::{Future, FutureExt, StreamExt};
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tonic::{transport::Server, Streaming};
@@ -35,28 +35,28 @@ pub struct ApiServer {
 impl ApiServer {
     async fn connect_internal_client(
         app_grpc_config: GrpcApiOptions,
-    ) -> Result<Streaming<PipelineResponse>, GRPCError> {
+    ) -> Result<Streaming<PipelineResponse>, GrpcError> {
         let address = format!("http://{:}:{:}", app_grpc_config.host, app_grpc_config.port);
         let mut client = InternalPipelineServiceClient::connect(address)
             .await
-            .map_err(|err| GRPCError::InternalError(Box::new(err)))?;
+            .map_err(|err| GrpcError::InternalError(Box::new(err)))?;
         let stream_response = client
             .stream_pipeline_request(PipelineRequest {})
             .await
-            .map_err(|err| GRPCError::InternalError(Box::new(err)))?;
+            .map_err(|err| GrpcError::InternalError(Box::new(err)))?;
         let stream: Streaming<PipelineResponse> = stream_response.into_inner();
         Ok(stream)
     }
     fn get_dynamic_service(
         &self,
         cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
-        rx1: Option<broadcast::Receiver<PipelineResponse>>,
+        pipeline_response_receiver: Option<broadcast::Receiver<PipelineResponse>>,
     ) -> Result<
         (
             Option<TypedService>,
             ServerReflectionServer<impl ServerReflection>,
         ),
-        GRPCError,
+        GrpcError,
     > {
         info!(
             "Starting gRPC server on http://{}:{} with security: {}",
@@ -82,7 +82,7 @@ impl ApiServer {
             Some(TypedService::new(
                 &descriptor_path,
                 cache_endpoints,
-                rx1.map(|r| r.resubscribe()),
+                pipeline_response_receiver,
                 self.security.clone(),
             )?)
         } else {
@@ -111,8 +111,8 @@ impl ApiServer {
         &self,
         cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
-        rx1: Option<Receiver<PipelineResponse>>,
-    ) -> Result<(), GRPCError> {
+        pipeline_response_receiver: Option<Receiver<PipelineResponse>>,
+    ) -> Result<(), GrpcError> {
         // Create our services.
         let mut web_config = tonic_web::config();
         if self.flags.grpc_web {
@@ -121,11 +121,12 @@ impl ApiServer {
 
         let common_service = CommonGrpcServiceServer::new(CommonService::new(
             cache_endpoints.clone(),
-            rx1.as_ref().map(|r| r.resubscribe()),
+            pipeline_response_receiver.as_ref().map(|r| r.resubscribe()),
         ));
         let common_service = web_config.enable(common_service);
 
-        let (typed_service, reflection_service) = self.get_dynamic_service(cache_endpoints, rx1)?;
+        let (typed_service, reflection_service) =
+            self.get_dynamic_service(cache_endpoints, pipeline_response_receiver)?;
         let typed_service = typed_service.map(|typed_service| web_config.enable(typed_service));
         let reflection_service = web_config.enable(reflection_service);
 
@@ -187,27 +188,42 @@ impl ApiServer {
                 let inner_error: Box<dyn std::error::Error> = e.into();
                 let detail = inner_error.source();
                 if let Some(detail) = detail {
-                    return GRPCError::TransportErrorDetail(detail.to_string());
+                    return GrpcError::TransportErrorDetail(detail.to_string());
                 }
-                GRPCError::TransportErrorDetail(inner_error.to_string())
+                GrpcError::TransportErrorDetail(inner_error.to_string())
             })
     }
 
     pub async fn setup_broad_cast_channel(
-        tx: Sender<PipelineResponse>,
         app_grpc_config: GrpcApiOptions,
-    ) -> Result<(), GRPCError> {
+    ) -> Result<
+        (
+            Receiver<PipelineResponse>,
+            impl Future<Output = Result<(), GrpcError>>,
+        ),
+        GrpcError,
+    > {
         info!(
-            "Connecting to Internal service  on http://{}:{}",
+            "Connecting to Internal service on http://{}:{}",
             app_grpc_config.host, app_grpc_config.port
         );
-        let mut stream = ApiServer::connect_internal_client(app_grpc_config.to_owned()).await?;
-        while let Some(event_response) = stream.next().await {
-            if let Ok(event) = event_response {
-                let _ = tx.send(event);
-            }
-        }
-        warn!("exiting internal grpc connection on api thread");
-        Ok::<(), GRPCError>(())
+        let stream = ApiServer::connect_internal_client(app_grpc_config).await?;
+        let (sender, receiver) = broadcast::channel::<PipelineResponse>(16);
+        Ok((receiver, redirect_pipeline_response_loop(sender, stream)))
     }
+}
+
+async fn redirect_pipeline_response_loop(
+    sender: Sender<PipelineResponse>,
+    mut stream: Streaming<PipelineResponse>,
+) -> Result<(), GrpcError> {
+    while let Some(pipeline_response) = stream.next().await {
+        let pipeline_response =
+            pipeline_response.map_err(|e| GrpcError::InternalError(Box::new(e)))?;
+        sender
+            .send(pipeline_response)
+            .map_err(|_| GrpcError::CannotSendToBroadcastChannel)?;
+    }
+    warn!("exiting internal grpc connection on api thread");
+    Ok(())
 }

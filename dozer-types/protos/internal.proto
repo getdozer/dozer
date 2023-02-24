@@ -8,12 +8,16 @@ service InternalPipelineService {
   rpc StreamPipelineRequest(PipelineRequest) returns (stream PipelineResponse);
 }
 
+message AliasRedirected {
+  string real_name = 1;
+}
+
 // ---------------- Api ------------------------
 message PipelineRequest {}
 message PipelineResponse {
   string endpoint = 1;
   oneof api_event {
-    dozer.types.SchemaEvent schema = 2;
+    AliasRedirected alias_redirected = 2;
     dozer.types.Operation op = 3;
   }
 }
