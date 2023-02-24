@@ -58,7 +58,7 @@ pub enum ConnectorError {
     DebeziumError(#[from] DebeziumError),
 
     #[error(transparent)]
-    DataFusionConnectorError(#[from] ObjectStoreConnectorError),
+    ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -343,9 +343,6 @@ pub enum ObjectStoreConnectorError {
     #[error("Runtime creation error")]
     RuntimeCreationError,
 
-    #[error("Internal error")]
-    InternalError,
-
     #[error("Internal data fusion error")]
     InternalDataFusionError(#[source] DataFusionError),
 
@@ -381,6 +378,9 @@ pub enum ObjectStoreObjectError {
 
     #[error("Listing path parsing error: {0}")]
     ListingPathParsingError(#[source] DataFusionError),
+
+    #[error("File format unsupported: {0}")]
+    FileFormatUnsupportedError(String),
 }
 
 #[derive(Error, Debug)]

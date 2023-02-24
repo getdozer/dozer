@@ -89,7 +89,8 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
                     )
                 })?;
 
-                let listing_options = map_listing_options(params.data_fusion_table);
+                let listing_options = map_listing_options(params.data_fusion_table)
+                    .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
 
                 let ctx = SessionContext::new();
 
