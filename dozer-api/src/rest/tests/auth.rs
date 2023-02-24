@@ -65,12 +65,13 @@ async fn check_status(
     token: Option<String>,
 ) -> ServiceResponse<impl MessageBody> {
     let endpoint = test_utils::get_endpoint();
-    let schema_name = endpoint.name.to_owned();
-    let cache = test_utils::initialize_cache(&schema_name, None);
+    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
     let api_server = ApiServer::create_app_entry(
         security,
         CorsOptions::Permissive,
-        vec![Arc::new(RoCacheEndpoint::new(cache, endpoint.clone()))],
+        vec![Arc::new(
+            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+        )],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -92,11 +93,13 @@ async fn _call_auth_token_api(
 ) -> ServiceResponse<impl MessageBody> {
     let endpoint = test_utils::get_endpoint();
     let schema_name = endpoint.name.clone();
-    let cache = test_utils::initialize_cache(&schema_name, None);
+    let cache_manager = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
         Some(ApiSecurity::Jwt(secret)),
         CorsOptions::Permissive,
-        vec![Arc::new(RoCacheEndpoint::new(cache, endpoint))],
+        vec![Arc::new(
+            RoCacheEndpoint::new(&*cache_manager, endpoint).unwrap(),
+        )],
     );
     let app = actix_web::test::init_service(api_server).await;
 

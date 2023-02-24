@@ -120,7 +120,7 @@ impl TypedService {
                 fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
                     let response = count(
                         request,
-                        &self.cache_endpoint.cache_reader,
+                        &self.cache_endpoint.cache_reader(),
                         &self.cache_endpoint.endpoint.name,
                         self.response_desc
                             .take()
@@ -150,7 +150,7 @@ impl TypedService {
                 fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
                     let response = query(
                         request,
-                        &self.cache_endpoint.cache_reader,
+                        &self.cache_endpoint.cache_reader(),
                         &self.cache_endpoint.endpoint.name,
                         self.response_desc
                             .take()
@@ -186,7 +186,7 @@ impl TypedService {
                     fn call(&mut self, request: tonic::Request<DynamicMessage>) -> Self::Future {
                         future::ready(on_event(
                             request,
-                            &self.cache_endpoint.cache_reader,
+                            &self.cache_endpoint.cache_reader(),
                             &self.cache_endpoint.endpoint.name,
                             self.event_desc
                                 .take()

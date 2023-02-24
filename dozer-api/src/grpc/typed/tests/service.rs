@@ -43,10 +43,13 @@ use tonic::{
 
 pub fn setup_pipeline() -> (Vec<Arc<RoCacheEndpoint>>, Receiver<PipelineResponse>) {
     let endpoint = test_utils::get_endpoint();
-    let cache_endpoint = Arc::new(RoCacheEndpoint {
-        cache_reader: CacheReader::new(test_utils::initialize_cache(&endpoint.name, None)),
-        endpoint,
-    });
+    let cache_endpoint = Arc::new(
+        RoCacheEndpoint::new(
+            &*test_utils::initialize_cache(&endpoint.name, None),
+            endpoint,
+        )
+        .unwrap(),
+    );
 
     let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
     let default_api_internal = default_api_config().app_grpc.unwrap_or_default();

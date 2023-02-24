@@ -68,7 +68,7 @@ impl CommonGrpcService for CommonService {
         let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
         let count = shared_impl::count(
-            &cache_endpoint.cache_reader,
+            &cache_endpoint.cache_reader(),
             &cache_endpoint.endpoint.name,
             query_request.query.as_deref(),
             access,
@@ -86,8 +86,9 @@ impl CommonGrpcService for CommonService {
     ) -> Result<Response<QueryResponse>, Status> {
         let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
+        let cache_reader = cache_endpoint.cache_reader();
         let (schema, records) = shared_impl::query(
-            &cache_endpoint.cache_reader,
+            &cache_reader,
             &cache_endpoint.endpoint.name,
             query_request.query.as_deref(),
             access,
@@ -114,7 +115,7 @@ impl CommonGrpcService for CommonService {
             .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
         shared_impl::on_event(
-            &cache_endpoint.cache_reader,
+            &cache_endpoint.cache_reader(),
             &cache_endpoint.endpoint.name,
             query_request.filter.as_deref(),
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
@@ -148,8 +149,8 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let schema = &cache_endpoint
-            .cache_reader
+        let cache_reader = cache_endpoint.cache_reader();
+        let schema = &cache_reader
             .get_schema_and_indexes_by_name(&endpoint)
             .map_err(|_| Status::invalid_argument(endpoint))?
             .0;

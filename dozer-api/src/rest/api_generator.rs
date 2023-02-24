@@ -44,7 +44,7 @@ pub async fn generate_oapi(
     cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
 ) -> Result<HttpResponse, ApiError> {
     generate_oapi3(
-        &cache_endpoint.cache_reader,
+        &cache_endpoint.cache_reader(),
         cache_endpoint.endpoint.clone(),
     )
     .map(|result| HttpResponse::Ok().json(result))
@@ -56,8 +56,8 @@ pub async fn get(
     cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
-    let schema = &cache_endpoint
-        .cache_reader
+    let cache_reader = &cache_endpoint.cache_reader();
+    let schema = &cache_reader
         .get_schema_and_indexes_by_name(&cache_endpoint.endpoint.name)
         .map_err(ApiError::SchemaNotFound)?
         .0;
@@ -74,7 +74,7 @@ pub async fn get(
 
     let key = index::get_primary_key(&[0], &[key]);
     let record = get_record(
-        &cache_endpoint.cache_reader,
+        &cache_endpoint.cache_reader(),
         &key,
         access.map(|a| a.into_inner()),
     )?;
@@ -120,7 +120,7 @@ pub async fn count(
     };
 
     get_records_count(
-        &cache_endpoint.cache_reader,
+        &cache_endpoint.cache_reader(),
         &cache_endpoint.endpoint.name,
         &mut query_expression,
         access.map(|a| a.into_inner()),
@@ -154,8 +154,9 @@ fn get_records_map(
     exp: &mut QueryExpression,
 ) -> Result<Vec<IndexMap<String, Value>>, ApiError> {
     let mut maps = vec![];
+    let cache_reader = &cache_endpoint.cache_reader();
     let (schema, records) = get_records(
-        &cache_endpoint.cache_reader,
+        &cache_reader,
         &cache_endpoint.endpoint.name,
         exp,
         access.map(|a| a.into_inner()),
