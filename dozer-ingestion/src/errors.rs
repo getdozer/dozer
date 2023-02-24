@@ -339,9 +339,6 @@ pub enum ObjectStoreConnectorError {
     #[error("Runtime creation error")]
     RuntimeCreationError,
 
-    #[error("Internal error")]
-    InternalError,
-
     #[error("Internal data fusion error")]
     InternalDataFusionError(#[source] DataFusionError),
 
@@ -377,6 +374,9 @@ pub enum ObjectStoreObjectError {
 
     #[error("Listing path parsing error: {0}")]
     ListingPathParsingError(#[source] DataFusionError),
+
+    #[error("File format unsupported: {0}")]
+    FileFormatUnsupportedError(String),
 }
 
 #[derive(Error, Debug)]
