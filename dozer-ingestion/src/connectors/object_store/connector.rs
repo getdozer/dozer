@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::connectors::object_store::schema_mapper::{Mapper, SchemaMapper};
 use crate::connectors::object_store::table_reader::{Reader, TableReader};
 use crate::connectors::{Connector, TableInfo, ValidationResults};
+use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
 type ConnectorResult<T> = Result<T, crate::errors::ConnectorError>;
@@ -36,6 +37,10 @@ impl Connector for ObjectStoreConnector<S3Storage> {
     ) -> ConnectorResult<Vec<SourceSchema>> {
         let mapper = SchemaMapper::new(self.config.clone());
         mapper.get_schema(table_names)
+    }
+
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
+        Ok(false)
     }
 
     fn start(
@@ -72,6 +77,10 @@ impl Connector for ObjectStoreConnector<LocalStorage> {
     ) -> ConnectorResult<Vec<SourceSchema>> {
         let mapper = SchemaMapper::new(self.config.clone());
         mapper.get_schema(table_names)
+    }
+
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
+        Ok(false)
     }
 
     fn start(

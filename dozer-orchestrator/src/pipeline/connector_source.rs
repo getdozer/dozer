@@ -190,9 +190,11 @@ pub struct ConnectorSource {
 }
 
 impl Source for ConnectorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
-        // TODO: Query from connector.
-        Ok(false)
+    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        self.connector
+            .as_ref()
+            .can_start_from(last_checkpoint)
+            .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))
     }
 
     fn start(

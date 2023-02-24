@@ -22,7 +22,7 @@ fn connector_disabled_test_e2e_connect_postgres_stream() {
 
     let mut iterator = get_iterator(connection, table_name.clone());
 
-    client.insert_rows(&table_name, 10);
+    client.insert_rows(&table_name, 10, None);
 
     let mut i = 1;
     while i < 10 {
@@ -32,7 +32,7 @@ fn connector_disabled_test_e2e_connect_postgres_stream() {
             i += 1;
         }
     }
-    client.insert_rows(&table_name, 10);
+    client.insert_rows(&table_name, 10, None);
 
     while i < 20 {
         let op = iterator.next();
