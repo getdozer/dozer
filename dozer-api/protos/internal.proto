@@ -13,7 +13,6 @@ message PipelineRequest {}
 message PipelineResponse {
   string endpoint = 1;
   oneof api_event {
-    dozer.types.SchemaEvent schema = 2;
     dozer.types.Operation op = 3;
   }
 }
