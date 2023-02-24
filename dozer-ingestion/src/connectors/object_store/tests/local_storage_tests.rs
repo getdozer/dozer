@@ -135,7 +135,6 @@ fn test_csv_read() {
     while i < 9 {
         let row = iterator.next();
         if let Some(((_, seq_no), Operation::Insert { new })) = row {
-            eprintln!("{} {}", i, seq_no);
             let values = new.values;
 
             assert_eq!(i, seq_no);
