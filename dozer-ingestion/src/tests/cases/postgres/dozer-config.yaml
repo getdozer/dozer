@@ -3,7 +3,7 @@ connections:
   - config: !Postgres
       user: postgres
       password: postgres
-      host: host.docker.internal
+      host: localhost
       port: 5434
       database: stocks
     name: stocks
