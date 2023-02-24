@@ -4,7 +4,6 @@ use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
 };
-use std::sync::Arc;
 
 use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId, RoCache};
 
@@ -103,7 +102,7 @@ fn get_films() -> Vec<Value> {
 pub fn initialize_cache(
     schema_name: &str,
     schema: Option<(dozer_types::types::Schema, Vec<IndexDefinition>)>,
-) -> Arc<dyn RoCache> {
+) -> Box<dyn RoCache> {
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     let cache = cache_manager

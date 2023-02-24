@@ -81,7 +81,7 @@ impl Orchestrator for SimpleOrchestrator {
                         ce.name
                     )
                 });
-            cache_endpoints.push(RoCacheEndpoint::new(cache.into(), ce.clone()));
+            cache_endpoints.push(Arc::new(RoCacheEndpoint::new(cache.into(), ce.clone())));
         }
 
         let ce2 = cache_endpoints.clone();

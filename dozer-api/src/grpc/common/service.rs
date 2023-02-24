@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::auth::Access;
 
@@ -22,13 +23,13 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     /// For look up endpoint from its name. `key == value.endpoint.name`.
-    pub endpoint_map: HashMap<String, RoCacheEndpoint>,
+    pub endpoint_map: HashMap<String, Arc<RoCacheEndpoint>>,
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 }
 
 impl CommonService {
     pub fn new(
-        endpoints: Vec<RoCacheEndpoint>,
+        endpoints: Vec<Arc<RoCacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
     ) -> Self {
         let endpoint_map = endpoints

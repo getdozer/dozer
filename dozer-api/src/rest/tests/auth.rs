@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::super::{ApiServer, CorsOptions};
 use crate::{
     auth::{Access, Authorizer},
@@ -68,7 +70,7 @@ async fn check_status(
     let api_server = ApiServer::create_app_entry(
         security,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
+        vec![Arc::new(RoCacheEndpoint::new(cache, endpoint.clone()))],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -94,7 +96,7 @@ async fn _call_auth_token_api(
     let api_server = ApiServer::create_app_entry(
         Some(ApiSecurity::Jwt(secret)),
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint::new(cache, endpoint)],
+        vec![Arc::new(RoCacheEndpoint::new(cache, endpoint))],
     );
     let app = actix_web::test::init_service(api_server).await;
 

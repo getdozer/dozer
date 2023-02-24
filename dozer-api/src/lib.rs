@@ -1,16 +1,15 @@
 use dozer_cache::{cache::RoCache, CacheReader};
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use std::sync::Arc;
 mod api_helper;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct RoCacheEndpoint {
     pub cache_reader: CacheReader,
     pub endpoint: ApiEndpoint,
 }
 
 impl RoCacheEndpoint {
-    pub fn new(cache: Arc<dyn RoCache>, endpoint: ApiEndpoint) -> Self {
+    pub fn new(cache: Box<dyn RoCache>, endpoint: ApiEndpoint) -> Self {
         Self {
             cache_reader: CacheReader::new(cache),
             endpoint,

@@ -24,7 +24,7 @@ use dozer_types::grpc_types::{
 };
 use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
-use std::{env, str::FromStr, time::Duration};
+use std::{env, str::FromStr, sync::Arc, time::Duration};
 
 use crate::test_utils;
 use tokio::{
@@ -41,12 +41,12 @@ use tonic::{
     Code, Request,
 };
 
-pub fn setup_pipeline() -> (Vec<RoCacheEndpoint>, Receiver<PipelineResponse>) {
+pub fn setup_pipeline() -> (Vec<Arc<RoCacheEndpoint>>, Receiver<PipelineResponse>) {
     let endpoint = test_utils::get_endpoint();
-    let cache_endpoint = RoCacheEndpoint {
+    let cache_endpoint = Arc::new(RoCacheEndpoint {
         cache_reader: CacheReader::new(test_utils::initialize_cache(&endpoint.name, None)),
         endpoint,
-    };
+    });
 
     let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
     let default_api_internal = default_api_config().app_grpc.unwrap_or_default();

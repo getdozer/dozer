@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::cache::{expression::QueryExpression, RecordWithId, RoCache};
 
 use super::cache::expression::FilterExpression;
@@ -22,14 +20,14 @@ pub struct AccessFilter {
     pub fields: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// CacheReader dynamically attaches permissions on top of queries
 pub struct CacheReader {
-    cache: Arc<dyn RoCache>,
+    cache: Box<dyn RoCache>,
 }
 
 impl CacheReader {
-    pub fn new(cache: Arc<dyn RoCache>) -> Self {
+    pub fn new(cache: Box<dyn RoCache>) -> Self {
         Self { cache }
     }
 

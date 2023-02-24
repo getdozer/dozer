@@ -17,7 +17,7 @@ use dozer_types::{
     models::{api_config::GrpcApiOptions, api_security::ApiSecurity, flags::Flags},
 };
 use futures_util::{FutureExt, StreamExt};
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
@@ -49,7 +49,7 @@ impl ApiServer {
     }
     fn get_dynamic_service(
         &self,
-        endpoints: Vec<RoCacheEndpoint>,
+        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
         rx1: Option<broadcast::Receiver<PipelineResponse>>,
     ) -> Result<
         (
@@ -81,7 +81,7 @@ impl ApiServer {
         let typed_service = if self.flags.dynamic {
             Some(TypedService::new(
                 &descriptor_path,
-                endpoints,
+                cache_endpoints,
                 rx1.map(|r| r.resubscribe()),
                 self.security.clone(),
             )?)
@@ -109,7 +109,7 @@ impl ApiServer {
 
     pub async fn run(
         &self,
-        cache_endpoints: Vec<RoCacheEndpoint>,
+        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
         rx1: Option<Receiver<PipelineResponse>>,
     ) -> Result<(), GRPCError> {
