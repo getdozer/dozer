@@ -2,10 +2,12 @@ use crate::connectors::object_store::connector::ObjectStoreConnector;
 use crate::connectors::Connector;
 use crate::connectors::TableInfo;
 use crate::ingestion::{IngestionConfig, Ingestor};
+use dozer_types::ingestion_types::LocalDetails;
 use std::thread;
 
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::tests::test_utils::get_local_storage_config;
+use crate::errors::ConnectorError::InitializationError;
 use crate::errors::ObjectStoreObjectError;
 use dozer_types::types::{Field, FieldType, Operation};
 
@@ -173,4 +175,32 @@ fn test_unsupported_format() {
         result,
         Err(ObjectStoreObjectError::FileFormatUnsupportedError(_))
     ));
+}
+
+#[test]
+fn test_missing_directory() {
+    let mut local_storage = get_local_storage_config("unsupported");
+    local_storage.details = Some(LocalDetails {
+        path: "not_existing_path".to_string(),
+    });
+    let table = local_storage.tables.get(0).unwrap().clone();
+    let connector = ObjectStoreConnector::new(1, local_storage);
+
+    let config = IngestionConfig::default();
+    let (ingestor, _) = Ingestor::initialize_channel(config);
+
+    let result = connector.start(
+        None,
+        &ingestor,
+        Some(vec![TableInfo {
+            name: table.name.clone(),
+            table_name: table.name,
+            id: 0,
+            columns: None,
+        }]),
+    );
+
+    assert!(result.is_err());
+
+    assert!(matches!(result, Err(InitializationError(_))));
 }

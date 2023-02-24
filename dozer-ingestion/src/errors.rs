@@ -57,7 +57,7 @@ pub enum ConnectorError {
     DebeziumError(#[from] DebeziumError),
 
     #[error(transparent)]
-    DataFusionConnectorError(#[from] ObjectStoreConnectorError),
+    ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
