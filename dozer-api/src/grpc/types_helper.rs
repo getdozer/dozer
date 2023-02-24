@@ -1,9 +1,12 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 
-use crate::grpc::types::{value, Operation, OperationType, PointType, Record, Type, Value};
+use crate::grpc::types::{
+    value, Operation, OperationType, PointType, Record, RustDecimal, Type, Value,
+};
 
 use super::types::RecordWithId;
 
@@ -69,6 +72,17 @@ fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) ->
     }
 }
 
+fn map_decimal(d: Decimal) -> Value {
+    Value {
+        value: Some(value::Value::DecimalValue(RustDecimal {
+            flags: d.unpack().negative as u32,
+            lo: d.unpack().lo,
+            mid: d.unpack().mid,
+            hi: d.unpack().hi,
+        })),
+    }
+}
+
 fn field_to_prost_value(f: Field) -> Value {
     match f {
         Field::UInt(n) => Value {
@@ -94,9 +108,7 @@ fn field_to_prost_value(f: Field) -> Value {
         Field::Binary(b) => Value {
             value: Some(value::Value::BytesValue(b)),
         },
-        Field::Decimal(n) => Value {
-            value: Some(value::Value::StringValue(n.to_string())),
-        },
+        Field::Decimal(d) => map_decimal(d),
         Field::Timestamp(ts) => Value {
             value: Some(value::Value::StringValue(
                 ts.to_rfc3339_opts(SecondsFormat::Millis, true),

@@ -71,6 +71,7 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
         }
         GrpcTypes::value::Value::DoubleValue(n) => Value::F64(n),
         GrpcTypes::value::Value::PointValue(_p) => todo!(),
+        GrpcTypes::value::Value::DecimalValue(_d) => todo!(),
         _ => todo!(),
     })
 }
