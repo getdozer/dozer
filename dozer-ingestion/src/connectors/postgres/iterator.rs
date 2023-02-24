@@ -16,6 +16,7 @@ use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use crate::errors::PostgresConnectorError::{
     InvalidQueryError, LSNNotStoredError, LsnNotReturnedFromReplicationSlot, LsnParseError,
 };
+use dozer_types::ingestion_types::IngestionMessage::SnapshottingDone;
 use postgres_types::PgLsn;
 use tokio::runtime::Runtime;
 
@@ -164,6 +165,11 @@ impl<'a> PostgresIteratorHandler<'a> {
                 connector_id: self.connector_id,
             };
             tables = snapshotter.sync_tables(details.tables.clone())?;
+
+            let lsn = self.lsn.borrow().map_or(0, |(lsn, _)| u64::from(lsn));
+            self.ingestor
+                .handle_message(((lsn, 0), SnapshottingDone))
+                .map_err(ConnectorError::IngestorError)?;
 
             debug!("\nInitialized with tables: {:?}", tables);
 

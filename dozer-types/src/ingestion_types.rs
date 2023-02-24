@@ -14,6 +14,7 @@ pub enum IngestionMessage {
     Begin(),
     OperationEvent(Operation),
     Commit(Commit),
+    SnapshottingDone,
 }
 
 #[derive(Error, Debug)]

@@ -80,6 +80,7 @@ impl Ingestor {
             }
             IngestionMessage::Commit(_event) => {}
             IngestionMessage::Begin() => {}
+            IngestionMessage::SnapshottingDone => {}
         }
         Ok(())
     }
