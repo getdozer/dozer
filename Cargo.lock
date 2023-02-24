@@ -1769,7 +1769,7 @@ checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
 
 [[package]]
 name = "dozer-admin"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "clap 4.1.6",
  "diesel",
@@ -1797,7 +1797,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-api"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "Inflector",
  "actix-cors",
@@ -1831,7 +1831,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "criterion",
  "dozer-storage",
@@ -1848,7 +1848,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "crossbeam",
  "daggy",
@@ -1864,7 +1864,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "base64 0.21.0",
  "criterion",
@@ -1901,7 +1901,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-orchestrator"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "clap 4.1.6",
  "crossterm",
@@ -1931,7 +1931,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "dozer-core",
  "dozer-tracing",
@@ -1948,7 +1948,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
@@ -1958,7 +1958,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "bson",
  "clap 4.1.6",
@@ -1982,7 +1982,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "dozer-types",
  "opentelemetry",
@@ -1993,7 +1993,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "ahash 0.8.3",
  "bincode",
