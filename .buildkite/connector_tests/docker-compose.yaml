@@ -11,3 +11,33 @@ services:
       - ETH_HTTPS_URL
       - RUST_LOG=info
       - DOZER_VERSION
+    depends_on:
+      dozer-wait-for-connections-healthy:
+        condition: service_completed_successfully
+    links:
+      - postgres
+    command: cargo test --package dozer-ingestion test_connector_ -- --ignored
+  postgres:
+    container_name: dozer-samples-pg-stocks
+    image: public.ecr.aws/k7k6x1d4/dozer-samples-pg-stocks
+    ports:
+      - '5434:5432'
+    environment:
+      - POSTGRES_DB=stocks
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - ALLOW_IP_RANGE=0.0.0.0/0
+    command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -h 0.0.0.0 -d stocks
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  dozer-wait-for-connections-healthy:
+    image: alpine
+    command: echo 'All connections are healthy'
+    depends_on:
+      postgres:
+        condition: service_healthy

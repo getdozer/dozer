@@ -24,17 +24,17 @@ pub fn run_connector_test<T: FnOnce(Config) + panic::UnwindSafe>(db_type: &str, 
     let connections_dir = PathBuf::from("src/tests/connections");
     let case = Case::load_from_case_dir(case_dir, connections_dir);
 
-    let docker_compose = running_env::create_docker_compose_for_local_runner(&case).unwrap();
-    let container = run_docker_compose(
-        &docker_compose.path,
-        &docker_compose.connections_healthy_service_name,
-    );
+    // let docker_compose = running_env::create_docker_compose_for_local_runner(&case).unwrap();
+    // let container = run_docker_compose(
+    //     &docker_compose.path,
+    //     &docker_compose.connections_healthy_service_name,
+    // );
 
     let result = panic::catch_unwind(|| {
         test(case.dozer_config);
     });
 
-    drop(container);
+    // drop(container);
 
     assert!(result.is_ok())
 }
