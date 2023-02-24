@@ -79,6 +79,7 @@ mod tests {
             let mut test_client = TestPostgresClient::new(config);
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
+            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
             test_client.create_simple_table("public", &table_name);
 
             let tables = vec![TableInfo {
@@ -90,7 +91,7 @@ mod tests {
 
             let conn_config = map_connection_config(config).unwrap();
             let postgres_config = PostgresConfig {
-                name: "test".to_string(),
+                name: connector_name.to_string(),
                 tables: Some(tables.clone()),
                 config: conn_config.clone(),
             };
@@ -114,43 +115,39 @@ mod tests {
             let config = IngestionConfig::default();
             let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
+            test_client.insert_rows(&table_name, 4, None);
+
+            // assume that we already received two rows
+            let last_parsed_position = 2_u64;
             thread::spawn(move || {
                 let connector = PostgresConnector::new(1, postgres_config);
                 let _ = connector.start(
-                    Some((u64::from(parsed_lsn), 1_u64)),
+                    Some((u64::from(parsed_lsn), last_parsed_position)),
                     &ingestor,
                     Some(tables),
                 );
             });
 
-            test_client.insert_rows(&table_name, 2, None);
-
-            let mut i = 1;
-            while i < 2 {
-                let op = iterator.next();
-                match op {
-                    None => {}
-                    Some(((_, seq_no), _operation)) => {
-                        assert_eq!(i, seq_no);
-                    }
-                }
+            let mut i = last_parsed_position;
+            while i < 4 {
                 i += 1;
+                if let Some(((_, seq_no), _)) = iterator.next() {
+                    assert_eq!(i, seq_no);
+                } else {
+                    panic!("Unexpected operation");
+                }
             }
-            assert_eq!(i, 2);
 
             test_client.insert_rows(&table_name, 3, None);
-            while i < 5 {
-                let op = iterator.next();
-                match op {
-                    None => {}
-                    Some(((_, seq_no), _operation)) => {
-                        assert_eq!(i - 2, seq_no);
-                    }
-                }
+            let mut i = 0;
+            while i < 3 {
                 i += 1;
+                if let Some(((_, seq_no), _)) = iterator.next() {
+                    assert_eq!(i, seq_no);
+                } else {
+                    panic!("Unexpected operation");
+                }
             }
-
-            assert_eq!(i, 5);
         })
     }
 }

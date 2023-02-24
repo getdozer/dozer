@@ -130,12 +130,12 @@ impl<'a> CDCHandler<'a> {
                         self.seq_no = 0;
                     }
                     Some(ingestion_message) => {
-                        if self.begin_lsn != self.offset_lsn || self.offset < self.seq_no + 1 {
+                        self.seq_no += 1;
+                        if self.begin_lsn != self.offset_lsn || self.offset < self.seq_no {
                             self.ingestor
                                 .handle_message(((self.begin_lsn, self.seq_no), ingestion_message))
                                 .map_err(ConnectorError::IngestorError)?;
                         }
-                        self.seq_no += 1;
                     }
                     None => {}
                 }
