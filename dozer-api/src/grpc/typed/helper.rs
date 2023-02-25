@@ -69,12 +69,10 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
         GrpcTypes::value::Value::BytesValue(n) => {
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
-        GrpcTypes::value::Value::TextValue(t) => Value::String(t),
         GrpcTypes::value::Value::PointValue(_p) => todo!(),
         GrpcTypes::value::Value::DecimalValue(_d) => todo!(),
         GrpcTypes::value::Value::TimestampValue(_t) => todo!(),
         GrpcTypes::value::Value::DateValue(_) => todo!(),
-        GrpcTypes::value::Value::BsonValue(_) => todo!(),
     })
 }
 

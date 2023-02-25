@@ -1,6 +1,7 @@
 use dozer_types::{
     chrono,
     ingestion_types::IngestionMessage,
+    log::error,
     ordered_float::OrderedFloat,
     types::{Operation, Record, Schema},
 };
@@ -77,9 +78,17 @@ impl IngestService for IngestorServiceImpl {
         let seq_no = tokio::spawn(async move {
             let mut seq_no = 0;
             while let Some(result) = in_stream.next().await {
-                let req = result.unwrap();
-                seq_no = req.seq_no;
-                Self::insert(req, schema_map, ingestor).unwrap();
+                if let Ok(req) = result {
+                    seq_no = req.seq_no;
+                    let res = Self::insert(req, schema_map, ingestor);
+                    if let Err(e) = res {
+                        error!("ingestion stream insertion errored: {:#?}", e);
+                        break;
+                    }
+                } else {
+                    error!("ingestion stream errored: {:#?}", result);
+                    break;
+                }
             }
             seq_no
         })
@@ -100,7 +109,7 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
     }
 
     for (idx, v) in rec.values.iter().enumerate() {
-        let typ = schema.fields[idx].typ.clone();
+        let typ = schema.fields[idx].typ;
 
         let v = v.value.as_ref().map(|v| match (v, typ) {
             (
@@ -175,7 +184,6 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
         });
         values.push(v.unwrap_or(Ok(dozer_types::types::Field::Null))?);
     }
-    println!("values: {:?}", values);
     Ok(Record {
         schema_id: schema.identifier,
         values,

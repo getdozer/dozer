@@ -63,7 +63,6 @@ fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
     // Copy this file from dozer-tests output directory if it changes
     let res = env::current_dir().unwrap();
     let path = res.join("src/grpc/typed/tests/generated_films.bin");
-    // println!("path: {:?}", path);
     let (endpoints, rx1) = setup_pipeline();
 
     TypedService::new(&path, endpoints, Some(rx1), security).unwrap()
