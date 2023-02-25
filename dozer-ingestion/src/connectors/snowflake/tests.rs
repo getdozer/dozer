@@ -18,9 +18,9 @@ use crate::test_util::run_connector_test;
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
-#[ignore]
 #[test]
-fn test_connector_and_read_from_stream() {
+#[ignore]
+fn test_disabled_connector_and_read_from_stream() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
         let source = config.sources.get(0).unwrap().clone();
@@ -100,9 +100,9 @@ fn test_connector_and_read_from_stream() {
     });
 }
 
-#[ignore]
 #[test]
-fn test_connector_get_schemas_test() {
+#[ignore]
+fn test_disabled_connector_get_schemas_test() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
         let connector = get_connector(connection.clone()).unwrap();
@@ -175,9 +175,9 @@ fn test_connector_get_schemas_test() {
     });
 }
 
-#[ignore]
 #[test]
-fn test_connector_missing_table_validator() {
+#[ignore]
+fn test_disabled_connector_missing_table_validator() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
         let connector = get_connector(connection.clone()).unwrap();
@@ -212,9 +212,9 @@ fn test_connector_missing_table_validator() {
     });
 }
 
-#[ignore]
 #[test]
-fn test_connector_is_stream_created() {
+#[ignore]
+fn test_disabled_connector_is_stream_created() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
         let snowflake_config = match connection.config.as_ref().unwrap() {

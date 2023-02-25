@@ -5,7 +5,7 @@ connections:
       password: postgres
       host: localhost
       port: 5434
-      database: stocks
+      database: dozer_test
     name: stocks
 sources:
   - name: stocks
