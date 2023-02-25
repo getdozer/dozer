@@ -41,7 +41,7 @@ fn open_cache_reader(
 ) -> Result<CacheReader, ApiError> {
     let cache = cache_manager
         .open_ro_cache(name)
-        .map_err(|e| ApiError::OpenCache(e))?;
+        .map_err(ApiError::OpenCache)?;
     let cache = cache.ok_or_else(|| ApiError::CacheNotFound(name.to_string()))?;
     Ok(CacheReader::new(cache))
 }

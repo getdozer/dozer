@@ -156,7 +156,7 @@ fn get_records_map(
     let mut maps = vec![];
     let cache_reader = &cache_endpoint.cache_reader();
     let (schema, records) = get_records(
-        &cache_reader,
+        cache_reader,
         &cache_endpoint.endpoint.name,
         exp,
         access.map(|a| a.into_inner()),

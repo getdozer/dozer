@@ -9,10 +9,7 @@ use crate::{
     },
     RoCacheEndpoint,
 };
-use dozer_cache::{
-    cache::expression::{FilterExpression, QueryExpression},
-    CacheReader,
-};
+use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
 use dozer_types::grpc_types::{
     generated::films::FilmEventRequest,
     generated::films::{
