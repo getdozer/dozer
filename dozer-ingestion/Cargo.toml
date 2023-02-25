@@ -33,7 +33,7 @@ tonic = {version = "0.8.3"}
 tonic-web = "0.4.0"
 tonic-reflection = "0.6.0"
 tower-http = {version = "0.3.5", features = ["full"]}
-prost = "0.11.0"
+prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] } 
 
 [dev-dependencies]
