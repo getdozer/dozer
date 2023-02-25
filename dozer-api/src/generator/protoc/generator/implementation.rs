@@ -127,7 +127,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
 
         let metadata = self.get_metadata()?;
 
-        let types_proto = include_str!("../../../../protos/types.proto");
+        let types_proto = include_str!("../../../../../dozer-types/protos/types.proto");
 
         let resource_proto = self
             .handlebars
@@ -349,7 +349,7 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::Decimal => Ok("dozer.types.RustDecimal".to_owned()),
         FieldType::Timestamp => Ok("google.protobuf.Timestamp".to_owned()),
         FieldType::Date => Ok("string".to_owned()),
-        FieldType::Bson => Ok("google.protobuf.Any".to_owned()),
+        FieldType::Bson => Ok("bytes".to_owned()),
         FieldType::Point => Ok("dozer.types.PointType".to_owned()),
     }
 }

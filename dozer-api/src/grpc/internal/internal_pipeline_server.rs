@@ -1,8 +1,8 @@
-use crate::grpc::internal_grpc::{
+use crossbeam::channel::Receiver;
+use dozer_types::grpc_types::internal::{
     internal_pipeline_service_server::{self, InternalPipelineService},
     PipelineRequest, PipelineResponse,
 };
-use crossbeam::channel::Receiver;
 use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
 use std::{net::ToSocketAddrs, pin::Pin};
 use tokio::{

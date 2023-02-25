@@ -8,6 +8,9 @@ pub mod node;
 mod tests;
 pub mod types;
 
+// Export grpc types
+pub mod grpc_types;
+
 pub use helper::json_value_to_field;
 
 // Re-exports
@@ -21,6 +24,8 @@ pub use indicatif;
 pub use log;
 pub use ordered_float;
 pub use parking_lot;
+pub use prost;
+pub use tonic;
 #[macro_use]
 pub extern crate prettytable;
 

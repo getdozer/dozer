@@ -3,16 +3,12 @@ use std::{
     thread,
 };
 
-use dozer_api::{
-    actix_web::rt::Runtime,
-    grpc::common_grpc::common_grpc_service_client::CommonGrpcServiceClient,
-    grpc::{common_grpc, types as common_types},
-};
-use dozer_orchestrator::{
-    ingest_connector_types,
-    ingest_grpc::{ingest_service_client::IngestServiceClient, IngestRequest},
-    simple::SimpleOrchestrator as Dozer,
-    Orchestrator,
+use dozer_api::actix_web::rt::Runtime;
+use dozer_orchestrator::{simple::SimpleOrchestrator as Dozer, Orchestrator};
+use dozer_types::grpc_types::{
+    common::{common_grpc_service_client::CommonGrpcServiceClient, QueryRequest},
+    ingest::{ingest_service_client::IngestServiceClient, IngestRequest},
+    types,
 };
 use dozer_types::{models::app_config::Config, serde_yaml};
 use tempdir::TempDir;
@@ -54,15 +50,13 @@ fn ingest_and_test() {
         let res = ingest_client
             .ingest(IngestRequest {
                 schema_name: "users".to_string(),
-                new: Some(ingest_connector_types::Record {
+                new: Some(types::Record {
                     values: vec![
-                        ingest_connector_types::Value {
-                            value: Some(ingest_connector_types::value::Value::IntValue(1675)),
+                        types::Value {
+                            value: Some(types::value::Value::IntValue(1675)),
                         },
-                        ingest_connector_types::Value {
-                            value: Some(ingest_connector_types::value::Value::StringValue(
-                                "dario".to_string(),
-                            )),
+                        types::Value {
+                            value: Some(types::value::Value::StringValue("dario".to_string())),
                         },
                     ],
                     version: 1,
@@ -94,7 +88,7 @@ fn ingest_and_test() {
         let mut common_client = res.unwrap();
 
         let res = common_client
-            .query(common_grpc::QueryRequest {
+            .query(QueryRequest {
                 endpoint: "users".to_string(),
                 query: None,
             })
@@ -103,9 +97,9 @@ fn ingest_and_test() {
         let res = res.into_inner();
         let rec = res.records.first().unwrap().clone();
         let val = rec.record.unwrap().values.first().unwrap().clone().value;
-        assert!(matches!(val, Some(common_types::value::Value::IntValue(_))));
+        assert!(matches!(val, Some(types::value::Value::IntValue(_))));
 
-        if let Some(common_types::value::Value::IntValue(v)) = val {
+        if let Some(types::value::Value::IntValue(v)) = val {
             assert_eq!(v, 1675);
         }
     });

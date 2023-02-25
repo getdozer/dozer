@@ -1,4 +1,5 @@
 use dozer_types::{
+    chrono,
     ingestion_types::IngestionMessage,
     ordered_float::OrderedFloat,
     types::{Operation, Record, Schema},
@@ -9,7 +10,10 @@ use tonic::Streaming;
 
 use crate::ingestion::Ingestor;
 
-use super::ingest_grpc::{ingest_service_server::IngestService, IngestRequest, IngestResponse};
+use dozer_types::grpc_types;
+use dozer_types::grpc_types::ingest::{
+    ingest_service_server::IngestService, IngestRequest, IngestResponse,
+};
 
 pub struct IngestorServiceImpl {
     ingestor: &'static Ingestor,
@@ -34,13 +38,13 @@ impl IngestorServiceImpl {
         })?;
 
         let op = match req.typ() {
-            super::types::OperationType::Insert => Operation::Insert {
+            grpc_types::types::OperationType::Insert => Operation::Insert {
                 new: map_record(req.new.unwrap(), schema),
             },
-            super::types::OperationType::Delete => Operation::Delete {
+            grpc_types::types::OperationType::Delete => Operation::Delete {
                 old: map_record(req.old.unwrap(), schema),
             },
-            super::types::OperationType::Update => Operation::Update {
+            grpc_types::types::OperationType::Update => Operation::Update {
                 old: map_record(req.old.unwrap(), schema),
                 new: map_record(req.new.unwrap(), schema),
             },
@@ -85,7 +89,7 @@ impl IngestService for IngestorServiceImpl {
     }
 }
 
-fn map_record(rec: super::types::Record, schema: &Schema) -> Record {
+fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Record {
     let mut values = vec![];
     debug_assert!(
         rec.values.len() == schema.fields.len(),
@@ -93,22 +97,34 @@ fn map_record(rec: super::types::Record, schema: &Schema) -> Record {
     );
     for (_idx, v) in rec.values.iter().enumerate() {
         let v = v.value.as_ref().map(|v| match v {
-            super::types::value::Value::UintValue(a) => dozer_types::types::Field::UInt(*a),
-            super::types::value::Value::IntValue(a) => dozer_types::types::Field::Int(*a),
-            super::types::value::Value::FloatValue(a) => {
-                dozer_types::types::Field::Float(OrderedFloat(*a as f64))
-            }
-            super::types::value::Value::BoolValue(a) => dozer_types::types::Field::Boolean(*a),
-            super::types::value::Value::StringValue(a) => {
-                dozer_types::types::Field::String(a.clone())
-            }
-            super::types::value::Value::BytesValue(a) => {
-                dozer_types::types::Field::Binary(a.clone())
-            }
-            super::types::value::Value::ArrayValue(_) => todo!(),
-            super::types::value::Value::DoubleValue(a) => {
+            grpc_types::types::value::Value::UintValue(a) => dozer_types::types::Field::UInt(*a),
+            grpc_types::types::value::Value::IntValue(a) => dozer_types::types::Field::Int(*a),
+            grpc_types::types::value::Value::FloatValue(a) => {
                 dozer_types::types::Field::Float(OrderedFloat(*a))
             }
+            grpc_types::types::value::Value::BoolValue(a) => dozer_types::types::Field::Boolean(*a),
+            grpc_types::types::value::Value::StringValue(a) => {
+                dozer_types::types::Field::String(a.clone())
+            }
+            grpc_types::types::value::Value::BytesValue(a) => {
+                dozer_types::types::Field::Binary(a.clone())
+            }
+            grpc_types::types::value::Value::PointValue(_) => todo!(),
+            grpc_types::types::value::Value::DecimalValue(_) => todo!(),
+            grpc_types::types::value::Value::TextValue(a) => {
+                dozer_types::types::Field::Text(a.clone())
+            }
+            grpc_types::types::value::Value::TimestampValue(a) => {
+                chrono::NaiveDateTime::from_timestamp_opt(a.seconds, a.nanos as u32)
+                    .map(|t| {
+                        dozer_types::types::Field::Timestamp(
+                            chrono::DateTime::<chrono::Utc>::from_utc(t, chrono::Utc).into(),
+                        )
+                    })
+                    .unwrap_or(dozer_types::types::Field::Null)
+            }
+            grpc_types::types::value::Value::DateValue(_) => todo!(),
+            grpc_types::types::value::Value::BsonValue(_) => todo!(),
         });
         values.push(v.unwrap_or(dozer_types::types::Field::Null));
     }

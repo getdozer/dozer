@@ -35,6 +35,3 @@ hyper = "0.14.24"
 actix-http = "3.3.0"
 tower-http = {version = "0.3.5", features = ["full"]}
 
-
-[build-dependencies]
-tonic-build = "0.8"

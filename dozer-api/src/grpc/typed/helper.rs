@@ -2,9 +2,9 @@ use crate::generator::protoc::generator::{
     CountResponseDesc, EventDesc, QueryResponseDesc, RecordDesc, RecordWithIdDesc,
     TokenResponseDesc,
 };
-use crate::grpc::types::{self as GrpcTypes};
 use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
+use dozer_types::grpc_types::types as GrpcTypes;
 use prost_reflect::{DynamicMessage, Value};
 
 use super::TypedResponse;
@@ -63,16 +63,18 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
     value.value.map(|value| match value {
         GrpcTypes::value::Value::UintValue(n) => Value::U64(n),
         GrpcTypes::value::Value::IntValue(n) => Value::I64(n),
-        GrpcTypes::value::Value::FloatValue(n) => Value::F32(n),
+        GrpcTypes::value::Value::FloatValue(n) => Value::F64(n),
         GrpcTypes::value::Value::BoolValue(n) => Value::Bool(n),
         GrpcTypes::value::Value::StringValue(n) => Value::String(n),
         GrpcTypes::value::Value::BytesValue(n) => {
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
-        GrpcTypes::value::Value::DoubleValue(n) => Value::F64(n),
+        GrpcTypes::value::Value::TextValue(t) => Value::String(t),
         GrpcTypes::value::Value::PointValue(_p) => todo!(),
         GrpcTypes::value::Value::DecimalValue(_d) => todo!(),
-        _ => todo!(),
+        GrpcTypes::value::Value::TimestampValue(_t) => todo!(),
+        GrpcTypes::value::Value::DateValue(_) => todo!(),
+        GrpcTypes::value::Value::BsonValue(_) => todo!(),
     })
 }
 

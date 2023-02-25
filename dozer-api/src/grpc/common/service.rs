@@ -1,19 +1,20 @@
 use std::collections::HashMap;
 
 use crate::auth::Access;
-use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
-use crate::grpc::internal_grpc::PipelineResponse;
+
 use crate::grpc::shared_impl;
 use crate::grpc::types_helper::{map_field_definitions, map_record};
 use crate::RoCacheEndpoint;
+use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
+use dozer_types::grpc_types::internal::PipelineResponse;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
-use crate::grpc::common_grpc::{
+use dozer_types::grpc_types::common::{
     CountResponse, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse,
     OnEventRequest, QueryRequest, QueryResponse,
 };
-use crate::grpc::types::Operation;
+use dozer_types::grpc_types::types::Operation;
 
 type EventResult<T> = Result<Response<T>, Status>;
 type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;

@@ -1,6 +1,4 @@
 use dozer_api::generator::protoc::generator::ProtoGenerator;
-use dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent;
-use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_api::grpc::types_helper;
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::index::get_primary_key;
@@ -13,6 +11,8 @@ use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
+use dozer_types::grpc_types::internal::pipeline_response::ApiEvent;
+use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};

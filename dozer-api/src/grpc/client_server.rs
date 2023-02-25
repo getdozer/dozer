@@ -1,18 +1,16 @@
-use super::{
-    auth_middleware::AuthMiddlewareLayer,
-    common::CommonService,
-    common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
-    health_grpc::health_grpc_service_server::HealthGrpcServiceServer,
-    internal_grpc::{
+use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService};
+use crate::grpc::health::HealthService;
+use crate::grpc::{common, typed};
+use crate::{errors::GRPCError, generator::protoc::generator::ProtoGenerator, RoCacheEndpoint};
+use dozer_types::grpc_types::health::health_check_response::ServingStatus;
+use dozer_types::grpc_types::{
+    common::common_grpc_service_server::CommonGrpcServiceServer,
+    health::health_grpc_service_server::HealthGrpcServiceServer,
+    internal::{
         internal_pipeline_service_client::InternalPipelineServiceClient, PipelineRequest,
         PipelineResponse,
     },
-    typed::TypedService,
 };
-use crate::grpc::health::HealthService;
-use crate::grpc::health_grpc::health_check_response::ServingStatus;
-use crate::grpc::{common, typed};
-use crate::{errors::GRPCError, generator::protoc::generator::ProtoGenerator, RoCacheEndpoint};
 use dozer_types::tracing::Level;
 use dozer_types::{
     log::{info, warn},
