@@ -14,6 +14,9 @@ docker/data/
 dozer-sql/data
 *.mdb
 
+
+workspaces/
+
 # Local configuration for development
 /dozer-config.yaml
 dozer-admin-config.yaml
