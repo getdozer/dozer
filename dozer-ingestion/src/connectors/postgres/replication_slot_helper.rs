@@ -1,4 +1,5 @@
 use crate::errors::ConnectorError::UnexpectedQueryMessageError;
+use crate::errors::PostgresConnectorError::FetchReplicationSlotError;
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
 use postgres::Client;
@@ -54,7 +55,7 @@ impl ReplicationSlotHelper {
     pub fn replication_slot_exists(
         client: Arc<RefCell<Client>>,
         slot_name: &str,
-    ) -> Result<bool, ConnectorError> {
+    ) -> Result<bool, PostgresConnectorError> {
         let replication_slot_info_query = format!(
             r#"SELECT * FROM pg_replication_slots where slot_name = '{}';"#,
             slot_name
@@ -63,11 +64,11 @@ impl ReplicationSlotHelper {
         let slot_query_row = client
             .borrow_mut()
             .simple_query(&replication_slot_info_query)
-            .map_err(|_e| {
-                debug!("failed to begin txn for replication");
-                ConnectorError::PostgresConnectorError(PostgresConnectorError::FetchReplicationSlot)
-            })?;
+            .map_err(FetchReplicationSlotError)?;
 
-        Ok(!slot_query_row.is_empty())
+        Ok(matches!(
+            slot_query_row.get(0),
+            Some(SimpleQueryMessage::Row(_))
+        ))
     }
 }

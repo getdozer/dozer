@@ -91,7 +91,7 @@ mod tests {
 
             let conn_config = map_connection_config(config).unwrap();
             let postgres_config = PostgresConfig {
-                name: connector_name.to_string(),
+                name: connector_name,
                 tables: Some(tables.clone()),
                 config: conn_config.clone(),
             };

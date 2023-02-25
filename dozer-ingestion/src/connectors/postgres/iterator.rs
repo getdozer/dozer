@@ -125,9 +125,11 @@ impl<'a> PostgresIteratorHandler<'a> {
         let mut tables = details.tables.clone();
         if self.lsn.clone().into_inner().is_none() {
             debug!("\nCreating Slot....");
-            if let Ok(true) =
+            let slot_exist =
                 ReplicationSlotHelper::replication_slot_exists(client.clone(), &details.slot_name)
-            {
+                    .map_err(ConnectorError::PostgresConnectorError)?;
+
+            if slot_exist {
                 // We dont have lsn, so we need to drop replication slot and start from scratch
                 ReplicationSlotHelper::drop_replication_slot(client.clone(), &details.slot_name)
                     .map_err(InvalidQueryError)?;
