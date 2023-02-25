@@ -4,9 +4,8 @@ use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
 };
-use std::sync::Arc;
 
-use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId, RoCache};
+use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId};
 
 pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![
@@ -102,8 +101,8 @@ fn get_films() -> Vec<Value> {
 
 pub fn initialize_cache(
     schema_name: &str,
-    schema: Option<(dozer_types::types::Schema, Vec<IndexDefinition>)>,
-) -> Arc<dyn RoCache> {
+    schema: Option<(Schema, Vec<IndexDefinition>)>,
+) -> Box<dyn CacheManager> {
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     let cache = cache_manager
@@ -119,13 +118,10 @@ pub fn initialize_cache(
     }
     cache.commit().unwrap();
 
-    let cache_name = cache.name().to_string();
-    drop(cache);
     cache_manager
-        .open_ro_cache(&cache_name)
-        .unwrap()
-        .unwrap()
-        .into()
+        .create_alias(cache.name(), schema_name)
+        .unwrap();
+    Box::new(cache_manager)
 }
 
 pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {

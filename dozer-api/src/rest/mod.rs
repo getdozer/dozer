@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 // Exports
 use crate::errors::ApiError;
 use crate::rest::api_generator::health_route;
@@ -73,7 +75,7 @@ impl ApiServer {
     fn create_app_entry(
         security: Option<ApiSecurity>,
         cors: CorsOptions,
-        cache_endpoints: Vec<RoCacheEndpoint>,
+        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -131,7 +133,7 @@ impl ApiServer {
 
     pub async fn run(
         &self,
-        cache_endpoints: Vec<RoCacheEndpoint>,
+        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
         tx: Sender<ServerHandle>,
     ) -> Result<(), ApiError> {
         info!(

@@ -18,6 +18,10 @@ pub enum ApiError {
     ApiAuthError(#[from] AuthError),
     #[error("Failed to generate openapi documentation")]
     ApiGenerationError(#[source] GenerationError),
+    #[error("Failed to open cache: {0}")]
+    OpenCache(#[source] CacheError),
+    #[error("Failed to open cache: {0}")]
+    CacheNotFound(String),
     #[error("Cannot find schema by name")]
     SchemaNotFound(#[source] CacheError),
     #[error("Get by primary key is not supported when it is composite: {0:?}")]
@@ -140,6 +144,8 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::SchemaNotFound(_)
             | ApiError::MultiIndexFetch(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ApiError::InternalError(_)
+            | ApiError::OpenCache(_)
+            | ApiError::CacheNotFound(_)
             | ApiError::QueryFailed(_)
             | ApiError::CountFailed(_)
             | ApiError::PortAlreadyInUse(_) => StatusCode::INTERNAL_SERVER_ERROR,

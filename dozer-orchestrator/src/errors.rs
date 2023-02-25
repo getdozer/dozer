@@ -23,7 +23,7 @@ pub enum OrchestrationError {
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
     #[error("Failed to initialize api server: {0}")]
-    ApiServerFailed(#[source] ApiError),
+    ApiServerFailed(#[from] ApiError),
     #[error("Failed to initialize grpc server: {0}")]
     GrpcServerFailed(#[source] GRPCError),
     #[error("Failed to initialize internal server: {0}")]

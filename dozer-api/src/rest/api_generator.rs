@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
@@ -39,10 +41,10 @@ fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI
 
 /// Generated function to return openapi.yaml documentation.
 pub async fn generate_oapi(
-    cache_endpoint: ReqData<RoCacheEndpoint>,
+    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
 ) -> Result<HttpResponse, ApiError> {
     generate_oapi3(
-        &cache_endpoint.cache_reader,
+        &cache_endpoint.cache_reader(),
         cache_endpoint.endpoint.clone(),
     )
     .map(|result| HttpResponse::Ok().json(result))
@@ -51,11 +53,11 @@ pub async fn generate_oapi(
 // Generated Get function to return a single record in JSON format
 pub async fn get(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<RoCacheEndpoint>,
+    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
-    let schema = &cache_endpoint
-        .cache_reader
+    let cache_reader = &cache_endpoint.cache_reader();
+    let schema = &cache_reader
         .get_schema_and_indexes_by_name(&cache_endpoint.endpoint.name)
         .map_err(ApiError::SchemaNotFound)?
         .0;
@@ -72,7 +74,7 @@ pub async fn get(
 
     let key = index::get_primary_key(&[0], &[key]);
     let record = get_record(
-        &cache_endpoint.cache_reader,
+        &cache_endpoint.cache_reader(),
         &key,
         access.map(|a| a.into_inner()),
     )?;
@@ -83,7 +85,7 @@ pub async fn get(
 // Generated list function for multiple records with a default query expression
 pub async fn list(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<RoCacheEndpoint>,
+    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut exp = QueryExpression::new(None, vec![], Some(50), Skip::Skip(0));
     match get_records_map(access, cache_endpoint, &mut exp) {
@@ -108,7 +110,7 @@ pub async fn health_route() -> Result<HttpResponse, ApiError> {
 
 pub async fn count(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<RoCacheEndpoint>,
+    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
     query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = match query_info {
@@ -118,7 +120,7 @@ pub async fn count(
     };
 
     get_records_count(
-        &cache_endpoint.cache_reader,
+        &cache_endpoint.cache_reader(),
         &cache_endpoint.endpoint.name,
         &mut query_expression,
         access.map(|a| a.into_inner()),
@@ -129,7 +131,7 @@ pub async fn count(
 // Generated query function for multiple records
 pub async fn query(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<RoCacheEndpoint>,
+    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
     query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = match query_info {
@@ -148,12 +150,13 @@ pub async fn query(
 /// Get multiple records
 fn get_records_map(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<RoCacheEndpoint>,
+    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
     exp: &mut QueryExpression,
 ) -> Result<Vec<IndexMap<String, Value>>, ApiError> {
     let mut maps = vec![];
+    let cache_reader = &cache_endpoint.cache_reader();
     let (schema, records) = get_records(
-        &cache_endpoint.cache_reader,
+        cache_reader,
         &cache_endpoint.endpoint.name,
         exp,
         access.map(|a| a.into_inner()),

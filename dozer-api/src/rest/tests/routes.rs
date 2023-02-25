@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use super::super::{ApiServer, CorsOptions};
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, RoCacheEndpoint};
@@ -25,13 +25,13 @@ fn test_generate_oapi() {
 #[actix_web::test]
 async fn list_route() {
     let endpoint = test_utils::get_endpoint();
-    let mut schema_name = endpoint.to_owned().path;
-    schema_name.remove(0);
-    let cache = test_utils::initialize_cache(&schema_name, None);
+    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
+        vec![Arc::new(
+            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+        )],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -84,13 +84,13 @@ where
 #[actix_web::test]
 async fn count_and_query_route() {
     let endpoint = test_utils::get_endpoint();
-    let mut schema_name = endpoint.to_owned().path;
-    schema_name.remove(0);
-    let cache = test_utils::initialize_cache(&schema_name, None);
+    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
+        vec![Arc::new(
+            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+        )],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -129,13 +129,13 @@ async fn count_and_query_route() {
 #[actix_web::test]
 async fn get_route() {
     let endpoint = test_utils::get_endpoint();
-    let mut schema_name = endpoint.to_owned().path;
-    schema_name.remove(0);
-    let cache = test_utils::initialize_cache(&schema_name, None);
+    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
-        vec![RoCacheEndpoint::new(cache, endpoint.clone())],
+        vec![Arc::new(
+            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+        )],
     );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::get()

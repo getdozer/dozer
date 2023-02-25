@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::auth::Access;
 
@@ -22,13 +23,13 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     /// For look up endpoint from its name. `key == value.endpoint.name`.
-    pub endpoint_map: HashMap<String, RoCacheEndpoint>,
+    pub endpoint_map: HashMap<String, Arc<RoCacheEndpoint>>,
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 }
 
 impl CommonService {
     pub fn new(
-        endpoints: Vec<RoCacheEndpoint>,
+        endpoints: Vec<Arc<RoCacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
     ) -> Self {
         let endpoint_map = endpoints
@@ -67,7 +68,7 @@ impl CommonGrpcService for CommonService {
         let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
         let count = shared_impl::count(
-            &cache_endpoint.cache_reader,
+            &cache_endpoint.cache_reader(),
             &cache_endpoint.endpoint.name,
             query_request.query.as_deref(),
             access,
@@ -85,8 +86,9 @@ impl CommonGrpcService for CommonService {
     ) -> Result<Response<QueryResponse>, Status> {
         let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
+        let cache_reader = cache_endpoint.cache_reader();
         let (schema, records) = shared_impl::query(
-            &cache_endpoint.cache_reader,
+            &cache_reader,
             &cache_endpoint.endpoint.name,
             query_request.query.as_deref(),
             access,
@@ -113,7 +115,7 @@ impl CommonGrpcService for CommonService {
             .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
         shared_impl::on_event(
-            &cache_endpoint.cache_reader,
+            &cache_endpoint.cache_reader(),
             &cache_endpoint.endpoint.name,
             query_request.filter.as_deref(),
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
@@ -147,8 +149,8 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let schema = &cache_endpoint
-            .cache_reader
+        let cache_reader = cache_endpoint.cache_reader();
+        let schema = &cache_reader
             .get_schema_and_indexes_by_name(&endpoint)
             .map_err(|_| Status::invalid_argument(endpoint))?
             .0;

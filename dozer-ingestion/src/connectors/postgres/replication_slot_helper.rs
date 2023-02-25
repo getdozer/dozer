@@ -29,10 +29,8 @@ impl ReplicationSlotHelper {
         client: Arc<RefCell<Client>>,
         slot_name: &str,
     ) -> Result<Option<String>, ConnectorError> {
-        let create_replication_slot_query = format!(
-            r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "pgoutput" USE_SNAPSHOT"#,
-            slot_name
-        );
+        let create_replication_slot_query =
+            format!(r#"CREATE_REPLICATION_SLOT {slot_name:?} LOGICAL "pgoutput" USE_SNAPSHOT"#);
 
         let slot_query_row = client
             .borrow_mut()
@@ -56,10 +54,8 @@ impl ReplicationSlotHelper {
         client: Arc<RefCell<Client>>,
         slot_name: &str,
     ) -> Result<bool, PostgresConnectorError> {
-        let replication_slot_info_query = format!(
-            r#"SELECT * FROM pg_replication_slots where slot_name = '{}';"#,
-            slot_name
-        );
+        let replication_slot_info_query =
+            format!(r#"SELECT * FROM pg_replication_slots where slot_name = '{slot_name}';"#);
 
         let slot_query_row = client
             .borrow_mut()
