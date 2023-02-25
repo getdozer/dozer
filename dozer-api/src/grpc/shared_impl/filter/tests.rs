@@ -579,91 +579,91 @@ fn test_field_satisfies_op() {
     );
 
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::LT,
         Field::Float(OrderedFloat(2.0)),
         true,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::LT,
         Field::Float(OrderedFloat(1.0)),
         false,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::LT,
         Field::Float(OrderedFloat(0.0)),
         false,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::LTE,
         Field::Float(OrderedFloat(2.0)),
         true,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::LTE,
         Field::Float(OrderedFloat(1.0)),
         true,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::LTE,
         Field::Float(OrderedFloat(0.0)),
         false,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::EQ,
         Field::Float(OrderedFloat(2.0)),
         false,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::EQ,
         Field::Float(OrderedFloat(1.0)),
         true,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::EQ,
         Field::Float(OrderedFloat(0.0)),
         false,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::GT,
         Field::Float(OrderedFloat(2.0)),
         false,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::GT,
         Field::Float(OrderedFloat(1.0)),
         false,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::GT,
         Field::Float(OrderedFloat(0.0)),
         true,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::GTE,
         Field::Float(OrderedFloat(2.0)),
         false,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::GTE,
         Field::Float(OrderedFloat(1.0)),
         true,
     );
     test_field_satisfies_op_impl(
-        value::Value::DoubleValue(1.0),
+        value::Value::FloatValue(1.0),
         Operator::GTE,
         Field::Float(OrderedFloat(0.0)),
         true,

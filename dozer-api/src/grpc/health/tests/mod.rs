@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use tonic::Request;
 
-use crate::grpc::health_grpc::health_check_response::ServingStatus;
-use crate::grpc::health_grpc::health_grpc_service_server::HealthGrpcService;
-use crate::grpc::health_grpc::HealthCheckRequest;
+use dozer_types::grpc_types::health::health_check_response::ServingStatus;
+use dozer_types::grpc_types::health::health_grpc_service_server::HealthGrpcService;
+use dozer_types::grpc_types::health::HealthCheckRequest;
 
 use super::HealthService;
 

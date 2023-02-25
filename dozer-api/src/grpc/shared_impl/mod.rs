@@ -1,6 +1,8 @@
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
 use dozer_cache::cache::RecordWithId;
 use dozer_cache::CacheReader;
+use dozer_types::grpc_types::internal::PipelineResponse;
+use dozer_types::grpc_types::types::Operation;
 use dozer_types::log::warn;
 use dozer_types::serde_json;
 use dozer_types::types::Schema;
@@ -12,9 +14,7 @@ use tonic::{Code, Response, Status};
 use crate::api_helper::{get_records, get_records_count};
 use crate::auth::Access;
 
-use super::internal_grpc::pipeline_response::ApiEvent;
-use super::internal_grpc::PipelineResponse;
-use super::types::Operation;
+use dozer_types::grpc_types::internal::pipeline_response::ApiEvent;
 
 mod filter;
 

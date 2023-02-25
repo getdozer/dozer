@@ -5,7 +5,7 @@ use dozer_types::{
     types::{Field, Schema},
 };
 
-use crate::grpc::types::{value, Operation, OperationType, Record, Value};
+use dozer_types::grpc_types::types::{value, Operation, OperationType, Record, Value};
 
 pub fn op_satisfies_filter(
     op: &Operation,
@@ -59,51 +59,46 @@ fn field_satisfies_op(field: &Value, operator: Operator, value: &Field) -> bool 
         Operator::LT => match (field.value.as_ref().unwrap(), value) {
             (value::Value::UintValue(n), Field::UInt(m)) => n < m,
             (value::Value::IntValue(n), Field::Int(m)) => n < m,
-            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n as f64) < m,
+            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n) < m,
             (value::Value::BoolValue(n), Field::Boolean(m)) => n < m,
             (value::Value::StringValue(n), Field::String(m)) => n < m,
             (value::Value::BytesValue(n), Field::Binary(m)) => n < m,
-            (value::Value::DoubleValue(n), Field::Float(m)) => &OrderedFloat(*n) < m,
             _ => false,
         },
         Operator::LTE => match (field.value.as_ref().unwrap(), value) {
             (value::Value::UintValue(n), Field::UInt(m)) => n <= m,
             (value::Value::IntValue(n), Field::Int(m)) => n <= m,
-            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n as f64) <= m,
+            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n) <= m,
             (value::Value::BoolValue(n), Field::Boolean(m)) => n <= m,
             (value::Value::StringValue(n), Field::String(m)) => n <= m,
             (value::Value::BytesValue(n), Field::Binary(m)) => n <= m,
-            (value::Value::DoubleValue(n), Field::Float(m)) => &OrderedFloat(*n) <= m,
             _ => false,
         },
         Operator::EQ => match (field.value.as_ref().unwrap(), value) {
             (value::Value::UintValue(n), Field::UInt(m)) => n == m,
             (value::Value::IntValue(n), Field::Int(m)) => n == m,
-            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n as f64) == m,
+            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n) == m,
             (value::Value::BoolValue(n), Field::Boolean(m)) => n == m,
             (value::Value::StringValue(n), Field::String(m)) => n == m,
             (value::Value::BytesValue(n), Field::Binary(m)) => n == m,
-            (value::Value::DoubleValue(n), Field::Float(m)) => &OrderedFloat(*n) == m,
             _ => false,
         },
         Operator::GT => match (field.value.as_ref().unwrap(), value) {
             (value::Value::UintValue(n), Field::UInt(m)) => n > m,
             (value::Value::IntValue(n), Field::Int(m)) => n > m,
-            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n as f64) > m,
+            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n) > m,
             (value::Value::BoolValue(n), Field::Boolean(m)) => n > m,
             (value::Value::StringValue(n), Field::String(m)) => n > m,
             (value::Value::BytesValue(n), Field::Binary(m)) => n > m,
-            (value::Value::DoubleValue(n), Field::Float(m)) => &OrderedFloat(*n) > m,
             _ => false,
         },
         Operator::GTE => match (field.value.as_ref().unwrap(), value) {
             (value::Value::UintValue(n), Field::UInt(m)) => n >= m,
             (value::Value::IntValue(n), Field::Int(m)) => n >= m,
-            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n as f64) >= m,
+            (value::Value::FloatValue(n), Field::Float(m)) => &OrderedFloat(*n) >= m,
             (value::Value::BoolValue(n), Field::Boolean(m)) => n >= m,
             (value::Value::StringValue(n), Field::String(m)) => n >= m,
             (value::Value::BytesValue(n), Field::Binary(m)) => n >= m,
-            (value::Value::DoubleValue(n), Field::Float(m)) => &OrderedFloat(*n) >= m,
             _ => false,
         },
         Operator::Contains => match (field.value.as_ref().unwrap(), value) {

@@ -3,16 +3,8 @@ use crate::{
     grpc::{
         auth_middleware::AuthMiddlewareLayer,
         client_server::ApiServer,
-        internal_grpc::PipelineResponse,
         typed::{
-            tests::{
-                fake_internal_pipeline_server::start_fake_internal_grpc_pipeline,
-                generated::films::{
-                    films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
-                    QueryFilmsResponse,
-                },
-            },
-            TypedService,
+            tests::fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, TypedService,
         },
     },
     RoCacheEndpoint,
@@ -21,11 +13,19 @@ use dozer_cache::{
     cache::expression::{FilterExpression, QueryExpression},
     CacheReader,
 };
+use dozer_types::grpc_types::{
+    generated::films::FilmEventRequest,
+    generated::films::{
+        films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
+        QueryFilmsResponse,
+    },
+    internal::PipelineResponse,
+    types::EventType,
+};
 use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
-use std::{env, path::PathBuf, str::FromStr, time::Duration};
+use std::{env, str::FromStr, time::Duration};
 
-use super::{generated::films::FilmEventRequest, types::EventType};
 use crate::test_utils;
 use tokio::{
     sync::{
@@ -60,10 +60,9 @@ pub fn setup_pipeline() -> (Vec<RoCacheEndpoint>, Receiver<PipelineResponse>) {
 }
 
 fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-
-    let path = out_dir.join("generated_films.bin");
-
+    // Copy this file from dozer-tests output directory if it changes
+    let res = env::current_dir().unwrap();
+    let path = res.join("src/grpc/typed/tests/generated_films.bin");
     let (endpoints, rx1) = setup_pipeline();
 
     TypedService::new(&path, endpoints, Some(rx1), security).unwrap()

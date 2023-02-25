@@ -45,9 +45,6 @@ hex-literal = "0.3.4"
 dozer-tracing = {path = "../dozer-tracing"}
 dozer-tests = { path = "../dozer-tests" }
 
-[build-dependencies]
-tonic-build = "0.8.2"
-
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.

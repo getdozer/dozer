@@ -4,11 +4,9 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 
-use crate::grpc::types::{
-    value, Operation, OperationType, PointType, Record, RustDecimal, Type, Value,
+use dozer_types::grpc_types::types::{
+    value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
 };
-
-use super::types::RecordWithId;
 
 pub fn map_insert_operation(endpoint_name: String, record: DozerRecord, id: u64) -> Operation {
     Operation {
@@ -92,7 +90,7 @@ fn field_to_prost_value(f: Field) -> Value {
             value: Some(value::Value::IntValue(n)),
         },
         Field::Float(n) => Value {
-            value: Some(value::Value::DoubleValue(n.0)),
+            value: Some(value::Value::FloatValue(n.0)),
         },
 
         Field::Boolean(n) => Value {
@@ -129,10 +127,10 @@ fn field_to_prost_value(f: Field) -> Value {
 
 pub fn map_field_definitions(
     fields: Vec<dozer_types::types::FieldDefinition>,
-) -> Vec<crate::grpc::types::FieldDefinition> {
+) -> Vec<dozer_types::grpc_types::types::FieldDefinition> {
     fields
         .into_iter()
-        .map(|f| crate::grpc::types::FieldDefinition {
+        .map(|f| dozer_types::grpc_types::types::FieldDefinition {
             typ: field_type_to_internal_type(f.typ) as i32,
             name: f.name,
             nullable: f.nullable,

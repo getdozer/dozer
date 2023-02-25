@@ -1892,7 +1892,6 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tonic",
- "tonic-build",
  "tonic-reflection",
  "tonic-web",
  "tower-http",
@@ -2009,12 +2008,15 @@ dependencies = [
  "parking_lot",
  "prettytable-rs",
  "prost",
+ "prost-types",
  "pyo3",
  "rust_decimal",
  "serde",
  "serde_json",
  "serde_yaml",
  "thiserror",
+ "tonic",
+ "tonic-build",
  "tracing",
 ]
 

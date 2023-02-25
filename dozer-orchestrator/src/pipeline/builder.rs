@@ -7,9 +7,9 @@ use dozer_core::executor::DagExecutor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::{OutputNodeInfo, SchemaSQLContext};
 
-use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;

@@ -17,8 +17,6 @@ use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
-
-pub use crate::connectors::grpc::{ingest_grpc, types};
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};

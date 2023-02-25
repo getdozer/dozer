@@ -13,11 +13,11 @@ use crate::{
         CountResponseDesc, EventDesc, ProtoGenerator, QueryResponseDesc, ServiceDesc,
         TokenResponseDesc,
     },
-    grpc::{internal_grpc::PipelineResponse, shared_impl},
+    grpc::shared_impl,
     RoCacheEndpoint,
 };
 use dozer_cache::CacheReader;
-use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::{grpc_types::internal::PipelineResponse, models::api_security::ApiSecurity};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};
 use std::{borrow::Cow, collections::HashMap, convert::Infallible, path::Path};

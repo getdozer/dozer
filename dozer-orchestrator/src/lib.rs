@@ -2,8 +2,6 @@ pub mod cli;
 pub mod errors;
 pub mod pipeline;
 pub mod simple;
-pub use dozer_api::grpc::internal_grpc;
-pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
 use dozer_types::{
@@ -50,9 +48,7 @@ pub trait Orchestrator {
 
 // Re-exports
 pub use dozer_ingestion::{
-    connectors::{
-        get_connector, ingest_grpc, types as ingest_connector_types, ColumnInfo, TableInfo,
-    },
+    connectors::{get_connector, ColumnInfo, TableInfo},
     errors::ConnectorError,
 };
 pub use dozer_sql::pipeline::builder::QueryContext;

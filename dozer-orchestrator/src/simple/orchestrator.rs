@@ -13,10 +13,7 @@ use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{
     actix_web::dev::ServerHandle,
-    grpc::{
-        self, internal::internal_pipeline_server::start_internal_pipeline_server,
-        internal_grpc::PipelineResponse,
-    },
+    grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
     rest, RoCacheEndpoint,
 };
 use dozer_cache::cache::{CacheManager, CacheManagerOptions, LmdbCacheManager};
@@ -29,6 +26,7 @@ use dozer_core::NodeKind;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;

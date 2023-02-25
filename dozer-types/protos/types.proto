@@ -1,10 +1,12 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
+
 package dozer.types;
 
 // Event types that user can subscribe.
 enum EventType {
-  ALL = 0; // All events.
+  ALL = 0;         // All events.
   INSERT_ONLY = 1; // Only INSERT events.
   UPDATE_ONLY = 2; // Only UPDATE events.
   DELETE_ONLY = 3; // Only DELETE events.
@@ -49,18 +51,18 @@ message RecordWithId {
 
 // Supported data types in Dozer.
 enum Type {
-  UInt = 0; // Unsigned 64 bit integer.
-  Int = 1; // Signed 64 bit integer.
-  Float = 2; // 64 bit floating point number.
-  Boolean = 3; // Boolean.
-  String = 4; // UTF-8 string.
-  Text = 5;   // UTF-8 string.
-  Binary = 6; // Binary data.
-  Decimal = 7; // Decimal number.
+  UInt = 0;      // Unsigned 64 bit integer.
+  Int = 1;       // Signed 64 bit integer.
+  Float = 2;     // 64 bit floating point number.
+  Boolean = 3;   // Boolean.
+  String = 4;    // UTF-8 string.
+  Text = 5;      // UTF-8 string.
+  Binary = 6;    // Binary data.
+  Decimal = 7;   // Decimal number.
   Timestamp = 8; // ISO 8601 combined date and time with time zone.
-  Date = 9; // ISO 8601 calendar date without timezone.
-  Bson = 10; // BSON data.
-  Point = 11; // Geo Point type.
+  Date = 9;      // ISO 8601 calendar date without timezone.
+  Bson = 10;     // BSON data.
+  Point = 11;    // Geo Point type.
 }
 message SchemaEvent {
   string endpoint = 1;
@@ -88,7 +90,8 @@ message PointType {
 message RustDecimal {
   // the sign of the Decimal value, 0 meaning positive and 1 meaning negative
   uint32 flags = 1;
-  // the lo, mid, hi, and flags fields contain the representation of the Decimal value as a 96-bit integer
+  // the lo, mid, hi, and flags fields contain the representation of the Decimal
+  // value as a 96-bit integer
   uint32 lo = 2;
   uint32 mid = 3;
   uint32 hi = 4;
@@ -98,21 +101,18 @@ message RustDecimal {
 message Value {
   // A field value.
   oneof value {
-    uint64 uint_value = 2; // Unsigned 64 bit integer.
-    int64 int_value = 3; // Signed 64 bit integer.
-    float float_value = 4; // 32 bit floating point number.
-    bool bool_value = 5; // Boolean.
-    string string_value = 6; // UTF-8 string.
-    bytes bytes_value = 7; // Binary data.
-    ArrayValue array_value = 8; // Value array.
-    double double_value = 9; // 64 bit floating point number.
-    PointType point_value = 10;
-    RustDecimal decimal_value = 11;
-  };
-}
+    uint64 uint_value = 1;   // Unsigned 64 bit integer.
+    int64 int_value = 2;     // Signed 64 bit integer.
+    double float_value = 3;  // 32 bit floating point number.
+    bool bool_value = 4;     // Boolean.
+    string string_value = 5; // UTF-8 string.
+                             // Binary data.
 
-// A value array.
-message ArrayValue {
-  // The list of element values.
-  repeated Value array_value = 2;
+    bytes bytes_value = 7;
+    RustDecimal decimal_value = 8;                 // decimal value
+    google.protobuf.Timestamp timestamp_value = 9; // DateTime
+    string date_value = 10; // ISO 8601 calendar date without timezone.
+
+    PointType point_value = 12; // Point type
+  };
 }
