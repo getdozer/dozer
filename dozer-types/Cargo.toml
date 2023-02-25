@@ -27,7 +27,7 @@ indicatif = "0.17.3"
 geo = {version = "0.23.1", features = ["use-serde"]}
 pyo3 = {version = "0.18.1", features = ["auto-initialize"],  optional = true}
 tonic = {version = "0.8.3"}
-prost-types = "0.11.1"
+prost-types = "0.11.8"
 prost = "0.11.3"
 
 [build-dependencies]
