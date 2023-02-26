@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::pipeline::CacheSink;
 use dozer_cache::cache::{CacheManager, LmdbCacheManager};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
@@ -29,13 +31,18 @@ pub fn get_schema() -> Schema {
 pub fn init_sink(
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
-) -> (LmdbCacheManager, CacheSink) {
-    let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
-    let api_endpoint = init_endpoint();
-    let cache = cache_manager
-        .create_cache(vec![(api_endpoint.name, schema, secondary_indexes)])
-        .unwrap();
-    let cache = CacheSink::new(cache, init_endpoint(), None, None).unwrap();
+) -> (Arc<dyn CacheManager>, CacheSink) {
+    let cache_manager = Arc::new(LmdbCacheManager::new(Default::default()).unwrap());
+    let cache = CacheSink::new(
+        cache_manager.clone(),
+        init_endpoint(),
+        &Default::default(),
+        schema,
+        secondary_indexes,
+        None,
+        None,
+    )
+    .unwrap();
     (cache_manager, cache)
 }
 pub fn init_endpoint() -> ApiEndpoint {

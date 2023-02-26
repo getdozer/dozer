@@ -99,6 +99,7 @@ fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
                         panic!("Unexpected operation");
                     }
                 }
+                Operation::SnapshottingDone {} => (),
             }
         }
     }

@@ -63,6 +63,7 @@ impl ConnectorSourceFactory {
         })
     }
 
+    #[allow(clippy::type_complexity)]
     fn get_schema_map(
         connection: Connection,
         tables: Vec<TableInfo>,

@@ -231,6 +231,7 @@ impl SqlMapper {
                     map_field_to_string(&pkey_value)
                 ))
             }
+            Operation::SnapshottingDone {} => Ok(String::new()),
         }
     }
 

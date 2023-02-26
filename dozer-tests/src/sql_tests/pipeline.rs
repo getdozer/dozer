@@ -17,6 +17,7 @@ use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
+use dozer_types::node::SourceStates;
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use std::collections::HashMap;
 
@@ -185,6 +186,7 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
+        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
 

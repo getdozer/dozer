@@ -27,7 +27,7 @@ impl InternalPipelineServer {
             crossbeam_mpsc_receiver_to_tokio_broadcast_receiver(pipeline_event_receivers.1);
         Self {
             alias_redirected_receiver,
-            operation_receiver: operation_receiver,
+            operation_receiver,
         }
     }
 }
