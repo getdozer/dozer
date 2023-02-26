@@ -25,7 +25,7 @@ pub enum OrchestrationError {
     #[error("Failed to initialize api server: {0}")]
     ApiServerFailed(#[from] ApiError),
     #[error("Failed to initialize grpc server: {0}")]
-    GrpcServerFailed(#[source] GrpcError),
+    GrpcServerFailed(#[from] GrpcError),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] tonic::transport::Error),
     #[error(

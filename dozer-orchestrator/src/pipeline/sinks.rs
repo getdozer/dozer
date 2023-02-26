@@ -1,4 +1,5 @@
 use dozer_api::generator::protoc::generator::ProtoGenerator;
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_api::grpc::types_helper;
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::index::get_primary_key;
@@ -64,7 +65,7 @@ impl CacheSinkSettings {
 pub struct CacheSinkFactory {
     cache_manager: Arc<dyn CacheManager>,
     api_endpoint: ApiEndpoint,
-    notifier: Option<Sender<PipelineResponse>>,
+    notifier: Option<PipelineEventSenders>,
     multi_pb: MultiProgress,
     settings: CacheSinkSettings,
 }
@@ -73,7 +74,7 @@ impl CacheSinkFactory {
     pub fn new(
         cache_manager: Arc<dyn CacheManager>,
         api_endpoint: ApiEndpoint,
-        notifier: Option<Sender<PipelineResponse>>,
+        notifier: Option<PipelineEventSenders>,
         multi_pb: MultiProgress,
         settings: CacheSinkSettings,
     ) -> Result<Self, ExecutionError> {
@@ -324,7 +325,7 @@ pub struct CacheSink {
     counter: usize,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
-    notifier: Option<Sender<PipelineResponse>>,
+    notifier: Option<PipelineEventSenders>,
 }
 
 impl Sink for CacheSink {
@@ -357,7 +358,7 @@ impl Sink for CacheSink {
             .map_err(|_| ExecutionError::SchemaNotInitialized)?
             .0;
 
-        let api_event = match op {
+        match op {
             Operation::Delete { mut old } => {
                 old.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
@@ -368,10 +369,18 @@ impl Sink for CacheSink {
                     ))
                 })?;
                 old.version = Some(version);
-                ApiEvent::Op(types_helper::map_delete_operation(
-                    self.api_endpoint.name.clone(),
-                    old,
-                ))
+
+                if let Some(notifier) = &self.notifier {
+                    let op =
+                        types_helper::map_delete_operation(self.api_endpoint.name.clone(), old);
+                    try_send(
+                        &notifier.1,
+                        PipelineResponse {
+                            endpoint: self.api_endpoint.name.clone(),
+                            api_event: Some(ApiEvent::Op(op)),
+                        },
+                    )?;
+                }
             }
             Operation::Insert { mut new } => {
                 new.schema_id = schema.identifier;
@@ -381,11 +390,18 @@ impl Sink for CacheSink {
                         Box::new(e),
                     ))
                 })?;
-                ApiEvent::Op(types_helper::map_insert_operation(
-                    self.api_endpoint.name.clone(),
-                    new,
-                    id,
-                ))
+
+                if let Some(notifier) = &self.notifier {
+                    let op =
+                        types_helper::map_insert_operation(self.api_endpoint.name.clone(), new, id);
+                    try_send(
+                        &notifier.1,
+                        PipelineResponse {
+                            endpoint: self.api_endpoint.name.clone(),
+                            api_event: Some(ApiEvent::Op(op)),
+                        },
+                    )?;
+                }
             }
             Operation::Update { mut old, mut new } => {
                 old.schema_id = schema.identifier;
@@ -398,30 +414,36 @@ impl Sink for CacheSink {
                     ))
                 })?;
                 old.version = Some(old_version);
-                ApiEvent::Op(types_helper::map_update_operation(
-                    self.api_endpoint.name.clone(),
-                    old,
-                    new,
-                ))
+
+                if let Some(notifier) = &self.notifier {
+                    let op = types_helper::map_update_operation(
+                        self.api_endpoint.name.clone(),
+                        old,
+                        new,
+                    );
+                    try_send(
+                        &notifier.1,
+                        PipelineResponse {
+                            endpoint: self.api_endpoint.name.clone(),
+                            api_event: Some(ApiEvent::Op(op)),
+                        },
+                    )?;
+                }
             }
             // FIXME: Maybe we should only switch cache when all source nodes snapshotting are done? (by chubei 2023-02-24)
             Operation::SnapshottingDone {} => {
                 let real_name = self.cache.name();
                 create_alias(&*self.cache_manager, real_name, &self.api_endpoint.name)?;
-                ApiEvent::AliasRedirected(AliasRedirected {
-                    real_name: real_name.to_string(),
-                })
+
+                if let Some(notifier) = &self.notifier {
+                    let alias_redirected = AliasRedirected {
+                        real_name: real_name.to_string(),
+                        alias: self.api_endpoint.name.clone(),
+                    };
+                    try_send(&notifier.0, alias_redirected)?;
+                }
             }
         };
-
-        if let Some(notifier) = &self.notifier {
-            notifier
-                .try_send(PipelineResponse {
-                    endpoint: self.api_endpoint.name.clone(),
-                    api_event: Some(api_event),
-                })
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        }
 
         Ok(())
     }
@@ -434,7 +456,7 @@ impl CacheSink {
         checkpoint: &SourceStates,
         schema: Schema,
         secondary_indexes: Vec<IndexDefinition>,
-        notifier: Option<Sender<PipelineResponse>>,
+        notifier: Option<PipelineEventSenders>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<Self, ExecutionError> {
         let query = QueryExpression::with_no_limit();
@@ -467,6 +489,12 @@ impl CacheSink {
             notifier,
         })
     }
+}
+
+fn try_send<T: Send + Sync + 'static>(sender: &Sender<T>, msg: T) -> Result<(), ExecutionError> {
+    sender
+        .try_send(msg)
+        .map_err(|e| ExecutionError::InternalError(Box::new(e)))
 }
 
 #[cfg(test)]
