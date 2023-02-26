@@ -5,7 +5,7 @@ use crate::generator::protoc::generator::{
 use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
 use dozer_types::grpc_types::types as GrpcTypes;
-use prost_reflect::{DynamicMessage, Value};
+use prost_reflect::{DynamicMessage, ReflectMessage, Value};
 
 use super::TypedResponse;
 
@@ -70,8 +70,8 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
         GrpcTypes::value::Value::PointValue(_p) => todo!(),
-        GrpcTypes::value::Value::DecimalValue(_d) => todo!(),
-        GrpcTypes::value::Value::TimestampValue(_t) => todo!(),
+        GrpcTypes::value::Value::DecimalValue(d) => todo!(),
+        GrpcTypes::value::Value::TimestampValue(ts) => Value::Message(ts.transcode_to_dynamic()),
         GrpcTypes::value::Value::DateValue(_) => todo!(),
     })
 }

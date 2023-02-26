@@ -1,3 +1,5 @@
+use std::str::FromStr;
+use prost_reflect::prost_types::Timestamp;
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::ordered_float::OrderedFloat;
@@ -108,8 +110,8 @@ fn field_to_prost_value(f: Field) -> Value {
         },
         Field::Decimal(d) => map_decimal(d),
         Field::Timestamp(ts) => Value {
-            value: Some(value::Value::StringValue(
-                ts.to_rfc3339_opts(SecondsFormat::Millis, true),
+            value: Some(value::Value::TimestampValue(
+                Timestamp::from_str(&ts.to_rfc3339_opts(SecondsFormat::Millis, true)).unwrap_or_default(),
             )),
         },
         Field::Bson(b) => Value {
