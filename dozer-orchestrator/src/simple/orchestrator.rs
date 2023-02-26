@@ -26,7 +26,8 @@ use dozer_core::NodeKind;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::grpc_types::internal::PipelineResponse;
+use dozer_types::grpc_types::internal::pipeline_response::ApiEvent;
+use dozer_types::grpc_types::internal::{AliasRedirected, PipelineResponse};
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
@@ -404,9 +405,8 @@ async fn redirect_cache_endpoints(
             .recv()
             .await
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-        if let dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent::AliasRedirected(
-            crate::internal_grpc::AliasRedirected { real_name },
-        ) = response.api_event.unwrap()
+        if let ApiEvent::AliasRedirected(AliasRedirected { real_name }) =
+            response.api_event.unwrap()
         {
             info!(
                 "[api] Redirecting cache {} to {}",

@@ -12,7 +12,7 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::grpc_types::internal::pipeline_response::ApiEvent;
-use dozer_types::grpc_types::internal::PipelineResponse;
+use dozer_types::grpc_types::internal::{AliasRedirected, PipelineResponse};
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
@@ -408,7 +408,7 @@ impl Sink for CacheSink {
             Operation::SnapshottingDone {} => {
                 let real_name = self.cache.name();
                 create_alias(&*self.cache_manager, real_name, &self.api_endpoint.name)?;
-                ApiEvent::AliasRedirected(dozer_api::grpc::internal_grpc::AliasRedirected {
+                ApiEvent::AliasRedirected(AliasRedirected {
                     real_name: real_name.to_string(),
                 })
             }

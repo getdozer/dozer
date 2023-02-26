@@ -1,7 +1,7 @@
 use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService};
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, typed};
-use crate::{errors::GRPCError, generator::protoc::generator::ProtoGenerator, RoCacheEndpoint};
+use crate::{errors::GrpcError, generator::protoc::generator::ProtoGenerator, RoCacheEndpoint};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::{
     common::common_grpc_service_server::CommonGrpcServiceServer,
