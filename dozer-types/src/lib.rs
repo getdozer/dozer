@@ -8,6 +8,8 @@ pub mod node;
 mod tests;
 pub mod types;
 
+// Export Arrow functionality
+pub mod arrow;
 // Export grpc types
 pub mod grpc_types;
 
