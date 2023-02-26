@@ -5,18 +5,12 @@ package dozer.internal;
 import "types.proto";
 
 service InternalPipelineService {
-  rpc StreamPipelineRequest(PipelineRequest) returns (stream PipelineResponse);
+  rpc StreamOperations(OperationsRequest) returns (stream dozer.types.Operation);
   rpc StreamAliasEvents(AliasEventsRequest) returns (stream AliasRedirected);
 }
 
 // ---------------- Api ------------------------
-message PipelineRequest {}
-message PipelineResponse {
-  string endpoint = 1;
-  oneof api_event {
-    dozer.types.Operation op = 2;
-  }
-}
+message OperationsRequest {}
 
 message AliasEventsRequest {}
 

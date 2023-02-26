@@ -119,13 +119,13 @@ impl Orchestrator for SimpleOrchestrator {
 
             // Initialize `PipelineResponse` events.
             let flags = self.config.flags.clone().unwrap_or_default();
-            let pipeline_response_receiver = if flags.dynamic {
-                let (pipeline_response_receiver, future) =
-                    internal_pipeline_client.stream_pipeline_responses().await?;
+            let operation_receiver = if flags.dynamic {
+                let (operation_receiver, future) =
+                    internal_pipeline_client.stream_operations().await?;
                 futures.push(flatten_join_handle(tokio::spawn(
                     future.map_err(OrchestrationError::GrpcServerFailed),
                 )));
-                Some(pipeline_response_receiver)
+                Some(operation_receiver)
             } else {
                 None
             };
@@ -137,11 +137,7 @@ impl Orchestrator for SimpleOrchestrator {
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
             let grpc_handle = tokio::spawn(async move {
                 grpc_server
-                    .run(
-                        cache_endpoints,
-                        receiver_shutdown,
-                        pipeline_response_receiver,
-                    )
+                    .run(cache_endpoints, receiver_shutdown, operation_receiver)
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
@@ -175,12 +171,12 @@ impl Orchestrator for SimpleOrchestrator {
         let pipeline_home_dir = get_pipeline_dir(&self.config);
         // gRPC notifier channel
         let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
-        let (pipeline_response_sender, pipeline_response_receiver) = channel::unbounded();
+        let (operation_sender, operation_receiver) = channel::unbounded();
         let internal_app_config = self.config.clone();
         let _intern_pipeline_thread = thread::spawn(move || {
             if let Err(e) = start_internal_pipeline_server(
                 internal_app_config,
-                (alias_redirected_receiver, pipeline_response_receiver),
+                (alias_redirected_receiver, operation_receiver),
             ) {
                 std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
             }
@@ -197,7 +193,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let settings = CacheSinkSettings::new(get_api_dir(&self.config), flags, api_security);
         let dag_executor = executor.create_dag_executor(
-            Some((alias_redirected_sender, pipeline_response_sender)),
+            Some((alias_redirected_sender, operation_sender)),
             self.cache_manager_options.clone(),
             settings,
             get_executor_options(&self.config),

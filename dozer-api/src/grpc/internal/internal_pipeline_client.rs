@@ -1,9 +1,12 @@
 use std::fmt::Debug;
 
 use dozer_types::{
-    grpc_types::internal::{
-        internal_pipeline_service_client::InternalPipelineServiceClient, AliasEventsRequest,
-        AliasRedirected, PipelineRequest, PipelineResponse,
+    grpc_types::{
+        internal::{
+            internal_pipeline_service_client::InternalPipelineServiceClient, AliasEventsRequest,
+            AliasRedirected, OperationsRequest,
+        },
+        types::Operation,
     },
     log::warn,
     models::api_config::GrpcApiOptions,
@@ -51,18 +54,18 @@ impl InternalPipelineClient {
         Ok((receiver, future))
     }
 
-    pub async fn stream_pipeline_responses(
+    pub async fn stream_operations(
         &mut self,
     ) -> Result<
         (
-            Receiver<PipelineResponse>,
+            Receiver<Operation>,
             impl Future<Output = Result<(), GrpcError>>,
         ),
         GrpcError,
     > {
         let stream = self
             .client
-            .stream_pipeline_request(PipelineRequest {})
+            .stream_operations(OperationsRequest {})
             .await
             .map_err(|err| GrpcError::InternalError(Box::new(err)))?
             .into_inner();

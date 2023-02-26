@@ -1,7 +1,10 @@
 use crossbeam::channel::{Receiver, Sender};
-use dozer_types::grpc_types::internal::{
-    internal_pipeline_service_server::{self, InternalPipelineService},
-    AliasEventsRequest, AliasRedirected, PipelineRequest, PipelineResponse,
+use dozer_types::grpc_types::{
+    internal::{
+        internal_pipeline_service_server::{self, InternalPipelineService},
+        AliasEventsRequest, AliasRedirected, OperationsRequest,
+    },
+    types::Operation,
 };
 use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
 use std::{fmt::Debug, net::ToSocketAddrs, pin::Pin, thread};
@@ -9,22 +12,22 @@ use tokio::{runtime::Runtime, sync::broadcast};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
 
-pub type PipelineEventSenders = (Sender<AliasRedirected>, Sender<PipelineResponse>);
-pub type PipelineEventReceivers = (Receiver<AliasRedirected>, Receiver<PipelineResponse>);
+pub type PipelineEventSenders = (Sender<AliasRedirected>, Sender<Operation>);
+pub type PipelineEventReceivers = (Receiver<AliasRedirected>, Receiver<Operation>);
 
 pub struct InternalPipelineServer {
     alias_redirected_receiver: broadcast::Receiver<AliasRedirected>,
-    pipeline_response_receiver: broadcast::Receiver<PipelineResponse>,
+    operation_receiver: broadcast::Receiver<Operation>,
 }
 impl InternalPipelineServer {
     pub fn new(pipeline_event_receivers: PipelineEventReceivers) -> Self {
         let alias_redirected_receiver =
             crossbeam_mpsc_receiver_to_tokio_broadcast_receiver(pipeline_event_receivers.0);
-        let pipeline_response_receiver =
+        let operation_receiver =
             crossbeam_mpsc_receiver_to_tokio_broadcast_receiver(pipeline_event_receivers.1);
         Self {
             alias_redirected_receiver,
-            pipeline_response_receiver,
+            operation_receiver: operation_receiver,
         }
     }
 }
@@ -54,25 +57,24 @@ fn crossbeam_mpsc_receiver_to_tokio_broadcast_receiver<T: Clone + Debug + Send +
     broadcast_receiver
 }
 
-type ResponseStream = Pin<Box<dyn Stream<Item = Result<PipelineResponse, Status>> + Send>>;
+type OperationsStream = Pin<Box<dyn Stream<Item = Result<Operation, Status>> + Send>>;
 type AliasEventsStream = Pin<Box<dyn Stream<Item = Result<AliasRedirected, Status>> + Send>>;
 
 #[tonic::async_trait]
 impl InternalPipelineService for InternalPipelineServer {
-    type StreamPipelineRequestStream = ResponseStream;
-    async fn stream_pipeline_request(
+    type StreamOperationsStream = OperationsStream;
+    async fn stream_operations(
         &self,
-        _request: tonic::Request<PipelineRequest>,
-    ) -> Result<Response<ResponseStream>, Status> {
-        let (pipeline_response_sender, pipeline_response_receiver) =
-            tokio::sync::mpsc::channel(1000);
-        let mut receiver = self.pipeline_response_receiver.resubscribe();
+        _request: tonic::Request<OperationsRequest>,
+    ) -> Result<Response<OperationsStream>, Status> {
+        let (operation_sender, operation_receiver) = tokio::sync::mpsc::channel(1000);
+        let mut receiver = self.operation_receiver.resubscribe();
         tokio::spawn(async move {
             loop {
                 let result = receiver.try_recv();
                 match result {
-                    Ok(pipeline_response) => {
-                        let result = pipeline_response_sender.send(Ok(pipeline_response)).await;
+                    Ok(operation) => {
+                        let result = operation_sender.send(Ok(operation)).await;
                         if let Err(e) = result {
                             warn!("Error sending message to mpsc channel: {:?}", e);
                             break;
@@ -87,7 +89,7 @@ impl InternalPipelineService for InternalPipelineServer {
                 tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
             }
         });
-        let output_stream = ReceiverStream::new(pipeline_response_receiver);
+        let output_stream = ReceiverStream::new(operation_receiver);
         Ok(Response::new(Box::pin(output_stream)))
     }
 

@@ -12,8 +12,7 @@ use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
-use dozer_types::grpc_types::internal::pipeline_response::ApiEvent;
-use dozer_types::grpc_types::internal::{AliasRedirected, PipelineResponse};
+use dozer_types::grpc_types::internal::AliasRedirected;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
@@ -373,13 +372,7 @@ impl Sink for CacheSink {
                 if let Some(notifier) = &self.notifier {
                     let op =
                         types_helper::map_delete_operation(self.api_endpoint.name.clone(), old);
-                    try_send(
-                        &notifier.1,
-                        PipelineResponse {
-                            endpoint: self.api_endpoint.name.clone(),
-                            api_event: Some(ApiEvent::Op(op)),
-                        },
-                    )?;
+                    try_send(&notifier.1, op)?;
                 }
             }
             Operation::Insert { mut new } => {
@@ -394,13 +387,7 @@ impl Sink for CacheSink {
                 if let Some(notifier) = &self.notifier {
                     let op =
                         types_helper::map_insert_operation(self.api_endpoint.name.clone(), new, id);
-                    try_send(
-                        &notifier.1,
-                        PipelineResponse {
-                            endpoint: self.api_endpoint.name.clone(),
-                            api_event: Some(ApiEvent::Op(op)),
-                        },
-                    )?;
+                    try_send(&notifier.1, op)?;
                 }
             }
             Operation::Update { mut old, mut new } => {
@@ -421,13 +408,7 @@ impl Sink for CacheSink {
                         old,
                         new,
                     );
-                    try_send(
-                        &notifier.1,
-                        PipelineResponse {
-                            endpoint: self.api_endpoint.name.clone(),
-                            api_event: Some(ApiEvent::Op(op)),
-                        },
-                    )?;
+                    try_send(&notifier.1, op)?;
                 }
             }
             // FIXME: Maybe we should only switch cache when all source nodes snapshotting are done? (by chubei 2023-02-24)

@@ -3,9 +3,10 @@ use crate::grpc::health::HealthService;
 use crate::grpc::{common, typed};
 use crate::{errors::GrpcError, generator::protoc::generator::ProtoGenerator, RoCacheEndpoint};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
+use dozer_types::grpc_types::types::Operation;
 use dozer_types::grpc_types::{
     common::common_grpc_service_server::CommonGrpcServiceServer,
-    health::health_grpc_service_server::HealthGrpcServiceServer, internal::PipelineResponse,
+    health::health_grpc_service_server::HealthGrpcServiceServer,
 };
 use dozer_types::tracing::Level;
 use dozer_types::{
@@ -32,7 +33,7 @@ impl ApiServer {
     fn get_dynamic_service(
         &self,
         cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
-        pipeline_response_receiver: Option<broadcast::Receiver<PipelineResponse>>,
+        operations_receiver: Option<broadcast::Receiver<Operation>>,
     ) -> Result<
         (
             Option<TypedService>,
@@ -64,7 +65,7 @@ impl ApiServer {
             Some(TypedService::new(
                 &descriptor_path,
                 cache_endpoints,
-                pipeline_response_receiver,
+                operations_receiver,
                 self.security.clone(),
             )?)
         } else {
@@ -93,7 +94,7 @@ impl ApiServer {
         &self,
         cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
-        pipeline_response_receiver: Option<Receiver<PipelineResponse>>,
+        operations_receiver: Option<Receiver<Operation>>,
     ) -> Result<(), GrpcError> {
         // Create our services.
         let mut web_config = tonic_web::config();
@@ -103,12 +104,12 @@ impl ApiServer {
 
         let common_service = CommonGrpcServiceServer::new(CommonService::new(
             cache_endpoints.clone(),
-            pipeline_response_receiver.as_ref().map(|r| r.resubscribe()),
+            operations_receiver.as_ref().map(|r| r.resubscribe()),
         ));
         let common_service = web_config.enable(common_service);
 
         let (typed_service, reflection_service) =
-            self.get_dynamic_service(cache_endpoints, pipeline_response_receiver)?;
+            self.get_dynamic_service(cache_endpoints, operations_receiver)?;
         let typed_service = typed_service.map(|typed_service| web_config.enable(typed_service));
         let reflection_service = web_config.enable(reflection_service);
 
