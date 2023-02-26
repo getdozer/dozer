@@ -70,7 +70,7 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
         GrpcTypes::value::Value::PointValue(_p) => todo!(),
-        GrpcTypes::value::Value::DecimalValue(d) => todo!(),
+        GrpcTypes::value::Value::DecimalValue(_d) => todo!(),
         GrpcTypes::value::Value::TimestampValue(ts) => Value::Message(ts.transcode_to_dynamic()),
         GrpcTypes::value::Value::DateValue(_) => todo!(),
     })
