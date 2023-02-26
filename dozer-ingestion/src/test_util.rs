@@ -1,4 +1,6 @@
 use dozer_orchestrator::cli::load_config;
+use include_dir::{include_dir, Dir};
+use std::ops::Deref;
 use std::panic;
 use std::path::PathBuf;
 
@@ -38,4 +40,21 @@ pub fn run_connector_test<T: FnOnce(Config) + panic::UnwindSafe>(db_type: &str, 
     });
 
     assert!(result.is_ok())
+}
+
+pub fn get_config(app_config: Config) -> tokio_postgres::Config {
+    if let Some(ConnectionConfig::Postgres(connection)) =
+        &app_config.connections.get(0).unwrap().config
+    {
+        let mut config = tokio_postgres::Config::new();
+        config
+            .dbname(&connection.database)
+            .user(&connection.user)
+            .host(&connection.host)
+            .port(connection.port as u16)
+            .deref()
+            .clone()
+    } else {
+        panic!("Postgres config was expected")
+    }
 }

@@ -71,44 +71,23 @@ impl ReplicationSlotHelper {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-    use std::ops::Deref;
-    use std::sync::Arc;
-
-    use dozer_types::models::app_config::Config;
-    use dozer_types::models::connection::ConnectionConfig;
     use postgres::NoTls;
     use serial_test::serial;
+    use std::cell::RefCell;
+    use std::sync::Arc;
     use tokio_postgres::config::ReplicationMode;
 
     use crate::errors::{ConnectorError, PostgresConnectorError};
-    use crate::test_util::run_connector_test;
+    use crate::test_util::{get_config, run_connector_test};
 
     use super::ReplicationSlotHelper;
-
-    fn get_config(app_config: Config) -> tokio_postgres::Config {
-        if let Some(ConnectionConfig::Postgres(connection)) =
-            &app_config.connections.get(0).unwrap().config
-        {
-            let mut config = tokio_postgres::Config::new();
-            config
-                .dbname(&connection.database)
-                .user(&connection.user)
-                .host(&connection.host)
-                .port(connection.port as u16)
-                .replication_mode(ReplicationMode::Logical)
-                .deref()
-                .clone()
-        } else {
-            panic!("Postgres config was expected")
-        }
-    }
 
     #[test]
     #[serial]
     fn test_connector_replication_slot_create_successfully() {
         run_connector_test("postgres", |app_config| {
-            let config = get_config(app_config);
+            let mut config = get_config(app_config);
+            config.replication_mode(ReplicationMode::Logical);
 
             let client = postgres::Config::from(config.clone())
                 .connect(NoTls)
@@ -143,7 +122,8 @@ mod tests {
     fn test_connector_replication_slot_create_failed_if_existed() {
         run_connector_test("postgres", |app_config| {
             let slot_name = "test";
-            let config = get_config(app_config);
+            let mut config = get_config(app_config);
+            config.replication_mode(ReplicationMode::Logical);
 
             let client = postgres::Config::from(config.clone())
                 .connect(NoTls)
@@ -198,7 +178,8 @@ mod tests {
     fn test_connector_replication_slot_drop_successfully() {
         run_connector_test("postgres", |app_config| {
             let slot_name = "test";
-            let config = get_config(app_config);
+            let mut config = get_config(app_config);
+            config.replication_mode(ReplicationMode::Logical);
 
             let client = postgres::Config::from(config.clone())
                 .connect(NoTls)
@@ -233,7 +214,8 @@ mod tests {
     fn test_connector_replication_slot_drop_failed_if_slot_not_exist() {
         run_connector_test("postgres", |app_config| {
             let slot_name = "test";
-            let config = get_config(app_config);
+            let mut config = get_config(app_config);
+            config.replication_mode(ReplicationMode::Logical);
 
             let client = postgres::Config::from(config.clone())
                 .connect(NoTls)

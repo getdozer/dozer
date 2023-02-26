@@ -2,10 +2,10 @@ use crate::connectors::postgres::connector::ReplicationSlotInfo;
 
 use crate::connectors::TableInfo;
 use crate::errors::PostgresConnectorError::{
-    ColumnNameNotValid, ColumnsNotFound, ConnectionFailure, InvalidQueryError, MissingTableInReplicationSlot,
-    NoAvailableSlotsError, ReplicationIsNotAvailableForUserError, SlotIsInUseError,
-    SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableError, TableNameNotValid,
-    WALLevelIsNotCorrect,
+    ColumnNameNotValid, ColumnsNotFound, ConnectionFailure, InvalidQueryError,
+    MissingTableInReplicationSlot, NoAvailableSlotsError, ReplicationIsNotAvailableForUserError,
+    SlotIsInUseError, SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableError,
+    TableNameNotValid, WALLevelIsNotCorrect,
 };
 use crate::errors::PostgresSchemaError::TableTypeNotFound;
 use crate::errors::{PostgresConnectorError, PostgresSchemaError};
@@ -314,43 +314,13 @@ mod tests {
         validate_columns_names, validate_connection, validate_tables, validate_tables_names,
     };
     use crate::connectors::postgres::connector::ReplicationSlotInfo;
-    use crate::test_util::run_connector_test;
-    // use crate::connectors::postgres::connector::ReplicationSlotInfo;
-
-    // use postgres_types::PgLsn;
-
-    use std::ops::Deref;
-    use std::panic;
-
-    use postgres_types::PgLsn;
-    use tokio_postgres::NoTls;
-
-    use crate::connectors::postgres::test_utils::get_client;
     use crate::connectors::{ColumnInfo, TableInfo};
     use crate::errors::PostgresConnectorError;
-    use crate::errors::PostgresSchemaError::UnsupportedTableType;
-    use dozer_types::models::app_config::Config;
-    use dozer_types::models::connection::ConnectionConfig;
-    use rand::Rng;
+    use crate::test_util::{get_config, run_connector_test};
+    use postgres_types::PgLsn;
     use serial_test::serial;
-
-    fn get_config(app_config: Config) -> tokio_postgres::Config {
-        if let Some(ConnectionConfig::Postgres(connection)) =
-            &app_config.connections.get(0).unwrap().config
-        {
-            let mut config = tokio_postgres::Config::new();
-            config
-                .dbname(&connection.database)
-                .user(&connection.user)
-                .host(&connection.host)
-                .password(&connection.password)
-                .port(connection.port as u16)
-                .deref()
-                .clone()
-        } else {
-            panic!("Postgres config was expected")
-        }
-    }
+    use std::panic;
+    use tokio_postgres::NoTls;
 
     #[test]
     #[ignore]
