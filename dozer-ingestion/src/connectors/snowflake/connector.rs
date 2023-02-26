@@ -145,13 +145,7 @@ async fn run(
                 name, table.table_name
             );
 
-            consumer.consume_stream(
-                &stream_client,
-                &table.table_name,
-                ingestor,
-                idx,
-                iteration,
-            )?;
+            consumer.consume_stream(&stream_client, &table.table_name, ingestor, idx, iteration)?;
 
             interval.tick().await;
         }

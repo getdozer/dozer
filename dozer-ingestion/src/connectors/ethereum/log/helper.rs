@@ -172,7 +172,10 @@ pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
 }
 pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<Operation> {
     // Check if table is requested
-    let is_table_required = details.tables.iter().any(|t| t.table_name == ETH_LOGS_TABLE);
+    let is_table_required = details
+        .tables
+        .iter()
+        .any(|t| t.table_name == ETH_LOGS_TABLE);
 
     if !is_table_required {
         None

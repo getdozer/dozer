@@ -22,27 +22,19 @@ pub struct PostgresSnapshotter<'a> {
 }
 
 impl<'a> PostgresSnapshotter<'a> {
-    pub fn get_tables(
-        &self,
-        tables: Vec<TableInfo>
-    ) -> Result<Vec<TableInfo>, ConnectorError> {
-        let table_names: Vec<String> = tables
-            .iter()
-            .map(|t| t.table_name.to_owned())
-            .collect();
+    pub fn get_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<TableInfo>, ConnectorError> {
+        let table_names: Vec<String> = tables.iter().map(|t| t.table_name.to_owned()).collect();
 
         let helper = SchemaHelper::new(self.conn_config.clone(), None);
-        Ok(helper.get_tables(Some(tables.as_slice()))?
+        Ok(helper
+            .get_tables(Some(tables.as_slice()))?
             .iter()
             .filter(|t| table_names.contains(&t.table_name))
             .cloned()
             .collect())
     }
 
-    pub fn sync_tables(
-        &self,
-        tables: Vec<TableInfo>,
-    ) -> Result<Vec<TableInfo>, ConnectorError> {
+    pub fn sync_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<TableInfo>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(
             connection_helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?,
         ));

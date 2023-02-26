@@ -2,10 +2,10 @@ use dozer_types::types::SourceSchema;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::schema_mapper::{Mapper, SchemaMapper};
 use crate::connectors::object_store::table_reader::{Reader, TableReader};
 use crate::connectors::{Connector, TableInfo, ValidationResults};
-use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
