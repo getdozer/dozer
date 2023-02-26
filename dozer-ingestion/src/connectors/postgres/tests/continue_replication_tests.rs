@@ -124,7 +124,7 @@ mod tests {
                 let _ = connector.start(
                     Some((u64::from(parsed_lsn), last_parsed_position)),
                     &ingestor,
-                    Some(tables),
+                    tables,
                 );
             });
 

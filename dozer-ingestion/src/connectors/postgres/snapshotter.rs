@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 pub struct PostgresSnapshotter<'a> {
-    pub tables: Option<Vec<TableInfo>>,
+    pub tables: Vec<TableInfo>,
     pub conn_config: tokio_postgres::Config,
     pub ingestor: &'a Ingestor,
     pub connector_id: u64,
@@ -24,31 +24,25 @@ pub struct PostgresSnapshotter<'a> {
 impl<'a> PostgresSnapshotter<'a> {
     pub fn get_tables(
         &self,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>
     ) -> Result<Vec<TableInfo>, ConnectorError> {
+        let table_names: Vec<String> = tables
+            .iter()
+            .map(|t| t.table_name.to_owned())
+            .collect();
+
         let helper = SchemaHelper::new(self.conn_config.clone(), None);
-        let arr = helper.get_tables(tables.as_ref().map(Vec::as_ref)).unwrap();
-        match self.tables.as_ref() {
-            None => Ok(arr),
-            Some(filtered_tables) => {
-                let table_names: Vec<String> = filtered_tables
-                    .iter()
-                    .map(|t| t.table_name.to_owned())
-                    .collect();
-                let arr = arr
-                    .iter()
-                    .filter(|t| table_names.contains(&t.table_name))
-                    .cloned()
-                    .collect();
-                Ok(arr)
-            }
-        }
+        Ok(helper.get_tables(Some(tables.as_slice()))?
+            .iter()
+            .filter(|t| table_names.contains(&t.table_name))
+            .cloned()
+            .collect())
     }
 
     pub fn sync_tables(
         &self,
-        tables: Option<Vec<TableInfo>>,
-    ) -> Result<Option<Vec<TableInfo>>, ConnectorError> {
+        tables: Vec<TableInfo>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(
             connection_helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?,
         ));
@@ -109,6 +103,6 @@ impl<'a> PostgresSnapshotter<'a> {
             }
         }
 
-        Ok(Some(tables))
+        Ok(tables)
     }
 }

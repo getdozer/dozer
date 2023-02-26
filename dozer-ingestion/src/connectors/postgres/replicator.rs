@@ -40,7 +40,7 @@ pub struct CDCHandler<'a> {
 }
 
 impl<'a> CDCHandler<'a> {
-    pub async fn start(&mut self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    pub async fn start(&mut self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         let replication_conn_config = self.replication_conn_config.clone();
         let client: tokio_postgres::Client = helper::async_connect(replication_conn_config).await?;
 
@@ -71,11 +71,9 @@ impl<'a> CDCHandler<'a> {
 
         let stream = LogicalReplicationStream::new(copy_stream);
         let mut tables_columns: HashMap<u32, Vec<ColumnInfo>> = HashMap::new();
-        if let Some(tables_info) = tables {
-            tables_info.iter().for_each(|t| {
-                tables_columns.insert(t.id, t.clone().columns.map_or(vec![], |t| t));
-            });
-        }
+        tables.iter().for_each(|t| {
+            tables_columns.insert(t.id, t.clone().columns.map_or(vec![], |t| t));
+        });
         let mut mapper = XlogMapper::new(tables_columns);
 
         tokio::pin!(stream);

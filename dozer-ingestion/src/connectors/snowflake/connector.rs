@@ -72,7 +72,7 @@ impl Connector for SnowflakeConnector {
         &self,
         from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         Runtime::new().unwrap().block_on(async {
             run(
@@ -99,79 +99,72 @@ impl Connector for SnowflakeConnector {
 async fn run(
     name: String,
     config: SnowflakeConfig,
-    tables: Option<Vec<TableInfo>>,
+    tables: Vec<TableInfo>,
     ingestor: &Ingestor,
     from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
     // SNAPSHOT part - run it when stream table doesnt exist
-    match tables {
-        None => {}
-        Some(tables) => {
-            let stream_client = Client::new(&config);
-            let mut interval = time::interval(Duration::from_secs(5));
+    let stream_client = Client::new(&config);
+    let mut interval = time::interval(Duration::from_secs(5));
 
-            let mut consumer = StreamConsumer::new();
-            let mut iteration = 0;
-            loop {
-                for (idx, table) in tables.iter().enumerate() {
-                    // We only check stream status on first iteration
-                    if iteration == 0 {
-                        match from_seq {
-                            None | Some((0, _)) => {
-                                info!("[{}][{}] Creating new stream", name, table.table_name);
-                                StreamConsumer::drop_stream(&client, &table.table_name)?;
-                                StreamConsumer::create_stream(&client, &table.table_name)?;
-                            }
-                            Some((lsn, seq)) => {
-                                info!(
-                                    "[{}][{}] Continuing ingestion from {}/{}",
-                                    name, table.table_name, lsn, seq
-                                );
-                                iteration = lsn;
-                                if let Ok(false) =
-                                    StreamConsumer::is_stream_created(&client, &table.table_name)
-                                {
-                                    return Err(ConnectorError::SnowflakeError(
-                                        SnowflakeError::SnowflakeStreamError(
-                                            SnowflakeStreamError::StreamNotFound,
-                                        ),
-                                    ));
-                                }
-                            }
+    let mut consumer = StreamConsumer::new();
+    let mut iteration = 0;
+    loop {
+        for (idx, table) in tables.iter().enumerate() {
+            // We only check stream status on first iteration
+            if iteration == 0 {
+                match from_seq {
+                    None | Some((0, _)) => {
+                        info!("[{}][{}] Creating new stream", name, table.table_name);
+                        StreamConsumer::drop_stream(&client, &table.table_name)?;
+                        StreamConsumer::create_stream(&client, &table.table_name)?;
+                    }
+                    Some((lsn, seq)) => {
+                        info!(
+                            "[{}][{}] Continuing ingestion from {}/{}",
+                            name, table.table_name, lsn, seq
+                        );
+                        iteration = lsn;
+                        if let Ok(false) =
+                            StreamConsumer::is_stream_created(&client, &table.table_name)
+                        {
+                            return Err(ConnectorError::SnowflakeError(
+                                SnowflakeError::SnowflakeStreamError(
+                                    SnowflakeStreamError::StreamNotFound,
+                                ),
+                            ));
                         }
                     }
-
-                    debug!(
-                        "[{}][{}] Reading from changes stream",
-                        name, table.table_name
-                    );
-
-                    consumer.consume_stream(
-                        &stream_client,
-                        &table.table_name,
-                        ingestor,
-                        idx,
-                        iteration,
-                    )?;
-
-                    interval.tick().await;
                 }
-
-                iteration += 1;
             }
-        }
-    };
 
-    Ok(())
+            debug!(
+                "[{}][{}] Reading from changes stream",
+                name, table.table_name
+            );
+
+            consumer.consume_stream(
+                &stream_client,
+                &table.table_name,
+                ingestor,
+                idx,
+                iteration,
+            )?;
+
+            interval.tick().await;
+        }
+
+        iteration += 1;
+    }
 }
 
 #[cfg(not(feature = "snowflake"))]
 async fn run(
     _name: String,
     _config: SnowflakeConfig,
-    _tables: Option<Vec<TableInfo>>,
+    _tables: Vec<TableInfo>,
     _ingestor: &Ingestor,
     _from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {

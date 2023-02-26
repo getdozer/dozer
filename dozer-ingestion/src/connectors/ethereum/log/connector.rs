@@ -155,7 +155,7 @@ impl Connector for EthLogConnector {
         &self,
         from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();

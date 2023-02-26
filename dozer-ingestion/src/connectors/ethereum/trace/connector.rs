@@ -49,7 +49,7 @@ impl Connector for EthTraceConnector {
         &self,
         _from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        _tables: Option<Vec<TableInfo>>,
+        _tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         let config = self.config.clone();
         let conn_name = self.conn_name.clone();

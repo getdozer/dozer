@@ -62,7 +62,7 @@ fn test_connector_and_read_from_stream() {
             let tables: Vec<TableInfo> = vec![table];
 
             let connector = get_connector(connection_config).unwrap();
-            let _ = connector.start(None, &ingestor, Some(tables));
+            let _ = connector.start(None, &ingestor, tables);
         });
 
         let mut i = 0;

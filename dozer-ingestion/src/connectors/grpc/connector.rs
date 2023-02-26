@@ -151,7 +151,7 @@ impl Connector for GrpcConnector {
         &self,
         _from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        _tables: Option<Vec<TableInfo>>,
+        _tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         self.serve(ingestor)
     }

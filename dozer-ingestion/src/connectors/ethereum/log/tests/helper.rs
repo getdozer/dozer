@@ -82,7 +82,7 @@ pub fn get_eth_producer(
         info!("Schema: {}, Id: {}", name, schema.identifier.unwrap().id);
     }
 
-    eth_connector.start(None, &ingestor, None)
+    eth_connector.start(None, &ingestor, vec![])
 }
 
 pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>, Vec<Operation>) {

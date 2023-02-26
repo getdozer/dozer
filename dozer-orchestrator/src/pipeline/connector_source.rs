@@ -207,7 +207,7 @@ impl Source for ConnectorSource {
                 match self.connector.start(
                     last_checkpoint,
                     &self.ingestor,
-                    Some(self.tables.clone()),
+                    self.tables.clone()
                 ) {
                     Ok(_) => {}
                     // If we get a channel error, it means the source sender thread has quit.
