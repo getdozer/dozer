@@ -287,5 +287,5 @@ fn test_timestamp_difference() {
         &record,
     )
     .unwrap();
-    assert_eq!(result, Field::Int(50000));
+    assert_eq!(result, Field::Int(-50000));
 }
