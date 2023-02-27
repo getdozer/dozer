@@ -1,5 +1,5 @@
 pub mod internal_pipeline_server;
-use crate::grpc::internal_grpc::internal_pipeline_service_client::InternalPipelineServiceClient;
+use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
 use dozer_types::models::api_config::GrpcApiOptions;
 use tonic::transport::Channel;
 

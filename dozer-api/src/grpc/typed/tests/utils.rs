@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf};
+use std::env;
 
 use crate::{
     generator::protoc::generator::ProtoGenerator,
@@ -9,8 +9,8 @@ use super::super::helper::query_response_to_typed_response;
 
 #[test]
 fn test_records_to_typed_response() {
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let path = out_dir.join("generated_films.bin");
+    let res = env::current_dir().unwrap();
+    let path = res.join("src/grpc/typed/tests/generated_films.bin");
 
     let (schema, _) = test_utils::get_schema();
     let service_desc = ProtoGenerator::read_schema(&path, "films").unwrap();

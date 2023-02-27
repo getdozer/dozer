@@ -13,13 +13,10 @@ use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{
     actix_web::dev::ServerHandle,
-    grpc::{
-        self, internal::internal_pipeline_server::start_internal_pipeline_server,
-        internal_grpc::PipelineResponse,
-    },
+    grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
     rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{CacheManager, CacheManagerOptions, LmdbCacheManager};
+use dozer_cache::cache::{CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
@@ -29,6 +26,7 @@ use dozer_core::NodeKind;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
@@ -73,20 +71,14 @@ impl Orchestrator for SimpleOrchestrator {
         let cache_manager = LmdbCacheManager::new(self.cache_manager_options.clone())
             .map_err(OrchestrationError::CacheInitFailed)?;
         let mut cache_endpoints = vec![];
-        for ce in &self.config.endpoints {
-            let cache = cache_manager
-                .open_ro_cache(&ce.name)
-                .map_err(OrchestrationError::CacheInitFailed)?
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Cache for endpoint {} not found. Did you run `dozer app run`?",
-                        ce.name
-                    )
-                });
-            cache_endpoints.push(RoCacheEndpoint::new(cache.into(), ce.clone()));
+        for endpoint in &self.config.endpoints {
+            cache_endpoints.push(Arc::new(RoCacheEndpoint::new(
+                &cache_manager,
+                endpoint.clone(),
+            )?));
         }
 
-        let ce2 = cache_endpoints.clone();
+        let cache_endpoints2 = cache_endpoints.clone();
 
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
@@ -132,7 +124,7 @@ impl Orchestrator for SimpleOrchestrator {
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
             let grpc_handle = tokio::spawn(async move {
                 grpc_server
-                    .run(ce2, receiver_shutdown, rx1)
+                    .run(cache_endpoints2, receiver_shutdown, rx1)
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });

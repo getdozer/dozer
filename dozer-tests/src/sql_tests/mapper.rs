@@ -81,7 +81,7 @@ impl SqlMapper {
             } => {
                 let expr_values: Vec<Field> = match &*source.body {
                     SetExpr::Values(values) => values.0[0].iter().map(parse_exp_to_field).collect(),
-                    _ => panic!("not supported"),
+                    _ => panic!("{}", format!("{} not supported", &*source.body)),
                 };
                 let name = get_table_name(table_name);
                 let schema = self
@@ -145,7 +145,7 @@ impl SqlMapper {
                 let (rec, _) = self.map_selection(table_name, selection);
                 Operation::Delete { old: rec }
             }
-            _ => panic!("Not supported"),
+            _ => panic!("{}", format!("{st}Not supported")),
         }
     }
 

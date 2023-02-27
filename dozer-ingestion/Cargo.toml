@@ -1,6 +1,6 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -33,7 +33,7 @@ tonic = {version = "0.8.3"}
 tonic-web = "0.4.0"
 tonic-reflection = "0.6.0"
 tower-http = {version = "0.3.5", features = ["full"]}
-prost = "0.11.0"
+prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] } 
 
 [dev-dependencies]
@@ -44,9 +44,6 @@ include_dir = "0.7.3"
 hex-literal = "0.3.4"
 dozer-tracing = {path = "../dozer-tracing"}
 dozer-tests = { path = "../dozer-tests" }
-
-[build-dependencies]
-tonic-build = "0.8.2"
 
 
 [features]

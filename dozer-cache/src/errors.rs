@@ -3,6 +3,7 @@ use dozer_types::thiserror::Error;
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
+use dozer_types::types::SchemaIdentifier;
 
 #[derive(Error, Debug)]
 pub enum CacheError {
@@ -18,8 +19,14 @@ pub enum CacheError {
     Type(#[from] TypeError),
     #[error(transparent)]
     Storage(#[from] dozer_storage::errors::StorageError),
-    #[error("Schema Identifier is not present")]
-    SchemaIdentifierNotFound,
+    #[error("Schema has no identifier")]
+    SchemaHasNoIdentifier,
+    #[error("Schema Identifier is not present: {0:?}")]
+    SchemaIdentifierNotFound(SchemaIdentifier),
+    #[error("Schema is not present: {0}")]
+    SchemaNotFound(String),
+    #[error("Schema Identifier is duplicated: {0:?}")]
+    DuplicateSchemaIdentifier(SchemaIdentifier),
     #[error("Path not initialized for Cache Reader")]
     PathNotInitialized,
     #[error("Secondary index database is not found")]
@@ -43,8 +50,6 @@ impl CacheError {
 pub enum QueryError {
     #[error("Failed to get a record by id - {0:?}")]
     GetValue(#[source] dozer_storage::lmdb::Error),
-    #[error("Get by primary key is not supported when it is composite: {0:?}")]
-    MultiIndexFetch(String),
     #[error("Failed to get a schema by id - {0:?}")]
     GetSchema(#[source] dozer_storage::lmdb::Error),
     #[error("Failed to insert a record - {0:?}")]

@@ -109,7 +109,7 @@ pub fn get_sample_ops() -> Vec<(&'static str, String)> {
 pub fn query(
     table_names: &[&str],
     test: &str,
-    expected_results: Option<&[Record]>,
+    expected_results: &Option<Vec<Record>>,
     test_instruction: &TestInstruction,
 ) -> QueryResult {
     init();
@@ -138,16 +138,29 @@ pub fn query(
         .unwrap()
 }
 
-// If sql can't run in sqlite, you can pass `expected_results`.
 pub fn compare_with_sqlite(
     table_names: &[&str],
     queries: &[&str],
-    expected_results: Option<&[Record]>,
     test_instruction: TestInstruction,
 ) {
     init();
     for test in queries {
-        let result = query(table_names, test, expected_results, &test_instruction);
+        let result = query(table_names, test, &None, &test_instruction);
+        assert_eq!(result.source_result, result.dest_result, "Test: {test}");
+    }
+}
+
+#[allow(dead_code)]
+// If sql can't run in sqlite, you can pass `expected_results`.
+pub fn compare_with_expected_results(
+    table_names: &[&str],
+    queries: &[&str],
+    expected_results: &[Option<Vec<Record>>],
+    test_instruction: TestInstruction,
+) {
+    init();
+    for (idx, test) in queries.iter().enumerate() {
+        let result = query(table_names, test, &expected_results[idx], &test_instruction);
         assert_eq!(result.source_result, result.dest_result, "Test: {test}");
     }
 }

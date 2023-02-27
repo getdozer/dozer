@@ -13,11 +13,11 @@ use crate::{
         CountResponseDesc, EventDesc, ProtoGenerator, QueryResponseDesc, ServiceDesc,
         TokenResponseDesc,
     },
-    grpc::{internal_grpc::PipelineResponse, shared_impl},
+    grpc::shared_impl,
     RoCacheEndpoint,
 };
 use dozer_cache::CacheReader;
-use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::{grpc_types::internal::PipelineResponse, models::api_security::ApiSecurity};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};
 use std::{borrow::Cow, collections::HashMap, convert::Infallible, path::Path};
@@ -30,8 +30,7 @@ use tonic::{
 
 #[derive(Debug, Clone)]
 struct TypedEndpoint {
-    reader: CacheReader,
-    endpoint_name: String,
+    cache_endpoint: Arc<RoCacheEndpoint>,
     service_desc: ServiceDesc,
 }
 
@@ -59,20 +58,19 @@ impl Clone for TypedService {
 impl TypedService {
     pub fn new(
         descriptor_path: &Path,
-        endpoints: Vec<RoCacheEndpoint>,
+        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
         security: Option<ApiSecurity>,
     ) -> Result<Self, GRPCError> {
-        let endpoint_map = endpoints
+        let endpoint_map = cache_endpoints
             .into_iter()
-            .map(|endpoint| {
+            .map(|cache_endpoint| {
                 let service_desc =
-                    ProtoGenerator::read_schema(descriptor_path, &endpoint.endpoint.name)?;
+                    ProtoGenerator::read_schema(descriptor_path, &cache_endpoint.endpoint.name)?;
                 Ok::<_, GenerationError>((
                     service_desc.service.full_name().to_string(),
                     TypedEndpoint {
-                        reader: endpoint.cache_reader,
-                        endpoint_name: endpoint.endpoint.name,
+                        cache_endpoint,
                         service_desc,
                     },
                 ))
@@ -113,8 +111,7 @@ impl TypedService {
         let method_name = current_path[2];
         if method_name == typed_endpoint.service_desc.count.method.name() {
             struct CountService {
-                reader: CacheReader,
-                endpoint_name: String,
+                cache_endpoint: Arc<RoCacheEndpoint>,
                 response_desc: Option<CountResponseDesc>,
             }
             impl tonic::server::UnaryService<DynamicMessage> for CountService {
@@ -123,8 +120,8 @@ impl TypedService {
                 fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
                     let response = count(
                         request,
-                        &self.reader,
-                        &self.endpoint_name,
+                        &self.cache_endpoint.cache_reader(),
+                        &self.cache_endpoint.endpoint.name,
                         self.response_desc
                             .take()
                             .expect("This future shouldn't be polled twice"),
@@ -135,8 +132,7 @@ impl TypedService {
 
             let mut grpc = self.create_grpc(typed_endpoint.service_desc.count.method.clone());
             let method = CountService {
-                reader: typed_endpoint.reader.clone(),
-                endpoint_name: typed_endpoint.endpoint_name.clone(),
+                cache_endpoint: typed_endpoint.cache_endpoint.clone(),
                 response_desc: Some(typed_endpoint.service_desc.count.response_desc.clone()),
             };
             Some(Box::pin(async move {
@@ -145,8 +141,7 @@ impl TypedService {
             }))
         } else if method_name == typed_endpoint.service_desc.query.method.name() {
             struct QueryService {
-                reader: CacheReader,
-                endpoint_name: String,
+                cache_endpoint: Arc<RoCacheEndpoint>,
                 response_desc: Option<QueryResponseDesc>,
             }
             impl tonic::server::UnaryService<DynamicMessage> for QueryService {
@@ -155,8 +150,8 @@ impl TypedService {
                 fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
                     let response = query(
                         request,
-                        &self.reader,
-                        &self.endpoint_name,
+                        &self.cache_endpoint.cache_reader(),
+                        &self.cache_endpoint.endpoint.name,
                         self.response_desc
                             .take()
                             .expect("This future shouldn't be polled twice"),
@@ -167,8 +162,7 @@ impl TypedService {
 
             let mut grpc = self.create_grpc(typed_endpoint.service_desc.query.method.clone());
             let method = QueryService {
-                reader: typed_endpoint.reader.clone(),
-                endpoint_name: typed_endpoint.endpoint_name.clone(),
+                cache_endpoint: typed_endpoint.cache_endpoint.clone(),
                 response_desc: Some(typed_endpoint.service_desc.query.response_desc.clone()),
             };
             Some(Box::pin(async move {
@@ -178,8 +172,7 @@ impl TypedService {
         } else if let Some(on_event_method_desc) = &typed_endpoint.service_desc.on_event {
             if method_name == on_event_method_desc.method.name() {
                 struct EventService {
-                    reader: CacheReader,
-                    endpoint_name: String,
+                    cache_endpoint: Arc<RoCacheEndpoint>,
                     event_desc: Option<EventDesc>,
                     event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
                 }
@@ -193,8 +186,8 @@ impl TypedService {
                     fn call(&mut self, request: tonic::Request<DynamicMessage>) -> Self::Future {
                         future::ready(on_event(
                             request,
-                            &self.reader,
-                            &self.endpoint_name,
+                            &self.cache_endpoint.cache_reader(),
+                            &self.cache_endpoint.endpoint.name,
                             self.event_desc
                                 .take()
                                 .expect("This future shouldn't be polled twice"),
@@ -205,8 +198,7 @@ impl TypedService {
 
                 let mut grpc = self.create_grpc(on_event_method_desc.method.clone());
                 let method = EventService {
-                    reader: typed_endpoint.reader.clone(),
-                    endpoint_name: typed_endpoint.endpoint_name.clone(),
+                    cache_endpoint: typed_endpoint.cache_endpoint.clone(),
                     event_desc: Some(on_event_method_desc.response_desc.clone()),
                     event_notifier: self.event_notifier.as_ref().map(|r| r.resubscribe()),
                 };

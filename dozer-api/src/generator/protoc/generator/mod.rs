@@ -93,9 +93,18 @@ impl ProtoGenerator {
     pub fn copy_common(folder_path: &Path) -> Result<Vec<String>, GenerationError> {
         let mut resource_names = vec![];
         let protos = vec![
-            ("types", include_str!("../../../../protos/types.proto")),
-            ("common", include_str!("../../../../protos/common.proto")),
-            ("health", include_str!("../../../../protos/health.proto")),
+            (
+                "types",
+                include_str!("../../../../../dozer-types/protos/types.proto"),
+            ),
+            (
+                "common",
+                include_str!("../../../../../dozer-types/protos/common.proto"),
+            ),
+            (
+                "health",
+                include_str!("../../../../../dozer-types/protos/health.proto"),
+            ),
         ];
 
         for (name, proto_str) in protos {
@@ -113,7 +122,7 @@ impl ProtoGenerator {
     pub fn generate(
         folder_path: &Path,
         schema_name: &str,
-        schema: Schema,
+        schema: &Schema,
         security: &Option<ApiSecurity>,
         flags: &Option<Flags>,
     ) -> Result<(), GenerationError> {

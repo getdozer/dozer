@@ -31,7 +31,7 @@ impl TestFramework {
     pub fn query(
         &mut self,
         list: Vec<(&'static str, String)>,
-        expected_results: Option<&[Record]>,
+        expected_results: &Option<Vec<Record>>,
         final_sql: String,
     ) -> Result<QueryResult, FrameworkError> {
         let source_schema_map = self.source.lock().unwrap().schema_map.clone();
@@ -53,7 +53,7 @@ impl TestFramework {
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
         let source_result = if let Some(..) = expected_results {
-            expected_results.unwrap().to_vec()
+            expected_results.as_ref().unwrap().to_vec()
         } else {
             query_sqlite(self.source.clone(), &final_sql, &output_schema)
                 .map_err(|e| FrameworkError::InternalError(Box::new(e)))?

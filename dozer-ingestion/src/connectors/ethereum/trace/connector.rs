@@ -49,7 +49,7 @@ impl Connector for EthTraceConnector {
         &self,
         _from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        _tables: Option<Vec<TableInfo>>,
+        _tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         let config = self.config.clone();
         let conn_name = self.conn_name.clone();
@@ -71,6 +71,10 @@ impl Connector for EthTraceConnector {
 
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
         self.get_tables_default(tables)
+    }
+
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
+        Ok(false)
     }
 }
 

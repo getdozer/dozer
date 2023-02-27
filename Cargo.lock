@@ -339,6 +339,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arc-swap"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bddcadddf5e9015d310179a59bb28c4d4b9920ad0f11e8e14dbadf654890c9a6"
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1769,7 +1775,7 @@ checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
 
 [[package]]
 name = "dozer-admin"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "clap 4.1.6",
  "diesel",
@@ -1797,13 +1803,14 @@ dependencies = [
 
 [[package]]
 name = "dozer-api"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "Inflector",
  "actix-cors",
  "actix-http",
  "actix-web",
  "actix-web-httpauth",
+ "arc-swap",
  "async-trait",
  "crossbeam",
  "dozer-cache",
@@ -1831,7 +1838,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "criterion",
  "dozer-storage",
@@ -1848,7 +1855,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "crossbeam",
  "daggy",
@@ -1864,7 +1871,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "base64 0.21.0",
  "criterion",
@@ -1892,7 +1899,6 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tonic",
- "tonic-build",
  "tonic-reflection",
  "tonic-web",
  "tower-http",
@@ -1901,7 +1907,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-orchestrator"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "clap 4.1.6",
  "crossterm",
@@ -1931,7 +1937,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "dozer-core",
  "dozer-tracing",
@@ -1948,7 +1954,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
@@ -1958,7 +1964,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "bson",
  "clap 4.1.6",
@@ -1982,7 +1988,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "dozer-types",
  "opentelemetry",
@@ -1993,7 +1999,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "ahash 0.8.3",
  "bincode",
@@ -2009,12 +2015,15 @@ dependencies = [
  "parking_lot",
  "prettytable-rs",
  "prost",
+ "prost-types",
  "pyo3",
  "rust_decimal",
  "serde",
  "serde_json",
  "serde_yaml",
  "thiserror",
+ "tonic",
+ "tonic-build",
  "tracing",
 ]
 
@@ -4373,9 +4382,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.11.6"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21dc42e00223fc37204bd4aa177e69420c604ca4a183209a8f9de30c6d934698"
+checksum = "e48e50df39172a3e7eb17e14642445da64996989bc212b583015435d39a58537"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -4405,9 +4414,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.11.6"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bda8c0881ea9f722eb9629376db3d0b903b462477c1aafcb0566610ac28ac5d"
+checksum = "4ea9b0f8cbe5e15a8a042d030bd96668db28ecb567ec37d691971ff5731d2b1b"
 dependencies = [
  "anyhow",
  "itertools",

@@ -19,7 +19,7 @@ fn cte_query() {
 
     let list = get_sample_ops();
 
-    helper::compare_with_sqlite(&["actor"], &queries, None, TestInstruction::List(list));
+    helper::compare_with_sqlite(&["actor"], &queries, TestInstruction::List(list));
 }
 
 #[test]
@@ -36,14 +36,12 @@ fn nested_query() {
     helper::compare_with_sqlite(
         &["actor"],
         &queries,
-        None,
         TestInstruction::FromCsv("actor", vec!["actor"]),
     );
 
     helper::compare_with_sqlite(
         &["actor"],
         &queries,
-        None,
         TestInstruction::List(get_sample_ops()),
     );
 }
@@ -61,7 +59,7 @@ fn nested_agg_inserts_query() {
     let result = helper::query(
         &["actor"],
         query,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", vec!["actor"]),
     );
 
@@ -86,7 +84,7 @@ fn nested_agg_updates_query() {
     let result = helper::query(
         &["actor"],
         query,
-        None,
+        &None,
         &TestInstruction::List(helper::get_sample_ops()),
     );
 
@@ -111,7 +109,7 @@ fn cte_agg_inserts_query() {
     let result = helper::query(
         &["actor"],
         query,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", vec!["actor"]),
     );
 
@@ -137,7 +135,7 @@ fn cte_agg_updates_query() {
     let result = helper::query(
         &["actor"],
         query,
-        None,
+        &None,
         &TestInstruction::List(helper::get_sample_ops()),
     );
 

@@ -24,9 +24,7 @@ impl Indexer {
         secondary_indexes: &[IndexDefinition],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
-        let schema_id = schema
-            .identifier
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+        let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
 
         let mut txn = parent_txn
             .begin_nested_txn()
@@ -69,9 +67,7 @@ impl Indexer {
         secondary_indexes: &[IndexDefinition],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
-        let schema_id = schema
-            .identifier
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+        let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
         for (idx, index) in secondary_indexes.iter().enumerate() {
             let db = *self
                 .secondary_indexes
@@ -137,7 +133,10 @@ impl Indexer {
 #[cfg(test)]
 mod tests {
     use crate::cache::{
-        lmdb::{cache::LmdbRwCache, tests::utils as lmdb_utils},
+        lmdb::{
+            cache::LmdbRwCache,
+            tests::utils::{self as lmdb_utils, create_cache},
+        },
         test_utils, RwCache,
     };
 
@@ -145,12 +144,8 @@ mod tests {
 
     #[test]
     fn test_secondary_indexes() {
-        let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
-        let (schema, secondary_indexes) = test_utils::schema_1();
-
-        cache
-            .insert_schema("sample", &schema, &secondary_indexes)
-            .unwrap();
+        let schema_name = "sample";
+        let (cache, schema, secondary_indexes) = create_cache(schema_name, test_utils::schema_1);
 
         let items = vec![
             (1, Some("a".to_string()), Some(521)),
@@ -215,12 +210,14 @@ mod tests {
 
     #[test]
     fn test_full_text_secondary_index_with_duplicated_words() {
-        let cache = LmdbRwCache::new(Default::default(), Default::default()).unwrap();
+        let schema_name = "sample";
         let (schema, secondary_indexes) = test_utils::schema_full_text();
-
-        cache
-            .insert_schema("sample", &schema, &secondary_indexes)
-            .unwrap();
+        let cache = LmdbRwCache::create(
+            [(schema_name.to_string(), schema.clone(), secondary_indexes)],
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
 
         let items = vec![(
             Some("another test".to_string()),

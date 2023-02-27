@@ -83,11 +83,14 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
 
                 let params = self.config.table_params(&table_name)?;
 
-                let table_path = ListingTableUrl::parse(params.table_path).map_err(|_| {
-                    ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError)
+                let table_path = ListingTableUrl::parse(params.table_path).map_err(|e| {
+                    ObjectStoreConnectorError::DataFusionStorageObjectError(
+                        ListingPathParsingError(e),
+                    )
                 })?;
 
-                let listing_options = map_listing_options(params.data_fusion_table);
+                let listing_options = map_listing_options(params.data_fusion_table)
+                    .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
 
                 let ctx = SessionContext::new();
 

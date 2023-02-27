@@ -1,0 +1,32 @@
+app_name: snowflake-test
+connections:
+  - config: !Snowflake
+      server: "{{SN_SERVER}}"
+      port: 443
+      user: "{{SN_USER}}"
+      password: "{{SN_PASSWORD}}"
+      database: "{{SN_DATABASE}}"
+      schema: PUBLIC
+      warehouse: "{{SN_WAREHOUSE}}"
+      driver: "{{SN_DRIVER}}"
+    name: sn_data
+
+sources:
+  - name: customers
+    connection: !Ref sn_data
+    table_name: CUSTOMERS
+    columns:
+
+
+sql: |
+  SELECT O_ORDERKEY, O_CUSTKEY, O_ORDERSTATUS, O_TOTALPRICE, O_ORDERDATE, O_ORDERPRIORITY, O_CLERK, O_SHIPPRIORITY, O_COMMENT
+  INTO orders_data
+  FROM orders;
+
+endpoints:
+  - name: customers
+    path: /customers
+    table_name: customers_data
+    index:
+      primary_key:
+        - C_CUSTKEY

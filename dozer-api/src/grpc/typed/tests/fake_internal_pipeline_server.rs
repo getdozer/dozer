@@ -1,14 +1,14 @@
-use crate::grpc::internal_grpc::{
-    internal_pipeline_service_server::{InternalPipelineService, InternalPipelineServiceServer},
-    PipelineRequest,
-};
-use crate::grpc::{
-    internal_grpc::{pipeline_response::ApiEvent, PipelineResponse},
-    types::{value, Operation, OperationType, Record, Value},
-};
 use core::time;
 use crossbeam::channel::Receiver;
 use dozer_types::crossbeam;
+use dozer_types::grpc_types::internal::{
+    internal_pipeline_service_server::{InternalPipelineService, InternalPipelineServiceServer},
+    PipelineRequest,
+};
+use dozer_types::grpc_types::{
+    internal::{pipeline_response::ApiEvent, PipelineResponse},
+    types::{value, Operation, OperationType, Record, Value},
+};
 use futures_util::FutureExt;
 use std::{net::ToSocketAddrs, pin::Pin, thread};
 use tokio_stream::wrappers::ReceiverStream;

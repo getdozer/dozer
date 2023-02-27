@@ -14,7 +14,7 @@ pub fn validate(
     mut query: QueryExpression,
 ) -> (QueryExpression, Vec<Record>) {
     let count = cache.count(schema_name, &query).unwrap();
-    let records = cache.query(schema_name, &query).unwrap();
+    let records = cache.query(schema_name, &query).unwrap().1;
 
     let skip = query.skip;
     let limit = query.limit;
@@ -22,7 +22,7 @@ pub fn validate(
     query.skip = Skip::Skip(0);
     query.limit = None;
     let all_count = cache.count(schema_name, &query).unwrap();
-    let all_records = cache.query(schema_name, &query).unwrap();
+    let all_records = cache.query(schema_name, &query).unwrap().1;
 
     let expected_count = match skip {
         Skip::Skip(skip) => (all_count - skip).min(limit.unwrap_or(usize::MAX)),

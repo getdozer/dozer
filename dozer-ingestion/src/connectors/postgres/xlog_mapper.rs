@@ -209,11 +209,6 @@ impl XlogMapper {
             })
             .collect();
 
-        let _table_name = relation
-            .name()
-            .map_err(PostgresConnectorError::RelationNotFound)?
-            .to_string();
-
         let replica_identity = match relation.replica_identity() {
             ReplicaIdentity::Default => ReplicaIdentity::Default,
             ReplicaIdentity::Nothing => ReplicaIdentity::Nothing,

@@ -1,7 +1,7 @@
-use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
 use dozer_types::types::{Operation, SourceSchema};

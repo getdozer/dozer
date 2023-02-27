@@ -21,7 +21,7 @@ fn union_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
@@ -40,7 +40,7 @@ fn union_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::List(get_sample_ops()),
     );
 
@@ -75,7 +75,7 @@ fn union_all_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
@@ -94,7 +94,7 @@ fn union_all_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::List(get_sample_ops()),
     );
 

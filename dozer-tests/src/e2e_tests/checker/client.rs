@@ -1,18 +1,18 @@
 use dozer_api::{
-    grpc::{
-        common_grpc::{
-            common_grpc_service_client::CommonGrpcServiceClient, GetEndpointsRequest,
-            GetFieldsRequest,
-        },
-        health_grpc::{
-            health_check_response::ServingStatus,
-            health_grpc_service_client::HealthGrpcServiceClient, HealthCheckRequest,
-        },
-    },
     openapiv3::{OpenAPI, ReferenceOr, SchemaKind, StringFormat, VariantOrUnknownOrEmpty},
     tonic::transport::{Channel, Endpoint},
 };
 use dozer_types::{
+    grpc_types::{
+        common::{
+            common_grpc_service_client::CommonGrpcServiceClient, GetEndpointsRequest,
+            GetFieldsRequest,
+        },
+        health::{
+            health_check_response::ServingStatus,
+            health_grpc_service_client::HealthGrpcServiceClient, HealthCheckRequest,
+        },
+    },
     models::app_config::Config,
     types::{FieldDefinition, FieldType, DATE_FORMAT},
 };
@@ -314,7 +314,7 @@ async fn check_grpc_health(client: &mut HealthGrpcServiceClient<Channel>, servic
 }
 
 fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
-    use dozer_api::grpc::types::Type;
+    use dozer_types::grpc_types::types::Type;
 
     match field_type {
         FieldType::UInt => grpc_type == Type::UInt as i32,

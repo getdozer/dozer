@@ -1,5 +1,7 @@
 use dozer_types::{
+    chrono,
     ingestion_types::IngestionMessage,
+    log::error,
     ordered_float::OrderedFloat,
     types::{Operation, Record, Schema},
 };
@@ -9,7 +11,10 @@ use tonic::Streaming;
 
 use crate::ingestion::Ingestor;
 
-use super::ingest_grpc::{ingest_service_server::IngestService, IngestRequest, IngestResponse};
+use dozer_types::grpc_types;
+use dozer_types::grpc_types::ingest::{
+    ingest_service_server::IngestService, IngestRequest, IngestResponse,
+};
 
 pub struct IngestorServiceImpl {
     ingestor: &'static Ingestor,
@@ -34,15 +39,15 @@ impl IngestorServiceImpl {
         })?;
 
         let op = match req.typ() {
-            super::types::OperationType::Insert => Operation::Insert {
-                new: map_record(req.new.unwrap(), schema),
+            grpc_types::types::OperationType::Insert => Operation::Insert {
+                new: map_record(req.new.unwrap(), schema)?,
             },
-            super::types::OperationType::Delete => Operation::Delete {
-                old: map_record(req.old.unwrap(), schema),
+            grpc_types::types::OperationType::Delete => Operation::Delete {
+                old: map_record(req.old.unwrap(), schema)?,
             },
-            super::types::OperationType::Update => Operation::Update {
-                old: map_record(req.old.unwrap(), schema),
-                new: map_record(req.new.unwrap(), schema),
+            grpc_types::types::OperationType::Update => Operation::Update {
+                old: map_record(req.old.unwrap(), schema)?,
+                new: map_record(req.new.unwrap(), schema)?,
             },
         };
         ingestor
@@ -73,9 +78,17 @@ impl IngestService for IngestorServiceImpl {
         let seq_no = tokio::spawn(async move {
             let mut seq_no = 0;
             while let Some(result) = in_stream.next().await {
-                let req = result.unwrap();
-                seq_no = req.seq_no;
-                Self::insert(req, schema_map, ingestor).unwrap();
+                if let Ok(req) = result {
+                    seq_no = req.seq_no;
+                    let res = Self::insert(req, schema_map, ingestor);
+                    if let Err(e) = res {
+                        error!("ingestion stream insertion errored: {:#?}", e);
+                        break;
+                    }
+                } else {
+                    error!("ingestion stream errored: {:#?}", result);
+                    break;
+                }
             }
             seq_no
         })
@@ -85,36 +98,95 @@ impl IngestService for IngestorServiceImpl {
     }
 }
 
-fn map_record(rec: super::types::Record, schema: &Schema) -> Record {
+fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record, tonic::Status> {
     let mut values = vec![];
-    debug_assert!(
-        rec.values.len() == schema.fields.len(),
-        "record is not properly formed"
-    );
-    for (_idx, v) in rec.values.iter().enumerate() {
-        let v = v.value.as_ref().map(|v| match v {
-            super::types::value::Value::UintValue(a) => dozer_types::types::Field::UInt(*a),
-            super::types::value::Value::IntValue(a) => dozer_types::types::Field::Int(*a),
-            super::types::value::Value::FloatValue(a) => {
-                dozer_types::types::Field::Float(OrderedFloat(*a as f64))
+    let values_count = rec.values.len();
+    let schema_fields_count = schema.fields.len();
+    if values_count != schema_fields_count {
+        return Err(tonic::Status::invalid_argument(
+            format!("record is not properly formed. Length of values {values_count} does not match schema: {schema_fields_count} "),
+        ));
+    }
+
+    for (idx, v) in rec.values.iter().enumerate() {
+        let typ = schema.fields[idx].typ;
+
+        let v = v.value.as_ref().map(|v| match (v, typ) {
+            (
+                grpc_types::types::value::Value::UintValue(a),
+                dozer_types::types::FieldType::UInt,
+            ) => Ok(dozer_types::types::Field::UInt(*a)),
+
+            (grpc_types::types::value::Value::IntValue(a), dozer_types::types::FieldType::Int) => {
+                Ok(dozer_types::types::Field::Int(*a))
             }
-            super::types::value::Value::BoolValue(a) => dozer_types::types::Field::Boolean(*a),
-            super::types::value::Value::StringValue(a) => {
-                dozer_types::types::Field::String(a.clone())
-            }
-            super::types::value::Value::BytesValue(a) => {
-                dozer_types::types::Field::Binary(a.clone())
-            }
-            super::types::value::Value::ArrayValue(_) => todo!(),
-            super::types::value::Value::DoubleValue(a) => {
-                dozer_types::types::Field::Float(OrderedFloat(*a))
+
+            (
+                grpc_types::types::value::Value::FloatValue(a),
+                dozer_types::types::FieldType::Float,
+            ) => Ok(dozer_types::types::Field::Float(OrderedFloat(*a))),
+
+            (
+                grpc_types::types::value::Value::BoolValue(a),
+                dozer_types::types::FieldType::Boolean,
+            ) => Ok(dozer_types::types::Field::Boolean(*a)),
+
+            (
+                grpc_types::types::value::Value::StringValue(a),
+                dozer_types::types::FieldType::String,
+            ) => Ok(dozer_types::types::Field::String(a.clone())),
+
+            (
+                grpc_types::types::value::Value::BytesValue(a),
+                dozer_types::types::FieldType::Binary,
+            ) => Ok(dozer_types::types::Field::Binary(a.clone())),
+            (
+                grpc_types::types::value::Value::StringValue(a),
+                dozer_types::types::FieldType::Text,
+            ) => Ok(dozer_types::types::Field::Text(a.clone())),
+            (
+                grpc_types::types::value::Value::BytesValue(a),
+                dozer_types::types::FieldType::Bson,
+            ) => Ok(dozer_types::types::Field::Bson(a.clone())),
+            (
+                grpc_types::types::value::Value::TimestampValue(a),
+                dozer_types::types::FieldType::Timestamp,
+            ) => Ok(
+                chrono::NaiveDateTime::from_timestamp_opt(a.seconds, a.nanos as u32)
+                    .map(|t| {
+                        dozer_types::types::Field::Timestamp(
+                            chrono::DateTime::<chrono::Utc>::from_utc(t, chrono::Utc).into(),
+                        )
+                    })
+                    .unwrap_or(dozer_types::types::Field::Null),
+            ),
+            (
+                grpc_types::types::value::Value::DecimalValue(_),
+                dozer_types::types::FieldType::Decimal,
+            )
+            | (
+                grpc_types::types::value::Value::DateValue(_),
+                dozer_types::types::FieldType::UInt,
+            )
+            | (
+                grpc_types::types::value::Value::DateValue(_),
+                dozer_types::types::FieldType::Date,
+            )
+            | (
+                grpc_types::types::value::Value::PointValue(_),
+                dozer_types::types::FieldType::Point,
+            ) => Ok(dozer_types::types::Field::Null),
+            (a, b) => {
+                return Err(tonic::Status::invalid_argument(format!(
+                    "data is not valid at index: {idx}, Type: {a:?}, Expected Type: {b}"
+                )))
             }
         });
-        values.push(v.unwrap_or(dozer_types::types::Field::Null));
+        values.push(v.unwrap_or(Ok(dozer_types::types::Field::Null))?);
     }
-    Record {
+    Ok(Record {
         schema_id: schema.identifier,
         values,
         version: None,
-    }
+    })
 }

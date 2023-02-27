@@ -1,19 +1,21 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::auth::Access;
-use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
-use crate::grpc::internal_grpc::PipelineResponse;
+
 use crate::grpc::shared_impl;
 use crate::grpc::types_helper::{map_field_definitions, map_record};
-use crate::{api_helper, RoCacheEndpoint};
+use crate::RoCacheEndpoint;
+use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
+use dozer_types::grpc_types::internal::PipelineResponse;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
-use crate::grpc::common_grpc::{
+use dozer_types::grpc_types::common::{
     CountResponse, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse,
     OnEventRequest, QueryRequest, QueryResponse,
 };
-use crate::grpc::types::Operation;
+use dozer_types::grpc_types::types::Operation;
 
 type EventResult<T> = Result<Response<T>, Status>;
 type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
@@ -21,13 +23,13 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     /// For look up endpoint from its name. `key == value.endpoint.name`.
-    pub endpoint_map: HashMap<String, RoCacheEndpoint>,
+    pub endpoint_map: HashMap<String, Arc<RoCacheEndpoint>>,
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 }
 
 impl CommonService {
     pub fn new(
-        endpoints: Vec<RoCacheEndpoint>,
+        endpoints: Vec<Arc<RoCacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
     ) -> Self {
         let endpoint_map = endpoints
@@ -66,7 +68,7 @@ impl CommonGrpcService for CommonService {
         let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
         let count = shared_impl::count(
-            &cache_endpoint.cache_reader,
+            &cache_endpoint.cache_reader(),
             &cache_endpoint.endpoint.name,
             query_request.query.as_deref(),
             access,
@@ -84,14 +86,15 @@ impl CommonGrpcService for CommonService {
     ) -> Result<Response<QueryResponse>, Status> {
         let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
+        let cache_reader = cache_endpoint.cache_reader();
         let (schema, records) = shared_impl::query(
-            &cache_endpoint.cache_reader,
+            &cache_reader,
             &cache_endpoint.endpoint.name,
             query_request.query.as_deref(),
             access,
         )?;
 
-        let fields = map_field_definitions(schema.fields);
+        let fields = map_field_definitions(schema.fields.clone());
         let records = records.into_iter().map(map_record).collect();
         let reply = QueryResponse { fields, records };
 
@@ -112,7 +115,7 @@ impl CommonGrpcService for CommonService {
             .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
         shared_impl::on_event(
-            &cache_endpoint.cache_reader,
+            &cache_endpoint.cache_reader(),
             &cache_endpoint.endpoint.name,
             query_request.filter.as_deref(),
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
@@ -146,16 +149,13 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(
-            &cache_endpoint.cache_reader,
-            &cache_endpoint.endpoint.name,
-            None,
-        )?;
-        let schema = api_helper
-            .get_schema()
-            .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
+        let cache_reader = cache_endpoint.cache_reader();
+        let schema = &cache_reader
+            .get_schema_and_indexes_by_name(&endpoint)
+            .map_err(|_| Status::invalid_argument(endpoint))?
+            .0;
 
-        let fields = map_field_definitions(schema.fields);
+        let fields = map_field_definitions(schema.fields.clone());
 
         let primary_index = schema.primary_index.iter().map(|f| *f as i32).collect();
         Ok(Response::new(GetFieldsResponse {

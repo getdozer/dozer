@@ -1,6 +1,6 @@
 [package]
 name = "dozer-admin"
-version = "0.1.7"
+version = "0.1.8"
 authors = ["Karolis Gudiškis <karolis@getdozer.io>"]
 edition = "2021"
 build = "build.rs"
@@ -27,7 +27,7 @@ mockall = "0.11.2"
 tonic-reflection = "0.6.0"
 tower-http = {version = "0.3.5", features = ["full"]}
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
-prost = "0.11.3"
+prost = "0.11.8"
 clap = {version = "4.1.6", features = ["derive"]}
 
 [build-dependencies]

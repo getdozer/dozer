@@ -17,8 +17,6 @@ use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
-
-pub use crate::connectors::grpc::{ingest_grpc, types};
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
@@ -40,11 +38,13 @@ pub trait Connector: Send + Sync + Debug {
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError>;
+
+    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError>;
     fn start(
         &self,
-        from_seq: Option<(u64, u64)>,
+        last_checkpoint: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError>;
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;
 

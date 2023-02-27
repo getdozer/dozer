@@ -37,10 +37,15 @@ pub trait CacheManager: Send + Sync + Debug {
     /// If the name is both an alias and a real name, it's treated as an alias.
     fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError>;
 
-    /// Creates a new cache, which can also be opened in read-only mode using `open_ro_cache`.
+    /// Creates a new cache with given `schema`s, which can also be opened in read-only mode using `open_ro_cache`.
+    ///
+    /// Schemas cannot be changed after the cache is created.
     ///
     /// The cache's name is unique.
-    fn create_cache(&self) -> Result<Box<dyn RwCache>, CacheError>;
+    fn create_cache(
+        &self,
+        schemas: Vec<(String, Schema, Vec<IndexDefinition>)>,
+    ) -> Result<Box<dyn RwCache>, CacheError>;
 
     /// Creates an alias `alias` for a cache with name `name`.
     ///
@@ -53,11 +58,11 @@ pub trait RoCache: Send + Sync + Debug {
     fn name(&self) -> &str;
 
     // Schema Operations
-    fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> Result<Schema, CacheError>;
+    fn get_schema(&self, schema_identifier: SchemaIdentifier) -> Result<&Schema, CacheError>;
     fn get_schema_and_indexes_by_name(
         &self,
         name: &str,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError>;
+    ) -> Result<&(Schema, Vec<IndexDefinition>), CacheError>;
 
     // Record Operations
     fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError>;
@@ -66,18 +71,10 @@ pub trait RoCache: Send + Sync + Debug {
         &self,
         schema_name: &str,
         query: &QueryExpression,
-    ) -> Result<Vec<RecordWithId>, CacheError>;
+    ) -> Result<(&Schema, Vec<RecordWithId>), CacheError>;
 }
 
 pub trait RwCache: RoCache {
-    // Schema Operations
-    fn insert_schema(
-        &self,
-        name: &str,
-        schema: &Schema,
-        secondary_indexes: &[IndexDefinition],
-    ) -> Result<(), CacheError>;
-
     // Record Operations
     /// Sets the version of the inserted record and inserts it into the cache. Returns the id of the newly inserted record.
     fn insert(&self, record: &mut Record) -> Result<u64, CacheError>;

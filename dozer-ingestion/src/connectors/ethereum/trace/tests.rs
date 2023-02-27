@@ -69,7 +69,7 @@ fn test_trace_iterator() {
         for s in schemas {
             s.schema.print().printstd();
         }
-        connector.start(None, &ingestor, None).unwrap();
+        connector.start(None, &ingestor, vec![]).unwrap();
     });
 
     if let Some((_, op)) = iterator.next_timeout(Duration::from_millis(1000)) {

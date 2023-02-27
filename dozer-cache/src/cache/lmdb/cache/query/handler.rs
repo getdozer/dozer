@@ -18,16 +18,16 @@ use itertools::Either;
 pub struct LmdbQueryHandler<'a, T: Transaction> {
     common: &'a LmdbCacheCommon,
     txn: &'a T,
-    schema: Schema,
-    secondary_indexes: Vec<IndexDefinition>,
+    schema: &'a Schema,
+    secondary_indexes: &'a [IndexDefinition],
     query: &'a QueryExpression,
 }
 impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     pub fn new(
         common: &'a LmdbCacheCommon,
         txn: &'a T,
-        schema: Schema,
-        secondary_indexes: Vec<IndexDefinition>,
+        schema: &'a Schema,
+        secondary_indexes: &'a [IndexDefinition],
         query: &'a QueryExpression,
     ) -> Self {
         Self {
@@ -40,7 +40,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     }
 
     pub fn count(&self) -> Result<usize, CacheError> {
-        let planner = QueryPlanner::new(&self.schema, &self.secondary_indexes, self.query);
+        let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
         let execution = planner.plan()?;
         match execution {
             Plan::IndexScans(index_scans) => Ok(self.build_index_scan(index_scans)?.count()),
@@ -58,7 +58,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     }
 
     pub fn query(&self) -> Result<Vec<RecordWithId>, CacheError> {
-        let planner = QueryPlanner::new(&self.schema, &self.secondary_indexes, self.query);
+        let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
         let execution = planner.plan()?;
         match execution {
             Plan::IndexScans(index_scans) => {
@@ -111,7 +111,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         let schema_id = self
             .schema
             .identifier
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+            .ok_or(CacheError::SchemaHasNoIdentifier)?;
         let index_db = *self
             .common
             .secondary_indexes

@@ -11,14 +11,15 @@ fn main() {
     dozer_tracing::init_telemetry(false).unwrap();
 
     let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+    let tables = vec![TableInfo {
+        name: "users".to_string(),
+        table_name: "users".to_string(),
+        id: 0,
+        columns: None,
+    }];
     let postgres_config = PostgresConfig {
         name: "test_c".to_string(),
-        tables: Some(vec![TableInfo {
-            name: "users".to_string(),
-            table_name: "users".to_string(),
-            id: 0,
-            columns: None,
-        }]),
+        tables: Some(tables.clone()),
         config: tokio_postgres::Config::default()
             .host("127.0.0.1")
             .port(5432)
@@ -29,7 +30,7 @@ fn main() {
 
     thread::spawn(move || -> Result<(), ConnectorError> {
         let connector = PostgresConnector::new(1, postgres_config);
-        connector.start(None, &ingestor, None)
+        connector.start(None, &ingestor, tables)
     });
 
     let before = Instant::now();

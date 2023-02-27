@@ -40,10 +40,8 @@ impl Connector for KafkaConnector {
         &self,
         _from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
-        // Start a new thread that interfaces with ETH node
-        let tables = tables.as_ref().map_or_else(|| Err(TopicNotDefined), Ok)?;
         let topic = tables
             .get(0)
             .map_or(Err(TopicNotDefined), |table| Ok(&table.table_name))?;
@@ -64,6 +62,10 @@ impl Connector for KafkaConnector {
 
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
         self.get_tables_default(tables)
+    }
+
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
+        Ok(false)
     }
 }
 

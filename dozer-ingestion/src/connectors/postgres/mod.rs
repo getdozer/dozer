@@ -2,11 +2,12 @@ pub mod connection;
 pub mod connector;
 pub mod helper;
 pub mod iterator;
+mod replication_slot_helper;
 pub mod replicator;
 mod schema_helper;
 pub mod snapshotter;
-#[cfg(any(test, feature = "postgres_bench"))]
+#[cfg(test)]
 pub mod test_utils;
-#[cfg(any(test, feature = "postgres_bench"))]
+#[cfg(test)]
 pub mod tests;
 pub mod xlog_mapper;

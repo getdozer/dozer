@@ -155,7 +155,7 @@ impl Connector for EthLogConnector {
         &self,
         from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
@@ -193,5 +193,9 @@ impl Connector for EthLogConnector {
 
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
         self.get_tables_default(tables)
+    }
+
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
+        Ok(false)
     }
 }

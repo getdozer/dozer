@@ -6,6 +6,7 @@ import "protos/query.proto";
 service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (AppResponse);
   rpc parse_sql(ParseRequest) returns (ParseResponse);
+  rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
   rpc generate_yaml(GenerateYamlRequest) returns (GenerateYamlResponse);
   rpc generate_graph(GenerateGraphRequest) returns (GenerateGraphResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
@@ -39,6 +40,9 @@ message ParseResponse {
 
 message GenerateGraphRequest { string config = 1; }
 message GenerateGraphResponse { QueryGraph graph = 3; }
+
+message ParseYamlRequest { string config = 1; }
+message ParseYamlResponse { AppConfig app = 1; }
 
 message GenerateYamlRequest { AppConfig app = 1; }
 message GenerateYamlResponse {

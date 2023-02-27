@@ -7,14 +7,13 @@ use dozer_types::serde_json;
 use dozer_types::types::{Schema, SchemaIdentifier, SourceSchema};
 
 use super::ingest::IngestorServiceImpl;
-use crate::connectors::grpc::ingest_grpc;
-use crate::connectors::grpc::ingest_grpc::ingest_service_server::IngestServiceServer;
 use crate::connectors::ValidationResults;
 use crate::{
     connectors::{Connector, TableInfo},
     errors::ConnectorError,
     ingestion::Ingestor,
 };
+use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use tonic::transport::Server;
 use tower_http::trace::TraceLayer;
 
@@ -115,7 +114,9 @@ impl GrpcConnector {
                 .enable(IngestServiceServer::new(ingest_service));
 
             let reflection_service = tonic_reflection::server::Builder::configure()
-                .register_encoded_file_descriptor_set(ingest_grpc::FILE_DESCRIPTOR_SET)
+                .register_encoded_file_descriptor_set(
+                    dozer_types::grpc_types::ingest::FILE_DESCRIPTOR_SET,
+                )
                 .build()
                 .unwrap();
             info!("Starting Dozer GRPC Ingestor  on http://{}:{} ", host, port,);
@@ -150,7 +151,7 @@ impl Connector for GrpcConnector {
         &self,
         _from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        _tables: Option<Vec<TableInfo>>,
+        _tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         self.serve(ingestor)
     }
@@ -179,5 +180,9 @@ impl Connector for GrpcConnector {
 
     fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
         self.get_tables_default(tables)
+    }
+
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
+        Ok(false)
     }
 }

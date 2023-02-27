@@ -19,6 +19,7 @@ use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
 use schema_registry_converter::error::SRCError;
+use tokio_postgres::Error;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
@@ -57,7 +58,7 @@ pub enum ConnectorError {
     DebeziumError(#[from] DebeziumError),
 
     #[error(transparent)]
-    DataFusionConnectorError(#[from] ObjectStoreConnectorError),
+    ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -110,7 +111,7 @@ pub enum PostgresConnectorError {
     ColumnNotFound(String, String),
 
     #[error("Failed to create a replication slot : {0}")]
-    CreateSlotError(String),
+    CreateSlotError(String, #[source] Error),
 
     #[error("Failed to create publication")]
     CreatePublicationError,
@@ -125,7 +126,7 @@ pub enum PostgresConnectorError {
     CommitReplication,
 
     #[error("fetch of replication slot info failed")]
-    FetchReplicationSlot,
+    FetchReplicationSlotError(#[source] tokio_postgres::Error),
 
     #[error("No slots available or all available slots are used")]
     NoAvailableSlotsError,
@@ -135,6 +136,9 @@ pub enum PostgresConnectorError {
 
     #[error("Slot {0} is already used by another process")]
     SlotIsInUseError(String),
+
+    #[error("Table {0} changes is not replicated to slot")]
+    MissingTableInReplicationSlot(String),
 
     #[error("Start lsn is before first available lsn - {0} < {1}")]
     StartLsnIsBeforeLastFlushedLsnError(String, String),
@@ -339,9 +343,6 @@ pub enum ObjectStoreConnectorError {
     #[error("Runtime creation error")]
     RuntimeCreationError,
 
-    #[error("Internal error")]
-    InternalError,
-
     #[error("Internal data fusion error")]
     InternalDataFusionError(#[source] DataFusionError),
 
@@ -367,7 +368,7 @@ pub enum ObjectStoreSchemaError {
     DurationConversionError,
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum ObjectStoreObjectError {
     #[error("Missing storage details")]
     MissingStorageDetails,
@@ -375,8 +376,11 @@ pub enum ObjectStoreObjectError {
     #[error("Table definition not found")]
     TableDefinitionNotFound,
 
-    #[error("Listing path parsing error")]
-    ListingPathParsingError,
+    #[error("Listing path parsing error: {0}")]
+    ListingPathParsingError(#[source] DataFusionError),
+
+    #[error("File format unsupported: {0}")]
+    FileFormatUnsupportedError(String),
 }
 
 #[derive(Error, Debug)]
