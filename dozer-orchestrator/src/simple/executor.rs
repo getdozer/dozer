@@ -84,7 +84,7 @@ impl Executor {
 
         let used_sources: Vec<String> = pipeline.get_entry_points_sources_names();
 
-        let source_builder = SourceBuilder::new(used_sources, grouped_connections);
+        let source_builder = SourceBuilder::new(used_sources, grouped_connections, None);
         let asm = source_builder.build_source_manager()?;
 
         let mut app = App::new(asm);

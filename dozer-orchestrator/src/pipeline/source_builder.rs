@@ -3,6 +3,7 @@ use crate::OrchestrationError;
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{ColumnInfo, TableInfo};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::source::Source;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,6 +11,7 @@ use std::sync::Arc;
 pub struct SourceBuilder {
     used_sources: Vec<String>,
     grouped_connections: HashMap<String, Vec<Source>>,
+    progress: Option<MultiProgress>,
 }
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
@@ -18,10 +20,12 @@ impl SourceBuilder {
     pub fn new(
         used_sources: Vec<String>,
         grouped_connections: HashMap<String, Vec<Source>>,
+        progress: Option<MultiProgress>,
     ) -> Self {
         Self {
             used_sources,
             grouped_connections,
+            progress,
         }
     }
 
@@ -77,8 +81,12 @@ impl SourceBuilder {
                     }
                 }
 
-                let source_factory =
-                    ConnectorSourceFactory::new(ports.clone(), tables, connection.clone())?;
+                let source_factory = ConnectorSourceFactory::new(
+                    ports.clone(),
+                    tables,
+                    connection.clone(),
+                    self.progress.clone(),
+                )?;
 
                 asm.add(AppSource::new(
                     conn.clone(),
@@ -173,6 +181,7 @@ mod tests {
         let source_builder = SourceBuilder::new(
             tables,
             SourceBuilder::group_connections(config.sources.clone()),
+            None,
         );
         let asm = source_builder.build_source_manager().unwrap();
 

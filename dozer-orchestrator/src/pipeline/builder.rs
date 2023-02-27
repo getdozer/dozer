@@ -112,7 +112,7 @@ impl PipelineBuilder {
             }
         }
 
-        let source_builder = SourceBuilder::new(used_sources, grouped_connections);
+        let source_builder = SourceBuilder::new(used_sources, grouped_connections, Some(self.progress.clone()));
 
         let conn_ports = source_builder.get_ports();
 
