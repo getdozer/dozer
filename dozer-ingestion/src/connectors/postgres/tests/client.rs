@@ -38,6 +38,15 @@ impl TestPostgresClient {
         ));
     }
 
+    pub fn create_view(&mut self, schema: &str, table_name: &str, view_name: &str) {
+        self.execute_query(&format!(
+            "CREATE VIEW {}.{} AS
+            SELECT id, name
+            FROM {}.{}",
+            schema, view_name, schema, table_name
+        ));
+    }
+
     pub fn drop_schema(&mut self, schema: &str) {
         self.execute_query(&format!("DROP SCHEMA IF EXISTS {schema} CASCADE"));
     }

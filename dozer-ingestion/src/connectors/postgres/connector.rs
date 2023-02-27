@@ -1,5 +1,3 @@
-use crate::connectors::postgres::schema_helper::SchemaHelper;
-
 use crate::connectors::postgres::connection::validator::{validate_connection, validate_slot};
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::{Connector, TableInfo, ValidationResults};
@@ -10,6 +8,7 @@ use dozer_types::types::SourceSchema;
 use postgres::Client;
 use postgres_types::PgLsn;
 
+use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::errors::ConnectorError::PostgresConnectorError;
 use crate::errors::PostgresConnectorError::{CreatePublicationError, DropPublicationError};
 use tokio_postgres::config::ReplicationMode;
