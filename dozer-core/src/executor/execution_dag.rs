@@ -222,10 +222,9 @@ impl ExecutionDag {
             input_ports.push(edge.input_port);
             receivers.push(edge.receiver.clone());
             if let Some(record_reader) = edge.record_reader.take() {
+                let insert_result = record_readers.insert(edge.input_port, record_reader);
                 debug_assert!(
-                    record_readers
-                        .insert(edge.input_port, record_reader)
-                        .is_none(),
+                    insert_result.is_none(),
                     "More than one output connect to a input port"
                 );
             }
