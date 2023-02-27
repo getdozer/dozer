@@ -8,3 +8,6 @@ mod pipeline_test;
 mod set_operator_test;
 #[cfg(test)]
 mod window_test;
+
+#[cfg(test)]
+mod window_pipeline_test;

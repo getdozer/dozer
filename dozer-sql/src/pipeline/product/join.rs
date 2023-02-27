@@ -261,7 +261,20 @@ impl JoinWindow {
         record: &Record,
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
         debug_assert!(self.port == from_port);
-        self.table.execute(action, from_port, record)
+        let source_outputs = self.table.execute(action, from_port, record)?;
+
+        let mut window_outputs = vec![];
+        for (action, record, lookup_key) in source_outputs.into_iter() {
+            let window_records = self
+                .window
+                .execute(&record)
+                .map_err(|_| JoinError::InvalidSource(0))?;
+            for window_record in window_records {
+                // let lookup_key = self.table.encode_lookup_key(&window_record, &self.schema)?;
+                window_outputs.push((action.clone(), window_record, lookup_key.clone()));
+            }
+        }
+        Ok(window_outputs)
     }
 
     fn lookup(
