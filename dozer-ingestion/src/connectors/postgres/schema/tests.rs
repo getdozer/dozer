@@ -164,7 +164,7 @@ fn test_connector_view_cannot_be_used() {
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(PostgresSchemaError(UnsupportedTableType(_)))
+            Err(PostgresSchemaError(UnsupportedTableType(_, _)))
         ));
 
         let table_info = TableInfo {

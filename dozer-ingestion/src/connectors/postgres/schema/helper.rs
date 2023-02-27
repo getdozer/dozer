@@ -304,16 +304,16 @@ impl SchemaHelper {
     }
 
     fn convert_row(&self, row: &Row) -> Result<PostgresTableRow, PostgresSchemaError> {
+        let table_name: String = row.get(0);
         let table_type: Option<String> = row.get(7);
         if let Some(typ) = table_type {
             if typ != *"BASE TABLE" {
-                return Err(PostgresSchemaError::UnsupportedTableType(typ));
+                return Err(PostgresSchemaError::UnsupportedTableType(typ, table_name));
             }
         } else {
             return Err(TableTypeNotFound);
         }
 
-        let table_name: String = row.get(0);
         let column_name: String = row.get(1);
         let is_nullable: bool = row.get(2);
         let is_column_used_in_index: bool = row.get(3);
