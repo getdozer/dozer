@@ -9,17 +9,20 @@ use dozer_core::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
-use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::JoinError,
     expression::builder::extend_schema_source_def,
-    product::{join::JoinBranch, window_builder::window_from_relation},
+    product::{
+        join::{JoinBranch, JoinWindow},
+        window_builder::window_from_relation,
+    },
 };
 use crate::pipeline::{
     builder::{get_input_names, IndexedTableWithJoins},
     errors::PipelineError,
 };
+use crate::pipeline::{errors::SqlError, expression::builder::ExpressionBuilder};
 use sqlparser::ast::Expr as SqlExpr;
 
 use super::{
@@ -110,6 +113,9 @@ pub fn build_join_tree(
     let mut source_names = HashMap::new();
 
     let port = 0 as PortHandle;
+
+    let relation_name = &join_tables.relation.0;
+
     let left_schema = input_schemas
         .get(&port)
         .ok_or(JoinError::InvalidJoinConstraint(
@@ -117,21 +123,32 @@ pub fn build_join_tree(
         ))?
         .clone();
 
-    let left_window = window_from_relation(&join_tables.relation.1, &left_schema)?;
+    let mut left_extended_schema = extend_schema_source_def(&left_schema, relation_name);
+    let mut left_join_table = JoinTable::new(port, left_extended_schema.clone());
 
-    let relation_name = &join_tables.relation.0;
+    let left_join_source = match window_from_relation(&join_tables.relation.1, &left_schema)? {
+        Some(left_window) => {
+            let left_window_schema = left_window.get_output_schema(&left_schema).map_err(|_| {
+                PipelineError::SqlError(SqlError::WindowError("Invalid window".to_string()))
+            })?;
+            let mut left_extended_schema =
+                extend_schema_source_def(&left_window_schema, relation_name);
+
+            let window_source = JoinWindow::new(
+                port,
+                left_extended_schema,
+                left_window.clone(),
+                left_join_table,
+            );
+
+            JoinSource::Window(window_source)
+        }
+        None => JoinSource::Table(left_join_table),
+    };
 
     source_names.insert(port, relation_name.0.to_owned());
 
-    let mut left_extended_schema = extend_schema_source_def(&left_schema, relation_name);
-
-    let mut left_join_table = JoinSource::Table(JoinTable::new(
-        port,
-        left_extended_schema.clone(),
-        left_window,
-    ));
-
-    let mut join_tree_root = left_join_table.clone();
+    let mut join_tree_root = left_join_source.clone();
 
     for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
         let right_port = (index + 1) as PortHandle;

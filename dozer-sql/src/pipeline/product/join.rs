@@ -19,7 +19,6 @@ use super::window::WindowType;
 pub enum JoinAction {
     Insert,
     Delete,
-    // Update,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,6 +37,7 @@ pub struct JoinConstraint {
 #[derive(Clone, Debug)]
 pub enum JoinSource {
     Table(JoinTable),
+    Window(JoinWindow),
     Join(JoinOperator),
 }
 
@@ -56,6 +56,7 @@ impl JoinSource {
             JoinSource::Join(join) => {
                 join.execute(action, from_port, record, database, transaction, readers)
             }
+            JoinSource::Window(window) => window.execute(action, from_port, record),
         }
     }
 
@@ -69,6 +70,7 @@ impl JoinSource {
         match self {
             JoinSource::Table(table) => table.lookup(lookup_key, readers),
             JoinSource::Join(join) => join.lookup(lookup_key, database, transaction, readers),
+            JoinSource::Window(window) => window.lookup(lookup_key, readers),
         }
     }
 
@@ -76,6 +78,7 @@ impl JoinSource {
         match self {
             JoinSource::Table(table) => table.schema.clone(),
             JoinSource::Join(join) => join.schema.clone(),
+            JoinSource::Window(window) => window.schema.clone(),
         }
     }
 
@@ -83,6 +86,7 @@ impl JoinSource {
         match self {
             JoinSource::Table(table) => vec![table.get_source()],
             JoinSource::Join(join) => join.get_sources(),
+            JoinSource::Window(window) => vec![window.get_source()],
         }
     }
 }
@@ -92,17 +96,11 @@ pub struct JoinTable {
     port: PortHandle,
 
     pub schema: Schema,
-
-    window: Option<WindowType>,
 }
 
 impl JoinTable {
-    pub fn new(port: PortHandle, schema: Schema, window: Option<WindowType>) -> Self {
-        Self {
-            port,
-            schema,
-            window,
-        }
+    pub fn new(port: PortHandle, schema: Schema) -> Self {
+        Self { port, schema }
     }
 
     pub fn get_source(&self) -> PortHandle {
@@ -228,6 +226,50 @@ impl JoinTable {
             offset += field_length as usize;
         }
         Ok(Record::new(None, values, version))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct JoinWindow {
+    port: PortHandle,
+
+    pub schema: Schema,
+
+    window: WindowType,
+
+    table: JoinTable,
+}
+
+impl JoinWindow {
+    pub fn new(port: PortHandle, schema: Schema, window: WindowType, table: JoinTable) -> Self {
+        Self {
+            port,
+            schema,
+            window,
+            table,
+        }
+    }
+
+    pub fn get_source(&self) -> PortHandle {
+        self.port
+    }
+
+    fn execute(
+        &self,
+        action: JoinAction,
+        from_port: PortHandle,
+        record: &Record,
+    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
+        debug_assert!(self.port == from_port);
+        self.table.execute(action, from_port, record)
+    }
+
+    fn lookup(
+        &self,
+        lookup_key: &[u8],
+        readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
+    ) -> Result<Vec<(Record, Vec<u8>)>, JoinError> {
+        self.table.lookup(lookup_key, readers)
     }
 }
 
