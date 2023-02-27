@@ -80,7 +80,7 @@ dependencies = [
  "tokio",
  "tokio-util 0.7.4",
  "tracing",
- "zstd",
+ "zstd 0.12.3+zstd.1.5.2",
 ]
 
 [[package]]
@@ -578,6 +578,8 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "xz2",
+ "zstd 0.11.2+zstd.1.5.2",
+ "zstd-safe 5.0.2+zstd.1.5.2",
 ]
 
 [[package]]
@@ -671,7 +673,7 @@ dependencies = [
  "serde",
  "sync_wrapper",
  "tower",
- "tower-http",
+ "tower-http 0.3.5",
  "tower-layer",
  "tower-service",
 ]
@@ -698,6 +700,12 @@ name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
+
+[[package]]
+name = "base64"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
 
 [[package]]
 name = "base64"
@@ -1797,7 +1805,7 @@ dependencies = [
  "tonic-build",
  "tonic-reflection",
  "tonic-web",
- "tower-http",
+ "tower-http 0.4.0",
  "uuid 1.3.0",
 ]
 
@@ -1832,7 +1840,7 @@ dependencies = [
  "tonic-reflection",
  "tonic-web",
  "tower",
- "tower-http",
+ "tower-http 0.4.0",
  "tracing-actix-web",
 ]
 
@@ -1901,7 +1909,7 @@ dependencies = [
  "tonic",
  "tonic-reflection",
  "tonic-web",
- "tower-http",
+ "tower-http 0.4.0",
  "web3",
 ]
 
@@ -2934,11 +2942,12 @@ checksum = "879d54834c8c76457ef4293a689b2a8c59b076067ad77b15efafbb05f92a592b"
 
 [[package]]
 name = "iri-string"
-version = "0.4.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f0f7638c1e223529f1bfdc48c8b133b9e0b434094d1d28473161ee48b235f78"
+checksum = "21859b667d66a4c1dacd9df0863b3efb65785474255face87f5bca39dd8407c0"
 dependencies = [
- "nom",
+ "memchr",
+ "serde",
 ]
 
 [[package]]
@@ -3413,12 +3422,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "minimal-lexical"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
-
-[[package]]
 name = "miniz_oxide"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3567,16 +3570,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "static_assertions",
-]
-
-[[package]]
-name = "nom"
-version = "7.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
-dependencies = [
- "memchr",
- "minimal-lexical",
 ]
 
 [[package]]
@@ -4029,7 +4022,7 @@ dependencies = [
  "thrift 0.17.0",
  "tokio",
  "twox-hash",
- "zstd",
+ "zstd 0.12.3+zstd.1.5.2",
 ]
 
 [[package]]
@@ -6074,8 +6067,27 @@ version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f873044bf02dd1e8239e9c1293ea39dad76dc594ec16185d0a1bf31d8dc8d858"
 dependencies = [
+ "bitflags",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-range-header",
+ "pin-project-lite",
+ "tower",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d1d42a9b3f3ec46ba828e8d376aec14592ea199f70a06a548587ecd1c4ab658"
+dependencies = [
  "async-compression",
- "base64 0.13.1",
+ "base64 0.20.0",
  "bitflags",
  "bytes",
  "futures-core",
@@ -6839,11 +6851,30 @@ dependencies = [
 
 [[package]]
 name = "zstd"
+version = "0.11.2+zstd.1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20cc960326ece64f010d2d2107537f26dc589a6573a316bd5b1dba685fa5fde4"
+dependencies = [
+ "zstd-safe 5.0.2+zstd.1.5.2",
+]
+
+[[package]]
+name = "zstd"
 version = "0.12.3+zstd.1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76eea132fb024e0e13fd9c2f5d5d595d8a967aa72382ac2f9d39fcc95afd0806"
 dependencies = [
- "zstd-safe",
+ "zstd-safe 6.0.3+zstd.1.5.2",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "5.0.2+zstd.1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d2a5585e04f9eea4b2a3d1eca508c4dee9592a89ef6f450c11719da0726f4db"
+dependencies = [
+ "libc",
+ "zstd-sys",
 ]
 
 [[package]]

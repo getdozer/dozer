@@ -25,7 +25,7 @@ tonic-web = "0.4.0"
 tonic-build = "0.8.0"
 mockall = "0.11.2"
 tonic-reflection = "0.6.0"
-tower-http = {version = "0.3.5", features = ["full"]}
+tower-http = {version = "0.4.0", features = ["full"]}
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 prost = "0.11.8"
 clap = {version = "4.1.6", features = ["derive"]}

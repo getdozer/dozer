@@ -33,6 +33,6 @@ tracing-actix-web = "0.7.2"
 tower = "0.4.13"
 hyper = "0.14.24"
 actix-http = "3.3.0"
-tower-http = {version = "0.3.5", features = ["full"]}
+tower-http = {version = "0.4.0", features = ["full"]}
 arc-swap = "1.6.0"
 
