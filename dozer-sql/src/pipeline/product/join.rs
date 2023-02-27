@@ -282,7 +282,14 @@ impl JoinWindow {
         lookup_key: &[u8],
         readers: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(Record, Vec<u8>)>, JoinError> {
+        // split lookup key into fields
+
+        // execute the lookup using only the source key fields
         self.table.lookup(lookup_key, readers)
+
+        // for each record, execute the window
+
+        // return the record that match the lookup key
     }
 }
 

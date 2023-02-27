@@ -125,12 +125,12 @@ fn get_source_schema(
     let left_extended_schema = extend_schema_source_def(&left_schema.0, relation_name);
 
     let left_source_schema = match window_from_relation(&join_tables.relation.1, &left_schema.0)
-        .map_err(|_| ExecutionError::InternalStringError("Invalid window".to_string()))?
+        .map_err(|e| ExecutionError::ProductProcessorError(Box::new(e)))?
     {
         Some(left_window) => {
             let left_window_schema = left_window
                 .get_output_schema(&left_schema.0)
-                .map_err(|_| ExecutionError::InternalStringError("Invalid window".to_string()))?;
+                .map_err(|e| ExecutionError::ProductProcessorError(Box::new(e)))?;
 
             extend_schema_source_def(&left_window_schema, relation_name)
         }
