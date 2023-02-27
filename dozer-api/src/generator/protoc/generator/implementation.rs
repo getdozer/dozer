@@ -1,8 +1,5 @@
 use crate::errors::GenerationError;
-use crate::generator::protoc::generator::{
-    CountMethodDesc, EventDesc, OnEventMethodDesc, QueryMethodDesc, RecordWithIdDesc,
-    TokenMethodDesc, TokenResponseDesc,
-};
+use crate::generator::protoc::generator::{CountMethodDesc, DecimalDesc, EventDesc, OnEventMethodDesc, PointDesc, QueryMethodDesc, RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc};
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
@@ -171,10 +168,35 @@ impl<'a> ProtoGeneratorImpl<'a> {
             message: MessageDescriptor,
         ) -> Result<RecordDesc, GenerationError> {
             let version_field = get_field(&message, "__dozer_record_version")?;
-            Ok(RecordDesc {
-                message,
-                version_field,
-            })
+            let values = get_field(&message, "values");
+            if let Ok(..) = values {
+                let value_msg = values.unwrap().parent_message().to_owned();
+
+                Ok(RecordDesc {
+                    message,
+                    version_field,
+                    point_field: Option::from(PointDesc {
+                        message: value_msg.clone(),
+                        x: get_field(&value_msg, "x")?,
+                        y: get_field(&value_msg, "y")?,
+                    }),
+                    decimal_field: Option::from(DecimalDesc {
+                        message: value_msg.clone(),
+                        flags: get_field(&value_msg, "flags")?,
+                        lo: get_field(&value_msg, "lo")?,
+                        mid: get_field(&value_msg, "mid")?,
+                        hi: get_field(&value_msg, "hi")?,
+                    }),
+                })
+            }
+            else {
+                Ok(RecordDesc {
+                    message,
+                    version_field,
+                    point_field: None,
+                    decimal_field: None,
+                })
+            }
         }
 
         let names = Names::new(schema_name, &Schema::empty());
