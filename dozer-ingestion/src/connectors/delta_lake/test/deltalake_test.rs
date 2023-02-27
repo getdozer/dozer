@@ -2,7 +2,8 @@ use crate::connectors::delta_lake::DeltaLakeConnector;
 use crate::connectors::Connector;
 use crate::connectors::TableInfo;
 use crate::ingestion::{IngestionConfig, Ingestor};
-use dozer_types::ingestion_types::{DeltaLakeConfig, DeltaTable};
+use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::ingestion_types::{DeltaLakeConfig, DeltaTable, IngestionMessageKind};
 use dozer_types::types::SourceDefinition::Dynamic;
 use dozer_types::types::{Field, FieldType, Operation};
 use std::thread;
@@ -65,10 +66,14 @@ fn read_deltalake() {
 
     let mut idx = 0;
     let fields = vec![Field::Int(0), Field::Int(1), Field::Int(2), Field::Int(4)];
-    while let Some(((_, seq_no), Operation::Insert { new })) = iterator.next() {
-        assert_eq!(idx, seq_no as usize);
-        let values = new.values;
-        assert_eq!(values, vec![fields[idx].clone()]);
+    let mut values = vec![];
+    while let Some(IngestionMessage { identifier, kind }) = iterator.next() {
+        assert_eq!(idx, identifier.seq_in_tx as usize);
+        if let IngestionMessageKind::OperationEvent(Operation::Insert { new }) = kind {
+            values.extend(new.values);
+        }
         idx += 1;
     }
+    values.sort();
+    assert_eq!(fields, values);
 }

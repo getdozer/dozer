@@ -68,15 +68,16 @@ impl DeltaLakeReader {
                     .collect::<Vec<_>>();
 
                 ingestor
-                    .handle_message((
-                        (0_u64, idx),
-                        IngestionMessage::OperationEvent(Operation::Insert {
+                    .handle_message(IngestionMessage::new_op(
+                        0_u64,
+                        idx,
+                        Operation::Insert {
                             new: Record {
                                 schema_id: Some(SchemaIdentifier { id, version: 0 }),
                                 values: fields,
                                 version: None,
                             },
-                        }),
+                        },
                     ))
                     .unwrap();
 
