@@ -3,7 +3,7 @@ use crate::generator::protoc::generator::{
     CountMethodDesc, DecimalDesc, EventDesc, OnEventMethodDesc, PointDesc, QueryMethodDesc,
     RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
 };
-use dozer_types::log::{error};
+use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use dozer_types::serde::{self, Deserialize, Serialize};
