@@ -54,6 +54,24 @@ pub struct CountResponseDesc {
 pub struct RecordDesc {
     pub message: MessageDescriptor,
     pub version_field: FieldDescriptor,
+    pub point_field: PointDesc,
+    pub decimal_field: DecimalDesc,
+}
+
+#[derive(Debug, Clone)]
+pub struct PointDesc {
+    pub message: MessageDescriptor,
+    pub x: FieldDescriptor,
+    pub y: FieldDescriptor,
+}
+
+#[derive(Debug, Clone)]
+pub struct DecimalDesc {
+    pub message: MessageDescriptor,
+    pub flags: FieldDescriptor,
+    pub lo: FieldDescriptor,
+    pub mid: FieldDescriptor,
+    pub hi: FieldDescriptor,
 }
 
 #[derive(Debug, Clone)]

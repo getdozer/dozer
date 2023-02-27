@@ -101,18 +101,15 @@ message RustDecimal {
 message Value {
   // A field value.
   oneof value {
-    uint64 uint_value = 1;   // Unsigned 64 bit integer.
-    int64 int_value = 2;     // Signed 64 bit integer.
-    double float_value = 3;  // 32 bit floating point number.
-    bool bool_value = 4;     // Boolean.
-    string string_value = 5; // UTF-8 string.
-                             // Binary data.
-
-    bytes bytes_value = 7;
-    RustDecimal decimal_value = 8;                 // decimal value
-    google.protobuf.Timestamp timestamp_value = 9; // DateTime
-    string date_value = 10; // ISO 8601 calendar date without timezone.
-
-    PointType point_value = 12; // Point type
+    uint64 uint_value = 1;     // Unsigned 64 bit integer.
+    int64 int_value = 2;       // Signed 64 bit integer.
+    double float_value = 3;    // 32 bit floating point number.
+    bool bool_value = 4;       // Boolean.
+    string string_value = 5;   // UTF-8 string.
+    bytes bytes_value = 7;     // Binary data.
+    RustDecimal decimal_value = 8;                 // Decimal value.
+    google.protobuf.Timestamp timestamp_value = 9; // DateTime & Timestamp.
+    string date_value = 10;     // ISO 8601 calendar date without timezone.
+    PointType point_value = 11; // Point type.
   };
 }

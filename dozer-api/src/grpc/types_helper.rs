@@ -1,8 +1,8 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
-use dozer_types::chrono::SecondsFormat;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
+use prost_reflect::prost_types::Timestamp;
 
 use dozer_types::grpc_types::types::{
     value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
@@ -108,9 +108,10 @@ fn field_to_prost_value(f: Field) -> Value {
         },
         Field::Decimal(d) => map_decimal(d),
         Field::Timestamp(ts) => Value {
-            value: Some(value::Value::StringValue(
-                ts.to_rfc3339_opts(SecondsFormat::Millis, true),
-            )),
+            value: Some(value::Value::TimestampValue(Timestamp {
+                seconds: ts.timestamp(),
+                nanos: ts.timestamp_subsec_nanos() as i32,
+            })),
         },
         Field::Bson(b) => Value {
             value: Some(value::Value::BytesValue(b)),

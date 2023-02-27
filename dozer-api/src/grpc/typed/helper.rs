@@ -5,7 +5,7 @@ use crate::generator::protoc::generator::{
 use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
 use dozer_types::grpc_types::types as GrpcTypes;
-use prost_reflect::{DynamicMessage, Value};
+use prost_reflect::{DynamicMessage, ReflectMessage, Value};
 
 use super::TypedResponse;
 
@@ -46,7 +46,7 @@ fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) ->
     // `record_desc` has more fields than `record.values` because it also contains the version field.
     // Here `zip` handles the case.
     for (field, value) in record_desc.message.fields().zip(record.values.into_iter()) {
-        if let Some(v) = interval_value_to_pb(value) {
+        if let Some(v) = interval_value_to_pb(value, record_desc) {
             msg.set_field(&field, v);
         }
     }
@@ -59,7 +59,10 @@ fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) ->
     msg
 }
 
-fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value> {
+fn interval_value_to_pb(
+    value: GrpcTypes::Value,
+    descriptor: &RecordDesc,
+) -> Option<prost_reflect::Value> {
     value.value.map(|value| match value {
         GrpcTypes::value::Value::UintValue(n) => Value::U64(n),
         GrpcTypes::value::Value::IntValue(n) => Value::I64(n),
@@ -69,10 +72,30 @@ fn interval_value_to_pb(value: GrpcTypes::Value) -> Option<prost_reflect::Value>
         GrpcTypes::value::Value::BytesValue(n) => {
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
-        GrpcTypes::value::Value::PointValue(_p) => todo!(),
-        GrpcTypes::value::Value::DecimalValue(_d) => todo!(),
-        GrpcTypes::value::Value::TimestampValue(_t) => todo!(),
-        GrpcTypes::value::Value::DateValue(_) => todo!(),
+        GrpcTypes::value::Value::PointValue(p) => {
+            let point_type_desc = descriptor.point_field.message.clone();
+            let x_field_desc = &descriptor.point_field.x;
+            let y_field_desc = &descriptor.point_field.y;
+            let mut point = DynamicMessage::new(point_type_desc);
+            point.set_field(x_field_desc, prost_reflect::Value::F64(p.x));
+            point.set_field(y_field_desc, prost_reflect::Value::F64(p.y));
+            Value::Message(point)
+        }
+        GrpcTypes::value::Value::DecimalValue(d) => {
+            let decimal_type_desc = descriptor.decimal_field.message.clone();
+            let flags_field_desc = &descriptor.decimal_field.flags;
+            let lo_field_desc = &descriptor.decimal_field.lo;
+            let mid_field_desc = &descriptor.decimal_field.mid;
+            let hi_field_desc = &descriptor.decimal_field.hi;
+            let mut decimal = DynamicMessage::new(decimal_type_desc);
+            decimal.set_field(flags_field_desc, prost_reflect::Value::U32(d.flags));
+            decimal.set_field(lo_field_desc, prost_reflect::Value::U32(d.lo));
+            decimal.set_field(mid_field_desc, prost_reflect::Value::U32(d.mid));
+            decimal.set_field(hi_field_desc, prost_reflect::Value::U32(d.hi));
+            Value::Message(decimal)
+        }
+        GrpcTypes::value::Value::TimestampValue(ts) => Value::Message(ts.transcode_to_dynamic()),
+        GrpcTypes::value::Value::DateValue(d) => Value::String(d),
     })
 }
 
