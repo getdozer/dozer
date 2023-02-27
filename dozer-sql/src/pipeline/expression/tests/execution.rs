@@ -1,11 +1,13 @@
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::mathematical::evaluate_sub;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::projection::factory::ProjectionProcessorFactory;
 use crate::pipeline::tests::utils::get_select;
 use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::chrono::DateTime;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
 #[test]
@@ -235,4 +237,55 @@ fn test_wildcard() {
             )
             .clone()
     );
+}
+
+#[test]
+fn test_timestamp_difference() {
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                String::from("a"),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            true,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("b"),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .clone();
+
+    let record = Record::new(
+        None,
+        vec![
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap()),
+        ],
+        Some(1),
+    );
+
+    let result = evaluate_sub(
+        &schema,
+        &Expression::Column { index: 0 },
+        &Expression::Column { index: 1 },
+        &record,
+    )
+    .unwrap();
+    assert_eq!(result, Field::Int(50000));
+
+    let result = evaluate_sub(
+        &schema,
+        &Expression::Column { index: 1 },
+        &Expression::Column { index: 0 },
+        &record,
+    )
+    .unwrap();
+    assert_eq!(result, Field::Int(50000));
 }
