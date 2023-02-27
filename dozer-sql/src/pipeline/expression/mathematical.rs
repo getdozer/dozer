@@ -19,6 +19,16 @@ macro_rules! define_math_operator {
             let right_p = right.evaluate(&record, schema)?;
 
             match left_p {
+                Field::Timestamp(left_v) => match right_p {
+                    Field::Timestamp(right_v) => match $op {
+                        "-" => {
+                            let duration = left_v - right_v;
+                            Ok(Field::Int(duration.num_milliseconds()))
+                        }
+                        _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    },
+                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                },
                 Field::Float(left_v) => match right_p {
                     Field::Int(right_v) => Ok(Field::Float($fct(
                         left_v,
