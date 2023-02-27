@@ -1,18 +1,6 @@
 use dozer_orchestrator::cli::load_config;
 use std::panic;
 use std::path::PathBuf;
-// #[cfg(not(doc))]
-// static TESTS_CONFIG_DIR: Dir<'_> = include_dir!("config/tests/local");
-// #[cfg(doc)]
-// static TESTS_CONFIG_DIR: Dir<'_> = include_dir!("../config/tests/local");
-//
-// pub fn load_config(file_name: &str) -> &str {
-//     TESTS_CONFIG_DIR
-//         .get_file(file_name)
-//         .unwrap()
-//         .contents_utf8()
-//         .unwrap()
-// }
 
 use dozer_types::models::app_config::Config;
 
