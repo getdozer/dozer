@@ -328,8 +328,7 @@ pub struct DeltaTable {
     #[prost(string, tag = "1")]
     pub path: String,
     #[prost(string, tag = "2")]
-    pub name: String
-
+    pub name: String,
 }
 
 impl DeltaTable {

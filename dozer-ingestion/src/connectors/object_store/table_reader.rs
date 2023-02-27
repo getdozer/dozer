@@ -9,10 +9,10 @@ use crate::errors::ObjectStoreTableReaderError::{
 };
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crate::ingestion::Ingestor;
-use datafusion::datasource::listing::{
+use deltalake::datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
-use datafusion::prelude::SessionContext;
+use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;

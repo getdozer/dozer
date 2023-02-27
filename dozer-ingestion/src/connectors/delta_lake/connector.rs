@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-use dozer_types::ingestion_types::DeltaLakeConfig;
-use dozer_types::types::SourceSchema;
-use crate::connectors::{Connector, TableInfo, ValidationResults};
-use crate::connectors::delta_lake::ConnectorResult;
 use crate::connectors::delta_lake::reader::DeltaLakeReader;
 use crate::connectors::delta_lake::schema_helper::SchemaHelper;
+use crate::connectors::delta_lake::ConnectorResult;
+use crate::connectors::{Connector, TableInfo, ValidationResults};
 use crate::ingestion::Ingestor;
-
+use dozer_types::ingestion_types::DeltaLakeConfig;
+use dozer_types::types::SourceSchema;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct DeltaLakeConnector {
@@ -16,7 +15,7 @@ pub struct DeltaLakeConnector {
 
 impl DeltaLakeConnector {
     pub fn new(id: u64, config: DeltaLakeConfig) -> Self {
-        Self {id, config}
+        Self { id, config }
     }
 }
 
@@ -29,7 +28,10 @@ impl Connector for DeltaLakeConnector {
         Ok(HashMap::new())
     }
 
-    fn get_schemas(&self, table_names: Option<Vec<TableInfo>>) -> ConnectorResult<Vec<SourceSchema>> {
+    fn get_schemas(
+        &self,
+        table_names: Option<Vec<TableInfo>>,
+    ) -> ConnectorResult<Vec<SourceSchema>> {
         let schema_helper = SchemaHelper::new(self.config.clone());
         schema_helper.get_schemas(table_names)
     }
@@ -38,7 +40,12 @@ impl Connector for DeltaLakeConnector {
         Ok(false)
     }
 
-    fn start(&self, _last_checkpoint: Option<(u64, u64)>, ingestor: &Ingestor, tables: Option<Vec<TableInfo>>) -> ConnectorResult<()> {
+    fn start(
+        &self,
+        _last_checkpoint: Option<(u64, u64)>,
+        ingestor: &Ingestor,
+        tables: Option<Vec<TableInfo>>,
+    ) -> ConnectorResult<()> {
         let tables = match tables {
             Some(tables) if !tables.is_empty() => tables,
             _ => return Ok(()),
@@ -46,10 +53,9 @@ impl Connector for DeltaLakeConnector {
 
         let reader = DeltaLakeReader::new(self.config.clone());
         reader.read(&tables, ingestor)
-
     }
 
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> ConnectorResult<Vec<TableInfo>> {
+    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> ConnectorResult<Vec<TableInfo>> {
         todo!()
     }
 }

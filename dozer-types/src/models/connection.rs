@@ -1,4 +1,6 @@
-use crate::ingestion_types::{DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, S3Storage, SnowflakeConfig};
+use crate::ingestion_types::{
+    DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, S3Storage, SnowflakeConfig,
+};
 use serde::{Deserialize, Serialize};
 
 use prettytable::Table;

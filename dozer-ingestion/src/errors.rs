@@ -9,12 +9,12 @@ use dozer_types::{rust_decimal, thiserror};
 
 use base64::DecodeError;
 
-use datafusion::error::DataFusionError;
+use deltalake::datafusion::error::DataFusionError;
+use deltalake::DeltaTableError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
-use deltalake::DeltaTableError;
 
 use dozer_types::log::error;
 #[cfg(feature = "snowflake")]

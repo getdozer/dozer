@@ -349,6 +349,7 @@ fn write_dozer_config_for_running_in_docker_compose(
             }
             ConnectionConfig::S3Storage(_) => {}
             ConnectionConfig::LocalStorage(_) => {}
+            ConnectionConfig::DeltaLake(_) => {}
         }
     }
 

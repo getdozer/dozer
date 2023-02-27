@@ -17,7 +17,6 @@ postgres-protocol = "0.6.4"
 postgres-types = { version = "0.2.4", features = ["with-serde_json-1"]}
 tokio-postgres = { version = "0.7.7", features = ["with-chrono-0_4", "with-geo-types-0_7"] }
 # DataFusion connector
-datafusion = "18.0.0"
 object_store = { version = "0.5", features = ["aws"] }
 # Eth connector
 web3 = "0.18.0"
