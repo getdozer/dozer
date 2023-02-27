@@ -4,7 +4,7 @@ use crate::generator::protoc::generator::{
 };
 use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::RecordWithId;
-use dozer_types::grpc_types::{types as GrpcTypes};
+use dozer_types::grpc_types::types as GrpcTypes;
 use prost_reflect::{DynamicMessage, FieldDescriptor, ReflectMessage, Value};
 
 use super::TypedResponse;
@@ -59,7 +59,11 @@ fn internal_record_to_pb(record: GrpcTypes::Record, record_desc: &RecordDesc) ->
     msg
 }
 
-fn interval_value_to_pb(value: GrpcTypes::Value, _field: &FieldDescriptor, descriptor: &RecordDesc) -> Option<prost_reflect::Value> {
+fn interval_value_to_pb(
+    value: GrpcTypes::Value,
+    _field: &FieldDescriptor,
+    descriptor: &RecordDesc,
+) -> Option<prost_reflect::Value> {
     value.value.map(|value| match value {
         GrpcTypes::value::Value::UintValue(n) => Value::U64(n),
         GrpcTypes::value::Value::IntValue(n) => Value::I64(n),
@@ -70,20 +74,20 @@ fn interval_value_to_pb(value: GrpcTypes::Value, _field: &FieldDescriptor, descr
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
         GrpcTypes::value::Value::PointValue(p) => {
-            let point_type_desc = descriptor.clone().point_field.unwrap().message;
-            let x_field_desc = descriptor.clone().point_field.unwrap().x;
-            let y_field_desc = descriptor.clone().point_field.unwrap().y;
+            let point_type_desc = descriptor.clone().point_field.message;
+            let x_field_desc = descriptor.clone().point_field.x;
+            let y_field_desc = descriptor.clone().point_field.y;
             let mut point = DynamicMessage::new(point_type_desc);
             point.set_field(&x_field_desc, prost_reflect::Value::F64(p.x));
             point.set_field(&y_field_desc, prost_reflect::Value::F64(p.y));
             Value::Message(point)
         }
         GrpcTypes::value::Value::DecimalValue(d) => {
-            let decimal_type_desc = descriptor.clone().decimal_field.unwrap().message;
-            let flags_field_desc = descriptor.clone().decimal_field.unwrap().flags;
-            let lo_field_desc = descriptor.clone().decimal_field.unwrap().lo;
-            let mid_field_desc = descriptor.clone().decimal_field.unwrap().mid;
-            let hi_field_desc = descriptor.clone().decimal_field.unwrap().hi;
+            let decimal_type_desc = descriptor.clone().decimal_field.message;
+            let flags_field_desc = descriptor.clone().decimal_field.flags;
+            let lo_field_desc = descriptor.clone().decimal_field.lo;
+            let mid_field_desc = descriptor.clone().decimal_field.mid;
+            let hi_field_desc = descriptor.clone().decimal_field.hi;
             let mut decimal = DynamicMessage::new(decimal_type_desc);
             decimal.set_field(&flags_field_desc, prost_reflect::Value::U32(d.flags));
             decimal.set_field(&lo_field_desc, prost_reflect::Value::U32(d.lo));

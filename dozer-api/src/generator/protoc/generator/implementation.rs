@@ -1,6 +1,9 @@
 use crate::errors::GenerationError;
-use crate::generator::protoc::generator::{CountMethodDesc, DecimalDesc, EventDesc, OnEventMethodDesc, PointDesc, QueryMethodDesc, RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc};
-use dozer_types::log::error;
+use crate::generator::protoc::generator::{
+    CountMethodDesc, DecimalDesc, EventDesc, OnEventMethodDesc, PointDesc, QueryMethodDesc,
+    RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
+};
+use dozer_types::log::{error};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use dozer_types::serde::{self, Deserialize, Serialize};
@@ -164,40 +167,32 @@ impl<'a> ProtoGeneratorImpl<'a> {
                 })
         }
 
-        fn record_desc_from_message(
-            message: MessageDescriptor,
-        ) -> Result<RecordDesc, GenerationError> {
-            let version_field = get_field(&message, "__dozer_record_version")?;
-            let values = get_field(&message, "values");
-            if let Ok(..) = values {
-                let value_msg = values.unwrap().parent_message().to_owned();
-
+        let record_desc_from_message =
+            |message: MessageDescriptor| -> Result<RecordDesc, GenerationError> {
+                let version_field = get_field(&message, "__dozer_record_version")?;
+                let point_values = descriptor
+                    .get_message_by_name("dozer.types.PointType")
+                    .unwrap();
+                let decimal_values = descriptor
+                    .get_message_by_name("dozer.types.RustDecimal")
+                    .unwrap();
                 Ok(RecordDesc {
                     message,
                     version_field,
-                    point_field: Option::from(PointDesc {
-                        message: value_msg.clone(),
-                        x: get_field(&value_msg, "x")?,
-                        y: get_field(&value_msg, "y")?,
-                    }),
-                    decimal_field: Option::from(DecimalDesc {
-                        message: value_msg.clone(),
-                        flags: get_field(&value_msg, "flags")?,
-                        lo: get_field(&value_msg, "lo")?,
-                        mid: get_field(&value_msg, "mid")?,
-                        hi: get_field(&value_msg, "hi")?,
-                    }),
+                    point_field: PointDesc {
+                        message: point_values.clone(),
+                        x: get_field(&point_values, "x")?,
+                        y: get_field(&point_values, "y")?,
+                    },
+                    decimal_field: DecimalDesc {
+                        message: decimal_values.clone(),
+                        flags: get_field(&decimal_values, "flags")?,
+                        lo: get_field(&decimal_values, "lo")?,
+                        mid: get_field(&decimal_values, "mid")?,
+                        hi: get_field(&decimal_values, "hi")?,
+                    },
                 })
-            }
-            else {
-                Ok(RecordDesc {
-                    message,
-                    version_field,
-                    point_field: None,
-                    decimal_field: None,
-                })
-            }
-        }
+            };
 
         let names = Names::new(schema_name, &Schema::empty());
         let service_name = format!("{}.{}", &names.package_name, &names.plural_pascal_name);

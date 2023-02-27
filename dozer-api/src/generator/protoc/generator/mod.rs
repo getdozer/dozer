@@ -54,8 +54,8 @@ pub struct CountResponseDesc {
 pub struct RecordDesc {
     pub message: MessageDescriptor,
     pub version_field: FieldDescriptor,
-    pub point_field: Option<PointDesc>,
-    pub decimal_field: Option<DecimalDesc>,
+    pub point_field: PointDesc,
+    pub decimal_field: DecimalDesc,
 }
 
 #[derive(Debug, Clone)]
