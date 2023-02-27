@@ -37,7 +37,13 @@ pub struct PostgresTableRow {
 
 pub struct PostgresTable {
     fields: Vec<FieldDefinition>,
-    primary_keys: Vec<bool>,
+    // Indexes of fields, which are used for replication identity
+    // Default - uses PK for identity
+    // Index - uses selected index fields for identity
+    // Full - all fields are used for identity
+    // Nothing - no fields can be used for identity.
+    //  Postgres will not return old values in update and delete replication messages
+    index_keys: Vec<bool>,
     table_id: u32,
     replication_type: String,
 }
@@ -46,7 +52,7 @@ impl PostgresTable {
     pub fn new(table_id: u32, replication_type: String) -> Self {
         Self {
             fields: vec![],
-            primary_keys: vec![],
+            index_keys: vec![],
             table_id,
             replication_type,
         }
@@ -54,7 +60,7 @@ impl PostgresTable {
 
     fn add_field(&mut self, field: FieldDefinition, is_column_used_in_index: bool) {
         self.fields.push(field);
-        self.primary_keys.push(is_column_used_in_index);
+        self.index_keys.push(is_column_used_in_index);
     }
 }
 
@@ -190,7 +196,7 @@ impl SchemaHelper {
         let mut schemas: Vec<SourceSchema> = Vec::new();
         for (table_name, table) in map.into_iter() {
             let primary_index: Vec<usize> = table
-                .primary_keys
+                .index_keys
                 .iter()
                 .enumerate()
                 .filter(|(_, b)| **b)
