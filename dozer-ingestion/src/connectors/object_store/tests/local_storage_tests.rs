@@ -79,7 +79,7 @@ fn test_read_parquet_file() {
     thread::spawn(move || {
         let tables: Vec<TableInfo> = vec![table];
 
-        let _ = connector.start(None, &ingestor, Some(tables));
+        let _ = connector.start(None, &ingestor, tables);
     });
 
     let mut i = 0;
@@ -128,7 +128,7 @@ fn test_csv_read() {
     thread::spawn(move || {
         let tables: Vec<TableInfo> = vec![table];
 
-        let _ = connector.start(None, &ingestor, Some(tables));
+        let _ = connector.start(None, &ingestor, tables);
     });
 
     let mut i = 0;
@@ -191,12 +191,12 @@ fn test_missing_directory() {
     let result = connector.start(
         None,
         &ingestor,
-        Some(vec![TableInfo {
+        vec![TableInfo {
             name: table.name.clone(),
             table_name: table.name,
             id: 0,
             columns: None,
-        }]),
+        }],
     );
 
     assert!(result.is_err());

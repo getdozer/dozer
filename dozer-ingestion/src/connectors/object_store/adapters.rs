@@ -4,8 +4,9 @@ use dozer_types::ingestion_types::{LocalStorage, S3Storage, Table};
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::local::LocalFileSystem;
 use object_store::ObjectStore;
+use std::fmt::Debug;
 
-pub trait DozerObjectStore: Clone + Send + Sync {
+pub trait DozerObjectStore: Clone + Send + Sync + Debug {
     type ObjectStore: ObjectStore;
 
     fn table_params(

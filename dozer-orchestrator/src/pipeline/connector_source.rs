@@ -204,11 +204,10 @@ impl Source for ConnectorSource {
     ) -> Result<(), ExecutionError> {
         thread::scope(|scope| {
             let t = scope.spawn(|| {
-                match self.connector.start(
-                    last_checkpoint,
-                    &self.ingestor,
-                    Some(self.tables.clone()),
-                ) {
+                match self
+                    .connector
+                    .start(last_checkpoint, &self.ingestor, self.tables.clone())
+                {
                     Ok(_) => {}
                     // If we get a channel error, it means the source sender thread has quit.
                     // Any error handling is done in that thread.

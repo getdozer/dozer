@@ -87,17 +87,17 @@ impl Connector for PostgresConnector {
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         self.schema_helper
             .get_schemas(table_names)
-            .map_err(ConnectorError::PostgresConnectorError)
+            .map_err(PostgresConnectorError)
     }
 
     fn start(
         &self,
         from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         let client = helper::connect(self.replication_conn_config.clone())
-            .map_err(ConnectorError::PostgresConnectorError)?;
+            .map_err(PostgresConnectorError)?;
         self.create_publication(client)?;
 
         let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), from_seq);
@@ -128,8 +128,7 @@ impl Connector for PostgresConnector {
     }
 
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        SchemaHelper::validate(&self.schema_helper, tables)
-            .map_err(ConnectorError::PostgresConnectorError)
+        SchemaHelper::validate(&self.schema_helper, tables).map_err(PostgresConnectorError)
     }
 
     fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {

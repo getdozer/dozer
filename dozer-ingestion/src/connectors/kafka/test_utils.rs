@@ -111,7 +111,7 @@ pub fn get_iterator_and_client(table_name: String) -> (IngestionIterator, Client
         }
 
         let connector = get_connector(connection).unwrap();
-        let _ = connector.start(None, &ingestor, Some(tables));
+        let _ = connector.start(None, &ingestor, tables);
     });
 
     (iterator, client)

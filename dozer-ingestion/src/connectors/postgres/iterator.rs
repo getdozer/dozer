@@ -24,7 +24,7 @@ pub struct Details {
     name: String,
     publication_name: String,
     slot_name: String,
-    tables: Option<Vec<TableInfo>>,
+    tables: Vec<TableInfo>,
     replication_conn_config: tokio_postgres::Config,
     conn_config: tokio_postgres::Config,
 }
@@ -49,7 +49,7 @@ impl<'a> PostgresIterator<'a> {
         name: String,
         publication_name: String,
         slot_name: String,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>,
         replication_conn_config: tokio_postgres::Config,
         ingestor: &'a Ingestor,
         conn_config: tokio_postgres::Config,
@@ -187,7 +187,7 @@ impl<'a> PostgresIteratorHandler<'a> {
         self.replicate(tables)
     }
 
-    fn replicate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    fn replicate(&self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
         let lsn = self.lsn.borrow();
         let (lsn, offset) = lsn
