@@ -1,4 +1,4 @@
-use arrow_schema::ArrowError;
+use arrow::error::ArrowError;
 use thiserror::Error;
 
 use crate::errors::internal::BoxedError;
@@ -15,7 +15,7 @@ pub enum ArrowConversionError {
     BoxedError(#[from] BoxedError),
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum FromArrowError {
     #[error("Unsupported type of \"{0}\" field")]
     FieldTypeNotSupported(String),
@@ -31,4 +31,7 @@ pub enum FromArrowError {
 
     #[error("Duration conversion failed")]
     DurationConversionError,
+
+    #[error(transparent)]
+    ArrowError(#[from] ArrowError),
 }

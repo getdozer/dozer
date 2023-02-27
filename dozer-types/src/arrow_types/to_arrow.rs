@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::types::{Field, FieldDefinition, FieldType, Record, Schema};
-use arrow_schema::DataType;
+use arrow::datatypes::{self as arrow_types, DataType};
 
 use arrow::{
     array::{self as arrow_array, ArrayRef},
@@ -12,13 +12,13 @@ use arrow::{
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
     schema: crate::types::Schema,
-) -> Result<arrow_schema::Schema, arrow_schema::ArrowError> {
+) -> Result<arrow_types::Schema, arrow::error::ArrowError> {
     let mut fields = vec![];
     for fd in schema.fields {
-        let field = arrow_schema::Field::from(fd);
+        let field = arrow_types::Field::from(fd);
         fields.push(field);
     }
-    Ok(arrow_schema::Schema {
+    Ok(arrow_types::Schema {
         fields,
         metadata: HashMap::new(),
     })
@@ -125,7 +125,7 @@ pub fn map_record_to_arrow(
 // Maps the dozer field type to the arrow data type
 // Optionally takes a metadata map to add additional metadata to the field
 
-fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, String>>) -> DataType {
+pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, String>>) -> DataType {
     match typ {
         FieldType::UInt => DataType::UInt64,
         FieldType::Int => DataType::Int64,
@@ -135,7 +135,7 @@ fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, String>>
         FieldType::Text => DataType::LargeUtf8,
         // TODO: Map thsi correctly
         FieldType::Decimal => DataType::Decimal256(10, 5),
-        FieldType::Timestamp => DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+        FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Millisecond, None),
         FieldType::Date => DataType::Date64,
         FieldType::Binary => {
             metadata.map(|m| m.insert("logical_type".to_string(), "Binary".to_string()));
@@ -152,11 +152,11 @@ fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, String>>
     }
 }
 
-impl From<FieldDefinition> for arrow_schema::Field {
+impl From<FieldDefinition> for arrow_types::Field {
     fn from(f: FieldDefinition) -> Self {
         let mut metadata = HashMap::new();
         let dt = map_field_type(f.typ, Some(&mut metadata));
 
-        arrow_schema::Field::new(f.name, dt, f.nullable)
+        arrow_types::Field::new(f.name, dt, f.nullable)
     }
 }

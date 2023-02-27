@@ -4,11 +4,15 @@ use super::errors::FromArrowError::DateTimeConversionError;
 use super::errors::FromArrowError::DurationConversionError;
 use super::errors::FromArrowError::FieldTypeNotSupported;
 use super::errors::FromArrowError::TimeConversionError;
+use super::to_arrow;
+use crate::types::Record;
+use crate::types::{
+    Field as DozerField, FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition,
+};
 use arrow::array;
 use arrow::array::{Array, ArrayRef};
-use arrow::datatypes::{DataType, Field, TimeUnit};
-
-use crate::types::{Field as DozerField, FieldDefinition, FieldType, SourceDefinition};
+use arrow::datatypes::{DataType, TimeUnit};
+use arrow::row::SortField;
 
 macro_rules! make_from {
     ($array_type:ty, $column: ident, $row: ident) => {{
@@ -117,52 +121,61 @@ macro_rules! make_duration {
     }};
 }
 
-pub fn map_schema_to_dozer<'a, I: Iterator<Item = &'a Field>>(
-    fields_list: I,
-) -> Result<Vec<FieldDefinition>, FromArrowError> {
-    fields_list
-        .map(|field| {
-            let mapped_field_type = match field.data_type() {
-                DataType::Boolean => FieldType::Boolean,
-                DataType::Time32(_)
-                | DataType::Time64(_)
-                | DataType::Duration(_)
-                | DataType::Interval(_)
-                | DataType::Int8
-                | DataType::Int16
-                | DataType::Int32
-                | DataType::Int64 => FieldType::Int,
-                DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
-                    FieldType::UInt
-                }
-                DataType::Float16 | DataType::Float32 | DataType::Float64 => FieldType::Float,
-                DataType::Timestamp(_, _) => FieldType::Timestamp,
-                DataType::Date32 | DataType::Date64 => FieldType::Date,
-                DataType::Binary | DataType::FixedSizeBinary(_) | DataType::LargeBinary => {
-                    FieldType::Binary
-                }
-                DataType::Utf8 => FieldType::String,
-                DataType::LargeUtf8 => FieldType::Text,
-                // DataType::List(_) => {}
-                // DataType::FixedSizeList(_, _) => {}
-                // DataType::LargeList(_) => {}
-                // DataType::Struct(_) => {}
-                // DataType::Union(_, _, _) => {}
-                // DataType::Dictionary(_, _) => {}
-                // DataType::Decimal128(_, _) => {}
-                // DataType::Decimal256(_, _) => {}
-                // DataType::Map(_, _) => {}
-                _ => return Err(FieldTypeNotSupported(field.name().clone())),
-            };
+pub fn map_schema_to_dozer(
+    schema: &arrow::datatypes::Schema,
+) -> Result<DozerSchema, FromArrowError> {
+    let mut fields = vec![];
+    for field in schema.fields() {
+        let typ = map_arrow_to_dozer_type(field.data_type())?;
 
-            Ok(FieldDefinition {
-                name: field.name().clone(),
-                typ: mapped_field_type,
-                nullable: field.is_nullable(),
-                source: SourceDefinition::Dynamic,
-            })
-        })
-        .collect()
+        fields.push(FieldDefinition {
+            name: field.name().clone(),
+            typ,
+            nullable: field.is_nullable(),
+            source: SourceDefinition::Dynamic,
+        });
+    }
+
+    Ok(DozerSchema {
+        identifier: None,
+        fields,
+        primary_index: vec![],
+    })
+}
+
+pub fn map_arrow_to_dozer_type(dt: &DataType) -> Result<FieldType, FromArrowError> {
+    match dt {
+        DataType::Boolean => Ok(FieldType::Boolean),
+        DataType::Time32(_)
+        | DataType::Time64(_)
+        | DataType::Duration(_)
+        | DataType::Interval(_)
+        | DataType::Int8
+        | DataType::Int16
+        | DataType::Int32
+        | DataType::Int64 => Ok(FieldType::Int),
+        DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
+            Ok(FieldType::UInt)
+        }
+        DataType::Float16 | DataType::Float32 | DataType::Float64 => Ok(FieldType::Float),
+        DataType::Timestamp(_, _) => Ok(FieldType::Timestamp),
+        DataType::Date32 | DataType::Date64 => Ok(FieldType::Date),
+        DataType::Binary | DataType::FixedSizeBinary(_) | DataType::LargeBinary => {
+            Ok(FieldType::Binary)
+        }
+        DataType::Utf8 => Ok(FieldType::String),
+        DataType::LargeUtf8 => Ok(FieldType::Text),
+        // DataType::List(_) => {}
+        // DataType::FixedSizeList(_, _) => {}
+        // DataType::LargeList(_) => {}
+        // DataType::Struct(_) => {}
+        // DataType::Union(_, _, _) => {}
+        // DataType::Dictionary(_, _) => {}
+        // DataType::Decimal128(_, _) => {}
+        // DataType::Decimal256(_, _) => {}
+        // DataType::Map(_, _) => {}
+        _ => return Err(FieldTypeNotSupported(format!("{:?}", dt))),
+    }
 }
 
 pub fn map_value_to_dozer_field(
@@ -237,4 +250,34 @@ pub fn map_value_to_dozer_field(
         // DataType::Map(_, _) => {}
         _ => Err(FieldTypeNotSupported(column_name.to_string())),
     }
+}
+
+pub fn map_record_batch_to_dozer_records(
+    batch: arrow::record_batch::RecordBatch,
+    schema: &DozerSchema,
+) -> Result<Vec<Record>, FromArrowError> {
+    let mut records = Vec::new();
+    let columns = batch.columns();
+    let mut sort_fields = vec![];
+    for x in schema.fields.iter() {
+        let dt = to_arrow::map_field_type(x.typ, None);
+        sort_fields.push(SortField::new(dt));
+    }
+    let num_rows = batch.num_rows();
+
+    for i in 0..num_rows {
+        let mut values = vec![];
+        for (i, x) in columns.iter().enumerate() {
+            let field = schema.fields.get(i).unwrap();
+            let value = map_value_to_dozer_field(x, &i, &field.name)?;
+            values.push(value);
+        }
+        records.push(Record {
+            schema_id: None,
+            values,
+            version: None,
+        });
+    }
+
+    Ok(records)
 }

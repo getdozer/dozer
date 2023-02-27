@@ -1,11 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use dozer_types::ingestion_types::GrpcConfig;
-use dozer_types::log::info;
-use dozer_types::serde_json;
-use dozer_types::types::{Schema, SchemaIdentifier, SourceSchema};
-
 use super::ingest::IngestorServiceImpl;
 use crate::connectors::ValidationResults;
 use crate::{
@@ -14,8 +9,25 @@ use crate::{
     ingestion::Ingestor,
 };
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
+use dozer_types::ingestion_types::GrpcConfig;
+use dozer_types::log::info;
+use dozer_types::serde::{self, Deserialize, Serialize};
+use dozer_types::types::{ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceSchema};
+use dozer_types::{arrow_types, serde_json};
 use tonic::transport::Server;
 use tower_http::trace::TraceLayer;
+
+// Input is a JSON string or a path to a JSON file
+// Takes name, arrow schema, and optionally replication type
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(crate = "self::serde")]
+pub struct GrpcSchema {
+    pub name: String,
+    pub schema: dozer_types::arrow::datatypes::Schema,
+    #[serde(default)]
+    pub replication_type: ReplicationChangesTrackingType,
+}
 
 #[derive(Debug)]
 pub struct GrpcConnector {
@@ -49,21 +61,24 @@ impl GrpcConnector {
             }
         };
 
-        let mut schemas: Vec<SourceSchema> =
+        let grpc_schemas: Vec<GrpcSchema> =
             serde_json::from_str(&schemas_str).map_err(ConnectorError::map_serialization_error)?;
+        let mut schemas = vec![];
 
-        schemas = schemas
-            .iter()
-            .enumerate()
-            .map(|(id, schema)| {
-                let mut s = schema.clone();
-                s.schema.identifier = Some(SchemaIdentifier {
-                    id: id as u32,
-                    version: 1,
-                });
-                s
-            })
-            .collect();
+        for (id, grpc_schema) in grpc_schemas.iter().enumerate() {
+            let mut schema = arrow_types::from_arrow::map_schema_to_dozer(&grpc_schema.schema)
+                .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
+            schema.identifier = Some(SchemaIdentifier {
+                id: id as u32,
+                version: 1,
+            });
+
+            schemas.push(SourceSchema {
+                name: grpc_schema.name.clone(),
+                schema,
+                replication_type: grpc_schema.replication_type.clone(),
+            });
+        }
         Ok(schemas)
     }
 
