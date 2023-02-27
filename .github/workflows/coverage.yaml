@@ -3,6 +3,7 @@ name: Dozer Coverage
 on:
   push:
     branches: [main, coverage-yaml-dev]
+  # After merge to main this one can be removed
   pull_request:
     branches: [main]
   pull_request_target:
@@ -91,7 +92,6 @@ jobs:
           SN_DRIVER: ${{ secrets.SN_DRIVER }}
         shell: bash
         run: |
-          echo $SN_SERVER
           source ./dozer-tests/python_udf/virtualenv.sh
           cargo test test_connector_ --all-features --no-fail-fast -- --ignored
 
