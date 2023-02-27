@@ -33,7 +33,7 @@ fn read_deltalake() {
     };
     thread::spawn(move || {
         let tables = vec![table];
-        let _ = connector.start(None, &ingestor, Some(tables));
+        let _ = connector.start(None, &ingestor, tables);
     });
 
     let mut idx = 0;

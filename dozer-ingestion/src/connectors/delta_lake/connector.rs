@@ -44,12 +44,11 @@ impl Connector for DeltaLakeConnector {
         &self,
         _last_checkpoint: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        tables: Option<Vec<TableInfo>>,
+        tables: Vec<TableInfo>,
     ) -> ConnectorResult<()> {
-        let tables = match tables {
-            Some(tables) if !tables.is_empty() => tables,
-            _ => return Ok(()),
-        };
+        if tables.is_empty() {
+            return Ok(());
+        }
 
         let reader = DeltaLakeReader::new(self.config.clone());
         reader.read(&tables, ingestor)

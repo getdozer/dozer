@@ -1,8 +1,7 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.10"
+version = "0.1.9"
 edition = "2021"
-authors = ["getdozer/dozer-dev"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,7 +13,7 @@ crossbeam = "0.8.2"
 # Postgres connector
 postgres = "0.19.4"
 postgres-protocol = "0.6.4"
-postgres-types = { version = "0.2.4", features = ["with-serde_json-1"]}
+postgres-types = "0.2.4"
 tokio-postgres = { version = "0.7.7", features = ["with-chrono-0_4", "with-geo-types-0_7"] }
 # DataFusion connector
 object_store = { version = "0.5", features = ["aws"] }
@@ -35,15 +34,16 @@ tonic-reflection = "0.6.0"
 tower-http = {version = "0.3.5", features = ["full"]}
 prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] }
-bson = "2.5.0"
+deltalake = { version = "0.7.0", default-features = false, features = ["datafusion"] }
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
 serial_test = "1.0.0"
 rand = "0.8.5"
+include_dir = "0.7.3"
 hex-literal = "0.3.4"
 dozer-tracing = {path = "../dozer-tracing"}
-dozer-orchestrator = {path = "../dozer-orchestrator"}
+dozer-tests = { path = "../dozer-tests" }
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
