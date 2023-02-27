@@ -110,7 +110,7 @@ fn field_to_prost_value(f: Field) -> Value {
         Field::Timestamp(ts) => Value {
             value: Some(value::Value::TimestampValue(Timestamp {
                 seconds: ts.timestamp(),
-                nanos: (ts.timestamp_nanos() - ts.timestamp() * 1000000000) as i32,
+                nanos: ts.timestamp_subsec_nanos() as i32,
             })),
         },
         Field::Bson(b) => Value {

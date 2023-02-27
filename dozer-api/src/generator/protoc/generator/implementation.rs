@@ -15,6 +15,10 @@ use std::path::{Path, PathBuf};
 
 use super::{CountResponseDesc, QueryResponseDesc, RecordDesc, ServiceDesc};
 
+const POINT_TYPE_CLASS: &str = "dozer.types.PointType";
+const DECIMAL_TYPE_CLASS: &str = "dozer.types.RustDecimal";
+const TIMESTAMP_TYPE_CLASS: &str = "google.protobuf.Timestamp";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
 struct ProtoMetadata {
@@ -82,7 +86,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
     }
 
     fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
-        let type_need_import_libs = ["google.protobuf.Timestamp"];
+        let type_need_import_libs = [TIMESTAMP_TYPE_CLASS];
         let mut libs_import: Vec<String> = self
             .schema
             .fields
@@ -92,7 +96,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                 type_need_import_libs.contains(&proto_type.to_owned().as_str())
             })
             .map(|proto_type| match proto_type.as_str() {
-                "google.protobuf.Timestamp" => "google/protobuf/timestamp.proto".to_owned(),
+                TIMESTAMP_TYPE_CLASS => "google/protobuf/timestamp.proto".to_owned(),
                 _ => "".to_owned(),
             })
             .collect();
@@ -170,12 +174,8 @@ impl<'a> ProtoGeneratorImpl<'a> {
         let record_desc_from_message =
             |message: MessageDescriptor| -> Result<RecordDesc, GenerationError> {
                 let version_field = get_field(&message, "__dozer_record_version")?;
-                let point_values = descriptor
-                    .get_message_by_name("dozer.types.PointType")
-                    .unwrap();
-                let decimal_values = descriptor
-                    .get_message_by_name("dozer.types.RustDecimal")
-                    .unwrap();
+                let point_values = descriptor.get_message_by_name(POINT_TYPE_CLASS).unwrap();
+                let decimal_values = descriptor.get_message_by_name(DECIMAL_TYPE_CLASS).unwrap();
                 Ok(RecordDesc {
                     message,
                     version_field,
@@ -363,10 +363,10 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::String => Ok("string".to_owned()),
         FieldType::Text => Ok("string".to_owned()),
         FieldType::Binary => Ok("bytes".to_owned()),
-        FieldType::Decimal => Ok("dozer.types.RustDecimal".to_owned()),
-        FieldType::Timestamp => Ok("google.protobuf.Timestamp".to_owned()),
+        FieldType::Decimal => Ok(DECIMAL_TYPE_CLASS.to_owned()),
+        FieldType::Timestamp => Ok(TIMESTAMP_TYPE_CLASS.to_owned()),
         FieldType::Date => Ok("string".to_owned()),
         FieldType::Bson => Ok("bytes".to_owned()),
-        FieldType::Point => Ok("dozer.types.PointType".to_owned()),
+        FieldType::Point => Ok(POINT_TYPE_CLASS.to_owned()),
     }
 }
