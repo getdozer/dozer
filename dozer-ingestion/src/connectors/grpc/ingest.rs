@@ -42,7 +42,7 @@ impl IngestorServiceImpl {
         for r in records {
             let op = Operation::Insert { new: r };
             ingestor
-                .handle_message(IngestionMessage::new_op(0, req.seq_no as u64, op))
+                .handle_message(IngestionMessage::new_op(0, seq_no as u64, op))
                 .map_err(|e| tonic::Status::internal(format!("ingestion error: {e}")))?;
         }
 
