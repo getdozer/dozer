@@ -14,6 +14,7 @@ use datafusion::error::DataFusionError;
 use std::num::TryFromIntError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
+use deltalake::DeltaTableError;
 
 use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
@@ -80,6 +81,12 @@ pub enum ConnectorError {
 
     #[error("Received empty message in connector")]
     EmptyMessage,
+
+    #[error("Delta table error: {0}")]
+    DeltaTableError(#[from] DeltaTableError),
+
+    #[error("Datafusion error: {0}")]
+    DataFusionError(#[from] DataFusionError),
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {

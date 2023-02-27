@@ -1,13 +1,11 @@
-use crate::ingestion_types::{
-    EthConfig, GrpcConfig, KafkaConfig, LocalStorage, S3Storage, SnowflakeConfig,
-};
+use crate::ingestion_types::{DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, S3Storage, SnowflakeConfig};
 use serde::{Deserialize, Serialize};
 
 use prettytable::Table;
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct Connection {
-    #[prost(oneof = "ConnectionConfig", tags = "1,2,3,4,5,6,7")]
+    #[prost(oneof = "ConnectionConfig", tags = "1,2,3,4,5,6,7,8")]
     /// authentication config - depends on db_type
     pub config: Option<ConnectionConfig>,
     #[prost(string, tag = "9")]
@@ -63,4 +61,7 @@ pub enum ConnectionConfig {
     #[prost(message, tag = "7")]
     /// In yaml, present as tag: `!ObjectStore`
     LocalStorage(LocalStorage),
+    #[prost(message, tag = "8")]
+    /// In yaml, present as tag" `!DeltaLake`
+    DeltaLake(DeltaLakeConfig),
 }
