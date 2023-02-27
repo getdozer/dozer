@@ -346,7 +346,7 @@ impl SchemaHelper {
 
 const TABLES_CONDITION: &str = "IN (SELECT table_name
                            FROM information_schema.tables
-                           WHERE table_schema = $1
+                           WHERE table_schema = $1 AND table_type = 'BASE TABLE'
                            ORDER BY table_name)";
 
 const SQL: &str = "
