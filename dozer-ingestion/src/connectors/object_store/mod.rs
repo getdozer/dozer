@@ -8,3 +8,4 @@ mod table_reader;
 mod tests;
 
 pub use schema_helper::map_value_to_dozer_field;
+pub use schema_mapper::SchemaMapper;

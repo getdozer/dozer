@@ -3,11 +3,38 @@ use crate::connectors::Connector;
 use crate::connectors::TableInfo;
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::{DeltaLakeConfig, DeltaTable};
-use dozer_types::types::{Field, Operation};
+use dozer_types::types::SourceDefinition::Dynamic;
+use dozer_types::types::{Field, FieldType, Operation};
 use std::thread;
 
 #[test]
-fn get_schema_from_deltalake() {}
+fn get_schema_from_deltalake() {
+    let path = "src/connectors/delta_lake/test/data/delta-0.8.0";
+    let table_name = "test_table";
+    let delta_table = DeltaTable {
+        path: path.to_string(),
+        name: table_name.to_string(),
+    };
+    let config = DeltaLakeConfig {
+        tables: vec![delta_table],
+    };
+
+    let connector = DeltaLakeConnector::new(1, config);
+    let table_info = TableInfo {
+        name: table_name.to_string(),
+        table_name: table_name.to_string(),
+        id: 0,
+        columns: None,
+    };
+    let field = connector.get_schemas(Some(vec![table_info])).unwrap()[0]
+        .schema
+        .fields[0]
+        .clone();
+    assert_eq!(&field.name, "value");
+    assert_eq!(field.typ, FieldType::Int);
+    assert_eq!(field.nullable, true);
+    assert_eq!(field.source, Dynamic);
+}
 
 #[test]
 fn read_deltalake() {

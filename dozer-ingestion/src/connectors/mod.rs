@@ -18,14 +18,14 @@ use dozer_types::models::connection::ConnectionConfig;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
 
+use crate::connectors::delta_lake::DeltaLakeConnector;
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::SourceSchema;
-use crate::connectors::delta_lake::DeltaLakeConnector;
 
-pub mod snowflake;
 pub mod delta_lake;
+pub mod snowflake;
 
 use self::ethereum::{EthLogConnector, EthTraceConnector};
 use self::grpc::connector::GrpcConnector;

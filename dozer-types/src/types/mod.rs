@@ -73,7 +73,7 @@ pub struct Schema {
     pub primary_index: Vec<usize>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum ReplicationChangesTrackingType {
     FullChanges,
     OnlyPK,
@@ -86,7 +86,7 @@ impl Default for ReplicationChangesTrackingType {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct SourceSchema {
     pub name: String,
     pub schema: Schema,

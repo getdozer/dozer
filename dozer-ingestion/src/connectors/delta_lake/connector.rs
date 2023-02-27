@@ -33,7 +33,7 @@ impl Connector for DeltaLakeConnector {
         table_names: Option<Vec<TableInfo>>,
     ) -> ConnectorResult<Vec<SourceSchema>> {
         let schema_helper = SchemaHelper::new(self.config.clone());
-        schema_helper.get_schemas(table_names)
+        schema_helper.get_schemas(self.id, table_names)
     }
 
     fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> ConnectorResult<bool> {

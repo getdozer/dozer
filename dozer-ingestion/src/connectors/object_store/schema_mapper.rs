@@ -22,7 +22,7 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
         Self { config }
     }
 
-    fn map_schema(
+    pub fn map_schema(
         &self,
         id: u32,
         resolved_schema: SchemaRef,

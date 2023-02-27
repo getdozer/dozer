@@ -34,7 +34,7 @@ impl DeltaLakeReader {
         table: &TableInfo,
         ingestor: &Ingestor,
     ) -> ConnectorResult<()> {
-        let table_path = self.table_path(&table.table_name)?;
+        let table_path = table_path(&self.config, &table.table_name)?;
         let ctx = SessionContext::new();
         let delta_table = deltalake::open_table(table_path).await?;
         let table_schema = delta_table.get_schema()?;
@@ -72,10 +72,7 @@ impl DeltaLakeReader {
                         (0_u64, idx),
                         IngestionMessage::OperationEvent(Operation::Insert {
                             new: Record {
-                                schema_id: Some(SchemaIdentifier {
-                                    id: id as u32,
-                                    version: 0,
-                                }),
+                                schema_id: Some(SchemaIdentifier { id, version: 0 }),
                                 values: fields,
                                 version: None,
                             },
@@ -88,15 +85,15 @@ impl DeltaLakeReader {
         }
         Ok(())
     }
+}
 
-    pub fn table_path(&self, table_name: &str) -> ConnectorResult<String> {
-        for delta_table in self.config.tables.iter() {
-            if delta_table.name == table_name {
-                return Ok(delta_table.path.clone());
-            }
+pub fn table_path(config: &DeltaLakeConfig, table_name: &str) -> ConnectorResult<String> {
+    for delta_table in config.tables.iter() {
+        if delta_table.name == table_name {
+            return Ok(delta_table.path.clone());
         }
-        Err(ConnectorError::TableNotFound(format!(
-            "Delta table: {table_name} can't find"
-        )))
     }
+    Err(ConnectorError::TableNotFound(format!(
+        "Delta table: {table_name} can't find"
+    )))
 }
