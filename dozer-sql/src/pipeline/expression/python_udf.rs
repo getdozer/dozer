@@ -45,6 +45,7 @@ pub fn evaluate_py_udf(
 
         let args = PyTuple::new(py, values);
         let res = function.call1(args)?;
+
         Ok(match return_type {
             FieldType::UInt => Field::UInt(res.extract::<u64>()?),
             FieldType::Int => Field::Int(res.extract::<i64>()?),
@@ -52,11 +53,11 @@ pub fn evaluate_py_udf(
             FieldType::Boolean => Field::Boolean(res.extract::<bool>()?),
             FieldType::String => Field::String(res.extract::<String>()?),
             FieldType::Text => Field::Text(res.extract::<String>()?),
-            FieldType::Binary
-            | FieldType::Point
-            | FieldType::Decimal
-            | FieldType::Timestamp
+            FieldType::Binary => Field::Binary(res.extract::<Vec<u8>>()?),
+            FieldType::Decimal
             | FieldType::Date
+            | FieldType::Timestamp
+            | FieldType::Point
             | FieldType::Bson => {
                 return Err(UnsupportedSqlError(GenericError(
                     "Unsupported return type for python udf".to_string(),

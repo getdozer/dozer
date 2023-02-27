@@ -16,7 +16,7 @@ fn join_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
@@ -35,7 +35,7 @@ fn join_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::List(get_sample_ops()),
     );
 
@@ -64,7 +64,7 @@ fn multi_join_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
@@ -83,7 +83,7 @@ fn multi_join_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::List(get_sample_ops()),
     );
 
@@ -111,7 +111,7 @@ fn join_alias_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
@@ -130,7 +130,7 @@ fn join_alias_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::List(get_sample_ops()),
     );
 
@@ -160,7 +160,7 @@ fn join_cte_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
@@ -179,7 +179,7 @@ fn join_cte_query() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::List(get_sample_ops()),
     );
 
@@ -207,7 +207,7 @@ fn include_right_joins() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::FromCsv("actor", table_names.clone()),
     );
 
@@ -226,7 +226,7 @@ fn include_right_joins() {
     let results = helper::query(
         &table_names,
         queries,
-        None,
+        &None,
         &TestInstruction::List(get_sample_ops()),
     );
 
