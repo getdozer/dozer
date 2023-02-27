@@ -1,4 +1,5 @@
 use crate::errors::GenerationError;
+use crate::errors::GenerationError::ServiceNotFound;
 use crate::generator::protoc::generator::{
     CountMethodDesc, DecimalDesc, EventDesc, OnEventMethodDesc, PointDesc, QueryMethodDesc,
     RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
@@ -174,24 +175,34 @@ impl<'a> ProtoGeneratorImpl<'a> {
         let record_desc_from_message =
             |message: MessageDescriptor| -> Result<RecordDesc, GenerationError> {
                 let version_field = get_field(&message, "__dozer_record_version")?;
-                let point_values = descriptor.get_message_by_name(POINT_TYPE_CLASS).unwrap();
-                let decimal_values = descriptor.get_message_by_name(DECIMAL_TYPE_CLASS).unwrap();
-                Ok(RecordDesc {
-                    message,
-                    version_field,
-                    point_field: PointDesc {
-                        message: point_values.clone(),
-                        x: get_field(&point_values, "x")?,
-                        y: get_field(&point_values, "y")?,
-                    },
-                    decimal_field: DecimalDesc {
-                        message: decimal_values.clone(),
-                        flags: get_field(&decimal_values, "flags")?,
-                        lo: get_field(&decimal_values, "lo")?,
-                        mid: get_field(&decimal_values, "mid")?,
-                        hi: get_field(&decimal_values, "hi")?,
-                    },
-                })
+
+                if let Some(point_values) = descriptor.get_message_by_name(POINT_TYPE_CLASS) {
+                    let pv = point_values;
+                    if let Some(decimal_values) = descriptor.get_message_by_name(DECIMAL_TYPE_CLASS)
+                    {
+                        let dv = decimal_values;
+                        Ok(RecordDesc {
+                            message,
+                            version_field,
+                            point_field: PointDesc {
+                                message: pv.clone(),
+                                x: get_field(&pv, "x")?,
+                                y: get_field(&pv, "y")?,
+                            },
+                            decimal_field: DecimalDesc {
+                                message: dv.clone(),
+                                flags: get_field(&dv, "flags")?,
+                                lo: get_field(&dv, "lo")?,
+                                mid: get_field(&dv, "mid")?,
+                                hi: get_field(&dv, "hi")?,
+                            },
+                        })
+                    } else {
+                        Err(ServiceNotFound(DECIMAL_TYPE_CLASS.to_string()))
+                    }
+                } else {
+                    Err(ServiceNotFound(POINT_TYPE_CLASS.to_string()))
+                }
             };
 
         let names = Names::new(schema_name, &Schema::empty());
