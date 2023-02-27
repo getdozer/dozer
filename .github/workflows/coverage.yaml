@@ -5,6 +5,7 @@ on:
     branches: [main, coverage-yaml-dev]
   pull_request_target:
     branches: [main]
+    types: [opened, synchronize, reopened, edited]
 
 env:
   CARGO_TERM_COLOR: always
