@@ -90,6 +90,7 @@ impl Processor for ProjectionProcessor {
             Operation::Update { ref old, ref new } => {
                 fw.send(self.update(old, new)?, DEFAULT_PORT_HANDLE)
             }
+            Operation::SnapshottingDone { .. } => fw.send(op, DEFAULT_PORT_HANDLE),
         };
         Ok(())
     }

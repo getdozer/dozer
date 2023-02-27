@@ -7,7 +7,6 @@ use crate::grpc::shared_impl;
 use crate::grpc::types_helper::{map_field_definitions, map_record};
 use crate::RoCacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
-use dozer_types::grpc_types::internal::PipelineResponse;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -24,13 +23,13 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 pub struct CommonService {
     /// For look up endpoint from its name. `key == value.endpoint.name`.
     pub endpoint_map: HashMap<String, Arc<RoCacheEndpoint>>,
-    pub event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
+    pub event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
 }
 
 impl CommonService {
     pub fn new(
         endpoints: Vec<Arc<RoCacheEndpoint>>,
-        event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
+        event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
     ) -> Self {
         let endpoint_map = endpoints
             .into_iter()
@@ -120,8 +119,8 @@ impl CommonGrpcService for CommonService {
             query_request.filter.as_deref(),
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
             access.cloned(),
-            move |op, endpoint| {
-                if endpoint == query_request.endpoint {
+            move |op| {
+                if op.endpoint_name == query_request.endpoint {
                     Some(Ok(op))
                 } else {
                     None

@@ -116,7 +116,7 @@ pub fn initialize_cache(
     for mut record in records {
         cache.insert(&mut record.record).unwrap();
     }
-    cache.commit().unwrap();
+    cache.commit(&Default::default()).unwrap();
 
     cache_manager
         .create_alias(cache.name(), schema_name)

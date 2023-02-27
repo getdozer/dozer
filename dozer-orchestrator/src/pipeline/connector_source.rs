@@ -50,40 +50,41 @@ impl ConnectorSourceFactory {
         ports: HashMap<String, u16>,
         tables: Vec<TableInfo>,
         connection: Connection,
-    ) -> Self {
+    ) -> Result<Self, ExecutionError> {
         let (schema_map, schema_port_map, replication_changes_type_map) =
-            Self::get_schema_map(connection.clone(), tables.clone(), ports.clone());
-        Self {
+            Self::get_schema_map(connection.clone(), tables.clone(), ports.clone())?;
+        Ok(Self {
             ports,
             schema_port_map,
             schema_map,
             replication_changes_type_map,
             tables,
             connection,
-        }
+        })
     }
 
+    #[allow(clippy::type_complexity)]
     fn get_schema_map(
         connection: Connection,
         tables: Vec<TableInfo>,
         ports: HashMap<String, u16>,
-    ) -> (
-        HashMap<u16, Schema>,
-        HashMap<u32, u16>,
-        HashMap<u16, ReplicationChangesTrackingType>,
-    ) {
-        let mut tables_map = HashMap::new();
-        for t in &tables {
-            tables_map.insert(t.table_name.clone(), t.name.clone());
-        }
+    ) -> Result<
+        (
+            HashMap<u16, Schema>,
+            HashMap<u32, u16>,
+            HashMap<u16, ReplicationChangesTrackingType>,
+        ),
+        ExecutionError,
+    > {
+        let tables_map = tables
+            .iter()
+            .map(|table| (table.table_name.clone(), table.name.clone()))
+            .collect::<HashMap<_, _>>();
 
-        let connector = get_connector(connection)
-            .map_err(|e| InternalError(Box::new(e)))
-            .unwrap();
+        let connector = get_connector(connection).map_err(|e| InternalError(Box::new(e)))?;
         let schema_tuples = connector
             .get_schemas(Some(tables))
-            .map_err(|e| InternalError(Box::new(e)))
-            .unwrap();
+            .map_err(|e| InternalError(Box::new(e)))?;
 
         let mut schema_map = HashMap::new();
         let mut schema_port_map: HashMap<u32, u16> = HashMap::new();
@@ -99,18 +100,15 @@ impl ConnectorSourceFactory {
             let source_name = tables_map.get(&name).unwrap();
             let port: u16 = *ports
                 .get(source_name)
-                .map_or(Err(ExecutionError::PortNotFound(name.clone())), Ok)
-                .unwrap();
-            let schema_id = get_schema_id(schema.identifier.as_ref())
-                .map_err(|e| InternalError(Box::new(e)))
-                .unwrap();
+                .ok_or(ExecutionError::PortNotFound(name))?;
+            let schema_id = get_schema_id(schema.identifier)?;
 
             schema_port_map.insert(schema_id, port);
             schema_map.insert(port, schema);
             replication_changes_type_map.insert(port, replication_type);
         }
 
-        (schema_map, schema_port_map, replication_changes_type_map)
+        Ok((schema_map, schema_port_map, replication_changes_type_map))
     }
 }
 
@@ -218,19 +216,25 @@ impl Source for ConnectorSource {
 
             let mut iterator = self.iterator.lock();
             for ((lsn, seq_no), op) in iterator.by_ref() {
-                let identifier = match &op {
-                    Operation::Delete { old } => old.schema_id.to_owned(),
-                    Operation::Insert { new } => new.schema_id.to_owned(),
-                    Operation::Update { old: _, new } => new.schema_id.to_owned(),
+                let schema_id = match &op {
+                    Operation::Delete { old } => Some(get_schema_id(old.schema_id)?),
+                    Operation::Insert { new } => Some(get_schema_id(new.schema_id)?),
+                    Operation::Update { old: _, new } => Some(get_schema_id(new.schema_id)?),
+                    Operation::SnapshottingDone {} => None,
                 };
-                let schema_id = get_schema_id(identifier.as_ref())?;
-                let port = self.schema_port_map.get(&schema_id).map_or(
-                    Err(ExecutionError::SourceError(SourceError::PortError(
-                        schema_id.to_string(),
-                    ))),
-                    Ok,
-                )?;
-                fw.send(lsn, seq_no, op, *port)?
+                if let Some(schema_id) = schema_id {
+                    let port =
+                        self.schema_port_map
+                            .get(&schema_id)
+                            .ok_or(ExecutionError::SourceError(SourceError::PortError(
+                                schema_id,
+                            )))?;
+                    fw.send(lsn, seq_no, op, *port)?
+                } else {
+                    for port in self.schema_port_map.values() {
+                        fw.send(lsn, seq_no, op.clone(), *port)?
+                    }
+                }
             }
 
             // If we reach here, it means the connector thread has quit and the `ingestor` has been dropped.
@@ -244,7 +248,7 @@ impl Source for ConnectorSource {
     }
 }
 
-fn get_schema_id(op_schema_id: Option<&SchemaIdentifier>) -> Result<u32, ExecutionError> {
+fn get_schema_id(op_schema_id: Option<SchemaIdentifier>) -> Result<u32, ExecutionError> {
     Ok(op_schema_id
         .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
         .id)

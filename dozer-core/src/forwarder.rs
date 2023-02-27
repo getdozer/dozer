@@ -80,11 +80,7 @@ impl ChannelManager {
             .get(&port_id)
             .ok_or(InvalidPortHandle(port_id))?;
 
-        let exec_op = match op {
-            Operation::Insert { new } => ExecutorOperation::Insert { new },
-            Operation::Update { old, new } => ExecutorOperation::Update { old, new },
-            Operation::Delete { old } => ExecutorOperation::Delete { old },
-        };
+        let exec_op = ExecutorOperation::Op { op };
 
         if let Some((last_sender, senders)) = senders.split_last() {
             for sender in senders {

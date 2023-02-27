@@ -489,6 +489,7 @@ impl AggregationProcessor {
                     ])
                 }
             }
+            Operation::SnapshottingDone { .. } => Ok(vec![op]),
         }
     }
 }

@@ -8,29 +8,6 @@ use crate::{epoch::Epoch, errors::ExecutionError};
 
 use super::{name::Name, ExecutorOperation, InputPortState};
 
-#[derive(Debug, PartialEq)]
-enum MappedExecutorOperation {
-    Data { op: Operation },
-    Commit { epoch: Epoch },
-    Terminate,
-}
-
-fn map_executor_operation(op: ExecutorOperation) -> MappedExecutorOperation {
-    match op {
-        ExecutorOperation::Delete { old } => MappedExecutorOperation::Data {
-            op: Operation::Delete { old },
-        },
-        ExecutorOperation::Insert { new } => MappedExecutorOperation::Data {
-            op: Operation::Insert { new },
-        },
-        ExecutorOperation::Update { old, new } => MappedExecutorOperation::Data {
-            op: Operation::Update { old, new },
-        },
-        ExecutorOperation::Commit { epoch } => MappedExecutorOperation::Commit { epoch },
-        ExecutorOperation::Terminate => MappedExecutorOperation::Terminate,
-    }
-}
-
 /// Common code for processor and sink nodes.
 ///
 /// They both select from their input channels, and respond to "op", "commit", and terminate.
@@ -61,17 +38,15 @@ pub trait ReceiverLoop: Name {
         let mut sel = init_select(&receivers);
         loop {
             let index = sel.ready();
-            let op = match receivers[index].recv() {
-                Ok(op) => map_executor_operation(op),
-                // Channel disconnected before receiving a terminate. The upstream node had an error.
-                Err(_) => return Err(ExecutionError::CannotReceiveFromChannel),
-            };
+            let op = receivers[index]
+                .recv()
+                .map_err(|_| ExecutionError::CannotReceiveFromChannel)?;
 
             match op {
-                MappedExecutorOperation::Data { op } => {
+                ExecutorOperation::Op { op } => {
                     self.on_op(index, op)?;
                 }
-                MappedExecutorOperation::Commit { epoch } => {
+                ExecutorOperation::Commit { epoch } => {
                     assert_eq!(epoch.id, common_epoch.id);
                     commits_received += 1;
                     sel.remove(index);
@@ -84,7 +59,7 @@ pub trait ReceiverLoop: Name {
                         sel = init_select(&receivers);
                     }
                 }
-                MappedExecutorOperation::Terminate => {
+                ExecutorOperation::Terminate => {
                     port_states[index] = InputPortState::Terminated;
                     sel.remove(index);
                     debug!(
@@ -122,47 +97,6 @@ mod tests {
     };
 
     use super::*;
-
-    #[test]
-    fn test_map_executor_operation() {
-        let old = Record::new(None, vec![Field::Int(1)], None);
-        let new = Record::new(None, vec![Field::Int(2)], None);
-        let epoch = Epoch::new(1, Default::default());
-        assert_eq!(
-            map_executor_operation(ExecutorOperation::Insert { new: new.clone() }),
-            MappedExecutorOperation::Data {
-                op: Operation::Insert { new: new.clone() }
-            }
-        );
-        assert_eq!(
-            map_executor_operation(ExecutorOperation::Update {
-                old: old.clone(),
-                new: new.clone()
-            }),
-            MappedExecutorOperation::Data {
-                op: Operation::Update {
-                    old: old.clone(),
-                    new
-                }
-            }
-        );
-        assert_eq!(
-            map_executor_operation(ExecutorOperation::Delete { old: old.clone() }),
-            MappedExecutorOperation::Data {
-                op: Operation::Delete { old }
-            }
-        );
-        assert_eq!(
-            map_executor_operation(ExecutorOperation::Commit {
-                epoch: epoch.clone()
-            }),
-            MappedExecutorOperation::Commit { epoch }
-        );
-        assert_eq!(
-            map_executor_operation(ExecutorOperation::Terminate),
-            MappedExecutorOperation::Terminate
-        );
-    }
 
     struct TestReceiverLoop {
         receivers: Vec<Receiver<ExecutorOperation>>,
@@ -233,8 +167,10 @@ mod tests {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
         let record = Record::new(None, vec![Field::Int(1)], None);
         senders[0]
-            .send(ExecutorOperation::Insert {
-                new: record.clone(),
+            .send(ExecutorOperation::Op {
+                op: Operation::Insert {
+                    new: record.clone(),
+                },
             })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();

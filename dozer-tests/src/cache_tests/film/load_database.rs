@@ -62,7 +62,7 @@ pub async fn load_database(
             .await
             .unwrap();
     }
-    cache.commit().unwrap();
+    cache.commit(&Default::default()).unwrap();
 
     let cache_name = cache.name().to_string();
     drop(cache);
