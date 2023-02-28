@@ -13,10 +13,7 @@ use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::JoinError,
     expression::builder::{extend_schema_source_def, NameOrAlias},
-    product::{
-        join::{JoinBranch, JoinWindow},
-        window_builder::window_from_relation,
-    },
+    product::{join::JoinBranch, window_builder::window_from_relation},
 };
 use crate::pipeline::{
     builder::{get_input_names, IndexedTableWithJoins},
@@ -26,7 +23,9 @@ use crate::pipeline::{errors::SqlError, expression::builder::ExpressionBuilder};
 use sqlparser::ast::Expr as SqlExpr;
 
 use super::{
-    join::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},
+    join::{JoinOperator, JoinOperatorType, JoinSource},
+    join_table::JoinTable,
+    join_window::JoinWindow,
     processor::FromProcessor,
 };
 

@@ -1,5 +1,8 @@
 pub mod factory;
 mod join;
+mod join_index;
+mod join_table;
+mod join_window;
 mod processor;
 pub mod set;
 pub mod set_factory;

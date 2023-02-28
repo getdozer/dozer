@@ -35,9 +35,17 @@ fn test_pipeline_builder() {
 
     let mut pipeline = AppPipeline::new();
 
+    // let context = statement_to_pipeline(
+    //     "SELECT taxi_id, completed_at, window_start, window_end \
+    //     FROM TUMBLE(taxi_trips, completed_at, '2 MINUTES')",
+    //     &mut pipeline,
+    //     Some("results".to_string()),
+    // )
+    // .unwrap();
+
     let context = statement_to_pipeline(
         "SELECT taxi_id, completed_at, window_start, window_end \
-        FROM TUMBLE(taxi_trips, completed_at, '2 MINUTES')",
+        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES')",
         &mut pipeline,
         Some("results".to_string()),
     )
@@ -347,6 +355,10 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _txn: &std::collections::HashMap<
+            dozer_types::node::NodeHandle,
+            dozer_types::node::OpIdentifier,
+        >,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink {
             expected: self.expected,
@@ -384,6 +396,7 @@ impl Sink for TestSink {
             Operation::Update { old, new } => {
                 info!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
+            _ => (),
         }
 
         self.current += 1;

@@ -83,7 +83,8 @@ fn hop(
         let starting_time = ts
             .duration_trunc(hop_size)
             .map_err(WindowError::TumbleRoundingError)?
-            - interval;
+            - interval
+            + hop_size;
 
         let mut windows = vec![];
         let mut current = starting_time;

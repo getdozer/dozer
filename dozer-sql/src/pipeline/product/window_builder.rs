@@ -56,7 +56,7 @@ pub(crate) fn window_from_relation(
             lateral: _,
             subquery: _,
             alias: _,
-        } => Err(JoinError::UnsupportedDerivedTable),
+        } => Ok(None),
         TableFactor::TableFunction { expr: _, alias: _ } => {
             Err(JoinError::UnsupportedTableFunction)
         }
