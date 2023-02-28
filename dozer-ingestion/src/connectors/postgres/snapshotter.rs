@@ -41,7 +41,7 @@ impl<'a> PostgresSnapshotter<'a> {
     pub fn sync_table(
         table_info: TableInfo,
         conn_config: tokio_postgres::Config,
-        sender: Sender<Option<Operation>>,
+        sender: Sender<Result<Option<Operation>, ConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let mut client_plain = connection_helper::connect(conn_config).map_err(PostgresConnectorError)?;
 
@@ -81,14 +81,14 @@ impl<'a> PostgresSnapshotter<'a> {
                     )
                     .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
 
-                    sender.send(Some(evt)).unwrap();
+                    sender.send(Ok(Some(evt))).unwrap();
                 }
                 Err(e) => return Err(PostgresConnectorError(SyncWithSnapshotError(e.to_string()))),
             }
         }
 
         // After table read is finished, send None as message to inform receiver loop about end of table
-        sender.send(None).unwrap();
+        sender.send(Ok(None)).unwrap();
         Ok(())
     }
 
@@ -103,14 +103,18 @@ impl<'a> PostgresSnapshotter<'a> {
             let table_info = t.clone();
             let conn_config = self.conn_config.clone();
             let sender = tx.clone();
-            thread::spawn(move || Self::sync_table(table_info, conn_config, sender));
+            thread::spawn(move || {
+                if let Err(e) = Self::sync_table(table_info, conn_config, sender.clone()) {
+                    sender.send(Err(e)).unwrap();
+                }
+            });
         }
 
         let mut idx = 0;
         loop {
             let message = rx
                 .recv()
-                .map_err(|_| PostgresConnectorError(SnapshotReadError))?;
+                .map_err(|_| PostgresConnectorError(SnapshotReadError))??;
             match message {
                 None => {
                     left_tables_count -= 1;
