@@ -62,7 +62,7 @@ pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 use dozer_types::types::Schema;
 
-async fn flatten_joinhandle(
+async fn flatten_join_handle(
     handle: JoinHandle<Result<(), OrchestrationError>>,
 ) -> Result<(), OrchestrationError> {
     match handle.await {
@@ -71,6 +71,7 @@ async fn flatten_joinhandle(
         Err(err) => Err(OrchestrationError::InternalError(Box::new(err))),
     }
 }
+
 pub fn set_panic_hook() {
     panic::set_hook(Box::new(move |panic_info| {
         // All the orchestrator errors are captured here

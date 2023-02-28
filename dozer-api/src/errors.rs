@@ -54,10 +54,11 @@ impl ApiError {
 }
 
 #[derive(Error, Debug)]
-pub enum GRPCError {
-    #[error("Internal GRPC server error: {0}")]
+pub enum GrpcError {
+    #[error("Internal gRPC server error: {0}")]
     InternalError(#[from] BoxedError),
-
+    #[error("Cannot send to broadcast channel")]
+    CannotSendToBroadcastChannel,
     #[error(transparent)]
     SerizalizeError(#[from] serde_json::Error),
     #[error("Missing primary key to query by id: {0}")]
@@ -75,8 +76,8 @@ pub enum GRPCError {
     #[error("{0}")]
     TransportErrorDetail(String),
 }
-impl From<GRPCError> for tonic::Status {
-    fn from(input: GRPCError) -> Self {
+impl From<GrpcError> for tonic::Status {
+    fn from(input: GrpcError) -> Self {
         tonic::Status::new(tonic::Code::Internal, input.to_string())
     }
 }

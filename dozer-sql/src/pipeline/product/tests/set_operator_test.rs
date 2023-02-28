@@ -13,6 +13,7 @@ use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::NaiveDate;
 use dozer_types::log::debug;
+use dozer_types::node::SourceStates;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -448,6 +449,7 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink {
             expected: self.expected,
@@ -485,6 +487,7 @@ impl Sink for TestSink {
             Operation::Update { old, new } => {
                 debug!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
+            Operation::SnapshottingDone {} => debug!("o0:-> SnapshottingDone"),
         }
 
         self.current += 1;

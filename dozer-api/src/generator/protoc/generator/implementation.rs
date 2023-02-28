@@ -1,7 +1,8 @@
 use crate::errors::GenerationError;
+use crate::errors::GenerationError::ServiceNotFound;
 use crate::generator::protoc::generator::{
-    CountMethodDesc, EventDesc, OnEventMethodDesc, QueryMethodDesc, RecordWithIdDesc,
-    TokenMethodDesc, TokenResponseDesc,
+    CountMethodDesc, DecimalDesc, EventDesc, OnEventMethodDesc, PointDesc, QueryMethodDesc,
+    RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
 };
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
@@ -14,6 +15,10 @@ use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor};
 use std::path::{Path, PathBuf};
 
 use super::{CountResponseDesc, QueryResponseDesc, RecordDesc, ServiceDesc};
+
+const POINT_TYPE_CLASS: &str = "dozer.types.PointType";
+const DECIMAL_TYPE_CLASS: &str = "dozer.types.RustDecimal";
+const TIMESTAMP_TYPE_CLASS: &str = "google.protobuf.Timestamp";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
@@ -82,7 +87,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
     }
 
     fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
-        let type_need_import_libs = ["google.protobuf.Timestamp"];
+        let type_need_import_libs = [TIMESTAMP_TYPE_CLASS];
         let mut libs_import: Vec<String> = self
             .schema
             .fields
@@ -92,7 +97,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                 type_need_import_libs.contains(&proto_type.to_owned().as_str())
             })
             .map(|proto_type| match proto_type.as_str() {
-                "google.protobuf.Timestamp" => "google/protobuf/timestamp.proto".to_owned(),
+                TIMESTAMP_TYPE_CLASS => "google/protobuf/timestamp.proto".to_owned(),
                 _ => "".to_owned(),
             })
             .collect();
@@ -167,15 +172,38 @@ impl<'a> ProtoGeneratorImpl<'a> {
                 })
         }
 
-        fn record_desc_from_message(
-            message: MessageDescriptor,
-        ) -> Result<RecordDesc, GenerationError> {
-            let version_field = get_field(&message, "__dozer_record_version")?;
-            Ok(RecordDesc {
-                message,
-                version_field,
-            })
-        }
+        let record_desc_from_message =
+            |message: MessageDescriptor| -> Result<RecordDesc, GenerationError> {
+                let version_field = get_field(&message, "__dozer_record_version")?;
+
+                if let Some(point_values) = descriptor.get_message_by_name(POINT_TYPE_CLASS) {
+                    let pv = point_values;
+                    if let Some(decimal_values) = descriptor.get_message_by_name(DECIMAL_TYPE_CLASS)
+                    {
+                        let dv = decimal_values;
+                        Ok(RecordDesc {
+                            message,
+                            version_field,
+                            point_field: PointDesc {
+                                message: pv.clone(),
+                                x: get_field(&pv, "x")?,
+                                y: get_field(&pv, "y")?,
+                            },
+                            decimal_field: DecimalDesc {
+                                message: dv.clone(),
+                                flags: get_field(&dv, "flags")?,
+                                lo: get_field(&dv, "lo")?,
+                                mid: get_field(&dv, "mid")?,
+                                hi: get_field(&dv, "hi")?,
+                            },
+                        })
+                    } else {
+                        Err(ServiceNotFound(DECIMAL_TYPE_CLASS.to_string()))
+                    }
+                } else {
+                    Err(ServiceNotFound(POINT_TYPE_CLASS.to_string()))
+                }
+            };
 
         let names = Names::new(schema_name, &Schema::empty());
         let service_name = format!("{}.{}", &names.package_name, &names.plural_pascal_name);
@@ -346,10 +374,10 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::String => Ok("string".to_owned()),
         FieldType::Text => Ok("string".to_owned()),
         FieldType::Binary => Ok("bytes".to_owned()),
-        FieldType::Decimal => Ok("dozer.types.RustDecimal".to_owned()),
-        FieldType::Timestamp => Ok("google.protobuf.Timestamp".to_owned()),
+        FieldType::Decimal => Ok(DECIMAL_TYPE_CLASS.to_owned()),
+        FieldType::Timestamp => Ok(TIMESTAMP_TYPE_CLASS.to_owned()),
         FieldType::Date => Ok("string".to_owned()),
         FieldType::Bson => Ok("bytes".to_owned()),
-        FieldType::Point => Ok("dozer.types.PointType".to_owned()),
+        FieldType::Point => Ok(POINT_TYPE_CLASS.to_owned()),
     }
 }

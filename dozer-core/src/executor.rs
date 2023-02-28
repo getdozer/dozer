@@ -6,12 +6,12 @@ use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::NodeHandle;
-use dozer_types::types::{Operation, Record};
+use dozer_types::types::Operation;
 
 use crate::epoch::Epoch;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::panic::panic_any;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -48,34 +48,9 @@ pub(crate) enum InputPortState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
-    Delete { old: Record },
-    Insert { new: Record },
-    Update { old: Record, new: Record },
+    Op { op: Operation },
     Commit { epoch: Epoch },
     Terminate,
-}
-
-impl ExecutorOperation {
-    pub fn from_operation(op: Operation) -> ExecutorOperation {
-        match op {
-            Operation::Update { old, new } => ExecutorOperation::Update { old, new },
-            Operation::Delete { old } => ExecutorOperation::Delete { old },
-            Operation::Insert { new } => ExecutorOperation::Insert { new },
-        }
-    }
-}
-
-impl Display for ExecutorOperation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let type_str = match self {
-            ExecutorOperation::Delete { .. } => "Delete",
-            ExecutorOperation::Update { .. } => "Update",
-            ExecutorOperation::Insert { .. } => "Insert",
-            ExecutorOperation::Terminate { .. } => "Terminate",
-            ExecutorOperation::Commit { .. } => "Commit",
-        };
-        f.write_str(type_str)
-    }
 }
 
 mod execution_dag;

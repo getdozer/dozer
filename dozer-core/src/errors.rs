@@ -146,6 +146,9 @@ pub enum SinkError {
         source: BoxedError,
     },
 
+    #[error("Failed to get checkpoint in Cache: {0:?}, Error: {1:?}.")]
+    CacheGetCheckpointFailed(String, #[source] BoxedError),
+
     #[error("Failed to begin transaction in Cache: {0:?}, Error: {1:?}.")]
     CacheBeginTransactionFailed(String, #[source] BoxedError),
 
@@ -179,6 +182,6 @@ pub enum JoinError {
 
 #[derive(Error, Debug)]
 pub enum SourceError {
-    #[error("Failed to find table in Source: {0:?}")]
-    PortError(String),
+    #[error("Failed to find table in Source: {0}")]
+    PortError(u32),
 }

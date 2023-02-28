@@ -4,7 +4,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::{Expr, Select, SelectItem};
+use sqlparser::ast::{Expr, Ident, Select, SelectItem};
 
 #[derive(Clone, Copy)]
 pub enum PrimaryKeyAction {
@@ -47,7 +47,12 @@ impl CommonPlanner {
             SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
             SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
             SelectItem::QualifiedWildcard(_, _) => panic!("not supported yet"),
-            SelectItem::Wildcard(_) => panic!("not supported yet"),
+            SelectItem::Wildcard(_) => self
+                .input_schema
+                .fields
+                .iter()
+                .map(|col| (Expr::Identifier(Ident::new(col.to_owned().name)), None))
+                .collect(),
         };
 
         for (expr, alias) in expr_items {

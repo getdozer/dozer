@@ -8,6 +8,7 @@ use dozer_storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
 
+use dozer_types::node::SourceStates;
 use dozer_types::parking_lot::{RwLock, RwLockReadGuard};
 
 use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
@@ -23,6 +24,7 @@ use crate::cache::RecordWithId;
 use crate::errors::CacheError;
 use query::LmdbQueryHandler;
 
+mod checkpoint_database;
 mod helper;
 mod id_database;
 mod query;
@@ -30,6 +32,7 @@ mod record_database;
 mod schema_database;
 mod secondary_index_database;
 
+use checkpoint_database::CheckpointDatabase;
 pub use id_database::IdDatabase;
 pub use record_database::RecordDatabase;
 use schema_database::SchemaDatabase;
@@ -98,6 +101,7 @@ impl Default for CacheWriteOptions {
 #[derive(Debug)]
 pub struct LmdbRwCache {
     common: LmdbCacheCommon,
+    checkpoint_db: CheckpointDatabase,
     txn: SharedTransaction,
 }
 
@@ -131,8 +135,13 @@ impl LmdbRwCache {
             kind: CacheOptionsKind::Write(write_options),
         })?;
         let common = LmdbCacheCommon::new(&mut env, common_options, name, false)?;
+        let checkpoint_db = CheckpointDatabase::new(&mut env)?;
         let txn = env.create_txn()?;
-        Ok(Self { common, txn })
+        Ok(Self {
+            common,
+            checkpoint_db,
+            txn,
+        })
     }
 }
 
@@ -218,9 +227,16 @@ impl RwCache for LmdbRwCache {
         Ok(old_version)
     }
 
-    fn commit(&self) -> Result<(), CacheError> {
-        self.txn.write().commit_and_renew()?;
+    fn commit(&self, checkpoint: &SourceStates) -> Result<(), CacheError> {
+        let mut txn = self.txn.write();
+        self.checkpoint_db.write(txn.txn_mut(), checkpoint)?;
+        txn.commit_and_renew()?;
         Ok(())
+    }
+
+    fn get_checkpoint(&self) -> Result<SourceStates, CacheError> {
+        let txn = self.txn.read();
+        self.checkpoint_db.read(txn.txn())
     }
 }
 

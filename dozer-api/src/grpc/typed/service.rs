@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     auth::{Access, Authorizer},
-    errors::{GRPCError, GenerationError},
+    errors::{GenerationError, GrpcError},
     generator::protoc::generator::{
         CountResponseDesc, EventDesc, ProtoGenerator, QueryResponseDesc, ServiceDesc,
         TokenResponseDesc,
@@ -17,7 +17,7 @@ use crate::{
     RoCacheEndpoint,
 };
 use dozer_cache::CacheReader;
-use dozer_types::{grpc_types::internal::PipelineResponse, models::api_security::ApiSecurity};
+use dozer_types::{grpc_types::types::Operation, models::api_security::ApiSecurity};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};
 use std::{borrow::Cow, collections::HashMap, convert::Infallible, path::Path};
@@ -39,7 +39,7 @@ pub struct TypedService {
     send_compression_encodings: EnabledCompressionEncodings,
     /// For look up endpoint from its full service name. `key == value.service_desc.service.full_name()`.
     endpoint_map: HashMap<String, TypedEndpoint>,
-    event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
+    event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
     security: Option<ApiSecurity>,
 }
 
@@ -59,9 +59,9 @@ impl TypedService {
     pub fn new(
         descriptor_path: &Path,
         cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
-        event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
+        event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
         security: Option<ApiSecurity>,
-    ) -> Result<Self, GRPCError> {
+    ) -> Result<Self, GrpcError> {
         let endpoint_map = cache_endpoints
             .into_iter()
             .map(|cache_endpoint| {
@@ -174,7 +174,7 @@ impl TypedService {
                 struct EventService {
                     cache_endpoint: Arc<RoCacheEndpoint>,
                     event_desc: Option<EventDesc>,
-                    event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
+                    event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
                 }
                 impl tonic::server::ServerStreamingService<DynamicMessage> for EventService {
                     type Response = TypedResponse;
@@ -334,7 +334,7 @@ fn on_event(
     reader: &CacheReader,
     endpoint_name: &str,
     event_desc: EventDesc,
-    event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
+    event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
     let parts = request.into_parts();
     let extensions = parts.1;
@@ -357,8 +357,8 @@ fn on_event(
         filter,
         event_notifier,
         access.cloned(),
-        move |op, endpoint| {
-            if endpoint_to_be_streamed == endpoint {
+        move |op| {
+            if endpoint_to_be_streamed == op.endpoint_name {
                 Some(Ok(on_event_to_typed_response(op, event_desc.clone())))
             } else {
                 None

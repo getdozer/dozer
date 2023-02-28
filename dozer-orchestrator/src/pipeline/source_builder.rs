@@ -78,7 +78,7 @@ impl SourceBuilder {
                 }
 
                 let source_factory =
-                    ConnectorSourceFactory::new(ports.clone(), tables, connection.clone());
+                    ConnectorSourceFactory::new(ports.clone(), tables, connection.clone())?;
 
                 asm.add(AppSource::new(
                     conn.clone(),
