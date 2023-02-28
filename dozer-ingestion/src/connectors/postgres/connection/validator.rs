@@ -132,7 +132,7 @@ fn validate_wal_level(client: &mut Client) -> Result<(), PostgresConnectorError>
 }
 
 fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
-    let table_regex = Regex::new(r"^([:lower_][:alnum_]*)$").unwrap();
+    let table_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
         if !table_regex.is_match(&t.table_name) {
             return Err(TableNameNotValid(t.table_name.clone()));
@@ -143,7 +143,7 @@ fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConn
 }
 
 fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
-    let column_name_regex = Regex::new(r"^([:lower_][:alnum_]*)$").unwrap();
+    let column_name_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
         if let Some(columns) = &t.columns {
             for column in columns {
