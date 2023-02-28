@@ -25,7 +25,8 @@ use tempdir::TempDir;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
-const TRANSACTION_PORT: u16 = 0 as PortHandle;
+const TRIPS_PORT: u16 = 0 as PortHandle;
+const ZONES_PORT: u16 = 1 as PortHandle;
 const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 #[test]
@@ -44,8 +45,9 @@ fn test_pipeline_builder() {
     // .unwrap();
 
     let context = statement_to_pipeline(
-        "SELECT taxi_id, completed_at, window_start, window_end \
-        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES')",
+        "SELECT trips.taxi_id, puz.zone, trips.completed_at, trips.window_start, trips.window_end \
+        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips \
+        JOIN zones puz ON trips.pu_location_id = puz.location_id",
         &mut pipeline,
         Some("results".to_string()),
     )
@@ -59,9 +61,12 @@ fn test_pipeline_builder() {
     asm.add(AppSource::new(
         "connection".to_string(),
         Arc::new(TestSourceFactory::new(latch.clone())),
-        vec![("taxi_trips".to_string(), TRANSACTION_PORT)]
-            .into_iter()
-            .collect(),
+        vec![
+            ("taxi_trips".to_string(), TRIPS_PORT),
+            ("zones".to_string(), ZONES_PORT),
+        ]
+        .into_iter()
+        .collect(),
     ))
     .unwrap();
 
@@ -121,21 +126,30 @@ impl TestSourceFactory {
 
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(vec![OutputPortDef::new(
-            TRANSACTION_PORT,
-            OutputPortType::StatefulWithPrimaryKeyLookup {
-                retr_old_records_for_updates: true,
-                retr_old_records_for_deletes: true,
-            },
-        )])
+        Ok(vec![
+            OutputPortDef::new(
+                TRIPS_PORT,
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                },
+            ),
+            OutputPortDef::new(
+                ZONES_PORT,
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                },
+            ),
+        ])
     }
 
     fn get_output_schema(
         &self,
         port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        if port == &TRANSACTION_PORT {
-            let source_id = SourceDefinition::Table {
+        if port == &TRIPS_PORT {
+            let taxi_trips_source = SourceDefinition::Table {
                 connection: "connection".to_string(),
                 name: "taxi_trips".to_string(),
             };
@@ -143,8 +157,45 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 Schema::empty()
                     .field(
                         FieldDefinition::new(
-                            String::from("id"),
-                            FieldType::Int,
+                            String::from("taxi_id"),
+                            FieldType::UInt,
+                            false,
+                            taxi_trips_source.clone(),
+                        ),
+                        true,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("completed_at"),
+                            FieldType::Timestamp,
+                            false,
+                            taxi_trips_source.clone(),
+                        ),
+                        false,
+                    )
+                    .field(
+                        FieldDefinition::new(
+                            String::from("pu_location_id"),
+                            FieldType::UInt,
+                            false,
+                            taxi_trips_source,
+                        ),
+                        false,
+                    )
+                    .clone(),
+                SchemaSQLContext::default(),
+            ))
+        } else if port == &ZONES_PORT {
+            let source_id = SourceDefinition::Table {
+                connection: "connection".to_string(),
+                name: "zones".to_string(),
+            };
+            Ok((
+                Schema::empty()
+                    .field(
+                        FieldDefinition::new(
+                            String::from("location_id"),
+                            FieldType::UInt,
                             false,
                             source_id.clone(),
                         ),
@@ -152,17 +203,8 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     )
                     .field(
                         FieldDefinition::new(
-                            String::from("taxi_id"),
+                            String::from("zone"),
                             FieldType::String,
-                            false,
-                            source_id.clone(),
-                        ),
-                        false,
-                    )
-                    .field(
-                        FieldDefinition::new(
-                            String::from("completed_at"),
-                            FieldType::Int,
                             false,
                             source_id,
                         ),
@@ -207,108 +249,141 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(0),
-                            Field::String("1001".to_string()),
+                            Field::UInt(1001),
                             Field::Timestamp(
                                 Utc.datetime_from_str("2023-02-01 22:00:00", DATE_FORMAT)
                                     .unwrap()
                                     .into(),
                             ),
+                            Field::UInt(1),
                         ],
                         Some(1),
                     ),
                 },
-                TRANSACTION_PORT,
+                TRIPS_PORT,
             ),
             (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(1),
-                            Field::String("1002".to_string()),
+                            Field::UInt(1002),
                             Field::Timestamp(
                                 Utc.datetime_from_str("2023-02-01 22:01:00", DATE_FORMAT)
                                     .unwrap()
                                     .into(),
                             ),
+                            Field::UInt(2),
                         ],
                         Some(1),
                     ),
                 },
-                TRANSACTION_PORT,
+                TRIPS_PORT,
             ),
             (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(2),
-                            Field::String("1003".to_string()),
+                            Field::UInt(1003),
                             Field::Timestamp(
                                 Utc.datetime_from_str("2023-02-01 22:02:10", DATE_FORMAT)
                                     .unwrap()
                                     .into(),
                             ),
+                            Field::UInt(3),
                         ],
                         Some(1),
                     ),
                 },
-                TRANSACTION_PORT,
+                TRIPS_PORT,
             ),
             (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(3),
-                            Field::String("1004".to_string()),
+                            Field::UInt(1004),
                             Field::Timestamp(
                                 Utc.datetime_from_str("2023-02-01 22:03:00", DATE_FORMAT)
                                     .unwrap()
                                     .into(),
                             ),
+                            Field::UInt(2),
                         ],
                         Some(1),
                     ),
                 },
-                TRANSACTION_PORT,
+                TRIPS_PORT,
             ),
             (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(4),
-                            Field::String("1005".to_string()),
+                            Field::UInt(1005),
                             Field::Timestamp(
                                 Utc.datetime_from_str("2023-02-01 22:05:00", DATE_FORMAT)
                                     .unwrap()
                                     .into(),
                             ),
+                            Field::UInt(1),
                         ],
                         Some(1),
                     ),
                 },
-                TRANSACTION_PORT,
+                TRIPS_PORT,
             ),
             (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(5),
-                            Field::String("1006".to_string()),
+                            Field::UInt(1006),
                             Field::Timestamp(
                                 Utc.datetime_from_str("2023-02-01 22:06:00", DATE_FORMAT)
                                     .unwrap()
                                     .into(),
                             ),
+                            Field::UInt(2),
                         ],
                         Some(1),
                     ),
                 },
-                TRANSACTION_PORT,
+                TRIPS_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![Field::UInt(1), Field::String("Newark Airport".to_string())],
+                        Some(1),
+                    ),
+                },
+                ZONES_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![Field::UInt(2), Field::String("Jamaica Bay".to_string())],
+                        Some(1),
+                    ),
+                },
+                ZONES_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::UInt(3),
+                            Field::String("Allerton/Pelham Gardens".to_string()),
+                        ],
+                        Some(1),
+                    ),
+                },
+                ZONES_PORT,
             ),
         ];
 

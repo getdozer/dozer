@@ -47,14 +47,15 @@ impl JoinWindow {
         let source_outputs = self.table.execute(action, from_port, record)?;
 
         let mut window_outputs = vec![];
-        for (action, record, lookup_key) in source_outputs.into_iter() {
+        for (action, record, _lookup_key) in source_outputs.into_iter() {
             let window_records = self
                 .window
                 .execute(&record)
                 .map_err(|_| JoinError::InvalidSource(0))?;
             for window_record in window_records {
-                // let lookup_key = self.table.encode_lookup_key(&window_record, &self.schema)?;
-                window_outputs.push((action.clone(), window_record, lookup_key.clone()));
+                let pk_fields = get_primary_key_fields(&window_record, &self.schema)?;
+                let window_lookup_key = encode_lookup_key(window_record.version, &pk_fields);
+                window_outputs.push((action.clone(), window_record, window_lookup_key));
             }
         }
         Ok(window_outputs)
@@ -73,10 +74,10 @@ impl JoinWindow {
         fields.pop();
 
         // create a new lookup key using only the source key fields
-        let lookup_key = encode_lookup_key(version, &fields);
+        let record_lookup_key = encode_lookup_key(version, &fields);
 
         // execute the lookup using only the source key fields
-        let source_outputs = self.table.lookup(&lookup_key, readers)?;
+        let source_outputs = self.table.lookup(&record_lookup_key, readers)?;
 
         // for each record, execute the window
         let mut window_outputs = vec![];
@@ -89,7 +90,7 @@ impl JoinWindow {
                 let pk_fields = get_primary_key_fields(&window_record, &self.schema)?;
                 let window_lookup_key = encode_lookup_key(window_record.version, &pk_fields);
                 if window_lookup_key == lookup_key {
-                    window_outputs.push((window_record, lookup_key.clone()));
+                    window_outputs.push((window_record, lookup_key.to_vec().clone()));
                 }
             }
         }

@@ -97,6 +97,7 @@ impl JoinTable {
                 .map_err(|e| JoinError::InvalidKey(record.to_owned(), e))?;
 
             let key_bytes = key_value.encode();
+            lookup_key.extend_from_slice(&(key_bytes.len() as u32).to_be_bytes());
             lookup_key.extend_from_slice(&key_bytes);
         }
 
@@ -104,7 +105,8 @@ impl JoinTable {
     }
 
     fn get_lookup_key_version(&self, lookup_key: &[u8]) -> (u32, Vec<u8>) {
-        let (version_bytes, id) = lookup_key.split_at(4);
+        let (version_bytes, key) = lookup_key.split_at(4);
+        let (_, id) = key.split_at(4);
         let version = u32::from_be_bytes(version_bytes.try_into().unwrap());
         (version, id.to_vec())
     }

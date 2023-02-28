@@ -41,12 +41,17 @@ impl WindowType {
             false,
             SourceDefinition::Dynamic,
         ));
+        output_schema
+            .primary_index
+            .push(output_schema.fields.len() - 1);
+
         output_schema.fields.push(FieldDefinition::new(
             String::from("window_end"),
             FieldType::Timestamp,
             false,
             SourceDefinition::Dynamic,
         ));
+
         Ok(output_schema)
     }
 }
