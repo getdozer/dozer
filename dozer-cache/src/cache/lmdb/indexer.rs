@@ -1,5 +1,5 @@
 use crate::errors::{CacheError, IndexError};
-use dozer_storage::lmdb::{RwTransaction, Transaction};
+use dozer_storage::lmdb::RwTransaction;
 use dozer_types::{
     parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
@@ -18,17 +18,13 @@ pub struct Indexer {
 impl Indexer {
     pub fn build_indexes(
         &self,
-        parent_txn: &mut RwTransaction,
+        txn: &mut RwTransaction,
         record: &Record,
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
         let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
-
-        let mut txn = parent_txn
-            .begin_nested_txn()
-            .map_err(|e| CacheError::Internal(Box::new(e)))?;
 
         if secondary_indexes.is_empty() {
             return Err(CacheError::Index(IndexError::MissingSecondaryIndexes));
@@ -43,19 +39,17 @@ impl Indexer {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
-                    db.insert(&mut txn, &secondary_key, id)?;
+                    db.insert(txn, &secondary_key, id)?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         Self::_build_indices_full_text(*field_index, &record.values)?
                     {
-                        db.insert(&mut txn, &secondary_key, id)?;
+                        db.insert(txn, &secondary_key, id)?;
                     }
                 }
             }
         }
-        txn.commit()
-            .map_err(|e| CacheError::Internal(Box::new(e)))?;
         Ok(())
     }
 
