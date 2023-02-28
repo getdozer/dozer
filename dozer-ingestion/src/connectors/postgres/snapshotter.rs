@@ -11,8 +11,6 @@ use crossbeam::channel::{unbounded, Sender};
 
 use crate::errors::ConnectorError::PostgresConnectorError;
 use postgres::fallible_iterator::FallibleIterator;
-use std::cell::RefCell;
-use std::sync::Arc;
 
 use std::thread;
 
@@ -45,9 +43,7 @@ impl<'a> PostgresSnapshotter<'a> {
         conn_config: tokio_postgres::Config,
         sender: Sender<Option<Operation>>,
     ) -> Result<(), ConnectorError> {
-        let client_plain = Arc::new(RefCell::new(
-            connection_helper::connect(conn_config).map_err(PostgresConnectorError)?,
-        ));
+        let mut client_plain = connection_helper::connect(conn_config).map_err(PostgresConnectorError)?;
 
         let column_str: Vec<String> = table_info
             .columns
@@ -60,7 +56,6 @@ impl<'a> PostgresSnapshotter<'a> {
         let column_str = column_str.join(",");
         let query = format!("select {} from {}", column_str, table_info.table_name);
         let stmt = client_plain
-            .borrow_mut()
             .prepare(&query)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
         let columns = stmt.columns();
@@ -70,7 +65,6 @@ impl<'a> PostgresSnapshotter<'a> {
 
         let empty_vec: Vec<String> = Vec::new();
         for msg in client_plain
-            .borrow_mut()
             .query_raw(&stmt, empty_vec)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?
             .iterator()
