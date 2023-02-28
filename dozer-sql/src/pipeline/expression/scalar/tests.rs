@@ -8,4 +8,3 @@ mod number;
 mod scalar_common;
 #[cfg(test)]
 mod string;
-

@@ -1,6 +1,6 @@
+use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
 use dozer_types::chrono::{DateTime, NaiveDate};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
-use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
 
 #[test]
 fn test_date() {
@@ -37,7 +37,9 @@ fn test_timestamp() {
                 false,
             )
             .clone(),
-        vec![Field::Timestamp(DateTime::parse_from_rfc3339("2023-01-01T00:12:10Z").unwrap())],
+        vec![Field::Timestamp(
+            DateTime::parse_from_rfc3339("2023-01-02T00:12:10Z").unwrap(),
+        )],
     );
-    assert_eq!(f, Field::Int(6));
+    assert_eq!(f, Field::Int(0));
 }
