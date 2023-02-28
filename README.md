@@ -41,23 +41,6 @@ Dozer takes an end-to-end approach, aiming to drastically lower the cost, comple
 Check out our website and sign up for [Early Access](https:///getdozer.io) to our hosted service.
 
 
-
-
-## Quick Start
-Refer to our [getting started](https://getdozer.io/docs/category/getting-started) and [examples section](https://getdozer.io/docs/category/what-can-you-build-with-dozer) for more details.
-#### 1) End-to-end hypercharge postgres example
-```bash
-docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up
-```
-#### 2) Real time Ethereum stats example
-Get a websocket url from one of the hosted eth node providers such as [Infura](https://www.infura.io/product/ethereum) and initialize the env variable `ETH_WSS_URL`.
-```bash
-# Intialize ETH Web Socker Url
-export ETH_WSS_URL=<WSS_URL>
-
-docker-compose -f examples/2_eth_stats_sample/docker-compose.yml up
-```
-
 ## Running Dozer CLI
 To view list of commands
 ```bash
@@ -76,6 +59,17 @@ docker run -it \
   public.ecr.aws/k7k6x1d4/dozer \
   dozer
 ```
+## Quick Start
+Refer to our [getting started](https://getdozer.io/docs/category/getting-started) section. 
+
+This following example brings up Dozer connected to a Postgres source.
+```bash
+docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up
+```
+
+Refer to [Running Dozer with several microservices and Postgres DB](https://getdozer.io/blog/microservices) for a comprehensive explanation.
+
+We are building more examples in our [dozer-samples](https://github.com/getdozer/dozer-samples) repository. 
 
 ##  What can you do with Dozer
 
