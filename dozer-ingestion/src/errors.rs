@@ -203,6 +203,9 @@ pub enum PostgresSchemaError {
     #[error("String parse failed")]
     StringParseError(#[source] FromUtf8Error),
 
+    #[error("JSONB parse failed: {0}")]
+    JSONBParseError(String),
+
     #[error("Point parse failed")]
     PointParseError,
 
