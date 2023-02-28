@@ -209,7 +209,7 @@ impl SchemaHelper {
                 Ok(())
             })?;
 
-        let columns_map = sort_schemas(tables.as_ref().map(Vec::as_ref), &columns_map);
+        let columns_map = sort_schemas(tables.as_ref().map(Vec::as_ref), &columns_map)?;
 
         Self::map_columns_to_schemas(columns_map)
             .map_err(PostgresConnectorError::PostgresSchemaError)

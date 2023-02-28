@@ -2,30 +2,32 @@ use std::collections::HashMap;
 
 use crate::connectors::postgres::schema::helper::PostgresTable;
 use crate::connectors::{ColumnInfo, TableInfo};
+use crate::errors::PostgresSchemaError;
+use crate::errors::PostgresSchemaError::ColumnNotFound;
 use dozer_types::types::FieldDefinition;
 
 pub fn sort_schemas(
     expected_tables_order: Option<&[TableInfo]>,
     mapped_tables: &HashMap<String, PostgresTable>,
-) -> Vec<(String, PostgresTable)> {
+) -> Result<Vec<(String, PostgresTable)>, PostgresSchemaError> {
     expected_tables_order.as_ref().map_or(
-        mapped_tables
+        Ok(mapped_tables
             .clone()
             .into_iter()
             .map(|(key, table)| (key, table))
-            .collect(),
+            .collect()),
         |tables| {
             let mut sorted_tables: Vec<(String, PostgresTable)> = Vec::new();
             for table in tables.iter() {
-                let postgres_table = mapped_tables.get(&table.table_name).unwrap();
+                let postgres_table = mapped_tables.get(&table.table_name).ok_or(ColumnNotFound)?;
 
                 let sorted_table = table.columns.as_ref().map_or_else(
-                    || postgres_table.clone(),
+                    || Ok(postgres_table.clone()),
                     |expected_order| {
                         if expected_order.is_empty() {
-                            postgres_table.clone()
+                            Ok(postgres_table.clone())
                         } else {
-                            let sorted_fields = sort_fields(postgres_table, expected_order);
+                            let sorted_fields = sort_fields(postgres_table, expected_order)?;
                             let mut new_table = PostgresTable::new(
                                 *postgres_table.table_id(),
                                 postgres_table.replication_type().clone(),
@@ -33,15 +35,15 @@ pub fn sort_schemas(
                             sorted_fields.into_iter().for_each(|(f, is_index_field)| {
                                 new_table.add_field(f, is_index_field)
                             });
-                            new_table
+                            Ok(new_table)
                         }
                     },
-                );
+                )?;
 
                 sorted_tables.push((table.table_name.clone(), sorted_table));
             }
 
-            sorted_tables
+            Ok(sorted_tables)
         },
     )
 }
@@ -49,7 +51,7 @@ pub fn sort_schemas(
 fn sort_fields(
     postgres_table: &PostgresTable,
     expected_order: &[ColumnInfo],
-) -> Vec<(FieldDefinition, bool)> {
+) -> Result<Vec<(FieldDefinition, bool)>, PostgresSchemaError> {
     let mut sorted_fields = Vec::new();
 
     for c in expected_order {
@@ -57,15 +59,19 @@ fn sort_fields(
             .fields()
             .iter()
             .position(|f| c.name == f.name)
-            .unwrap();
+            .ok_or(ColumnNotFound)?;
 
-        let field = postgres_table.get_field(current_index).unwrap();
-        let is_index_field = postgres_table.is_index_field(current_index).unwrap();
+        let field = postgres_table
+            .get_field(current_index)
+            .ok_or(ColumnNotFound)?;
+        let is_index_field = postgres_table
+            .is_index_field(current_index)
+            .ok_or(ColumnNotFound)?;
 
         sorted_fields.push((field.clone(), *is_index_field));
     }
 
-    sorted_fields
+    Ok(sorted_fields)
 }
 
 #[cfg(test)]
@@ -128,7 +134,7 @@ mod tests {
             },
         ];
 
-        let result = sort_fields(&postgres_table, &expected_order);
+        let result = sort_fields(&postgres_table, &expected_order).unwrap();
         assert_eq!(result.get(0).unwrap().0.name, "first field");
         assert_eq!(result.get(1).unwrap().0.name, "second field");
         assert_eq!(result.get(2).unwrap().0.name, "third field");
@@ -151,7 +157,7 @@ mod tests {
             columns: None,
         }];
 
-        let result = sort_schemas(Some(expected_table_order), &mapped_tables);
+        let result = sort_schemas(Some(expected_table_order), &mapped_tables).unwrap();
         assert_eq!(
             result.get(0).unwrap().1.fields().get(0).unwrap().name,
             postgres_table.get_field(0).unwrap().name
@@ -196,7 +202,7 @@ mod tests {
             columns: Some(columns_order.clone()),
         }];
 
-        let result = sort_schemas(Some(expected_table_order), &mapped_tables);
+        let result = sort_schemas(Some(expected_table_order), &mapped_tables).unwrap();
         assert_eq!(
             result.get(0).unwrap().1.fields().get(0).unwrap().name,
             columns_order.get(0).unwrap().name
@@ -231,7 +237,7 @@ mod tests {
             columns: Some(columns_order.clone()),
         }];
 
-        let result = sort_schemas(Some(expected_table_order), &mapped_tables);
+        let result = sort_schemas(Some(expected_table_order), &mapped_tables).unwrap();
         assert_eq!(
             result.get(0).unwrap().1.fields().get(0).unwrap().name,
             columns_order.get(0).unwrap().name
@@ -298,7 +304,7 @@ mod tests {
             },
         ];
 
-        let result = sort_schemas(Some(expected_table_order), &mapped_tables);
+        let result = sort_schemas(Some(expected_table_order), &mapped_tables).unwrap();
         let first_table_after_sort = result.get(0).unwrap();
         let second_table_after_sort = result.get(1).unwrap();
 

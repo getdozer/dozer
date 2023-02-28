@@ -51,25 +51,22 @@ impl<'a> PostgresSnapshotter<'a> {
             .collect();
 
         let column_str = column_str.join(",");
-        let query = format!("select {} from {}", column_str, table_info.name);
+        let query = format!("select {} from {}", column_str, name);
         let stmt = client_plain
             .prepare(&query)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
         let columns = stmt.columns();
 
-        // Ingest schema for every table
-        let schema = helper::map_schema(&table_info.schema.identifier.unwrap().id, columns)?;
-
-        let empty_vec: Vec<String> = Vec::new();
-        for msg in client_plain
-            .query_raw(&stmt, empty_vec)
+            let empty_vec: Vec<String> = Vec::new();
+            for msg in client_plain
+                .query_raw(&stmt, empty_vec)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?
             .iterator()
         {
             match msg {
                 Ok(msg) => {
                     let evt = helper::map_row_to_operation_event(
-                        table_info.name.to_string(),
+                        name.to_string(),
                         schema
                             .identifier
                             .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
