@@ -1,15 +1,16 @@
-use crate::connectors::TableInfo;
 use crate::ingestion::Ingestor;
 
 use super::helper;
 use crate::connectors::postgres::connection::helper as connection_helper;
-use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::errors::ConnectorError;
 use crate::errors::PostgresConnectorError::{InvalidQueryError, PostgresSchemaError};
 use crate::errors::PostgresConnectorError::{SnapshotReadError, SyncWithSnapshotError};
 use crossbeam::channel::{unbounded, Sender};
 
+use crate::connectors::postgres::schema::helper::SchemaHelper;
+use crate::connectors::TableInfo;
 use crate::errors::ConnectorError::PostgresConnectorError;
+use dozer_types::types::SourceSchema;
 use postgres::fallible_iterator::FallibleIterator;
 
 use std::thread;
@@ -26,16 +27,11 @@ pub struct PostgresSnapshotter<'a> {
 }
 
 impl<'a> PostgresSnapshotter<'a> {
-    pub fn get_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<TableInfo>, ConnectorError> {
-        let table_names: Vec<String> = tables.iter().map(|t| t.table_name.to_owned()).collect();
-
+    pub fn get_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<SourceSchema>, ConnectorError> {
         let helper = SchemaHelper::new(self.conn_config.clone(), None);
-        Ok(helper
-            .get_tables(Some(tables.as_slice()))?
-            .iter()
-            .filter(|t| table_names.contains(&t.table_name))
-            .cloned()
-            .collect())
+        helper
+            .get_schemas(Some(tables))
+            .map_err(PostgresConnectorError)
     }
 
     pub fn sync_table(
@@ -55,14 +51,14 @@ impl<'a> PostgresSnapshotter<'a> {
             .collect();
 
         let column_str = column_str.join(",");
-        let query = format!("select {} from {}", column_str, table_info.table_name);
+        let query = format!("select {} from {}", column_str, table_info.name);
         let stmt = client_plain
             .prepare(&query)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
         let columns = stmt.columns();
 
         // Ingest schema for every table
-        let schema = helper::map_schema(&table_info.id, columns)?;
+        let schema = helper::map_schema(&table_info.schema.identifier.unwrap().id, columns)?;
 
         let empty_vec: Vec<String> = Vec::new();
         for msg in client_plain
@@ -73,7 +69,7 @@ impl<'a> PostgresSnapshotter<'a> {
             match msg {
                 Ok(msg) => {
                     let evt = helper::map_row_to_operation_event(
-                        table_info.table_name.to_string(),
+                        table_info.name.to_string(),
                         schema
                             .identifier
                             .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
@@ -132,6 +128,6 @@ impl<'a> PostgresSnapshotter<'a> {
             }
         }
 
-        Ok(tables)
+        Ok(())
     }
 }

@@ -122,7 +122,7 @@ impl<'a> PostgresIteratorHandler<'a> {
         // - When snapshot replication is not completed
         // - When there is gap between available lsn (in case when slot dropped and new created) and last lsn
         // - When publication tables changes
-        let mut tables = details.tables.clone();
+        let tables = details.tables.clone();
         if self.lsn.clone().into_inner().is_none() {
             debug!("\nCreating Slot....");
             let slot_exist =
@@ -166,7 +166,7 @@ impl<'a> PostgresIteratorHandler<'a> {
                 ingestor: self.ingestor,
                 connector_id: self.connector_id,
             };
-            tables = snapshotter.sync_tables(details.tables.clone())?;
+            snapshotter.sync_tables(details.tables.clone())?;
 
             let lsn = self.lsn.borrow().map_or(0, |(lsn, _)| u64::from(lsn));
             self.ingestor

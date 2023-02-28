@@ -17,6 +17,8 @@ use crate::errors::PostgresSchemaError::{
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+
+use crate::connectors::postgres::schema::sorter::sort_schemas;
 use tokio_postgres::Row;
 use PostgresSchemaError::TableTypeNotFound;
 
@@ -35,6 +37,7 @@ pub struct PostgresTableRow {
     pub replication_type: String,
 }
 
+#[derive(Clone)]
 pub struct PostgresTable {
     fields: Vec<FieldDefinition>,
     // Indexes of fields, which are used for replication identity
@@ -58,9 +61,29 @@ impl PostgresTable {
         }
     }
 
-    fn add_field(&mut self, field: FieldDefinition, is_column_used_in_index: bool) {
+    pub fn add_field(&mut self, field: FieldDefinition, is_column_used_in_index: bool) {
         self.fields.push(field);
         self.index_keys.push(is_column_used_in_index);
+    }
+
+    pub fn fields(&self) -> &Vec<FieldDefinition> {
+        &self.fields
+    }
+
+    pub fn is_index_field(&self, index: usize) -> Option<&bool> {
+        self.index_keys.get(index)
+    }
+
+    pub fn get_field(&self, index: usize) -> Option<&FieldDefinition> {
+        self.fields.get(index)
+    }
+
+    pub fn table_id(&self) -> &u32 {
+        &self.table_id
+    }
+
+    pub fn replication_type(&self) -> &String {
+        &self.replication_type
     }
 }
 
@@ -186,15 +209,17 @@ impl SchemaHelper {
                 Ok(())
             })?;
 
+        let columns_map = sort_schemas(tables.as_ref().map(Vec::as_ref), &columns_map);
+
         Self::map_columns_to_schemas(columns_map)
             .map_err(PostgresConnectorError::PostgresSchemaError)
     }
 
     pub fn map_columns_to_schemas(
-        map: HashMap<String, PostgresTable>,
+        postgres_tables: Vec<(String, PostgresTable)>,
     ) -> Result<Vec<SourceSchema>, PostgresSchemaError> {
         let mut schemas: Vec<SourceSchema> = Vec::new();
-        for (table_name, table) in map.into_iter() {
+        for (table_name, table) in postgres_tables.into_iter() {
             let primary_index: Vec<usize> = table
                 .index_keys
                 .iter()
