@@ -187,6 +187,8 @@ impl PipelineBuilder {
 
         let dag = app.get_dag().map_err(ExecutionError)?;
 
+        dag.print_dot();
+
         DagExecutor::validate(&dag, self.pipeline_dir.clone())
             .map(|_| {
                 info!("[pipeline] Validation completed");
