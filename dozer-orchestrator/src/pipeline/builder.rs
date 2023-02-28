@@ -10,9 +10,9 @@ use dozer_sql::pipeline::builder::{OutputNodeInfo, SchemaSQLContext};
 
 use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
-use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
+use dozer_types::{indicatif::MultiProgress, log::debug};
 use std::path::PathBuf;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
@@ -187,7 +187,7 @@ impl PipelineBuilder {
 
         let dag = app.get_dag().map_err(ExecutionError)?;
 
-        dag.print_dot();
+        debug!("{}", dag);
 
         DagExecutor::validate(&dag, self.pipeline_dir.clone())
             .map(|_| {

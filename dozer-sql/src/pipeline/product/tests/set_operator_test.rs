@@ -71,8 +71,6 @@ fn test_set_union_pipeline_builder() {
 
     let dag = app.get_dag().unwrap();
 
-    dag.print_dot();
-
     let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
     if tmp_dir.path().exists() {
         std::fs::remove_dir_all(tmp_dir.path())
@@ -150,8 +148,6 @@ fn test_set_union_all_pipeline_builder() {
     app.add_pipeline(pipeline);
 
     let dag = app.get_dag().unwrap();
-
-    dag.print_dot();
 
     let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
     if tmp_dir.path().exists() {

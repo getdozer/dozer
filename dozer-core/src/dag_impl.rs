@@ -5,8 +5,6 @@ use dozer_types::node::NodeHandle;
 
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
-
-use dozer_types::log::info;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::sync::Arc;
@@ -94,6 +92,12 @@ impl<T> Default for Dag<T> {
     }
 }
 
+impl<T> Display for Dag<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", dot::Dot::new(&self.graph))
+    }
+}
+
 impl<T> Dag<T> {
     /// Creates an empty DAG.
     pub fn new() -> Self {
@@ -107,11 +111,6 @@ impl<T> Dag<T> {
     /// Returns the underlying daggy graph.
     pub fn graph(&self) -> &daggy::Dag<NodeType<T>, EdgeType> {
         &self.graph
-    }
-
-    pub fn print_dot(&self) {
-        use std::println as info;
-        info!("{}", dot::Dot::new(&self.graph));
     }
 
     /// Adds a source. Panics if the `handle` exists in the `Dag`.
