@@ -2,8 +2,8 @@ use crate::connectors::TableInfo;
 use crate::ingestion::Ingestor;
 
 use super::helper;
-use super::schema_helper::SchemaHelper;
 use crate::connectors::postgres::connection::helper as connection_helper;
+use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::errors::ConnectorError;
 use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
 use crate::errors::PostgresConnectorError::{InvalidQueryError, PostgresSchemaError};

@@ -85,11 +85,17 @@ pub struct TableInfo {
     pub columns: Option<Vec<ColumnInfo>>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 #[serde(crate = "self::serde")]
 pub struct ColumnInfo {
     pub name: String,
     pub data_type: Option<String>,
+}
+
+impl ColumnInfo {
+    pub fn new(name: String, data_type: Option<String>) -> Self {
+        Self { name, data_type }
+    }
 }
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {

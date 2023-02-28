@@ -18,11 +18,50 @@ use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use tokio_postgres::Row;
+use PostgresSchemaError::TableTypeNotFound;
 
 #[derive(Debug)]
 pub struct SchemaHelper {
     conn_config: tokio_postgres::Config,
     schema: String,
+}
+
+pub struct PostgresTableRow {
+    pub table_name: String,
+    pub column_name: String,
+    pub field: FieldDefinition,
+    pub is_column_used_in_index: bool,
+    pub table_id: u32,
+    pub replication_type: String,
+}
+
+pub struct PostgresTable {
+    fields: Vec<FieldDefinition>,
+    // Indexes of fields, which are used for replication identity
+    // Default - uses PK for identity
+    // Index - uses selected index fields for identity
+    // Full - all fields are used for identity
+    // Nothing - no fields can be used for identity.
+    //  Postgres will not return old values in update and delete replication messages
+    index_keys: Vec<bool>,
+    table_id: u32,
+    replication_type: String,
+}
+
+impl PostgresTable {
+    pub fn new(table_id: u32, replication_type: String) -> Self {
+        Self {
+            fields: vec![],
+            index_keys: vec![],
+            table_id,
+            replication_type,
+        }
+    }
+
+    fn add_field(&mut self, field: FieldDefinition, is_column_used_in_index: bool) {
+        self.fields.push(field);
+        self.index_keys.push(is_column_used_in_index);
+    }
 }
 
 type RowsWithColumnsMap = (Vec<Row>, HashMap<String, Vec<String>>);
@@ -61,7 +100,7 @@ impl SchemaHelper {
 
             if add_column_table {
                 let vals = columns_map.get(&table_name);
-                let mut columns = vals.map_or_else(std::vec::Vec::new, |columns| columns.clone());
+                let mut columns = vals.map_or_else(Vec::new, |columns| columns.clone());
 
                 columns.push(ColumnInfo {
                     name: column_name,
@@ -119,8 +158,7 @@ impl SchemaHelper {
     ) -> Result<Vec<SourceSchema>, PostgresConnectorError> {
         let (results, tables_columns_map) = self.get_columns(tables.as_deref())?;
 
-        let mut columns_map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> =
-            HashMap::new();
+        let mut columns_map: HashMap<String, PostgresTable> = HashMap::new();
         results
             .iter()
             .filter(|row| {
@@ -132,25 +170,18 @@ impl SchemaHelper {
                 })
             })
             .map(|r| self.convert_row(r))
-            .try_for_each(|row| -> Result<(), PostgresSchemaError> {
-                let (table_name, field_def, is_primary_key, table_id, replication_type) = row?;
-                let vals = columns_map.get(&table_name);
-                let (mut fields, mut primary_keys, table_id, replication_type) = match vals {
-                    Some((fields, primary_keys, table_id, replication_type)) => (
-                        fields.clone(),
-                        primary_keys.clone(),
-                        *table_id,
-                        replication_type,
-                    ),
-                    None => (vec![], vec![], table_id, &replication_type),
-                };
-
-                fields.push(field_def);
-                primary_keys.push(is_primary_key);
-                columns_map.insert(
-                    table_name,
-                    (fields, primary_keys, table_id, replication_type.clone()),
-                );
+            .try_for_each(|table_row| -> Result<(), PostgresSchemaError> {
+                let row = table_row?;
+                columns_map
+                    .entry(row.table_name)
+                    .and_modify(|table| {
+                        table.add_field(row.field.clone(), row.is_column_used_in_index)
+                    })
+                    .or_insert_with(|| {
+                        let mut table = PostgresTable::new(row.table_id, row.replication_type);
+                        table.add_field(row.field, row.is_column_used_in_index);
+                        table
+                    });
 
                 Ok(())
             })?;
@@ -160,11 +191,12 @@ impl SchemaHelper {
     }
 
     pub fn map_columns_to_schemas(
-        map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)>,
+        map: HashMap<String, PostgresTable>,
     ) -> Result<Vec<SourceSchema>, PostgresSchemaError> {
         let mut schemas: Vec<SourceSchema> = Vec::new();
-        for (table_name, (fields, primary_keys, table_id, replication_type)) in map.into_iter() {
-            let primary_index: Vec<usize> = primary_keys
+        for (table_name, table) in map.into_iter() {
+            let primary_index: Vec<usize> = table
+                .index_keys
                 .iter()
                 .enumerate()
                 .filter(|(_, b)| **b)
@@ -173,20 +205,20 @@ impl SchemaHelper {
 
             let schema = Schema {
                 identifier: Some(SchemaIdentifier {
-                    id: table_id,
+                    id: table.table_id,
                     version: 1,
                 }),
-                fields: fields.clone(),
+                fields: table.fields.clone(),
                 primary_index,
             };
 
-            let replication_type = match replication_type.as_str() {
+            let replication_type = match table.replication_type.as_str() {
                 "d" => Ok(ReplicationChangesTrackingType::OnlyPK),
                 "i" => Ok(ReplicationChangesTrackingType::OnlyPK),
                 "n" => Ok(ReplicationChangesTrackingType::Nothing),
                 "f" => Ok(ReplicationChangesTrackingType::FullChanges),
-                _ => Err(PostgresSchemaError::UnsupportedReplicationType(
-                    replication_type,
+                typ => Err(PostgresSchemaError::UnsupportedReplicationType(
+                    typ.to_string(),
                 )),
             }?;
 
@@ -277,14 +309,20 @@ impl SchemaHelper {
         Ok(validation_result)
     }
 
-    fn convert_row(
-        &self,
-        row: &Row,
-    ) -> Result<(String, FieldDefinition, bool, u32, String), PostgresSchemaError> {
+    fn convert_row(&self, row: &Row) -> Result<PostgresTableRow, PostgresSchemaError> {
         let table_name: String = row.get(0);
+        let table_type: Option<String> = row.get(7);
+        if let Some(typ) = table_type {
+            if typ != *"BASE TABLE" {
+                return Err(PostgresSchemaError::UnsupportedTableType(typ, table_name));
+            }
+        } else {
+            return Err(TableTypeNotFound);
+        }
+
         let column_name: String = row.get(1);
         let is_nullable: bool = row.get(2);
-        let is_primary_index: bool = row.get(3);
+        let is_column_used_in_index: bool = row.get(3);
         let table_id: u32 = if let Some(rel_id) = row.get(4) {
             rel_id
         } else {
@@ -300,13 +338,15 @@ impl SchemaHelper {
 
         let replication_type = String::from_utf8(vec![replication_type_int as u8])
             .map_err(|_e| ValueConversionError("Replication type".to_string()))?;
-        Ok((
+
+        Ok(PostgresTableRow {
             table_name,
-            FieldDefinition::new(column_name, typ, is_nullable, SourceDefinition::Dynamic),
-            is_primary_index,
+            column_name: column_name.clone(),
+            field: FieldDefinition::new(column_name, typ, is_nullable, SourceDefinition::Dynamic),
+            is_column_used_in_index,
             table_id,
             replication_type,
-        ))
+        })
     }
 }
 
@@ -325,10 +365,11 @@ SELECT table_info.table_name,
            WHEN pc.relreplident = 'n' THEN false
            WHEN pc.relreplident = 'f' THEN true
            ELSE false
-           END                                                          AS is_primary_index,
+           END                                                          AS is_column_used_in_index,
        st_user_table.relid,
        pc.relreplident,
-       pt.oid                                                           AS type_oid
+       pt.oid                                                           AS type_oid,
+       t.table_type
 FROM (SELECT table_schema,
              table_catalog,
              table_name,
@@ -341,6 +382,7 @@ FROM (SELECT table_schema,
       FROM information_schema.columns
       WHERE table_name :tables_condition
       ORDER BY table_name) table_info
+         LEFT JOIN information_schema.tables t ON t.table_name = table_info.table_name
          LEFT JOIN pg_catalog.pg_statio_user_tables st_user_table ON st_user_table.relname = table_info.table_name
          LEFT JOIN (SELECT constraintUsage.table_name,
                            constraintUsage.column_name,
@@ -361,126 +403,3 @@ FROM (SELECT table_schema,
 ORDER BY table_info.table_schema,
          table_info.table_catalog,
          table_info.table_name;";
-
-// #[cfg(test)]
-// mod tests {
-//     use crate::connectors::postgres::schema_helper::SchemaHelper;
-//     use crate::connectors::postgres::test_utils::get_client;
-//     use crate::connectors::TableInfo;
-//     use rand::Rng;
-//     use std::collections::HashSet;
-//     use std::hash::Hash;
-//
-//     fn assert_vec_eq<T>(a: Vec<T>, b: Vec<T>) -> bool
-//     where
-//         T: Eq + Hash,
-//     {
-//         let a: HashSet<_> = a.iter().collect();
-//         let b: HashSet<_> = b.iter().collect();
-//
-//         a == b
-//     }
-//
-//     #[test]
-//     #[ignore]
-//     // fn connector_e2e_get_tables() {
-//     fn connector_disabled_test_e2e_get_tables() {
-//         let mut client = get_client();
-//
-//         let mut rng = rand::thread_rng();
-//
-//         let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
-//         let table_name = format!("products_test_{}", rng.gen::<u32>());
-//
-//         client.create_schema(&schema);
-//         client.create_simple_table(&schema, &table_name);
-//
-//         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
-//         let result = schema_helper.get_tables().unwrap();
-//
-//         let table = result.get(0).unwrap();
-//         assert_eq!(table_name, table.table_name.clone());
-//         assert!(assert_vec_eq(
-//             vec![
-//                 "name".to_string(),
-//                 "description".to_string(),
-//                 "weight".to_string(),
-//                 "id".to_string()
-//             ],
-//             table.columns.clone().unwrap()
-//         ));
-//
-//         client.drop_schema(&schema);
-//     }
-//
-//     #[test]
-//     #[ignore]
-//     // fn connector_e2e_get_schema_with_selected_columns() {
-//     fn connector_disabled_test_e2e_get_schema_with_selected_columns() {
-//         let mut client = get_client();
-//
-//         let mut rng = rand::thread_rng();
-//
-//         let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
-//         let table_name = format!("products_test_{}", rng.gen::<u32>());
-//
-//         client.create_schema(&schema);
-//         client.create_simple_table(&schema, &table_name);
-//
-//         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
-//         let table_info = TableInfo {
-//             name: table_name.clone(),
-//             table_name: table_name.clone(),
-//             id: 0,
-//             columns: Some(vec!["name".to_string(), "id".to_string()]),
-//         };
-//         let result = schema_helper.get_tables(Some(vec![table_info])).unwrap();
-//
-//         let table = result.get(0).unwrap();
-//         assert_eq!(table_name, table.table_name.clone());
-//         assert!(assert_vec_eq(
-//             vec!["name".to_string(), "id".to_string()],
-//             table.columns.clone().unwrap()
-//         ));
-//
-//         client.drop_schema(&schema);
-//     }
-//
-//     #[test]
-//     #[ignore]
-//     // fn connector_e2e_get_schema_without_selected_columns() {
-//     fn connector_disabled_test_e2e_get_schema_without_selected_columns() {
-//         let mut client = get_client();
-//
-//         let mut rng = rand::thread_rng();
-//
-//         let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
-//         let table_name = format!("products_test_{}", rng.gen::<u32>());
-//
-//         client.create_schema(&schema);
-//         client.create_simple_table(&schema, &table_name);
-//
-//         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
-//         let table_info = TableInfo {
-//             name: table_name.clone(),
-//             table_name: table_name.clone(),
-//             id: 0,
-//             columns: Some(vec![]),
-//         };
-//         let result = schema_helper.get_tables(Some(vec![table_info])).unwrap();
-//
-//         let table = result.get(0).unwrap();
-//         assert_eq!(table_name, table.table_name.clone());
-//         assert!(assert_vec_eq(
-//             vec![
-//                 "id".to_string(),
-//                 "name".to_string(),
-//                 "description".to_string(),
-//                 "weight".to_string()
-//             ],
-//             table.columns.clone().unwrap()
-//         ));
-//
-//         client.drop_schema(&schema);
-//     }
-// }

@@ -1,13 +1,14 @@
 use crate::connectors::postgres::connector::ReplicationSlotInfo;
 
 use crate::connectors::TableInfo;
-use crate::errors::PostgresConnectorError;
 use crate::errors::PostgresConnectorError::{
     ColumnNameNotValid, ConnectionFailure, InvalidQueryError, MissingTableInReplicationSlot,
     NoAvailableSlotsError, ReplicationIsNotAvailableForUserError, SlotIsInUseError,
     SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableError, TableNameNotValid,
     WALLevelIsNotCorrect,
 };
+use crate::errors::PostgresSchemaError::TableTypeNotFound;
+use crate::errors::{PostgresConnectorError, PostgresSchemaError};
 use dozer_types::indicatif::ProgressStyle;
 use postgres::Client;
 use postgres_types::PgLsn;
@@ -171,7 +172,7 @@ fn validate_tables(
     let table_name_keys: Vec<String> = tables_names.keys().cloned().collect();
     let result = client
         .query(
-            "SELECT table_name FROM information_schema.tables WHERE table_name = ANY($1)",
+            "SELECT table_name, table_type FROM information_schema.tables WHERE table_name = ANY($1)",
             &[&table_name_keys],
         )
         .map_err(InvalidQueryError)?;
@@ -179,6 +180,17 @@ fn validate_tables(
     for r in result.iter() {
         let table_name: String = r.try_get(0).map_err(InvalidQueryError)?;
         tables_names.remove(&table_name);
+
+        let table_type: Option<String> = r.try_get(1).map_err(InvalidQueryError)?;
+        table_type
+            .map_or(Err(TableTypeNotFound), |typ| {
+                if typ != *"BASE TABLE" {
+                    Err(PostgresSchemaError::UnsupportedTableType(typ, table_name))
+                } else {
+                    Ok(())
+                }
+            })
+            .map_err(PostgresConnectorError::PostgresSchemaError)?;
     }
 
     if !tables_names.is_empty() {
@@ -265,7 +277,7 @@ fn validate_limit_of_replications(client: &mut Client) -> Result<(), PostgresCon
 #[cfg(test)]
 mod tests {
     use crate::connectors::postgres::connection::validator::{
-        validate_columns_names, validate_connection, validate_tables_names,
+        validate_columns_names, validate_connection, validate_tables, validate_tables_names,
     };
     use crate::test_util::run_connector_test;
     // use crate::connectors::postgres::connector::ReplicationSlotInfo;
@@ -277,10 +289,13 @@ mod tests {
 
     use tokio_postgres::NoTls;
 
+    use crate::connectors::postgres::test_utils::get_client;
     use crate::connectors::{ColumnInfo, TableInfo};
     use crate::errors::PostgresConnectorError;
+    use crate::errors::PostgresSchemaError::UnsupportedTableType;
     use dozer_types::models::app_config::Config;
     use dozer_types::models::connection::ConnectionConfig;
+    use rand::Rng;
     use serial_test::serial;
 
     fn get_config(app_config: Config) -> tokio_postgres::Config {
@@ -557,5 +572,57 @@ mod tests {
 
             assert_eq!(expected_result, res.is_ok());
         }
+    }
+
+    #[serial]
+    #[ignore]
+    #[test]
+    fn test_connector_return_error_on_view_in_table_validation() {
+        run_connector_test("postgres", |app_config| {
+            let mut client = get_client(app_config.clone());
+
+            let mut rng = rand::thread_rng();
+
+            let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
+            let table_name = format!("products_test_{}", rng.gen::<u32>());
+            let view_name = format!("products_view_test_{}", rng.gen::<u32>());
+
+            client.create_schema(&schema);
+            client.create_simple_table(&schema, &table_name);
+            client.create_view(&schema, &table_name, &view_name);
+
+            let config = get_config(app_config);
+            let mut pg_client = postgres::Config::from(config).connect(NoTls).unwrap();
+
+            let result = validate_tables(
+                &mut pg_client,
+                &vec![TableInfo {
+                    name: table_name.clone(),
+                    table_name,
+                    id: 0,
+                    columns: None,
+                }],
+            );
+
+            assert!(result.is_ok());
+
+            let result = validate_tables(
+                &mut pg_client,
+                &vec![TableInfo {
+                    name: view_name.clone(),
+                    table_name: view_name,
+                    id: 0,
+                    columns: None,
+                }],
+            );
+
+            assert!(result.is_err());
+            assert!(matches!(
+                result,
+                Err(PostgresConnectorError::PostgresSchemaError(
+                    UnsupportedTableType(_, _)
+                ))
+            ));
+        });
     }
 }

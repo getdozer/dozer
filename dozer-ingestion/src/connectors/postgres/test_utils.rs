@@ -7,17 +7,21 @@ use std::thread;
 use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
-use crate::test_util::load_config;
-use dozer_types::models::connection::{Connection, ConnectionConfig};
-use dozer_types::serde_yaml;
+use dozer_types::models::app_config::Config;
+use dozer_types::models::connection::Connection;
 use std::str::FromStr;
 use std::sync::Arc;
 
-pub fn get_client() -> TestPostgresClient {
-    let config =
-        serde_yaml::from_str::<ConnectionConfig>(load_config("test.postgres.auth.yaml")).unwrap();
+pub fn get_client(app_config: Config) -> TestPostgresClient {
+    let config = app_config
+        .connections
+        .get(0)
+        .unwrap()
+        .config
+        .as_ref()
+        .unwrap();
 
-    TestPostgresClient::new(&config)
+    TestPostgresClient::new(config)
 }
 
 pub fn get_iterator(config: Connection, table_name: String) -> IngestionIterator {

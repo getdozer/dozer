@@ -4,7 +4,7 @@ pub mod helper;
 pub mod iterator;
 mod replication_slot_helper;
 pub mod replicator;
-mod schema_helper;
+mod schema;
 pub mod snapshotter;
 #[cfg(test)]
 pub mod test_utils;

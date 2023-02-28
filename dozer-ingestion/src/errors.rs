@@ -211,6 +211,14 @@ pub enum PostgresSchemaError {
 
     #[error("Unsupported replication type - '{0}'")]
     UnsupportedReplicationType(String),
+
+    #[error(
+        "Table type '{0}' of '{1}' table is not supported. Only 'BASE TABLE' type is supported"
+    )]
+    UnsupportedTableType(String, String),
+
+    #[error("Table type cannot be determined")]
+    TableTypeNotFound,
 }
 
 #[cfg(feature = "snowflake")]
