@@ -3,6 +3,7 @@ use crate::pipeline::errors::PipelineError;
 
 use uuid::Uuid;
 
+use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
@@ -35,6 +36,10 @@ pub enum Expression {
     GeoFunction {
         fun: GeoFunctionType,
         args: Vec<Expression>,
+    },
+    DateTimeFunction {
+        fun: DateTimeFunctionType,
+        arg: Box<Expression>,
     },
     AggregateFunction {
         fun: AggregateFunctionType,
@@ -156,6 +161,9 @@ impl Expression {
                         .as_str()
                     + ")"
             }
+            Expression::DateTimeFunction { fun, arg } => {
+                fun.to_string() + "(" + arg.to_string(schema).as_str() + ")"
+            }
         }
     }
 }
@@ -231,6 +239,7 @@ impl ExpressionExecutor for Expression {
             } => evaluate_like(schema, arg, pattern, *escape, record),
             Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
             Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
+            Expression::DateTimeFunction { fun, arg } => fun.evaluate(schema, arg, record),
         }
     }
 
@@ -284,6 +293,9 @@ impl ExpressionExecutor for Expression {
             } => get_like_operator_type(arg, pattern, schema),
             Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
             Expression::GeoFunction { fun, args } => get_geo_function_type(fun, args, schema),
+            Expression::DateTimeFunction { fun, arg } => {
+                get_datetime_function_type(fun, arg, schema)
+            }
             #[cfg(feature = "python")]
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,

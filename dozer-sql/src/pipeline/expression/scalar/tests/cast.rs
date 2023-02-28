@@ -1,10 +1,15 @@
-use dozer_types::types::SourceDefinition;
+use crate::pipeline::expression::execution::Expression::Literal;
+use crate::pipeline::expression::mathematical::{
+    evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
+};
+use dozer_types::types::{Record, SourceDefinition};
 use dozer_types::{
     chrono::{DateTime, NaiveDate, TimeZone, Utc},
     ordered_float::OrderedFloat,
     rust_decimal::Decimal,
     types::{Field, FieldDefinition, FieldType, Schema},
 };
+use num_traits::FromPrimitive;
 
 use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
 
@@ -635,4 +640,103 @@ fn test_text() {
         vec![Field::UInt(42)],
     );
     assert_eq!(f, Field::Text("42".to_string()));
+}
+
+#[test]
+fn test_decimal() {
+    let dec1 = Box::new(Literal(Field::Decimal(Decimal::from_i64(1_i64).unwrap())));
+    let dec2 = Box::new(Literal(Field::Decimal(Decimal::from_i64(2_i64).unwrap())));
+    let float1 = Box::new(Literal(Field::Float(
+        OrderedFloat::<f64>::from_i64(1_i64).unwrap(),
+    )));
+    let float2 = Box::new(Literal(Field::Float(
+        OrderedFloat::<f64>::from_i64(2_i64).unwrap(),
+    )));
+    let int1 = Box::new(Literal(Field::Int(1_i64)));
+    let int2 = Box::new(Literal(Field::Int(2_i64)));
+    let uint1 = Box::new(Literal(Field::UInt(1_u64)));
+    let uint2 = Box::new(Literal(Field::UInt(2_u64)));
+
+    let row = Record::new(None, vec![], None);
+
+    // left: Int, right: Decimal
+    assert_eq!(
+        evaluate_add(&Schema::empty(), &int1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(2_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_sub(&Schema::empty(), &int1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(0_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_mul(&Schema::empty(), &int2, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(2_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_div(&Schema::empty(), &int1, dec2.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_f64(0.5).unwrap())
+    );
+    assert_eq!(
+        evaluate_mod(&Schema::empty(), &int1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(0_i64).unwrap())
+    );
+
+    // left: UInt, right: Decimal
+    assert_eq!(
+        evaluate_add(&Schema::empty(), &uint1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(2_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_sub(&Schema::empty(), &uint1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(0_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_mul(&Schema::empty(), &uint2, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(2_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_div(&Schema::empty(), &uint1, dec2.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_f64(0.5).unwrap())
+    );
+    assert_eq!(
+        evaluate_mod(&Schema::empty(), &uint1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(0_i64).unwrap())
+    );
+
+    // left: Float, right: Decimal
+    assert_eq!(
+        evaluate_add(&Schema::empty(), &float1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(2_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_sub(&Schema::empty(), &float1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(0_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_mul(&Schema::empty(), &float2, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(2_i64).unwrap())
+    );
+    assert_eq!(
+        evaluate_div(&Schema::empty(), &float1, dec2.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_f64(0.5).unwrap())
+    );
+    assert_eq!(
+        evaluate_mod(&Schema::empty(), &float1, dec1.as_ref(), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Decimal(Decimal::from_i64(0_i64).unwrap())
+    );
 }
