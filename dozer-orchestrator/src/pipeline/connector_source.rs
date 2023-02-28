@@ -6,6 +6,7 @@ use dozer_ingestion::connectors::{get_connector, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::ingestion_types::IngestorError;
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
@@ -17,6 +18,27 @@ use dozer_types::types::{
 use std::collections::HashMap;
 use std::thread;
 
+fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
+    let pb = ProgressBar::new_spinner();
+    multi_pb.as_ref().map(|m| m.add(pb.clone()));
+    pb.set_style(
+        ProgressStyle::with_template("{msg}: {spinner:.red} {pos} : {per_sec}")
+            .unwrap()
+            // For more spinners check out the cli-spinners project:
+            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+            .tick_strings(&[
+                "▹▹▹▹▹",
+                "▸▹▹▹▹",
+                "▹▸▹▹▹",
+                "▹▹▸▹▹",
+                "▹▹▹▸▹",
+                "▹▹▹▹▸",
+                "▪▪▪▪▪",
+            ]),
+    );
+    pb
+}
+
 #[derive(Debug)]
 pub struct ConnectorSourceFactory {
     pub ports: HashMap<String, u16>,
@@ -25,6 +47,7 @@ pub struct ConnectorSourceFactory {
     pub replication_changes_type_map: HashMap<u16, ReplicationChangesTrackingType>,
     pub tables: Vec<TableInfo>,
     pub connection: Connection,
+    pub progress: Option<MultiProgress>,
 }
 
 fn map_replication_type_to_output_port_type(
@@ -50,6 +73,7 @@ impl ConnectorSourceFactory {
         ports: HashMap<String, u16>,
         tables: Vec<TableInfo>,
         connection: Connection,
+        progress: Option<MultiProgress>,
     ) -> Result<Self, ExecutionError> {
         let (schema_map, schema_port_map, replication_changes_type_map) =
             Self::get_schema_map(connection.clone(), tables.clone(), ports.clone())?;
@@ -60,6 +84,7 @@ impl ConnectorSourceFactory {
             replication_changes_type_map,
             tables,
             connection,
+            progress,
         })
     }
 
@@ -168,12 +193,21 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let connector = get_connector(self.connection.clone())
             .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
+
+        let mut bars = HashMap::new();
+        for (name, port) in self.ports.iter() {
+            let pb = attach_progress(self.progress.clone());
+            pb.set_message(name.clone());
+            bars.insert(*port, pb);
+        }
+
         Ok(Box::new(ConnectorSource {
             ingestor,
             iterator: Mutex::new(iterator),
             schema_port_map: self.schema_port_map.clone(),
             tables: self.tables.clone(),
             connector,
+            bars,
         }))
     }
 }
@@ -185,6 +219,7 @@ pub struct ConnectorSource {
     schema_port_map: HashMap<u32, u16>,
     tables: Vec<TableInfo>,
     connector: Box<dyn Connector>,
+    bars: HashMap<u16, ProgressBar>,
 }
 
 impl Source for ConnectorSource {
@@ -201,6 +236,7 @@ impl Source for ConnectorSource {
         last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         thread::scope(|scope| {
+            let mut counter = HashMap::new();
             let t = scope.spawn(|| {
                 match self
                     .connector
@@ -215,6 +251,7 @@ impl Source for ConnectorSource {
             });
 
             let mut iterator = self.iterator.lock();
+
             for ((lsn, seq_no), op) in iterator.by_ref() {
                 let schema_id = match &op {
                     Operation::Delete { old } => Some(get_schema_id(old.schema_id)?),
@@ -229,6 +266,19 @@ impl Source for ConnectorSource {
                             .ok_or(ExecutionError::SourceError(SourceError::PortError(
                                 schema_id,
                             )))?;
+
+                    counter
+                        .entry(schema_id)
+                        .and_modify(|e| *e += 1)
+                        .or_insert(1);
+
+                    let schema_counter = counter.get(&schema_id).unwrap();
+                    if *schema_counter % 1000 == 0 {
+                        let pb = self.bars.get(port);
+                        if let Some(pb) = pb {
+                            pb.set_position(*schema_counter);
+                        }
+                    }
                     fw.send(lsn, seq_no, op, *port)?
                 } else {
                     for port in self.schema_port_map.values() {
