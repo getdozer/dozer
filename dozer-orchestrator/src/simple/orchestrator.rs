@@ -345,6 +345,8 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         let running_api = running.clone();
+        // TODO: remove this after checkpointing
+        self.clean()?;
 
         let mut dozer_api = self.clone();
 
