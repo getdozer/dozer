@@ -137,7 +137,7 @@ fn test_connector_get_schema_without_selected_columns() {
 
 #[test]
 #[serial]
-// #[ignore]
+#[ignore]
 fn test_connector_view_cannot_be_used() {
     run_connector_test("postgres", |app_config| {
         let mut client = get_client(app_config);

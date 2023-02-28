@@ -1,15 +1,16 @@
-use crate::connectors::TableInfo;
 use crate::ingestion::Ingestor;
 
 use super::helper;
 use crate::connectors::postgres::connection::helper as connection_helper;
-use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::errors::ConnectorError;
 use crate::errors::PostgresConnectorError::{InvalidQueryError, PostgresSchemaError};
 use crate::errors::PostgresConnectorError::{SnapshotReadError, SyncWithSnapshotError};
 use crossbeam::channel::{unbounded, Sender};
 
+use crate::connectors::postgres::schema::helper::SchemaHelper;
+use crate::connectors::TableInfo;
 use crate::errors::ConnectorError::PostgresConnectorError;
+use dozer_types::types::{Schema, SourceSchema};
 use postgres::fallible_iterator::FallibleIterator;
 
 use std::thread;
@@ -26,43 +27,34 @@ pub struct PostgresSnapshotter<'a> {
 }
 
 impl<'a> PostgresSnapshotter<'a> {
-    pub fn get_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<TableInfo>, ConnectorError> {
-        let table_names: Vec<String> = tables.iter().map(|t| t.table_name.to_owned()).collect();
-
+    pub fn get_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<SourceSchema>, ConnectorError> {
         let helper = SchemaHelper::new(self.conn_config.clone(), None);
-        Ok(helper
-            .get_tables(Some(tables.as_slice()))?
-            .iter()
-            .filter(|t| table_names.contains(&t.table_name))
-            .cloned()
-            .collect())
+        helper
+            .get_schemas(Some(tables))
+            .map_err(PostgresConnectorError)
     }
 
     pub fn sync_table(
-        table_info: TableInfo,
+        schema: Schema,
+        name: String,
         conn_config: tokio_postgres::Config,
         sender: Sender<Result<Option<Operation>, ConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let mut client_plain =
             connection_helper::connect(conn_config).map_err(PostgresConnectorError)?;
 
-        let column_str: Vec<String> = table_info
-            .columns
-            .clone()
-            .map_or(Err(ConnectorError::ColumnsNotFound), Ok)?
+        let column_str: Vec<String> = schema
+            .fields
             .iter()
-            .map(|c| format!("\"{0}\"", c.name))
+            .map(|f| format!("\"{0}\"", f.name))
             .collect();
 
         let column_str = column_str.join(",");
-        let query = format!("select {} from {}", column_str, table_info.table_name);
+        let query = format!("select {} from {}", column_str, name);
         let stmt = client_plain
             .prepare(&query)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
         let columns = stmt.columns();
-
-        // Ingest schema for every table
-        let schema = helper::map_schema(&table_info.id, columns)?;
 
         let empty_vec: Vec<String> = Vec::new();
         for msg in client_plain
@@ -73,7 +65,7 @@ impl<'a> PostgresSnapshotter<'a> {
             match msg {
                 Ok(msg) => {
                     let evt = helper::map_row_to_operation_event(
-                        table_info.table_name.to_string(),
+                        name.to_string(),
                         schema
                             .identifier
                             .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
@@ -93,7 +85,7 @@ impl<'a> PostgresSnapshotter<'a> {
         Ok(())
     }
 
-    pub fn sync_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<TableInfo>, ConnectorError> {
+    pub fn sync_tables(&self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         let tables = self.get_tables(tables)?;
 
         let mut left_tables_count = tables.len();
@@ -101,11 +93,12 @@ impl<'a> PostgresSnapshotter<'a> {
         let (tx, rx) = unbounded();
 
         for t in tables.iter() {
-            let table_info = t.clone();
+            let schema = t.schema.clone();
+            let name = t.name.clone();
             let conn_config = self.conn_config.clone();
             let sender = tx.clone();
             thread::spawn(move || {
-                if let Err(e) = Self::sync_table(table_info, conn_config, sender.clone()) {
+                if let Err(e) = Self::sync_table(schema, name, conn_config, sender.clone()) {
                     sender.send(Err(e)).unwrap();
                 }
             });
@@ -132,6 +125,6 @@ impl<'a> PostgresSnapshotter<'a> {
             }
         }
 
-        Ok(tables)
+        Ok(())
     }
 }

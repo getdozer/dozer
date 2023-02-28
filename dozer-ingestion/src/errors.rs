@@ -222,6 +222,9 @@ pub enum PostgresSchemaError {
 
     #[error("Table type cannot be determined")]
     TableTypeNotFound,
+
+    #[error("Column not found")]
+    ColumnNotFound,
 }
 
 #[cfg(feature = "snowflake")]

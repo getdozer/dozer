@@ -574,9 +574,9 @@ mod tests {
         }
     }
 
+    #[test]
     #[serial]
     #[ignore]
-    #[test]
     fn test_connector_return_error_on_view_in_table_validation() {
         run_connector_test("postgres", |app_config| {
             let mut client = get_client(app_config.clone());
