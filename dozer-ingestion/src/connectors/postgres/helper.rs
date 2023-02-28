@@ -148,7 +148,7 @@ pub fn value_to_field(
 
             value.map_or_else(handle_error, |v| {
                 Ok(Field::Bson(
-                    serde_json::to_vec(&v).map_err(|e| JSONBParseError(e.to_string()))?,
+                    bson::to_vec(&v).map_err(|e| JSONBParseError(e.to_string()))?,
                 ))
             })
         }
