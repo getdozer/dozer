@@ -10,7 +10,7 @@ use crossbeam::channel::{unbounded, Sender};
 use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::connectors::TableInfo;
 use crate::errors::ConnectorError::PostgresConnectorError;
-use dozer_types::types::SourceSchema;
+use dozer_types::types::{Schema, SourceSchema};
 use postgres::fallible_iterator::FallibleIterator;
 
 use std::thread;
@@ -35,19 +35,18 @@ impl<'a> PostgresSnapshotter<'a> {
     }
 
     pub fn sync_table(
-        table_info: TableInfo,
+        schema: Schema,
+        name: String,
         conn_config: tokio_postgres::Config,
         sender: Sender<Result<Option<Operation>, ConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let mut client_plain =
             connection_helper::connect(conn_config).map_err(PostgresConnectorError)?;
 
-        let column_str: Vec<String> = table_info
-            .columns
-            .clone()
-            .map_or(Err(ConnectorError::ColumnsNotFound), Ok)?
+        let column_str: Vec<String> = schema
+            .fields
             .iter()
-            .map(|c| format!("\"{0}\"", c.name))
+            .map(|f| format!("\"{0}\"", f.name))
             .collect();
 
         let column_str = column_str.join(",");
@@ -57,9 +56,9 @@ impl<'a> PostgresSnapshotter<'a> {
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
         let columns = stmt.columns();
 
-            let empty_vec: Vec<String> = Vec::new();
-            for msg in client_plain
-                .query_raw(&stmt, empty_vec)
+        let empty_vec: Vec<String> = Vec::new();
+        for msg in client_plain
+            .query_raw(&stmt, empty_vec)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?
             .iterator()
         {
@@ -86,7 +85,7 @@ impl<'a> PostgresSnapshotter<'a> {
         Ok(())
     }
 
-    pub fn sync_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<TableInfo>, ConnectorError> {
+    pub fn sync_tables(&self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         let tables = self.get_tables(tables)?;
 
         let mut left_tables_count = tables.len();
@@ -94,11 +93,12 @@ impl<'a> PostgresSnapshotter<'a> {
         let (tx, rx) = unbounded();
 
         for t in tables.iter() {
-            let table_info = t.clone();
+            let schema = t.schema.clone();
+            let name = t.name.clone();
             let conn_config = self.conn_config.clone();
             let sender = tx.clone();
             thread::spawn(move || {
-                if let Err(e) = Self::sync_table(table_info, conn_config, sender.clone()) {
+                if let Err(e) = Self::sync_table(schema, name, conn_config, sender.clone()) {
                     sender.send(Err(e)).unwrap();
                 }
             });
