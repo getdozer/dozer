@@ -400,6 +400,12 @@ fn get_binary_operator_type(
                     SourceDefinition::Dynamic,
                     false,
                 )),
+                (FieldType::Timestamp, FieldType::Timestamp) => Ok(ExpressionType::new(
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
                 | (FieldType::Float, FieldType::Float) => Ok(ExpressionType::new(
