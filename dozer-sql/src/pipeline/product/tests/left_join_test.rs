@@ -10,6 +10,7 @@ use dozer_core::node::{
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::node::SourceStates;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
 use dozer_types::types::{
@@ -469,6 +470,7 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink {
             expected: self.expected,
@@ -505,6 +507,9 @@ impl Sink for TestSink {
             Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
             Operation::Update { old, new } => {
                 info!("o0:-> - {:?}, + {:?}", old.values, new.values)
+            }
+            Operation::SnapshottingDone {} => {
+                info!("o0:-> SnapshottingDone")
             }
         }
 

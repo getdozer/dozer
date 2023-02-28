@@ -1,8 +1,9 @@
 use crate::{
     auth::{Access, Authorizer},
+    errors::GrpcError,
     grpc::{
         auth_middleware::AuthMiddlewareLayer,
-        client_server::ApiServer,
+        internal::internal_pipeline_client::InternalPipelineClient,
         typed::{
             tests::fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, TypedService,
         },
@@ -16,8 +17,7 @@ use dozer_types::grpc_types::{
         films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
         QueryFilmsResponse,
     },
-    internal::PipelineResponse,
-    types::EventType,
+    types::{EventType, Operation},
 };
 use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
@@ -38,7 +38,15 @@ use tonic::{
     Code, Request,
 };
 
-pub fn setup_pipeline() -> (Vec<Arc<RoCacheEndpoint>>, Receiver<PipelineResponse>) {
+async fn start_internal_pipeline_client() -> Result<Receiver<Operation>, GrpcError> {
+    let default_api_internal = default_api_config().app_grpc.unwrap_or_default();
+    let mut client = InternalPipelineClient::new(&default_api_internal).await?;
+    let (receiver, future) = client.stream_operations().await?;
+    tokio::spawn(future);
+    Ok(receiver)
+}
+
+pub async fn setup_pipeline() -> (Vec<Arc<RoCacheEndpoint>>, Receiver<Operation>) {
     let endpoint = test_utils::get_endpoint();
     let cache_endpoint = Arc::new(
         RoCacheEndpoint::new(
@@ -48,22 +56,18 @@ pub fn setup_pipeline() -> (Vec<Arc<RoCacheEndpoint>>, Receiver<PipelineResponse
         .unwrap(),
     );
 
-    let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
-    let default_api_internal = default_api_config().app_grpc.unwrap_or_default();
-    tokio::spawn(async {
-        ApiServer::setup_broad_cast_channel(tx, default_api_internal)
-            .await
-            .unwrap();
-    });
+    let receiver = start_internal_pipeline_client()
+        .await
+        .unwrap_or(broadcast::channel::<Operation>(1).1);
 
-    (vec![cache_endpoint], rx1)
+    (vec![cache_endpoint], receiver)
 }
 
-fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
+async fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
     // Copy this file from dozer-tests output directory if it changes
     let res = env::current_dir().unwrap();
     let path = res.join("src/grpc/typed/tests/generated_films.bin");
-    let (endpoints, rx1) = setup_pipeline();
+    let (endpoints, rx1) = setup_pipeline().await;
 
     TypedService::new(&path, endpoints, Some(rx1), security).unwrap()
 }
@@ -82,7 +86,7 @@ async fn test_grpc_count_and_query_common(
         rx_internal,
     ));
 
-    let typed_service = setup_typed_service(api_security.to_owned());
+    let typed_service = setup_typed_service(api_security.to_owned()).await;
     let (_tx, rx) = oneshot::channel::<()>();
     // middleware
     let layer = tower::ServiceBuilder::new()
@@ -226,7 +230,7 @@ async fn test_typed_streaming1() {
     ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service(None);
+        let typed_service = setup_typed_service(None).await;
         Server::builder()
             .add_service(typed_service)
             .serve_with_shutdown("127.0.0.1:14321".parse().unwrap(), rx.map(drop))
@@ -265,7 +269,7 @@ async fn test_typed_streaming2() {
     ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service(None);
+        let typed_service = setup_typed_service(None).await;
         Server::builder()
             .add_service(typed_service)
             .serve_with_shutdown("127.0.0.1:14322".parse().unwrap(), rx.map(drop))
@@ -303,7 +307,7 @@ async fn test_typed_streaming3() {
     ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service(None);
+        let typed_service = setup_typed_service(None).await;
         Server::builder()
             .add_service(typed_service)
             .serve_with_shutdown("127.0.0.1:14323".parse().unwrap(), rx.map(drop))

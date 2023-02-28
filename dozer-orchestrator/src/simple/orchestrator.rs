@@ -8,15 +8,16 @@ use crate::utils::{
     get_cache_max_map_size, get_executor_options, get_flags, get_grpc_config, get_pipeline_dir,
     get_rest_config,
 };
-use crate::{flatten_joinhandle, Orchestrator};
+use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
+use dozer_api::grpc::internal::internal_pipeline_client::InternalPipelineClient;
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
     rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{CacheManagerOptions, LmdbCacheManager};
+use dozer_cache::cache::{CacheManager, CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
@@ -26,19 +27,20 @@ use dozer_core::NodeKind;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::grpc_types::internal::PipelineResponse;
+use dozer_types::grpc_types::internal::AliasRedirected;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 use dozer_types::types::{Operation, Schema, SourceSchema};
 use futures::stream::FuturesUnordered;
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::oneshot;
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -65,72 +67,83 @@ impl Orchestrator for SimpleOrchestrator {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
 
-        // Flags
-        let flags = self.config.flags.clone().unwrap_or_default();
-
-        let cache_manager = LmdbCacheManager::new(self.cache_manager_options.clone())
-            .map_err(OrchestrationError::CacheInitFailed)?;
-        let mut cache_endpoints = vec![];
-        for endpoint in &self.config.endpoints {
-            cache_endpoints.push(Arc::new(RoCacheEndpoint::new(
-                &cache_manager,
-                endpoint.clone(),
-            )?));
-        }
-
-        let cache_endpoints2 = cache_endpoints.clone();
-
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
             let mut futures = FuturesUnordered::new();
 
+            // Initiate `AliasRedirected` events, must be done before `RoCacheEndpoint::new` to avoid following scenario:
+            // 1. `RoCacheEndpoint::new` is called.
+            // 2. App server sends an `AliasRedirected` event.
+            // 3. Push event is initiated.
+            // In this scenario, the `AliasRedirected` event will be lost and the API server will be serving the wrong cache.
+            let app_grpc_config = get_app_grpc_config(self.config.clone());
+            let mut internal_pipeline_client =
+                InternalPipelineClient::new(&app_grpc_config).await?;
+            let (alias_redirected_receiver, future) =
+                internal_pipeline_client.stream_alias_events().await?;
+            futures.push(flatten_join_handle(tokio::spawn(
+                future.map_err(OrchestrationError::GrpcServerFailed),
+            )));
+
+            // Open `RoCacheEndpoint`s.
+            let cache_manager = LmdbCacheManager::new(self.cache_manager_options.clone())
+                .map_err(OrchestrationError::CacheInitFailed)?;
+            let cache_endpoints = self
+                .config
+                .endpoints
+                .iter()
+                .map(|endpoint| {
+                    RoCacheEndpoint::new(&cache_manager, endpoint.clone()).map(Arc::new)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            // Listen to endpoint redirect events.
+            tokio::spawn(redirect_cache_endpoints(
+                Box::new(cache_manager),
+                cache_endpoints.clone(),
+                alias_redirected_receiver,
+            ));
+
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
             let security = get_api_security_config(self.config.to_owned());
+            let cache_endpoints_for_rest = cache_endpoints.clone();
             let rest_handle = tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
-                    .run(cache_endpoints, tx)
+                    .run(cache_endpoints_for_rest, tx)
                     .await
                     .map_err(OrchestrationError::ApiServerFailed)
             });
-            // Initiate Push Events
-            // create broadcast channel
-            let pipeline_config = get_app_grpc_config(self.config.to_owned());
 
-            let rx1 = if flags.push_events {
-                let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
-
-                let handle = tokio::spawn(async move {
-                    grpc::ApiServer::setup_broad_cast_channel(tx, pipeline_config)
-                        .await
-                        .map_err(OrchestrationError::GrpcServerFailed)
-                });
-
-                futures.push(flatten_joinhandle(handle));
-
-                Some(rx1)
+            // Initialize `PipelineResponse` events.
+            let flags = self.config.flags.clone().unwrap_or_default();
+            let operation_receiver = if flags.dynamic {
+                let (operation_receiver, future) =
+                    internal_pipeline_client.stream_operations().await?;
+                futures.push(flatten_join_handle(tokio::spawn(
+                    future.map_err(OrchestrationError::GrpcServerFailed),
+                )));
+                Some(operation_receiver)
             } else {
                 None
             };
 
-            // Initialize GRPC Server
-
+            // Initialize gRPC Server
             let api_dir = get_api_dir(&self.config);
             let grpc_config = get_grpc_config(self.config.to_owned());
-
             let api_security = get_api_security_config(self.config.to_owned());
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
             let grpc_handle = tokio::spawn(async move {
                 grpc_server
-                    .run(cache_endpoints2, receiver_shutdown, rx1)
+                    .run(cache_endpoints, receiver_shutdown, operation_receiver)
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
 
-            futures.push(flatten_joinhandle(rest_handle));
-            futures.push(flatten_joinhandle(grpc_handle));
+            futures.push(flatten_join_handle(rest_handle));
+            futures.push(flatten_join_handle(grpc_handle));
 
             while let Some(result) = futures.next().await {
                 result?;
@@ -157,10 +170,14 @@ impl Orchestrator for SimpleOrchestrator {
     ) -> Result<(), OrchestrationError> {
         let pipeline_home_dir = get_pipeline_dir(&self.config);
         // gRPC notifier channel
-        let (sender, receiver) = channel::unbounded::<PipelineResponse>();
-        let internal_app_config = self.config.to_owned();
+        let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
+        let (operation_sender, operation_receiver) = channel::unbounded();
+        let internal_app_config = self.config.clone();
         let _intern_pipeline_thread = thread::spawn(move || {
-            if let Err(e) = start_internal_pipeline_server(internal_app_config, receiver) {
+            if let Err(e) = start_internal_pipeline_server(
+                internal_app_config,
+                (alias_redirected_receiver, operation_receiver),
+            ) {
                 std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
             }
             warn!("Shutting down internal pipeline server");
@@ -176,7 +193,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let settings = CacheSinkSettings::new(get_api_dir(&self.config), flags, api_security);
         let dag_executor = executor.create_dag_executor(
-            Some(sender),
+            Some((alias_redirected_sender, operation_sender)),
             self.cache_manager_options.clone(),
             settings,
             get_executor_options(&self.config),
@@ -328,8 +345,6 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         let running_api = running.clone();
-        // TODO: remove this after checkpointing
-        self.clean()?;
 
         let mut dozer_api = self.clone();
 
@@ -385,4 +400,28 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
             Ok(())
         },
     )
+}
+
+async fn redirect_cache_endpoints(
+    cache_manager: Box<dyn CacheManager>,
+    cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
+    mut alias_redirected_receiver: Receiver<AliasRedirected>,
+) -> Result<(), OrchestrationError> {
+    loop {
+        let alias_redirected = alias_redirected_receiver
+            .recv()
+            .await
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+        info!(
+            "[api] Redirecting cache {} to {}",
+            alias_redirected.alias, alias_redirected.real_name
+        );
+        for cache_endpoint in &cache_endpoints {
+            if cache_endpoint.endpoint().name == alias_redirected.alias {
+                cache_endpoint
+                    .redirect_cache(&*cache_manager)
+                    .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+            }
+        }
+    }
 }

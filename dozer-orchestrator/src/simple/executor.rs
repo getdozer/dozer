@@ -1,7 +1,7 @@
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
-use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
 use dozer_types::types::{Operation, SourceSchema};
@@ -114,7 +114,7 @@ impl Executor {
 
     pub fn create_dag_executor(
         &self,
-        notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+        notifier: Option<PipelineEventSenders>,
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
         executor_options: ExecutorOptions,

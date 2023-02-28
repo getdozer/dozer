@@ -69,6 +69,19 @@ impl OpIdentifier {
     pub fn new(txid: u64, seq_in_tx: u64) -> Self {
         Self { txid, seq_in_tx }
     }
+
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut result = [0_u8; 16];
+        result[0..8].copy_from_slice(&self.txid.to_be_bytes());
+        result[8..16].copy_from_slice(&self.seq_in_tx.to_be_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        let txid = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+        let seq_in_tx = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+        Self::new(txid, seq_in_tx)
+    }
 }
 
 pub type SourceStates = HashMap<NodeHandle, OpIdentifier>;

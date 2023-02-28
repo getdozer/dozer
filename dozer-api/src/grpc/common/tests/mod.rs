@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::grpc::typed::tests::{
     fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, service::setup_pipeline,
 };
@@ -15,8 +17,8 @@ use tonic::Request;
 
 use super::CommonService;
 
-fn setup_common_service() -> CommonService {
-    let (endpoints, rx1) = setup_pipeline();
+async fn setup_common_service() -> CommonService {
+    let (endpoints, rx1) = setup_pipeline().await;
     CommonService::new(endpoints, Some(rx1))
 }
 
@@ -48,7 +50,7 @@ async fn count_and_query(
 
 #[tokio::test]
 async fn test_grpc_common_count_and_query() {
-    let service = setup_common_service();
+    let service = setup_common_service().await;
     let endpoint = "films";
 
     // Empty query.
@@ -81,7 +83,7 @@ async fn test_grpc_common_count_and_query() {
 
 #[tokio::test]
 async fn test_grpc_common_get_endpoints() {
-    let service = setup_common_service();
+    let service = setup_common_service().await;
     let response = service
         .get_endpoints(Request::new(GetEndpointsRequest {}))
         .await
@@ -92,7 +94,7 @@ async fn test_grpc_common_get_endpoints() {
 
 #[tokio::test]
 async fn test_grpc_common_get_fields() {
-    let service = setup_common_service();
+    let service = setup_common_service().await;
     let response = service
         .get_fields(Request::new(GetFieldsRequest {
             endpoint: "films".to_string(),
@@ -142,7 +144,8 @@ async fn test_grpc_common_on_event() {
         default_pipeline_internal.port,
         rx_internal,
     ));
-    let service = setup_common_service();
+    tokio::time::sleep(Duration::from_millis(100)).await; // wait for the mock server to start.
+    let service = setup_common_service().await;
     let mut rx = service
         .on_event(Request::new(OnEventRequest {
             endpoint: "films".to_string(),

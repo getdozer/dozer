@@ -1,7 +1,6 @@
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
 use dozer_cache::cache::RecordWithId;
 use dozer_cache::CacheReader;
-use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::log::warn;
 use dozer_types::serde_json;
@@ -13,8 +12,6 @@ use tonic::{Code, Response, Status};
 
 use crate::api_helper::{get_records, get_records_count};
 use crate::auth::Access;
-
-use dozer_types::grpc_types::internal::pipeline_response::ApiEvent;
 
 mod filter;
 
@@ -71,9 +68,9 @@ pub fn on_event<T: Send + 'static>(
     reader: &CacheReader,
     endpoint_name: &str,
     filter: Option<&str>,
-    mut broadcast_receiver: Option<Receiver<PipelineResponse>>,
+    mut broadcast_receiver: Option<Receiver<Operation>>,
     _access: Option<Access>,
-    event_mapper: impl Fn(Operation, String) -> Option<T> + Send + Sync + 'static,
+    event_mapper: impl Fn(Operation) -> Option<T> + Send + Sync + 'static,
 ) -> Result<Response<ReceiverStream<T>>, Status> {
     // TODO: Use access.
 
@@ -106,14 +103,12 @@ pub fn on_event<T: Send + 'static>(
             if let Some(broadcast_receiver) = broadcast_receiver.as_mut() {
                 let event = broadcast_receiver.recv().await;
                 match event {
-                    Ok(event) => {
-                        if let Some(ApiEvent::Op(op)) = event.api_event {
-                            if filter::op_satisfies_filter(&op, filter.as_ref(), &schema) {
-                                if let Some(event) = event_mapper(op, event.endpoint) {
-                                    if (tx.send(event).await).is_err() {
-                                        // receiver dropped
-                                        break;
-                                    }
+                    Ok(op) => {
+                        if filter::op_satisfies_filter(&op, filter.as_ref(), &schema) {
+                            if let Some(event) = event_mapper(op) {
+                                if (tx.send(event).await).is_err() {
+                                    // receiver dropped
+                                    break;
                                 }
                             }
                         }

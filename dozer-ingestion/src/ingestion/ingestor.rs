@@ -80,7 +80,9 @@ impl Ingestor {
             }
             IngestionMessage::Commit(_event) => {}
             IngestionMessage::Begin() => {}
-            IngestionMessage::SnapshottingDone => {}
+            IngestionMessage::SnapshottingDone => self
+                .sender
+                .forward(((lsn, seq_no), Operation::SnapshottingDone {}))?,
         }
         Ok(())
     }

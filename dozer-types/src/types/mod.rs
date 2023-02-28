@@ -335,11 +335,12 @@ impl Commit {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
+    SnapshottingDone {},
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]

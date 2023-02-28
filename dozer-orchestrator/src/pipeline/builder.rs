@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_cache::cache::{CacheManagerOptions, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -9,7 +10,6 @@ use dozer_sql::pipeline::builder::{OutputNodeInfo, SchemaSQLContext};
 
 use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
-use dozer_types::grpc_types::internal::PipelineResponse;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
@@ -20,7 +20,6 @@ use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 use super::source_builder::SourceBuilder;
 use super::validate::validate_grouped_connections;
 use crate::errors::OrchestrationError;
-use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
 use OrchestrationError::ExecutionError;
 
@@ -53,7 +52,7 @@ impl PipelineBuilder {
     // This function is used by both migrate and actual execution
     pub fn build(
         &self,
-        notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+        notifier: Option<PipelineEventSenders>,
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
