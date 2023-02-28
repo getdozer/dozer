@@ -175,6 +175,9 @@ pub enum PostgresConnectorError {
 
     #[error("Relation not found in replication: {0}")]
     RelationNotFound(#[source] std::io::Error),
+
+    #[error("Failed to send message on snapshot read channel")]
+    SnapshotReadError,
 }
 
 #[derive(Error, Debug, Eq, PartialEq)]

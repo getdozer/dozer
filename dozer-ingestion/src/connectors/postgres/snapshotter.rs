@@ -5,14 +5,20 @@ use super::helper;
 use crate::connectors::postgres::connection::helper as connection_helper;
 use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::errors::ConnectorError;
-use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
 use crate::errors::PostgresConnectorError::{InvalidQueryError, PostgresSchemaError};
-use dozer_types::ingestion_types::IngestionMessage;
+use crate::errors::PostgresConnectorError::{SnapshotReadError, SyncWithSnapshotError};
+use crossbeam::channel::{unbounded, Sender};
 
 use crate::errors::ConnectorError::PostgresConnectorError;
 use postgres::fallible_iterator::FallibleIterator;
 use std::cell::RefCell;
 use std::sync::Arc;
+
+use std::thread;
+
+use dozer_types::ingestion_types::IngestionMessage;
+
+use dozer_types::types::Operation;
 
 pub struct PostgresSnapshotter<'a> {
     pub tables: Vec<TableInfo>,
@@ -34,64 +40,96 @@ impl<'a> PostgresSnapshotter<'a> {
             .collect())
     }
 
-    pub fn sync_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<TableInfo>, ConnectorError> {
+    pub fn sync_table(
+        table_info: TableInfo,
+        conn_config: tokio_postgres::Config,
+        sender: Sender<Option<Operation>>,
+    ) -> Result<(), ConnectorError> {
         let client_plain = Arc::new(RefCell::new(
-            connection_helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?,
+            connection_helper::connect(conn_config).map_err(PostgresConnectorError)?,
         ));
 
+        let column_str: Vec<String> = table_info
+            .columns
+            .clone()
+            .map_or(Err(ConnectorError::ColumnsNotFound), Ok)?
+            .iter()
+            .map(|c| format!("\"{0}\"", c.name))
+            .collect();
+
+        let column_str = column_str.join(",");
+        let query = format!("select {} from {}", column_str, table_info.table_name);
+        let stmt = client_plain
+            .borrow_mut()
+            .prepare(&query)
+            .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
+        let columns = stmt.columns();
+
+        // Ingest schema for every table
+        let schema = helper::map_schema(&table_info.id, columns)?;
+
+        let empty_vec: Vec<String> = Vec::new();
+        for msg in client_plain
+            .borrow_mut()
+            .query_raw(&stmt, empty_vec)
+            .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?
+            .iterator()
+        {
+            match msg {
+                Ok(msg) => {
+                    let evt = helper::map_row_to_operation_event(
+                        table_info.table_name.to_string(),
+                        schema
+                            .identifier
+                            .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
+                        &msg,
+                        columns,
+                    )
+                    .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
+
+                    sender.send(Some(evt)).unwrap();
+                }
+                Err(e) => return Err(PostgresConnectorError(SyncWithSnapshotError(e.to_string()))),
+            }
+        }
+
+        // After table read is finished, send None as message to inform receiver loop about end of table
+        sender.send(None).unwrap();
+        Ok(())
+    }
+
+    pub fn sync_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<TableInfo>, ConnectorError> {
         let tables = self.get_tables(tables)?;
 
-        let mut idx: u64 = 0;
-        for table_info in tables.iter() {
-            let column_str: Vec<String> = table_info
-                .columns
-                .clone()
-                .map_or(Err(ConnectorError::ColumnsNotFound), Ok)?
-                .iter()
-                .map(|c| format!("\"{0}\"", c.name))
-                .collect();
+        let mut left_tables_count = tables.len();
 
-            let column_str = column_str.join(",");
-            let query = format!("select {} from {}", column_str, table_info.table_name);
-            let stmt = client_plain
-                .clone()
-                .borrow_mut()
-                .prepare(&query)
-                .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
-            let columns = stmt.columns();
+        let (tx, rx) = unbounded();
 
-            // Ingest schema for every table
-            let schema = helper::map_schema(&table_info.id, columns)?;
+        for t in tables.iter() {
+            let table_info = t.clone();
+            let conn_config = self.conn_config.clone();
+            let sender = tx.clone();
+            thread::spawn(move || Self::sync_table(table_info, conn_config, sender));
+        }
 
-            let empty_vec: Vec<String> = Vec::new();
-            for msg in client_plain
-                .clone()
-                .borrow_mut()
-                .query_raw(&stmt, empty_vec)
-                .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?
-                .iterator()
-            {
-                match msg {
-                    Ok(msg) => {
-                        let evt = helper::map_row_to_operation_event(
-                            table_info.table_name.to_string(),
-                            schema
-                                .identifier
-                                .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
-                            &msg,
-                            columns,
-                        )
-                        .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
-
-                        self.ingestor
-                            .handle_message(((0, idx), IngestionMessage::OperationEvent(evt)))
-                            .map_err(ConnectorError::IngestorError)?;
-                    }
-                    Err(e) => {
-                        return Err(PostgresConnectorError(SyncWithSnapshotError(e.to_string())))
+        let mut idx = 0;
+        loop {
+            let message = rx
+                .recv()
+                .map_err(|_| PostgresConnectorError(SnapshotReadError))?;
+            match message {
+                None => {
+                    left_tables_count -= 1;
+                    if left_tables_count == 0 {
+                        break;
                     }
                 }
-                idx += 1;
+                Some(evt) => {
+                    self.ingestor
+                        .handle_message(((0, idx), IngestionMessage::OperationEvent(evt)))
+                        .map_err(ConnectorError::IngestorError)?;
+                    idx += 1;
+                }
             }
         }
 
