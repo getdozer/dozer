@@ -40,10 +40,9 @@ impl TestPostgresClient {
 
     pub fn create_view(&mut self, schema: &str, table_name: &str, view_name: &str) {
         self.execute_query(&format!(
-            "CREATE VIEW {}.{} AS
+            "CREATE VIEW {schema}.{view_name} AS
             SELECT id, name
-            FROM {}.{}",
-            schema, view_name, schema, table_name
+            FROM {schema}.{table_name}"
         ));
     }
 
