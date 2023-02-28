@@ -13,9 +13,12 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::errors::{PipelineError, SqlError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
+use crate::pipeline::expression::datetime::DateTimeFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::expression::execution::Expression::{GeoFunction, ScalarFunction};
+use crate::pipeline::expression::execution::Expression::{
+    DateTimeFunction, GeoFunction, ScalarFunction,
+};
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
@@ -280,21 +283,31 @@ impl ExpressionBuilder {
                     )?);
                 }
 
-                ScalarFunctionType::new(function_name.as_str()).map_or_else(
-                    |_e| {
-                        let f = GeoFunctionType::new(function_name.as_str())?;
-                        Ok(GeoFunction {
-                            fun: f,
+                match ScalarFunctionType::new(function_name.as_str()) {
+                    Ok(sft) => Ok(ScalarFunction {
+                        fun: sft,
+                        args: function_args.clone(),
+                    }),
+                    Err(_d) => match GeoFunctionType::new(function_name.as_str()) {
+                        Ok(gft) => Ok(GeoFunction {
+                            fun: gft,
                             args: function_args.clone(),
-                        })
+                        }),
+                        Err(_e) => match DateTimeFunctionType::new(function_name.as_str()) {
+                            Ok(dft) => {
+                                let arg = function_args
+                                    .first()
+                                    .ok_or(InvalidArgument(function_name))
+                                    .unwrap();
+                                Ok(DateTimeFunction {
+                                    fun: dft,
+                                    arg: Box::new(arg.clone()),
+                                })
+                            }
+                            Err(_err) => Err(InvalidNestedAggregationFunction(function_name)),
+                        },
                     },
-                    |f| {
-                        Ok(ScalarFunction {
-                            fun: f,
-                            args: function_args.clone(),
-                        })
-                    },
-                )
+                }
             }
         }
     }

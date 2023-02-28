@@ -35,7 +35,15 @@ macro_rules! define_comparison {
                     // left: Int, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: Int, right: UInt
-                    Field::UInt(right_v) => Ok(Field::Boolean($function(left_v, right_v as i64))),
+                    Field::UInt(right_v) => Ok(Field::Boolean($function(
+                        left_v,
+                        right_v
+                            .to_i64()
+                            .ok_or(PipelineError::InvalidOperandType(format!(
+                                "Unable to cast {} to i64",
+                                right_v
+                            )))?,
+                    ))),
                     // left: Int, right: Float
                     Field::Float(right_v) => {
                         let left_v_f = OrderedFloat::<f64>::from_i64(left_v).unwrap();
@@ -55,22 +63,40 @@ macro_rules! define_comparison {
                 },
                 Field::UInt(left_v) => match right_p {
                     // left: UInt, right: Int
-                    Field::Int(right_v) => Ok(Field::Boolean($function(left_v as i64, right_v))),
+                    Field::Int(right_v) => Ok(Field::Boolean($function(
+                        left_v
+                            .to_i64()
+                            .ok_or(PipelineError::InvalidOperandType(format!(
+                                "Unable to cast {} to i64",
+                                left_v
+                            )))?,
+                        right_v,
+                    ))),
                     // left: UInt, right: UInt
                     Field::UInt(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: UInt, right: Float
                     Field::Float(right_v) => {
-                        let left_v_f = OrderedFloat::<f64>::from_i64(left_v as i64).unwrap();
+                        let left_v_f = OrderedFloat::<f64>::from_i64(left_v.to_i64().ok_or(
+                            PipelineError::InvalidOperandType(format!(
+                                "Unable to cast {} to i64",
+                                left_v
+                            )),
+                        )?)
+                        .unwrap();
                         Ok(Field::Boolean($function(left_v_f, right_v)))
                     }
                     // left: UInt, right: Decimal
                     Field::Decimal(right_v) => {
-                        let left_v_d = Decimal::from_i64(left_v as i64).ok_or(
+                        let left_v_d = Decimal::from_i64(left_v.to_i64().ok_or(
                             PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to decimal",
+                                "Unable to cast {} to i64",
                                 left_v
                             )),
-                        )?;
+                        )?)
+                        .ok_or(PipelineError::InvalidOperandType(format!(
+                            "Unable to cast {} to decimal",
+                            left_v
+                        )))?;
                         Ok(Field::Boolean($function(left_v_d, right_v)))
                     }
                     // left: UInt, right: Null
@@ -82,7 +108,13 @@ macro_rules! define_comparison {
                     Field::Float(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: Float, right: Int
                     Field::UInt(right_v) => {
-                        let right_v_f = OrderedFloat::<f64>::from_i64(right_v as i64).unwrap();
+                        let right_v_f = OrderedFloat::<f64>::from_i64(right_v.to_i64().ok_or(
+                            PipelineError::InvalidOperandType(format!(
+                                "Unable to cast {} to i64",
+                                right_v
+                            )),
+                        )?)
+                        .unwrap();
                         Ok(Field::Boolean($function(left_v, right_v_f)))
                     }
                     // left: Float, right: Int
@@ -133,12 +165,16 @@ macro_rules! define_comparison {
                     }
                     // left: Decimal, right: UInt
                     Field::UInt(right_v) => {
-                        let right_v_d = Decimal::from_i64(right_v as i64).ok_or(
+                        let right_v_d = Decimal::from_i64(right_v.to_i64().ok_or(
                             PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to decimal",
+                                "Unable to cast {} to i64",
                                 right_v
                             )),
-                        )?;
+                        )?)
+                        .ok_or(PipelineError::InvalidOperandType(format!(
+                            "Unable to cast {} to decimal",
+                            right_v
+                        )))?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
                     // left: Decimal, right: Decimal
