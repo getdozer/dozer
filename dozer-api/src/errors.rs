@@ -24,6 +24,8 @@ pub enum ApiError {
     CacheNotFound(String),
     #[error("Cannot find schema by name")]
     SchemaNotFound(#[source] CacheError),
+    #[error("Get by primary key is not supported when there is no primary key")]
+    NoPrimaryKey,
     #[error("Get by primary key is not supported when it is composite: {0:?}")]
     MultiIndexFetch(String),
     #[error("Document not found")]
@@ -143,6 +145,7 @@ impl actix_web::error::ResponseError for ApiError {
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
             ApiError::ApiGenerationError(_)
             | ApiError::SchemaNotFound(_)
+            | ApiError::NoPrimaryKey
             | ApiError::MultiIndexFetch(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ApiError::InternalError(_)
             | ApiError::OpenCache(_)

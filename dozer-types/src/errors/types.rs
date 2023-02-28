@@ -1,6 +1,8 @@
 use geo::vincenty_distance::FailedToConvergeError;
 use thiserror::Error;
 
+use crate::types::FieldType;
+
 use super::internal::BoxedError;
 
 #[derive(Error, Debug)]
@@ -11,8 +13,12 @@ pub enum TypeError {
     InvalidFieldName(String),
     #[error("Invalid field type")]
     InvalidFieldType,
-    #[error("Invalid field value: {0}")]
-    InvalidFieldValue(String),
+    #[error("Invalid field value: {value}, field type: {field_type}, nullable: {nullable}")]
+    InvalidFieldValue {
+        field_type: FieldType,
+        nullable: bool,
+        value: String,
+    },
     #[error("Invalid timestamp")]
     InvalidTimestamp,
     #[error("Ambiguous timestamp")]
@@ -27,21 +33,21 @@ pub enum TypeError {
 
 #[derive(Error, Debug)]
 pub enum SerializationError {
-    #[error(transparent)]
+    #[error("json: {0}")]
     Json(#[from] serde_json::Error),
-    #[error(transparent)]
+    #[error("bincode: {0}")]
     Bincode(#[from] bincode::Error),
-    #[error(transparent)]
+    #[error("custom: {0}")]
     Custom(#[from] BoxedError),
 }
 
 #[derive(Error, Debug)]
 pub enum DeserializationError {
-    #[error(transparent)]
+    #[error("json: {0}")]
     Json(#[from] serde_json::Error),
-    #[error(transparent)]
+    #[error("bincode: {0}")]
     Bincode(#[from] bincode::Error),
-    #[error(transparent)]
+    #[error("custom: {0}")]
     Custom(#[from] BoxedError),
     #[error("Empty input")]
     EmptyInput,
@@ -49,8 +55,8 @@ pub enum DeserializationError {
     UnrecognisedFieldType(u8),
     #[error("Bad data length")]
     BadDataLength,
-    #[error(transparent)]
+    #[error("Bad data format: {0}")]
     BadDateFormat(#[from] chrono::ParseError),
-    #[error(transparent)]
+    #[error("utf8: {0}")]
     Utf8(#[from] std::str::Utf8Error),
 }

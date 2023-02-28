@@ -6,12 +6,12 @@ use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, S
 use dozer_cache::cache::{index, RecordWithId};
 use dozer_cache::CacheReader;
 use dozer_types::chrono::SecondsFormat;
-use dozer_types::errors::types::{DeserializationError, TypeError};
+use dozer_types::errors::types::TypeError;
 use dozer_types::indexmap::IndexMap;
 use dozer_types::log::info;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType, Schema, DATE_FORMAT};
+use dozer_types::types::{Field, Schema, DATE_FORMAT};
 use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
@@ -19,8 +19,8 @@ use crate::generator::oapi::generator::OpenApiGenerator;
 use crate::RoCacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
+use dozer_types::serde_json;
 use dozer_types::serde_json::{json, Map, Value};
-use dozer_types::{json_value_to_field, serde_json};
 
 fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {
     let (schema, secondary_indexes) = reader
@@ -64,10 +64,10 @@ pub async fn get(
 
     let key = path.as_str();
     let key = if schema.primary_index.is_empty() {
-        json_str_to_field(key, dozer_types::types::FieldType::UInt, false)?
+        return Err(ApiError::NoPrimaryKey);
     } else if schema.primary_index.len() == 1 {
         let field = &schema.fields[schema.primary_index[0]];
-        json_str_to_field(key, field.typ, field.nullable)?
+        Field::from_str(key, field.typ, field.nullable)?
     } else {
         return Err(ApiError::MultiIndexFetch(key.to_string()));
     };
@@ -217,12 +217,6 @@ fn field_to_json_value(field: Field) -> Value {
     }
 }
 
-fn json_str_to_field(value: &str, typ: FieldType, nullable: bool) -> Result<Field, TypeError> {
-    let value = dozer_types::serde_json::from_str(value)
-        .map_err(|e| TypeError::DeserializationError(DeserializationError::Json(e)))?;
-    json_value_to_field(value, typ, nullable)
-}
-
 #[cfg(test)]
 mod tests {
     use dozer_types::{
@@ -279,14 +273,5 @@ mod tests {
         for (field_type, field) in fields {
             test_field_conversion(field_type, field);
         }
-    }
-
-    #[test]
-    fn test_nullable_field_conversion() {
-        assert_eq!(
-            json_str_to_field("null", FieldType::Int, true).unwrap(),
-            Field::Null
-        );
-        assert!(json_str_to_field("null", FieldType::Int, false).is_err());
     }
 }
