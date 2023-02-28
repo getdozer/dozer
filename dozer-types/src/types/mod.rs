@@ -378,19 +378,25 @@ impl FromStr for DozerPoint {
     type Err = TypeError;
 
     fn from_str(str: &str) -> Result<Self, Self::Err> {
+        let error = || InvalidFieldValue {
+            field_type: FieldType::Point,
+            nullable: false,
+            value: str.to_string(),
+        };
+
         let s = str.replace('(', "");
         let s = s.replace(')', "");
         let mut cs = s.split(',');
         let x = cs
             .next()
-            .ok_or(InvalidFieldValue(s.clone()))?
+            .ok_or_else(error)?
             .parse::<f64>()
-            .map_err(|_| InvalidFieldValue(s.clone()))?;
+            .map_err(|_| error())?;
         let y = cs
             .next()
-            .ok_or(InvalidFieldValue(s.clone()))?
+            .ok_or_else(error)?
             .parse::<f64>()
-            .map_err(|_| InvalidFieldValue(s.clone()))?;
+            .map_err(|_| error())?;
         Ok(Self(Point::from((OrderedFloat(x), OrderedFloat(y)))))
     }
 }

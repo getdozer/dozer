@@ -1,7 +1,6 @@
 use crate::read_csv::read_csv;
 
 use super::SqlMapper;
-use dozer_types::errors::types;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{
@@ -165,13 +164,10 @@ pub fn map_sqlite_to_record(
     Ok(record)
 }
 
-pub fn parse_sql_number(n: &str) -> Result<Field, types::TypeError> {
+fn parse_sql_number(n: &str) -> Field {
     match n.parse::<i64>() {
-        Ok(n) => Ok(Field::Int(n)),
-        Err(_) => match n.parse::<f64>() {
-            Ok(f) => Ok(Field::Float(OrderedFloat(f))),
-            Err(_) => Err(types::TypeError::InvalidFieldValue(n.to_string())),
-        },
+        Ok(n) => Field::Int(n),
+        Err(_) => Field::Float(OrderedFloat(n.parse::<f64>().unwrap())),
     }
 }
 pub fn parse_exp_to_string(exp: &Expr) -> String {
@@ -185,7 +181,7 @@ pub fn parse_exp_to_string(exp: &Expr) -> String {
 pub fn parse_exp_to_field(exp: &Expr) -> Field {
     match &exp {
         Expr::Value(value) => match value {
-            sqlparser::ast::Value::Number(str, _) => parse_sql_number(str).unwrap(),
+            sqlparser::ast::Value::Number(str, _) => parse_sql_number(str),
             sqlparser::ast::Value::SingleQuotedString(str) => Field::String(str.to_owned()),
             sqlparser::ast::Value::Boolean(b) => Field::Boolean(*b),
             sqlparser::ast::Value::Null => Field::Null,
