@@ -378,7 +378,8 @@ FROM (SELECT table_schema,
              data_type,
              numeric_precision,
              udt_name,
-             character_maximum_length
+             character_maximum_length,
+             ordinal_position
       FROM information_schema.columns
       WHERE table_name :tables_condition
       ORDER BY table_name) table_info
@@ -402,4 +403,5 @@ FROM (SELECT table_schema,
                                       pa.attname = table_info.column_name
 ORDER BY table_info.table_schema,
          table_info.table_catalog,
-         table_info.table_name;";
+         table_info.table_name,
+         table_info.ordinal_position;";
