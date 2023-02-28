@@ -1,13 +1,13 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use crate::errors::PostgresSchemaError::{
-    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, PointParseError,
-    StringParseError, ValueConversionError,
+    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, JSONBParseError,
+    PointParseError, StringParseError, ValueConversionError,
 };
 use crate::errors::{ConnectorError, PostgresSchemaError};
 use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::{rust_decimal, types::*};
+use dozer_types::{rust_decimal, serde_json, types::*};
 use postgres::{Column, Row};
 use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
@@ -144,8 +144,13 @@ pub fn value_to_field(
             value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
         }
         &Type::JSONB => {
-            let value: Result<Vec<u8>, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |v| Ok(Field::Bson(v)))
+            let value: Result<serde_json::Value, _> = row.try_get(idx);
+
+            value.map_or_else(handle_error, |v| {
+                Ok(Field::Bson(
+                    bson::to_vec(&v).map_err(|e| JSONBParseError(e.to_string()))?,
+                ))
+            })
         }
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
         _ => {
