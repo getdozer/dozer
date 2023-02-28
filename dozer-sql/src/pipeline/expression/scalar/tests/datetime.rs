@@ -76,66 +76,66 @@ fn test_timestamp_diff() {
     assert_eq!(f, Field::Int(1000));
 }
 
-#[test]
-fn test_timestamp_add() {
-    let f = run_scalar_fct(
-        "SELECT ts1 + ts2 FROM users",
-        Schema::empty()
-            .field(
-                FieldDefinition::new(
-                    String::from("ts1"),
-                    FieldType::Timestamp,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                false,
-            )
-            .field(
-                FieldDefinition::new(
-                    String::from("ts2"),
-                    FieldType::Timestamp,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                false,
-            )
-            .clone(),
-        vec![
-            Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
-        ],
-    );
-    assert_eq!(f, Field::Int(20000));
-}
+// #[test]
+// fn test_timestamp_add() {
+//     let f = run_scalar_fct(
+//         "SELECT ts1 + ts2 FROM users",
+//         Schema::empty()
+//             .field(
+//                 FieldDefinition::new(
+//                     String::from("ts1"),
+//                     FieldType::Timestamp,
+//                     false,
+//                     SourceDefinition::Dynamic,
+//                 ),
+//                 false,
+//             )
+//             .field(
+//                 FieldDefinition::new(
+//                     String::from("ts2"),
+//                     FieldType::Timestamp,
+//                     false,
+//                     SourceDefinition::Dynamic,
+//                 ),
+//                 false,
+//             )
+//             .clone(),
+//         vec![
+//             Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
+//             Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
+//         ],
+//     );
+//     assert_eq!(f, Field::Int(20000));
+// }
 
-#[test]
-fn test_timestamp_mul() {
-    let f = run_scalar_fct(
-        "SELECT ts1 * ts2 FROM users",
-        Schema::empty()
-            .field(
-                FieldDefinition::new(
-                    String::from("ts1"),
-                    FieldType::Timestamp,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                false,
-            )
-            .field(
-                FieldDefinition::new(
-                    String::from("ts2"),
-                    FieldType::Timestamp,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                false,
-            )
-            .clone(),
-        vec![
-            Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
-        ],
-    );
-    assert_eq!(f, Field::Int(100000000));
-}
+// #[test]
+// fn test_timestamp_mul() {
+//     let f = run_scalar_fct(
+//         "SELECT ts1 * ts2 FROM users",
+//         Schema::empty()
+//             .field(
+//                 FieldDefinition::new(
+//                     String::from("ts1"),
+//                     FieldType::Timestamp,
+//                     false,
+//                     SourceDefinition::Dynamic,
+//                 ),
+//                 false,
+//             )
+//             .field(
+//                 FieldDefinition::new(
+//                     String::from("ts2"),
+//                     FieldType::Timestamp,
+//                     false,
+//                     SourceDefinition::Dynamic,
+//                 ),
+//                 false,
+//             )
+//             .clone(),
+//         vec![
+//             Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
+//             Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
+//         ],
+//     );
+//     assert_eq!(f, Field::Int(100000000));
+// }

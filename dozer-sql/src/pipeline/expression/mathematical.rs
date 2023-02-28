@@ -27,21 +27,6 @@ macro_rules! define_math_operator {
                             let duration = left_v - right_v;
                             Ok(Field::Int(duration.num_milliseconds()))
                         }
-                        "+" => {
-                            let left_duration = left_v.timestamp_millis();
-                            let right_duration = right_v.timestamp_millis();
-                            Ok(Field::Int(left_duration + right_duration))
-                        }
-                        "*" => {
-                            let left_duration = left_v.timestamp_millis();
-                            let right_duration = right_v.timestamp_millis();
-                            Ok(Field::Int(left_duration * right_duration))
-                        }
-                        "/" => {
-                            let left_duration = left_v.timestamp_millis();
-                            let right_duration = right_v.timestamp_millis();
-                            Ok(Field::Int(left_duration / right_duration))
-                        }
                         _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                     },
                     _ => Err(PipelineError::InvalidOperandType($op.to_string())),
