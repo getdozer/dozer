@@ -118,7 +118,7 @@ fn test_window_schema() {
 
     let result = window.get_output_schema(&schema).unwrap();
 
-    let expected_schema = Schema::empty()
+    let mut expected_schema = Schema::empty()
         .field(
             FieldDefinition::new(
                 String::from("id"),
@@ -156,6 +156,8 @@ fn test_window_schema() {
             false,
         )
         .clone();
+
+    expected_schema.primary_index = vec![0, 2];
 
     assert_eq!(result, expected_schema);
 }
