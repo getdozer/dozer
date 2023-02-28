@@ -43,7 +43,8 @@ impl<'a> PostgresSnapshotter<'a> {
         conn_config: tokio_postgres::Config,
         sender: Sender<Result<Option<Operation>, ConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        let mut client_plain = connection_helper::connect(conn_config).map_err(PostgresConnectorError)?;
+        let mut client_plain =
+            connection_helper::connect(conn_config).map_err(PostgresConnectorError)?;
 
         let column_str: Vec<String> = table_info
             .columns
