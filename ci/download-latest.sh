@@ -66,13 +66,16 @@ get_archi() {
     case "$architecture" in
     'x86_64' | 'amd64' )
         archi='amd64'
+        if [ $os = 'macos' ]; then
+            archi='mac-intel'
+        fi
         ;;
     'arm64')
         # macOS M1/M2
         if [ $os = 'macos' ]; then
             archi='mac'
         else
-            archi='mac-intel'
+            archi='amd64'
         fi
         ;;
     *)
