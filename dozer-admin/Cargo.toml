@@ -1,7 +1,15 @@
 [package]
 name = "dozer-admin"
 version = "0.1.10"
-authors = ["Karolis Gudiškis <karolis@getdozer.io>"]
+authors = [
+    "Matteo Pelati <matteo@getdozer.io>",
+    "Vivek Gudapuri <vivek@getdozer.io>",
+    "Dario Pizzamiglio <dario@getdozer.io",
+    "Thu Duong <thu@getdozer.io>",
+    "Karolis Gudiškis <karolis@getdozer.io>",
+    "Chloe Kim <chloe@getdozer.io>",
+    "Bei Chu <bei@getdozer.io>",
+]
 edition = "2021"
 build = "build.rs"
 
