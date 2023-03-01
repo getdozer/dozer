@@ -1,12 +1,12 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 RUN apt-get update \
   && apt-get install -y \
-      libssl-dev \
-      odbcinst \
-      unixodbc \
-      curl \
-      unzip
+  libssl-dev \
+  odbcinst \
+  unixodbc \
+  curl \
+  unzip
 
 # INSTALL PROTOBUF
 RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.18.1/protoc-3.18.1-linux-x86_64.zip 
