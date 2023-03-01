@@ -248,7 +248,7 @@ fn open_or_create_cache(
     checkpoint: &SourceStates,
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
-) -> Result<Box<dyn RwCache>, ExecutionError> {
+) -> Result<(Box<dyn RwCache>, Option<usize>), ExecutionError> {
     let append_only = schema.primary_index.is_empty();
 
     let create_cache = || {
@@ -268,7 +268,7 @@ fn open_or_create_cache(
     if let Some(cache) = cache {
         if append_only {
             debug!("Cache {} is append only", name);
-            Ok(cache)
+            Ok((cache, None))
         } else {
             let cache_checkpoint = cache.get_checkpoint().map_err(|e| {
                 ExecutionError::SinkError(SinkError::CacheGetCheckpointFailed(
@@ -278,9 +278,15 @@ fn open_or_create_cache(
             })?;
             if &cache_checkpoint == checkpoint {
                 debug!("Cache {} is consistent with the pipeline", name);
-                Ok(cache)
+                Ok((cache, None))
             } else {
                 let old_name = cache.name();
+                let old_count = cache.count(name, &Default::default()).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheCountFailed(
+                        name.to_string(),
+                        Box::new(e),
+                    ))
+                })?;
                 let cache = create_cache()?;
                 debug!(
                     "[pipeline] Cache {} is at {:?}, while pipeline is at {:?}",
@@ -292,14 +298,14 @@ fn open_or_create_cache(
                     cache.name(),
                     old_name
                 );
-                Ok(cache)
+                Ok((cache, Some(old_count)))
             }
         }
     } else {
         debug!("Cache {} does not exist", name);
         let cache = create_cache()?;
         create_alias(cache_manager, cache.name(), name)?;
-        Ok(cache)
+        Ok((cache, None))
     }
 }
 
@@ -322,6 +328,8 @@ pub struct CacheSink {
     cache_manager: Arc<dyn CacheManager>,
     cache: Box<dyn RwCache>,
     counter: usize,
+    // Number of records in the cache that's currently served, if that's different from the one being written to.
+    current_alias_count: Option<usize>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
     notifier: Option<PipelineEventSenders>,
@@ -338,6 +346,15 @@ impl Sink for CacheSink {
                 Box::new(e),
             ))
         })?;
+
+        if let Some(current_alias_count) = self.current_alias_count {
+            // We're comparing number of operations with number of records.
+            // It's not really the same thing but should be good enough.
+            if self.counter >= current_alias_count {
+                self.redirect_alias()?;
+            }
+        }
+
         Ok(())
     }
 
@@ -418,18 +435,7 @@ impl Sink for CacheSink {
 
     // FIXME: Maybe we should only switch cache when all source nodes snapshotting are done? (by chubei 2023-02-24)
     fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
-        let real_name = self.cache.name();
-        create_alias(&*self.cache_manager, real_name, &self.api_endpoint.name)?;
-
-        if let Some(notifier) = &self.notifier {
-            let alias_redirected = AliasRedirected {
-                real_name: real_name.to_string(),
-                alias: self.api_endpoint.name.clone(),
-            };
-            try_send(&notifier.0, alias_redirected)?;
-        }
-
-        Ok(())
+        self.redirect_alias()
     }
 }
 
@@ -444,7 +450,7 @@ impl CacheSink {
         multi_pb: Option<MultiProgress>,
     ) -> Result<Self, ExecutionError> {
         let query = QueryExpression::with_no_limit();
-        let cache = open_or_create_cache(
+        let (cache, current_alias_count) = open_or_create_cache(
             &*cache_manager,
             &api_endpoint.name,
             checkpoint,
@@ -467,11 +473,28 @@ impl CacheSink {
         Ok(Self {
             cache_manager,
             cache,
+            current_alias_count,
             counter,
             api_endpoint,
             pb,
             notifier,
         })
+    }
+
+    fn redirect_alias(&mut self) -> Result<(), ExecutionError> {
+        let real_name = self.cache.name();
+        create_alias(&*self.cache_manager, real_name, &self.api_endpoint.name)?;
+        self.current_alias_count = None;
+
+        if let Some(notifier) = &self.notifier {
+            let alias_redirected = AliasRedirected {
+                real_name: real_name.to_string(),
+                alias: self.api_endpoint.name.clone(),
+            };
+            try_send(&notifier.0, alias_redirected)?;
+        }
+
+        Ok(())
     }
 }
 
