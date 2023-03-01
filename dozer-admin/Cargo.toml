@@ -1,7 +1,7 @@
 [package]
 name = "dozer-admin"
 version = "0.1.10"
-authors = ["Karolis Gudiškis <karolis@getdozer.io>"]
+authors = ["getdozer/dozer-dev"]
 edition = "2021"
 build = "build.rs"
 

@@ -3,6 +3,8 @@ name = "dozer-orchestrator"
 version = "0.1.10"
 edition = "2021"
 default-run = "dozer"
+authors = ["getdozer/dozer-dev"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
