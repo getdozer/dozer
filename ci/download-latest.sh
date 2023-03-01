@@ -149,7 +149,6 @@ download_binary() {
 
     # Fetch the Dozer binary.
     curl --fail -OL "$GITHUB_REL/$release_file"
-    chmod 744 "$binary_name"
 }
 
 # MAIN
