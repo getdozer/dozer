@@ -4,16 +4,33 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{
-    errors::internal::BoxedError,
-    types::{Commit, Operation},
-};
+use crate::{errors::internal::BoxedError, node::OpIdentifier, types::Operation};
 
-#[derive(Clone, Debug)]
-pub enum IngestionMessage {
-    Begin(),
+#[derive(Debug, Clone, PartialEq)]
+pub struct IngestionMessage {
+    pub identifier: OpIdentifier,
+    pub kind: IngestionMessageKind,
+}
+
+impl IngestionMessage {
+    pub fn new_op(txn: u64, seq_no: u64, op: Operation) -> Self {
+        Self {
+            identifier: OpIdentifier::new(txn, seq_no),
+            kind: IngestionMessageKind::OperationEvent(op),
+        }
+    }
+
+    pub fn new_snapshotting_done(txn: u64, seq_no: u64) -> Self {
+        Self {
+            identifier: OpIdentifier::new(txn, seq_no),
+            kind: IngestionMessageKind::SnapshottingDone,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum IngestionMessageKind {
     OperationEvent(Operation),
-    Commit(Commit),
     SnapshottingDone,
 }
 
@@ -24,7 +41,7 @@ pub enum IngestorError {
 }
 
 pub trait IngestorForwarder: Send + Sync + Debug {
-    fn forward(&self, msg: ((u64, u64), Operation)) -> Result<(), IngestorError>;
+    fn forward(&self, msg: IngestionMessage) -> Result<(), IngestorError>;
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]

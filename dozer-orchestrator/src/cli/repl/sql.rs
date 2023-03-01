@@ -175,7 +175,6 @@ pub fn query(
                                     updates_map.insert(pkey.clone(), (0, instant.elapsed()));
                                 }
                             }
-                            Operation::SnapshottingDone { .. } => (),
                         }
                         idx += 1;
                     }

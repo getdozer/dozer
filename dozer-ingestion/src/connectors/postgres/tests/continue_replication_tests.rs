@@ -10,6 +10,8 @@ mod tests {
     use crate::ingestion::{IngestionConfig, Ingestor};
     use crate::test_util::run_connector_test;
     use core::cell::RefCell;
+    use dozer_types::ingestion_types::IngestionMessage;
+    use dozer_types::node::OpIdentifier;
     use rand::Rng;
     use serial_test::serial;
     use std::sync::Arc;
@@ -131,8 +133,12 @@ mod tests {
             let mut i = last_parsed_position;
             while i < 4 {
                 i += 1;
-                if let Some(((_, seq_no), _)) = iterator.next() {
-                    assert_eq!(i, seq_no);
+                if let Some(IngestionMessage {
+                    identifier: OpIdentifier { seq_in_tx, .. },
+                    ..
+                }) = iterator.next()
+                {
+                    assert_eq!(i, seq_in_tx);
                 } else {
                     panic!("Unexpected operation");
                 }
@@ -142,8 +148,12 @@ mod tests {
             let mut i = 0;
             while i < 3 {
                 i += 1;
-                if let Some(((_, seq_no), _)) = iterator.next() {
-                    assert_eq!(i, seq_no);
+                if let Some(IngestionMessage {
+                    identifier: OpIdentifier { seq_in_tx, .. },
+                    ..
+                }) = iterator.next()
+                {
+                    assert_eq!(i, seq_in_tx);
                 } else {
                     panic!("Unexpected operation");
                 }

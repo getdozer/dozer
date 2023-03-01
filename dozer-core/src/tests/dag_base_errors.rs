@@ -12,6 +12,7 @@ use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::{NodeHandle, SourceStates};
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -361,18 +362,20 @@ impl Source for ErrGeneratorSource {
             }
 
             fw.send(
-                n,
-                0,
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    n,
+                    0,
+                    Operation::Insert {
+                        new: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }
@@ -488,6 +491,10 @@ impl Sink for ErrSink {
                 ));
             }
         }
+        Ok(())
+    }
+
+    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

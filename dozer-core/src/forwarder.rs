@@ -9,6 +9,7 @@ use dozer_storage::common::Database;
 
 use crossbeam::channel::Sender;
 use dozer_storage::lmdb_storage::SharedTransaction;
+use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use dozer_types::log::debug;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Operation;
@@ -102,6 +103,16 @@ impl ChannelManager {
         Ok(())
     }
 
+    fn send_snapshotting_done(&self) -> Result<(), ExecutionError> {
+        for senders in self.senders.values() {
+            for sender in senders {
+                sender.send(ExecutorOperation::SnapshottingDone {})?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn store_and_send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         debug!("[{}] Checkpointing - {}", self.owner, &epoch);
         self.state_writer.store_commit_info(epoch)?;
@@ -138,7 +149,7 @@ pub(crate) struct SourceChannelManager {
     curr_txid: u64,
     curr_seq_in_tx: u64,
     commit_sz: u32,
-    num_uncommited_ops: u32,
+    num_uncommitted_ops: u32,
     max_duration_between_commits: Duration,
     last_commit_instant: Instant,
     epoch_manager: Arc<EpochManager>,
@@ -162,37 +173,41 @@ impl SourceChannelManager {
             curr_seq_in_tx: 0,
             source_handle: owner,
             commit_sz,
-            num_uncommited_ops: 0,
+            num_uncommitted_ops: 0,
             max_duration_between_commits,
             last_commit_instant: Instant::now(),
             epoch_manager,
         }
     }
 
-    fn should_commit(&self) -> bool {
-        self.num_uncommited_ops >= self.commit_sz
+    fn should_participate_in_commit(&self) -> bool {
+        self.num_uncommitted_ops >= self.commit_sz
             || self.last_commit_instant.elapsed() >= self.max_duration_between_commits
+    }
+
+    fn commit(&mut self, request_termination: bool) -> Result<bool, ExecutionError> {
+        let (terminating, epoch, decision_instant) = self
+            .epoch_manager
+            .wait_for_epoch_close(request_termination, self.num_uncommitted_ops > 0);
+        if let Some(epoch_id) = epoch {
+            self.manager.store_and_send_commit(&Epoch::from(
+                epoch_id,
+                self.source_handle.clone(),
+                self.curr_txid,
+                self.curr_seq_in_tx,
+            ))?;
+        }
+        self.num_uncommitted_ops = 0;
+        self.last_commit_instant = decision_instant;
+        Ok(terminating)
     }
 
     pub fn trigger_commit_if_needed(
         &mut self,
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
-        if request_termination || self.should_commit() {
-            let (terminating, epoch, decision_instant) = self
-                .epoch_manager
-                .wait_for_epoch_close(request_termination, self.num_uncommited_ops > 0);
-            if let Some(epoch_id) = epoch {
-                self.manager.store_and_send_commit(&Epoch::from(
-                    epoch_id,
-                    self.source_handle.clone(),
-                    self.curr_txid,
-                    self.curr_seq_in_tx,
-                ))?;
-            }
-            self.num_uncommited_ops = 0;
-            self.last_commit_instant = decision_instant;
-            Ok(terminating)
+        if request_termination || self.should_participate_in_commit() {
+            self.commit(request_termination)
         } else {
             Ok(false)
         }
@@ -200,18 +215,25 @@ impl SourceChannelManager {
 
     pub fn send_and_trigger_commit_if_needed(
         &mut self,
-        txid: u64,
-        seq_in_tx: u64,
-        op: Operation,
+        message: IngestionMessage,
         port: PortHandle,
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         //
-        self.curr_txid = txid;
-        self.curr_seq_in_tx = seq_in_tx;
-        self.manager.send_op(op, port)?;
-        self.num_uncommited_ops += 1;
-        self.trigger_commit_if_needed(request_termination)
+        self.curr_txid = message.identifier.txid;
+        self.curr_seq_in_tx = message.identifier.seq_in_tx;
+        match message.kind {
+            IngestionMessageKind::OperationEvent(op) => {
+                self.manager.send_op(op, port)?;
+                self.num_uncommitted_ops += 1;
+                self.trigger_commit_if_needed(request_termination)
+            }
+            IngestionMessageKind::SnapshottingDone => {
+                self.num_uncommitted_ops += 1;
+                self.manager.send_snapshotting_done()?;
+                self.commit(request_termination)
+            }
+        }
     }
 
     pub fn terminate(&mut self) -> Result<(), ExecutionError> {
@@ -242,6 +264,10 @@ impl ProcessorChannelManager {
 
     pub fn send_terminate(&self) -> Result<(), ExecutionError> {
         self.manager.send_terminate()
+    }
+
+    pub fn send_snapshotting_done(&self) -> Result<(), ExecutionError> {
+        self.manager.send_snapshotting_done()
     }
 }
 

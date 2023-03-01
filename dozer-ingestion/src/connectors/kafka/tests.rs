@@ -3,6 +3,7 @@ use crate::connectors::kafka::test_utils::{
     get_client_and_create_table, get_debezium_config, get_iterator_and_client,
 };
 use crate::connectors::{Connector, TableInfo};
+use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use dozer_types::models::connection::ConnectionConfig;
 use dozer_types::{ingestion_types::KafkaConfig, rust_decimal::Decimal, types::Operation};
 use postgres::Client;
@@ -81,7 +82,11 @@ fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
     while i < 30 {
         let op = iterator.next();
 
-        if let Some((_, op)) = op {
+        if let Some(IngestionMessage {
+            kind: IngestionMessageKind::OperationEvent(op),
+            ..
+        }) = op
+        {
             i += 1;
             match op {
                 Operation::Insert { .. } => {
@@ -99,7 +104,6 @@ fn connector_disabled_test_e2e_connect_debezium_and_use_kafka_stream() {
                         panic!("Unexpected operation");
                     }
                 }
-                Operation::SnapshottingDone {} => (),
             }
         }
     }

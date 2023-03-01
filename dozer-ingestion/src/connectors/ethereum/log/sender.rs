@@ -241,12 +241,10 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             // Write eth_log record
             details
                 .ingestor
-                .handle_message((
-                    (
-                        msg.block_number.expect("expected for non pending").as_u64(),
-                        0,
-                    ),
-                    IngestionMessage::OperationEvent(op),
+                .handle_message(IngestionMessage::new_op(
+                    msg.block_number.expect("expected for non pending").as_u64(),
+                    0,
+                    op,
                 ))
                 .map_err(ConnectorError::IngestorError)?;
         } else {
@@ -265,7 +263,7 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             trace!("Writing event : {:?}", op);
             details
                 .ingestor
-                .handle_message(((0, 0), IngestionMessage::OperationEvent(op)))
+                .handle_message(IngestionMessage::new_op(0, 0, op))
                 .map_err(ConnectorError::IngestorError)?;
         } else {
             trace!("Writing event : {:?}", op);

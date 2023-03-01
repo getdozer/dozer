@@ -2,6 +2,7 @@ use crate::channels::SourceChannelForwarder;
 use crate::errors::ExecutionError;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use crate::DEFAULT_PORT_HANDLE;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -108,18 +109,20 @@ impl Source for GeneratorSource {
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(
-                n,
-                0,
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    n,
+                    0,
+                    Operation::Insert {
+                        new: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }
@@ -241,33 +244,37 @@ impl Source for DualPortGeneratorSource {
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             fw.send(
-                n,
-                0,
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    n,
+                    0,
+                    Operation::Insert {
+                        new: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
             )?;
             fw.send(
-                n,
-                0,
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    n,
+                    0,
+                    Operation::Insert {
+                        new: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
             )?;
         }
@@ -370,18 +377,20 @@ impl Source for NoPkGeneratorSource {
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(
-                n,
-                0,
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    n,
+                    0,
+                    Operation::Insert {
+                        new: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }

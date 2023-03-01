@@ -17,6 +17,7 @@ use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::SourceStates;
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use std::collections::HashMap;
@@ -141,7 +142,8 @@ impl Source for TestSource {
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             idx += 1;
             let port = self.name_to_port.get(&schema_name).expect("port not found");
-            fw.send(idx, 0, op, *port).unwrap();
+            fw.send(IngestionMessage::new_op(idx, 0, op), *port)
+                .unwrap();
         }
         thread::sleep(Duration::from_millis(500));
 
@@ -238,6 +240,10 @@ impl Sink for TestSink {
     }
 
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

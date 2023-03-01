@@ -51,6 +51,7 @@ pub enum ExecutorOperation {
     Op { op: Operation },
     Commit { epoch: Epoch },
     Terminate,
+    SnapshottingDone {},
 }
 
 mod execution_dag;

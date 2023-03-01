@@ -213,9 +213,6 @@ impl Processor for FromProcessor {
                     }
                 }
             }
-            Operation::SnapshottingDone { .. } => {
-                let _ = fw.send(op, DEFAULT_PORT_HANDLE);
-            }
         }
         Ok(())
     }

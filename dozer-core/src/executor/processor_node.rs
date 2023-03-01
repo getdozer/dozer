@@ -113,4 +113,8 @@ impl ReceiverLoop for ProcessorNode {
     fn on_terminate(&mut self) -> Result<(), ExecutionError> {
         self.channel_manager.send_terminate()
     }
+
+    fn on_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
+        self.channel_manager.send_snapshotting_done()
+    }
 }
