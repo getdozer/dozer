@@ -66,14 +66,11 @@ get_archi() {
     case "$architecture" in
     'x86_64' | 'amd64' )
         archi='amd64'
-        if [ $os = 'macos' ]; then
-            archi='mac-intel'
-        fi
         ;;
     'arm64')
         # macOS M1/M2
         if [ $os = 'macos' ]; then
-            archi='mac'
+            archi='arm64'
         else
             archi='amd64'
         fi
@@ -139,7 +136,7 @@ download_binary() {
     binary_name="$PNAME"
     case "$os" in
     'macos')
-        release_file="$PNAME-$archi-$latest.tar.gz"
+        release_file="$PNAME-$os-$archi-$latest.tar.gz"
         ;;
     'linux')
         release_file="$PNAME-$os-$archi-$latest.tar.gz"
