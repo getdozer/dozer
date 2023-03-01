@@ -2,15 +2,7 @@
 name = "dozer-sql"
 version = "0.1.10"
 edition = "2021"
-authors = [
-    "Matteo Pelati <matteo@getdozer.io>",
-    "Vivek Gudapuri <vivek@getdozer.io>",
-    "Dario Pizzamiglio <dario@getdozer.io",
-    "Thu Duong <thu@getdozer.io>",
-    "Karolis Gudiškis <karolis@getdozer.io>",
-    "Chloe Kim <chloe@getdozer.io>",
-    "Bei Chu <bei@getdozer.io>",
-]
+authors = ["getdozer/dozer-dev"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
