@@ -82,16 +82,16 @@ get_archi() {
 }
 
 success_download() {
-    printf "$GREEN%s\n$DEFAULT" "Dozer $latest binary successfully downloaded as '$binary_name' file."
+    printf "$GREEN%s\n$DEFAULT" "Dozer $latest binary successfully downloaded as '$release_file' file."
 }
 
 success_unzip_remove() {
-    printf "$GREEN%s\n$DEFAULT" "Dozer $latest binary successfully extracted as 'dozer' folder."
+    printf "$GREEN%s\n$DEFAULT" "Dozer $latest binary successfully extracted as 'dozer'."
     echo ''
     echo 'Run it:'
-    echo "    $ .dozer/$PNAME"
+    echo "    $ $PNAME"
     echo 'Usage:'
-    echo "    $ .dozer/$PNAME --help"
+    echo "    $ $PNAME --help"
 }
 
 not_available_failure_usage() {
@@ -131,6 +131,14 @@ fill_release_variables() {
      fi
 }
 
+unzip_file() {
+  chmod 744 "$release_file"
+  export LANG=en_US.UTF-8
+  export LC_ALL=$LANG
+  tar -xvzf "$release_file" -C "./"
+  rm -f "$release_file"
+}
+
 download_binary() {
     fill_release_variables
     binary_name="$PNAME"
@@ -149,6 +157,14 @@ download_binary() {
 
     # Fetch the Dozer binary.
     curl --fail -OL "$GITHUB_REL/$release_file"
+    if [ $? -ne 0 ]; then
+        fetch_release_failure_usage
+        exit 1
+    fi
+    success_download
+
+    unzip_file
+    success_unzip_remove
 }
 
 # MAIN
