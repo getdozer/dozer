@@ -22,6 +22,8 @@ pub trait ReceiverLoop: Name {
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
     fn on_terminate(&mut self) -> Result<(), ExecutionError>;
+    /// Responds to `SnapshottingDone`.
+    fn on_snapshotting_done(&mut self) -> Result<(), ExecutionError>;
 
     /// The loop implementation, calls [`on_op`], [`on_commit`] and [`on_terminate`] at appropriate times.
     fn receiver_loop(&mut self) -> Result<(), ExecutionError> {
@@ -73,6 +75,7 @@ pub trait ReceiverLoop: Name {
                         return Ok(());
                     }
                 }
+                ExecutorOperation::SnapshottingDone {} => self.on_snapshotting_done()?,
             }
         }
     }
@@ -102,7 +105,8 @@ mod tests {
         receivers: Vec<Receiver<ExecutorOperation>>,
         ops: Vec<(usize, Operation)>,
         commits: Vec<Epoch>,
-        num_termations: usize,
+        snapshotting_done: Vec<()>,
+        num_terminations: usize,
     }
 
     impl Name for TestReceiverLoop {
@@ -133,7 +137,12 @@ mod tests {
         }
 
         fn on_terminate(&mut self) -> Result<(), ExecutionError> {
-            self.num_termations += 1;
+            self.num_terminations += 1;
+            Ok(())
+        }
+
+        fn on_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
+            self.snapshotting_done.push(());
             Ok(())
         }
     }
@@ -146,7 +155,8 @@ mod tests {
                     receivers,
                     ops: vec![],
                     commits: vec![],
-                    num_termations: 0,
+                    snapshotting_done: vec![],
+                    num_terminations: 0,
                 },
                 senders,
             )
@@ -159,7 +169,19 @@ mod tests {
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop().unwrap();
-        assert_eq!(test_loop.num_termations, 1);
+        assert_eq!(test_loop.num_terminations, 1);
+    }
+
+    #[test]
+    fn receiver_loop_forwards_snapshotting_done() {
+        let (mut test_loop, senders) = TestReceiverLoop::new(2);
+        senders[0]
+            .send(ExecutorOperation::SnapshottingDone {})
+            .unwrap();
+        senders[0].send(ExecutorOperation::Terminate).unwrap();
+        senders[1].send(ExecutorOperation::Terminate).unwrap();
+        test_loop.receiver_loop().unwrap();
+        assert_eq!(test_loop.snapshotting_done, vec![()])
     }
 
     #[test]

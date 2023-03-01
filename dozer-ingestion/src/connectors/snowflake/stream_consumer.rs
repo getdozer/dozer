@@ -86,12 +86,12 @@ impl StreamConsumer {
         }
     }
 
-    fn get_ingestion_message(
+    fn get_operation(
         row: Vec<Field>,
         action_idx: usize,
         used_columns_for_schema: usize,
         table_idx: usize,
-    ) -> Result<IngestionMessage, ConnectorError> {
+    ) -> Result<Operation, ConnectorError> {
         if let Field::String(action) = row.get(action_idx).unwrap() {
             let mut row_mut = row.clone();
             let insert_action = &"INSERT";
@@ -100,13 +100,13 @@ impl StreamConsumer {
             row_mut.truncate(used_columns_for_schema);
 
             if insert_action == action {
-                Ok(IngestionMessage::OperationEvent(Operation::Insert {
+                Ok(Operation::Insert {
                     new: Self::map_record(row_mut, table_idx),
-                }))
+                })
             } else if delete_action == action {
-                Ok(IngestionMessage::OperationEvent(Operation::Delete {
+                Ok(Operation::Delete {
                     old: Self::map_record(row_mut, table_idx),
-                }))
+                })
             } else {
                 Err(ConnectorError::SnowflakeError(
                     SnowflakeError::SnowflakeStreamError(UnsupportedActionInStream(action.clone())),
@@ -155,14 +155,9 @@ impl StreamConsumer {
             let action_idx = used_columns_for_schema;
 
             for (idx, row) in iterator.enumerate() {
-                let ingestion_message = Self::get_ingestion_message(
-                    row,
-                    action_idx,
-                    used_columns_for_schema,
-                    table_idx,
-                )?;
+                let op = Self::get_operation(row, action_idx, used_columns_for_schema, table_idx)?;
                 ingestor
-                    .handle_message(((iteration, idx as u64), ingestion_message))
+                    .handle_message(IngestionMessage::new_op(iteration, idx as u64, op))
                     .map_err(ConnectorError::IngestorError)?;
             }
         }

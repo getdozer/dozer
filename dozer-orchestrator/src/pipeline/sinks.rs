@@ -411,20 +411,23 @@ impl Sink for CacheSink {
                     try_send(&notifier.1, op)?;
                 }
             }
-            // FIXME: Maybe we should only switch cache when all source nodes snapshotting are done? (by chubei 2023-02-24)
-            Operation::SnapshottingDone {} => {
-                let real_name = self.cache.name();
-                create_alias(&*self.cache_manager, real_name, &self.api_endpoint.name)?;
-
-                if let Some(notifier) = &self.notifier {
-                    let alias_redirected = AliasRedirected {
-                        real_name: real_name.to_string(),
-                        alias: self.api_endpoint.name.clone(),
-                    };
-                    try_send(&notifier.0, alias_redirected)?;
-                }
-            }
         };
+
+        Ok(())
+    }
+
+    // FIXME: Maybe we should only switch cache when all source nodes snapshotting are done? (by chubei 2023-02-24)
+    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
+        let real_name = self.cache.name();
+        create_alias(&*self.cache_manager, real_name, &self.api_endpoint.name)?;
+
+        if let Some(notifier) = &self.notifier {
+            let alias_redirected = AliasRedirected {
+                real_name: real_name.to_string(),
+                alias: self.api_endpoint.name.clone(),
+            };
+            try_send(&notifier.0, alias_redirected)?;
+        }
 
         Ok(())
     }

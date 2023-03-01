@@ -50,7 +50,7 @@ impl<'a> PostgresSnapshotter<'a> {
             .collect();
 
         let column_str = column_str.join(",");
-        let query = format!("select {} from {}", column_str, name);
+        let query = format!("select {column_str} from {name}");
         let stmt = client_plain
             .prepare(&query)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
@@ -118,7 +118,7 @@ impl<'a> PostgresSnapshotter<'a> {
                 }
                 Some(evt) => {
                     self.ingestor
-                        .handle_message(((0, idx), IngestionMessage::OperationEvent(evt)))
+                        .handle_message(IngestionMessage::new_op(0, idx, evt))
                         .map_err(ConnectorError::IngestorError)?;
                     idx += 1;
                 }

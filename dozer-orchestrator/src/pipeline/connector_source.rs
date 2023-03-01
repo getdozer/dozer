@@ -7,7 +7,7 @@ use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use dozer_types::ingestion_types::IngestorError;
+use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, IngestorError};
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
@@ -252,12 +252,18 @@ impl Source for ConnectorSource {
 
             let mut iterator = self.iterator.lock();
 
-            for ((lsn, seq_no), op) in iterator.by_ref() {
-                let schema_id = match &op {
-                    Operation::Delete { old } => Some(get_schema_id(old.schema_id)?),
-                    Operation::Insert { new } => Some(get_schema_id(new.schema_id)?),
-                    Operation::Update { old: _, new } => Some(get_schema_id(new.schema_id)?),
-                    Operation::SnapshottingDone {} => None,
+            for IngestionMessage { identifier, kind } in iterator.by_ref() {
+                let schema_id = match &kind {
+                    IngestionMessageKind::OperationEvent(Operation::Delete { old }) => {
+                        Some(get_schema_id(old.schema_id)?)
+                    }
+                    IngestionMessageKind::OperationEvent(Operation::Insert { new }) => {
+                        Some(get_schema_id(new.schema_id)?)
+                    }
+                    IngestionMessageKind::OperationEvent(Operation::Update { old: _, new }) => {
+                        Some(get_schema_id(new.schema_id)?)
+                    }
+                    IngestionMessageKind::SnapshottingDone => None,
                 };
                 if let Some(schema_id) = schema_id {
                     let port =
@@ -279,10 +285,16 @@ impl Source for ConnectorSource {
                             pb.set_position(*schema_counter);
                         }
                     }
-                    fw.send(lsn, seq_no, op, *port)?
+                    fw.send(IngestionMessage { identifier, kind }, *port)?
                 } else {
                     for port in self.schema_port_map.values() {
-                        fw.send(lsn, seq_no, op.clone(), *port)?
+                        fw.send(
+                            IngestionMessage::new_snapshotting_done(
+                                identifier.txid,
+                                identifier.seq_in_tx,
+                            ),
+                            *port,
+                        )?
                     }
                 }
             }

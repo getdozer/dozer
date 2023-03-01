@@ -75,4 +75,8 @@ impl Sink for StreamingSink {
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
+
+    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }

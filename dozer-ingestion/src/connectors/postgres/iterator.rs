@@ -2,6 +2,7 @@ use crate::connectors::TableInfo;
 
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 
 use std::cell::RefCell;
@@ -16,7 +17,6 @@ use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use crate::errors::PostgresConnectorError::{
     InvalidQueryError, LSNNotStoredError, LsnNotReturnedFromReplicationSlot, LsnParseError,
 };
-use dozer_types::ingestion_types::IngestionMessage::SnapshottingDone;
 use postgres_types::PgLsn;
 use tokio::runtime::Runtime;
 
@@ -170,7 +170,7 @@ impl<'a> PostgresIteratorHandler<'a> {
 
             let lsn = self.lsn.borrow().map_or(0, |(lsn, _)| u64::from(lsn));
             self.ingestor
-                .handle_message(((lsn, 0), SnapshottingDone))
+                .handle_message(IngestionMessage::new_snapshotting_done(lsn, 0))
                 .map_err(ConnectorError::IngestorError)?;
 
             debug!("\nInitialized with tables: {:?}", tables);

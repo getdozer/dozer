@@ -2,7 +2,10 @@ use crate::connectors::object_store::connector::ObjectStoreConnector;
 use crate::connectors::Connector;
 use crate::connectors::TableInfo;
 use crate::ingestion::{IngestionConfig, Ingestor};
+use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::ingestion_types::LocalDetails;
+use dozer_types::node::OpIdentifier;
 use std::thread;
 
 use crate::connectors::object_store::helper::map_listing_options;
@@ -85,10 +88,14 @@ fn test_read_parquet_file() {
     let mut i = 0;
     while i < 8 {
         let row = iterator.next();
-        if let Some(((_, seq_no), Operation::Insert { new })) = row {
+        if let Some(IngestionMessage {
+            identifier: OpIdentifier { seq_in_tx, .. },
+            kind: IngestionMessageKind::OperationEvent(Operation::Insert { new }),
+        }) = row
+        {
             let values = new.values;
 
-            assert_eq!(i, seq_no);
+            assert_eq!(i, seq_in_tx);
 
             test_type_conversion!(values, 0, Field::Int(_));
             test_type_conversion!(values, 1, Field::Boolean(_));
@@ -134,10 +141,14 @@ fn test_csv_read() {
     let mut i = 0;
     while i < 9 {
         let row = iterator.next();
-        if let Some(((_, seq_no), Operation::Insert { new })) = row {
+        if let Some(IngestionMessage {
+            identifier: OpIdentifier { seq_in_tx, .. },
+            kind: IngestionMessageKind::OperationEvent(Operation::Insert { new }),
+        }) = row
+        {
             let values = new.values;
 
-            assert_eq!(i, seq_no);
+            assert_eq!(i, seq_in_tx);
             test_type_conversion!(values, 0, Field::Int(_));
             test_type_conversion!(values, 1, Field::String(_));
             test_type_conversion!(values, 2, Field::String(_));

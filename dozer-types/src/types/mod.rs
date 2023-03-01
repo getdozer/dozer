@@ -323,24 +323,11 @@ impl Display for Record {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Copy)]
-pub struct Commit {
-    pub seq_no: u64,
-    pub lsn: u64,
-}
-
-impl Commit {
-    pub fn new(seq_no: u64, lsn: u64) -> Self {
-        Self { seq_no, lsn }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
-    SnapshottingDone {},
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]

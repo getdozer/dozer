@@ -21,6 +21,8 @@ use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
 
+use super::xlog_mapper::MappedReplicationMessage;
+
 pub struct CDCHandler<'a> {
     pub name: String,
     pub connector_id: u64,
@@ -120,18 +122,22 @@ impl<'a> CDCHandler<'a> {
                     .map_err(PostgresConnectorError)?;
 
                 match message {
-                    Some(IngestionMessage::Commit(commit)) => {
-                        self.last_commit_lsn = commit.lsn;
+                    Some(MappedReplicationMessage::Commit(commit)) => {
+                        self.last_commit_lsn = commit.txid;
                     }
-                    Some(IngestionMessage::Begin()) => {
+                    Some(MappedReplicationMessage::Begin) => {
                         self.begin_lsn = lsn;
                         self.seq_no = 0;
                     }
-                    Some(ingestion_message) => {
+                    Some(MappedReplicationMessage::Operation(op)) => {
                         self.seq_no += 1;
                         if self.begin_lsn != self.offset_lsn || self.offset < self.seq_no {
                             self.ingestor
-                                .handle_message(((self.begin_lsn, self.seq_no), ingestion_message))
+                                .handle_message(IngestionMessage::new_op(
+                                    self.begin_lsn,
+                                    self.seq_no,
+                                    op,
+                                ))
                                 .map_err(ConnectorError::IngestorError)?;
                         }
                     }

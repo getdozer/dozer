@@ -119,4 +119,6 @@ pub trait Sink: Send + Sync + Debug {
         state: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError>;
+
+    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError>;
 }

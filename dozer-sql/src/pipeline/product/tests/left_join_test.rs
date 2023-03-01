@@ -10,6 +10,7 @@ use dozer_core::node::{
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::SourceStates;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
@@ -411,7 +412,7 @@ impl Source for TestSource {
             // ),
         ];
 
-        for operation in operations.iter().enumerate() {
+        for (index, (op, port)) in operations.into_iter().enumerate() {
             // match operation.1.clone().0 {
             //     Operation::Delete { old } => {
             //         info!("s{}: - {:?}", operation.1.clone().1, old.values)
@@ -428,13 +429,8 @@ impl Source for TestSource {
             //         )
             //     }
             // }
-            fw.send(
-                operation.0.try_into().unwrap(),
-                0,
-                operation.1.clone().0,
-                operation.1.clone().1,
-            )
-            .unwrap();
+            fw.send(IngestionMessage::new_op(index as u64, 0, op), port)
+                .unwrap();
         }
 
         loop {
@@ -508,9 +504,6 @@ impl Sink for TestSink {
             Operation::Update { old, new } => {
                 info!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
-            Operation::SnapshottingDone {} => {
-                info!("o0:-> SnapshottingDone")
-            }
         }
 
         self.current += 1;
@@ -525,6 +518,10 @@ impl Sink for TestSink {
     }
 
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

@@ -136,9 +136,10 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 })?;
 
                                 ingestor
-                                    .handle_message((
-                                        (0, 0),
-                                        IngestionMessage::OperationEvent(Operation::Update {
+                                    .handle_message(IngestionMessage::new_op(
+                                        0,
+                                        0,
+                                        Operation::Update {
                                             old: Record {
                                                 schema_id: Some(SchemaIdentifier {
                                                     id: 1,
@@ -155,7 +156,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                 values: new,
                                                 version: None,
                                             },
-                                        }),
+                                        },
                                     ))
                                     .map_err(ConnectorError::IngestorError)?;
                             }
@@ -168,9 +169,10 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     })?;
 
                                 ingestor
-                                    .handle_message((
-                                        (0, 0),
-                                        IngestionMessage::OperationEvent(Operation::Delete {
+                                    .handle_message(IngestionMessage::new_op(
+                                        0,
+                                        0,
+                                        Operation::Delete {
                                             old: Record {
                                                 schema_id: Some(SchemaIdentifier {
                                                     id: 1,
@@ -179,7 +181,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                 values: old,
                                                 version: None,
                                             },
-                                        }),
+                                        },
                                     ))
                                     .map_err(ConnectorError::IngestorError)?;
                             }
@@ -196,9 +198,10 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 })?;
 
                                 ingestor
-                                    .handle_message((
-                                        (0, 0),
-                                        IngestionMessage::OperationEvent(Operation::Insert {
+                                    .handle_message(IngestionMessage::new_op(
+                                        0,
+                                        0,
+                                        Operation::Insert {
                                             new: Record {
                                                 schema_id: Some(SchemaIdentifier {
                                                     id: 1,
@@ -207,7 +210,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                 values: new,
                                                 version: None,
                                             },
-                                        }),
+                                        },
                                     ))
                                     .map_err(ConnectorError::IngestorError)?;
                             }

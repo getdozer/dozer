@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use dozer_types::ingestion_types::{GrpcConfig, IngestionMessage};
+use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::info;
 use dozer_types::serde_json;
 use dozer_types::types::{Schema, SchemaIdentifier, SourceSchema};
@@ -27,16 +27,6 @@ pub struct GrpcConnector {
 impl GrpcConnector {
     pub fn new(id: u64, name: String, config: GrpcConfig) -> Self {
         Self { id, name, config }
-    }
-
-    pub fn push(
-        &mut self,
-        ingestor: Ingestor,
-        msg: IngestionMessage,
-    ) -> Result<(), ConnectorError> {
-        ingestor
-            .handle_message(((0, 0), msg))
-            .map_err(ConnectorError::IngestorError)
     }
 
     pub fn parse_schemas(config: &GrpcConfig) -> Result<Vec<SourceSchema>, ConnectorError> {

@@ -105,10 +105,6 @@ pub async fn run(
     );
     let batch_iter = BatchIterator::new(config.from_block, config.to_block, config.batch_size);
 
-    ingestor
-        .handle_message(((config.from_block, 0), IngestionMessage::Begin()))
-        .map_err(ConnectorError::IngestorError)?;
-
     let mut errors: Vec<ConnectorError> = vec![];
     for batch in batch_iter {
         for retry in 0..RETRIES {
@@ -124,9 +120,8 @@ pub async fn run(
                         let ops = map_trace_to_ops(&result.result);
 
                         for op in ops {
-                            let message = IngestionMessage::OperationEvent(op);
                             ingestor
-                                .handle_message(((batch.0, 0), message))
+                                .handle_message(IngestionMessage::new_op(batch.0, 0, op))
                                 .map_err(ConnectorError::IngestorError)?;
                         }
                     }
