@@ -59,7 +59,7 @@ pub fn get_indexes(cache: &LmdbRwCache) -> Vec<Vec<(&[u8], &[u8])>> {
     let txn = txn.read();
 
     let mut items = Vec::new();
-    for db in secondary_indexes.read().values() {
+    for db in secondary_indexes.values() {
         let mut cursor = db.open_ro_cursor(txn.txn()).unwrap();
         items.push(
             cursor

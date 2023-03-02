@@ -115,7 +115,6 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         let index_db = *self
             .common
             .secondary_indexes
-            .read()
             .get(&(schema_id, index_scan.index_id))
             .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
 
