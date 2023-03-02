@@ -1,6 +1,6 @@
 use dozer_orchestrator::cli::load_config;
+use std::panic;
 use std::path::PathBuf;
-use std::{panic};
 
 use crate::connectors::postgres::tests::client::TestPostgresClient;
 use dozer_types::models::app_config::Config;
