@@ -3,9 +3,6 @@ name: Dozer Coverage
 on:
   push:
     branches: [main, coverage-yaml-dev]
-  # After merge to main this one can be removed
-  pull_request:
-    branches: [main]
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened, edited]
