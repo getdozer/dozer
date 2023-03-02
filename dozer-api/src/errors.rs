@@ -10,14 +10,13 @@ use dozer_types::{serde_json, thiserror};
 use dozer_cache::errors::CacheError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
+use handlebars::{RenderError, TemplateError};
 use prost_reflect::{DescriptorError, Kind};
 
 #[derive(Error, Debug)]
 pub enum ApiError {
-    #[error(transparent)]
+    #[error("Authentication error: {0}")]
     ApiAuthError(#[from] AuthError),
-    #[error("Failed to generate openapi documentation")]
-    ApiGenerationError(#[source] GenerationError),
     #[error("Failed to open cache: {0}")]
     OpenCache(#[source] CacheError),
     #[error("Failed to open cache: {0}")]
@@ -34,12 +33,12 @@ pub enum ApiError {
     CountFailed(#[source] CacheError),
     #[error("Failed to query cache")]
     QueryFailed(#[source] CacheError),
-    #[error(transparent)]
+    #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
-    #[error(transparent)]
+    #[error("Type error: {0}")]
     TypeError(#[from] TypeError),
-    #[error(transparent)]
-    PortAlreadyInUse(#[from] std::io::Error),
+    #[error("Failed to bind to address {0}: {1}")]
+    FailedToBindToAddress(String, #[source] std::io::Error),
 }
 
 impl ApiError {
@@ -61,22 +60,14 @@ pub enum GrpcError {
     InternalError(#[from] BoxedError),
     #[error("Cannot send to broadcast channel")]
     CannotSendToBroadcastChannel,
-    #[error(transparent)]
-    SerizalizeError(#[from] serde_json::Error),
-    #[error("Missing primary key to query by id: {0}")]
-    MissingPrimaryKeyToQueryById(String),
-    #[error(transparent)]
+    #[error("Generation error: {0}")]
     GenerationError(#[from] GenerationError),
-    #[error(transparent)]
+    #[error("Schema not found: {0}")]
     SchemaNotFound(#[from] CacheError),
-    #[error("{1}: Schema for endpoint: {0} not found")]
-    SchemaNotInitialized(String, #[source] CacheError),
-    #[error(transparent)]
+    #[error("Server reflection error: {0}")]
     ServerReflectionError(#[from] tonic_reflection::server::Error),
-    #[error("Unable to decode query expression: {0}")]
-    UnableToDecodeQueryExpression(String),
-    #[error("{0}")]
-    TransportErrorDetail(String),
+    #[error("Transport error: {0}")]
+    Transport(#[from] tonic::transport::Error),
 }
 impl From<GrpcError> for tonic::Status {
     fn from(input: GrpcError) -> Self {
@@ -92,16 +83,23 @@ impl From<ApiError> for tonic::Status {
 
 #[derive(Error, Debug)]
 pub enum GenerationError {
-    #[error(transparent)]
-    InternalError(#[from] BoxedError),
+    // clippy says `TemplateError` is 136 bytes on stack and much larger than other variants, so we box it.
+    #[error("Handlebars template error: {0}")]
+    HandlebarsTemplate(#[source] Box<TemplateError>),
+    #[error("Handlebars render error: {0}")]
+    HandlebarsRender(#[from] RenderError),
+    #[error("Failed to write to file {0:?}: {1}")]
+    FailedToWriteToFile(PathBuf, #[source] std::io::Error),
     #[error("directory path {0:?} does not exist")]
     DirPathNotExist(PathBuf),
     #[error("DozerType to Proto type not supported: {0}")]
     DozerToProtoTypeNotSupported(String),
-    #[error("Missing primary key to query by id: {0}")]
-    MissingPrimaryKeyToQueryById(String),
-    #[error("Cannot read proto descriptor: {0}")]
-    ProtoDescriptorError(#[source] DescriptorError),
+    #[error("Failed to create proto descriptor: {0}")]
+    FailedToCreateProtoDescriptor(#[source] std::io::Error),
+    #[error("Failed to read proto descriptor: {0}")]
+    FailedToReadProtoDescriptor(#[source] std::io::Error),
+    #[error("Failed to decode proto descriptor: {0}")]
+    FailedToDecodeProtoDescriptor(#[source] DescriptorError),
     #[error("Service not found: {0}")]
     ServiceNotFound(String),
     #[error("Field not found: {field_name} in message: {message_name}")]
@@ -127,7 +125,7 @@ pub enum AuthError {
     InvalidToken,
     #[error("Issuer is invalid")]
     InvalidIssuer,
-    #[error(transparent)]
+    #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
 }
 
@@ -143,16 +141,15 @@ impl actix_web::error::ResponseError for ApiError {
             ApiError::TypeError(_) => StatusCode::BAD_REQUEST,
             ApiError::ApiAuthError(_) => StatusCode::UNAUTHORIZED,
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
-            ApiError::ApiGenerationError(_)
-            | ApiError::SchemaNotFound(_)
-            | ApiError::NoPrimaryKey
-            | ApiError::MultiIndexFetch(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            ApiError::SchemaNotFound(_) | ApiError::NoPrimaryKey | ApiError::MultiIndexFetch(_) => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
             ApiError::InternalError(_)
             | ApiError::OpenCache(_)
             | ApiError::CacheNotFound(_)
             | ApiError::QueryFailed(_)
             | ApiError::CountFailed(_)
-            | ApiError::PortAlreadyInUse(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ApiError::FailedToBindToAddress(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
