@@ -198,6 +198,7 @@ impl Client {
             None => "Snowflake".to_string(),
             Some(driver) => driver.to_string(),
         };
+
         conn_hashmap.insert("Driver".to_string(), driver);
         conn_hashmap.insert("Server".to_string(), config.clone().server);
         conn_hashmap.insert("Port".to_string(), config.clone().port);
