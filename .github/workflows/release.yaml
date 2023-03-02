@@ -72,14 +72,14 @@ jobs:
       matrix:
         os: [ubuntu-20.04]
         include:
-          - os: ubuntu-20.04
-            file_name: dozer
-            target: x86_64-unknown-linux-gnu
-            asset_name: dozer-linux-amd64
-          - os: macos-12
-            file_name: dozer
-            target: x86_64-apple-darwin
-            asset_name: dozer-macos-amd64
+          # - os: ubuntu-20.04
+          #   file_name: dozer
+          #   target: x86_64-unknown-linux-gnu
+          #   asset_name: dozer-linux-amd64
+          # - os: macos-12
+          #   file_name: dozer
+          #   target: x86_64-apple-darwin
+          #   asset_name: dozer-macos-amd64
           - os: macos-12
             file_name: dozer
             target: aarch64-apple-darwin
@@ -104,9 +104,11 @@ jobs:
         shell: bash
         run: |
           brew upgrade openssl
+          brew install pkg-config
+          echo $PKG_CONFIG_PATH
 
       - name: Build package
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --features vendored-openssl --target ${{ matrix.target }}
 
       - name: Prepare release assets
         shell: bash
