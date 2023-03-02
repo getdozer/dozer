@@ -226,12 +226,7 @@ fn test_extract_dag_schemas() {
 
     let users_output = dag_schemas.get_node_output_schemas(users_index);
     assert_eq!(
-        users_output
-            .get(&DEFAULT_PORT_HANDLE)
-            .unwrap()
-            .0
-            .fields
-            .len(),
+        users_output.get(&DEFAULT_PORT_HANDLE).unwrap().fields.len(),
         3
     );
 
@@ -240,30 +235,24 @@ fn test_extract_dag_schemas() {
         countries_output
             .get(&DEFAULT_PORT_HANDLE)
             .unwrap()
-            .0
             .fields
             .len(),
         2
     );
 
     let join_input = dag_schemas.get_node_input_schemas(join_index);
-    assert_eq!(join_input.get(&1).unwrap().0.fields.len(), 3);
-    assert_eq!(join_input.get(&2).unwrap().0.fields.len(), 2);
+    assert_eq!(join_input.get(&1).unwrap().fields.len(), 3);
+    assert_eq!(join_input.get(&2).unwrap().fields.len(), 2);
 
     let join_output = dag_schemas.get_node_output_schemas(join_index);
     assert_eq!(
-        join_output
-            .get(&DEFAULT_PORT_HANDLE)
-            .unwrap()
-            .0
-            .fields
-            .len(),
+        join_output.get(&DEFAULT_PORT_HANDLE).unwrap().fields.len(),
         5
     );
 
     let sink_input = dag_schemas.get_node_input_schemas(sink_index);
     assert_eq!(
-        sink_input.get(&DEFAULT_PORT_HANDLE).unwrap().0.fields.len(),
+        sink_input.get(&DEFAULT_PORT_HANDLE).unwrap().fields.len(),
         5
     );
 }

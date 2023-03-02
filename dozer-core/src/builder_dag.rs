@@ -90,15 +90,7 @@ impl BuilderDag {
 
             // Create and initialize source, processor or sink.
             let input_schemas = dag_metadata.get_node_input_schemas(node_index);
-            let input_schemas = input_schemas
-                .into_iter()
-                .map(|(key, value)| (key, value.0))
-                .collect();
             let output_schemas = dag_metadata.get_node_output_schemas(node_index);
-            let output_schemas = output_schemas
-                .into_iter()
-                .map(|(key, value)| (key, value.0))
-                .collect();
 
             let node = &dag_metadata.graph()[node_index];
             let temp_node_kind = match &node.kind {

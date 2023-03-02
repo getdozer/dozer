@@ -52,12 +52,12 @@ pub struct NodeType<T> {
 pub struct DagMetadata<T> {
     /// Base path of all node storages.
     path: PathBuf,
-    graph: daggy::Dag<NodeType<T>, EdgeType<T>>,
+    graph: daggy::Dag<NodeType<T>, EdgeType>,
 }
 
-impl<T: Clone> DagHaveSchemas for DagMetadata<T> {
+impl<T> DagHaveSchemas for DagMetadata<T> {
     type NodeType = NodeType<T>;
-    type EdgeType = EdgeType<T>;
+    type EdgeType = EdgeType;
 
     fn graph(&self) -> &daggy::Dag<Self::NodeType, Self::EdgeType> {
         &self.graph
@@ -65,12 +65,10 @@ impl<T: Clone> DagHaveSchemas for DagMetadata<T> {
 }
 
 impl<T> DagMetadata<T> {
-    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType<T>> {
+    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
         self.graph
     }
-}
 
-impl<T: Clone> DagMetadata<T> {
     /// Returns `Ok` if validation passes, `Err` otherwise.
     pub fn new(dag_schemas: DagSchemas<T>, path: PathBuf) -> Result<Self, ExecutionError> {
         // Load node metadata.
@@ -343,10 +341,10 @@ fn deserialize_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, OpIdent
     (source, op_id)
 }
 
-fn validate_schemas<T>(
+fn validate_schemas(
     node_handle: &NodeHandle,
     typ: SchemaType,
-    current: &HashMap<PortHandle, (Schema, T)>,
+    current: &HashMap<PortHandle, Schema>,
     existing: &HashMap<PortHandle, Schema>,
 ) -> Result<(), ExecutionError> {
     if existing.len() != current.len() {
@@ -359,7 +357,7 @@ fn validate_schemas<T>(
             },
         });
     }
-    for (port, (current_schema, _)) in current {
+    for (port, current_schema) in current {
         let existing_schema =
             existing
                 .get(port)
