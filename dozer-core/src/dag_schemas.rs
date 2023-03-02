@@ -102,12 +102,18 @@ pub struct DagSchemas<T> {
     graph: daggy::Dag<NodeType<T>, EdgeType<T>>,
 }
 
+impl<T> DagSchemas<T> {
+    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType<T>> {
+        self.graph
+    }
+}
+
 impl<T: Clone + Debug> DagSchemas<T> {
     /// Validate and populate the schemas, the resultant DAG will have the exact same structure as the input DAG,
     /// with validated schema information on the edges.
-    pub fn new(dag: &Dag<T>) -> Result<Self, ExecutionError> {
-        validate_connectivity(dag);
-        let graph = populate_schemas(dag.graph())?;
+    pub fn new(dag: Dag<T>) -> Result<Self, ExecutionError> {
+        validate_connectivity(&dag);
+        let graph = populate_schemas(dag.into_graph())?;
         Ok(Self { graph })
     }
 
@@ -218,11 +224,11 @@ fn validate_connectivity<T>(dag: &Dag<T>) {
 
 /// In topological order, pass output schemas to downstream nodes' input schemas.
 fn populate_schemas<T: Clone + Debug>(
-    dag: &daggy::Dag<NodeType<T>, DagEdgeType>,
+    dag: daggy::Dag<NodeType<T>, DagEdgeType>,
 ) -> Result<daggy::Dag<NodeType<T>, EdgeType<T>>, ExecutionError> {
     let mut edges = vec![None; dag.graph().edge_count()];
 
-    for node_index in Topo::new(dag).iter(dag) {
+    for node_index in Topo::new(&dag).iter(&dag) {
         let node = &dag.graph()[node_index];
 
         match &node.kind {
@@ -239,7 +245,7 @@ fn populate_schemas<T: Clone + Debug>(
 
             NodeKind::Processor(processor) => {
                 let input_schemas =
-                    validate_input_schemas(dag, &edges, node_index, processor.get_input_ports())?;
+                    validate_input_schemas(&dag, &edges, node_index, processor.get_input_ports())?;
 
                 let ports = processor.get_output_ports();
 
@@ -254,14 +260,14 @@ fn populate_schemas<T: Clone + Debug>(
 
             NodeKind::Sink(sink) => {
                 let input_schemas =
-                    validate_input_schemas(dag, &edges, node_index, sink.get_input_ports())?;
+                    validate_input_schemas(&dag, &edges, node_index, sink.get_input_ports())?;
                 sink.prepare(input_schemas)?;
             }
         }
     }
 
-    Ok(dag.map(
-        |_, node| node.clone(),
+    Ok(dag.map_owned(
+        |_, node| node,
         |edge, _| edges[edge.index()].take().expect("We traversed every edge"),
     ))
 }

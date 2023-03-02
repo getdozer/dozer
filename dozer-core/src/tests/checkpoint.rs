@@ -75,7 +75,7 @@ fn test_checkpoint_consistency() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
@@ -85,13 +85,13 @@ fn test_checkpoint_consistency() {
     .join()
     .unwrap();
 
-    let dag_schemas = DagSchemas::new(&dag).unwrap();
+    let dag_schemas = DagSchemas::new(dag).unwrap();
 
-    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    let dag_metadata = DagMetadata::new(dag_schemas.clone(), tmp_dir.path().to_path_buf()).unwrap();
     assert!(dag_metadata.check_consistency());
 
     LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{proc_handle}").as_str());
-    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    let dag_metadata = DagMetadata::new(dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
     assert!(!dag_metadata.check_consistency());
 }
 
@@ -137,7 +137,7 @@ fn test_checkpoint_consistency_resume() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
@@ -147,9 +147,9 @@ fn test_checkpoint_consistency_resume() {
     .join()
     .unwrap();
 
-    let dag_schemas = DagSchemas::new(&dag).unwrap();
+    let dag_schemas = DagSchemas::new(dag).unwrap();
 
-    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    let dag_metadata = DagMetadata::new(dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
     assert!(dag_metadata.check_consistency());
 
     let mut dag = Dag::new();
@@ -190,7 +190,7 @@ fn test_checkpoint_consistency_resume() {
     ));
 
     DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
@@ -200,8 +200,8 @@ fn test_checkpoint_consistency_resume() {
     .join()
     .unwrap();
 
-    let dag_schemas = DagSchemas::new(&dag).unwrap();
+    let dag_schemas = DagSchemas::new(dag).unwrap();
 
-    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    let dag_metadata = DagMetadata::new(dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
     assert!(dag_metadata.check_consistency());
 }

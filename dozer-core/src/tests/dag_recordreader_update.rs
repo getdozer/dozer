@@ -321,7 +321,7 @@ fn test_run_dag_record_reader_from_src() {
 
     let tmp_dir = TempDir::new("test").unwrap();
     let options = ExecutorOptions::default();
-    DagExecutor::new(&dag, tmp_dir.path().to_path_buf(), options)
+    DagExecutor::new(dag, tmp_dir.path().to_path_buf(), options)
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)))
         .unwrap()

@@ -222,7 +222,7 @@ fn test_extract_dag_schemas() {
         Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
     ));
 
-    let dag_schemas = chk!(DagSchemas::new(&dag));
+    let dag_schemas = chk!(DagSchemas::new(dag));
 
     let users_output = dag_schemas.get_node_output_schemas(users_index);
     assert_eq!(

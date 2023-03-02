@@ -80,12 +80,12 @@ pub struct DagExecutorJoinHandle {
 
 impl DagExecutor {
     pub fn new<T: Clone + Debug>(
-        dag: &Dag<T>,
+        dag: Dag<T>,
         path: PathBuf,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let builder_dag = BuilderDag::new(&dag_schemas, path, options.max_map_size)?;
+        let builder_dag = BuilderDag::new(dag_schemas, path, options.max_map_size)?;
 
         Ok(Self {
             builder_dag,
@@ -93,9 +93,9 @@ impl DagExecutor {
         })
     }
 
-    pub fn validate<T: Clone + Debug>(dag: &Dag<T>, path: PathBuf) -> Result<(), ExecutionError> {
+    pub fn validate<T: Clone + Debug>(dag: Dag<T>, path: PathBuf) -> Result<(), ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        DagMetadata::new(&dag_schemas, path)?;
+        DagMetadata::new(dag_schemas, path)?;
         Ok(())
     }
 

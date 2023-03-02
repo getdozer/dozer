@@ -326,7 +326,7 @@ impl TestPipeline {
 
         let dag = app.get_dag().unwrap();
 
-        let dag_schemas = DagSchemas::new(&dag)?;
+        let dag_schemas = DagSchemas::new(dag.clone())?;
 
         let sink_index = (|| {
             for (node_index, node) in dag_schemas.graph().node_references() {
@@ -355,12 +355,12 @@ impl TestPipeline {
         })
     }
 
-    pub fn run(&mut self) -> Result<(), ExecutionError> {
+    pub fn run(self) -> Result<(), ExecutionError> {
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
         let exec = DagExecutor::new(
-            &self.dag,
+            self.dag,
             tmp_dir.path().to_path_buf(),
             ExecutorOptions::default(),
         )

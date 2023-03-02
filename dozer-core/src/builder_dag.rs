@@ -54,7 +54,7 @@ pub struct BuilderDag {
 
 impl BuilderDag {
     pub fn new<T: Clone>(
-        dag_schemas: &DagSchemas<T>,
+        dag_schemas: DagSchemas<T>,
         path: PathBuf,
         max_map_size: usize,
     ) -> Result<Self, ExecutionError> {
@@ -140,9 +140,8 @@ impl BuilderDag {
         }
 
         // Create new graph.
-        let graph = dag_schemas.graph().map(
-            |node_index, _| {
-                let node = &dag_metadata.graph()[node_index];
+        let graph = dag_metadata.into_graph().map_owned(
+            |node_index, node| {
                 let (temp_node_kind, storage) = nodes[node_index.index()]
                     .take()
                     .expect("We created all nodes");
@@ -155,7 +154,7 @@ impl BuilderDag {
                     TempNodeKind::Sink(sink) => NodeKind::Sink(sink),
                 };
                 Some(NodeType {
-                    handle: node.handle.clone(),
+                    handle: node.handle,
                     storage,
                     kind: Some(node_kind),
                 })
@@ -163,7 +162,7 @@ impl BuilderDag {
             |_, edge| EdgeType {
                 output_port: edge.output_port,
                 output_port_type: edge.output_port_type,
-                schema: edge.schema.clone(),
+                schema: edge.schema,
                 input_port: edge.input_port,
             },
         );

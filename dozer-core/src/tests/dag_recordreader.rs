@@ -232,7 +232,7 @@ fn test_run_dag_record_reader() {
     };
 
     let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(&dag, tmp_dir.path().to_path_buf(), options)
+    DagExecutor::new(dag, tmp_dir.path().to_path_buf(), options)
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)))
         .unwrap()
@@ -276,7 +276,7 @@ fn test_run_dag_record_reader_from_src() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
@@ -397,7 +397,7 @@ fn test_run_dag_record_reader_from_rowkey_autogen_src() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )

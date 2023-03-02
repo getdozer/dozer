@@ -358,7 +358,7 @@ fn test_app_dag() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )

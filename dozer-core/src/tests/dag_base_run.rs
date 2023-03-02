@@ -119,7 +119,7 @@ fn test_run_dag() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
@@ -164,7 +164,7 @@ fn test_run_dag_and_stop() {
     let tmp_dir = chk!(TempDir::new("test"));
     let running = Arc::new(AtomicBool::new(true));
     let join_handle = DagExecutor::new(
-        &dag,
+        dag.clone(),
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
@@ -176,8 +176,8 @@ fn test_run_dag_and_stop() {
     running.store(false, Ordering::SeqCst);
     join_handle.join().unwrap();
 
-    let dag_schemas = DagSchemas::new(&dag).unwrap();
-    let dag_metadata = DagMetadata::new(&dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
+    let dag_schemas = DagSchemas::new(dag).unwrap();
+    let dag_metadata = DagMetadata::new(dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
     assert!(dag_metadata.check_consistency());
 }
 
@@ -285,7 +285,7 @@ fn test_run_dag_2_sources_stateless() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
@@ -340,7 +340,7 @@ fn test_run_dag_2_sources_stateful() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )
@@ -396,7 +396,7 @@ fn test_run_dag_1_source_2_ports_stateless() {
 
     let tmp_dir = chk!(TempDir::new("test"));
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )

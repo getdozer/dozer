@@ -585,7 +585,7 @@ fn test_pipeline_builder() {
     let tmp_dir = TempDir::new("test").unwrap();
 
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )

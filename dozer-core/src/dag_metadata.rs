@@ -64,27 +64,28 @@ impl<T: Clone> DagHaveSchemas for DagMetadata<T> {
     }
 }
 
+impl<T> DagMetadata<T> {
+    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType<T>> {
+        self.graph
+    }
+}
+
 impl<T: Clone> DagMetadata<T> {
     /// Returns `Ok` if validation passes, `Err` otherwise.
-    pub fn new(dag_schemas: &DagSchemas<T>, path: PathBuf) -> Result<Self, ExecutionError> {
-        // Create nodes.
-        let mut nodes = vec![];
+    pub fn new(dag_schemas: DagSchemas<T>, path: PathBuf) -> Result<Self, ExecutionError> {
+        // Load node metadata.
+        let mut metadata = vec![];
         for (node_index, node) in dag_schemas.graph().node_references() {
             let env_name = node_environment_name(&node.handle);
 
-            // Create new env if it doesn't exist.
+            // Return empty metadata if env doesn't exist.
             if !LmdbEnvironmentManager::exists(&path, &env_name) {
                 debug!(
                     "[checkpoint] Node [{}] is at checkpoint {:?}",
                     node.handle,
                     SourceStates::new()
                 );
-                nodes.push(Some(NodeType {
-                    handle: node.handle.clone(),
-                    storage: None,
-                    commits: SourceStates::new(),
-                    kind: node.kind.clone(),
-                }));
+                metadata.push(Some((None, SourceStates::new())));
                 continue;
             }
 
@@ -154,29 +155,33 @@ impl<T: Clone> DagMetadata<T> {
                 &input_schemas,
             )?;
 
-            // Create node.
+            // Push metadata to vec.
             debug!(
                 "[checkpoint] Node [{}] is at checkpoint {:?}",
                 node.handle, commits
             );
-            nodes.push(Some(NodeType {
-                handle: node.handle.clone(),
-                storage: Some(NodeStorage {
+            metadata.push(Some((
+                Some(NodeStorage {
                     master_txn,
                     meta_db,
                 }),
                 commits,
-                kind: node.kind.clone(),
-            }));
+            )));
         }
 
-        let graph = dag_schemas.graph().map(
-            |node_index, _| {
-                nodes[node_index.index()]
+        let graph = dag_schemas.into_graph().map_owned(
+            |node_index, node| {
+                let (storage, commits) = metadata[node_index.index()]
                     .take()
-                    .expect("We created all nodes")
+                    .expect("We loaded all metadata");
+                NodeType {
+                    handle: node.handle,
+                    commits,
+                    storage,
+                    kind: node.kind,
+                }
             },
-            |_, edge| edge.clone(),
+            |_, edge| edge,
         );
         Ok(Self { path, graph })
     }
