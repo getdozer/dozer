@@ -106,7 +106,7 @@ jobs:
           brew upgrade openssl
 
       - name: Build package
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --features vendored-openssl --target ${{ matrix.target }}
 
       - name: Prepare release assets
         shell: bash
