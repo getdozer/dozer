@@ -4,7 +4,7 @@ mod tests {
     use crate::connectors::postgres::connection::helper::map_connection_config;
     use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
     use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
-    use crate::connectors::postgres::test_utils::create_slot;
+    use crate::connectors::postgres::test_utils::{create_slot, retry_drop_active_slot};
     use crate::connectors::postgres::tests::client::TestPostgresClient;
     use crate::connectors::Connector;
     use crate::connectors::TableInfo;
@@ -162,7 +162,9 @@ mod tests {
                 }
             }
 
-            let _ = ReplicationSlotHelper::drop_replication_slot(client_ref, &slot_name);
+            ReplicationSlotHelper::drop_replication_slot(client_ref.clone(), &slot_name)
+                .or_else(|e| retry_drop_active_slot(e, client_ref.clone(), &slot_name))
+                .unwrap();
         })
     }
 }
