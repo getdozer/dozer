@@ -1,7 +1,6 @@
 use super::utils::{
     convert_cache_to_oapi_schema, create_contact_info, create_reference_response, create_response,
 };
-use crate::errors::GenerationError;
 use dozer_types::indexmap::{self, IndexMap};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Map;
@@ -9,7 +8,6 @@ use dozer_types::types::IndexDefinition;
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
 use openapiv3::*;
 use serde_json::{json, Value};
-use tempdir::TempDir;
 
 pub struct OpenApiGenerator<'a> {
     schema: &'a dozer_types::types::Schema,
@@ -245,11 +243,11 @@ impl<'a> OpenApiGenerator<'a> {
 }
 
 impl<'a> OpenApiGenerator<'a> {
-    pub fn generate_oas3(&self) -> Result<OpenAPI, GenerationError> {
+    pub fn generate_oas3(&self) -> OpenAPI {
         let component_schemas = self.generate_component_schema();
         let paths_available = self._generate_available_paths();
 
-        let api = OpenAPI {
+        OpenAPI {
             openapi: "3.0.0".to_owned(),
             info: Info {
                 title: self.endpoint.name.to_uppercase(),
@@ -276,16 +274,7 @@ impl<'a> OpenApiGenerator<'a> {
             paths: paths_available,
             components: Some(component_schemas),
             ..Default::default()
-        };
-        let tmp_dir =
-            TempDir::new("generated").map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(tmp_dir.path().join("openapi.json"))
-            .expect("Couldn't open file");
-        serde_json::to_writer(f, &api).map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-        Ok(api)
+        }
     }
 
     pub fn new(

@@ -126,11 +126,9 @@ impl ProtoGenerator {
         ];
 
         for (name, proto_str) in protos {
-            let mut proto_file =
-                std::fs::File::create(folder_path.join(format!("{name}.proto").as_str()))
-                    .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-            std::io::Write::write_all(&mut proto_file, proto_str.as_bytes())
-                .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+            let proto_path = folder_path.join(format!("{name}.proto"));
+            std::fs::write(&proto_path, proto_str)
+                .map_err(|e| GenerationError::FailedToWriteToFile(proto_path, e))?;
 
             resource_names.push(name.to_string());
         }
@@ -155,11 +153,11 @@ impl ProtoGenerator {
         resources: &[T],
     ) -> Result<(), GenerationError> {
         create_descriptor_set(proto_folder_path, descriptor_path, resources)
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))
+            .map_err(GenerationError::FailedToCreateProtoDescriptor)
     }
 
     pub fn read_descriptor_bytes(descriptor_path: &Path) -> Result<Vec<u8>, GenerationError> {
-        read_file_as_byte(descriptor_path).map_err(|e| GenerationError::InternalError(Box::new(e)))
+        read_file_as_byte(descriptor_path).map_err(GenerationError::FailedToReadProtoDescriptor)
     }
 
     pub fn read_schema(
@@ -168,7 +166,7 @@ impl ProtoGenerator {
     ) -> Result<ServiceDesc, GenerationError> {
         let descriptor_bytes = Self::read_descriptor_bytes(descriptor_path)?;
         let descriptor = DescriptorPool::decode(descriptor_bytes.as_slice())
-            .map_err(GenerationError::ProtoDescriptorError)?;
+            .map_err(GenerationError::FailedToDecodeProtoDescriptor)?;
         ProtoGeneratorImpl::read(&descriptor, schema_name)
     }
 

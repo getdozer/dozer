@@ -14,7 +14,6 @@ dozer-cache = {path = "../dozer-cache"}
 dozer-types = {path = "../dozer-types"}
 dozer-tracing = {path = "../dozer-tracing"}
 handlebars = "4.3.5"
-tempdir = "0.3.7"
 openapiv3 = "1.0.2"
 tonic-build = "0.8.2"
 tokio = { version = "1", features = ["full"] }
@@ -37,3 +36,5 @@ actix-http = "3.3.0"
 tower-http = {version = "0.3.5", features = ["full"]}
 arc-swap = "1.6.0"
 
+[dev-dependencies]
+tempdir = "0.3.7"

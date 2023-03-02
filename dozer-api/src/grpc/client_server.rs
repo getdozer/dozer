@@ -166,14 +166,7 @@ impl ApiServer {
         let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();
         grpc_router
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))
-            .await
-            .map_err(|e| {
-                let inner_error: Box<dyn std::error::Error> = e.into();
-                let detail = inner_error.source();
-                if let Some(detail) = detail {
-                    return GrpcError::TransportErrorDetail(detail.to_string());
-                }
-                GrpcError::TransportErrorDetail(inner_error.to_string())
-            })
+            .await?;
+        Ok(())
     }
 }

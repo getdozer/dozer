@@ -34,9 +34,7 @@ fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI
         vec![format!("http://localhost:{}", "8080")],
     );
 
-    oapi_generator
-        .generate_oas3()
-        .map_err(ApiError::ApiGenerationError)
+    Ok(oapi_generator.generate_oas3())
 }
 
 /// Generated function to return openapi.yaml documentation.

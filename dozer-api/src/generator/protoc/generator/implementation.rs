@@ -68,7 +68,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
         let main_template = include_str!("template/proto.tmpl");
         self.handlebars
             .register_template_string("main", main_template)
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+            .map_err(|e| GenerationError::HandlebarsTemplate(Box::new(e)))?;
         Ok(())
     }
 
@@ -134,24 +134,16 @@ impl<'a> ProtoGeneratorImpl<'a> {
 
         let types_proto = include_str!("../../../../../dozer-types/protos/types.proto");
 
-        let resource_proto = self
-            .handlebars
-            .render("main", &metadata)
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+        let resource_proto = self.handlebars.render("main", &metadata)?;
 
         // Copy types proto file
-        let mut types_file = std::fs::File::create(self.folder_path.join("types.proto"))
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+        let types_path = self.folder_path.join("types.proto");
+        std::fs::write(&types_path, types_proto)
+            .map_err(|e| GenerationError::FailedToWriteToFile(types_path, e))?;
 
         let resource_path = self.folder_path.join(&self.names.proto_file_name);
-        let mut resource_file = std::fs::File::create(resource_path.clone())
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-
-        std::io::Write::write_all(&mut types_file, types_proto.as_bytes())
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-
-        std::io::Write::write_all(&mut resource_file, resource_proto.as_bytes())
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+        std::fs::write(&resource_path, &resource_proto)
+            .map_err(|e| GenerationError::FailedToWriteToFile(resource_path.clone(), e))?;
 
         Ok((resource_proto, resource_path))
     }

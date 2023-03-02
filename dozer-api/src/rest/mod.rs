@@ -148,16 +148,12 @@ impl ApiServer {
         );
         let cors = self.cors.clone();
         let security = self.security.clone();
-        let address = format!("{}:{}", self.host.to_owned(), self.port.to_owned());
+        let address = format!("{}:{}", self.host, self.port);
         let server = HttpServer::new(move || {
-            ApiServer::create_app_entry(
-                security.to_owned(),
-                cors.to_owned(),
-                cache_endpoints.clone(),
-            )
+            ApiServer::create_app_entry(security.clone(), cors.clone(), cache_endpoints.clone())
         })
-        .bind(address.to_owned())
-        .map_err(ApiError::PortAlreadyInUse)?
+        .bind(&address)
+        .map_err(|e| ApiError::FailedToBindToAddress(address, e))?
         .shutdown_timeout(self.shutdown_timeout.to_owned())
         .run();
 
