@@ -1,7 +1,7 @@
 syntax = "proto3";
 package dozer_admin_grpc;
-import "protos/types.proto";
-import "protos/query.proto";
+import "types.proto";
+import "query.proto";
 
 service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (AppResponse);
