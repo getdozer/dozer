@@ -93,12 +93,6 @@ pub struct EthConfig {
     pub provider: Option<EthProviderConfig>,
 }
 
-impl Default for EthProviderConfig {
-    fn default() -> Self {
-        EthProviderConfig::Log(EthLogConfig::default())
-    }
-}
-
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
 pub enum EthProviderConfig {
     #[prost(message, tag = "2")]
@@ -140,8 +134,7 @@ impl EthConfig {
     pub fn convert_to_table(&self) -> PrettyTable {
         let mut table = table!();
 
-        debug_assert!(self.provider.is_some());
-        let provider = self.provider.as_ref().unwrap();
+        let provider = self.provider.as_ref().expect("Must provide provider");
         match provider {
             EthProviderConfig::Log(log) => {
                 table.add_row(row!["provider", "logs"]);
