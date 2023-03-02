@@ -43,7 +43,7 @@ impl TestFramework {
             .execute_list(list)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
-        let mut pipeline =
+        let pipeline =
             TestPipeline::new(final_sql.clone(), source_schema_map, ops, self.dest.clone());
 
         let output_schema = pipeline.get_schema();

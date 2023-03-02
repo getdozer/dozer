@@ -1442,10 +1442,9 @@ dependencies = [
 [[package]]
 name = "daggy"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91a9304e55e9d601a39ae4deaba85406d5c0980e106f65afcf0460e9af1e7602"
+source = "git+https://github.com/getdozer/daggy?branch=feat/map_owned#a8d8d9111c524b33b639698728c579b04c8452fe"
 dependencies = [
- "petgraph",
+ "petgraph 0.6.3",
 ]
 
 [[package]]
@@ -4118,6 +4117,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "petgraph"
+version = "0.6.3"
+source = "git+https://github.com/getdozer/petgraph?branch=feat/map_owned#a8697441c698e72f535129bb299c364411e41836"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
+]
+
+[[package]]
 name = "phf"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4405,7 +4413,7 @@ dependencies = [
  "lazy_static",
  "log",
  "multimap",
- "petgraph",
+ "petgraph 0.6.2",
  "prettyplease",
  "prost",
  "prost-types",

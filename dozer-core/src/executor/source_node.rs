@@ -145,10 +145,12 @@ pub fn create_source_nodes(
     running: Arc<AtomicBool>,
 ) -> (SourceSenderNode, SourceListenerNode) {
     // Get the source node.
-    let node = dag.node_weight_mut(node_index);
-    let node_handle = node.handle.clone();
-    let node_storage = node.storage.clone();
-    let Some(NodeKind::Source(source, last_checkpoint)) = node.kind.take() else {
+    let Some(node) = dag.node_weight_mut(node_index).take() else {
+        panic!("Must pass in a node")
+    };
+    let node_handle = node.handle;
+    let node_storage = node.storage;
+    let NodeKind::Source(source, last_checkpoint) = node.kind else {
         panic!("Must pass in a source node");
     };
 

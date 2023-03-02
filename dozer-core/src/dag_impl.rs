@@ -113,6 +113,11 @@ impl<T> Dag<T> {
         &self.graph
     }
 
+    /// Returns the underlying daggy graph.
+    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
+        self.graph
+    }
+
     /// Adds a source. Panics if the `handle` exists in the `Dag`.
     pub fn add_source(
         &mut self,

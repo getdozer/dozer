@@ -38,10 +38,12 @@ pub struct SinkNode {
 
 impl SinkNode {
     pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
-        let node = dag.node_weight_mut(node_index);
-        let node_handle = node.handle.clone();
-        let node_storage = node.storage.clone();
-        let Some(NodeKind::Sink(sink)) = node.kind.take() else {
+        let Some(node) = dag.node_weight_mut(node_index).take() else {
+            panic!("Must pass in a node")
+        };
+        let node_handle = node.handle;
+        let node_storage = node.storage;
+        let NodeKind::Sink(sink) = node.kind else {
             panic!("Must pass in a sink node");
         };
 

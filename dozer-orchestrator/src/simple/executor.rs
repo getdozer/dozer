@@ -91,7 +91,11 @@ impl Executor {
         app.add_pipeline(pipeline);
 
         let dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
-        let exec = DagExecutor::new(&dag, self.pipeline_dir.clone(), ExecutorOptions::default())?;
+        let exec = DagExecutor::new(
+            dag.clone(),
+            self.pipeline_dir.clone(),
+            ExecutorOptions::default(),
+        )?;
 
         exec.start(self.running.clone())?;
         Ok(dag)
@@ -134,7 +138,7 @@ impl Executor {
             ));
         }
 
-        let exec = DagExecutor::new(&dag, path.to_path_buf(), executor_options)?;
+        let exec = DagExecutor::new(dag, path.to_path_buf(), executor_options)?;
 
         Ok(exec)
     }

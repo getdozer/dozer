@@ -189,7 +189,7 @@ impl PipelineBuilder {
 
         debug!("{}", dag);
 
-        DagExecutor::validate(&dag, self.pipeline_dir.clone())
+        DagExecutor::validate(dag.clone(), self.pipeline_dir.clone())
             .map(|_| {
                 info!("[pipeline] Validation completed");
             })

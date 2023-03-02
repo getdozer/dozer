@@ -247,7 +247,7 @@ impl Orchestrator for SimpleOrchestrator {
         );
 
         let dag = executor.query(sql, sender)?;
-        let dag_schemas = DagSchemas::new(&dag)?;
+        let dag_schemas = DagSchemas::new(dag)?;
 
         let sink_index = (|| {
             for (node_index, node) in dag_schemas.graph().node_references() {
@@ -312,7 +312,7 @@ impl Orchestrator for SimpleOrchestrator {
         let settings = CacheSinkSettings::new(api_dir.clone(), flags, api_security);
         let dag = builder.build(None, self.cache_manager_options.clone(), settings)?;
         // Populate schemas.
-        DagSchemas::new(&dag)?;
+        DagSchemas::new(dag)?;
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {
