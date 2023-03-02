@@ -40,7 +40,7 @@ pub struct NodeType<T> {
     pub handle: NodeHandle,
     /// Checkpoint read from the storage, or empty if the storage isn't created yet.
     pub commits: SourceStates,
-    /// The node's storage.
+    /// The node's storage, if it was created in last dozer run.
     pub storage: Option<NodeStorage>,
     /// The node kind.
     pub kind: NodeKind<T>,

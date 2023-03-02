@@ -108,9 +108,11 @@ impl DagExecutor {
         // Start the threads.
         let mut join_handles = HashMap::new();
         for node_index in node_indexes {
-            let node = &execution_dag.graph()[node_index];
+            let node = execution_dag.graph()[node_index]
+                .as_ref()
+                .expect("We created all nodes");
             let node_handle = node.handle.clone();
-            match &node.kind.as_ref().expect("We created all nodes") {
+            match &node.kind {
                 NodeKind::Source(_, _) => {
                     let (source_sender_node, source_listener_node) = create_source_nodes(
                         &mut execution_dag,

@@ -1,19 +1,14 @@
 use std::{fmt::Debug, path::PathBuf};
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
-use dozer_storage::lmdb_storage::LmdbEnvironmentOptions;
-use dozer_types::{
-    log::info,
-    node::{NodeHandle, OpIdentifier},
-    types::Schema,
-};
+use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
-    dag_metadata::{DagMetadata, NodeStorage},
-    dag_schemas::{DagHaveSchemas, DagSchemas},
+    dag_checkpoint::{DagCheckpoint, NodeKind as CheckpointNodeKind},
+    dag_metadata::NodeStorage,
+    dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
-    node::{OutputPortType, PortHandle, Processor, Sink, Source},
-    NodeKind as DagNodeKind,
+    node::{Processor, Sink, Source},
 };
 
 #[derive(Debug)]
@@ -24,7 +19,7 @@ pub struct NodeType {
     /// The node storage environment.
     pub storage: NodeStorage,
     /// The node kind.
-    pub kind: Option<NodeKind>,
+    pub kind: NodeKind,
 }
 
 #[derive(Debug)]
@@ -35,145 +30,88 @@ pub enum NodeKind {
     Sink(Box<dyn Sink>),
 }
 
-#[derive(Debug)]
-pub struct EdgeType {
-    pub output_port: PortHandle,
-    pub output_port_type: OutputPortType,
-    pub input_port: PortHandle,
-    pub schema: Schema,
-}
-
 /// Builder DAG builds all the sources, processors and sinks.
 /// It also asks each source if its possible to start from the given checkpoint.
 /// If not possible, it resets metadata and updates the checkpoint.
 #[derive(Debug)]
 pub struct BuilderDag {
-    /// Node weights will be moved to execution dag.
-    graph: daggy::Dag<Option<NodeType>, EdgeType>,
+    graph: daggy::Dag<NodeType, EdgeType>,
 }
 
 impl BuilderDag {
-    pub fn new<T: Clone>(
+    pub fn new<T>(
         dag_schemas: DagSchemas<T>,
         path: PathBuf,
         max_map_size: usize,
     ) -> Result<Self, ExecutionError> {
-        // Initial consistency check.
-        let mut dag_metadata = DagMetadata::new(dag_schemas, path)?;
-        if !dag_metadata.check_consistency() {
-            info!("[pipeline] Inconsistent, resetting");
-            dag_metadata.clear();
-            assert!(
-                dag_metadata.check_consistency(),
-                "We just deleted all metadata"
-            );
-        }
+        // Decide the checkpoint to start from.
+        let dag_checkpoint = DagCheckpoint::new(dag_schemas, path, max_map_size)?;
 
-        // Create new nodes.
+        // Create processors and sinks.
         let mut nodes = vec![];
-        let node_indexes = dag_metadata.graph().node_identifiers().collect::<Vec<_>>();
+        let node_indexes = dag_checkpoint
+            .graph()
+            .node_identifiers()
+            .collect::<Vec<_>>();
         for node_index in node_indexes.iter().copied() {
-            // Get or create node storage.
-            let node_storage = if let Some(node_storage) =
-                dag_metadata.node_weight_mut(node_index).storage.take()
-            {
-                node_storage
-            } else {
-                dag_metadata.initialize_node_storage(
-                    node_index,
-                    LmdbEnvironmentOptions {
-                        max_map_sz: max_map_size,
-                        ..LmdbEnvironmentOptions::default()
-                    },
-                )?
-            };
-
             // Create and initialize source, processor or sink.
-            let input_schemas = dag_metadata.get_node_input_schemas(node_index);
-            let output_schemas = dag_metadata.get_node_output_schemas(node_index);
+            let input_schemas = dag_checkpoint.get_node_input_schemas(node_index);
+            let output_schemas = dag_checkpoint.get_node_output_schemas(node_index);
 
-            let node = &dag_metadata.graph()[node_index];
-            let temp_node_kind = match &node.kind {
-                DagNodeKind::Source(source) => {
-                    let source = source.build(output_schemas)?;
-                    TempNodeKind::Source(source)
-                }
-                DagNodeKind::Processor(processor) => {
+            let node = &dag_checkpoint.graph()[node_index];
+            let kind = match &node.kind {
+                CheckpointNodeKind::Source(_) => None,
+                CheckpointNodeKind::Processor(processor) => {
                     let processor = processor.build(
                         input_schemas,
                         output_schemas,
-                        &mut node_storage.master_txn.write(),
+                        &mut node.storage.master_txn.write(),
                     )?;
-                    TempNodeKind::Processor(processor)
+                    Some(NodeKind::Processor(processor))
                 }
-                DagNodeKind::Sink(sink) => {
+                CheckpointNodeKind::Sink(sink) => {
                     let sink = sink.build(input_schemas, &node.commits)?;
-                    TempNodeKind::Sink(sink)
+                    Some(NodeKind::Sink(sink))
                 }
             };
 
-            nodes.push(Some((temp_node_kind, node_storage)));
-        }
-
-        // Check if sources can start from the given checkpoint.
-        for node_index in node_indexes {
-            if let Some((TempNodeKind::Source(source), _)) = &nodes[node_index.index()] {
-                let node = &dag_metadata.graph()[node_index];
-                if let Some(checkpoint) = node.commits.get(&node.handle) {
-                    if !source.can_start_from((checkpoint.txid, checkpoint.seq_in_tx))? {
-                        info!(
-                            "[pipeline] [{}] can not start from {:?}, resetting",
-                            node.handle, checkpoint
-                        );
-                        dag_metadata.clear();
-                    }
-                }
-            }
+            nodes.push(kind);
         }
 
         // Create new graph.
-        let graph = dag_metadata.into_graph().map_owned(
+        let graph = dag_checkpoint.into_graph().map_owned(
             |node_index, node| {
-                let (temp_node_kind, storage) = nodes[node_index.index()]
-                    .take()
-                    .expect("We created all nodes");
-                let node_kind = match temp_node_kind {
-                    TempNodeKind::Source(source) => {
-                        let checkpoint = node.commits.get(&node.handle).copied();
-                        NodeKind::Source(source, checkpoint)
+                if let Some(kind) = nodes[node_index.index()].take() {
+                    NodeType {
+                        handle: node.handle,
+                        storage: node.storage,
+                        kind,
                     }
-                    TempNodeKind::Processor(processor) => NodeKind::Processor(processor),
-                    TempNodeKind::Sink(sink) => NodeKind::Sink(sink),
-                };
-                Some(NodeType {
-                    handle: node.handle,
-                    storage,
-                    kind: Some(node_kind),
-                })
+                } else {
+                    NodeType {
+                        handle: node.handle,
+                        storage: node.storage,
+                        kind: match node.kind {
+                            CheckpointNodeKind::Source((source, checkpoint)) => {
+                                NodeKind::Source(source, checkpoint)
+                            }
+                            CheckpointNodeKind::Processor(_) | CheckpointNodeKind::Sink(_) => {
+                                unreachable!("We created all processors and sinks")
+                            }
+                        },
+                    }
+                }
             },
-            |_, edge| EdgeType {
-                output_port: edge.output_port,
-                output_port_type: edge.output_port_type,
-                schema: edge.schema,
-                input_port: edge.input_port,
-            },
+            |_, edge| edge,
         );
         Ok(BuilderDag { graph })
     }
 
-    pub fn graph(&self) -> &daggy::Dag<Option<NodeType>, EdgeType> {
+    pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
         &self.graph
     }
 
-    pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut Option<NodeType> {
+    pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {
         self.graph
-            .node_weight_mut(node_index)
-            .expect("Invalid node index")
     }
-}
-
-enum TempNodeKind {
-    Source(Box<dyn Source>),
-    Processor(Box<dyn Processor>),
-    Sink(Box<dyn Sink>),
 }
