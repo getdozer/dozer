@@ -40,7 +40,18 @@ jobs:
           --health-retries 5
 
     steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: false
+          haskell: false
+          large-packages: false
+          swap-storage: false
+
       - uses: actions/checkout@v3
+
       - name: Install stable with llvm-tools-preview
         uses: actions-rs/toolchain@v1
         with:
