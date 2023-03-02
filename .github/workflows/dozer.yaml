@@ -14,7 +14,9 @@ concurrency:
 jobs:
   lint:
     timeout-minutes: 60
-    runs-on: ubuntu-latest
+    runs-on:
+      group: Org Larger Runners
+      labels: ubuntu-latest-4-cores
     steps:
       - uses: actions/checkout@v3
 
