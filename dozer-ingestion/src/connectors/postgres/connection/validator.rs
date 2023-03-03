@@ -15,6 +15,7 @@ use postgres_types::PgLsn;
 use regex::Regex;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 pub enum Validations {
     Details,
@@ -178,10 +179,7 @@ fn validate_tables(
         )
         .map_err(InvalidQueryError)?;
 
-    let existing_tables_names: Vec<String> = result
-        .iter()
-        .map(|t| t.clone().try_get(0).unwrap())
-        .collect();
+    let existing_tables_names: Vec<String> = result.iter().map(|t| t.try_get(0).unwrap()).collect();
 
     let tables_columns = client
         .query(
@@ -195,9 +193,9 @@ fn validate_tables(
         let tbl_name: String = r.try_get(0).unwrap();
         let col_name: String = r.try_get(1).unwrap();
 
-        if !table_columns_map.contains_key(&tbl_name) {
+        if let Entry::Vacant(e) = table_columns_map.entry(tbl_name.clone()) {
             let cols = vec![col_name];
-            table_columns_map.insert(tbl_name, cols);
+            e.insert(cols);
         } else {
             let cols = table_columns_map.get_mut(&tbl_name).unwrap();
             cols.push(col_name);
