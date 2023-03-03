@@ -382,21 +382,17 @@ mod tests {
                 .connect(NoTls)
                 .unwrap();
 
-            let user = client
-                .simple_query(
-                    "SELECT usename FROM pg_user WHERE usename = 'dozer_test_without_permission'",
-                )
+            client
+                .simple_query("DROP USER if exists dozer_test_without_permission")
                 .expect("User delete failed");
-
-            if user.len() > 1 {
-                client
-                    .simple_query("DROP USER dozer_test_without_permission")
-                    .expect("User delete failed");
-            }
 
             client
                 .simple_query("CREATE USER dozer_test_without_permission")
                 .expect("User creation failed");
+
+            client
+                .simple_query("ALTER ROLE dozer_test_without_permission WITH NOREPLICATION")
+                .expect("Role update failed");
 
             config.user("dozer_test_without_permission");
 
