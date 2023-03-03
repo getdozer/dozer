@@ -11,7 +11,7 @@ use dozer_sql::pipeline::builder::{OutputNodeInfo, SchemaSQLContext};
 use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::app_config::Config;
+use dozer_types::models::source::Source;
 use dozer_types::{indicatif::MultiProgress, log::debug};
 use std::path::PathBuf;
 
@@ -34,15 +34,22 @@ pub struct OriginalTableInfo {
 }
 
 pub struct PipelineBuilder {
-    config: Config,
+    sources: Vec<Source>,
+    sql: Option<String>,
     api_endpoints: Vec<ApiEndpoint>,
     pipeline_dir: PathBuf,
     progress: MultiProgress,
 }
 impl PipelineBuilder {
-    pub fn new(config: Config, api_endpoints: Vec<ApiEndpoint>, pipeline_dir: PathBuf) -> Self {
+    pub fn new(
+        sources: Vec<Source>,
+        sql: Option<String>,
+        api_endpoints: Vec<ApiEndpoint>,
+        pipeline_dir: PathBuf,
+    ) -> Self {
         Self {
-            config,
+            sources,
+            sql,
             api_endpoints,
             pipeline_dir,
             progress: MultiProgress::new(),
@@ -56,9 +63,7 @@ impl PipelineBuilder {
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let sources = self.config.sources.clone();
-
-        let grouped_connections = SourceBuilder::group_connections(sources);
+        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
 
         validate_grouped_connections(&grouped_connections)?;
 
@@ -70,7 +75,7 @@ impl PipelineBuilder {
         let mut available_output_tables: HashMap<String, OutputTableInfo> = HashMap::new();
 
         // Add all source tables to available output tables
-        for (connection_name, sources) in grouped_connections.clone() {
+        for (connection_name, sources) in &grouped_connections {
             for source in sources {
                 available_output_tables.insert(
                     source.name.clone(),
@@ -82,7 +87,7 @@ impl PipelineBuilder {
             }
         }
 
-        if let Some(sql) = self.config.sql.clone() {
+        if let Some(sql) = &self.sql {
             let query_context = statement_to_pipeline(&sql, &mut pipeline, None)
                 .map_err(OrchestrationError::PipelineError)?;
 

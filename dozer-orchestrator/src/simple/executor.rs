@@ -3,7 +3,6 @@ use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::app_config::Config;
 use dozer_types::types::{Operation, SourceSchema};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -27,28 +26,27 @@ use crate::errors::OrchestrationError;
 use crate::pipeline::source_builder::SourceBuilder;
 
 pub struct Executor {
-    config: Config,
+    sources: Vec<Source>,
+    sql: Option<String>,
     api_endpoints: Vec<ApiEndpoint>,
     pipeline_dir: PathBuf,
     running: Arc<AtomicBool>,
 }
 impl Executor {
     pub fn new(
-        config: Config,
+        sources: Vec<Source>,
+        sql: Option<String>,
         api_endpoints: Vec<ApiEndpoint>,
-        running: Arc<AtomicBool>,
         pipeline_dir: PathBuf,
+        running: Arc<AtomicBool>,
     ) -> Self {
         Self {
-            config,
+            sources,
+            sql,
             api_endpoints,
             pipeline_dir,
             running,
         }
-    }
-
-    pub fn get_connection_groups(&self) -> HashMap<String, Vec<Source>> {
-        SourceBuilder::group_connections(self.config.sources.clone())
     }
 
     // This function is used to run a query using a temporary pipeline
@@ -57,7 +55,7 @@ impl Executor {
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let grouped_connections = self.get_connection_groups();
+        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
 
         let mut pipeline = AppPipeline::new();
         let transform_response = statement_to_pipeline(&sql, &mut pipeline, None)
@@ -124,7 +122,8 @@ impl Executor {
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
-            self.config.clone(),
+            self.sources.clone(),
+            self.sql.clone(),
             self.api_endpoints.clone(),
             self.pipeline_dir.clone(),
         );

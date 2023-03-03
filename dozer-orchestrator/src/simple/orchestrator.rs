@@ -5,7 +5,7 @@ use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir,
-    get_cache_max_map_size, get_executor_options, get_flags, get_grpc_config, get_pipeline_dir,
+    get_cache_manager_options, get_executor_options, get_flags, get_grpc_config, get_pipeline_dir,
     get_rest_config,
 };
 use crate::{flatten_join_handle, Orchestrator};
@@ -17,7 +17,7 @@ use dozer_api::{
     grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
     rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{CacheManager, CacheManagerOptions, LmdbCacheManager};
+use dozer_cache::cache::{CacheManager, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError::InternalError;
@@ -45,20 +45,11 @@ use tokio::sync::oneshot;
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
-    pub cache_manager_options: CacheManagerOptions,
 }
 
 impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
-        let cache_manager_options = CacheManagerOptions {
-            path: Some(get_cache_dir(&config)),
-            max_size: get_cache_max_map_size(&config) as usize,
-            ..CacheManagerOptions::default()
-        };
-        Self {
-            config,
-            cache_manager_options,
-        }
+        Self { config }
     }
 }
 
@@ -87,7 +78,7 @@ impl Orchestrator for SimpleOrchestrator {
             )));
 
             // Open `RoCacheEndpoint`s.
-            let cache_manager = LmdbCacheManager::new(self.cache_manager_options.clone())
+            let cache_manager = LmdbCacheManager::new(get_cache_manager_options(&self.config))
                 .map_err(OrchestrationError::CacheInitFailed)?;
             let cache_endpoints = self
                 .config
@@ -168,7 +159,6 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        let pipeline_home_dir = get_pipeline_dir(&self.config);
         // gRPC notifier channel
         let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
         let (operation_sender, operation_receiver) = channel::unbounded();
@@ -184,17 +174,18 @@ impl Orchestrator for SimpleOrchestrator {
         });
 
         let executor = Executor::new(
-            self.config.clone(),
+            self.config.sources.clone(),
+            self.config.sql.clone(),
             self.config.endpoints.clone(),
+            get_pipeline_dir(&self.config),
             running,
-            pipeline_home_dir,
         );
         let flags = get_flags(self.config.clone());
         let api_security = get_api_security_config(self.config.clone());
         let settings = CacheSinkSettings::new(get_api_dir(&self.config), flags, api_security);
         let dag_executor = executor.create_dag_executor(
             Some((alias_redirected_sender, operation_sender)),
-            self.cache_manager_options.clone(),
+            get_cache_manager_options(&self.config),
             settings,
             get_executor_options(&self.config),
         )?;
@@ -240,10 +231,11 @@ impl Orchestrator for SimpleOrchestrator {
         let pipeline_dir = tempdir::TempDir::new("query4")
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         let executor = Executor::new(
-            self.config.clone(),
+            self.config.sources.clone(),
+            self.config.sql.clone(),
             vec![],
-            running,
             pipeline_dir.into_path(),
+            running,
         );
 
         let dag = executor.query(sql, sender)?;
@@ -290,7 +282,8 @@ impl Orchestrator for SimpleOrchestrator {
         validate_config(&self.config)?;
 
         let builder = PipelineBuilder::new(
-            self.config.clone(),
+            self.config.sources.clone(),
+            self.config.sql.clone(),
             self.config.endpoints.clone(),
             pipeline_home_dir.clone(),
         );
@@ -310,7 +303,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(api_dir.clone(), flags, api_security);
-        let dag = builder.build(None, self.cache_manager_options.clone(), settings)?;
+        let dag = builder.build(None, get_cache_manager_options(&self.config), settings)?;
         // Populate schemas.
         DagSchemas::new(dag)?;
 
