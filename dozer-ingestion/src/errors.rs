@@ -110,6 +110,9 @@ pub enum PostgresConnectorError {
     #[error("Cannot find column {0} in {1}")]
     ColumnNotFound(String, String),
 
+    #[error("Cannot find columns {0}")]
+    ColumnsNotFound(String),
+
     #[error("Failed to create a replication slot : {0}")]
     CreateSlotError(String, #[source] Error),
 

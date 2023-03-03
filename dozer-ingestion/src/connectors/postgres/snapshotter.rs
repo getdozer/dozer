@@ -128,3 +128,236 @@ impl<'a> PostgresSnapshotter<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use dozer_types::{ingestion_types::IngestionMessage, node::OpIdentifier};
+    use rand::Rng;
+    use serial_test::serial;
+
+    use crate::{
+        connectors::{
+            postgres::{
+                connection::helper::map_connection_config,
+                connector::{PostgresConfig, PostgresConnector},
+                tests::client::TestPostgresClient,
+            },
+            TableInfo,
+        },
+        errors::ConnectorError,
+        ingestion::{IngestionConfig, Ingestor},
+        test_util::run_connector_test,
+    };
+
+    use super::PostgresSnapshotter;
+
+    #[test]
+    #[ignore]
+    #[serial]
+    fn test_connector_snapshotter_sync_tables_successfully_1_requested_table() {
+        run_connector_test("postgres", |app_config| {
+            let config = app_config
+                .connections
+                .get(0)
+                .unwrap()
+                .config
+                .as_ref()
+                .unwrap();
+
+            let mut test_client = TestPostgresClient::new(config);
+
+            let mut rng = rand::thread_rng();
+            let table_name = format!("test_table_{}", rng.gen::<u32>());
+            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
+
+            test_client.create_simple_table("public", &table_name);
+            test_client.insert_rows(&table_name, 2, None);
+
+            let tables = vec![TableInfo {
+                name: table_name.clone(),
+                table_name: table_name.clone(),
+                id: 0,
+                columns: None,
+            }];
+
+            let conn_config = map_connection_config(config).unwrap();
+
+            let postgres_config = PostgresConfig {
+                name: connector_name,
+                tables: Some(tables.clone()),
+                config: conn_config.clone(),
+            };
+
+            let connector = PostgresConnector::new(1, postgres_config.clone());
+
+            let input_tables = vec![TableInfo {
+                name: table_name.clone(),
+                table_name: table_name.clone(),
+                id: 0,
+                columns: None,
+            }];
+
+            let ingestion_config = IngestionConfig::default();
+            let (ingestor, mut iterator) = Ingestor::initialize_channel(ingestion_config);
+
+            let snapshotter = PostgresSnapshotter {
+                tables: tables.clone(),
+                conn_config: conn_config.clone(),
+                ingestor: &ingestor,
+                connector_id: connector.id,
+            };
+
+            let actual = snapshotter.sync_tables(input_tables);
+
+            assert!(actual.is_ok());
+
+            let mut i = 0;
+            while i < 2 {
+                if let Some(IngestionMessage {
+                    identifier: OpIdentifier { seq_in_tx, .. },
+                    ..
+                }) = iterator.next()
+                {
+                    assert_eq!(i, seq_in_tx);
+                } else {
+                    panic!("Unexpected operation");
+                }
+                i += 1;
+            }
+        })
+    }
+
+    #[test]
+    #[ignore]
+    #[serial]
+    fn test_connector_snapshotter_sync_tables_successfully_not_match_table() {
+        run_connector_test("postgres", |app_config| {
+            let config = app_config
+                .connections
+                .get(0)
+                .unwrap()
+                .config
+                .as_ref()
+                .unwrap();
+
+            let mut test_client = TestPostgresClient::new(config);
+
+            let mut rng = rand::thread_rng();
+            let table_name = format!("test_table_{}", rng.gen::<u32>());
+            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
+
+            test_client.create_simple_table("public", &table_name);
+            test_client.insert_rows(&table_name, 2, None);
+
+            let tables = vec![TableInfo {
+                name: table_name.clone(),
+                table_name: table_name.clone(),
+                id: 0,
+                columns: None,
+            }];
+
+            let conn_config = map_connection_config(config).unwrap();
+
+            let postgres_config = PostgresConfig {
+                name: connector_name,
+                tables: Some(tables.clone()),
+                config: conn_config.clone(),
+            };
+
+            let connector = PostgresConnector::new(1, postgres_config.clone());
+
+            let input_table_name = String::from("not_existing_table");
+            let input_tables = vec![TableInfo {
+                name: input_table_name.clone(),
+                table_name: input_table_name.clone(),
+                id: 0,
+                columns: None,
+            }];
+
+            let ingestion_config = IngestionConfig::default();
+            let (ingestor, mut _iterator) = Ingestor::initialize_channel(ingestion_config);
+
+            let snapshotter = PostgresSnapshotter {
+                tables: tables.clone(),
+                conn_config: conn_config.clone(),
+                ingestor: &ingestor,
+                connector_id: connector.id,
+            };
+
+            let actual = snapshotter.sync_tables(input_tables);
+
+            assert!(actual.is_err());
+
+            match actual {
+                Ok(_) => panic!("Test failed"),
+                Err(e) => {
+                    assert!(matches!(e, ConnectorError::PostgresConnectorError(_)));
+                }
+            }
+        })
+    }
+
+    #[test]
+    #[ignore]
+    #[serial]
+    fn test_connector_snapshotter_sync_tables_successfully_table_not_exist() {
+        run_connector_test("postgres", |app_config| {
+            let config = app_config
+                .connections
+                .get(0)
+                .unwrap()
+                .config
+                .as_ref()
+                .unwrap();
+
+            let mut rng = rand::thread_rng();
+            let table_name = format!("test_table_{}", rng.gen::<u32>());
+            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
+
+            let tables = vec![TableInfo {
+                name: table_name.clone(),
+                table_name: table_name.clone(),
+                id: 0,
+                columns: None,
+            }];
+
+            let conn_config = map_connection_config(config).unwrap();
+
+            let postgres_config = PostgresConfig {
+                name: connector_name,
+                tables: Some(tables.clone()),
+                config: conn_config.clone(),
+            };
+
+            let connector = PostgresConnector::new(1, postgres_config.clone());
+
+            let input_tables = vec![TableInfo {
+                name: table_name.clone(),
+                table_name: table_name.clone(),
+                id: 0,
+                columns: None,
+            }];
+
+            let ingestion_config = IngestionConfig::default();
+            let (ingestor, mut _iterator) = Ingestor::initialize_channel(ingestion_config);
+
+            let snapshotter = PostgresSnapshotter {
+                tables: tables.clone(),
+                conn_config: conn_config.clone(),
+                ingestor: &ingestor,
+                connector_id: connector.id,
+            };
+
+            let actual = snapshotter.sync_tables(input_tables);
+
+            assert!(actual.is_err());
+
+            match actual {
+                Ok(_) => panic!("Test failed"),
+                Err(e) => {
+                    assert!(matches!(e, ConnectorError::PostgresConnectorError(_)));
+                }
+            }
+        })
+    }
+}

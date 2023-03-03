@@ -21,8 +21,8 @@ where
 }
 
 #[test]
-#[serial]
 #[ignore]
+#[serial]
 fn test_connector_get_tables() {
     run_connector_test("postgres", |app_config| {
         let mut client = get_client(app_config);
@@ -55,8 +55,8 @@ fn test_connector_get_tables() {
 }
 
 #[test]
-#[serial]
 #[ignore]
+#[serial]
 fn test_connector_get_schema_with_selected_columns() {
     run_connector_test("postgres", |app_config| {
         let mut client = get_client(app_config);
@@ -96,8 +96,8 @@ fn test_connector_get_schema_with_selected_columns() {
 }
 
 #[test]
-#[serial]
 #[ignore]
+#[serial]
 fn test_connector_get_schema_without_selected_columns() {
     run_connector_test("postgres", |app_config| {
         let mut client = get_client(app_config);
@@ -136,8 +136,8 @@ fn test_connector_get_schema_without_selected_columns() {
 }
 
 #[test]
-#[serial]
 #[ignore]
+#[serial]
 fn test_connector_view_cannot_be_used() {
     run_connector_test("postgres", |app_config| {
         let mut client = get_client(app_config);

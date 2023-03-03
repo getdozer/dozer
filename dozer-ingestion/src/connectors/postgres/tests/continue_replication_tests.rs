@@ -20,8 +20,8 @@ mod tests {
     use tokio_postgres::config::ReplicationMode;
 
     #[test]
-    #[serial]
     #[ignore]
+    #[serial]
     fn test_connector_continue_replication() {
         run_connector_test("postgres", |app_config| {
             let config = app_config
@@ -69,8 +69,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     #[ignore]
+    #[serial]
     fn test_connector_continue_replication_from_lsn() {
         run_connector_test("postgres", |app_config| {
             let config = app_config
