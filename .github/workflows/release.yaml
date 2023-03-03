@@ -99,9 +99,11 @@ jobs:
         if: matrix.target == 'aarch64-apple-darwin'
         shell: bash
         run: |
-          brew upgrade openssl
           brew info openssl
-          brew install pkg-config
+          echo 'export PATH="/usr/local/opt/openssl@3/bin:$PATH"' >> /Users/runner/.bash_profile
+          echo 'export LDFLAGS="-L/usr/local/opt/openssl@3/lib"' >> /Users/runner/.bash_profile
+          echo 'export CPPFLAGS="-I/usr/local/opt/openssl@3/include"' >> /Users/runner/.bash_profile
+          echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"' >> /Users/runner/.bash_profile
           echo $PKG_CONFIG_PATH
           
       - name: Install Protoc
