@@ -173,11 +173,12 @@ impl Orchestrator for SimpleOrchestrator {
             warn!("Shutting down internal pipeline server");
         });
 
+        let pipeline_dir = get_pipeline_dir(&self.config);
         let executor = Executor::new(
-            self.config.sources.clone(),
-            self.config.sql.clone(),
-            self.config.endpoints.clone(),
-            get_pipeline_dir(&self.config),
+            &self.config.sources,
+            self.config.sql.as_deref(),
+            &self.config.endpoints,
+            &pipeline_dir,
             running,
         );
         let flags = get_flags(self.config.clone());
@@ -231,10 +232,10 @@ impl Orchestrator for SimpleOrchestrator {
         let pipeline_dir = tempdir::TempDir::new("query4")
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         let executor = Executor::new(
-            self.config.sources.clone(),
-            self.config.sql.clone(),
-            vec![],
-            pipeline_dir.into_path(),
+            &self.config.sources,
+            self.config.sql.as_deref(),
+            &[],
+            pipeline_dir.path(),
             running,
         );
 

@@ -5,7 +5,7 @@ use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{Operation, SourceSchema};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -25,19 +25,19 @@ use OrchestrationError::ExecutionError;
 use crate::errors::OrchestrationError;
 use crate::pipeline::source_builder::SourceBuilder;
 
-pub struct Executor {
-    sources: Vec<Source>,
-    sql: Option<String>,
-    api_endpoints: Vec<ApiEndpoint>,
-    pipeline_dir: PathBuf,
+pub struct Executor<'a> {
+    sources: &'a [Source],
+    sql: Option<&'a str>,
+    api_endpoints: &'a [ApiEndpoint],
+    pipeline_dir: &'a Path,
     running: Arc<AtomicBool>,
 }
-impl Executor {
+impl<'a> Executor<'a> {
     pub fn new(
-        sources: Vec<Source>,
-        sql: Option<String>,
-        api_endpoints: Vec<ApiEndpoint>,
-        pipeline_dir: PathBuf,
+        sources: &'a [Source],
+        sql: Option<&'a str>,
+        api_endpoints: &'a [ApiEndpoint],
+        pipeline_dir: &'a Path,
         running: Arc<AtomicBool>,
     ) -> Self {
         Self {
@@ -91,7 +91,7 @@ impl Executor {
         let dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
         let exec = DagExecutor::new(
             dag.clone(),
-            self.pipeline_dir.clone(),
+            self.pipeline_dir.to_path_buf(),
             ExecutorOptions::default(),
         )?;
 
