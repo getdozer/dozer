@@ -63,7 +63,7 @@ impl<'a> PipelineBuilder<'a> {
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let grouped_connections = SourceBuilder::group_connections(&self.sources);
+        let grouped_connections = SourceBuilder::group_connections(self.sources);
 
         validate_grouped_connections(&grouped_connections)?;
 
@@ -88,7 +88,7 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(&sql, &mut pipeline, None)
+            let query_context = statement_to_pipeline(sql, &mut pipeline, None)
                 .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {

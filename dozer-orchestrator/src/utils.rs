@@ -89,8 +89,8 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
 
 pub fn get_cache_manager_options(config: &Config) -> CacheManagerOptions {
     CacheManagerOptions {
-        path: Some(get_cache_dir(&config)),
-        max_size: get_cache_max_map_size(&config) as usize,
+        path: Some(get_cache_dir(config)),
+        max_size: get_cache_max_map_size(config) as usize,
         ..CacheManagerOptions::default()
     }
 }

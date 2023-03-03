@@ -55,7 +55,7 @@ impl<'a> Executor<'a> {
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let grouped_connections = SourceBuilder::group_connections(&self.sources);
+        let grouped_connections = SourceBuilder::group_connections(self.sources);
 
         let mut pipeline = AppPipeline::new();
         let transform_response = statement_to_pipeline(&sql, &mut pipeline, None)
@@ -122,10 +122,10 @@ impl<'a> Executor<'a> {
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
-            &self.sources,
-            self.sql.as_deref(),
-            &self.api_endpoints,
-            &self.pipeline_dir,
+            self.sources,
+            self.sql,
+            self.api_endpoints,
+            self.pipeline_dir,
         );
 
         let dag = builder.build(notifier, cache_manager_options, settings)?;
