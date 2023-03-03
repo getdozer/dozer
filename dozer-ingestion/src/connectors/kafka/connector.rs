@@ -5,20 +5,20 @@ use dozer_types::ingestion_types::KafkaConfig;
 
 use dozer_types::types::SourceSchema;
 
-use dozer_types::log::{info};
+use dozer_types::log::info;
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
 use crate::connectors::kafka::debezium::schema_registry::SchemaRegistry;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumStreamConsumer;
 use crate::errors::DebeziumError::{DebeziumConnectionError, TopicNotDefined};
 
+use crate::connectors::kafka::stream_consumer::StreamConsumer as DebeziumConsumer;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, ConsumerContext, DefaultConsumerContext, Rebalance};
 use rdkafka::error::KafkaResult;
 use rdkafka::topic_partition_list::TopicPartitionList;
-use crate::connectors::kafka::stream_consumer::StreamConsumer as DebeziumConsumer;
 
 // A context can be used to change the behavior of producers and consumers by adding callbacks
 // that will be executed by librdkafka.
@@ -109,8 +109,7 @@ fn run(broker: String, topic: &str, ingestor: &Ingestor) -> Result<(), Connector
         .create_with_context(context)
         .map_err(DebeziumConnectionError)?;
 
-    con.subscribe(&[topic])
-        .map_err(DebeziumConnectionError)?;
-        
+    con.subscribe(&[topic]).map_err(DebeziumConnectionError)?;
+
     consumer.run(con, ingestor)
 }
