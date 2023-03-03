@@ -64,8 +64,11 @@ fn test_simple_aggregation() {
         )
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    let mut storage = LmdbEnvironmentManager::create(
+        tempdir::TempDir::new("test").unwrap().path(),
+        "aggregation",
+    )
+    .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     processor
         .init(storage.as_environment())

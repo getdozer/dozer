@@ -78,9 +78,12 @@ fn test_planner_with_aggregator() {
 
     projection_planner.plan(*statement).unwrap();
 
-    let storage =
-        LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
-            .unwrap();
+    let storage = LmdbEnvironmentManager::create(
+        tempdir::TempDir::new("test").unwrap().path(),
+        "aggregation",
+        Default::default(),
+    )
+    .unwrap();
 
     let tx = storage.create_txn().unwrap();
     let processor = AggregationProcessor::new(
