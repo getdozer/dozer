@@ -1,5 +1,4 @@
 use dozer_orchestrator::cli::load_config;
-use include_dir::{include_dir, Dir};
 use std::ops::Deref;
 use std::panic;
 use std::path::PathBuf;
@@ -19,7 +18,6 @@ fn warm_up(app_config: &Config) {
             .port(connection_config.port as u16);
 
         let mut client = TestPostgresClient::new_with_postgres_config(config);
-
         client.execute_query(&format!(
             "DROP DATABASE IF EXISTS {}",
             connection_config.database
@@ -35,6 +33,7 @@ pub fn run_connector_test<T: FnOnce(Config) + panic::UnwindSafe>(db_type: &str, 
         .unwrap_or_else(|_e| panic!("Cannot read file"));
 
     warm_up(&dozer_config);
+
     let result = panic::catch_unwind(|| {
         test(dozer_config);
     });
@@ -51,6 +50,7 @@ pub fn get_config(app_config: Config) -> tokio_postgres::Config {
             .dbname(&connection.database)
             .user(&connection.user)
             .host(&connection.host)
+            .password(&connection.password)
             .port(connection.port as u16)
             .deref()
             .clone()

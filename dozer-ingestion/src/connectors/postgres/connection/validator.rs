@@ -178,6 +178,32 @@ fn validate_tables(
         )
         .map_err(InvalidQueryError)?;
 
+    let existing_tables_names: Vec<String> = result
+        .iter()
+        .map(|t| t.clone().try_get(0).unwrap())
+        .collect();
+
+    let tables_columns = client
+        .query(
+            "SELECT table_name, column_name FROM information_schema.columns WHERE table_name = ANY($1)",
+            &[&existing_tables_names],
+        )
+        .map_err(InvalidQueryError)?;
+
+    let mut table_columns_map: HashMap<String, Vec<String>> = HashMap::new();
+    tables_columns.iter().for_each(|r| {
+        let tbl_name: String = r.try_get(0).unwrap();
+        let col_name: String = r.try_get(1).unwrap();
+
+        if !table_columns_map.contains_key(&tbl_name) {
+            let cols = vec![col_name];
+            table_columns_map.insert(tbl_name, cols);
+        } else {
+            let cols = table_columns_map.get_mut(&tbl_name).unwrap();
+            cols.push(col_name);
+        }
+    });
+
     let mut error_columns = String::new();
 
     for r in result.iter() {
@@ -191,17 +217,10 @@ fn validate_tables(
             .columns;
 
         if let Some(column_info) = columns {
-            let column_result = client
-                .query(
-                    "SELECT column_name FROM information_schema.columns WHERE table_name = ($1)",
-                    &[&table_name],
-                )
-                .map_err(InvalidQueryError)?;
+            let existing_cols = table_columns_map.get(&table_name).unwrap();
 
             for c in column_info.iter() {
-                let existing_columns: Vec<String> =
-                    column_result.iter().map(|x| x.get(0)).collect();
-                if !existing_columns.contains(&c.name) {
+                if !existing_cols.contains(&c.name) {
                     error_columns =
                         format!("{0}{1} in {2} table, ", error_columns, c.name, table_name);
                 }
@@ -314,10 +333,13 @@ mod tests {
         validate_columns_names, validate_connection, validate_tables, validate_tables_names,
     };
     use crate::connectors::postgres::connector::ReplicationSlotInfo;
+    use crate::connectors::postgres::test_utils::get_client;
     use crate::connectors::{ColumnInfo, TableInfo};
     use crate::errors::PostgresConnectorError;
+    use crate::errors::PostgresSchemaError::UnsupportedTableType;
     use crate::test_util::{get_config, run_connector_test};
     use postgres_types::PgLsn;
+    use rand::Rng;
     use serial_test::serial;
     use std::panic;
     use tokio_postgres::NoTls;
@@ -434,7 +456,7 @@ mod tests {
                 .unwrap();
 
             client
-                .simple_query("CREATE TABLE IF NOT EXISTS existing(column_1 serial PRIMARY KEY);")
+                .simple_query("CREATE TABLE IF NOT EXISTS existing(column_1 serial PRIMARY KEY, column_2 serial);")
                 .expect("User creation failed");
 
             let columns = vec![
