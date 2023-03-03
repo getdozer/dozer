@@ -119,11 +119,9 @@ pub async fn run(
                     for result in arr {
                         let ops = map_trace_to_ops(&result.result);
 
-                        for op in ops {
-                            ingestor
-                                .handle_message(IngestionMessage::new_op(batch.0, 0, op))
-                                .map_err(ConnectorError::IngestorError)?;
-                        }
+                        ingestor
+                            .handle_message(IngestionMessage::new_op(batch.0, 0, ops))
+                            .map_err(ConnectorError::IngestorError)?;
                     }
 
                     break;

@@ -10,5 +10,5 @@ pub trait SourceChannelForwarder: Send + Sync {
 }
 
 pub trait ProcessorChannelForwarder {
-    fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError>;
+    fn send(&mut self, op: Vec<Operation>, port: PortHandle) -> Result<(), ExecutionError>;
 }

@@ -48,7 +48,7 @@ pub(crate) enum InputPortState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
-    Op { op: Operation },
+    Op { ops: Vec<Operation> },
     Commit { epoch: Epoch },
     Terminate,
     SnapshottingDone {},

@@ -39,7 +39,11 @@ impl StateWriter {
         }
     }
 
-    fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
+    fn store_op(
+        &mut self,
+        op: Vec<Operation>,
+        port: &PortHandle,
+    ) -> Result<Vec<Operation>, ExecutionError> {
         if let Some(writer) = self.record_writers.get_mut(port) {
             writer.write(op, &self.tx)
         } else {
@@ -71,9 +75,13 @@ struct ChannelManager {
 
 impl ChannelManager {
     #[inline]
-    fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
+    fn send_op(
+        &mut self,
+        mut ops: Vec<Operation>,
+        port_id: PortHandle,
+    ) -> Result<(), ExecutionError> {
         if self.stateful {
-            op = self.state_writer.store_op(op, &port_id)?;
+            ops = self.state_writer.store_op(ops, &port_id)?;
         }
 
         let senders = self
@@ -81,7 +89,7 @@ impl ChannelManager {
             .get(&port_id)
             .ok_or(InvalidPortHandle(port_id))?;
 
-        let exec_op = ExecutorOperation::Op { op };
+        let exec_op = ExecutorOperation::Op { ops };
 
         if let Some((last_sender, senders)) = senders.split_last() {
             for sender in senders {
@@ -272,7 +280,7 @@ impl ProcessorChannelManager {
 }
 
 impl ProcessorChannelForwarder for ProcessorChannelManager {
-    fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
+    fn send(&mut self, op: Vec<Operation>, port: PortHandle) -> Result<(), ExecutionError> {
         self.manager.send_op(op, port)
     }
 }

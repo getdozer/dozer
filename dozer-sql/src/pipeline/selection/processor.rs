@@ -45,62 +45,65 @@ impl Processor for SelectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        ops: Vec<Operation>,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        match op {
-            Operation::Delete { ref old } => {
-                if self
-                    .expression
-                    .evaluate(old, &self.input_schema)
-                    .map_err(|e| InternalError(Box::new(e)))?
-                    == Field::Boolean(true)
-                {
-                    let _ = fw.send(op, DEFAULT_PORT_HANDLE);
+        for op in ops {
+            match op {
+                Operation::Delete { ref old } => {
+                    if self
+                        .expression
+                        .evaluate(old, &self.input_schema)
+                        .map_err(|e| InternalError(Box::new(e)))?
+                        == Field::Boolean(true)
+                    {
+                        let _ = fw.send(vec![op], DEFAULT_PORT_HANDLE);
+                    }
                 }
-            }
-            Operation::Insert { ref new } => {
-                if self
-                    .expression
-                    .evaluate(new, &self.input_schema)
-                    .map_err(|e| InternalError(Box::new(e)))?
-                    == Field::Boolean(true)
-                {
-                    let _ = fw.send(op, DEFAULT_PORT_HANDLE);
+                Operation::Insert { ref new } => {
+                    if self
+                        .expression
+                        .evaluate(new, &self.input_schema)
+                        .map_err(|e| InternalError(Box::new(e)))?
+                        == Field::Boolean(true)
+                    {
+                        let _ = fw.send(vec![op], DEFAULT_PORT_HANDLE);
+                    }
                 }
-            }
-            Operation::Update { ref old, ref new } => {
-                let old_fulfilled = self
-                    .expression
-                    .evaluate(old, &self.input_schema)
-                    .map_err(|e| InternalError(Box::new(e)))?
-                    == Field::Boolean(true);
-                let new_fulfilled = self
-                    .expression
-                    .evaluate(new, &self.input_schema)
-                    .map_err(|e| InternalError(Box::new(e)))?
-                    == Field::Boolean(true);
-                match (old_fulfilled, new_fulfilled) {
-                    (true, true) => {
-                        // both records fulfills the WHERE condition, forward the operation
-                        let _ = fw.send(op, DEFAULT_PORT_HANDLE);
-                    }
-                    (true, false) => {
-                        // the old record fulfills the WHERE condition while then new one doesn't, forward a delete operation
-                        let _ = fw.send(self.delete(old), DEFAULT_PORT_HANDLE);
-                    }
-                    (false, true) => {
-                        // the old record doesn't fulfill the WHERE condition while then new one does, forward an insert operation
-                        let _ = fw.send(self.insert(new), DEFAULT_PORT_HANDLE);
-                    }
-                    (false, false) => {
-                        // both records doesn't fulfill the WHERE condition, don't forward the operation
+                Operation::Update { ref old, ref new } => {
+                    let old_fulfilled = self
+                        .expression
+                        .evaluate(old, &self.input_schema)
+                        .map_err(|e| InternalError(Box::new(e)))?
+                        == Field::Boolean(true);
+                    let new_fulfilled = self
+                        .expression
+                        .evaluate(new, &self.input_schema)
+                        .map_err(|e| InternalError(Box::new(e)))?
+                        == Field::Boolean(true);
+                    match (old_fulfilled, new_fulfilled) {
+                        (true, true) => {
+                            // both records fulfills the WHERE condition, forward the operation
+                            let _ = fw.send(vec![op], DEFAULT_PORT_HANDLE);
+                        }
+                        (true, false) => {
+                            // the old record fulfills the WHERE condition while then new one doesn't, forward a delete operation
+                            let _ = fw.send(vec![self.delete(old)], DEFAULT_PORT_HANDLE);
+                        }
+                        (false, true) => {
+                            // the old record doesn't fulfill the WHERE condition while then new one does, forward an insert operation
+                            let _ = fw.send(vec![self.insert(new)], DEFAULT_PORT_HANDLE);
+                        }
+                        (false, false) => {
+                            // both records doesn't fulfill the WHERE condition, don't forward the operation
+                        }
                     }
                 }
             }
         }
+
         Ok(())
     }
 }

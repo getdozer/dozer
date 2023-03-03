@@ -91,13 +91,13 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     .handle_message(IngestionMessage::new_op(
                         0_u64,
                         idx,
-                        Operation::Insert {
+                        vec![Operation::Insert {
                             new: Record {
                                 schema_id: Some(SchemaIdentifier { id, version: 0 }),
                                 values: fields,
                                 version: None,
                             },
-                        },
+                        }],
                     ))
                     .unwrap();
 

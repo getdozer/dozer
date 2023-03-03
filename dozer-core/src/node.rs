@@ -86,7 +86,7 @@ pub trait Processor: Send + Sync + Debug {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        op: Vec<Operation>,
         fw: &mut dyn ProcessorChannelForwarder,
         tx: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
@@ -115,7 +115,7 @@ pub trait Sink: Send + Sync + Debug {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        op: Vec<Operation>,
         state: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError>;

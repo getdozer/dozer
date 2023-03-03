@@ -51,7 +51,7 @@ impl IngestorServiceImpl {
             },
         };
         ingestor
-            .handle_message(IngestionMessage::new_op(0, req.seq_no as u64, op))
+            .handle_message(IngestionMessage::new_op(0, req.seq_no as u64, vec![op]))
             .map_err(|e| tonic::Status::internal(format!("ingestion error: {e}")))?;
         Ok(tonic::Response::new(IngestResponse { seq_no: req.seq_no }))
     }

@@ -523,16 +523,16 @@ impl Processor for AggregationProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        in_ops: Vec<Operation>,
         fw: &mut dyn ProcessorChannelForwarder,
         txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        let ops = self
-            .aggregate(&mut txn.write(), self.db, op)
-            .map_err(|e| InternalError(Box::new(e)))?;
-        for fop in ops {
-            fw.send(fop, DEFAULT_PORT_HANDLE)?;
+        for op in in_ops {
+            let ops = self
+                .aggregate(&mut txn.write(), self.db, op)
+                .map_err(|e| InternalError(Box::new(e)))?;
+            fw.send(ops, DEFAULT_PORT_HANDLE)?;
         }
         Ok(())
     }

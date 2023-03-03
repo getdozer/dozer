@@ -140,75 +140,89 @@ impl Processor for FromProcessor {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        ops: Vec<Operation>,
         fw: &mut dyn ProcessorChannelForwarder,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        // match op.clone() {
-        //     Operation::Delete { old } => info!("p{from_port}: - {:?}", old.values),
-        //     Operation::Insert { new } => info!("p{from_port}: + {:?}", new.values),
-        //     Operation::Update { old, new } => {
-        //         info!("p{from_port}: - {:?}, + {:?}", old.values, new.values)
-        //     }
-        // }
+        for op in ops {
+            match op {
+                Operation::Delete { ref old } => {
+                    let records = self
+                        .delete(from_port, old, transaction, reader)
+                        .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
-        match op {
-            Operation::Delete { ref old } => {
-                let records = self
-                    .delete(from_port, old, transaction, reader)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
-
-                for (action, record, _key) in records.into_iter() {
-                    match action {
-                        JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
-                        }
-                        JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                    for (action, record, _key) in records.into_iter() {
+                        match action {
+                            JoinAction::Insert => {
+                                let _ = fw.send(
+                                    vec![Operation::Insert { new: record }],
+                                    DEFAULT_PORT_HANDLE,
+                                );
+                            }
+                            JoinAction::Delete => {
+                                let _ = fw.send(
+                                    vec![Operation::Delete { old: record }],
+                                    DEFAULT_PORT_HANDLE,
+                                );
+                            }
                         }
                     }
                 }
-            }
-            Operation::Insert { ref new } => {
-                let records = self
-                    .insert(from_port, new, transaction, reader)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+                Operation::Insert { ref new } => {
+                    let records = self
+                        .insert(from_port, new, transaction, reader)
+                        .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
-                for (action, record, _key) in records.into_iter() {
-                    match action {
-                        JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
-                        }
-                        JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                    for (action, record, _key) in records.into_iter() {
+                        match action {
+                            JoinAction::Insert => {
+                                let _ = fw.send(
+                                    vec![Operation::Insert { new: record }],
+                                    DEFAULT_PORT_HANDLE,
+                                );
+                            }
+                            JoinAction::Delete => {
+                                let _ = fw.send(
+                                    vec![Operation::Delete { old: record }],
+                                    DEFAULT_PORT_HANDLE,
+                                );
+                            }
                         }
                     }
                 }
-            }
-            Operation::Update { ref old, ref new } => {
-                let (old_join_records, new_join_records) = self
-                    .update(from_port, old, new, transaction, reader)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+                Operation::Update { ref old, ref new } => {
+                    let (old_join_records, new_join_records) = self
+                        .update(from_port, old, new, transaction, reader)
+                        .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
-                for (action, old, _key) in old_join_records.into_iter() {
-                    match action {
-                        JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
-                        }
-                        JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                    for (action, old, _key) in old_join_records.into_iter() {
+                        match action {
+                            JoinAction::Insert => {
+                                let _ = fw.send(
+                                    vec![Operation::Insert { new: old }],
+                                    DEFAULT_PORT_HANDLE,
+                                );
+                            }
+                            JoinAction::Delete => {
+                                let _ =
+                                    fw.send(vec![Operation::Delete { old }], DEFAULT_PORT_HANDLE);
+                            }
                         }
                     }
-                }
 
-                for (action, new, _key) in new_join_records.into_iter() {
-                    match action {
-                        JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
-                        }
-                        JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
+                    for (action, new, _key) in new_join_records.into_iter() {
+                        match action {
+                            JoinAction::Insert => {
+                                let _ =
+                                    fw.send(vec![Operation::Insert { new }], DEFAULT_PORT_HANDLE);
+                            }
+                            JoinAction::Delete => {
+                                let _ = fw.send(
+                                    vec![Operation::Delete { old: new }],
+                                    DEFAULT_PORT_HANDLE,
+                                );
+                            }
                         }
                     }
                 }

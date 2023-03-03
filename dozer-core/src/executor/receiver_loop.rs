@@ -17,7 +17,7 @@ pub trait ReceiverLoop: Name {
     /// Returns the name of the receiver at `index`. Used for logging.
     fn receiver_name(&self, index: usize) -> Cow<str>;
     /// Responds to `op` from the receiver at `index`.
-    fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError>;
+    fn on_op(&mut self, index: usize, op: Vec<Operation>) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
@@ -45,8 +45,8 @@ pub trait ReceiverLoop: Name {
                 .map_err(|_| ExecutionError::CannotReceiveFromChannel)?;
 
             match op {
-                ExecutorOperation::Op { op } => {
-                    self.on_op(index, op)?;
+                ExecutorOperation::Op { ops } => {
+                    self.on_op(index, ops)?;
                 }
                 ExecutorOperation::Commit { epoch } => {
                     assert_eq!(epoch.id, common_epoch.id);

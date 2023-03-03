@@ -79,18 +79,25 @@ impl Processor for ProjectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        ops: Vec<Operation>,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        let _ = match op {
-            Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),
-            Operation::Insert { ref new } => fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE),
-            Operation::Update { ref old, ref new } => {
-                fw.send(self.update(old, new)?, DEFAULT_PORT_HANDLE)
-            }
-        };
+        for op in ops {
+            let _ = match op {
+                Operation::Delete { ref old } => {
+                    fw.send(vec![self.delete(old)?], DEFAULT_PORT_HANDLE)
+                }
+                Operation::Insert { ref new } => {
+                    fw.send(vec![self.insert(new)?], DEFAULT_PORT_HANDLE)
+                }
+                Operation::Update { ref old, ref new } => {
+                    fw.send(vec![self.update(old, new)?], DEFAULT_PORT_HANDLE)
+                }
+            };
+        }
+
         Ok(())
     }
 

@@ -118,7 +118,7 @@ impl<'a> PostgresSnapshotter<'a> {
                 }
                 Some(evt) => {
                     self.ingestor
-                        .handle_message(IngestionMessage::new_op(0, idx, evt))
+                        .handle_message(IngestionMessage::new_op(0, idx, vec![evt]))
                         .map_err(ConnectorError::IngestorError)?;
                     idx += 1;
                 }

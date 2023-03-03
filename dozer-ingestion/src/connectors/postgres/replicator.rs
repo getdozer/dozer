@@ -136,7 +136,7 @@ impl<'a> CDCHandler<'a> {
                                 .handle_message(IngestionMessage::new_op(
                                     self.begin_lsn,
                                     self.seq_no,
-                                    op,
+                                    vec![op],
                                 ))
                                 .map_err(ConnectorError::IngestorError)?;
                         }

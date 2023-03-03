@@ -21,8 +21,11 @@ use std::fmt::{Debug, Formatter};
 use super::node::PortHandle;
 
 pub trait RecordWriter: Send + Sync {
-    fn write(&mut self, op: Operation, tx: &SharedTransaction)
-        -> Result<Operation, ExecutionError>;
+    fn write(
+        &mut self,
+        op: Vec<Operation>,
+        tx: &SharedTransaction,
+    ) -> Result<Vec<Operation>, ExecutionError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -247,50 +250,62 @@ impl PrimaryKeyLookupRecordWriter {
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
     fn write(
         &mut self,
-        op: Operation,
+        ops: Vec<Operation>,
         tx: &SharedTransaction,
-    ) -> Result<Operation, ExecutionError> {
-        match op {
-            Operation::Insert { mut new } => {
-                let key = new.get_key(&self.schema.primary_index);
-                self.write_versioned_record(
-                    Some(&new),
-                    key,
-                    INITIAL_RECORD_VERSION,
-                    &self.schema,
-                    tx,
-                )?;
-                new.version = Some(INITIAL_RECORD_VERSION);
-                Ok(Operation::Insert { new })
-            }
-            Operation::Delete { mut old } => {
-                let key = old.get_key(&self.schema.primary_index);
-                let curr_version = self.get_last_record_version(&key, tx)?;
-                if self.retr_old_records_for_deletes {
-                    old = self
-                        .retr_versioned_record(key.to_owned(), curr_version, tx)?
-                        .ok_or_else(RecordNotFound)?;
+    ) -> Result<Vec<Operation>, ExecutionError> {
+        let mut ret_ops: Vec<Operation> = Vec::with_capacity(ops.len());
+
+        for op in ops {
+            match op {
+                Operation::Insert { mut new } => {
+                    let key = new.get_key(&self.schema.primary_index);
+                    self.write_versioned_record(
+                        Some(&new),
+                        key,
+                        INITIAL_RECORD_VERSION,
+                        &self.schema,
+                        tx,
+                    )?;
+                    new.version = Some(INITIAL_RECORD_VERSION);
+                    ret_ops.push(Operation::Insert { new });
                 }
-                self.push_pop_retention_queue(key.clone(), curr_version, tx)?;
-                self.write_versioned_record(None, key, curr_version + 1, &self.schema, tx)?;
-                old.version = Some(curr_version);
-                Ok(Operation::Delete { old })
-            }
-            Operation::Update { mut old, mut new } => {
-                let key = old.get_key(&self.schema.primary_index);
-                let curr_version = self.get_last_record_version(&key, tx)?;
-                if self.retr_old_records_for_updates {
-                    old = self
-                        .retr_versioned_record(key.to_owned(), curr_version, tx)?
-                        .ok_or_else(RecordNotFound)?;
+                Operation::Delete { mut old } => {
+                    let key = old.get_key(&self.schema.primary_index);
+                    let curr_version = self.get_last_record_version(&key, tx)?;
+                    if self.retr_old_records_for_deletes {
+                        old = self
+                            .retr_versioned_record(key.to_owned(), curr_version, tx)?
+                            .ok_or_else(RecordNotFound)?;
+                    }
+                    self.push_pop_retention_queue(key.clone(), curr_version, tx)?;
+                    self.write_versioned_record(None, key, curr_version + 1, &self.schema, tx)?;
+                    old.version = Some(curr_version);
+                    ret_ops.push(Operation::Delete { old });
                 }
-                self.push_pop_retention_queue(key.clone(), curr_version, tx)?;
-                self.write_versioned_record(Some(&new), key, curr_version + 1, &self.schema, tx)?;
-                old.version = Some(curr_version);
-                new.version = Some(curr_version + 1);
-                Ok(Operation::Update { old, new })
+                Operation::Update { mut old, mut new } => {
+                    let key = old.get_key(&self.schema.primary_index);
+                    let curr_version = self.get_last_record_version(&key, tx)?;
+                    if self.retr_old_records_for_updates {
+                        old = self
+                            .retr_versioned_record(key.to_owned(), curr_version, tx)?
+                            .ok_or_else(RecordNotFound)?;
+                    }
+                    self.push_pop_retention_queue(key.clone(), curr_version, tx)?;
+                    self.write_versioned_record(
+                        Some(&new),
+                        key,
+                        curr_version + 1,
+                        &self.schema,
+                        tx,
+                    )?;
+                    old.version = Some(curr_version);
+                    new.version = Some(curr_version + 1);
+                    ret_ops.push(Operation::Update { old, new });
+                }
             }
         }
+
+        Ok(ret_ops)
     }
 }
 
@@ -405,28 +420,40 @@ impl AutogenRowKeyLookupRecordWriter {
 impl RecordWriter for AutogenRowKeyLookupRecordWriter {
     fn write(
         &mut self,
-        op: Operation,
+        ops: Vec<Operation>,
         tx: &SharedTransaction,
-    ) -> Result<Operation, ExecutionError> {
-        match op {
-            Operation::Insert { mut new } => {
-                let ctr = self.get_autogen_counter(tx)?;
-                new.values.push(Field::UInt(ctr));
-                assert!(
-                    self.schema.primary_index.len() == 1
-                        && self.schema.primary_index[0] == new.values.len() - 1
-                );
-                self.write_record(&new, &self.schema, tx)?;
-                new.version = Some(INITIAL_RECORD_VERSION);
-                Ok(Operation::Insert { new })
+    ) -> Result<Vec<Operation>, ExecutionError> {
+        let mut ret_ops: Vec<Operation> = Vec::with_capacity(ops.len());
+
+        for op in ops {
+            match op {
+                Operation::Insert { mut new } => {
+                    let ctr = self.get_autogen_counter(tx)?;
+                    new.values.push(Field::UInt(ctr));
+                    assert!(
+                        self.schema.primary_index.len() == 1
+                            && self.schema.primary_index[0] == new.values.len() - 1
+                    );
+                    self.write_record(&new, &self.schema, tx)?;
+                    new.version = Some(INITIAL_RECORD_VERSION);
+                    ret_ops.push(Operation::Insert { new });
+                }
+                Operation::Update { .. } => {
+                    return Err(UnsupportedUpdateOperation(
+                        "AutogenRowsIdLookupRecordWriter does not support update operations"
+                            .to_string(),
+                    ));
+                }
+                Operation::Delete { .. } => {
+                    return Err(UnsupportedDeleteOperation(
+                        "AutogenRowsIdLookupRecordWriter does not support delete operations"
+                            .to_string(),
+                    ));
+                }
             }
-            Operation::Update { .. } => Err(UnsupportedUpdateOperation(
-                "AutogenRowsIdLookupRecordWriter does not support update operations".to_string(),
-            )),
-            Operation::Delete { .. } => Err(UnsupportedDeleteOperation(
-                "AutogenRowsIdLookupRecordWriter does not support delete operations".to_string(),
-            )),
         }
+
+        Ok(ret_ops)
     }
 }
 

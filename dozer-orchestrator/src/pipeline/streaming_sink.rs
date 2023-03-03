@@ -59,16 +59,18 @@ impl Sink for StreamingSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        ops: Vec<Operation>,
         _state: &SharedTransaction,
         _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        self.current += 1;
-        let _res = self
-            .sender
-            .try_send(op)
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)));
+        self.current += ops.len();
 
+        for op in ops {
+            let _res = self
+                .sender
+                .try_send(op)
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)));
+        }
         Ok(())
     }
 

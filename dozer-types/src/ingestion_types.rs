@@ -13,7 +13,7 @@ pub struct IngestionMessage {
 }
 
 impl IngestionMessage {
-    pub fn new_op(txn: u64, seq_no: u64, op: Operation) -> Self {
+    pub fn new_op(txn: u64, seq_no: u64, op: Vec<Operation>) -> Self {
         Self {
             identifier: OpIdentifier::new(txn, seq_no),
             kind: IngestionMessageKind::OperationEvent(op),
@@ -30,7 +30,7 @@ impl IngestionMessage {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum IngestionMessageKind {
-    OperationEvent(Operation),
+    OperationEvent(Vec<Operation>),
     SnapshottingDone,
 }
 
