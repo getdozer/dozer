@@ -14,8 +14,8 @@ use postgres::Client;
 use postgres_types::PgLsn;
 use regex::Regex;
 use std::borrow::BorrowMut;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 
 pub enum Validations {
     Details,

@@ -141,10 +141,12 @@ mod tests {
                 connection::helper::map_connection_config,
                 connector::{PostgresConfig, PostgresConnector},
                 tests::client::TestPostgresClient,
-            }, TableInfo,
+            },
+            TableInfo,
         },
+        errors::ConnectorError,
         ingestion::{IngestionConfig, Ingestor},
-        test_util::{run_connector_test}, errors::{ConnectorError},
+        test_util::run_connector_test,
     };
 
     use super::PostgresSnapshotter;
