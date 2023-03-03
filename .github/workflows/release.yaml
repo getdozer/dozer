@@ -100,6 +100,7 @@ jobs:
         shell: bash
         run: |
           brew upgrade openssl
+          brew info openssl
           brew install pkg-config
           echo $PKG_CONFIG_PATH
           
