@@ -72,8 +72,13 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
 
         let planner = self.get_planner(input_schema.clone())?;
 
-        let is_aggr = planner.aggregation_output.len() > 0 || planner.groupby.len() > 0;
-        let processor: Box<dyn Processor> = if is_aggr {
+        let is_projection = planner.aggregation_output.is_empty() && planner.groupby.is_empty();
+        let processor: Box<dyn Processor> = if is_projection {
+            Box::new(ProjectionProcessor::new(
+                input_schema.clone(),
+                planner.projection_output,
+            ))
+        } else {
             Box::new(
                 AggregationProcessor::new(
                     planner.groupby,
@@ -85,11 +90,6 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                 )
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
             )
-        } else {
-            Box::new(ProjectionProcessor::new(
-                input_schema.clone(),
-                planner.projection_output,
-            ))
         };
         Ok(processor)
     }
