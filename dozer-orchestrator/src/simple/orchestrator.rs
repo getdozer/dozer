@@ -414,10 +414,6 @@ async fn redirect_cache_endpoints(
             .recv()
             .await
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-        info!(
-            "[api] Redirecting cache {} to {}",
-            alias_redirected.alias, alias_redirected.real_name
-        );
         for cache_endpoint in &cache_endpoints {
             if cache_endpoint.endpoint().name == alias_redirected.alias {
                 cache_endpoint
