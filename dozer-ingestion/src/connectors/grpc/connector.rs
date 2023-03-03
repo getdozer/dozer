@@ -1,6 +1,9 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::path::Path;
+use std::sync::Arc;
 
+use super::adapter::{get_adapter, GrpcIngestAdapter};
 use super::ingest::IngestorServiceImpl;
 use crate::connectors::ValidationResults;
 use crate::{
@@ -11,37 +14,41 @@ use crate::{
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::info;
-use dozer_types::serde::{self, Deserialize, Serialize};
-use dozer_types::types::{ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceSchema};
-use dozer_types::{arrow_types, serde_json};
+use dozer_types::types::{Schema, SchemaIdentifier, SourceSchema};
 use tonic::transport::Server;
 use tower_http::trace::TraceLayer;
 
-// Input is a JSON string or a path to a JSON file
-// Takes name, arrow schema, and optionally replication type
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(crate = "self::serde")]
-pub struct GrpcSchema {
-    pub name: String,
-    pub schema: dozer_types::arrow::datatypes::Schema,
-    #[serde(default)]
-    pub replication_type: ReplicationChangesTrackingType,
-}
-
-#[derive(Debug)]
-pub struct GrpcConnector {
+pub struct GrpcConnector<T> {
     pub id: u64,
     pub name: String,
     pub config: GrpcConfig,
+    pub adapter: Arc<Box<dyn GrpcIngestAdapter<T>>>,
+}
+impl<T> Debug for GrpcConnector<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GrpcConnector")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
-impl GrpcConnector {
-    pub fn new(id: u64, name: String, config: GrpcConfig) -> Self {
-        Self { id, name, config }
+impl<T> GrpcConnector<T> {
+    pub fn new(id: u64, name: String, config: GrpcConfig) -> Result<Self, ConnectorError> {
+        let adapter = Arc::new(get_adapter(&config.adapter)?);
+        Ok(Self {
+            id,
+            name,
+            config,
+            adapter,
+        })
     }
 
-    pub fn parse_schemas(config: &GrpcConfig) -> Result<Vec<SourceSchema>, ConnectorError> {
+    pub fn parse_schemas(
+        adapter: Arc<Box<dyn GrpcIngestAdapter<T>>>,
+        config: &GrpcConfig,
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let schemas = config.schemas.as_ref().map_or_else(
             || {
                 Err(ConnectorError::InitializationError(
@@ -61,29 +68,14 @@ impl GrpcConnector {
             }
         };
 
-        let grpc_schemas: Vec<GrpcSchema> =
-            serde_json::from_str(&schemas_str).map_err(ConnectorError::map_serialization_error)?;
-        let mut schemas = vec![];
-
-        for (id, grpc_schema) in grpc_schemas.iter().enumerate() {
-            let mut schema = arrow_types::from_arrow::map_schema_to_dozer(&grpc_schema.schema)
-                .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
-            schema.identifier = Some(SchemaIdentifier {
-                id: id as u32,
-                version: 1,
-            });
-
-            schemas.push(SourceSchema {
-                name: grpc_schema.name.clone(),
-                schema,
-                replication_type: grpc_schema.replication_type.clone(),
-            });
-        }
-        Ok(schemas)
+        adapter.get_schemas(&schemas_str)
     }
 
-    fn get_schema_map(config: &GrpcConfig) -> Result<HashMap<String, Schema>, ConnectorError> {
-        let schemas = Self::parse_schemas(config)?;
+    fn get_schema_map(
+        adapter: Arc<Box<dyn GrpcIngestAdapter<T>>>,
+        config: &GrpcConfig,
+    ) -> Result<HashMap<String, Schema>, ConnectorError> {
+        let schemas = Self::parse_schemas(adapter, config)?;
         Ok(schemas
             .into_iter()
             .enumerate()
@@ -105,15 +97,16 @@ impl GrpcConnector {
             ConnectorError::InitializationError(format!("Failed to parse address: {e}"))
         })?;
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
-        let schema_map = Self::get_schema_map(&self.config)?;
+        let schema_map = Self::get_schema_map(self.adapter, &self.config)?;
 
+        let adapter = self.adapter.clone();
         rt.block_on(async {
             // Ingestor will live as long as the server
             // Refactor to use Arc
             let ingestor =
                 unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
             let schema_map = schema_map.clone();
-            let ingest_service = IngestorServiceImpl::new(&schema_map, ingestor);
+            let ingest_service = IngestorServiceImpl::new(&schema_map, ingestor, adapter);
             let ingest_service = tonic_web::config()
                 .allow_all_origins()
                 .enable(IngestServiceServer::new(ingest_service));
@@ -137,12 +130,12 @@ impl GrpcConnector {
     }
 }
 
-impl Connector for GrpcConnector {
+impl<T> Connector for GrpcConnector<T> {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let schemas = Self::parse_schemas(&self.config)?;
+        let schemas = Self::parse_schemas(self.adapter, &self.config)?;
         let schemas = table_names.map_or(schemas.clone(), |names| {
             schemas
                 .into_iter()
@@ -162,13 +155,13 @@ impl Connector for GrpcConnector {
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let schemas = Self::parse_schemas(&self.config);
+        let schemas = Self::parse_schemas(self.adapter, &self.config);
         schemas.map(|_| ())
     }
 
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         let mut results = HashMap::new();
-        let schemas = Self::get_schema_map(&self.config)?;
+        let schemas = Self::get_schema_map(self.adapter, &self.config)?;
         for table in tables {
             let r = schemas.get(&table.name).map_or(
                 Err(ConnectorError::InitializationError(format!(

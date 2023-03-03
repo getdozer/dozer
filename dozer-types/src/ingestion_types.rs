@@ -69,6 +69,8 @@ pub struct GrpcConfig {
     pub port: u32,
     #[prost(oneof = "GrpcConfigSchemas", tags = "3,4")]
     pub schemas: Option<GrpcConfigSchemas>,
+    #[prost(string, tag = "5")]
+    pub adapter: String,
 }
 
 fn default_ingest_host() -> String {

@@ -4,7 +4,10 @@ use crate::{
     connectors::Connector,
     ingestion::{IngestionConfig, Ingestor},
 };
-use dozer_types::grpc_types::ingest::{ingest_service_client::IngestServiceClient, IngestRequest};
+use dozer_types::{
+    grpc_types::ingest::{ingest_service_client::IngestServiceClient, IngestRequest},
+    ingestion_types::GrpcFormat,
+};
 
 use dozer_types::{
     ingestion_types::{GrpcConfig, GrpcConfigSchemas},
@@ -39,10 +42,12 @@ fn ingest_grpc() {
             "grpc".to_string(),
             GrpcConfig {
                 schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
+                format: GrpcFormat::Arrow as i32,
                 ..Default::default()
             },
         );
-        grpc_connector.start(None, &ingestor, None).unwrap();
+        let tables = grpc_connector.get_tables(None).unwrap();
+        grpc_connector.start(None, &ingestor, tables).unwrap();
     });
 
     Runtime::new().unwrap().block_on(async {
