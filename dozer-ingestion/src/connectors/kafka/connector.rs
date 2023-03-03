@@ -4,14 +4,42 @@ use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
 
 use dozer_types::types::SourceSchema;
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
-use tokio::runtime::Runtime;
+
+use dozer_types::log::{info};
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
 use crate::connectors::kafka::debezium::schema_registry::SchemaRegistry;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumStreamConsumer;
-use crate::connectors::kafka::stream_consumer::StreamConsumer;
 use crate::errors::DebeziumError::{DebeziumConnectionError, TopicNotDefined};
+
+use rdkafka::client::ClientContext;
+use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
+use rdkafka::consumer::stream_consumer::StreamConsumer;
+use rdkafka::consumer::{Consumer, ConsumerContext, DefaultConsumerContext, Rebalance};
+use rdkafka::error::KafkaResult;
+use rdkafka::topic_partition_list::TopicPartitionList;
+use crate::connectors::kafka::stream_consumer::StreamConsumer as DebeziumConsumer;
+
+// A context can be used to change the behavior of producers and consumers by adding callbacks
+// that will be executed by librdkafka.
+// This particular context sets up custom callbacks to log rebalancing events.
+struct CustomContext;
+
+impl ClientContext for CustomContext {}
+
+impl ConsumerContext for CustomContext {
+    fn pre_rebalance(&self, rebalance: &Rebalance) {
+        info!("Pre rebalance {:?}", rebalance);
+    }
+
+    fn post_rebalance(&self, rebalance: &Rebalance) {
+        info!("Post rebalance {:?}", rebalance);
+    }
+
+    fn commit_callback(&self, result: KafkaResult<()>, _offsets: &TopicPartitionList) {
+        info!("Committing offsets: {:?}", result);
+    }
+}
 
 #[derive(Debug)]
 pub struct KafkaConnector {
@@ -47,9 +75,7 @@ impl Connector for KafkaConnector {
             .map_or(Err(TopicNotDefined), |table| Ok(&table.table_name))?;
 
         let broker = self.config.broker.to_owned();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(broker, topic, ingestor).await })
+        run(broker, topic, ingestor)
     }
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
@@ -69,14 +95,22 @@ impl Connector for KafkaConnector {
     }
 }
 
-async fn run(broker: String, topic: &str, ingestor: &Ingestor) -> Result<(), ConnectorError> {
-    let con = Consumer::from_hosts(vec![broker])
-        .with_topic(topic.to_string())
-        .with_fallback_offset(FetchOffset::Earliest)
-        .with_offset_storage(GroupOffsetStorage::Kafka)
-        .create()
+fn run(broker: String, topic: &str, ingestor: &Ingestor) -> Result<(), ConnectorError> {
+    let consumer = DebeziumStreamConsumer::default();
+
+    let context = DefaultConsumerContext;
+
+    let con: StreamConsumer<DefaultConsumerContext> = ClientConfig::new()
+        .set("bootstrap.servers", broker)
+        .set("enable.partition.eof", "false")
+        .set("session.timeout.ms", "6000")
+        .set("enable.auto.commit", "true")
+        .set_log_level(RDKafkaLogLevel::Debug)
+        .create_with_context(context)
         .map_err(DebeziumConnectionError)?;
 
-    let consumer = DebeziumStreamConsumer::default();
+    con.subscribe(&[topic])
+        .map_err(DebeziumConnectionError)?;
+        
     consumer.run(con, ingestor)
 }

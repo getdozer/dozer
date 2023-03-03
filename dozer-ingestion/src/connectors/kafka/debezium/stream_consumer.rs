@@ -10,7 +10,11 @@ use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
-use kafka::consumer::Consumer;
+use rdkafka::consumer::DefaultConsumerContext;
+
+use rdkafka::consumer::stream_consumer::StreamConsumer as RdkafkaStreamConsumer;
+use rdkafka::Message;
+use tokio::runtime::Runtime;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
@@ -78,26 +82,26 @@ pub struct DebeziumStreamConsumer {}
 impl DebeziumStreamConsumer {}
 
 impl StreamConsumer for DebeziumStreamConsumer {
-    fn run(&self, mut con: Consumer, ingestor: &Ingestor) -> Result<(), ConnectorError> {
-        loop {
-            let mss = con.poll().map_err(|e| {
-                DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
-            })?;
-            if !mss.is_empty() {
-                for ms in mss.iter() {
-                    for m in ms.messages() {
-                        if m.value.is_empty() {
-                            continue;
-                        }
+    fn run(&self, con: RdkafkaStreamConsumer<DefaultConsumerContext>, ingestor: &Ingestor) -> Result<(), ConnectorError> {
+        
 
+        Runtime::new()
+            .unwrap()
+            .block_on(async {
+                loop {
+                    let m = con.recv().await.map_err(|e| {
+                        DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
+                    })?;
+
+                   if let (Some(message), Some(key)) = (m.payload(), m.key()) {
                         let mut value_struct: DebeziumMessage = serde_json::from_str(
-                            std::str::from_utf8(m.value).map_err(BytesConvertError)?,
+                            std::str::from_utf8(message).map_err(BytesConvertError)?,
                         )
-                        .map_err(JsonDecodeError)?;
+                            .map_err(JsonDecodeError)?;
                         let key_struct: DebeziumMessage = serde_json::from_str(
-                            std::str::from_utf8(m.key).map_err(BytesConvertError)?,
+                            std::str::from_utf8(key).map_err(BytesConvertError)?,
                         )
-                        .map_err(JsonDecodeError)?;
+                            .map_err(JsonDecodeError)?;
 
                         let (schema, fields_map) =
                             map_schema(&value_struct.schema, &key_struct.schema).map_err(|e| {
@@ -119,21 +123,21 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     schema.clone(),
                                     fields_map.clone(),
                                 )
-                                .map_err(|e| {
-                                    ConnectorError::DebeziumError(
-                                        DebeziumError::DebeziumSchemaError(e),
-                                    )
-                                })?;
+                                    .map_err(|e| {
+                                        ConnectorError::DebeziumError(
+                                            DebeziumError::DebeziumSchemaError(e),
+                                        )
+                                    })?;
                                 let old = convert_value_to_schema(
                                     old_payload,
                                     schema.clone(),
                                     fields_map,
                                 )
-                                .map_err(|e| {
-                                    ConnectorError::DebeziumError(
-                                        DebeziumError::DebeziumSchemaError(e),
-                                    )
-                                })?;
+                                    .map_err(|e| {
+                                        ConnectorError::DebeziumError(
+                                            DebeziumError::DebeziumSchemaError(e),
+                                        )
+                                    })?;
 
                                 ingestor
                                     .handle_message(IngestionMessage::new_op(
@@ -191,11 +195,11 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     schema.clone(),
                                     fields_map.clone(),
                                 )
-                                .map_err(|e| {
-                                    ConnectorError::DebeziumError(
-                                        DebeziumError::DebeziumSchemaError(e),
-                                    )
-                                })?;
+                                    .map_err(|e| {
+                                        ConnectorError::DebeziumError(
+                                            DebeziumError::DebeziumSchemaError(e),
+                                        )
+                                    })?;
 
                                 ingestor
                                     .handle_message(IngestionMessage::new_op(
@@ -217,17 +221,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             (None, None) => {}
                         }
                     }
-
-                    con.consume_messageset(ms).map_err(|e| {
-                        DebeziumError::DebeziumStreamError(
-                            DebeziumStreamError::MessageConsumeError(e),
-                        )
-                    })?;
                 }
-                con.commit_consumed().map_err(|e| {
-                    DebeziumError::DebeziumStreamError(DebeziumStreamError::ConsumeCommitError(e))
-                })?;
-            }
-        }
+            })
     }
 }
