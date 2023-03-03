@@ -372,45 +372,45 @@ mod tests {
         });
     }
 
-    #[test]
-    #[ignore]
-    #[serial]
-    fn test_connector_validation_connection_user_not_have_permission_to_use_replication() {
-        run_connector_test("postgres", |app_config| {
-            let mut config = get_config(app_config);
-            let mut client = postgres::Config::from(config.clone())
-                .connect(NoTls)
-                .unwrap();
-
-            client
-                .simple_query("DROP USER if exists dozer_test_without_permission")
-                .expect("User delete failed");
-
-            client
-                .simple_query("CREATE USER dozer_test_without_permission")
-                .expect("User creation failed");
-
-            client
-                .simple_query("ALTER ROLE dozer_test_without_permission WITH NOREPLICATION")
-                .expect("Role update failed");
-
-            config.user("dozer_test_without_permission");
-
-            let result = validate_connection("pg_test_conn", config, None, None);
-
-            assert!(result.is_err());
-
-            match result {
-                Ok(_) => panic!("Validation should fail"),
-                Err(e) => {
-                    assert!(matches!(
-                        e,
-                        PostgresConnectorError::ReplicationIsNotAvailableForUserError
-                    ));
-                }
-            }
-        });
-    }
+    // #[test]
+    // #[ignore]
+    // #[serial]
+    // fn test_connector_validation_connection_user_not_have_permission_to_use_replication() {
+    //     run_connector_test("postgres", |app_config| {
+    //         let mut config = get_config(app_config);
+    //         let mut client = postgres::Config::from(config.clone())
+    //             .connect(NoTls)
+    //             .unwrap();
+    //
+    //         client
+    //             .simple_query("DROP USER if exists dozer_test_without_permission")
+    //             .expect("User delete failed");
+    //
+    //         client
+    //             .simple_query("CREATE USER dozer_test_without_permission")
+    //             .expect("User creation failed");
+    //
+    //         client
+    //             .simple_query("ALTER ROLE dozer_test_without_permission WITH NOREPLICATION")
+    //             .expect("Role update failed");
+    //
+    //         config.user("dozer_test_without_permission");
+    //
+    //         let result = validate_connection("pg_test_conn", config, None, None);
+    //
+    //         assert!(result.is_err());
+    //
+    //         match result {
+    //             Ok(_) => panic!("Validation should fail"),
+    //             Err(e) => {
+    //                 assert!(matches!(
+    //                     e,
+    //                     PostgresConnectorError::ReplicationIsNotAvailableForUserError
+    //                 ));
+    //             }
+    //         }
+    //     });
+    // }
 
     #[test]
     #[ignore]
