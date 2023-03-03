@@ -376,44 +376,44 @@ mod tests {
     #[ignore]
     #[serial]
     fn test_connector_validation_connection_user_not_have_permission_to_use_replication() {
-        // run_connector_test("postgres", |app_config| {
-        //     let mut config = get_config(app_config);
-        //     let mut client = postgres::Config::from(config.clone())
-        //         .connect(NoTls)
-        //         .unwrap();
+        run_connector_test("postgres", |app_config| {
+            let mut config = get_config(app_config);
+            let mut client = postgres::Config::from(config.clone())
+                .connect(NoTls)
+                .unwrap();
 
-        //     let user = client
-        //         .simple_query(
-        //             "SELECT usename FROM pg_user WHERE usename = 'dozer_test_without_permission'",
-        //         )
-        //         .expect("User delete failed");
+            let user = client
+                .simple_query(
+                    "SELECT usename FROM pg_user WHERE usename = 'dozer_test_without_permission'",
+                )
+                .expect("User delete failed");
 
-        //     if user.len() > 1 {
-        //         client
-        //             .simple_query("DROP USER dozer_test_without_permission")
-        //             .expect("User delete failed");
-        //     }
+            if user.len() > 1 {
+                client
+                    .simple_query("DROP USER dozer_test_without_permission")
+                    .expect("User delete failed");
+            }
 
-        //     client
-        //         .simple_query("CREATE USER dozer_test_without_permission")
-        //         .expect("User creation failed");
+            client
+                .simple_query("CREATE USER dozer_test_without_permission")
+                .expect("User creation failed");
 
-        //     config.user("dozer_test_without_permission");
+            config.user("dozer_test_without_permission");
 
-        //     let result = validate_connection("pg_test_conn", config, None, None);
+            let result = validate_connection("pg_test_conn", config, None, None);
 
-        //     assert!(result.is_err());
+            assert!(result.is_err());
 
-        //     match result {
-        //         Ok(_) => panic!("Validation should fail"),
-        //         Err(e) => {
-        //             assert!(matches!(
-        //                 e,
-        //                 PostgresConnectorError::ReplicationIsNotAvailableForUserError
-        //             ));
-        //         }
-        //     }
-        // });
+            match result {
+                Ok(_) => panic!("Validation should fail"),
+                Err(e) => {
+                    assert!(matches!(
+                        e,
+                        PostgresConnectorError::ReplicationIsNotAvailableForUserError
+                    ));
+                }
+            }
+        });
     }
 
     #[test]
@@ -696,8 +696,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     #[ignore]
+    #[serial]
     fn test_connector_return_error_on_view_in_table_validation() {
         run_connector_test("postgres", |app_config| {
             let mut client = get_client(app_config.clone());
