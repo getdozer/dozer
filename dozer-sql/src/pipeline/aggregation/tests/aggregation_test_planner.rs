@@ -5,7 +5,6 @@ use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
-use std::path::Path;
 
 #[test]
 fn test_planner_with_aggregator() {
