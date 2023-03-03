@@ -37,13 +37,12 @@ impl TestPostgresClient {
     pub fn create_simple_table(&mut self, schema: &str, table_name: &str) {
         self.execute_query(&format!(
             "CREATE TABLE {schema}.{table_name}
-(
-    id          SERIAL
-        PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description VARCHAR(512),
-    weight      DOUBLE PRECISION
-);"
+            (   
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description VARCHAR(512),
+                weight DOUBLE PRECISION
+            );"
         ));
     }
 
