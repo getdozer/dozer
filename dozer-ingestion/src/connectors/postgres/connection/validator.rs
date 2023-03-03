@@ -384,9 +384,17 @@ mod tests {
                 .connect(NoTls)
                 .unwrap();
 
-            client
-                .simple_query("DROP USER dozer_test_without_permission")
+            let user = client
+                .simple_query(
+                    "SELECT usename FROM pg_user WHERE usename = 'dozer_test_without_permission'",
+                )
                 .expect("User delete failed");
+
+            if user.len() > 1 {
+                client
+                    .simple_query("DROP USER dozer_test_without_permission")
+                    .expect("User delete failed");
+            }
 
             client
                 .simple_query("CREATE USER dozer_test_without_permission")
@@ -506,7 +514,7 @@ mod tests {
     fn test_connector_validation_connection_replication_slot_not_exist() {
         run_connector_test("postgres", |app_config| {
             let config = get_config(app_config);
-            
+
             let new_slot = "not_existing_slot";
             let replication_info = ReplicationSlotInfo {
                 name: new_slot.to_string(),
