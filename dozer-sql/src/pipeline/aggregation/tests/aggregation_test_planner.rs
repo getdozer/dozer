@@ -5,7 +5,6 @@ use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
-use std::path::Path;
 
 #[test]
 fn test_planner_with_aggregator() {
@@ -78,9 +77,12 @@ fn test_planner_with_aggregator() {
 
     projection_planner.plan(*statement).unwrap();
 
-    let storage =
-        LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
-            .unwrap();
+    let storage = LmdbEnvironmentManager::create(
+        tempdir::TempDir::new("test").unwrap().path(),
+        "aggregation",
+        Default::default(),
+    )
+    .unwrap();
 
     let tx = storage.create_txn().unwrap();
     let processor = AggregationProcessor::new(

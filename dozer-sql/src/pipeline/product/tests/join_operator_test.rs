@@ -90,8 +90,11 @@ fn test_join_operator() {
 
     let mut processor = factory.build();
 
-    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "product_test")
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    let mut storage = LmdbEnvironmentManager::create(
+        tempdir::TempDir::new("test").unwrap().path(),
+        "product_test",
+    )
+    .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     processor
         .init(storage.as_environment())
