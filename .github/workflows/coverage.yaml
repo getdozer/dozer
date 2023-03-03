@@ -110,7 +110,7 @@ jobs:
 
       - id: coverage
         run: |
-          ./target/grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" --ignore 'target/*' --ignore 'dozer-tests/*' -o coverage.lcov
+          ./target/grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" --ignore 'target/*' --ignore 'dozer-tests/*' -o coverage.lcov --llvm
           echo "::set-output name=report::coverage.lcov"
 
       - uses: actions/upload-artifact@v3
