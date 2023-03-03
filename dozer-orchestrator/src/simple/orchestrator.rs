@@ -282,10 +282,10 @@ impl Orchestrator for SimpleOrchestrator {
         validate_config(&self.config)?;
 
         let builder = PipelineBuilder::new(
-            self.config.sources.clone(),
-            self.config.sql.clone(),
-            self.config.endpoints.clone(),
-            pipeline_home_dir.clone(),
+            &self.config.sources,
+            self.config.sql.as_deref(),
+            &self.config.endpoints,
+            &pipeline_home_dir,
         );
 
         // Api Path

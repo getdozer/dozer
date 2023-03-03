@@ -13,7 +13,7 @@ use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::source::Source;
 use dozer_types::{indicatif::MultiProgress, log::debug};
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 
@@ -33,19 +33,19 @@ pub struct OriginalTableInfo {
     pub connection_name: String,
 }
 
-pub struct PipelineBuilder {
-    sources: Vec<Source>,
-    sql: Option<String>,
-    api_endpoints: Vec<ApiEndpoint>,
-    pipeline_dir: PathBuf,
+pub struct PipelineBuilder<'a> {
+    sources: &'a [Source],
+    sql: Option<&'a str>,
+    api_endpoints: &'a [ApiEndpoint],
+    pipeline_dir: &'a Path,
     progress: MultiProgress,
 }
-impl PipelineBuilder {
+impl<'a> PipelineBuilder<'a> {
     pub fn new(
-        sources: Vec<Source>,
-        sql: Option<String>,
-        api_endpoints: Vec<ApiEndpoint>,
-        pipeline_dir: PathBuf,
+        sources: &'a [Source],
+        sql: Option<&'a str>,
+        api_endpoints: &'a [ApiEndpoint],
+        pipeline_dir: &'a Path,
     ) -> Self {
         Self {
             sources,
@@ -105,7 +105,7 @@ impl PipelineBuilder {
             }
         }
         // Add Used Souces if direct from source
-        for api_endpoint in &self.api_endpoints {
+        for api_endpoint in self.api_endpoints {
             let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
@@ -126,7 +126,7 @@ impl PipelineBuilder {
             LmdbCacheManager::new(cache_manager_options)
                 .map_err(OrchestrationError::CacheInitFailed)?,
         );
-        for api_endpoint in &self.api_endpoints {
+        for api_endpoint in self.api_endpoints {
             let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
@@ -191,7 +191,7 @@ impl PipelineBuilder {
 
         debug!("{}", dag);
 
-        DagExecutor::validate(dag.clone(), self.pipeline_dir.clone())
+        DagExecutor::validate(dag.clone(), self.pipeline_dir.to_path_buf())
             .map(|_| {
                 info!("[pipeline] Validation completed");
             })

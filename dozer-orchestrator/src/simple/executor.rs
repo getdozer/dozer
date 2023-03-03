@@ -122,10 +122,10 @@ impl Executor {
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
-            self.sources.clone(),
-            self.sql.clone(),
-            self.api_endpoints.clone(),
-            self.pipeline_dir.clone(),
+            &self.sources,
+            self.sql.as_deref(),
+            &self.api_endpoints,
+            &self.pipeline_dir,
         );
 
         let dag = builder.build(notifier, cache_manager_options, settings)?;
