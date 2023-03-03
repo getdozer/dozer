@@ -281,12 +281,14 @@ fn open_or_create_cache(
                 Ok((cache, None))
             } else {
                 let old_name = cache.name();
-                let old_count = cache.count(name, &Default::default()).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheCountFailed(
-                        name.to_string(),
-                        Box::new(e),
-                    ))
-                })?;
+                let old_count = cache
+                    .count(name, &QueryExpression::with_no_limit())
+                    .map_err(|e| {
+                        ExecutionError::SinkError(SinkError::CacheCountFailed(
+                            name.to_string(),
+                            Box::new(e),
+                        ))
+                    })?;
                 let cache = create_cache()?;
                 debug!(
                     "[pipeline] Cache {} is at {:?}, while pipeline is at {:?}",
