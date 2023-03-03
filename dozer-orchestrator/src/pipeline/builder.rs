@@ -63,7 +63,7 @@ impl PipelineBuilder {
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
+        let grouped_connections = SourceBuilder::group_connections(&self.sources);
 
         validate_grouped_connections(&grouped_connections)?;
 
@@ -80,7 +80,7 @@ impl PipelineBuilder {
                 available_output_tables.insert(
                     source.name.clone(),
                     OutputTableInfo::Original(OriginalTableInfo {
-                        connection_name: connection_name.clone(),
+                        connection_name: connection_name.to_string(),
                         table_name: source.name.clone(),
                     }),
                 );
@@ -101,7 +101,7 @@ impl PipelineBuilder {
 
             for name in query_context.used_sources {
                 // Add all source tables to input tables
-                used_sources.push(name.clone());
+                used_sources.push(name);
             }
         }
         // Add Used Souces if direct from source
@@ -117,11 +117,8 @@ impl PipelineBuilder {
             }
         }
 
-        let source_builder = SourceBuilder::new(
-            used_sources,
-            grouped_connections,
-            Some(self.progress.clone()),
-        );
+        let source_builder =
+            SourceBuilder::new(&used_sources, grouped_connections, Some(&self.progress));
 
         let conn_ports = source_builder.get_ports();
 
@@ -163,8 +160,8 @@ impl PipelineBuilder {
 
                     let conn_port = conn_ports
                         .get(&(
-                            table_info.connection_name.clone(),
-                            table_info.table_name.clone(),
+                            table_info.connection_name.as_str(),
+                            table_info.table_name.as_str(),
                         ))
                         .expect("port should be present based on source mapping");
 

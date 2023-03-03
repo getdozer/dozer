@@ -55,7 +55,7 @@ impl Executor {
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
+        let grouped_connections = SourceBuilder::group_connections(&self.sources);
 
         let mut pipeline = AppPipeline::new();
         let transform_response = statement_to_pipeline(&sql, &mut pipeline, None)
@@ -80,9 +80,9 @@ impl Executor {
             )
             .map_err(OrchestrationError::ExecutionError)?;
 
-        let used_sources: Vec<String> = pipeline.get_entry_points_sources_names();
+        let used_sources = pipeline.get_entry_points_sources_names();
 
-        let source_builder = SourceBuilder::new(used_sources, grouped_connections, None);
+        let source_builder = SourceBuilder::new(&used_sources, grouped_connections, None);
         let asm = source_builder.build_source_manager()?;
 
         let mut app = App::new(asm);
