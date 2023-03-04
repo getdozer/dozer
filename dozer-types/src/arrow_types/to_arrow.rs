@@ -32,30 +32,30 @@ pub fn map_record_to_arrow(
     schema: Schema,
 ) -> Result<RecordBatch, arrow::error::ArrowError> {
     let mut rows = vec![];
-    let mut idx = 0;
-    for f in rec.values {
+
+    for (idx, f) in rec.values.iter().enumerate() {
         let fd = schema.fields.get(idx).unwrap();
         let r = match (f, fd.typ) {
             (Field::UInt(v), FieldType::UInt) => {
-                Arc::new(arrow_array::UInt64Array::from_iter_values([v])) as ArrayRef
+                Arc::new(arrow_array::UInt64Array::from_iter_values([*v])) as ArrayRef
             }
             (Field::Null, FieldType::UInt) => {
                 Arc::new(arrow_array::UInt64Array::from(vec![None as Option<u64>])) as ArrayRef
             }
             (Field::Int(v), FieldType::Int) => {
-                Arc::new(arrow_array::Int64Array::from_iter_values([v])) as ArrayRef
+                Arc::new(arrow_array::Int64Array::from_iter_values([*v])) as ArrayRef
             }
             (Field::Null, FieldType::Int) => {
                 Arc::new(arrow_array::Int64Array::from(vec![None as Option<i64>])) as ArrayRef
             }
             (Field::Float(v), FieldType::Float) => {
-                Arc::new(arrow_array::Float64Array::from_iter_values([*v])) as ArrayRef
+                Arc::new(arrow_array::Float64Array::from_iter_values([**v])) as ArrayRef
             }
             (Field::Null, FieldType::Float) => {
                 Arc::new(arrow_array::Float64Array::from(vec![None as Option<f64>])) as ArrayRef
             }
             (Field::Boolean(v), FieldType::Boolean) => {
-                Arc::new(arrow_array::BooleanArray::from(vec![v])) as ArrayRef
+                Arc::new(arrow_array::BooleanArray::from(vec![*v])) as ArrayRef
             }
             (Field::Null, FieldType::Boolean) => {
                 Arc::new(arrow_array::BooleanArray::from(vec![None as Option<bool>])) as ArrayRef
@@ -116,7 +116,6 @@ pub fn map_record_to_arrow(
                 "Invalid field type {b:?} for the field: {a:?}",
             )))?,
         };
-        idx += 1;
         rows.push(r);
     }
     RecordBatch::try_new(Arc::new(map_to_arrow_schema(schema).unwrap()), rows)

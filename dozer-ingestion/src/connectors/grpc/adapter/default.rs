@@ -27,7 +27,7 @@ impl IngestAdapter for DefaultAdapter {
     fn new() -> Self {
         Self {}
     }
-    fn get_schemas(&self, schemas_str: &String) -> Result<Vec<SourceSchema>, ConnectorError> {
+    fn get_schemas(&self, schemas_str: &str) -> Result<Vec<SourceSchema>, ConnectorError> {
         let mut schemas: Vec<SourceSchema> =
             serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
 
@@ -83,7 +83,7 @@ pub fn handle_message(
     };
     ingestor
         .handle_message(IngestionMessage::new_op(0, req.seq_no as u64, op))
-        .map_err(|e| ConnectorError::IngestorError(e))
+        .map_err(ConnectorError::IngestorError)
 }
 
 fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record, ConnectorError> {

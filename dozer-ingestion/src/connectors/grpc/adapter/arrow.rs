@@ -39,9 +39,9 @@ impl IngestAdapter for ArrowAdapter {
         Self {}
     }
 
-    fn get_schemas(&self, schemas_str: &String) -> Result<Vec<SourceSchema>, ConnectorError> {
+    fn get_schemas(&self, schemas_str: &str) -> Result<Vec<SourceSchema>, ConnectorError> {
         let grpc_schemas: Vec<GrpcArrowSchema> =
-            serde_json::from_str(&schemas_str).map_err(ConnectorError::map_serialization_error)?;
+            serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
         let mut schemas = vec![];
 
         for (id, grpc_schema) in grpc_schemas.iter().enumerate() {

@@ -18,7 +18,7 @@ where
     Self: Send + Sync + 'static + Sized,
 {
     fn new() -> Self;
-    fn get_schemas(&self, schemas_str: &String) -> Result<Vec<SourceSchema>, ConnectorError>;
+    fn get_schemas(&self, schemas_str: &str) -> Result<Vec<SourceSchema>, ConnectorError>;
     fn handle_message(
         &self,
         msg: GrpcIngestMessage,
