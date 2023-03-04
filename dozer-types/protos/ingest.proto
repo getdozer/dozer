@@ -7,12 +7,10 @@ service IngestService {
   rpc ingest(IngestRequest) returns (IngestResponse);
 
   rpc ingest_stream(stream IngestRequest) returns (IngestResponse);
-}
 
-service IngestArrowService {
-  rpc ingest(IngestArrowRequest) returns (IngestResponse);
+  rpc ingest_arrow(IngestArrowRequest) returns (IngestResponse);
 
-  rpc ingest_stream(stream IngestArrowRequest) returns (IngestResponse);
+  rpc ingest_arrow_stream(stream IngestArrowRequest) returns (IngestResponse);
 }
 
 // The event types.

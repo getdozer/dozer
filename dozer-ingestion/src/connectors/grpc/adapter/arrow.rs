@@ -1,56 +1,44 @@
-use std::marker::PhantomData;
+use std::collections::HashMap;
 
 use dozer_types::{
     arrow::ipc::reader::StreamReader,
     arrow_types::{self, from_arrow::map_record_batch_to_dozer_records},
     bytes::{Buf, Bytes},
     grpc_types::ingest::IngestArrowRequest,
+    ingestion_types::IngestionMessage,
     serde_json,
-    types::{Record, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceSchema},
+    types::{
+        Operation, Record, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceSchema,
+    },
 };
 
-use crate::errors::ConnectorError;
+use crate::{errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::serde::{self, Deserialize, Serialize};
 
-use super::GrpcIngestAdapter;
+use super::{GrpcIngestMessage, IngestAdapter};
+
+// Input is a JSON string or a path to a JSON file
+// Takes name, arrow schema, and optionally replication type
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(crate = "self::serde")]
+pub struct GrpcArrowSchema {
+    pub name: String,
+    pub schema: dozer_types::arrow::datatypes::Schema,
+    #[serde(default)]
+    pub replication_type: ReplicationChangesTrackingType,
+}
 
 #[derive(Debug)]
-pub struct ArrowAdapter<T> {
-    arrow_schemas: Vec<Schema>,
-    phantom: PhantomData<T>,
-}
+pub struct ArrowAdapter {}
 
-impl ArrowAdapter<IngestArrowRequest> {
-    pub fn new(arrow_schemas: Vec<Schema>) -> Self {
-        Self {
-            arrow_schemas,
-            phantom: PhantomData,
-        }
+impl ArrowAdapter {}
+
+impl IngestAdapter for ArrowAdapter {
+    fn new() -> Self {
+        Self {}
     }
 
-    fn map_record_batch(
-        req: IngestArrowRequest,
-        schema: &Schema,
-    ) -> Result<Vec<Record>, tonic::Status> {
-        let mut buf = Bytes::from(req.records).reader();
-        // read stream back
-        let mut reader = StreamReader::try_new(&mut buf, None).unwrap();
-        let mut records = Vec::new();
-        while let Some(Ok(batch)) = reader.next() {
-            let b_recs = map_record_batch_to_dozer_records(batch, schema).map_err(|e| {
-                tonic::Status::internal(format!(
-                    "error converting arrow record batch to dozer records: {:#?}",
-                    e
-                ))
-            })?;
-            records.extend(b_recs);
-        }
-
-        Ok(records)
-    }
-}
-
-impl GrpcIngestAdapter<IngestArrowRequest> for ArrowAdapter<IngestArrowRequest> {
     fn get_schemas(&self, schemas_str: &String) -> Result<Vec<SourceSchema>, ConnectorError> {
         let grpc_schemas: Vec<GrpcArrowSchema> =
             serde_json::from_str(&schemas_str).map_err(ConnectorError::map_serialization_error)?;
@@ -72,20 +60,56 @@ impl GrpcIngestAdapter<IngestArrowRequest> for ArrowAdapter<IngestArrowRequest> 
         }
         Ok(schemas)
     }
-
-    fn handle_message(&self, msg: IngestArrowRequest) -> Result<(), ConnectorError> {
-        todo!()
+    fn handle_message(
+        &self,
+        msg: GrpcIngestMessage,
+        schema_map: &'static HashMap<String, Schema>,
+        ingestor: &'static Ingestor,
+    ) -> Result<(), ConnectorError> {
+        match msg {
+            GrpcIngestMessage::Default(_) => Err(ConnectorError::InitializationError(
+                "Wrong message format!".to_string(),
+            )),
+            GrpcIngestMessage::Arrow(msg) => handle_message(msg, schema_map, ingestor),
+        }
     }
 }
 
-// Input is a JSON string or a path to a JSON file
-// Takes name, arrow schema, and optionally replication type
+pub fn handle_message(
+    req: IngestArrowRequest,
+    schema_map: &'static HashMap<String, Schema>,
+    ingestor: &'static Ingestor,
+) -> Result<(), ConnectorError> {
+    let schema = schema_map.get(&req.schema_name).ok_or_else(|| {
+        ConnectorError::InitializationError(format!("schema not found: {}", req.schema_name))
+    })?;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(crate = "self::serde")]
-pub struct GrpcArrowSchema {
-    pub name: String,
-    pub schema: dozer_types::arrow::datatypes::Schema,
-    #[serde(default)]
-    pub replication_type: ReplicationChangesTrackingType,
+    let seq_no = req.seq_no;
+    let records = map_record_batch(req, schema)?;
+
+    for r in records {
+        let op = Operation::Insert { new: r };
+        ingestor
+            .handle_message(IngestionMessage::new_op(0, seq_no as u64, op))
+            .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
+    }
+
+    Ok(())
+}
+
+fn map_record_batch(
+    req: IngestArrowRequest,
+    schema: &Schema,
+) -> Result<Vec<Record>, ConnectorError> {
+    let mut buf = Bytes::from(req.records).reader();
+    // read stream back
+    let mut reader = StreamReader::try_new(&mut buf, None).unwrap();
+    let mut records = Vec::new();
+    while let Some(Ok(batch)) = reader.next() {
+        let b_recs = map_record_batch_to_dozer_records(batch, schema)
+            .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
+        records.extend(b_recs);
+    }
+
+    Ok(records)
 }

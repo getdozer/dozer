@@ -12,6 +12,8 @@ use crate::types::{
 use arrow::array;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{DataType, TimeUnit};
+use arrow::ipc::writer::StreamWriter;
+use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
 
 macro_rules! make_from {
@@ -265,11 +267,11 @@ pub fn map_record_batch_to_dozer_records(
     }
     let num_rows = batch.num_rows();
 
-    for i in 0..num_rows {
+    for r in 0..num_rows {
         let mut values = vec![];
-        for (i, x) in columns.iter().enumerate() {
-            let field = schema.fields.get(i).unwrap();
-            let value = map_value_to_dozer_field(x, &i, &field.name)?;
+        for (c, x) in columns.iter().enumerate() {
+            let field = schema.fields.get(c).unwrap();
+            let value = map_value_to_dozer_field(x, &r, &field.name)?;
             values.push(value);
         }
         records.push(Record {
@@ -280,4 +282,12 @@ pub fn map_record_batch_to_dozer_records(
     }
 
     Ok(records)
+}
+
+pub fn serialize_record_batch(record: &RecordBatch) -> Vec<u8> {
+    let buffer: Vec<u8> = Vec::new();
+    let mut stream_writer = StreamWriter::try_new(buffer, &record.schema()).unwrap();
+    stream_writer.write(record).unwrap();
+    stream_writer.finish().unwrap();
+    stream_writer.into_inner().unwrap()
 }

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::Path;
-use std::sync::Arc;
 
-use super::adapter::{get_adapter, GrpcIngestAdapter};
+use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
 use crate::connectors::ValidationResults;
 use crate::{
@@ -14,17 +13,23 @@ use crate::{
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::info;
-use dozer_types::types::{Schema, SchemaIdentifier, SourceSchema};
+use dozer_types::types::SourceSchema;
 use tonic::transport::Server;
 use tower_http::trace::TraceLayer;
 
-pub struct GrpcConnector<T> {
+pub struct GrpcConnector<T>
+where
+    T: IngestAdapter,
+{
     pub id: u64,
     pub name: String,
     pub config: GrpcConfig,
-    pub adapter: Arc<Box<dyn GrpcIngestAdapter<T>>>,
+    _phantom: std::marker::PhantomData<T>,
 }
-impl<T> Debug for GrpcConnector<T> {
+impl<T> Debug for GrpcConnector<T>
+where
+    T: IngestAdapter,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GrpcConnector")
             .field("id", &self.id)
@@ -34,21 +39,23 @@ impl<T> Debug for GrpcConnector<T> {
     }
 }
 
-impl<T> GrpcConnector<T> {
+impl<T> GrpcConnector<T>
+where
+    T: IngestAdapter,
+{
     pub fn new(id: u64, name: String, config: GrpcConfig) -> Result<Self, ConnectorError> {
-        let adapter = Arc::new(get_adapter(&config.adapter)?);
         Ok(Self {
             id,
             name,
             config,
-            adapter,
+            _phantom: std::marker::PhantomData,
         })
     }
 
-    pub fn parse_schemas(
-        adapter: Arc<Box<dyn GrpcIngestAdapter<T>>>,
-        config: &GrpcConfig,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+    pub fn parse_config(config: &GrpcConfig) -> Result<String, ConnectorError>
+    where
+        T: IngestAdapter,
+    {
         let schemas = config.schemas.as_ref().map_or_else(
             || {
                 Err(ConnectorError::InitializationError(
@@ -68,25 +75,7 @@ impl<T> GrpcConnector<T> {
             }
         };
 
-        adapter.get_schemas(&schemas_str)
-    }
-
-    fn get_schema_map(
-        adapter: Arc<Box<dyn GrpcIngestAdapter<T>>>,
-        config: &GrpcConfig,
-    ) -> Result<HashMap<String, Schema>, ConnectorError> {
-        let schemas = Self::parse_schemas(adapter, config)?;
-        Ok(schemas
-            .into_iter()
-            .enumerate()
-            .map(|(id, mut v)| {
-                v.schema.identifier = Some(SchemaIdentifier {
-                    id: id as u32,
-                    version: 1,
-                });
-                (v.name, v.schema)
-            })
-            .collect())
+        Ok(schemas_str)
     }
 
     pub fn serve(&self, ingestor: &Ingestor) -> Result<(), ConnectorError> {
@@ -97,16 +86,17 @@ impl<T> GrpcConnector<T> {
             ConnectorError::InitializationError(format!("Failed to parse address: {e}"))
         })?;
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
-        let schema_map = Self::get_schema_map(self.adapter, &self.config)?;
 
-        let adapter = self.adapter.clone();
+        let schemas_str = Self::parse_config(&self.config)?;
+        let adapter = GrpcIngestor::<T>::new(schemas_str)?;
+
         rt.block_on(async {
             // Ingestor will live as long as the server
             // Refactor to use Arc
             let ingestor =
                 unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
-            let schema_map = schema_map.clone();
-            let ingest_service = IngestorServiceImpl::new(&schema_map, ingestor, adapter);
+
+            let ingest_service = IngestorServiceImpl::new(adapter, ingestor);
             let ingest_service = tonic_web::config()
                 .allow_all_origins()
                 .enable(IngestServiceServer::new(ingest_service));
@@ -130,12 +120,18 @@ impl<T> GrpcConnector<T> {
     }
 }
 
-impl<T> Connector for GrpcConnector<T> {
+impl<T> Connector for GrpcConnector<T>
+where
+    T: IngestAdapter,
+{
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let schemas = Self::parse_schemas(self.adapter, &self.config)?;
+        let schemas_str = Self::parse_config(&self.config)?;
+        let adapter = GrpcIngestor::<T>::new(schemas_str)?;
+
+        let schemas = adapter.get_schemas()?;
         let schemas = table_names.map_or(schemas.clone(), |names| {
             schemas
                 .into_iter()
@@ -149,21 +145,23 @@ impl<T> Connector for GrpcConnector<T> {
         &self,
         _from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
-        _tables: Vec<TableInfo>,
+        _table_names: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         self.serve(ingestor)
     }
 
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let schemas = Self::parse_schemas(self.adapter, &self.config);
+    fn validate(&self, table_names: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+        let schemas = self.get_schemas(table_names);
         schemas.map(|_| ())
     }
 
     fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         let mut results = HashMap::new();
-        let schemas = Self::get_schema_map(self.adapter, &self.config)?;
+        let schemas_str = Self::parse_config(&self.config)?;
+        let adapter = GrpcIngestor::<T>::new(schemas_str)?;
+        let schema_map = adapter.schema_map;
         for table in tables {
-            let r = schemas.get(&table.name).map_or(
+            let r = schema_map.get(&table.name).map_or(
                 Err(ConnectorError::InitializationError(format!(
                     "Schema not found for table {}",
                     table.name

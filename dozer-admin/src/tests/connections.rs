@@ -25,6 +25,7 @@ mod grpc_service {
                 config: Some(ConnectionConfig::Grpc(GrpcConfig {
                     host: "localhost".to_owned(),
                     port: 50051,
+                    adapter: "default".to_owned(),
                     schemas: None,
                 })),
             }),
@@ -97,6 +98,7 @@ mod grpc_service {
                     config: Some(ConnectionConfig::Grpc(GrpcConfig {
                         host: "localhost".to_owned(),
                         port: 50051,
+                        adapter: "default".to_owned(),
                         schemas: None,
                     })),
                 }),

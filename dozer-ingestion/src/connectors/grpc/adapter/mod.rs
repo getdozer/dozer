@@ -1,57 +1,89 @@
-use std::marker::PhantomData;
+use std::collections::HashMap;
 
 use dozer_types::{
     grpc_types::ingest::{IngestArrowRequest, IngestRequest},
-    types::SourceSchema,
+    types::{Schema, SchemaIdentifier, SourceSchema},
 };
 
-use crate::errors::ConnectorError;
-
-use self::{arrow::ArrowAdapter, default::DefaultAdapter};
+use crate::{errors::ConnectorError, ingestion::Ingestor};
 
 mod default;
 
 mod arrow;
 
-pub trait GrpcIngestAdapter<T>: Send + Sync {
+pub use arrow::ArrowAdapter;
+pub use default::DefaultAdapter;
+pub trait IngestAdapter
+where
+    Self: Send + Sync + 'static + Sized,
+{
+    fn new() -> Self;
     fn get_schemas(&self, schemas_str: &String) -> Result<Vec<SourceSchema>, ConnectorError>;
-    fn handle_message(&self, msg: T) -> Result<(), ConnectorError>;
+    fn handle_message(
+        &self,
+        msg: GrpcIngestMessage,
+        schema_map: &'static HashMap<String, Schema>,
+        ingestor: &'static Ingestor,
+    ) -> Result<(), ConnectorError>;
 }
 
-pub fn get_adapter<T>(format: &str) -> Result<Box<dyn GrpcIngestAdapter<T>>, ConnectorError> {
-    match format {
-        "arrow" => Ok(Box::new(ArrowAdapter::<IngestArrowRequest> {
-            arrow_schemas: vec![],
-            phantom: PhantomData,
-        })),
-        "default" => Ok(Box::new(DefaultAdapter::<IngestRequest> {
-            phantom: PhantomData,
-        })),
-        _ => Err(ConnectorError::InitializationError(format!(
-            "Grpc Adapter {} not found",
-            format
-        ))),
+pub enum GrpcIngestMessage {
+    Default(IngestRequest),
+    Arrow(IngestArrowRequest),
+}
+pub struct GrpcIngestor<A>
+where
+    A: IngestAdapter,
+{
+    adapter: A,
+    schemas_str: String,
+    pub schema_map: &'static HashMap<String, Schema>,
+}
+impl<T> GrpcIngestor<T>
+where
+    T: IngestAdapter,
+{
+    pub fn new(schemas_str: String) -> Result<Self, ConnectorError> {
+        let adapter = T::new();
+        let schemas = adapter.get_schemas(&schemas_str)?;
+        let schema_map = Self::get_schema_map(schemas)?;
+
+        Ok(Self {
+            schemas_str,
+            schema_map: Box::leak(Box::new(schema_map)),
+            adapter,
+        })
+    }
+    pub fn get_schema_map(
+        schemas: Vec<SourceSchema>,
+    ) -> Result<HashMap<String, Schema>, ConnectorError> {
+        Ok(schemas
+            .into_iter()
+            .enumerate()
+            .map(|(id, mut v)| {
+                v.schema.identifier = Some(SchemaIdentifier {
+                    id: id as u32,
+                    version: 1,
+                });
+                (v.name, v.schema)
+            })
+            .collect())
     }
 }
 
-// pub fn insert(
-//     req: IngestRequest,
-//     schema_map: &'static HashMap<String, Schema>,
-//     ingestor: &'static Ingestor,
-// ) -> Result<(), tonic::Status> {
-//     let schema = schema_map.get(&req.schema_name).ok_or_else(|| {
-//         tonic::Status::invalid_argument(format!("schema not found: {}", req.schema_name))
-//     })?;
+impl<A> GrpcIngestor<A>
+where
+    A: IngestAdapter,
+{
+    pub fn get_schemas(&self) -> Result<Vec<SourceSchema>, ConnectorError> {
+        self.adapter.get_schemas(&self.schemas_str)
+    }
 
-//     let seq_no = req.seq_no;
-//     let records = map_record_batch(req, schema)?;
-
-//     for r in records {
-//         let op = Operation::Insert { new: r };
-//         ingestor
-//             .handle_message(IngestionMessage::new_op(0, seq_no as u64, op))
-//             .map_err(|e| tonic::Status::internal(format!("ingestion error: {e}")))?;
-//     }
-
-//     Ok(())
-// }
+    pub fn handle_message(
+        &self,
+        msg: GrpcIngestMessage,
+        ingestor: &'static Ingestor,
+    ) -> Result<(), ConnectorError> {
+        self.adapter.handle_message(msg, self.schema_map, ingestor)
+    }
+}
