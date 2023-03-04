@@ -8,12 +8,15 @@ pub mod node;
 mod tests;
 pub mod types;
 
+// Export Arrow functionality
+pub mod arrow_types;
 // Export grpc types
 pub mod grpc_types;
 
 pub use helper::json_value_to_field;
 
 // Re-exports
+pub use arrow;
 pub use bincode;
 pub use bytes;
 pub use chrono;

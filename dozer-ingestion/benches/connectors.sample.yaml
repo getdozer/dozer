@@ -1,0 +1,37 @@
+# Runs bench on all connectors in this file
+# Copy relevant connectors to dozer-ingestion/benches/connectors.yaml and run bench
+
+- connection:
+    config: !Postgres
+      user: postgres
+      password: postgres
+      host: 0.0.0.0
+      port: 5437
+      database: flights
+    name: bookings_conn
+    tables: [bookings]
+
+- connection:
+    config: !Grpc
+      schemas: !Path "workspaces/trips.json"
+      name: ingest
+    name: trips_conn
+
+- connection:
+    config: !Grpc
+      schemas: !Path "workspaces/trips.json"
+      adapter: "arrow"
+      name: ingest
+    name: trips_arrow_conn
+
+- connection:
+    config: !LocalStorage
+      details:
+        path: ./taxi-objectstore
+      tables:
+        - !Table
+          name: trips
+          prefix: data
+          file_type: parquet
+          extension: .parquet
+    name: ny_taxi

@@ -26,6 +26,12 @@ pub enum ConnectorError {
     #[error("Missing `config` for connector {0}")]
     MissingConfiguration(String),
 
+    #[error("Failed to map configuration")]
+    WrongConnectionConfiguration,
+
+    #[error("Unsupported grpc adapter: {0} {1}")]
+    UnsupportedGrpcAdapter(String, String),
+
     #[error("Table not found: {0}")]
     TableNotFound(String),
 
@@ -34,9 +40,6 @@ pub enum ConnectorError {
 
     #[error("Failed to initialize connector {0}")]
     InitializationError(String),
-
-    #[error("Failed to map configuration")]
-    WrongConnectionConfiguration,
 
     #[error("This connector doesn't support this method: {0}")]
     UnsupportedConnectorMethod(String),
@@ -88,6 +91,14 @@ impl ConnectorError {
             e,
         )))
     }
+}
+#[derive(Error, Debug)]
+pub enum ConfigurationError {
+    #[error("Missing `config` for connector {0}")]
+    MissingConfiguration(String),
+
+    #[error("Failed to map configuration")]
+    WrongConnectionConfiguration,
 }
 
 #[derive(Error, Debug)]
@@ -368,6 +379,9 @@ pub enum ObjectStoreConnectorError {
 
     #[error(transparent)]
     TableReaderError(#[from] ObjectStoreTableReaderError),
+
+    #[error(transparent)]
+    IngestorError(#[from] IngestorError),
 }
 
 #[derive(Error, Debug, PartialEq)]

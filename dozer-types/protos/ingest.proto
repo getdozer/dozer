@@ -2,10 +2,22 @@ syntax = "proto3";
 
 package dozer.ingest;
 import "types.proto";
+
 service IngestService {
   rpc ingest(IngestRequest) returns (IngestResponse);
 
   rpc ingest_stream(stream IngestRequest) returns (IngestResponse);
+
+  rpc ingest_arrow(IngestArrowRequest) returns (IngestResponse);
+
+  rpc ingest_arrow_stream(stream IngestArrowRequest) returns (IngestResponse);
+}
+
+// The event types.
+enum OperationType {
+  INSERT = 0; // INSERT operation.
+  DELETE = 1; // DELETE operation.
+  UPDATE = 2; // UPDATE operation.
 }
 
 message IngestRequest {
@@ -20,3 +32,23 @@ message IngestRequest {
   uint32 seq_no = 5;
 }
 message IngestResponse { uint32 seq_no = 1; }
+
+message IngestArrowRequest {
+  string schema_name = 1;
+
+  // Old record data, only applicable for UPDATE type.
+  bytes records = 2;
+
+  uint32 seq_no = 3;
+
+  map<uint32, IngestMetadata> metadata = 4;
+}
+
+message IngestMetadata {
+
+  // The operation type.
+  OperationType typ = 1;
+
+  // Records with same primary key will have increasing version.
+  uint32 version = 2;
+}

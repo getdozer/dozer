@@ -26,6 +26,7 @@ pub mod snowflake;
 
 use self::ethereum::{EthLogConnector, EthTraceConnector};
 use self::grpc::connector::GrpcConnector;
+use self::grpc::{ArrowAdapter, DefaultAdapter};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
 pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
@@ -124,11 +125,22 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 EthTraceConnector::new(2, trace_config, connection.name),
             )),
         },
-        ConnectionConfig::Grpc(grpc_config) => Ok(Box::new(GrpcConnector::new(
-            3,
-            connection.name,
-            grpc_config,
-        ))),
+        ConnectionConfig::Grpc(grpc_config) => match grpc_config.adapter.as_str() {
+            "arrow" => Ok(Box::new(GrpcConnector::<ArrowAdapter>::new(
+                3,
+                connection.name,
+                grpc_config,
+            )?)),
+            "default" => Ok(Box::new(GrpcConnector::<DefaultAdapter>::new(
+                3,
+                connection.name,
+                grpc_config,
+            )?)),
+            _ => Err(ConnectorError::UnsupportedGrpcAdapter(
+                connection.name,
+                grpc_config.adapter,
+            )),
+        },
         ConnectionConfig::Snowflake(snowflake) => {
             let snowflake_config = snowflake;
 
