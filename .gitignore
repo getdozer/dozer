@@ -41,3 +41,5 @@ dozer-tests/src/e2e_tests/cases/*/buildkite_runner/
 
 dozer-ingestion/src/tests/cases/*/local_runner/
 dozer-ingestion/src/tests/cases/*/buildkite_runner/
+# Connectors Benches YAML
+dozer-ingestion/benches/connectors.yaml

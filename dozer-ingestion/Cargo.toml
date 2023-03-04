@@ -46,7 +46,11 @@ hex-literal = "0.3.4"
 dozer-tracing = {path = "../dozer-tracing"}
 dozer-orchestrator = {path = "../dozer-orchestrator"}
 
-
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
 snowflake = ["dep:odbc", "dep:include_dir"]
+
+[[bench]]
+name = "connectors"
+harness = false
+bench = false
