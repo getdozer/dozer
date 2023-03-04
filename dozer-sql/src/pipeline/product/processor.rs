@@ -4,12 +4,10 @@ use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::record_store::RecordReader;
-use dozer_core::storage::common::Database;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Operation, Record};
-use lmdb::DatabaseFlags;
 use std::collections::HashMap;
 
 use super::join::{JoinAction, JoinSource};
@@ -20,9 +18,6 @@ pub struct FromProcessor {
     /// Join operations
     operator: JoinSource,
 
-    /// Database to store Join indexes
-    db: Database,
-
     source_names: HashMap<PortHandle, String>,
 }
 
@@ -31,61 +26,39 @@ impl FromProcessor {
     pub fn new(
         operator: JoinSource,
         source_names: HashMap<PortHandle, String>,
-        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Self, PipelineError> {
         Ok(Self {
             operator,
-            db: txn.create_database(Some("product"), Some(DatabaseFlags::DUP_SORT))?,
             source_names,
         })
     }
 
     fn delete(
-        &self,
+        &mut self,
         from_port: PortHandle,
         record: &Record,
-        transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         self.operator
-            .execute(
-                JoinAction::Delete,
-                from_port,
-                record,
-                &self.db,
-                transaction,
-                reader,
-            )
+            .execute(JoinAction::Delete, from_port, record)
             .map_err(|err| ProductError::DeleteError(self.get_port_name(from_port), Box::new(err)))
     }
 
     fn insert(
-        &self,
+        &mut self,
         from_port: PortHandle,
         record: &Record,
-        transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
         self.operator
-            .execute(
-                JoinAction::Insert,
-                from_port,
-                record,
-                &self.db,
-                transaction,
-                reader,
-            )
+            .execute(JoinAction::Insert, from_port, record)
             .map_err(|err| ProductError::InsertError(self.get_port_name(from_port), Box::new(err)))
     }
 
     #[allow(clippy::type_complexity)]
     fn update(
-        &self,
+        &mut self,
         from_port: PortHandle,
         old: &Record,
         new: &Record,
-        transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<
         (
             Vec<(JoinAction, Record, Vec<u8>)>,
@@ -95,28 +68,14 @@ impl FromProcessor {
     > {
         let old_records = self
             .operator
-            .execute(
-                JoinAction::Delete,
-                from_port,
-                old,
-                &self.db,
-                transaction,
-                reader,
-            )
+            .execute(JoinAction::Delete, from_port, old)
             .map_err(|err| {
                 ProductError::UpdateOldError(self.get_port_name(from_port), Box::new(err))
             })?;
 
         let new_records = self
             .operator
-            .execute(
-                JoinAction::Insert,
-                from_port,
-                new,
-                &self.db,
-                transaction,
-                reader,
-            )
+            .execute(JoinAction::Insert, from_port, new)
             .map_err(|err| {
                 ProductError::UpdateNewError(self.get_port_name(from_port), Box::new(err))
             })?;
@@ -142,8 +101,8 @@ impl Processor for FromProcessor {
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        _transaction: &SharedTransaction,
+        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         // match op.clone() {
         //     Operation::Delete { old } => info!("p{from_port}: - {:?}", old.values),
@@ -156,7 +115,7 @@ impl Processor for FromProcessor {
         match op {
             Operation::Delete { ref old } => {
                 let records = self
-                    .delete(from_port, old, transaction, reader)
+                    .delete(from_port, old)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record, _key) in records.into_iter() {
@@ -172,7 +131,7 @@ impl Processor for FromProcessor {
             }
             Operation::Insert { ref new } => {
                 let records = self
-                    .insert(from_port, new, transaction, reader)
+                    .insert(from_port, new)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record, _key) in records.into_iter() {
@@ -188,7 +147,7 @@ impl Processor for FromProcessor {
             }
             Operation::Update { ref old, ref new } => {
                 let (old_join_records, new_join_records) = self
-                    .update(from_port, old, new, transaction, reader)
+                    .update(from_port, old, new)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, old, _key) in old_join_records.into_iter() {
