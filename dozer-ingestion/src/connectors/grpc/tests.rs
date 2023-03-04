@@ -27,6 +27,7 @@ use tonic::transport::Channel;
 async fn ingest_grpc(
     schemas: Value,
     adapter: String,
+    port: u32,
 ) -> (IngestServiceClient<Channel>, IngestionIterator) {
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
@@ -35,6 +36,7 @@ async fn ingest_grpc(
             config: Some(ConnectionConfig::Grpc(GrpcConfig {
                 schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
                 adapter,
+                port,
                 ..Default::default()
             })),
             name: "grpc".to_string(),
@@ -46,7 +48,8 @@ async fn ingest_grpc(
     });
 
     let retries = 10;
-    let mut res = IngestServiceClient::connect("http://[::1]:8085").await;
+    let url = format!("http://0.0.0.0:{port}");
+    let mut res = IngestServiceClient::connect(url.clone()).await;
     for r in 0..retries {
         if res.is_ok() {
             break;
@@ -55,7 +58,7 @@ async fn ingest_grpc(
             panic!("failed to connect after {r} times");
         }
         thread::sleep(std::time::Duration::from_millis(300));
-        res = IngestServiceClient::connect("http://0.0.0.0:8085").await;
+        res = IngestServiceClient::connect(url.clone()).await;
     }
 
     (res.unwrap(), iterator)
@@ -81,7 +84,8 @@ async fn ingest_grpc_default() {
       }
     }]);
 
-    let (mut ingest_client, mut iterator) = ingest_grpc(schemas, "default".to_string()).await;
+    let (mut ingest_client, mut iterator) =
+        ingest_grpc(schemas, "default".to_string(), 45678).await;
 
     // Ingest a record
     ingest_client
@@ -146,7 +150,7 @@ async fn ingest_grpc_arrow() {
       }
     }]);
 
-    let (mut ingest_client, mut iterator) = ingest_grpc(schemas, "arrow".to_string()).await;
+    let (mut ingest_client, mut iterator) = ingest_grpc(schemas, "arrow".to_string(), 45679).await;
 
     // Ingest a record
     let schema = arrow_types::Schema::new(vec![
