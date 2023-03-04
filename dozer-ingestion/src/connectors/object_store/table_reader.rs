@@ -99,7 +99,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                             },
                         },
                     ))
-                    .unwrap();
+                    .map_err(|e| ObjectStoreConnectorError::IngestorError(e))?;
 
                 idx += 1;
             }

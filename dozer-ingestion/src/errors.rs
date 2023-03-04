@@ -376,6 +376,9 @@ pub enum ObjectStoreConnectorError {
 
     #[error(transparent)]
     TableReaderError(#[from] ObjectStoreTableReaderError),
+
+    #[error(transparent)]
+    IngestorError(#[from] IngestorError),
 }
 
 #[derive(Error, Debug, PartialEq)]
