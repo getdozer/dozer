@@ -60,7 +60,7 @@ fn connectors(criter: &mut Criterion) {
                     b.iter(|| {
                         iterator.next();
                         count += 1;
-                        if count % 1000 == 0 {
+                        if count % 100 == 0 {
                             pb.set_position(count as u64);
                         }
                     })

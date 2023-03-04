@@ -100,7 +100,7 @@ async fn test_grpc_count_and_query_common(
             .await
             .unwrap();
     });
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(1001)).await;
     let channel = Endpoint::from_str(&format!("http://127.0.0.1:{port:}"))
         .unwrap()
         .connect()
@@ -314,7 +314,7 @@ async fn test_typed_streaming3() {
             .await
             .unwrap();
     });
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(1001)).await;
     let address = "http://127.0.0.1:14323".to_owned();
     let mut client = FilmsClient::connect(address.to_owned()).await.unwrap();
     let request = FilmEventRequest {
