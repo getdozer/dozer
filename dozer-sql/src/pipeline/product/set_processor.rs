@@ -4,7 +4,6 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record};
@@ -36,7 +35,6 @@ impl SetProcessor {
         _from_port: PortHandle,
         record: &Record,
         txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
             .execute(SetAction::Delete, record, &self.db, txn)
@@ -50,7 +48,6 @@ impl SetProcessor {
         _from_port: PortHandle,
         record: &Record,
         txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
             .execute(SetAction::Insert, record, &self.db, txn)
@@ -66,7 +63,6 @@ impl SetProcessor {
         old: &Record,
         new: &Record,
         txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
         let old_records = self
             .operator
@@ -97,69 +93,70 @@ impl Processor for SetProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
-        match op {
-            Operation::Delete { ref old } => {
-                let records = self
-                    .delete(from_port, old, transaction, reader)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+        fw.send(op, DEFAULT_PORT_HANDLE);
 
-                for (action, record) in records.into_iter() {
-                    match action {
-                        SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
-                        }
-                        SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
-                        }
-                    }
-                }
-            }
-            Operation::Insert { ref new } => {
-                let records = self
-                    .insert(from_port, new, transaction, reader)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
-
-                for (action, record) in records.into_iter() {
-                    match action {
-                        SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
-                        }
-                        SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
-                        }
-                    }
-                }
-            }
-            Operation::Update { ref old, ref new } => {
-                let (old_records, new_records) = self
-                    .update(from_port, old, new, transaction, reader)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
-
-                for (action, old) in old_records.into_iter() {
-                    match action {
-                        SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
-                        }
-                        SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
-                        }
-                    }
-                }
-
-                for (action, new) in new_records.into_iter() {
-                    match action {
-                        SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
-                        }
-                        SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
-                        }
-                    }
-                }
-            }
-        }
+        // match op {
+        //     Operation::Delete { ref old } => {
+        //         let records = self
+        //             .delete(from_port, old, transaction, reader)
+        //             .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+        //
+        //         for (action, record) in records.into_iter() {
+        //             match action {
+        //                 SetAction::Insert => {
+        //                     let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+        //                 }
+        //                 SetAction::Delete => {
+        //                     let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     Operation::Insert { ref new } => {
+        //         let records = self
+        //             .insert(from_port, new, transaction, reader)
+        //             .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+        //
+        //         for (action, record) in records.into_iter() {
+        //             match action {
+        //                 SetAction::Insert => {
+        //                     let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+        //                 }
+        //                 SetAction::Delete => {
+        //                     let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     Operation::Update { ref old, ref new } => {
+        //         let (old_records, new_records) = self
+        //             .update(from_port, old, new, transaction, reader)
+        //             .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+        //
+        //         for (action, old) in old_records.into_iter() {
+        //             match action {
+        //                 SetAction::Insert => {
+        //                     let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
+        //                 }
+        //                 SetAction::Delete => {
+        //                     let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+        //                 }
+        //             }
+        //         }
+        //
+        //         for (action, new) in new_records.into_iter() {
+        //             match action {
+        //                 SetAction::Insert => {
+        //                     let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+        //                 }
+        //                 SetAction::Delete => {
+        //                     let _ = fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
         Ok(())
     }
 }

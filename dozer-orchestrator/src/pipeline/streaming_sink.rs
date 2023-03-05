@@ -2,7 +2,6 @@ use dozer_core::{
     epoch::Epoch,
     errors::ExecutionError,
     node::{PortHandle, Sink, SinkFactory},
-    record_store::RecordReader,
     storage::lmdb_storage::SharedTransaction,
     DEFAULT_PORT_HANDLE,
 };
@@ -61,7 +60,6 @@ impl Sink for StreamingSink {
         _from_port: PortHandle,
         op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;
         let _res = self

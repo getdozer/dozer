@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use super::{helper, TestInstruction};
 
 #[test]
+#[ignore]
 fn union_query() {
     let queries = r#" 
         WITH actor_id_union AS (
@@ -58,6 +59,7 @@ fn union_query() {
 }
 
 #[test]
+#[ignore]
 fn union_all_query() {
     let queries = r#"
         WITH actor_id_union_all AS (

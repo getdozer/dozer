@@ -7,7 +7,6 @@ use dozer_cache::cache::{CacheManager, RwCache};
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::{ExecutionError, SinkError};
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -365,7 +364,6 @@ impl Sink for CacheSink {
         _from_port: PortHandle,
         op: Operation,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
 
@@ -571,7 +569,7 @@ mod tests {
             },
         };
 
-        sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn, &HashMap::new())
+        sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn)
             .unwrap();
         sink.commit(
             &dozer_core::epoch::Epoch::from(
@@ -589,7 +587,7 @@ mod tests {
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn, &HashMap::new())
+        sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn)
             .unwrap();
         let epoch1 = dozer_core::epoch::Epoch::from(
             0,

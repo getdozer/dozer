@@ -525,7 +525,6 @@ impl Processor for AggregationProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         let ops = self
             .aggregate(&mut txn.write(), self.db, op)
