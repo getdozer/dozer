@@ -201,8 +201,8 @@ pub enum JoinError {
     #[error("Error deleting key: {0:x?} value: {1:x?} from the JOIN index\n{2}")]
     IndexDelError(Vec<u8>, Vec<u8>, StorageError),
 
-    #[error("Error reading key: {0:x?} from the JOIN index\n{1}")]
-    IndexGetError(Vec<u8>, StorageError),
+    #[error("Error reading key: {0:x?} from the JOIN index\n")]
+    IndexGetError(Vec<u8>),
 }
 
 #[derive(Error, Debug)]

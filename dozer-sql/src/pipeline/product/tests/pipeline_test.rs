@@ -43,21 +43,9 @@ impl TestSourceFactory {
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
         Ok(vec![
-            OutputPortDef::new(
-                USER_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates: true,
-                    retr_old_records_for_deletes: true,
-                },
-            ),
+            OutputPortDef::new(USER_PORT, OutputPortType::Stateless),
             OutputPortDef::new(DEPARTMENT_PORT, OutputPortType::Stateless),
-            OutputPortDef::new(
-                COUNTRY_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates: true,
-                    retr_old_records_for_deletes: true,
-                },
-            ),
+            OutputPortDef::new(COUNTRY_PORT, OutputPortType::Stateless),
         ])
     }
 
@@ -79,7 +67,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             false,
                             source_id.clone(),
                         ),
-                        true,
+                        false,
                     )
                     .field(
                         FieldDefinition::new(
@@ -162,7 +150,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             false,
                             source_id.clone(),
                         ),
-                        true,
+                        false,
                     )
                     .field(
                         FieldDefinition::new(

@@ -78,14 +78,13 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        txn: &mut LmdbExclusiveTransaction,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let build = || {
             let (join_operator, source_names) = build_join_tree(&self.input_tables, input_schemas)?;
             Ok::<Box<dyn Processor>, PipelineError>(Box::new(FromProcessor::new(
                 join_operator,
                 source_names,
-                txn,
             )?))
         };
 
