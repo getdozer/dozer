@@ -87,6 +87,9 @@ pub enum ConnectorError {
 
     #[error("Datafusion error: {0}")]
     DataFusionError(#[from] DataFusionError),
+
+    #[error("Runtime creation error")]
+    RuntimeCreationError(#[from] std::io::Error),
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {

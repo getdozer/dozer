@@ -33,7 +33,7 @@ fn get_schema_from_deltalake() {
         .clone();
     assert_eq!(&field.name, "value");
     assert_eq!(field.typ, FieldType::Int);
-    assert_eq!(field.nullable, true);
+    assert!(field.nullable);
     assert_eq!(field.source, Dynamic);
 }
 
@@ -52,7 +52,7 @@ fn read_deltalake() {
     let connector = DeltaLakeConnector::new(1, config);
 
     let config = IngestionConfig::default();
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
+    let (ingestor, iterator) = Ingestor::initialize_channel(config);
     let table = TableInfo {
         name: "test_table".to_string(),
         table_name: "test_table".to_string(),
@@ -67,7 +67,7 @@ fn read_deltalake() {
     let mut idx = 0;
     let fields = vec![Field::Int(0), Field::Int(1), Field::Int(2), Field::Int(4)];
     let mut values = vec![];
-    while let Some(IngestionMessage { identifier, kind }) = iterator.next() {
+    for IngestionMessage { identifier, kind } in iterator {
         assert_eq!(idx, identifier.seq_in_tx as usize);
         if let IngestionMessageKind::OperationEvent(Operation::Insert { new }) = kind {
             values.extend(new.values);

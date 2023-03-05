@@ -20,10 +20,10 @@ impl DeltaLakeReader {
     }
 
     pub fn read(&self, table: &[TableInfo], ingestor: &Ingestor) -> ConnectorResult<()> {
+        let mut seq_no = 0;
+        let runtime = Runtime::new()?;
         for (id, table) in table.iter().enumerate() {
-            Runtime::new()
-                .unwrap()
-                .block_on(self.read_impl(id as u32, table, ingestor))?;
+            runtime.block_on(self.read_impl(id as u32, &mut seq_no, table, ingestor))?;
         }
         Ok(())
     }
@@ -31,6 +31,7 @@ impl DeltaLakeReader {
     async fn read_impl(
         &self,
         id: u32,
+        seq_no: &mut u64,
         table: &TableInfo,
         ingestor: &Ingestor,
     ) -> ConnectorResult<()> {
@@ -57,7 +58,6 @@ impl DeltaLakeReader {
             .await?;
 
         tokio::pin!(data);
-        let mut idx = 0;
         while let Some(Ok(batch)) = data.next().await {
             for row in 0..batch.num_rows() {
                 let fields = batch
@@ -70,7 +70,7 @@ impl DeltaLakeReader {
                 ingestor
                     .handle_message(IngestionMessage::new_op(
                         0_u64,
-                        idx,
+                        *seq_no,
                         Operation::Insert {
                             new: Record {
                                 schema_id: Some(SchemaIdentifier { id, version: 0 }),
@@ -81,7 +81,7 @@ impl DeltaLakeReader {
                     ))
                     .unwrap();
 
-                idx += 1;
+                *seq_no += 1;
             }
         }
         Ok(())

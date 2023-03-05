@@ -28,10 +28,9 @@ impl SchemaHelper {
         }
         let tables = tables.unwrap();
         let mut schemas = vec![];
+        let runtime = Runtime::new()?;
         for table in tables.iter() {
-            let schema = Runtime::new()
-                .unwrap()
-                .block_on(self.get_schemas_impl(id, table))?;
+            let schema = runtime.block_on(self.get_schemas_impl(id, table))?;
             schemas.push(schema);
         }
         Ok(schemas)
