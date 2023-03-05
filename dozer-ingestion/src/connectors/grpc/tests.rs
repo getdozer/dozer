@@ -140,7 +140,7 @@ async fn test_serialize_arrow_schema() {
     ]);
 
     let str = dozer_types::serde_json::to_string(&schema).unwrap();
-    info!("{}", str);
+    info!("{str}");
 }
 
 #[tokio::test]
