@@ -689,13 +689,13 @@ impl JoinOperator {
             if let Some(join_keys) = self.left_lookup_index_map.get_vec(join_key).cloned() {
                 Ok(join_keys)
             } else {
-                Err(JoinError::IndexGetError(join_key.to_vec()))
+                Ok(vec![])
             }
         } else if prefix == self.right_lookup_index {
             if let Some(join_keys) = self.right_lookup_index_map.get_vec(join_key).cloned() {
                 return Ok(join_keys);
             } else {
-                return Err(JoinError::IndexGetError(join_key.to_vec()));
+                Ok(vec![])
             }
         } else {
             return Err(JoinError::IndexGetError(join_key.to_vec()));
