@@ -258,6 +258,12 @@ pub fn map_record_batch_to_dozer_records(
     batch: arrow::record_batch::RecordBatch,
     schema: &DozerSchema,
 ) -> Result<Vec<Record>, FromArrowError> {
+    if schema.fields.len() != batch.num_columns() {
+        return Err(FromArrowError::SchemaMismatchError(
+            schema.fields.len(),
+            batch.num_columns(),
+        ));
+    }
     let mut records = Vec::new();
     let columns = batch.columns();
     let mut sort_fields = vec![];
@@ -275,7 +281,7 @@ pub fn map_record_batch_to_dozer_records(
             values.push(value);
         }
         records.push(Record {
-            schema_id: None,
+            schema_id: schema.identifier,
             values,
             version: None,
         });

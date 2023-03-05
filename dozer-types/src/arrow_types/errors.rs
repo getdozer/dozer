@@ -32,6 +32,9 @@ pub enum FromArrowError {
     #[error("Duration conversion failed")]
     DurationConversionError,
 
+    #[error("Schema has {0} fields, but batch has {1}")]
+    SchemaMismatchError(usize, usize),
+
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
 }
