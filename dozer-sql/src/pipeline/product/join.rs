@@ -93,13 +93,8 @@ impl JoinTable {
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
         debug_assert!(self.port == from_port);
 
-        if self.schema.primary_index.is_empty() {
-            let lookup_key = self.encode_record(record);
-            Ok(vec![(action, record.clone(), lookup_key)])
-        } else {
-            let lookup_key = self.encode_lookup_key(record, &self.schema)?;
-            Ok(vec![(action, record.clone(), lookup_key)])
-        }
+        let lookup_key = self.encode_record(record);
+        Ok(vec![(action, record.clone(), lookup_key)])
     }
 
     fn lookup(&self, lookup_key: &[u8]) -> Result<Vec<(Record, Vec<u8>)>, JoinError> {
@@ -109,7 +104,7 @@ impl JoinTable {
         Ok(vec![(record, lookup_key.to_vec())])
     }
 
-    fn encode_lookup_key(&self, record: &Record, schema: &Schema) -> Result<Vec<u8>, JoinError> {
+    fn _encode_lookup_key(&self, record: &Record, schema: &Schema) -> Result<Vec<u8>, JoinError> {
         let mut lookup_key = Vec::with_capacity(64);
         if let Some(version) = record.version {
             lookup_key.extend_from_slice(&version.to_be_bytes());
