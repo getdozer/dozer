@@ -9,6 +9,8 @@ use crate::connectors::{Connector, TableInfo, ValidationResults};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
+use super::connection::validator::validate_connection;
+
 type ConnectorResult<T> = Result<T, ConnectorError>;
 
 #[derive(Debug)]
@@ -24,11 +26,15 @@ impl<T: DozerObjectStore> ObjectStoreConnector<T> {
 }
 
 impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> ConnectorResult<()> {
+    fn validate(&self, tables: Option<Vec<TableInfo>>) -> ConnectorResult<()> {
+        // validate accessibility to object store
+        validate_connection("object_store", tables.as_ref(), self.config.clone())?;
+
         Ok(())
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> ConnectorResult<ValidationResults> {
+        // validate type
         Ok(HashMap::new())
     }
 
