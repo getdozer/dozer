@@ -14,7 +14,6 @@ use dozer_types::types::{Field, Operation, Record, Schema};
 
 use crate::pipeline::aggregation::aggregator::get_aggregator_from_aggregation_expression;
 use dozer_core::epoch::Epoch;
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use lmdb::DatabaseFlags;

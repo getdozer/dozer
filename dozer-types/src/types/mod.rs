@@ -228,6 +228,18 @@ impl Record {
         }
     }
 
+    pub fn get_key_fields(&self, schema: &Schema) -> Vec<Field> {
+        debug_assert!(
+            !&schema.primary_index.is_empty(),
+            "Primary key indexes cannot be empty"
+        );
+        let mut idx_values = Vec::with_capacity(schema.primary_index.len());
+        for i in &schema.primary_index {
+            idx_values.push(self.values[*i].clone());
+        }
+        idx_values
+    }
+
     pub fn get_key(&self, indexes: &Vec<usize>) -> Vec<u8> {
         debug_assert!(!indexes.is_empty(), "Primary key indexes cannot be empty");
 
@@ -330,7 +342,7 @@ pub enum Operation {
     Update { old: Record, new: Record },
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct DozerPoint(pub Point<OrderedFloat<f64>>);
 
 impl GeodesicDistance<OrderedFloat<f64>> for DozerPoint {

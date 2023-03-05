@@ -13,7 +13,7 @@ use crate::{
     errors::ExecutionError,
     hash_map_to_vec::insert_vec_element,
     node::PortHandle,
-    record_store::{create_record_store, RecordReader, RecordWriter},
+    record_store::{create_record_store, RecordWriter},
 };
 use crossbeam::channel::{bounded, Receiver, Sender};
 use daggy::petgraph::{
@@ -37,8 +37,6 @@ pub struct EdgeType {
     pub input_port: PortHandle,
     /// The receiver from receiving data from upstream.
     pub receiver: Receiver<ExecutorOperation>,
-    /// The record reader for reading persisted data of corresponding output port, if there's some.
-    pub record_reader: Option<Box<dyn RecordReader>>,
 }
 
 #[derive(Debug)]
@@ -63,11 +61,10 @@ impl ExecutionDag {
             .count();
 
         // We only create record stored once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record store created.
-        let mut all_record_stores =
-            vec![
-                HashMap::<PortHandle, (SharedRecordWriter, Option<Box<dyn RecordReader>>)>::new();
-                builder_dag.graph().node_count()
-            ];
+        let mut all_record_stores = vec![
+            HashMap::<PortHandle, SharedRecordWriter>::new();
+            builder_dag.graph().node_count()
+        ];
 
         // Create new edges.
         let mut edges = vec![];
@@ -77,26 +74,20 @@ impl ExecutionDag {
             let output_port = builder_dag_edge.weight.output_port;
 
             // Create or get record store.
-            let (record_writer, record_reader) =
+            let record_writer =
                 match all_record_stores[source_node_index.index()].entry(output_port) {
                     Entry::Vacant(entry) => {
                         let record_store = create_record_store(
-                            &builder_dag.graph()[source_node_index].storage.master_txn,
                             output_port,
                             edge.output_port_type,
                             edge.schema.clone(),
-                            channel_buffer_sz + 1,
                         )?;
-                        let (record_writer, record_reader) =
-                            if let Some((record_writer, record_reader)) = record_store {
-                                (
-                                    Rc::new(RefCell::new(Some(record_writer))),
-                                    Some(record_reader),
-                                )
-                            } else {
-                                (Rc::new(RefCell::new(None)), None)
-                            };
-                        entry.insert((record_writer, record_reader)).clone()
+                        let record_writer = if let Some(record_writer) = record_store {
+                            Rc::new(RefCell::new(Some(record_writer)))
+                        } else {
+                            Rc::new(RefCell::new(None))
+                        };
+                        entry.insert(record_writer).clone()
                     }
                     Entry::Occupied(entry) => entry.get().clone(),
                 };
@@ -111,7 +102,6 @@ impl ExecutionDag {
                 record_writer,
                 input_port: edge.input_port,
                 receiver,
-                record_reader,
             };
             edges.push(Some(edge));
         }
@@ -177,14 +167,10 @@ impl ExecutionDag {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn collect_receivers_and_record_readers(
+    pub fn collect_receivers(
         &mut self,
         node_index: daggy::NodeIndex,
-    ) -> (
-        Vec<PortHandle>,
-        Vec<Receiver<ExecutorOperation>>,
-        HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) {
+    ) -> (Vec<PortHandle>, Vec<Receiver<ExecutorOperation>>) {
         let edge_indexes = self
             .graph
             .edges_directed(node_index, Direction::Incoming)
@@ -193,7 +179,6 @@ impl ExecutionDag {
 
         let mut input_ports = Vec::new();
         let mut receivers = Vec::new();
-        let mut record_readers = HashMap::new();
         for edge_index in edge_indexes {
             let edge = self
                 .graph
@@ -201,14 +186,7 @@ impl ExecutionDag {
                 .expect("We don't modify graph structure, only modify the edge weight");
             input_ports.push(edge.input_port);
             receivers.push(edge.receiver.clone());
-            if let Some(record_reader) = edge.record_reader.take() {
-                let insert_result = record_readers.insert(edge.input_port, record_reader);
-                debug_assert!(
-                    insert_result.is_none(),
-                    "More than one output connect to a input port"
-                );
-            }
         }
-        (input_ports, receivers, record_readers)
+        (input_ports, receivers)
     }
 }

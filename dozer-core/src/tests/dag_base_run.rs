@@ -5,7 +5,6 @@ use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory};
-use crate::record_store::RecordReader;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{
     DualPortGeneratorSourceFactory, GeneratorSourceFactory,
@@ -78,7 +77,6 @@ impl Processor for NoopProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
     }
@@ -235,7 +233,6 @@ impl Processor for NoopJoinProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
     }

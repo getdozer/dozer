@@ -10,7 +10,6 @@ use crate::{
     errors::ExecutionError,
     forwarder::{ProcessorChannelManager, StateWriter},
     node::{PortHandle, Processor},
-    record_store::RecordReader,
 };
 
 use super::{
@@ -28,8 +27,6 @@ pub struct ProcessorNode {
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The processor.
     processor: Box<dyn Processor>,
-    /// Record readers of the input ports. Every record reader reads the state of corresponding output port.
-    record_readers: HashMap<PortHandle, Box<dyn RecordReader>>,
     /// The transaction for this node's environment. Processor uses it to persist data.
     master_tx: SharedTransaction,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
@@ -47,8 +44,7 @@ impl ProcessorNode {
             panic!("Must pass in a processor node");
         };
 
-        let (port_handles, receivers, record_readers) =
-            dag.collect_receivers_and_record_readers(node_index);
+        let (port_handles, receivers) = dag.collect_receivers(node_index);
 
         let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
 
@@ -65,7 +61,6 @@ impl ProcessorNode {
             port_handles,
             receivers,
             processor,
-            record_readers,
             master_tx: node_storage.master_txn,
             channel_manager,
         }
@@ -103,7 +98,6 @@ impl ReceiverLoop for ProcessorNode {
             op,
             &mut self.channel_manager,
             &self.master_tx,
-            &self.record_readers,
         )
     }
 

@@ -2,7 +2,6 @@ use crate::errors::ExecutionError;
 use crate::{Dag, NodeKind};
 
 use crate::node::{OutputPortType, PortHandle};
-use crate::record_store::AutogenRowKeyLookupRecordWriter;
 use daggy::petgraph::graph::EdgeReference;
 use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeReferences, Topo};
 use daggy::petgraph::Direction;
@@ -263,9 +262,6 @@ fn find_output_port_def<'a>(
 fn prepare_schema_based_on_output_type(schema: Schema, typ: OutputPortType) -> Schema {
     match typ {
         OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => schema,
-        OutputPortType::AutogenRowKeyLookup => {
-            AutogenRowKeyLookupRecordWriter::prepare_schema(schema)
-        }
     }
 }
 

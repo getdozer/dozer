@@ -41,7 +41,7 @@ impl StateWriter {
 
     fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
         if let Some(writer) = self.record_writers.get_mut(port) {
-            writer.write(op, &self.tx)
+            writer.write(op)
         } else {
             Ok(op)
         }

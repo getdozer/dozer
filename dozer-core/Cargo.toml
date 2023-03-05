@@ -14,6 +14,7 @@ crossbeam = "0.8.2"
 dyn-clone = "1.0.10"
 fp_rust = "0.3.5"
 daggy = { git = "https://github.com/getdozer/daggy", branch = "feat/map_owned" }
+hashbrown = "0.13.2"
 dozer-storage = { path = "../dozer-storage" }
 
 [dev-dependencies]
