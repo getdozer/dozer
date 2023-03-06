@@ -19,6 +19,7 @@ use crate::pipeline::aggregation::aggregator::{
 use dozer_core::epoch::Epoch;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
+use hashbrown::HashMap;
 use lmdb::DatabaseFlags;
 use std::mem::size_of_val;
 
@@ -30,6 +31,7 @@ enum DimensionAggregationDataType {}
 struct AggregationState {
     count: usize,
     states: Vec<Box<dyn Aggregator>>,
+    values: Option<Vec<Field>>,
 }
 
 impl AggregationState {
@@ -40,6 +42,7 @@ impl AggregationState {
                 .iter()
                 .map(|t| get_aggregator_from_aggregator_type(t))
                 .collect(),
+            values: None,
         }
     }
 }
@@ -105,38 +108,24 @@ impl AggregationProcessor {
         out_rec_delete: &mut Vec<Field>,
         out_rec_insert: &mut Vec<Field>,
         op: AggregatorOperation,
-    ) -> Result<Vec<u8>, PipelineError> {
+    ) -> Result<Vec<Field>, PipelineError> {
         //
-        for (idx, measure) in &self.measures.iter().enumerate().collect_vec() {
-            let aggregator = &curr_state.states[*idx];
 
-            match op {
+        for (idx, measure) in &self.measures.iter().enumerate().collect_vec() {
+            let curr_aggr = &curr_state.states[*idx];
+            let curr_val_opt: &Option<Field> = &curr_state.values.map(|v| v[idx]);
+
+            let new_val = match op {
                 AggregatorOperation::Insert => {
                     let inserted_field =
                         measure.evaluate(inserted_record.unwrap(), &self.input_schema)?;
-                    if let Some(curr) = curr_agg_data {
+                    if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr.value);
-                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
-                        let r = measure.1.insert(
-                            curr.state,
-                            &inserted_field,
-                            measure.0.get_type(&self.input_schema)?.return_type,
-                            &mut p_tx,
-                            self.aggregators_db,
-                        )?;
-                        (curr.prefix, r)
-                    } else {
-                        let prefix = self.get_counter(txn)?;
-                        let mut p_tx = PrefixTransaction::new(txn, prefix);
-                        let r = measure.1.insert(
-                            None,
-                            &inserted_field,
-                            measure.0.get_type(&self.input_schema)?.return_type,
-                            &mut p_tx,
-                            self.aggregators_db,
-                        )?;
-                        (prefix, r)
                     }
+                    curr_aggr.insert(
+                        &inserted_field,
+                        measure.get_type(&self.input_schema)?.return_type,
+                    )?;
                 }
             }
         }

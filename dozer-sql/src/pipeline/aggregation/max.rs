@@ -26,15 +26,20 @@ impl MaxAggregator {
 }
 
 impl Aggregator for MaxAggregator {
-    fn update(old: &Field, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn update(
+        &self,
+        old: &Field,
+        new: &Field,
+        return_type: FieldType,
+    ) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn delete(old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn delete(&self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn insert(new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn insert(&self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 }

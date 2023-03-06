@@ -13,9 +13,14 @@ use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
 pub trait Aggregator {
-    fn update(old: &Field, new: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
-    fn delete(old: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
-    fn insert(new: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
+    fn update(
+        &self,
+        old: &Field,
+        new: &Field,
+        return_type: FieldType,
+    ) -> Result<Field, PipelineError>;
+    fn delete(&self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
+    fn insert(&self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
