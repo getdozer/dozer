@@ -86,7 +86,6 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                     planner.projection_output,
                     input_schema.clone(),
                     planner.post_aggregation_schema,
-                    txn,
                 )
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
             )

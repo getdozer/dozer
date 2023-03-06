@@ -28,7 +28,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_map: &mut HashMap<Record, u8>,
+        record_map: &mut HashMap<Record, usize>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record.clone())]),
@@ -43,7 +43,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_map: &mut HashMap<Record, u8>,
+        record_map: &mut HashMap<Record, usize>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match action {
             SetAction::Insert => self.union_insert(action, record, record_map),
@@ -55,7 +55,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_map: &mut HashMap<Record, u8>,
+        record_map: &mut HashMap<Record, usize>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let _count = self.update_map(record, 1, false, record_map);
         if _count == 1 {
@@ -69,7 +69,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_map: &mut HashMap<Record, u8>,
+        record_map: &mut HashMap<Record, usize>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let _count = self.update_map(record, 1, true, record_map);
         if _count == 0 {
@@ -82,14 +82,14 @@ impl SetOperation {
     fn update_map(
         &self,
         record: &Record,
-        val_delta: u8,
+        val_delta: usize,
         decr: bool,
-        record_map: &mut HashMap<Record, u8>,
-    ) -> u8 {
+        record_map: &mut HashMap<Record, usize>,
+    ) -> usize {
         let get_prev_count = record_map.get(record);
         let prev_count = match get_prev_count {
             Some(v) => *v,
-            None => 0_u8,
+            None => 0_usize,
         };
         let mut new_count = prev_count;
         if decr {
