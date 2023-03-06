@@ -54,11 +54,9 @@ fn grpc(criter: &mut Criterion) {
                         let r = iterator.next();
                         if r.is_none() {
                             n_count += 1;
-                            println!("null found: {n_count} ");
                         }
                         count += 1;
                         if count % 100 == 0 {
-                            // println!("{:?} ", r);
                             pb.set_position(count as u64);
                         }
                     })
@@ -79,11 +77,9 @@ async fn ingest_arrow(batch_size: usize, total: usize, pb: ProgressBar) {
         let o = idx + batch_size;
 
         let ids = (idx..o).into_iter().map(|i| i as i32).collect::<Vec<i32>>();
-        // println!("ingesting: {:?} ", ids);
-
         let names = (idx..o)
             .into_iter()
-            .map(|i| format!("dario_{}", i))
+            .map(|i| format!("dario_{i}"))
             .collect::<Vec<String>>();
         let a = Int32Array::from_iter(ids);
         let b = StringArray::from_iter_values(names);
@@ -126,7 +122,7 @@ async fn get_grpc_client(port: u32) -> IngestServiceClient<Channel> {
 
 pub fn load_test_config() -> Vec<TestConfig> {
     let test_config = include_str!("./grpc.yaml");
-    serde_yaml::from_str::<Vec<TestConfig>>(&test_config).unwrap()
+    serde_yaml::from_str::<Vec<TestConfig>>(test_config).unwrap()
 }
 
 criterion_group!(benches, grpc);
