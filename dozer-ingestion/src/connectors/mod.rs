@@ -54,12 +54,11 @@ pub trait Connector: Send + Sync + Debug {
         Ok(self
             .get_schemas(None)?
             .into_iter()
-            .enumerate()
-            .map(|(id, s)| TableInfo {
-                table_name: s.name,
-                id: id as u32,
+            .map(|source_schema| TableInfo {
+                table_name: source_schema.name,
                 columns: Some(
-                    s.schema
+                    source_schema
+                        .schema
                         .fields
                         .into_iter()
                         .map(|f| ColumnInfo {
@@ -77,7 +76,6 @@ pub trait Connector: Send + Sync + Debug {
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub table_name: String,
-    pub id: u32,
     pub columns: Option<Vec<ColumnInfo>>,
 }
 

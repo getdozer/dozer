@@ -68,7 +68,6 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
                 .iter()
                 .map(|t| TableInfo {
                     table_name: t.name.clone(),
-                    id: 0,
                     columns: None,
                 })
                 .collect()

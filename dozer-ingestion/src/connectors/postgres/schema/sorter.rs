@@ -152,7 +152,6 @@ mod tests {
 
         let expected_table_order = &[TableInfo {
             table_name: "sort_test".to_string(),
-            id: 0,
             columns: None,
         }];
 
@@ -196,7 +195,6 @@ mod tests {
         }];
         let expected_table_order = &[TableInfo {
             table_name: "sort_test".to_string(),
-            id: 0,
             columns: Some(columns_order.clone()),
         }];
 
@@ -230,7 +228,6 @@ mod tests {
         ];
         let expected_table_order = &[TableInfo {
             table_name: "sort_test".to_string(),
-            id: 0,
             columns: Some(columns_order.clone()),
         }];
 
@@ -289,12 +286,10 @@ mod tests {
         let expected_table_order = &[
             TableInfo {
                 table_name: "sort_test_first".to_string(),
-                id: 0,
                 columns: Some(columns_order_1.clone()),
             },
             TableInfo {
                 table_name: "sort_test_second".to_string(),
-                id: 0,
                 columns: Some(columns_order_2.clone()),
             },
         ];

@@ -10,7 +10,7 @@ use serial_test::serial;
 use std::collections::HashSet;
 use std::hash::Hash;
 
-fn assert_vec_eq<T>(a: Vec<T>, b: Vec<T>) -> bool
+fn assert_vec_eq<T>(a: &[T], b: &[T]) -> bool
 where
     T: Eq + Hash,
 {
@@ -39,15 +39,15 @@ fn test_connector_get_tables() {
         let result = schema_helper.get_tables(None).unwrap();
 
         let table = result.get(0).unwrap();
-        assert_eq!(table_name, table.table_name.clone());
+        assert_eq!(table_name, table.name);
         assert!(assert_vec_eq(
-            vec![
+            &[
                 ColumnInfo::new("name".to_string(), None),
                 ColumnInfo::new("description".to_string(), None),
                 ColumnInfo::new("weight".to_string(), None),
                 ColumnInfo::new("id".to_string(), None),
             ],
-            table.columns.clone().unwrap()
+            &table.columns
         ));
 
         client.drop_schema(&schema);
@@ -72,7 +72,6 @@ fn test_connector_get_schema_with_selected_columns() {
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let table_info = TableInfo {
             table_name: table_name.clone(),
-            id: 0,
             columns: Some(vec![
                 ColumnInfo::new("name".to_string(), None),
                 ColumnInfo::new("id".to_string(), None),
@@ -81,13 +80,13 @@ fn test_connector_get_schema_with_selected_columns() {
         let result = schema_helper.get_tables(Some(&[table_info])).unwrap();
 
         let table = result.get(0).unwrap();
-        assert_eq!(table_name, table.table_name.clone());
+        assert_eq!(table_name, table.name);
         assert!(assert_vec_eq(
-            vec![
+            &[
                 ColumnInfo::new("name".to_string(), None),
                 ColumnInfo::new("id".to_string(), None)
             ],
-            table.columns.clone().unwrap()
+            &table.columns
         ));
 
         client.drop_schema(&schema);
@@ -112,21 +111,20 @@ fn test_connector_get_schema_without_selected_columns() {
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let table_info = TableInfo {
             table_name: table_name.clone(),
-            id: 0,
             columns: Some(vec![]),
         };
         let result = schema_helper.get_tables(Some(&[table_info])).unwrap();
 
         let table = result.get(0).unwrap();
-        assert_eq!(table_name, table.table_name.clone());
+        assert_eq!(table_name, table.name.clone());
         assert!(assert_vec_eq(
-            vec![
+            &[
                 ColumnInfo::new("id".to_string(), None),
                 ColumnInfo::new("name".to_string(), None),
                 ColumnInfo::new("description".to_string(), None),
                 ColumnInfo::new("weight".to_string(), None),
             ],
-            table.columns.clone().unwrap()
+            &table.columns
         ));
 
         client.drop_schema(&schema);
@@ -153,11 +151,10 @@ fn test_connector_view_cannot_be_used() {
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let table_info = TableInfo {
             table_name: view_name,
-            id: 0,
             columns: Some(vec![]),
         };
 
-        let result = schema_helper.get_schemas(Some(vec![table_info]));
+        let result = schema_helper.get_schemas(Some(&[table_info]));
         assert!(result.is_err());
         assert!(matches!(
             result,
@@ -166,10 +163,9 @@ fn test_connector_view_cannot_be_used() {
 
         let table_info = TableInfo {
             table_name,
-            id: 0,
             columns: Some(vec![]),
         };
-        let result = schema_helper.get_schemas(Some(vec![table_info]));
+        let result = schema_helper.get_schemas(Some(&[table_info]));
         assert!(result.is_ok());
 
         client.drop_schema(&schema);

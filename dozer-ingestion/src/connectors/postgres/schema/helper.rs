@@ -28,13 +28,12 @@ pub struct SchemaHelper {
     schema: String,
 }
 
-pub struct PostgresTableRow {
-    pub table_name: String,
-    pub column_name: String,
-    pub field: FieldDefinition,
-    pub is_column_used_in_index: bool,
-    pub table_id: u32,
-    pub replication_type: String,
+struct PostgresTableRow {
+    table_name: String,
+    field: FieldDefinition,
+    is_column_used_in_index: bool,
+    table_id: u32,
+    replication_type: String,
 }
 
 #[derive(Clone)]
@@ -87,6 +86,13 @@ impl PostgresTable {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PostgresTableInfo {
+    pub name: String,
+    pub id: u32,
+    pub columns: Vec<ColumnInfo>,
+}
+
 type RowsWithColumnsMap = (Vec<Row>, HashMap<String, Vec<String>>);
 
 impl SchemaHelper {
@@ -101,11 +107,10 @@ impl SchemaHelper {
     pub fn get_tables(
         &self,
         tables: Option<&[TableInfo]>,
-    ) -> Result<Vec<TableInfo>, ConnectorError> {
+    ) -> Result<Vec<PostgresTableInfo>, ConnectorError> {
         let (results, tables_columns_map) = self.get_columns(tables)?;
 
-        let mut columns_map: HashMap<String, Vec<ColumnInfo>> = HashMap::new();
-        let mut tables_id: HashMap<String, u32> = HashMap::new();
+        let mut id_columns_map: HashMap<String, (u32, Vec<ColumnInfo>)> = HashMap::new();
         for row in results {
             let table_name: String = row.get(0);
             let column_name: String = row.get(1);
@@ -122,25 +127,36 @@ impl SchemaHelper {
             });
 
             if add_column_table {
-                let vals = columns_map.get(&table_name);
-                let mut columns = vals.map_or_else(Vec::new, |columns| columns.clone());
-
-                columns.push(ColumnInfo {
-                    name: column_name,
-                    data_type: None,
-                });
-
-                columns_map.insert(table_name.clone(), columns);
-                tables_id.insert(table_name, table_id);
+                match id_columns_map.get_mut(&table_name) {
+                    Some((id, columns)) => {
+                        columns.push(ColumnInfo {
+                            name: column_name,
+                            data_type: None,
+                        });
+                        *id = table_id;
+                    }
+                    None => {
+                        id_columns_map.insert(
+                            table_name.clone(),
+                            (
+                                table_id,
+                                vec![ColumnInfo {
+                                    name: column_name,
+                                    data_type: None,
+                                }],
+                            ),
+                        );
+                    }
+                }
             }
         }
 
-        Ok(columns_map
-            .iter()
-            .map(|(table_name, columns)| TableInfo {
-                table_name: table_name.clone(),
-                id: *tables_id.get(&table_name.clone()).unwrap(),
-                columns: Some(columns.clone()),
+        Ok(id_columns_map
+            .into_iter()
+            .map(|(table_name, (id, columns))| PostgresTableInfo {
+                name: table_name,
+                id,
+                columns,
             })
             .collect())
     }
@@ -176,9 +192,9 @@ impl SchemaHelper {
 
     pub fn get_schemas(
         &self,
-        tables: Option<Vec<TableInfo>>,
+        tables: Option<&[TableInfo]>,
     ) -> Result<Vec<SourceSchema>, PostgresConnectorError> {
-        let (results, tables_columns_map) = self.get_columns(tables.as_deref())?;
+        let (results, tables_columns_map) = self.get_columns(tables)?;
 
         let mut columns_map: HashMap<String, PostgresTable> = HashMap::new();
         results
@@ -208,7 +224,7 @@ impl SchemaHelper {
                 Ok(())
             })?;
 
-        let columns_map = sort_schemas(tables.as_ref().map(Vec::as_ref), &columns_map)?;
+        let columns_map = sort_schemas(tables, &columns_map)?;
 
         Self::map_columns_to_schemas(columns_map)
             .map_err(PostgresConnectorError::PostgresSchemaError)
@@ -365,7 +381,6 @@ impl SchemaHelper {
 
         Ok(PostgresTableRow {
             table_name,
-            column_name: column_name.clone(),
             field: FieldDefinition::new(column_name, typ, is_nullable, SourceDefinition::Dynamic),
             is_column_used_in_index,
             table_id,

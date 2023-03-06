@@ -64,7 +64,6 @@ impl<'a> SourceBuilder<'a> {
                         table_and_ports.push((
                             TableInfo {
                                 table_name: source.table_name.clone(),
-                                id: port as u32,
                                 columns: Some(
                                     source
                                         .columns

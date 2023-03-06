@@ -428,7 +428,6 @@ mod tests {
 
             let tables = vec![TableInfo {
                 table_name: "not_existing".to_string(),
-                id: 0,
                 columns: None,
             }];
             let result = validate_connection("pg_test_conn", config, Some(&tables), None);
@@ -477,7 +476,6 @@ mod tests {
 
             let tables = vec![TableInfo {
                 table_name: "existing".to_string(),
-                id: 0,
                 columns: Some(columns),
             }];
 
@@ -656,7 +654,6 @@ mod tests {
         for (table_name, expected_result) in tables_with_result {
             let res = validate_tables_names(&vec![TableInfo {
                 table_name: table_name.to_string(),
-                id: 0,
                 columns: None,
             }]);
 
@@ -676,7 +673,6 @@ mod tests {
         for (column_name, expected_result) in columns_names_with_result {
             let res = validate_columns_names(&vec![TableInfo {
                 table_name: "column_test_table".to_string(),
-                id: 0,
                 columns: Some(vec![ColumnInfo {
                     name: column_name.to_string(),
                     data_type: None,
@@ -711,7 +707,6 @@ mod tests {
                 &mut pg_client,
                 &vec![TableInfo {
                     table_name,
-                    id: 0,
                     columns: None,
                 }],
             );
@@ -722,7 +717,6 @@ mod tests {
                 &mut pg_client,
                 &vec![TableInfo {
                     table_name: view_name,
-                    id: 0,
                     columns: None,
                 }],
             );

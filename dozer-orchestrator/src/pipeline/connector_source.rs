@@ -176,7 +176,6 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             .iter()
             .map(|table| TableInfo {
                 table_name: table.table_name.clone(),
-                id: 0,
                 columns: table.columns.clone(),
             })
             .collect();

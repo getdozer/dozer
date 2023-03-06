@@ -24,7 +24,6 @@ pub fn validate_grouped_connections(
                 .iter()
                 .map(|source| TableInfo {
                     table_name: source.table_name.clone(),
-                    id: 0,
                     columns: Some(
                         source
                             .columns

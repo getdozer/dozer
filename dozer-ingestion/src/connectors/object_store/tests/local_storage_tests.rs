@@ -75,7 +75,6 @@ fn test_read_parquet_file() {
 
     let table = TableInfo {
         table_name: "all_types_parquet".to_string(),
-        id: 0,
         columns: None,
     };
     thread::spawn(move || {
@@ -126,7 +125,6 @@ fn test_csv_read() {
 
     let table = TableInfo {
         table_name: "all_types_csv".to_string(),
-        id: 0,
         columns: None,
     };
 
@@ -202,7 +200,6 @@ fn test_missing_directory() {
         &ingestor,
         vec![TableInfo {
             table_name: table.name,
-            id: 0,
             columns: None,
         }],
     );

@@ -1,5 +1,4 @@
 use crate::connectors::TableInfo;
-
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -20,11 +19,13 @@ use crate::errors::PostgresConnectorError::{
 use postgres_types::PgLsn;
 use tokio::runtime::Runtime;
 
+use super::schema::helper::PostgresTableInfo;
+
 pub struct Details {
     name: String,
     publication_name: String,
     slot_name: String,
-    tables: Vec<TableInfo>,
+    tables: Vec<PostgresTableInfo>,
     replication_conn_config: tokio_postgres::Config,
     conn_config: tokio_postgres::Config,
 }
@@ -49,7 +50,7 @@ impl<'a> PostgresIterator<'a> {
         name: String,
         publication_name: String,
         slot_name: String,
-        tables: Vec<TableInfo>,
+        tables: Vec<PostgresTableInfo>,
         replication_conn_config: tokio_postgres::Config,
         ingestor: &'a Ingestor,
         conn_config: tokio_postgres::Config,
@@ -122,7 +123,6 @@ impl<'a> PostgresIteratorHandler<'a> {
         // - When snapshot replication is not completed
         // - When there is gap between available lsn (in case when slot dropped and new created) and last lsn
         // - When publication tables changes
-        let tables = details.tables.clone();
         if self.lsn.clone().into_inner().is_none() {
             debug!("\nCreating Slot....");
             let slot_exist =
@@ -161,19 +161,26 @@ impl<'a> PostgresIteratorHandler<'a> {
             debug!("\nInitializing snapshots...");
 
             let snapshotter = PostgresSnapshotter {
-                tables: details.tables.clone(),
                 conn_config: details.conn_config.to_owned(),
                 ingestor: self.ingestor,
                 connector_id: self.connector_id,
             };
-            snapshotter.sync_tables(details.tables.clone())?;
+            let tables = details
+                .tables
+                .iter()
+                .map(|table_info| TableInfo {
+                    table_name: table_info.name.clone(),
+                    columns: Some(table_info.columns.clone()),
+                })
+                .collect::<Vec<_>>();
+            snapshotter.sync_tables(&tables)?;
 
             let lsn = self.lsn.borrow().map_or(0, |(lsn, _)| u64::from(lsn));
             self.ingestor
                 .handle_message(IngestionMessage::new_snapshotting_done(lsn, 0))
                 .map_err(ConnectorError::IngestorError)?;
 
-            debug!("\nInitialized with tables: {:?}", tables);
+            debug!("\nInitialized with tables: {:?}", details.tables);
 
             client.borrow_mut().simple_query("COMMIT;").map_err(|_e| {
                 debug!("failed to commit txn for replication");
@@ -184,10 +191,10 @@ impl<'a> PostgresIteratorHandler<'a> {
         self.state.replace(ReplicationState::Replicating);
 
         /*  ####################        Replicating         ######################  */
-        self.replicate(tables)
+        self.replicate()
     }
 
-    fn replicate(&self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
+    fn replicate(&self) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
         let lsn = self.lsn.borrow();
         let (lsn, offset) = lsn
@@ -196,6 +203,7 @@ impl<'a> PostgresIteratorHandler<'a> {
 
         let publication_name = self.details.publication_name.clone();
         let slot_name = self.details.slot_name.clone();
+        let tables = self.details.tables.clone();
         rt.block_on(async {
             let mut replicator = CDCHandler {
                 replication_conn_config: self.details.replication_conn_config.clone(),
