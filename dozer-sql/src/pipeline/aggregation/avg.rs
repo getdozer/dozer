@@ -33,33 +33,13 @@ impl Aggregator for AvgAggregator {
     }
 
     fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        match old.get_type() {
-            Some(field_type) => {
-                if field_type == return_type {
-                    update_map(old, 1_u64, true, &mut self.current_state);
-                    get_average(&self.current_state, return_type)
-                }
-                else {
-                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, old, Avg.to_string()))))
-                }
-            },
-            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", old, Avg.to_string())))),
-        }
+        update_map(old, 1_u64, true, &mut self.current_state);
+        get_average(&self.current_state, return_type)
     }
 
     fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        match new.get_type() {
-            Some(field_type) => {
-                if field_type == return_type {
-                    update_map(new, 1_u64, false, &mut self.current_state);
-                    get_average(&self.current_state, return_type)
-                }
-                else {
-                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, new, Avg.to_string()))))
-                }
-            },
-            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Avg.to_string())))),
-        }
+        update_map(new, 1_u64, false, &mut self.current_state);
+        get_average(&self.current_state, return_type)
     }
 }
 
