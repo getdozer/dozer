@@ -192,6 +192,24 @@ impl Field {
         }
     }
 
+    pub fn get_type(&self) -> Option<FieldType> {
+        match self {
+            Field::UInt(_) => Some(FieldType::UInt),
+            Field::Int(_) => Some(FieldType::Int),
+            Field::Float(_) => Some(FieldType::Float),
+            Field::Boolean(_) => Some(FieldType::Boolean),
+            Field::String(_) => Some(FieldType::String),
+            Field::Text(_) => Some(FieldType::Text),
+            Field::Binary(_) => Some(FieldType::Binary),
+            Field::Decimal(_) => Some(FieldType::Decimal),
+            Field::Timestamp(_) => Some(FieldType::Timestamp),
+            Field::Date(_) => Some(FieldType::Date),
+            Field::Bson(_) => Some(FieldType::Bson),
+            Field::Point(_) => Some(FieldType::Point),
+            Field::Null => None,
+        }
+    }
+
     pub fn as_uint(&self) -> Option<u64> {
         match self {
             Field::UInt(i) => Some(*i),
@@ -508,6 +526,7 @@ impl TryFrom<&str> for FieldType {
             "timestamp" => FieldType::Timestamp,
             "date" => FieldType::Date,
             "bson" => FieldType::Bson,
+            "point" => FieldType::Point,
             _ => return Err(format!("Unsupported '{value}' type")),
         };
 

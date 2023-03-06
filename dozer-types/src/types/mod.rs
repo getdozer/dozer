@@ -16,15 +16,18 @@ mod field;
 use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum SourceDefinition {
-    Table { connection: String, name: String },
-    Alias { name: String },
+    Table {
+        connection: String,
+        name: String,
+    },
+    Alias {
+        name: String,
+    },
     #[default]
     Dynamic,
 }
-
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FieldDefinition {
@@ -71,16 +74,13 @@ pub struct Schema {
     pub primary_index: Vec<usize>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-#[derive(Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub enum ReplicationChangesTrackingType {
     FullChanges,
     OnlyPK,
     #[default]
     Nothing,
 }
-
-
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SourceSchema {
