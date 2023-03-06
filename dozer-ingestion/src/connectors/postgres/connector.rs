@@ -85,7 +85,7 @@ impl Connector for PostgresConnector {
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         self.schema_helper
-            .get_schemas(table_names)
+            .get_schemas(table_names.as_deref())
             .map_err(PostgresConnectorError)
     }
 
@@ -106,7 +106,7 @@ impl Connector for PostgresConnector {
             self.name.clone(),
             self.get_publication_name(),
             self.get_slot_name(),
-            tables,
+            self.schema_helper.get_tables(Some(&tables))?,
             self.replication_conn_config.clone(),
             ingestor,
             self.conn_config.clone(),
@@ -130,8 +130,15 @@ impl Connector for PostgresConnector {
         SchemaHelper::validate(&self.schema_helper, tables).map_err(PostgresConnectorError)
     }
 
-    fn get_tables(&self, _tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.schema_helper.get_tables(None)
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
+        let tables = self.schema_helper.get_tables(None)?;
+        Ok(tables
+            .into_iter()
+            .map(|table_info| TableInfo {
+                name: table_info.name,
+                columns: Some(table_info.columns),
+            })
+            .collect())
     }
 
     fn can_start_from(&self, (lsn, _): (u64, u64)) -> Result<bool, ConnectorError> {
@@ -162,7 +169,7 @@ impl PostgresConnector {
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
             Some(arr) => {
-                let table_names: Vec<String> = arr.iter().map(|t| t.table_name.clone()).collect();
+                let table_names: Vec<String> = arr.iter().map(|t| t.name.clone()).collect();
                 format!("TABLE {}", table_names.join(" , "))
             }
         };

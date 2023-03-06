@@ -44,7 +44,7 @@ impl Connector for KafkaConnector {
     ) -> Result<(), ConnectorError> {
         let topic = tables
             .get(0)
-            .map_or(Err(TopicNotDefined), |table| Ok(&table.table_name))?;
+            .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
 
         let broker = self.config.broker.to_owned();
         Runtime::new()
@@ -60,8 +60,8 @@ impl Connector for KafkaConnector {
         todo!()
     }
 
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default(tables)
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
+        self.get_tables_default()
     }
 
     fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {

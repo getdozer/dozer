@@ -1,8 +1,8 @@
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::errors::ExecutionError::{InternalError, ReplicationTypeNotFound};
+use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::errors::{ExecutionError, SourceError};
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
-use dozer_ingestion::connectors::{get_connector, Connector, TableInfo};
+use dozer_ingestion::connectors::{get_connector, ColumnInfo, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -13,7 +13,6 @@ use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::types::{
     Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
-    SourceSchema,
 };
 use std::collections::HashMap;
 use std::thread;
@@ -40,14 +39,21 @@ fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
 }
 
 #[derive(Debug)]
+struct Table {
+    name: String,
+    columns: Option<Vec<ColumnInfo>>,
+    schema: Schema,
+    replication_type: ReplicationChangesTrackingType,
+    port: PortHandle,
+}
+
+#[derive(Debug)]
 pub struct ConnectorSourceFactory {
-    pub ports: HashMap<String, u16>,
-    pub schema_port_map: HashMap<u32, u16>,
-    pub schema_map: HashMap<u16, Schema>,
-    pub replication_changes_type_map: HashMap<u16, ReplicationChangesTrackingType>,
-    pub tables: Vec<TableInfo>,
-    pub connection: Connection,
-    pub progress: Option<MultiProgress>,
+    connection_name: String,
+    tables: Vec<Table>,
+    /// Will be moved to `ConnectorSource` in `build`.
+    connector: Mutex<Option<Box<dyn Connector>>>,
+    progress: Option<MultiProgress>,
 }
 
 fn map_replication_type_to_output_port_type(
@@ -70,70 +76,48 @@ fn map_replication_type_to_output_port_type(
 
 impl ConnectorSourceFactory {
     pub fn new(
-        ports: HashMap<String, u16>,
-        tables: Vec<TableInfo>,
+        table_and_ports: Vec<(TableInfo, PortHandle)>,
         connection: Connection,
         progress: Option<MultiProgress>,
     ) -> Result<Self, ExecutionError> {
-        let (schema_map, schema_port_map, replication_changes_type_map) =
-            Self::get_schema_map(connection.clone(), tables.clone(), ports.clone())?;
-        Ok(Self {
-            ports,
-            schema_port_map,
-            schema_map,
-            replication_changes_type_map,
-            tables,
-            connection,
-            progress,
-        })
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn get_schema_map(
-        connection: Connection,
-        tables: Vec<TableInfo>,
-        ports: HashMap<String, u16>,
-    ) -> Result<
-        (
-            HashMap<u16, Schema>,
-            HashMap<u32, u16>,
-            HashMap<u16, ReplicationChangesTrackingType>,
-        ),
-        ExecutionError,
-    > {
-        let tables_map = tables
-            .iter()
-            .map(|table| (table.table_name.clone(), table.name.clone()))
-            .collect::<HashMap<_, _>>();
+        let connection_name = connection.name.clone();
 
         let connector = get_connector(connection).map_err(|e| InternalError(Box::new(e)))?;
-        let schema_tuples = connector
-            .get_schemas(Some(tables))
+        let source_schemas = connector
+            .get_schemas(Some(
+                table_and_ports
+                    .iter()
+                    .map(|(table, _)| table.clone())
+                    .collect(),
+            ))
             .map_err(|e| InternalError(Box::new(e)))?;
 
-        let mut schema_map = HashMap::new();
-        let mut schema_port_map: HashMap<u32, u16> = HashMap::new();
-        let mut replication_changes_type_map: HashMap<u16, ReplicationChangesTrackingType> =
-            HashMap::new();
-
-        for SourceSchema {
-            name,
-            schema,
-            replication_type,
-        } in schema_tuples
+        let mut tables = vec![];
+        for ((table, port), source_schema) in
+            table_and_ports.into_iter().zip(source_schemas.into_iter())
         {
-            let source_name = tables_map.get(&name).unwrap();
-            let port: u16 = *ports
-                .get(source_name)
-                .ok_or(ExecutionError::PortNotFound(name))?;
-            let schema_id = get_schema_id(schema.identifier)?;
+            let name = table.name;
+            let columns = table.columns;
+            let schema = source_schema.schema;
+            let replication_type = source_schema.replication_type;
 
-            schema_port_map.insert(schema_id, port);
-            schema_map.insert(port, schema);
-            replication_changes_type_map.insert(port, replication_type);
+            let table = Table {
+                name,
+                columns,
+                schema,
+                replication_type,
+                port,
+            };
+
+            tables.push(table);
         }
 
-        Ok((schema_map, schema_port_map, replication_changes_type_map))
+        Ok(Self {
+            connection_name,
+            tables,
+            connector: Mutex::new(Some(connector)),
+            progress,
+        })
     }
 }
 
@@ -142,25 +126,21 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         &self,
         port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        let mut schema = self
-            .schema_map
-            .get(port)
-            .map_or(Err(ExecutionError::PortNotFoundInSource(*port)), |s| {
-                Ok(s.clone())
-            })?;
+        let table = self
+            .tables
+            .iter()
+            .find(|table| table.port == *port)
+            .ok_or(ExecutionError::PortNotFoundInSource(*port))?;
+        let mut schema = table.schema.clone();
+        let table_name = &table.name;
 
-        let table_name = self.ports.iter().find(|(_, p)| **p == *port).unwrap().0;
         // Add source information to the schema.
-        let mut fields = vec![];
-        for field in schema.fields {
-            let mut f = field.clone();
-            f.source = SourceDefinition::Table {
-                connection: self.connection.name.clone(),
+        for field in &mut schema.fields {
+            field.source = SourceDefinition::Table {
+                connection: self.connection_name.clone(),
                 name: table_name.clone(),
             };
-            fields.push(f);
         }
-        schema.fields = fields;
 
         use std::println as info;
         info!("Source: Initializing input schema: {table_name}");
@@ -169,19 +149,12 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         Ok((schema, SchemaSQLContext::default()))
     }
 
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        self.ports
-            .values()
-            .map(|e| {
-                self.replication_changes_type_map.get(e).map_or(
-                    Err(ReplicationTypeNotFound),
-                    |typ| {
-                        Ok(OutputPortDef::new(
-                            *e,
-                            map_replication_type_to_output_port_type(typ),
-                        ))
-                    },
-                )
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        self.tables
+            .iter()
+            .map(|table| {
+                let typ = map_replication_type_to_output_port_type(&table.replication_type);
+                OutputPortDef::new(table.port, typ)
             })
             .collect()
     }
@@ -191,21 +164,40 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-        let connector = get_connector(self.connection.clone())
-            .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
+
+        let mut schema_port_map = HashMap::new();
+        for table in &self.tables {
+            let schema_id = get_schema_id(table.schema.identifier)?;
+            schema_port_map.insert(schema_id, table.port);
+        }
+
+        let tables = self
+            .tables
+            .iter()
+            .map(|table| TableInfo {
+                name: table.name.clone(),
+                columns: table.columns.clone(),
+            })
+            .collect();
+
+        let connector = self
+            .connector
+            .lock()
+            .take()
+            .expect("ConnectorSource was already built");
 
         let mut bars = HashMap::new();
-        for (name, port) in self.ports.iter() {
+        for table in &self.tables {
             let pb = attach_progress(self.progress.clone());
-            pb.set_message(name.clone());
-            bars.insert(*port, pb);
+            pb.set_message(table.name.clone());
+            bars.insert(table.port, pb);
         }
 
         Ok(Box::new(ConnectorSource {
             ingestor,
             iterator: Mutex::new(iterator),
-            schema_port_map: self.schema_port_map.clone(),
-            tables: self.tables.clone(),
+            schema_port_map,
+            tables,
             connector,
             bars,
         }))
@@ -216,10 +208,10 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
 pub struct ConnectorSource {
     ingestor: Ingestor,
     iterator: Mutex<IngestionIterator>,
-    schema_port_map: HashMap<u32, u16>,
+    schema_port_map: HashMap<u32, PortHandle>,
     tables: Vec<TableInfo>,
     connector: Box<dyn Connector>,
-    bars: HashMap<u16, ProgressBar>,
+    bars: HashMap<PortHandle, ProgressBar>,
 }
 
 impl Source for ConnectorSource {

@@ -44,7 +44,7 @@ impl IngestAdapter for ArrowAdapter {
             serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
         let mut schemas = vec![];
 
-        for (id, grpc_schema) in grpc_schemas.iter().enumerate() {
+        for (id, grpc_schema) in grpc_schemas.into_iter().enumerate() {
             let mut schema = arrow_types::from_arrow::map_schema_to_dozer(&grpc_schema.schema)
                 .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
             schema.identifier = Some(SchemaIdentifier {
@@ -53,7 +53,7 @@ impl IngestAdapter for ArrowAdapter {
             });
 
             schemas.push(SourceSchema {
-                name: grpc_schema.name.clone(),
+                name: grpc_schema.name,
                 schema,
                 replication_type: grpc_schema.replication_type.clone(),
             });

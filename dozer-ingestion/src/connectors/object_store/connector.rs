@@ -53,7 +53,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         TableReader::new(self.config.clone()).read_tables(&tables, ingestor)
     }
 
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> ConnectorResult<Vec<TableInfo>> {
-        self.get_tables_default(tables)
+    fn get_tables(&self) -> ConnectorResult<Vec<TableInfo>> {
+        self.get_tables_default()
     }
 }

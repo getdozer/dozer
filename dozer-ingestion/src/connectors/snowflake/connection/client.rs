@@ -399,8 +399,7 @@ impl Client {
                 if idx > 0 {
                     buf.write_char(',').unwrap();
                 }
-                buf.write_str(&format!("\'{}\'", table_info.table_name))
-                    .unwrap();
+                buf.write_str(&format!("\'{}\'", table_info.name)).unwrap();
             }
             buf.write_char(')').unwrap();
             buf

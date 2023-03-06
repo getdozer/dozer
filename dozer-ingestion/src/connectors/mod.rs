@@ -47,27 +47,22 @@ pub trait Connector: Send + Sync + Debug {
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError>;
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError>;
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
 
     // This is a default table mapping from schemas. It will result in errors if connector has unsupported data types.
-    fn get_tables_default(
-        &self,
-        tables: Option<&[TableInfo]>,
-    ) -> Result<Vec<TableInfo>, ConnectorError> {
+    fn get_tables_default(&self) -> Result<Vec<TableInfo>, ConnectorError> {
         Ok(self
-            .get_schemas(tables.map(|t| t.to_vec()))?
-            .iter()
-            .enumerate()
-            .map(|(id, s)| TableInfo {
-                name: s.name.to_string(),
-                table_name: s.name.to_string(),
-                id: id as u32,
+            .get_schemas(None)?
+            .into_iter()
+            .map(|source_schema| TableInfo {
+                name: source_schema.name,
                 columns: Some(
-                    s.schema
+                    source_schema
+                        .schema
                         .fields
-                        .iter()
+                        .into_iter()
                         .map(|f| ColumnInfo {
-                            name: f.name.to_string(),
+                            name: f.name,
                             data_type: Some(f.typ.to_string()),
                         })
                         .collect(),
@@ -81,8 +76,6 @@ pub trait Connector: Send + Sync + Debug {
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub name: String,
-    pub table_name: String,
-    pub id: u32,
     pub columns: Option<Vec<ColumnInfo>>,
 }
 

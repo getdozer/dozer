@@ -192,8 +192,8 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(vec![
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![
             OutputPortDef::new(
                 SUPPLIERS_PORT,
                 OutputPortType::StatefulWithPrimaryKeyLookup {
@@ -208,7 +208,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     retr_old_records_for_deletes: true,
                 },
             ),
-        ])
+        ]
     }
 
     fn get_output_schema(

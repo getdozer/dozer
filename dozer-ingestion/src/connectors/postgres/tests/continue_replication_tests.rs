@@ -89,8 +89,6 @@ mod tests {
 
             let tables = vec![TableInfo {
                 name: table_name.clone(),
-                table_name: table_name.clone(),
-                id: 0,
                 columns: None,
             }];
 

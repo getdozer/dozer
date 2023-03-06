@@ -42,7 +42,7 @@ pub async fn get_connection_iterator(config: TestConfig) -> IngestionIterator {
     std::thread::spawn(move || {
         let grpc_connector = dozer_ingestion::connectors::get_connector(config.connection).unwrap();
 
-        let mut tables = grpc_connector.get_tables(None).unwrap();
+        let mut tables = grpc_connector.get_tables().unwrap();
         if let Some(tables_filter) = config.tables_filter {
             tables.retain(|t| tables_filter.contains(&t.name));
         }
