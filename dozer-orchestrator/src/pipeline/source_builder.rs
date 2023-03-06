@@ -56,34 +56,35 @@ impl<'a> SourceBuilder<'a> {
 
             if let Some(connection) = &first_source.connection {
                 let mut ports = HashMap::new();
-                let mut tables = vec![];
+                let mut table_and_ports = vec![];
                 for source in &sources_group {
                     if self.used_sources.contains(&source.name) {
                         ports.insert(source.name.clone(), port);
 
-                        tables.push(TableInfo {
-                            name: source.name.clone(),
-                            table_name: source.table_name.clone(),
-                            id: port as u32,
-                            columns: Some(
-                                source
-                                    .columns
-                                    .iter()
-                                    .map(|c| ColumnInfo {
-                                        name: c.clone(),
-                                        data_type: None,
-                                    })
-                                    .collect(),
-                            ),
-                        });
+                        table_and_ports.push((
+                            TableInfo {
+                                table_name: source.table_name.clone(),
+                                id: port as u32,
+                                columns: Some(
+                                    source
+                                        .columns
+                                        .iter()
+                                        .map(|c| ColumnInfo {
+                                            name: c.clone(),
+                                            data_type: None,
+                                        })
+                                        .collect(),
+                                ),
+                            },
+                            port,
+                        ));
 
                         port += 1;
                     }
                 }
 
                 let source_factory = ConnectorSourceFactory::new(
-                    ports.clone(),
-                    tables,
+                    table_and_ports,
                     connection.clone(),
                     self.progress.cloned(),
                 )?;

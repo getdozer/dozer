@@ -36,7 +36,7 @@ impl SourceFactory<NoneContext> for NoneSourceFactory {
         todo!()
     }
 
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
         todo!()
     }
 

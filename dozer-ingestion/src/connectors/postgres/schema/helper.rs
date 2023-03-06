@@ -138,7 +138,6 @@ impl SchemaHelper {
         Ok(columns_map
             .iter()
             .map(|(table_name, columns)| TableInfo {
-                name: table_name.clone(),
                 table_name: table_name.clone(),
                 id: *tables_id.get(&table_name.clone()).unwrap(),
                 columns: Some(columns.clone()),

@@ -56,18 +56,17 @@ pub trait Connector: Send + Sync + Debug {
     ) -> Result<Vec<TableInfo>, ConnectorError> {
         Ok(self
             .get_schemas(tables.map(|t| t.to_vec()))?
-            .iter()
+            .into_iter()
             .enumerate()
             .map(|(id, s)| TableInfo {
-                name: s.name.to_string(),
-                table_name: s.name.to_string(),
+                table_name: s.name,
                 id: id as u32,
                 columns: Some(
                     s.schema
                         .fields
-                        .iter()
+                        .into_iter()
                         .map(|f| ColumnInfo {
-                            name: f.name.to_string(),
+                            name: f.name,
                             data_type: Some(f.typ.to_string()),
                         })
                         .collect(),
@@ -80,7 +79,6 @@ pub trait Connector: Send + Sync + Debug {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
-    pub name: String,
     pub table_name: String,
     pub id: u32,
     pub columns: Option<Vec<ColumnInfo>>,

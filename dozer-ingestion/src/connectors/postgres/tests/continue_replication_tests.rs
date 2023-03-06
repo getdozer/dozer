@@ -88,7 +88,6 @@ mod tests {
             test_client.create_simple_table("public", &table_name);
 
             let tables = vec![TableInfo {
-                name: table_name.clone(),
                 table_name: table_name.clone(),
                 id: 0,
                 columns: None,

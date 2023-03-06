@@ -64,8 +64,8 @@ impl SourceFactory<NoneContext> for GeneratorSourceFactory {
         ))
     }
 
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(vec![OutputPortDef::new(
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
             if self.stateful {
                 OutputPortType::StatefulWithPrimaryKeyLookup {
@@ -75,7 +75,7 @@ impl SourceFactory<NoneContext> for GeneratorSourceFactory {
             } else {
                 OutputPortType::Stateless
             },
-        )])
+        )]
     }
 
     fn build(
@@ -188,8 +188,8 @@ impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
         ))
     }
 
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(vec![
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![
             OutputPortDef::new(
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
                 if self.stateful {
@@ -212,7 +212,7 @@ impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
                     OutputPortType::Stateless
                 },
             ),
-        ])
+        ]
     }
 
     fn build(
@@ -335,15 +335,15 @@ impl SourceFactory<NoneContext> for NoPkGeneratorSourceFactory {
         ))
     }
 
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(vec![OutputPortDef::new(
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
             if self.stateful {
                 OutputPortType::AutogenRowKeyLookup
             } else {
                 OutputPortType::Stateless
             },
-        )])
+        )]
     }
 
     fn build(
@@ -417,11 +417,11 @@ impl SourceFactory<NoneContext> for ConnectivityTestSourceFactory {
         unimplemented!("This struct is for connectivity test, only output ports are defined")
     }
 
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(vec![OutputPortDef::new(
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
             OutputPortType::Stateless,
-        )])
+        )]
     }
 
     fn build(

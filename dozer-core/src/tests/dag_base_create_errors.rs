@@ -54,11 +54,11 @@ impl SourceFactory<NoneContext> for CreateErrSourceFactory {
         ))
     }
 
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(vec![OutputPortDef::new(
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
             OutputPortType::Stateless,
-        )])
+        )]
     }
 
     fn build(

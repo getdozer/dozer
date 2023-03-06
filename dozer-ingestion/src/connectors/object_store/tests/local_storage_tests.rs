@@ -74,7 +74,6 @@ fn test_read_parquet_file() {
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
     let table = TableInfo {
-        name: "all_types_parquet".to_string(),
         table_name: "all_types_parquet".to_string(),
         id: 0,
         columns: None,
@@ -126,7 +125,6 @@ fn test_csv_read() {
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
     let table = TableInfo {
-        name: "all_types_csv".to_string(),
         table_name: "all_types_csv".to_string(),
         id: 0,
         columns: None,
@@ -203,7 +201,6 @@ fn test_missing_directory() {
         None,
         &ingestor,
         vec![TableInfo {
-            name: table.name.clone(),
             table_name: table.name,
             id: 0,
             columns: None,

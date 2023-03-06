@@ -116,7 +116,7 @@ pub trait Reader<T> {
 impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
     fn read_tables(&self, tables: &[TableInfo], ingestor: &Ingestor) -> Result<(), ConnectorError> {
         for (id, table) in tables.iter().enumerate() {
-            let params = self.config.table_params(&table.name)?;
+            let params = self.config.table_params(&table.table_name)?;
 
             let table_path = ListingTableUrl::parse(params.table_path).map_err(|e| {
                 ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError(e))

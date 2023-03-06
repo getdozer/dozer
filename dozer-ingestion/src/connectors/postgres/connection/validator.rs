@@ -427,7 +427,6 @@ mod tests {
                 .expect("User creation failed");
 
             let tables = vec![TableInfo {
-                name: "not_existing".to_string(),
                 table_name: "not_existing".to_string(),
                 id: 0,
                 columns: None,
@@ -477,7 +476,6 @@ mod tests {
             ];
 
             let tables = vec![TableInfo {
-                name: "existing".to_string(),
                 table_name: "existing".to_string(),
                 id: 0,
                 columns: Some(columns),
@@ -657,7 +655,6 @@ mod tests {
 
         for (table_name, expected_result) in tables_with_result {
             let res = validate_tables_names(&vec![TableInfo {
-                name: table_name.to_string(),
                 table_name: table_name.to_string(),
                 id: 0,
                 columns: None,
@@ -678,7 +675,6 @@ mod tests {
 
         for (column_name, expected_result) in columns_names_with_result {
             let res = validate_columns_names(&vec![TableInfo {
-                name: "column_test_table".to_string(),
                 table_name: "column_test_table".to_string(),
                 id: 0,
                 columns: Some(vec![ColumnInfo {
@@ -714,7 +710,6 @@ mod tests {
             let result = validate_tables(
                 &mut pg_client,
                 &vec![TableInfo {
-                    name: table_name.clone(),
                     table_name,
                     id: 0,
                     columns: None,
@@ -726,7 +721,6 @@ mod tests {
             let result = validate_tables(
                 &mut pg_client,
                 &vec![TableInfo {
-                    name: view_name.clone(),
                     table_name: view_name,
                     id: 0,
                     columns: None,
