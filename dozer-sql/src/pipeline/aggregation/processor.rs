@@ -10,7 +10,7 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::types::TypeError;
-use dozer_types::types::{Field, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use std::cell::RefCell;
 
 use crate::pipeline::aggregation::aggregator::{
@@ -37,13 +37,17 @@ struct AggregationState {
 }
 
 impl AggregationState {
-    pub fn new(types: &Vec<AggregatorType>, count: usize) -> Self {
+    pub fn new(types: &Vec<AggregatorType>, ret_types: &Vec<FieldType>) -> Self {
+        let mut states: Vec<Box<dyn Aggregator>> = Vec::new();
+        for (idx, typ) in types.iter().enumerate() {
+            let mut aggr = get_aggregator_from_aggregator_type(*typ);
+            aggr.init(ret_types[idx]);
+            states.push(aggr);
+        }
+
         Self {
-            count,
-            states: types
-                .iter()
-                .map(|t| get_aggregator_from_aggregator_type(*t))
-                .collect(),
+            count: 0,
+            states,
             values: None,
         }
     }
@@ -54,6 +58,7 @@ pub struct AggregationProcessor {
     dimensions: Vec<Expression>,
     measures: Vec<Expression>,
     measures_types: Vec<AggregatorType>,
+    measures_return_types: Vec<FieldType>,
     projections: Vec<Expression>,
     input_schema: Schema,
     aggregation_schema: Schema,
@@ -76,12 +81,14 @@ impl AggregationProcessor {
     ) -> Result<Self, PipelineError> {
         let mut aggr_types = Vec::new();
         let mut aggr_measures = Vec::new();
+        let mut aggr_measures_ret_types = Vec::new();
 
         for measure in measures {
             let (aggr_measure, aggr_type) =
                 get_aggregator_type_from_aggregation_expression(&measure, &input_schema)?;
             aggr_measures.push(aggr_measure);
             aggr_types.push(aggr_type);
+            aggr_measures_ret_types.push(measure.get_type(&input_schema)?.return_type)
         }
 
         Ok(Self {
@@ -92,6 +99,7 @@ impl AggregationProcessor {
             states: HashMap::new(),
             measures: aggr_measures,
             measures_types: aggr_types,
+            measures_return_types: aggr_measures_ret_types,
         })
     }
 
@@ -127,18 +135,14 @@ impl AggregationProcessor {
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
                     }
-                    curr_aggr.insert(
-                        &inserted_field,
-                        measure.get_type(&input_schema)?.return_type,
-                    )?
+                    curr_aggr.insert(&inserted_field)?
                 }
                 AggregatorOperation::Delete => {
                     let deleted_field = measure.evaluate(deleted_record.unwrap(), &input_schema)?;
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
                     }
-                    curr_aggr
-                        .delete(&deleted_field, measure.get_type(&input_schema)?.return_type)?
+                    curr_aggr.delete(&deleted_field)?
                 }
                 AggregatorOperation::Update => {
                     let inserted_field =
@@ -147,11 +151,7 @@ impl AggregationProcessor {
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
                     }
-                    curr_aggr.update(
-                        &deleted_field,
-                        &inserted_field,
-                        measure.get_type(&input_schema)?.return_type,
-                    )?
+                    curr_aggr.update(&deleted_field, &inserted_field)?
                 }
             };
             out_rec_insert.push(new_val.clone());
@@ -230,10 +230,10 @@ impl AggregationProcessor {
             vec![Field::Null]
         };
 
-        let curr_state = self
-            .states
-            .entry(key)
-            .or_insert(AggregationState::new(&self.measures_types, 0));
+        let curr_state = self.states.entry(key).or_insert(AggregationState::new(
+            &self.measures_types,
+            &self.measures_return_types,
+        ));
 
         let new_values = Self::calc_and_fill_measures(
             curr_state,

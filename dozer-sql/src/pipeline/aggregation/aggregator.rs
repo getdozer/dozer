@@ -13,14 +13,10 @@ use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter, Write};
 
 pub trait Aggregator: Send + Sync {
-    fn update(
-        &mut self,
-        old: &Field,
-        new: &Field,
-        return_type: FieldType,
-    ) -> Result<Field, PipelineError>;
-    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
-    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
+    fn init(&mut self, return_type: FieldType);
+    fn update(&mut self, old: &Field, new: &Field) -> Result<Field, PipelineError>;
+    fn delete(&mut self, old: &Field) -> Result<Field, PipelineError>;
+    fn insert(&mut self, new: &Field) -> Result<Field, PipelineError>;
 }
 
 impl Debug for dyn Aggregator {

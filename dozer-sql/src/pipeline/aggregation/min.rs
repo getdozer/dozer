@@ -28,20 +28,19 @@ impl MinAggregator {
 }
 
 impl Aggregator for MinAggregator {
-    fn update(
-        &mut self,
-        old: &Field,
-        new: &Field,
-        return_type: FieldType,
-    ) -> Result<Field, PipelineError> {
+    fn init(&mut self, return_type: FieldType) {
         todo!()
     }
 
-    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn update(&mut self, old: &Field, new: &Field) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn delete(&mut self, old: &Field) -> Result<Field, PipelineError> {
+        todo!()
+    }
+
+    fn insert(&mut self, new: &Field) -> Result<Field, PipelineError> {
         todo!()
     }
 }

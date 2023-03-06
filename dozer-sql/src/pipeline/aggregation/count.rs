@@ -22,21 +22,20 @@ impl CountAggregator {
 }
 
 impl Aggregator for CountAggregator {
-    fn update(
-        &mut self,
-        old: &Field,
-        new: &Field,
-        return_type: FieldType,
-    ) -> Result<Field, PipelineError> {
+    fn init(&mut self, return_type: FieldType) {
+        println!("{}", return_type);
+    }
+
+    fn update(&mut self, old: &Field, new: &Field) -> Result<Field, PipelineError> {
         Ok(Field::Int(self.count))
     }
 
-    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn delete(&mut self, old: &Field) -> Result<Field, PipelineError> {
         self.count -= 1;
         Ok(Field::Int(self.count))
     }
 
-    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn insert(&mut self, new: &Field) -> Result<Field, PipelineError> {
         self.count += 1;
         Ok(Field::Int(self.count))
     }
