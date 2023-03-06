@@ -43,7 +43,7 @@ async fn ingest_grpc(
         })
         .unwrap();
 
-        let tables = grpc_connector.get_tables(None).unwrap();
+        let tables = grpc_connector.get_tables().unwrap();
         grpc_connector.start(None, &ingestor, tables).unwrap();
     });
 

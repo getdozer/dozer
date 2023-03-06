@@ -34,7 +34,7 @@ impl ConnectionService {
     ) -> Result<Vec<dozer_orchestrator::TableInfo>, ErrorResponse> {
         let res = thread::spawn(|| {
             let connector = get_connector(connection).map_err(|err| err.to_string())?;
-            connector.get_tables(None).map_err(|err| err.to_string())
+            connector.get_tables().map_err(|err| err.to_string())
         })
         .join()
         .unwrap();
