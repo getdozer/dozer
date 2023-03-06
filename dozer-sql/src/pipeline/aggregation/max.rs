@@ -1,8 +1,6 @@
 use hashbrown::HashMap;
-use num_traits::FromPrimitive;
 use dozer_core::errors::ExecutionError::InvalidOperation;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::rust_decimal::Decimal;
 use dozer_types::tonic::codegen::Body;
 use crate::pipeline::aggregation::aggregator::{Aggregator, update_map};
 use crate::pipeline::errors::PipelineError;
@@ -23,62 +21,53 @@ impl MaxAggregator {
 
 impl Aggregator for MaxAggregator {
     fn update(
-        &self,
+        &mut self,
         old: &Field,
         new: &Field,
         return_type: FieldType,
     ) -> Result<Field, PipelineError> {
-        todo!()
+        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete record: {} for {}", old, Max.to_string()))))?;
+        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Max.to_string()))))
     }
 
     fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        update_map(old, 1_u64, true, &mut self.current_state);
+        match old.get_type() {
+            Some(field_type) => {
+                if field_type == return_type {
+                    update_map(old, 1_u64, true, &mut self.current_state);
+                    get_max(&self.current_state, return_type)
+                }
+                else {
+                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, old, Max.to_string()))))
+                }
+            },
+            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", old, Max.to_string())))),
+        }
     }
 
     fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        update_map(new, 1_u64, true, &mut self.current_state);
+        match new.get_type() {
+            Some(field_type) => {
+                if field_type == return_type {
+                    update_map(new, 1_u64, true, &mut self.current_state);
+                    get_max(&self.current_state, return_type)
+                }
+                else {
+                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, new, Max.to_string()))))
+                }
+            },
+            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Max.to_string())))),
+        }
     }
 }
 
 fn get_max(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
+    let val: Field = Vec::from(field_hash.keys().sorted()).get(field_hash.keys().len() - 1).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?;
     match return_type {
-        FieldType::UInt => {
-            let mut sum = 0_u64;
-            let mut count = 0_u64;
-            for (field, cnt) in field_hash {
-                sum += field.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate average while parsing {}", field))))?;
-                count += cnt;
-            }
-            Ok(Field::UInt(sum / count))
-        }
-        FieldType::Int => {
-            let mut sum = 0_i64;
-            let mut count = 0_i64;
-            for (field, cnt) in field_hash {
-                sum += field.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate average while parsing {}", field))))?;
-                count += cnt as i64;
-            }
-            Ok(Field::Int(sum / count))
-        }
-        FieldType::Float => {
-            let mut sum = 0_f64;
-            let mut count = 0_f64;
-            for (field, cnt) in field_hash {
-                sum += field.to_float().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate average while parsing {}", field))))?;
-                count += cnt as f64;
-            }
-            Ok(Field::Float(OrderedFloat::from(sum / count)))
-        }
-        FieldType::Decimal => {
-            let mut sum = Decimal::from_f64(0_f64);
-            let mut count = Decimal::from_f64(0_f64);
-            for (field, cnt) in field_hash {
-                sum += field.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate average while parsing {}", field))))?;
-                count += Decimal::from_u64(*cnt);
-            }
-            Ok(Field::Decimal(sum / count))
-        }
+        FieldType::UInt => Ok(Field::UInt(val.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
+        FieldType::Int => Ok(Field::Int(val.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
+        FieldType::Float => Ok(Field::Float(OrderedFloat::from(val.to_float().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?))),
+        FieldType::Decimal => Ok(Field::Decimal(val.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
         _ => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Not supported return type {} for {}", return_type, Max.to_string())))),
     }
-
 }
