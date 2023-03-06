@@ -163,7 +163,7 @@ impl JoinOperator {
 
             // update left join index
             for (join_action, left_record, left_lookup_key) in left_records.iter_mut() {
-                let left_join_key = get_join_key_fields(left_record, &self.left_join_key_indexes);
+                let left_join_key = left_record.get_fields_by_indexes(&self.left_join_key_indexes);
                 self.update_left_index(join_action.clone(), &left_join_key, left_lookup_key);
 
                 let join_records = match self.operator {
@@ -200,7 +200,7 @@ impl JoinOperator {
             // update right join index
             for (join_action, right_record, right_lookup_key) in right_records.iter_mut() {
                 let right_join_key =
-                    get_join_key_fields(right_record, &self.right_join_key_indexes);
+                    right_record.get_fields_by_indexes(&self.right_join_key_indexes);
                 self.update_right_index(join_action.clone(), &right_join_key, right_lookup_key);
 
                 let join_records = match self.operator {
@@ -254,7 +254,7 @@ impl JoinOperator {
             for (right_record, right_lookup_key) in right_records.iter_mut() {
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
-                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
 
                 output_records.push((action.clone(), join_record, join_lookup_key));
             }
@@ -284,7 +284,7 @@ impl JoinOperator {
                 // join the records
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
-                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
                 output_records.push((action.clone(), join_record, join_lookup_key));
             }
         }
@@ -310,7 +310,7 @@ impl JoinOperator {
             // no matching records on the right branch
             let right_record = Record::from_schema(&self.right_source.get_output_schema());
             let join_record = join_records(left_record, &right_record);
-            let join_lookup_key = self.encode_join_lookup_key(left_lookup_key, &[]);
+            let join_lookup_key = self.compose_join_lookup_key(left_lookup_key, &[]);
             output_records.push((action, join_record, join_lookup_key));
 
             return Ok(output_records);
@@ -323,7 +323,7 @@ impl JoinOperator {
             for (right_record, right_lookup_key) in right_records.iter_mut() {
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
-                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
 
                 output_records.push((action.clone(), join_record, join_lookup_key));
             }
@@ -350,7 +350,7 @@ impl JoinOperator {
             // no matching records on the right branch
             let left_record = Record::from_schema(&self.left_source.get_output_schema());
             let join_record = join_records(&left_record, right_record);
-            let join_lookup_key = self.encode_join_lookup_key(right_lookup_key, &[]);
+            let join_lookup_key = self.compose_join_lookup_key(right_lookup_key, &[]);
             output_records.push((action, join_record, join_lookup_key));
 
             return Ok(output_records);
@@ -364,7 +364,7 @@ impl JoinOperator {
                 // join the records
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
-                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
                 output_records.push((action.clone(), join_record, join_lookup_key));
             }
         }
@@ -400,7 +400,7 @@ impl JoinOperator {
 
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
-                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
 
                 if left_matching_count > 0 {
                     // if there are multiple matching records on the left branch, the right record will be just returned
@@ -413,7 +413,7 @@ impl JoinOperator {
                                 right_record,
                             );
                             let old_join_lookup_key =
-                                self.encode_join_lookup_key(left_lookup_key, &[]);
+                                self.compose_join_lookup_key(left_lookup_key, &[]);
                             output_records.push((
                                 JoinAction::Delete,
                                 old_join_record,
@@ -428,7 +428,7 @@ impl JoinOperator {
                                 right_record,
                             );
                             let new_join_lookup_key =
-                                self.encode_join_lookup_key(left_lookup_key, &[]);
+                                self.compose_join_lookup_key(left_lookup_key, &[]);
                             output_records.push((JoinAction::Delete, join_record, join_lookup_key));
                             output_records.push((
                                 JoinAction::Insert,
@@ -472,7 +472,7 @@ impl JoinOperator {
 
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
-                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
 
                 if right_matching_count > 0 {
                     // if there are multiple matching records on the right branch, the left record will be just returned
@@ -485,7 +485,7 @@ impl JoinOperator {
                                 &Record::from_schema(&self.right_source.get_output_schema()),
                             );
                             let old_join_lookup_key =
-                                self.encode_join_lookup_key(left_lookup_key, &[]);
+                                self.compose_join_lookup_key(left_lookup_key, &[]);
 
                             // delete the "first left join" record
                             output_records.push((
@@ -502,7 +502,7 @@ impl JoinOperator {
                                 &Record::from_schema(&self.right_source.get_output_schema()),
                             );
                             let new_join_lookup_key =
-                                self.encode_join_lookup_key(left_lookup_key, &[]);
+                                self.compose_join_lookup_key(left_lookup_key, &[]);
                             output_records.push((action.clone(), join_record, join_lookup_key));
                             output_records.push((
                                 JoinAction::Insert,
@@ -523,7 +523,7 @@ impl JoinOperator {
         left_record: &mut Record,
     ) -> Result<usize, JoinError> {
         let left_join_key: Vec<Field> =
-            get_join_key_fields(left_record, &self.left_join_key_indexes);
+            left_record.get_fields_by_indexes(&self.left_join_key_indexes);
 
         let right_lookup_keys = self
             .right_lookup_index_map
@@ -543,7 +543,7 @@ impl JoinOperator {
         action: &JoinAction,
         right_record: &mut Record,
     ) -> Result<usize, JoinError> {
-        let right_join_key = get_join_key_fields(right_record, &self.right_join_key_indexes);
+        let right_join_key = right_record.get_fields_by_indexes(&self.right_join_key_indexes);
 
         let left_lookup_keys = self
             .left_lookup_index_map
@@ -561,7 +561,7 @@ impl JoinOperator {
     fn lookup(&self, lookup_key: &[Field]) -> Result<Vec<(Record, Vec<Field>)>, JoinError> {
         let mut output_records = vec![];
 
-        let (left_loookup_key, right_lookup_key) = self.decode_join_lookup_key(lookup_key);
+        let (left_loookup_key, right_lookup_key) = self.split_join_lookup_key(lookup_key);
 
         let mut left_records = self.left_source.lookup(&left_loookup_key)?;
 
@@ -571,7 +571,7 @@ impl JoinOperator {
             for (right_record, right_lookup_key) in right_records.iter_mut() {
                 let join_record = join_records(left_record, right_record);
                 let join_lookup_key =
-                    self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
+                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
 
                 output_records.push((join_record, join_lookup_key));
             }
@@ -604,7 +604,7 @@ impl JoinOperator {
         }
     }
 
-    fn encode_join_lookup_key(
+    fn compose_join_lookup_key(
         &self,
         left_lookup_key: &[Field],
         right_lookup_key: &[Field],
@@ -612,7 +612,7 @@ impl JoinOperator {
         [left_lookup_key, right_lookup_key].concat()
     }
 
-    fn decode_join_lookup_key(&self, join_lookup_key: &[Field]) -> (Vec<Field>, Vec<Field>) {
+    fn split_join_lookup_key(&self, join_lookup_key: &[Field]) -> (Vec<Field>, Vec<Field>) {
         let left_schema_len = self.left_source.get_output_schema().fields.len();
         let right_schema_len = self.right_source.get_output_schema().fields.len();
 
@@ -630,13 +630,4 @@ impl JoinOperator {
 fn join_records(left_record: &Record, right_record: &Record) -> Record {
     let concat_values = [left_record.values.clone(), right_record.values.clone()].concat();
     Record::new(None, concat_values, None)
-}
-
-fn get_join_key_fields(record: &Record, join_keys: &[usize]) -> Vec<Field> {
-    let mut composite_lookup_key = vec![];
-    for key in join_keys.iter() {
-        let value = &record.values[*key];
-        composite_lookup_key.push(value.clone());
-    }
-    composite_lookup_key
 }
