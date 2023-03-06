@@ -143,14 +143,14 @@ mod tests {
             connections: vec![grpc_conn.clone()],
             sources: vec![
                 Source {
-                    name: "users".to_string(),
+                    name: "pg_conn_users".to_string(),
                     table_name: "users".to_string(),
                     columns: vec!["id".to_string(), "name".to_string()],
                     connection: Some(grpc_conn.clone()),
                     refresh_config: None,
                 },
                 Source {
-                    name: "customers".to_string(),
+                    name: "pg_conn_customers".to_string(),
                     table_name: "customers".to_string(),
                     columns: vec!["id".to_string(), "name".to_string()],
                     connection: Some(grpc_conn),
@@ -172,14 +172,14 @@ mod tests {
     fn load_multi_sources() {
         let config = get_default_config();
 
-        let tables = config
+        let used_sources = config
             .sources
             .iter()
-            .map(|s| s.table_name.clone())
+            .map(|s| s.name.clone())
             .collect::<Vec<_>>();
 
         let source_builder = SourceBuilder::new(
-            &tables,
+            &used_sources,
             SourceBuilder::group_connections(&config.sources),
             None,
         );
@@ -189,11 +189,11 @@ mod tests {
         let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
             .get(vec![
                 AppSourceId::new(
-                    config.sources.get(0).unwrap().table_name.clone(),
+                    config.sources.get(0).unwrap().name.clone(),
                     Some(conn_name_1.clone()),
                 ),
                 AppSourceId::new(
-                    config.sources.get(1).unwrap().table_name.clone(),
+                    config.sources.get(1).unwrap().name.clone(),
                     Some(conn_name_1),
                 ),
             ])
