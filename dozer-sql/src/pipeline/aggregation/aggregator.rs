@@ -11,6 +11,7 @@ use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
+use hashbrown::HashMap;
 
 pub trait Aggregator {
     fn update(
@@ -109,6 +110,31 @@ pub fn get_aggregator_type_from_aggregation_expression(
         } => Ok((Expression::Literal(Field::Int(0)), AggregatorType::Count)),
         _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
     }
+}
+
+pub fn update_map(
+    field: &Field,
+    val_delta: u64,
+    decr: bool,
+    field_hash: &mut HashMap<Field, u64>,
+) -> u64 {
+    let get_prev_count = field_hash.get(field);
+    let prev_count = match get_prev_count {
+        Some(v) => *v,
+        None => 0_u64,
+    };
+    let mut new_count = prev_count;
+    if decr {
+        new_count = new_count.wrapping_sub(val_delta);
+    } else {
+        new_count = new_count.wrapping_add(val_delta);
+    }
+    if new_count < 1 {
+        field_hash.remove(field);
+    } else {
+        field_hash.insert(field.clone(), new_count);
+    }
+    new_count
 }
 
 #[macro_export]

@@ -4,19 +4,19 @@ use dozer_core::errors::ExecutionError::InvalidOperation;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::tonic::codegen::Body;
-use crate::pipeline::aggregation::aggregator::Aggregator;
+use crate::pipeline::aggregation::aggregator::{Aggregator, update_map};
 use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
 
 pub struct AvgAggregator {
-    field_map: HashMap<Field, u64>,
+    current_state: HashMap<Field, u64>,
 }
 
 impl AvgAggregator {
     pub fn new() -> Self {
         Self {
-            field_map: HashMap::new(),
+            current_state: HashMap::new(),
         }
     }
 }
@@ -29,19 +29,37 @@ impl Aggregator for AvgAggregator {
         return_type: FieldType,
     ) -> Result<Field, PipelineError> {
         self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete record: {} for {}", old, Avg.to_string()))))?;
-        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Avg.to_string()))))?;
-
-        get_average(&self.field_map, return_type)
+        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Avg.to_string()))))
     }
 
     fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        update_map(old, 1_u64, true, &mut self.field_map);
-        get_average(&self.field_map, return_type)
+        match old.get_type() {
+            Some(field_type) => {
+                if field_type == return_type {
+                    update_map(old, 1_u64, true, &mut self.current_state);
+                    get_average(&self.current_state, return_type)
+                }
+                else {
+                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, old, Avg.to_string()))))
+                }
+            },
+            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", old, Avg.to_string())))),
+        }
     }
 
     fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        update_map(new, 1_u64, false, &mut self.field_map);
-        get_average(&self.field_map, return_type)
+        match new.get_type() {
+            Some(field_type) => {
+                if field_type == return_type {
+                    update_map(new, 1_u64, false, &mut self.current_state);
+                    get_average(&self.current_state, return_type)
+                }
+                else {
+                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, new, Avg.to_string()))))
+                }
+            },
+            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Avg.to_string())))),
+        }
     }
 }
 
@@ -85,30 +103,4 @@ fn get_average(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Resu
         }
         _ => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Not supported return type {} for {}", return_type, Avg.to_string())))),
     }
-
-}
-
-fn update_map(
-    field: &Field,
-    val_delta: u64,
-    decr: bool,
-    field_hash: &mut HashMap<Field, u64>,
-) -> u64 {
-    let get_prev_count = field_hash.get(field);
-    let prev_count = match get_prev_count {
-        Some(v) => *v,
-        None => 0_u64,
-    };
-    let mut new_count = prev_count;
-    if decr {
-        new_count = new_count.wrapping_sub(val_delta);
-    } else {
-        new_count = new_count.wrapping_add(val_delta);
-    }
-    if new_count < 1 {
-        field_hash.remove(field);
-    } else {
-        field_hash.insert(field.clone(), new_count);
-    }
-    new_count
 }

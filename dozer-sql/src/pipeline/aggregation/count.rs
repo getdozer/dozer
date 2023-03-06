@@ -24,15 +24,14 @@ impl Aggregator for CountAggregator {
         return_type: FieldType,
     ) -> Result<Field, PipelineError> {
         self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete record: {} for {}", old, Count.to_string()))))?;
-        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Count.to_string()))))?;
-        Ok(Field::UInt(self.current_state))
+        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Count.to_string()))))
     }
 
     fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         match old.get_type() {
             Some(field_type) => {
                 if field_type == return_type {
-                    self.current_state += 1;
+                    self.current_state -= 1;
                     Ok(Field::UInt(self.current_state))
                 }
                 else {
