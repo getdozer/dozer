@@ -26,8 +26,8 @@ impl Aggregator for MaxAggregator {
         new: &Field,
         return_type: FieldType,
     ) -> Result<Field, PipelineError> {
-        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete record: {} for {}", old, Max.to_string()))))?;
-        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Max.to_string()))))
+        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while deleting record: {} for {}", old, Max.to_string()))))?;
+        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while inserting record: {} for {}", new, Max.to_string()))))
     }
 
     fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
@@ -62,6 +62,9 @@ impl Aggregator for MaxAggregator {
 }
 
 fn get_max(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
+    if field_hash.is_empty() {
+        Ok(Field::Null)
+    }
     let val: Field = Vec::from(field_hash.keys().sorted()).get(field_hash.keys().len() - 1).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?;
     match return_type {
         FieldType::UInt => Ok(Field::UInt(val.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),

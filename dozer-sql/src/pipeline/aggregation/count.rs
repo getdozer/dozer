@@ -25,8 +25,8 @@ impl Aggregator for CountAggregator {
         new: &Field,
         return_type: FieldType,
     ) -> Result<Field, PipelineError> {
-        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete record: {} for {}", old, Count.to_string()))))?;
-        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Count.to_string()))))
+        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while deleting record: {} for {}", old, Count.to_string()))))?;
+        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while inserting record: {} for {}", new, Count.to_string()))))
     }
 
     fn delete(&mut self, _old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {

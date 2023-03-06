@@ -28,8 +28,8 @@ impl Aggregator for AvgAggregator {
         new: &Field,
         return_type: FieldType,
     ) -> Result<Field, PipelineError> {
-        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete record: {} for {}", old, Avg.to_string()))))?;
-        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Avg.to_string()))))
+        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while deleting record: {} for {}", old, Avg.to_string()))))?;
+        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while inserting record: {} for {}", new, Avg.to_string()))))
     }
 
     fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
@@ -46,6 +46,9 @@ impl Aggregator for AvgAggregator {
 fn get_average(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
     match return_type {
         FieldType::UInt => {
+            if field_hash.is_empty() {
+                Ok(Field::UInt(0_u64))
+            }
             let mut sum = 0_u64;
             let mut count = 0_u64;
             for (field, cnt) in field_hash {
@@ -55,6 +58,9 @@ fn get_average(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Resu
             Ok(Field::UInt(sum / count))
         }
         FieldType::Int => {
+            if field_hash.is_empty() {
+                Ok(Field::Int(0_i64))
+            }
             let mut sum = 0_i64;
             let mut count = 0_i64;
             for (field, cnt) in field_hash {
@@ -64,6 +70,9 @@ fn get_average(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Resu
             Ok(Field::Int(sum / count))
         }
         FieldType::Float => {
+            if field_hash.is_empty() {
+                Ok(Field::Float(OrderedFloat::from(0_f64)))
+            }
             let mut sum = 0_f64;
             let mut count = 0_f64;
             for (field, cnt) in field_hash {
@@ -73,8 +82,11 @@ fn get_average(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Resu
             Ok(Field::Float(OrderedFloat::from(sum / count)))
         }
         FieldType::Decimal => {
-            let mut sum = Decimal::from_f64(0_f64);
-            let mut count = Decimal::from_f64(0_f64);
+            if field_hash.is_empty() {
+                Ok(Field::Decimal(Decimal::from(0_f64)))
+            }
+            let mut sum = Decimal::from_f64(0_f64)?;
+            let mut count = Decimal::from_f64(0_f64)?;
             for (field, cnt) in field_hash {
                 sum += field.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate average while parsing {}", field))))?;
                 count += Decimal::from_u64(*cnt);

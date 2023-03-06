@@ -1,208 +1,111 @@
-use crate::pipeline::aggregation::aggregator::Aggregator;
+use hashbrown::HashMap;
+use num_traits::FromPrimitive;
+use dozer_core::errors::ExecutionError::InvalidOperation;
+use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::rust_decimal::Decimal;
+use dozer_types::tonic::codegen::Body;
+use crate::pipeline::aggregation::aggregator::{Aggregator, update_map};
 use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
+use crate::pipeline::expression::aggregate::AggregateFunctionType::Sum;
 
-// use crate::pipeline::aggregation::aggregator::AggregationResult;
-// use crate::pipeline::errors::PipelineError;
-// use crate::pipeline::errors::PipelineError::InvalidOperandType;
-// use crate::{deserialize, deserialize_decimal, deserialize_f64, deserialize_i64, deserialize_u64};
-// use dozer_core::storage::prefix_transaction::PrefixTransaction;
-// use dozer_types::ordered_float::OrderedFloat;
-// use dozer_types::rust_decimal::Decimal;
-// use dozer_types::types::{Field, FieldType};
-// use std::ops::{Add, Sub};
-//
-pub struct SumAggregator {}
+pub struct SumAggregator {
+    current_state: HashMap<Field, u64>,
+}
 
 impl SumAggregator {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            current_state: HashMap::new(),
+        }
     }
 }
 
 impl Aggregator for SumAggregator {
     fn update(
-        &self,
+        &mut self,
         old: &Field,
         new: &Field,
         return_type: FieldType,
     ) -> Result<Field, PipelineError> {
-        todo!()
+        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while deleting record: {} for {}", old, Sum.to_string()))))?;
+        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while inserting record: {} for {}", new, Sum.to_string()))))
     }
 
-    fn delete(&self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        todo!()
+    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+        match old.get_type() {
+            Some(field_type) => {
+                if field_type == return_type {
+                    update_map(old, 1_u64, true, &mut self.current_state);
+                    get_sum(&self.current_state, return_type)
+                }
+                else {
+                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, old, Sum.to_string()))))
+                }
+            },
+            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", old, Sum.to_string())))),
+        }
     }
 
-    fn insert(&self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        todo!()
+    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+        match new.get_type() {
+            Some(field_type) => {
+                if field_type == return_type {
+                    update_map(new, 1_u64, true, &mut self.current_state);
+                    get_sum(&self.current_state, return_type)
+                }
+                else {
+                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, new, Sum.to_string()))))
+                }
+            },
+            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Sum.to_string())))),
+        }
     }
 }
 
-// const AGGREGATOR_NAME: &str = "SUM";
-//
-// impl SumAggregator {
-//     const _AGGREGATOR_ID: u32 = 0x01;
-//
-//     pub(crate) fn _get_type() -> u32 {
-//         SumAggregator::_AGGREGATOR_ID
-//     }
-//
-//     pub(crate) fn insert(
-//         cur_state: Option<&[u8]>,
-//         new: &Field,
-//         return_type: FieldType,
-//         _txn: &mut PrefixTransaction,
-//     ) -> Result<AggregationResult, PipelineError> {
-//         match return_type {
-//             FieldType::Decimal => {
-//                 let prev = deserialize_decimal!(cur_state);
-//                 let curr = &Field::to_decimal(new).unwrap();
-//                 let r_bytes = (prev.add(curr)).serialize();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::Float => {
-//                 let prev = OrderedFloat::from(deserialize_f64!(cur_state));
-//                 let curr = &OrderedFloat(Field::to_float(new).unwrap());
-//                 let r_bytes = (prev + *curr).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::Int => {
-//                 let prev = deserialize_i64!(cur_state);
-//                 let curr = &Field::to_int(new).unwrap();
-//                 let r_bytes = (prev + *curr).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::UInt => {
-//                 let prev = deserialize_u64!(cur_state);
-//                 let curr = &Field::to_uint(new).unwrap();
-//                 let r_bytes = (prev + *curr).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
-//         }
-//     }
-//
-//     pub(crate) fn update(
-//         cur_state: Option<&[u8]>,
-//         old: &Field,
-//         new: &Field,
-//         return_type: FieldType,
-//         _txn: &mut PrefixTransaction,
-//     ) -> Result<AggregationResult, PipelineError> {
-//         match return_type {
-//             FieldType::Decimal => {
-//                 let prev = deserialize_decimal!(cur_state);
-//                 let curr_del = &Field::to_decimal(old).unwrap();
-//                 let curr_added = &Field::to_decimal(new).unwrap();
-//                 let r_bytes = prev.sub(curr_del).add(curr_added).serialize();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::Float => {
-//                 let prev = OrderedFloat::from(deserialize_f64!(cur_state));
-//                 let curr_del = &OrderedFloat(Field::to_float(old).unwrap());
-//                 let curr_added = &OrderedFloat(Field::to_float(new).unwrap());
-//                 let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::Int => {
-//                 let prev = deserialize_i64!(cur_state);
-//                 let curr_del = &Field::to_int(old).unwrap();
-//                 let curr_added = &Field::to_int(new).unwrap();
-//                 let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::UInt => {
-//                 let prev = deserialize_u64!(cur_state);
-//                 let curr_del = &Field::to_uint(old).unwrap();
-//                 let curr_added = &Field::to_uint(new).unwrap();
-//                 let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
-//         }
-//     }
-//
-//     pub(crate) fn delete(
-//         cur_state: Option<&[u8]>,
-//         old: &Field,
-//         return_type: FieldType,
-//         _txn: &mut PrefixTransaction,
-//     ) -> Result<AggregationResult, PipelineError> {
-//         match return_type {
-//             FieldType::Decimal => {
-//                 let prev = deserialize_decimal!(cur_state);
-//                 let curr = &Field::to_decimal(old).unwrap();
-//                 let r_bytes = (prev.sub(curr)).serialize();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::Float => {
-//                 let prev = OrderedFloat::from(deserialize_f64!(cur_state));
-//                 let curr = &OrderedFloat(Field::to_float(old).unwrap());
-//                 let r_bytes = (prev - *curr).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::Int => {
-//                 let prev = deserialize_i64!(cur_state);
-//                 let curr = &Field::to_int(old).unwrap();
-//                 let r_bytes = (prev - *curr).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             FieldType::UInt => {
-//                 let prev = deserialize_u64!(cur_state);
-//                 let curr = &Field::to_uint(old).unwrap();
-//                 let r_bytes = (prev - *curr).to_be_bytes();
-//                 Ok(AggregationResult::new(
-//                     Self::get_value(&r_bytes, return_type)?,
-//                     Some(Vec::from(r_bytes)),
-//                 ))
-//             }
-//             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
-//         }
-//     }
-//
-//     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Result<Field, PipelineError> {
-//         match from {
-//             FieldType::Decimal => Ok(Field::Decimal(Decimal::deserialize(deserialize!(f)))),
-//             FieldType::Float => Ok(Field::Float(OrderedFloat(f64::from_be_bytes(
-//                 deserialize!(f),
-//             )))),
-//             FieldType::Int => Ok(Field::Int(i64::from_be_bytes(deserialize!(f)))),
-//             FieldType::UInt => Ok(Field::UInt(u64::from_be_bytes(deserialize!(f)))),
-//             _ => Err(PipelineError::DataTypeMismatch),
-//         }
-//     }
-// }
+fn get_sum(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
+    match return_type {
+        FieldType::UInt => {
+            if field_hash.is_empty() {
+                Ok(Field::UInt(0_u64))
+            }
+            let mut sum = 0_u64;
+            for (field, cnt) in field_hash {
+                sum += field.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))? * cnt;
+            }
+            Ok(Field::UInt(sum))
+        }
+        FieldType::Int => {
+            if field_hash.is_empty() {
+                Ok(Field::Int(0_i64))
+            }
+            let mut sum = 0_i64;
+            for (field, cnt) in field_hash {
+                sum += field.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))? * (cnt as i64);
+            }
+            Ok(Field::Int(sum))
+        }
+        FieldType::Float => {
+            if field_hash.is_empty() {
+                Ok(Field::Float(OrderedFloat::from(0_f64)))
+            }
+            let mut sum = 0_f64;
+            for (field, cnt) in field_hash {
+                sum += field.to_float().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))? * (cnt as f64);
+            }
+            Ok(Field::Float(OrderedFloat::from(sum)))
+        }
+        FieldType::Decimal => {
+            if field_hash.is_empty() {
+                Ok(Field::Decimal(Decimal::from(0_f64)))
+            }
+            let mut sum = Decimal::from_f64(0_f64)?;
+            for (field, cnt) in field_hash {
+                sum += field.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))? * Decimal::from_u64(*cnt);
+            }
+            Ok(Field::Decimal(sum))
+        }
+        _ => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Not supported return type {} for {}", return_type, Sum.to_string())))),
+    }
+}
