@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-use num_traits::FromPrimitive;
 use dozer_core::errors::ExecutionError::InvalidOperation;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
@@ -10,13 +8,25 @@ use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Sum;
 
 pub struct SumAggregator {
-    current_state: BTreeMap<Field, u64>,
+    current_state: SumAggregatorState
+}
+
+struct SumAggregatorState {
+    int_state: i64,
+    uint_state: u64,
+    float_state: f64,
+    decimal_state: Decimal,
 }
 
 impl SumAggregator {
     pub fn new() -> Self {
         Self {
-            current_state: BTreeMap::new(),
+            current_state: SumAggregatorState{
+                int_state: 0_i64,
+                uint_state: 0_u64,
+                float_state: 0_f64,
+                decimal_state: Decimal::from(0_f64),
+            }
         }
     }
 }
@@ -37,7 +47,7 @@ impl Aggregator for SumAggregator {
             Some(field_type) => {
                 if field_type == return_type {
                     update_map(old, 1_u64, true, &mut self.current_state);
-                    get_sum(&self.current_state, return_type)
+                    get_sum(old, &mut self.current_state, return_type, true)
                 }
                 else {
                     Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, old, Sum.to_string()))))
@@ -52,7 +62,7 @@ impl Aggregator for SumAggregator {
             Some(field_type) => {
                 if field_type == return_type {
                     update_map(new, 1_u64, true, &mut self.current_state);
-                    get_sum(&self.current_state, return_type)
+                    get_sum(new, &mut self.current_state, return_type, false)
                 }
                 else {
                     Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, new, Sum.to_string()))))
@@ -63,47 +73,43 @@ impl Aggregator for SumAggregator {
     }
 }
 
-fn get_sum(field_hash: &BTreeMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
+fn get_sum(field: &Field, current_state: &mut SumAggregatorState, return_type: FieldType, decr: bool) -> Result<Field, PipelineError> {
     match return_type {
         FieldType::UInt => {
-            if field_hash.is_empty() {
-                Ok(Field::UInt(0_u64))
+            if decr {
+                current_state.uint_state -= field.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))?;
             }
-            let mut sum = 0_u64;
-            for (field, cnt) in field_hash {
-                sum += field.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))? * cnt;
+            else {
+                current_state.uint_state += field.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))?;
             }
-            Ok(Field::UInt(sum))
+            Ok(Field::UInt(current_state.uint_state))
         }
         FieldType::Int => {
-            if field_hash.is_empty() {
-                Ok(Field::Int(0_i64))
+            if decr {
+                current_state.int_state -= field.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))?;
             }
-            let mut sum = 0_i64;
-            for (field, cnt) in field_hash {
-                sum += field.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))? * (cnt as i64);
+            else {
+                current_state.int_state += field.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))?;
             }
-            Ok(Field::Int(sum))
+            Ok(Field::Int(current_state.int_state))
         }
         FieldType::Float => {
-            if field_hash.is_empty() {
-                Ok(Field::Float(OrderedFloat::from(0_f64)))
+            if decr {
+                current_state.float_state -= field.to_float().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))?;
             }
-            let mut sum = 0_f64;
-            for (field, cnt) in field_hash {
-                sum += field.to_float().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))? * (cnt as f64);
+            else {
+                current_state.float_state += field.to_float().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))?;
             }
-            Ok(Field::Float(OrderedFloat::from(sum)))
+            Ok(Field::Float(OrderedFloat::from(current_state.float_state)))
         }
         FieldType::Decimal => {
-            if field_hash.is_empty() {
-                Ok(Field::Decimal(Decimal::from(0_f64)))
+            if decr {
+                current_state.decimal_state -= field.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))?;
             }
-            let mut sum = Decimal::from_f64(0_f64)?;
-            for (field, cnt) in field_hash {
-                sum += field.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))? * Decimal::from_u64(*cnt);
+            else {
+                current_state.decimal_state += field.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate sum while parsing {}", field))))?;
             }
-            Ok(Field::Decimal(sum))
+            Ok(Field::Decimal(current_state.decimal_state))
         }
         _ => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Not supported return type {} for {}", return_type, Sum.to_string())))),
     }

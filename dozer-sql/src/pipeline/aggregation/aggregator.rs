@@ -117,7 +117,7 @@ pub fn update_map(
     field: &Field,
     val_delta: u64,
     decr: bool,
-    field_hash: &mut BTreeMap<Field, u64>,
+    field_hash: &mut SumAggregatorState,
 ) -> u64 {
     let get_prev_count = field_hash.get(field);
     let prev_count = match get_prev_count {
