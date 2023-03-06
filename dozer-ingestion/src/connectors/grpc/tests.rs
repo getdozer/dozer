@@ -124,6 +124,26 @@ async fn ingest_grpc_default() {
 }
 
 #[tokio::test]
+#[ignore]
+async fn test_serialize_arrow_schema() {
+    use std::println as info;
+    let schema = arrow_types::Schema::new(vec![
+        arrow_types::Field::new("id", arrow_types::DataType::Int32, false),
+        arrow_types::Field::new(
+            "time",
+            arrow_types::DataType::Timestamp(
+                arrow_types::TimeUnit::Millisecond,
+                Some("SGT".to_string()),
+            ),
+            false,
+        ),
+    ]);
+
+    let str = dozer_types::serde_json::to_string(&schema).unwrap();
+    info!("{str}");
+}
+
+#[tokio::test]
 async fn ingest_grpc_arrow() {
     let schemas = json!([{
       "name": "users",

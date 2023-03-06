@@ -53,4 +53,7 @@ snowflake = ["dep:odbc", "dep:include_dir"]
 [[bench]]
 name = "connectors"
 harness = false
-bench = false
+
+[[bench]]
+name = "grpc"
+harness = false

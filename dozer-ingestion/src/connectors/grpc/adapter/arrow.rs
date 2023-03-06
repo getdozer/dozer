@@ -84,14 +84,16 @@ pub fn handle_message(
         ConnectorError::InitializationError(format!("schema not found: {}", req.schema_name))
     })?;
 
-    let seq_no = req.seq_no;
+    let mut seq_no = req.seq_no;
     let records = map_record_batch(req, schema)?;
 
     for r in records {
         let op = Operation::Insert { new: r };
+
         ingestor
-            .handle_message(IngestionMessage::new_op(0, seq_no as u64, op))
+            .handle_message(IngestionMessage::new_op(0, seq_no as u64, op.clone()))
             .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
+        seq_no += 1;
     }
 
     Ok(())
