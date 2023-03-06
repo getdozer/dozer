@@ -169,7 +169,7 @@ impl<'a> PostgresIteratorHandler<'a> {
                 .tables
                 .iter()
                 .map(|table_info| TableInfo {
-                    table_name: table_info.name.clone(),
+                    name: table_info.name.clone(),
                     columns: Some(table_info.columns.clone()),
                 })
                 .collect::<Vec<_>>();

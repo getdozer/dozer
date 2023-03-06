@@ -23,7 +23,7 @@ pub fn validate_grouped_connections(
             let tables: Vec<TableInfo> = sources_group
                 .iter()
                 .map(|source| TableInfo {
-                    table_name: source.table_name.clone(),
+                    name: source.table_name.clone(),
                     columns: Some(
                         source
                             .columns

@@ -44,7 +44,7 @@ pub async fn get_connection_iterator(config: TestConfig) -> IngestionIterator {
 
         let mut tables = grpc_connector.get_tables().unwrap();
         if let Some(tables_filter) = config.tables_filter {
-            tables.retain(|t| tables_filter.contains(&t.table_name));
+            tables.retain(|t| tables_filter.contains(&t.name));
         }
 
         let res = grpc_connector.start(None, &ingestor, tables);

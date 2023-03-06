@@ -172,12 +172,12 @@ impl SchemaHelper {
             tables.iter().for_each(|t| {
                 if let Some(columns) = t.columns.clone() {
                     tables_columns_map.insert(
-                        t.table_name.clone(),
+                        t.name.clone(),
                         columns.iter().map(|c| c.name.clone()).collect(),
                     );
                 }
             });
-            let table_names: Vec<String> = tables.iter().map(|t| t.table_name.clone()).collect();
+            let table_names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
             let sql = str::replace(SQL, ":tables_name_condition", "t.table_name = ANY($2)");
             client.query(&sql, &[&schema, &table_names])
         } else {
@@ -317,7 +317,7 @@ impl SchemaHelper {
         for table in tables {
             if let Some(columns) = &table.columns {
                 let mut existing_columns = HashMap::new();
-                if let Some(res) = validation_result.get(&table.table_name) {
+                if let Some(res) = validation_result.get(&table.name) {
                     for (col_name, _) in res {
                         if let Some(name) = col_name {
                             existing_columns.insert(name.clone(), ());
@@ -328,14 +328,14 @@ impl SchemaHelper {
                 for ColumnInfo { name, .. } in columns {
                     if existing_columns.get(name).is_none() {
                         validation_result
-                            .entry(table.table_name.clone())
+                            .entry(table.name.clone())
                             .and_modify(|r| {
                                 r.push((
                                     None,
                                     Err(ConnectorError::PostgresConnectorError(
                                         PostgresConnectorError::ColumnNotFound(
                                             name.to_string(),
-                                            table.table_name.clone(),
+                                            table.name.clone(),
                                         ),
                                     )),
                                 ))

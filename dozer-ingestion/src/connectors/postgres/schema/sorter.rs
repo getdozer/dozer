@@ -19,7 +19,7 @@ pub fn sort_schemas(
         |tables| {
             let mut sorted_tables: Vec<(String, PostgresTable)> = Vec::new();
             for table in tables.iter() {
-                let postgres_table = mapped_tables.get(&table.table_name).ok_or(ColumnNotFound)?;
+                let postgres_table = mapped_tables.get(&table.name).ok_or(ColumnNotFound)?;
 
                 let sorted_table = table.columns.as_ref().map_or_else(
                     || Ok(postgres_table.clone()),
@@ -40,7 +40,7 @@ pub fn sort_schemas(
                     },
                 )?;
 
-                sorted_tables.push((table.table_name.clone(), sorted_table));
+                sorted_tables.push((table.name.clone(), sorted_table));
             }
 
             Ok(sorted_tables)
@@ -151,7 +151,7 @@ mod tests {
         mapped_tables.insert("sort_test".to_string(), postgres_table.clone());
 
         let expected_table_order = &[TableInfo {
-            table_name: "sort_test".to_string(),
+            name: "sort_test".to_string(),
             columns: None,
         }];
 
@@ -194,7 +194,7 @@ mod tests {
             data_type: None,
         }];
         let expected_table_order = &[TableInfo {
-            table_name: "sort_test".to_string(),
+            name: "sort_test".to_string(),
             columns: Some(columns_order.clone()),
         }];
 
@@ -227,7 +227,7 @@ mod tests {
             },
         ];
         let expected_table_order = &[TableInfo {
-            table_name: "sort_test".to_string(),
+            name: "sort_test".to_string(),
             columns: Some(columns_order.clone()),
         }];
 
@@ -285,11 +285,11 @@ mod tests {
         ];
         let expected_table_order = &[
             TableInfo {
-                table_name: "sort_test_first".to_string(),
+                name: "sort_test_first".to_string(),
                 columns: Some(columns_order_1.clone()),
             },
             TableInfo {
-                table_name: "sort_test_second".to_string(),
+                name: "sort_test_second".to_string(),
                 columns: Some(columns_order_2.clone()),
             },
         ];
@@ -300,11 +300,11 @@ mod tests {
 
         assert_eq!(
             first_table_after_sort.0,
-            expected_table_order.get(0).unwrap().table_name
+            expected_table_order.get(0).unwrap().name
         );
         assert_eq!(
             second_table_after_sort.0,
-            expected_table_order.get(1).unwrap().table_name
+            expected_table_order.get(1).unwrap().name
         );
         assert_eq!(
             first_table_after_sort.1.fields().get(0).unwrap().name,

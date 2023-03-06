@@ -173,7 +173,7 @@ mod tests {
             test_client.insert_rows(&table_name, 2, None);
 
             let tables = vec![TableInfo {
-                table_name: table_name.clone(),
+                name: table_name.clone(),
                 columns: None,
             }];
 
@@ -188,7 +188,7 @@ mod tests {
             let connector = PostgresConnector::new(1, postgres_config);
 
             let input_tables = vec![TableInfo {
-                table_name,
+                name: table_name,
                 columns: None,
             }];
 
@@ -244,7 +244,7 @@ mod tests {
             test_client.insert_rows(&table_name, 2, None);
 
             let tables = vec![TableInfo {
-                table_name,
+                name: table_name,
                 columns: None,
             }];
 
@@ -260,7 +260,7 @@ mod tests {
 
             let input_table_name = String::from("not_existing_table");
             let input_tables = vec![TableInfo {
-                table_name: input_table_name,
+                name: input_table_name,
                 columns: None,
             }];
 
@@ -304,7 +304,7 @@ mod tests {
             let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
 
             let tables = vec![TableInfo {
-                table_name: table_name.clone(),
+                name: table_name.clone(),
                 columns: None,
             }];
 
@@ -319,7 +319,7 @@ mod tests {
             let connector = PostgresConnector::new(1, postgres_config);
 
             let input_tables = vec![TableInfo {
-                table_name,
+                name: table_name,
                 columns: None,
             }];
 

@@ -15,7 +15,7 @@ impl From<dozer_orchestrator::TableInfo> for dozer_admin_grpc::TableInfo {
         }
 
         dozer_admin_grpc::TableInfo {
-            table_name: t.table_name,
+            table_name: t.name,
             columns,
         }
     }

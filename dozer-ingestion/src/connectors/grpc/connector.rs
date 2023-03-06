@@ -135,7 +135,7 @@ where
         let schemas = table_names.map_or(schemas.clone(), |names| {
             schemas
                 .into_iter()
-                .filter(|s| names.iter().any(|n| n.table_name == s.name))
+                .filter(|s| names.iter().any(|n| n.name == s.name))
                 .collect()
         });
         Ok(schemas)
@@ -161,15 +161,15 @@ where
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
         let schema_map = adapter.schema_map;
         for table in tables {
-            let r = schema_map.get(&table.table_name).map_or(
+            let r = schema_map.get(&table.name).map_or(
                 Err(ConnectorError::InitializationError(format!(
                     "Schema not found for table {}",
-                    table.table_name
+                    table.name
                 ))),
                 |_| Ok(()),
             );
 
-            results.insert(table.table_name.clone(), vec![(None, r)]);
+            results.insert(table.name.clone(), vec![(None, r)]);
         }
         Ok(results)
     }

@@ -67,7 +67,7 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
                 .tables()
                 .iter()
                 .map(|t| TableInfo {
-                    table_name: t.name.clone(),
+                    name: t.name.clone(),
                     columns: None,
                 })
                 .collect()
@@ -77,7 +77,7 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
             .iter()
             .enumerate()
             .map(|(id, table)| {
-                let table_name = table.table_name.clone();
+                let table_name = table.name.clone();
 
                 let params = self.config.table_params(&table_name)?;
 

@@ -20,7 +20,7 @@ impl NoSchemaRegistry {
         table_names.map_or(Ok(vec![]), |tables| {
             tables.get(0).map_or(Ok(vec![]), |table| {
                 let mut con = Consumer::from_hosts(vec![config.broker.clone()])
-                    .with_topic(table.table_name.clone())
+                    .with_topic(table.name.clone())
                     .with_fallback_offset(FetchOffset::Earliest)
                     .with_offset_storage(GroupOffsetStorage::Kafka)
                     .create()
@@ -52,7 +52,7 @@ impl NoSchemaRegistry {
                             })?;
 
                             schemas.push(SourceSchema::new(
-                                table.table_name.clone(),
+                                table.name.clone(),
                                 mapped_schema,
                                 ReplicationChangesTrackingType::FullChanges,
                             ));

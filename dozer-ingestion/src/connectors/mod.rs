@@ -55,7 +55,7 @@ pub trait Connector: Send + Sync + Debug {
             .get_schemas(None)?
             .into_iter()
             .map(|source_schema| TableInfo {
-                table_name: source_schema.name,
+                name: source_schema.name,
                 columns: Some(
                     source_schema
                         .schema
@@ -75,7 +75,7 @@ pub trait Connector: Send + Sync + Debug {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
-    pub table_name: String,
+    pub name: String,
     pub columns: Option<Vec<ColumnInfo>>,
 }
 

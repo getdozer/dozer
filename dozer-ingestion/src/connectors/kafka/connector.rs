@@ -44,7 +44,7 @@ impl Connector for KafkaConnector {
     ) -> Result<(), ConnectorError> {
         let topic = tables
             .get(0)
-            .map_or(Err(TopicNotDefined), |table| Ok(&table.table_name))?;
+            .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
 
         let broker = self.config.broker.to_owned();
         Runtime::new()

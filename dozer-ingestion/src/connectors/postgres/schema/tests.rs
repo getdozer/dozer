@@ -71,7 +71,7 @@ fn test_connector_get_schema_with_selected_columns() {
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let table_info = TableInfo {
-            table_name: table_name.clone(),
+            name: table_name.clone(),
             columns: Some(vec![
                 ColumnInfo::new("name".to_string(), None),
                 ColumnInfo::new("id".to_string(), None),
@@ -110,7 +110,7 @@ fn test_connector_get_schema_without_selected_columns() {
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let table_info = TableInfo {
-            table_name: table_name.clone(),
+            name: table_name.clone(),
             columns: Some(vec![]),
         };
         let result = schema_helper.get_tables(Some(&[table_info])).unwrap();
@@ -150,7 +150,7 @@ fn test_connector_view_cannot_be_used() {
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let table_info = TableInfo {
-            table_name: view_name,
+            name: view_name,
             columns: Some(vec![]),
         };
 
@@ -162,7 +162,7 @@ fn test_connector_view_cannot_be_used() {
         ));
 
         let table_info = TableInfo {
-            table_name,
+            name: table_name,
             columns: Some(vec![]),
         };
         let result = schema_helper.get_schemas(Some(&[table_info]));

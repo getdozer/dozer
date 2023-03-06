@@ -12,7 +12,7 @@ fn main() {
 
     let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
     let tables = vec![TableInfo {
-        table_name: "users".to_string(),
+        name: "users".to_string(),
         columns: None,
     }];
     let postgres_config = PostgresConfig {

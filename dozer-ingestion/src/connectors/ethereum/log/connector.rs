@@ -141,7 +141,7 @@ impl Connector for EthLogConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|s| tables.iter().any(|t| t.table_name == s.name))
+                .filter(|s| tables.iter().any(|t| t.name == s.name))
                 .cloned()
                 .collect()
         } else {

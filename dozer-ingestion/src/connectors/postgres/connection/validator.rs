@@ -135,8 +135,8 @@ fn validate_wal_level(client: &mut Client) -> Result<(), PostgresConnectorError>
 fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
     let table_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
-        if !table_regex.is_match(&t.table_name) {
-            return Err(TableNameNotValid(t.table_name.clone()));
+        if !table_regex.is_match(&t.name) {
+            return Err(TableNameNotValid(t.name.clone()));
         }
     }
 
@@ -164,7 +164,7 @@ fn validate_tables(
 ) -> Result<(), PostgresConnectorError> {
     let mut tables_names: HashMap<String, bool> = HashMap::new();
     table_info.iter().for_each(|t| {
-        tables_names.insert(t.table_name.clone(), true);
+        tables_names.insert(t.name.clone(), true);
     });
 
     validate_tables_names(table_info)?;
@@ -209,7 +209,7 @@ fn validate_tables(
 
         let columns = table_info
             .iter()
-            .find(|x| x.table_name == table_name)
+            .find(|x| x.name == table_name)
             .unwrap()
             .clone()
             .columns;
@@ -295,8 +295,8 @@ pub fn validate_slot(
         }
 
         for t in tables_list {
-            if !publication_tables.contains(&t.table_name) {
-                return Err(MissingTableInReplicationSlot(t.table_name.clone()));
+            if !publication_tables.contains(&t.name) {
+                return Err(MissingTableInReplicationSlot(t.name.clone()));
             }
         }
     }
@@ -427,7 +427,7 @@ mod tests {
                 .expect("User creation failed");
 
             let tables = vec![TableInfo {
-                table_name: "not_existing".to_string(),
+                name: "not_existing".to_string(),
                 columns: None,
             }];
             let result = validate_connection("pg_test_conn", config, Some(&tables), None);
@@ -475,7 +475,7 @@ mod tests {
             ];
 
             let tables = vec![TableInfo {
-                table_name: "existing".to_string(),
+                name: "existing".to_string(),
                 columns: Some(columns),
             }];
 
@@ -653,7 +653,7 @@ mod tests {
 
         for (table_name, expected_result) in tables_with_result {
             let res = validate_tables_names(&vec![TableInfo {
-                table_name: table_name.to_string(),
+                name: table_name.to_string(),
                 columns: None,
             }]);
 
@@ -672,7 +672,7 @@ mod tests {
 
         for (column_name, expected_result) in columns_names_with_result {
             let res = validate_columns_names(&vec![TableInfo {
-                table_name: "column_test_table".to_string(),
+                name: "column_test_table".to_string(),
                 columns: Some(vec![ColumnInfo {
                     name: column_name.to_string(),
                     data_type: None,
@@ -706,7 +706,7 @@ mod tests {
             let result = validate_tables(
                 &mut pg_client,
                 &vec![TableInfo {
-                    table_name,
+                    name: table_name,
                     columns: None,
                 }],
             );
@@ -716,7 +716,7 @@ mod tests {
             let result = validate_tables(
                 &mut pg_client,
                 &vec![TableInfo {
-                    table_name: view_name,
+                    name: view_name,
                     columns: None,
                 }],
             );

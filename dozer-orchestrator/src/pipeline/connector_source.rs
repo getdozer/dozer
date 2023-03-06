@@ -40,7 +40,7 @@ fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
 
 #[derive(Debug)]
 struct Table {
-    table_name: String,
+    name: String,
     columns: Option<Vec<ColumnInfo>>,
     schema: Schema,
     replication_type: ReplicationChangesTrackingType,
@@ -96,13 +96,13 @@ impl ConnectorSourceFactory {
         for ((table, port), source_schema) in
             table_and_ports.into_iter().zip(source_schemas.into_iter())
         {
-            let table_name = table.table_name;
+            let name = table.name;
             let columns = table.columns;
             let schema = source_schema.schema;
             let replication_type = source_schema.replication_type;
 
             let table = Table {
-                table_name,
+                name,
                 columns,
                 schema,
                 replication_type,
@@ -132,7 +132,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             .find(|table| table.port == *port)
             .ok_or(ExecutionError::PortNotFoundInSource(*port))?;
         let mut schema = table.schema.clone();
-        let table_name = &table.table_name;
+        let table_name = &table.name;
 
         // Add source information to the schema.
         for field in &mut schema.fields {
@@ -175,7 +175,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             .tables
             .iter()
             .map(|table| TableInfo {
-                table_name: table.table_name.clone(),
+                name: table.name.clone(),
                 columns: table.columns.clone(),
             })
             .collect();
@@ -189,7 +189,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         let mut bars = HashMap::new();
         for table in &self.tables {
             let pb = attach_progress(self.progress.clone());
-            pb.set_message(table.table_name.clone());
+            pb.set_message(table.name.clone());
             bars.insert(table.port, pb);
         }
 

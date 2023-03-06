@@ -63,7 +63,7 @@ impl<'a> SourceBuilder<'a> {
 
                         table_and_ports.push((
                             TableInfo {
-                                table_name: source.table_name.clone(),
+                                name: source.table_name.clone(),
                                 columns: Some(
                                     source
                                         .columns
