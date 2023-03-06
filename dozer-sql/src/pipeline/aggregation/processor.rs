@@ -56,7 +56,7 @@ impl AggregationState {
 #[derive(Debug)]
 pub struct AggregationProcessor {
     dimensions: Vec<Expression>,
-    measures: Vec<Expression>,
+    measures: Vec<Vec<Expression>>,
     measures_types: Vec<AggregatorType>,
     measures_return_types: Vec<FieldType>,
     projections: Vec<Expression>,
@@ -117,7 +117,7 @@ impl AggregationProcessor {
         out_rec_delete: &mut Vec<Field>,
         out_rec_insert: &mut Vec<Field>,
         op: AggregatorOperation,
-        measures: &Vec<Expression>,
+        measures: &Vec<Vec<Expression>>,
         input_schema: &Schema,
     ) -> Result<Vec<Field>, PipelineError> {
         //
@@ -130,28 +130,38 @@ impl AggregationProcessor {
 
             let new_val = match op {
                 AggregatorOperation::Insert => {
-                    let inserted_field =
-                        measure.evaluate(inserted_record.unwrap(), &input_schema)?;
+                    let mut inserted_fields = Vec::with_capacity(measure.len());
+                    for m in measure {
+                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), &input_schema)?);
+                    }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
                     }
-                    curr_aggr.insert(&inserted_field)?
+                    curr_aggr.insert(&inserted_fields)?
                 }
                 AggregatorOperation::Delete => {
-                    let deleted_field = measure.evaluate(deleted_record.unwrap(), &input_schema)?;
+                    let mut deleted_fields = Vec::with_capacity(measure.len());
+                    for m in measure {
+                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), &input_schema)?);
+                    }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
                     }
-                    curr_aggr.delete(&deleted_field)?
+                    curr_aggr.delete(&deleted_fields)?
                 }
                 AggregatorOperation::Update => {
-                    let inserted_field =
-                        measure.evaluate(inserted_record.unwrap(), &input_schema)?;
-                    let deleted_field = measure.evaluate(deleted_record.unwrap(), &input_schema)?;
+                    let mut deleted_fields = Vec::with_capacity(measure.len());
+                    for m in measure {
+                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), &input_schema)?);
+                    }
+                    let mut inserted_fields = Vec::with_capacity(measure.len());
+                    for m in measure {
+                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), &input_schema)?);
+                    }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
                     }
-                    curr_aggr.update(&deleted_field, &inserted_field)?
+                    curr_aggr.update(&deleted_fields, &inserted_fields)?
                 }
             };
             out_rec_insert.push(new_val.clone());

@@ -31,15 +31,15 @@ impl Aggregator for AvgAggregator {
         todo!()
     }
 
-    fn update(&mut self, old: &Field, new: &Field) -> Result<Field, PipelineError> {
+    fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn delete(&mut self, old: &Field) -> Result<Field, PipelineError> {
+    fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn insert(&mut self, new: &Field) -> Result<Field, PipelineError> {
+    fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
         todo!()
     }
 }

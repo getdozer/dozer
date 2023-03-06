@@ -14,9 +14,9 @@ use std::fmt::{Debug, Display, Formatter, Write};
 
 pub trait Aggregator: Send + Sync {
     fn init(&mut self, return_type: FieldType);
-    fn update(&mut self, old: &Field, new: &Field) -> Result<Field, PipelineError>;
-    fn delete(&mut self, old: &Field) -> Result<Field, PipelineError>;
-    fn insert(&mut self, new: &Field) -> Result<Field, PipelineError>;
+    fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError>;
+    fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError>;
+    fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError>;
 }
 
 impl Debug for dyn Aggregator {
@@ -59,56 +59,60 @@ pub fn get_aggregator_from_aggregator_type(typ: AggregatorType) -> Box<dyn Aggre
 pub fn get_aggregator_type_from_aggregation_expression(
     e: &Expression,
     schema: &Schema,
-) -> Result<(Expression, AggregatorType), PipelineError> {
+) -> Result<(Vec<Expression>, AggregatorType), PipelineError> {
     match e {
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Sum,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Sum.to_string())
                 })?
-                .clone(),
+                .clone()],
             AggregatorType::Sum,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Min,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Min.to_string())
                 })?
-                .clone(),
+                .clone()],
             AggregatorType::Min,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Max,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
                 })?
-                .clone(),
+                .clone()],
             AggregatorType::Max,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Avg,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Avg.to_string())
                 })?
-                .clone(),
+                .clone()],
             AggregatorType::Avg,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Count,
             args: _,
-        } => Ok((Expression::Literal(Field::Int(0)), AggregatorType::Count)),
+        } => Ok((vec![], AggregatorType::Count)),
         _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
     }
 }
