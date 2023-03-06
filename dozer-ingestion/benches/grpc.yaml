@@ -1,0 +1,31 @@
+- connection:
+    config: !Grpc
+      adapter: "arrow"
+      port: 60056
+      schemas: !Inline |
+        [{
+          "name": "users",
+          "schema": {
+            "fields": [
+              {
+                "name": "id",
+                "data_type": "Int32",
+                "nullable": false,
+                "dict_id": 0,
+                "dict_is_ordered": false,
+                "metadata": {}
+              },
+              {
+                "name": "name",
+                "data_type": "Utf8",
+                "nullable": true,
+                "dict_id": 0,
+                "dict_is_ordered": false,
+                "metadata": {}
+              }
+            ],
+            "metadata": {}
+          }
+        }]
+    name: users_arrow
+  size: 10000000

@@ -90,10 +90,9 @@ pub fn handle_message(
     for r in records {
         let op = Operation::Insert { new: r };
 
-        let res = ingestor
+        ingestor
             .handle_message(IngestionMessage::new_op(0, seq_no as u64, op.clone()))
-            .map_err(|e| ConnectorError::InternalError(Box::new(e)));
-        res.unwrap();
+            .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
         seq_no += 1;
     }
 
