@@ -7,7 +7,6 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Field, Operation, Schema};
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SelectionProcessor {

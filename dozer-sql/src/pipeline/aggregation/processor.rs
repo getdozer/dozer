@@ -17,7 +17,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use lmdb::DatabaseFlags;
-use std::{collections::HashMap, mem::size_of_val};
+use std::mem::size_of_val;
 
 const COUNTER_KEY: u8 = 1_u8;
 

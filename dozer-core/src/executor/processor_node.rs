@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, mem::swap};
+use std::{borrow::Cow, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;

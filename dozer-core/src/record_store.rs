@@ -1,21 +1,10 @@
 use crate::errors::ExecutionError;
-use crate::errors::ExecutionError::{
-    RecordNotFound, UnsupportedDeleteOperation, UnsupportedUpdateOperation,
-};
+use crate::errors::ExecutionError::RecordNotFound;
 use crate::node::OutputPortType;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
-use dozer_storage::common::Database;
 use dozer_storage::errors::StorageError;
-use dozer_storage::errors::StorageError::{DeserializationError, SerializationError};
-use dozer_storage::lmdb::DatabaseFlags;
-use dozer_storage::lmdb_storage::SharedTransaction;
-use dozer_storage::prefix_transaction::PrefixTransaction;
-use dozer_types::bincode;
-use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
-};
-use dyn_clone::DynClone;
+use dozer_types::types::{Field, Operation, Record, Schema};
 use std::fmt::{Debug, Formatter};
 
 use super::node::PortHandle;
@@ -32,7 +21,7 @@ impl Debug for dyn RecordWriter {
 
 #[allow(clippy::type_complexity)]
 pub fn create_record_store(
-    output_port: PortHandle,
+    _output_port: PortHandle,
     output_port_type: OutputPortType,
     schema: Schema,
 ) -> Result<Option<Box<dyn RecordWriter>>, StorageError> {
@@ -45,15 +34,6 @@ pub fn create_record_store(
         }
     }
 }
-
-const PORT_STATE_KEY: &str = "__PORT_STATE_";
-
-const VERSIONED_RECORDS_INDEX_ID: u32 = 0x01;
-const RECORD_VERSIONS_INDEX_ID: u32 = 0x02;
-const INITIAL_RECORD_VERSION: u32 = 1_u32;
-
-const RECORD_PRESENT_FLAG: u8 = 0x01;
-const RECORD_DELETED_FLAG: u8 = 0x00;
 
 #[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
@@ -73,7 +53,7 @@ impl PrimaryKeyLookupRecordWriter {
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
     fn write(&mut self, op: Operation) -> Result<Operation, ExecutionError> {
         match op {
-            Operation::Insert { mut new } => {
+            Operation::Insert { new } => {
                 let new_key = new.get_key_fields(&self.schema);
                 self.index.insert(new_key, new.clone());
                 Ok(Operation::Insert { new })
@@ -87,7 +67,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                     .1;
                 Ok(Operation::Delete { old })
             }
-            Operation::Update { mut old, mut new } => {
+            Operation::Update { mut old, new } => {
                 let old_key = old.get_key_fields(&self.schema);
                 old = self
                     .index

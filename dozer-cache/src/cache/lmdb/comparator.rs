@@ -147,7 +147,7 @@ mod tests {
         let db = env
             .create_database(Some("test"), Some(DatabaseFlags::DUP_SORT))
             .unwrap();
-        let fields = (0..num_fields).into_iter().collect::<Vec<_>>();
+        let fields = (0..num_fields).collect::<Vec<_>>();
         let txn = env.begin_ro_txn().unwrap();
         set_sorted_inverted_comparator(&txn, db, &fields).unwrap();
         txn.commit().unwrap();
