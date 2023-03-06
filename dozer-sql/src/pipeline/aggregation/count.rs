@@ -28,11 +28,12 @@ impl Aggregator for CountAggregator {
         new: &Field,
         return_type: FieldType,
     ) -> Result<Field, PipelineError> {
-        todo!()
+        Ok(Field::Int(self.count))
     }
 
     fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        todo!()
+        self.count -= 1;
+        Ok(Field::Int(self.count))
     }
 
     fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {

@@ -154,14 +154,70 @@ impl AggregationProcessor {
                     )?
                 }
             };
-
-            out_rec_insert.push(new_val);
+            out_rec_insert.push(new_val.clone());
+            new_fields.push(new_val);
         }
         Ok(new_fields)
     }
 
-    fn agg_delete(&self, old: &mut Record) -> Result<Operation, PipelineError> {
-        todo!()
+    fn agg_delete(&mut self, old: &mut Record) -> Result<Operation, PipelineError> {
+        let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
+        let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
+
+        let key = if !self.dimensions.is_empty() {
+            get_key(&self.input_schema, old, &self.dimensions)?
+        } else {
+            vec![Field::Null]
+        };
+
+        let mut curr_state_opt = self.states.get_mut(&key);
+        assert!(
+            curr_state_opt.is_some(),
+            "Unable to find aggregator state during DELETE operation"
+        );
+        let mut curr_state = curr_state_opt.unwrap();
+
+        let new_values = Self::calc_and_fill_measures(
+            curr_state,
+            Some(old),
+            None,
+            &mut out_rec_delete,
+            &mut out_rec_insert,
+            AggregatorOperation::Delete,
+            &self.measures,
+            &self.input_schema,
+        )?;
+
+        let res = if curr_state.count == 1 {
+            self.states.remove(&key);
+            Operation::Delete {
+                old: Self::build_projection(
+                    old,
+                    out_rec_delete,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+            }
+        } else {
+            curr_state.count -= 1;
+            curr_state.values = Some(new_values);
+            Operation::Update {
+                new: Self::build_projection(
+                    old,
+                    out_rec_insert,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+                old: Self::build_projection(
+                    old,
+                    out_rec_delete,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+            }
+        };
+
+        Ok(res)
 
         // let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         // let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
@@ -217,93 +273,111 @@ impl AggregationProcessor {
             vec![Field::Null]
         };
 
-        let has_prev_state = if let Some(curr_state) = self.states.get_mut(&key) {
-            let new_values = Self::calc_and_fill_measures(
-                curr_state,
-                None,
-                Some(new),
-                &mut out_rec_delete,
-                &mut out_rec_insert,
-                AggregatorOperation::Insert,
-                &self.measures,
-                &self.input_schema,
-            )?;
-            curr_state.values = Some(new_values);
-            true
-        } else {
-            let mut new_state = AggregationState::new(&self.measures_types, 1);
-            let new_values = Self::calc_and_fill_measures(
-                &mut new_state,
-                None,
-                Some(new),
-                &mut out_rec_delete,
-                &mut out_rec_insert,
-                AggregatorOperation::Insert,
-                &self.measures,
-                &self.input_schema,
-            )?;
-            new_state.values = Some(new_values);
-            self.states.insert(key, new_state);
-            false
-        };
+        let curr_state = self
+            .states
+            .entry(key)
+            .or_insert(AggregationState::new(&self.measures_types, 0));
 
-        let res = if !has_prev_state {
+        let new_values = Self::calc_and_fill_measures(
+            curr_state,
+            None,
+            Some(new),
+            &mut out_rec_delete,
+            &mut out_rec_insert,
+            AggregatorOperation::Insert,
+            &self.measures,
+            &self.input_schema,
+        )?;
+
+        let res = if curr_state.count == 0 {
             Operation::Insert {
-                new: self.build_projection(new, out_rec_insert)?,
+                new: Self::build_projection(
+                    new,
+                    out_rec_insert,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
             }
         } else {
             Operation::Update {
-                new: self.build_projection(new, out_rec_insert)?,
-                old: self.build_projection(new, out_rec_delete)?,
+                new: Self::build_projection(
+                    new,
+                    out_rec_insert,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+                old: Self::build_projection(
+                    new,
+                    out_rec_delete,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
             }
         };
+
+        curr_state.count += 1;
+        curr_state.values = Some(new_values);
 
         Ok(res)
     }
 
     fn agg_update(
-        &self,
+        &mut self,
         old: &mut Record,
         new: &mut Record,
-        record_hash: Vec<Field>,
+        key: Vec<Field>,
     ) -> Result<Operation, PipelineError> {
-        todo!()
+        let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
+        let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
-        // let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
-        // let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
-        // let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
-        //
-        // let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
-        // let new_state = self.calc_and_fill_measures(
-        //     txn,
-        //     &cur_state,
-        //     Some(old),
-        //     Some(new),
-        //     &mut out_rec_delete,
-        //     &mut out_rec_insert,
-        //     AggregatorOperation::Update,
-        // )?;
-        //
-        // let res = Operation::Update {
-        //     new: self.build_projection(new, out_rec_insert)?,
-        //     old: self.build_projection(old, out_rec_delete)?,
-        // };
-        //
-        // txn.put(db, record_key.as_slice(), new_state.as_slice())?;
-        //
-        // Ok(res)
+        let mut curr_state_opt = self.states.get_mut(&key);
+        assert!(
+            curr_state_opt.is_some(),
+            "Unable to find aggregator state during UPDATE operation"
+        );
+        let mut curr_state = curr_state_opt.unwrap();
+
+        let new_values = Self::calc_and_fill_measures(
+            curr_state,
+            Some(old),
+            Some(new),
+            &mut out_rec_delete,
+            &mut out_rec_insert,
+            AggregatorOperation::Update,
+            &self.measures,
+            &self.input_schema,
+        )?;
+
+        let res = Operation::Update {
+            new: Self::build_projection(
+                new,
+                out_rec_insert,
+                &self.projections,
+                &self.aggregation_schema,
+            )?,
+            old: Self::build_projection(
+                old,
+                out_rec_delete,
+                &self.projections,
+                &self.aggregation_schema,
+            )?,
+        };
+
+        curr_state.values = Some(new_values);
+        Ok(res)
     }
 
     pub fn build_projection(
-        &self,
         original: &mut Record,
         measures: Vec<Field>,
+        projections: &Vec<Expression>,
+        aggregation_schema: &Schema,
     ) -> Result<Record, PipelineError> {
         let original_len = original.values.len();
         original.values.extend(measures);
-        let mut output = Vec::<Field>::with_capacity(self.projections.len());
-        for exp in &self.projections {
-            output.push(exp.evaluate(original, &self.aggregation_schema)?);
+        let mut output = Vec::<Field>::with_capacity(projections.len());
+        for exp in projections {
+            output.push(exp.evaluate(original, aggregation_schema)?);
         }
         original.values.drain(original_len..);
         Ok(Record::new(None, output, None))

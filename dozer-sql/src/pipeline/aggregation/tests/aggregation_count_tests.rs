@@ -58,68 +58,68 @@ fn test_count_aggregation_float() {
     out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, FIELD_1_INT)];
     assert_eq!(out, exp);
-    //
-    //     // Update Singapore segment to Italy
-    //     /*
-    //         Italy, 100.0
-    //         Italy, 100.0
-    //         Italy, 50.0
-    //         -------------
-    //         COUNT = 3
-    //     */
-    //     inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
-    //     out = output!(processor, inp, tx);
-    //     exp = vec![
-    //         delete_exp(SINGAPORE, FIELD_1_INT),
-    //         update_exp(ITALY, ITALY, FIELD_2_INT, FIELD_3_INT),
-    //     ];
-    //     assert_eq!(out, exp);
-    //
-    //     // Update Italy value 100 -> 200
-    //     /*
-    //         Italy, 200.0
-    //         Italy, 100.0
-    //         Italy, 50.0
-    //         -------------
-    //         COUNT = 3
-    //     */
-    //     inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_200_FLOAT);
-    //     out = output!(processor, inp, tx);
-    //     exp = vec![update_exp(ITALY, ITALY, FIELD_3_INT, FIELD_3_INT)];
-    //     assert_eq!(out, exp);
-    //
-    //     // Delete 1 record (200)
-    //     /*
-    //         Italy, 100.0
-    //         Italy, 50.0
-    //         -------------
-    //         COUNT = 2
-    //     */
-    //     inp = delete_field(ITALY, FIELD_200_FLOAT);
-    //     out = output!(processor, inp, tx);
-    //     exp = vec![update_exp(ITALY, ITALY, FIELD_3_INT, FIELD_2_INT)];
-    //     assert_eq!(out, exp);
-    //
-    //     // Delete another record (50)
-    //     /*
-    //         Italy, 100.0
-    //         -------------
-    //         COUNT = 1
-    //     */
-    //     inp = delete_field(ITALY, FIELD_50_FLOAT);
-    //     out = output!(processor, inp, tx);
-    //     exp = vec![update_exp(ITALY, ITALY, FIELD_2_INT, FIELD_1_INT)];
-    //     assert_eq!(out, exp);
-    //
-    //     // Delete last record
-    //     /*
-    //         -------------
-    //         COUNT = 0
-    //     */
-    //     inp = delete_field(ITALY, FIELD_100_FLOAT);
-    //     out = output!(processor, inp, tx);
-    //     exp = vec![delete_exp(ITALY, FIELD_1_INT)];
-    //     assert_eq!(out, exp);
+
+    // Update Singapore segment to Italy
+    /*
+        Italy, 100.0
+        Italy, 100.0
+        Italy, 50.0
+        -------------
+        COUNT = 3
+    */
+    inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
+    out = output!(processor, inp);
+    exp = vec![
+        delete_exp(SINGAPORE, FIELD_1_INT),
+        update_exp(ITALY, ITALY, FIELD_2_INT, FIELD_3_INT),
+    ];
+    assert_eq!(out, exp);
+
+    // Update Italy value 100 -> 200
+    /*
+        Italy, 200.0
+        Italy, 100.0
+        Italy, 50.0
+        -------------
+        COUNT = 3
+    */
+    inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_200_FLOAT);
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_3_INT, FIELD_3_INT)];
+    assert_eq!(out, exp);
+
+    // Delete 1 record (200)
+    /*
+        Italy, 100.0
+        Italy, 50.0
+        -------------
+        COUNT = 2
+    */
+    inp = delete_field(ITALY, FIELD_200_FLOAT);
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_3_INT, FIELD_2_INT)];
+    assert_eq!(out, exp);
+
+    // Delete another record (50)
+    /*
+        Italy, 100.0
+        -------------
+        COUNT = 1
+    */
+    inp = delete_field(ITALY, FIELD_50_FLOAT);
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_2_INT, FIELD_1_INT)];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        COUNT = 0
+    */
+    inp = delete_field(ITALY, FIELD_100_FLOAT);
+    out = output!(processor, inp);
+    exp = vec![delete_exp(ITALY, FIELD_1_INT)];
+    assert_eq!(out, exp);
     // }
     //
     // #[test]
