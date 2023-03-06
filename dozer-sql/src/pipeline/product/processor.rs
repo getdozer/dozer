@@ -119,10 +119,10 @@ impl Processor for FromProcessor {
                 for (action, record, _key) in records.into_iter() {
                     match action {
                         JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
                         }
                         JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
                         }
                     }
                 }
@@ -135,10 +135,10 @@ impl Processor for FromProcessor {
                 for (action, record, _key) in records.into_iter() {
                     match action {
                         JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
                         }
                         JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
                         }
                     }
                 }
@@ -151,10 +151,10 @@ impl Processor for FromProcessor {
                 for (action, old, _key) in old_join_records.into_iter() {
                     match action {
                         JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE)?;
                         }
                         JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE)?;
                         }
                     }
                 }
@@ -162,10 +162,10 @@ impl Processor for FromProcessor {
                 for (action, new, _key) in new_join_records.into_iter() {
                     match action {
                         JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE)?;
                         }
                         JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE)?;
                         }
                     }
                 }

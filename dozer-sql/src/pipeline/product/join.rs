@@ -232,6 +232,28 @@ impl JoinOperator {
         }
     }
 
+    fn lookup(&self, lookup_key: &[Field]) -> Result<Vec<(Record, Vec<Field>)>, JoinError> {
+        let mut output_records = vec![];
+
+        let (left_loookup_key, right_lookup_key) = self.split_join_lookup_key(lookup_key);
+
+        let mut left_records = self.left_source.lookup(&left_loookup_key)?;
+
+        let mut right_records = self.right_source.lookup(&right_lookup_key)?;
+
+        for (left_record, left_lookup_key) in left_records.iter_mut() {
+            for (right_record, right_lookup_key) in right_records.iter_mut() {
+                let join_record = join_records(left_record, right_record);
+                let join_lookup_key =
+                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
+
+                output_records.push((join_record, join_lookup_key));
+            }
+        }
+
+        Ok(output_records)
+    }
+
     fn inner_join_left(
         &self,
         action: JoinAction,
@@ -556,28 +578,6 @@ impl JoinOperator {
             records_count -= 1;
         }
         Ok(records_count)
-    }
-
-    fn lookup(&self, lookup_key: &[Field]) -> Result<Vec<(Record, Vec<Field>)>, JoinError> {
-        let mut output_records = vec![];
-
-        let (left_loookup_key, right_lookup_key) = self.split_join_lookup_key(lookup_key);
-
-        let mut left_records = self.left_source.lookup(&left_loookup_key)?;
-
-        let mut right_records = self.right_source.lookup(&right_lookup_key)?;
-
-        for (left_record, left_lookup_key) in left_records.iter_mut() {
-            for (right_record, right_lookup_key) in right_records.iter_mut() {
-                let join_record = join_records(left_record, right_record);
-                let join_lookup_key =
-                    self.compose_join_lookup_key(left_lookup_key, right_lookup_key);
-
-                output_records.push((join_record, join_lookup_key));
-            }
-        }
-
-        Ok(output_records)
     }
 
     pub fn update_left_index(&mut self, action: JoinAction, key: &[Field], value: &[Field]) {
