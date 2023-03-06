@@ -29,7 +29,7 @@ impl SchemaHelper {
         let tables_indexes = table_names.clone().map_or(HashMap::new(), |tables| {
             let mut result = HashMap::new();
             for (idx, table) in tables.iter().enumerate() {
-                result.insert(table.table_name.clone(), idx);
+                result.insert(table.name.clone(), idx);
             }
 
             result
@@ -74,8 +74,8 @@ impl SchemaHelper {
         let existing_schemas_names: Vec<String> = schemas.iter().map(|s| s.name.clone()).collect();
         for table in tables {
             let mut result = vec![];
-            if !existing_schemas_names.contains(&table.table_name) {
-                result.push((None, Err(TableNotFound(table.table_name.clone()))));
+            if !existing_schemas_names.contains(&table.name) {
+                result.push((None, Err(TableNotFound(table.name.clone()))));
             }
 
             validation_result.insert(table.name.clone(), result);
