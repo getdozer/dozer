@@ -19,11 +19,11 @@ pub fn get_select(sql: &str) -> Result<Box<Select>, PipelineError> {
 }
 
 pub fn get_query_select(query: &Query) -> Box<Select> {
-    return match *query.body.clone() {
+    match *query.body.clone() {
         SetExpr::Select(select) => {
             return select;
         }
         SetExpr::Query(query) => get_query_select(&query),
         _ => panic!("Only select queries are supported"),
-    };
+    }
 }

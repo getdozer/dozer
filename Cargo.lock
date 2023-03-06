@@ -2164,6 +2164,7 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",
+ "hashbrown 0.13.2",
  "like",
  "lmdb-rkv",
  "lmdb-rkv-sys",

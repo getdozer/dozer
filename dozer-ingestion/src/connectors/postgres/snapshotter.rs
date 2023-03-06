@@ -188,7 +188,7 @@ mod tests {
                 config: conn_config.clone(),
             };
 
-            let connector = PostgresConnector::new(1, postgres_config.clone());
+            let connector = PostgresConnector::new(1, postgres_config);
 
             let input_tables = vec![TableInfo {
                 name: table_name.clone(),
@@ -201,8 +201,8 @@ mod tests {
             let (ingestor, mut iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables: tables.clone(),
-                conn_config: conn_config.clone(),
+                tables: tables,
+                conn_config: conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };
@@ -264,12 +264,12 @@ mod tests {
                 config: conn_config.clone(),
             };
 
-            let connector = PostgresConnector::new(1, postgres_config.clone());
+            let connector = PostgresConnector::new(1, postgres_config);
 
             let input_table_name = String::from("not_existing_table");
             let input_tables = vec![TableInfo {
                 name: input_table_name.clone(),
-                table_name: input_table_name.clone(),
+                table_name: input_table_name,
                 id: 0,
                 columns: None,
             }];
@@ -278,8 +278,8 @@ mod tests {
             let (ingestor, mut _iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables: tables.clone(),
-                conn_config: conn_config.clone(),
+                tables: tables,
+                conn_config: conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };
@@ -329,11 +329,11 @@ mod tests {
                 config: conn_config.clone(),
             };
 
-            let connector = PostgresConnector::new(1, postgres_config.clone());
+            let connector = PostgresConnector::new(1, postgres_config);
 
             let input_tables = vec![TableInfo {
                 name: table_name.clone(),
-                table_name: table_name.clone(),
+                table_name: table_name,
                 id: 0,
                 columns: None,
             }];
@@ -342,8 +342,8 @@ mod tests {
             let (ingestor, mut _iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables: tables.clone(),
-                conn_config: conn_config.clone(),
+                tables: tables,
+                conn_config: conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };

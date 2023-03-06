@@ -17,16 +17,14 @@ use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Default)]
 pub enum SourceDefinition {
     Table { connection: String, name: String },
     Alias { name: String },
+    #[default]
     Dynamic,
 }
-impl Default for SourceDefinition {
-    fn default() -> Self {
-        SourceDefinition::Dynamic
-    }
-}
+
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FieldDefinition {
@@ -74,17 +72,15 @@ pub struct Schema {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Default)]
 pub enum ReplicationChangesTrackingType {
     FullChanges,
     OnlyPK,
+    #[default]
     Nothing,
 }
 
-impl Default for ReplicationChangesTrackingType {
-    fn default() -> Self {
-        ReplicationChangesTrackingType::Nothing
-    }
-}
+
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SourceSchema {
@@ -170,7 +166,7 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,

@@ -165,7 +165,7 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
                 dozer_types::types::FieldType::Point,
             ) => Ok(dozer_types::types::Field::Null),
             (a, b) => {
-                return Err(ConnectorError::InitializationError(format!(
+                Err(ConnectorError::InitializationError(format!(
                     "data is not valid at index: {idx}, Type: {a:?}, Expected Type: {b}"
                 )))
             }
