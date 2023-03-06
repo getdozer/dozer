@@ -15,7 +15,7 @@ pub struct SetProcessor {
     /// Set operations
     operator: SetOperation,
     /// Hashmap containing records with its occurrence
-    record_map: HashMap<Record, u8>,
+    record_map: HashMap<Record, usize>,
 }
 
 impl SetProcessor {
