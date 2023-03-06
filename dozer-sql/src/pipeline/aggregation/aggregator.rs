@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use crate::pipeline::aggregation::avg::AvgAggregator;
 use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::aggregation::max::MaxAggregator;
@@ -116,7 +117,7 @@ pub fn update_map(
     field: &Field,
     val_delta: u64,
     decr: bool,
-    field_hash: &mut HashMap<Field, u64>,
+    field_hash: &mut BTreeMap<Field, u64>,
 ) -> u64 {
     let get_prev_count = field_hash.get(field);
     let prev_count = match get_prev_count {

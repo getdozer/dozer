@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use std::collections::BTreeMap;
 use num_traits::FromPrimitive;
 use dozer_core::errors::ExecutionError::InvalidOperation;
 use dozer_types::ordered_float::OrderedFloat;
@@ -10,13 +10,13 @@ use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
 
 pub struct AvgAggregator {
-    current_state: HashMap<Field, u64>,
+    current_state: BTreeMap<Field, u64>,
 }
 
 impl AvgAggregator {
     pub fn new() -> Self {
         Self {
-            current_state: HashMap::new(),
+            current_state: BTreeMap::new(),
         }
     }
 }
@@ -43,7 +43,7 @@ impl Aggregator for AvgAggregator {
     }
 }
 
-fn get_average(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
+fn get_average(field_hash: &BTreeMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
     match return_type {
         FieldType::UInt => {
             if field_hash.is_empty() {

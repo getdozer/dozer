@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use std::collections::BTreeMap;
 use dozer_core::errors::ExecutionError::InvalidOperation;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tonic::codegen::Body;
@@ -8,13 +8,13 @@ use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Max;
 
 pub struct MaxAggregator {
-    current_state: HashMap<Field, u64>,
+    current_state: BTreeMap<Field, u64>,
 }
 
 impl MaxAggregator {
     pub fn new() -> Self {
         Self {
-            current_state: HashMap::new(),
+            current_state: BTreeMap::new(),
         }
     }
 }
@@ -61,11 +61,11 @@ impl Aggregator for MaxAggregator {
     }
 }
 
-fn get_max(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
+fn get_max(field_hash: &BTreeMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
     if field_hash.is_empty() {
         Ok(Field::Null)
     }
-    let val: Field = Vec::from(field_hash.keys().sorted()).get(field_hash.keys().len() - 1).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?;
+    let val: Field = Vec::from(field_hash.keys()).last().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?;
     match return_type {
         FieldType::UInt => Ok(Field::UInt(val.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
         FieldType::Int => Ok(Field::Int(val.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
