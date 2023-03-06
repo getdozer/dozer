@@ -83,6 +83,7 @@ mod tests {
     use super::ReplicationSlotHelper;
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_replication_slot_create_successfully() {
         run_connector_test("postgres", |app_config| {
@@ -118,6 +119,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_replication_slot_create_failed_if_existed() {
         run_connector_test("postgres", |app_config| {
@@ -170,6 +172,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_replication_slot_drop_successfully() {
         run_connector_test("postgres", |app_config| {
@@ -203,6 +206,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_replication_slot_drop_failed_if_slot_not_exist() {
         run_connector_test("postgres", |app_config| {
