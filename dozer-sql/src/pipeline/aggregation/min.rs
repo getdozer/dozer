@@ -68,6 +68,8 @@ fn get_min(field_hash: &HashMap<Field, u64>, return_type: FieldType) -> Result<F
         FieldType::Int => Ok(Field::Int(val.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
         FieldType::Float => Ok(Field::Float(OrderedFloat::from(val.to_float().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?))),
         FieldType::Decimal => Ok(Field::Decimal(val.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
+        FieldType::Timestamp => Ok(Field::Timestamp(val.to_timestamp().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type)))).unwrap()?)),
+        FieldType::Date => Ok(Field::Date(val.to_date().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type)))).unwrap()?)),
         _ => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Not supported return type {} for {}", return_type, Min.to_string())))),
     }
 }
