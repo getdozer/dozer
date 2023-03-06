@@ -10,13 +10,13 @@ use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
 
 pub struct AvgAggregator {
-    field_hash: HashMap<Field, u64>,
+    field_map: HashMap<Field, u64>,
 }
 
 impl AvgAggregator {
     pub fn new() -> Self {
         Self {
-            field_hash: HashMap::new(),
+            field_map: HashMap::new(),
         }
     }
 }
@@ -31,17 +31,17 @@ impl Aggregator for AvgAggregator {
         self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete record: {} for {}", old, Avg.to_string()))))?;
         self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Avg.to_string()))))?;
 
-        get_average(&self.field_hash, return_type)
+        get_average(&self.field_map, return_type)
     }
 
     fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        update_map(old, 1_u64, true, &mut self.field_hash);
-        get_average(&self.field_hash, return_type)
+        update_map(old, 1_u64, true, &mut self.field_map);
+        get_average(&self.field_map, return_type)
     }
 
     fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        update_map(new, 1_u64, false, &mut self.field_hash);
-        get_average(&self.field_hash, return_type)
+        update_map(new, 1_u64, false, &mut self.field_map);
+        get_average(&self.field_map, return_type)
     }
 }
 
