@@ -218,49 +218,6 @@ impl AggregationProcessor {
         };
 
         Ok(res)
-
-        // let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
-        // let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
-        //
-        // let record_hash = if !self.dimensions.is_empty() {
-        //     get_key(&self.input_schema, old, &self.dimensions)?
-        // } else {
-        //     vec![AGG_DEFAULT_DIMENSION_ID]
-        // };
-        //
-        // let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
-        //
-        // let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
-        // let prev_count = self.update_segment_count(txn, db, record_count_key, 1, true)?;
-        //
-        // let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
-        // let new_state = self.calc_and_fill_measures(
-        //     txn,
-        //     &cur_state,
-        //     Some(old),
-        //     None,
-        //     &mut out_rec_delete,
-        //     &mut out_rec_insert,
-        //     AggregatorOperation::Delete,
-        // )?;
-        //
-        // let res = if prev_count == 1 {
-        //     Operation::Delete {
-        //         old: self.build_projection(old, out_rec_delete)?,
-        //     }
-        // } else {
-        //     Operation::Update {
-        //         new: self.build_projection(old, out_rec_insert)?,
-        //         old: self.build_projection(old, out_rec_delete)?,
-        //     }
-        // };
-        //
-        // if prev_count == 1 {
-        //     let _ = txn.del(db, record_key.as_slice(), None)?;
-        // } else {
-        //     txn.put(db, record_key.as_slice(), new_state.as_slice())?;
-        // }
-        // Ok(res)
     }
 
     fn agg_insert(&mut self, new: &mut Record) -> Result<Operation, PipelineError> {
