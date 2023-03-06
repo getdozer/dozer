@@ -9,17 +9,21 @@ use dozer_types::types::{Field, FieldType};
 // use dozer_types::types::Field::Int;
 // use dozer_types::types::{Field, FieldType};
 //
-pub struct CountAggregator {}
+
+#[derive(Debug)]
+pub struct CountAggregator {
+    count: i64,
+}
 
 impl CountAggregator {
     pub fn new() -> Self {
-        Self {}
+        Self { count: 0 }
     }
 }
 
 impl Aggregator for CountAggregator {
     fn update(
-        &self,
+        &mut self,
         old: &Field,
         new: &Field,
         return_type: FieldType,
@@ -27,12 +31,13 @@ impl Aggregator for CountAggregator {
         todo!()
     }
 
-    fn delete(&self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn insert(&self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        todo!()
+    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+        self.count += 1;
+        Ok(Field::Int(self.count))
     }
 }
 

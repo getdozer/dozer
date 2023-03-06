@@ -17,6 +17,8 @@ use dozer_types::types::{Field, FieldType};
 // use dozer_types::errors::types::TypeError;
 // use std::string::ToString;
 //
+
+#[derive(Debug)]
 pub struct MinAggregator {}
 
 impl MinAggregator {
@@ -27,7 +29,7 @@ impl MinAggregator {
 
 impl Aggregator for MinAggregator {
     fn update(
-        &self,
+        &mut self,
         old: &Field,
         new: &Field,
         return_type: FieldType,
@@ -35,11 +37,11 @@ impl Aggregator for MinAggregator {
         todo!()
     }
 
-    fn delete(&self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn insert(&self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 }

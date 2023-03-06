@@ -16,6 +16,8 @@ use dozer_types::types::{Field, FieldType};
 // use std::ops::Div;
 // use std::string::ToString;
 //
+
+#[derive(Debug)]
 pub struct AvgAggregator {}
 
 impl AvgAggregator {
@@ -26,7 +28,7 @@ impl AvgAggregator {
 
 impl Aggregator for AvgAggregator {
     fn update(
-        &self,
+        &mut self,
         old: &Field,
         new: &Field,
         return_type: FieldType,
@@ -34,11 +36,11 @@ impl Aggregator for AvgAggregator {
         todo!()
     }
 
-    fn delete(&self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn insert(&self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 }

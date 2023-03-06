@@ -12,6 +12,8 @@ use dozer_types::types::{Field, FieldType};
 // use dozer_types::types::{Field, FieldType};
 // use std::ops::{Add, Sub};
 //
+
+#[derive(Debug)]
 pub struct SumAggregator {}
 
 impl SumAggregator {
@@ -22,7 +24,7 @@ impl SumAggregator {
 
 impl Aggregator for SumAggregator {
     fn update(
-        &self,
+        &mut self,
         old: &Field,
         new: &Field,
         return_type: FieldType,
@@ -30,11 +32,11 @@ impl Aggregator for SumAggregator {
         todo!()
     }
 
-    fn delete(&self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 
-    fn insert(&self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
         todo!()
     }
 }
