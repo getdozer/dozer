@@ -104,32 +104,6 @@ impl JoinTable {
         Ok(vec![(record, lookup_key.to_vec())])
     }
 
-    fn _encode_lookup_key(&self, record: &Record, schema: &Schema) -> Result<Vec<u8>, JoinError> {
-        let mut lookup_key = Vec::with_capacity(64);
-        if let Some(version) = record.version {
-            lookup_key.extend_from_slice(&version.to_be_bytes());
-        } else {
-            lookup_key.extend_from_slice(&[0_u8; 4]);
-        }
-
-        for key_index in schema.primary_index.iter() {
-            let key_value = record
-                .get_value(*key_index)
-                .map_err(|e| JoinError::InvalidKey(record.to_owned(), e))?;
-
-            let key_bytes = key_value.encode();
-            lookup_key.extend_from_slice(&key_bytes);
-        }
-
-        Ok(lookup_key)
-    }
-
-    fn _decode_lookup_key(&self, lookup_key: &[u8]) -> (u32, Vec<u8>) {
-        let (version_bytes, id) = lookup_key.split_at(4);
-        let version = u32::from_be_bytes(version_bytes.try_into().unwrap());
-        (version, id.to_vec())
-    }
-
     fn encode_record(&self, record: &Record) -> Vec<u8> {
         let mut record_bytes = Vec::with_capacity(64);
         if let Some(version) = record.version {
@@ -193,11 +167,6 @@ pub struct JoinOperator {
     left_source: Box<JoinSource>,
     right_source: Box<JoinSource>,
 
-    // Lookup indexes
-    left_lookup_index: u32,
-
-    right_lookup_index: u32,
-
     left_lookup_index_map: MultiMap<Vec<u8>, Vec<u8>>,
     right_lookup_index_map: MultiMap<Vec<u8>, Vec<u8>>,
 }
@@ -222,8 +191,6 @@ impl JoinOperator {
             schema,
             left_source: left_join_branch.source,
             right_source: right_join_branch.source,
-            left_lookup_index: left_join_branch.lookup_index,
-            right_lookup_index: right_join_branch.lookup_index,
             left_lookup_index_map: MultiMap::new(),
             right_lookup_index_map: MultiMap::new(),
         }
@@ -253,12 +220,7 @@ impl JoinOperator {
             // update left join index
             for (_join_action, left_record, left_lookup_key) in left_records.iter_mut() {
                 let left_join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key);
-                self.update_index(
-                    _join_action.clone(),
-                    &left_join_key,
-                    left_lookup_key,
-                    self.left_lookup_index,
-                )?;
+                self.update_left_index(_join_action.clone(), &left_join_key, left_lookup_key)?;
 
                 let join_records = match self._operator {
                     JoinOperatorType::Inner => self.inner_join_left(
@@ -294,12 +256,7 @@ impl JoinOperator {
             // update right join index
             for (_join_action, right_record, right_lookup_key) in right_records.iter_mut() {
                 let right_join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key);
-                self.update_index(
-                    _join_action.clone(),
-                    &right_join_key,
-                    right_lookup_key,
-                    self.right_lookup_index,
-                )?;
+                self.update_right_index(_join_action.clone(), &right_join_key, right_lookup_key)?;
 
                 let join_records = match self._operator {
                     JoinOperatorType::Inner => self.inner_join_right(
@@ -338,7 +295,12 @@ impl JoinOperator {
         left_record: &mut Record,
         left_lookup_key: &mut [u8],
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
-        let right_lookup_keys = self.read_index(&left_join_key, self.right_lookup_index)?;
+        let right_lookup_keys = self
+            .right_lookup_index_map
+            .get_vec(&left_join_key)
+            .unwrap_or(&vec![])
+            .clone();
+
         let mut output_records = vec![];
 
         for right_lookup_key in right_lookup_keys.iter() {
@@ -364,7 +326,11 @@ impl JoinOperator {
         right_record: &mut Record,
         right_lookup_key: &mut [u8],
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
-        let left_lookup_keys = self.read_index(&right_join_key, self.left_lookup_index)?;
+        let left_lookup_keys = self
+            .left_lookup_index_map
+            .get_vec(&right_join_key)
+            .unwrap_or(&vec![])
+            .clone();
 
         let mut output_records = vec![];
         for left_lookup_key in left_lookup_keys.iter() {
@@ -390,7 +356,12 @@ impl JoinOperator {
         left_record: &mut Record,
         left_lookup_key: &mut [u8],
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
-        let right_lookup_keys = self.read_index(&left_join_key, self.right_lookup_index)?;
+        let right_lookup_keys = self
+            .right_lookup_index_map
+            .get_vec(&left_join_key)
+            .unwrap_or(&vec![])
+            .clone();
+
         let mut output_records = vec![];
 
         if right_lookup_keys.is_empty() {
@@ -426,7 +397,11 @@ impl JoinOperator {
         right_record: &mut Record,
         right_lookup_key: &mut [u8],
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
-        let left_lookup_keys = self.read_index(&right_join_key, self.left_lookup_index)?;
+        let left_lookup_keys = self
+            .left_lookup_index_map
+            .get_vec(&right_join_key)
+            .unwrap_or(&vec![])
+            .clone();
 
         let mut output_records = vec![];
 
@@ -463,7 +438,12 @@ impl JoinOperator {
         left_record: &mut Record,
         left_lookup_key: &mut [u8],
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
-        let right_lookup_keys = self.read_index(&left_join_key, self.right_lookup_index)?;
+        let right_lookup_keys = self
+            .right_lookup_index_map
+            .get_vec(&left_join_key)
+            .unwrap_or(&vec![])
+            .clone();
+
         let mut output_records = vec![];
 
         // if there are no matching records on the left branch, no records will be returned
@@ -531,7 +511,11 @@ impl JoinOperator {
         right_record: &mut Record,
         right_lookup_key: &mut [u8],
     ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, JoinError> {
-        let left_lookup_keys = self.read_index(&right_join_key, self.left_lookup_index)?;
+        let left_lookup_keys = self
+            .left_lookup_index_map
+            .get_vec(&right_join_key)
+            .unwrap_or(&vec![])
+            .clone();
 
         let mut output_records = vec![];
 
@@ -606,7 +590,13 @@ impl JoinOperator {
         left_record: &mut Record,
     ) -> Result<usize, JoinError> {
         let left_join_key: Vec<u8> = encode_join_key(left_record, &self.left_join_key);
-        let right_lookup_keys = self.read_index(&left_join_key, self.right_lookup_index)?;
+
+        let right_lookup_keys = self
+            .right_lookup_index_map
+            .get_vec(&left_join_key)
+            .unwrap_or(&vec![])
+            .clone();
+
         let mut records_count = right_lookup_keys.len();
         if action == &JoinAction::Insert {
             records_count -= 1;
@@ -620,7 +610,13 @@ impl JoinOperator {
         right_record: &mut Record,
     ) -> Result<usize, JoinError> {
         let right_join_key: Vec<u8> = encode_join_key(right_record, &self.right_join_key);
-        let left_lookup_keys = self.read_index(&right_join_key, self.left_lookup_index)?;
+
+        let left_lookup_keys = self
+            .left_lookup_index_map
+            .get_vec(&right_join_key)
+            .unwrap_or(&vec![])
+            .clone();
+
         let mut records_count = left_lookup_keys.len();
         if action == &JoinAction::Insert {
             records_count -= 1;
@@ -650,51 +646,42 @@ impl JoinOperator {
         Ok(output_records)
     }
 
-    pub fn update_index(
+    pub fn update_left_index(
         &mut self,
         action: JoinAction,
         key: &[u8],
         value: &[u8],
-        prefix: u32,
     ) -> Result<(), JoinError> {
         match action {
             JoinAction::Insert => {
-                if prefix == self.left_lookup_index {
-                    self.left_lookup_index_map
-                        .insert(key.to_vec(), value.to_vec());
-                } else if prefix == self.right_lookup_index {
-                    self.right_lookup_index_map
-                        .insert(key.to_vec(), value.to_vec());
-                }
+                self.left_lookup_index_map
+                    .insert(key.to_vec(), value.to_vec());
             }
             JoinAction::Delete => {
-                if prefix == self.left_lookup_index {
-                    self.left_lookup_index_map.remove(key);
-                } else if prefix == self.right_lookup_index {
-                    self.right_lookup_index_map.remove(key);
-                }
+                self.left_lookup_index_map.remove(key);
             }
         }
 
         Ok(())
     }
 
-    fn read_index(&self, join_key: &[u8], prefix: u32) -> Result<Vec<Vec<u8>>, JoinError> {
-        if prefix == self.left_lookup_index {
-            if let Some(join_keys) = self.left_lookup_index_map.get_vec(join_key).cloned() {
-                Ok(join_keys)
-            } else {
-                Ok(vec![])
+    pub fn update_right_index(
+        &mut self,
+        action: JoinAction,
+        key: &[u8],
+        value: &[u8],
+    ) -> Result<(), JoinError> {
+        match action {
+            JoinAction::Insert => {
+                self.left_lookup_index_map
+                    .insert(key.to_vec(), value.to_vec());
             }
-        } else if prefix == self.right_lookup_index {
-            if let Some(join_keys) = self.right_lookup_index_map.get_vec(join_key).cloned() {
-                return Ok(join_keys);
-            } else {
-                Ok(vec![])
+            JoinAction::Delete => {
+                self.left_lookup_index_map.remove(key);
             }
-        } else {
-            return Err(JoinError::IndexGetError(join_key.to_vec()));
         }
+
+        Ok(())
     }
 
     fn encode_join_lookup_key(&self, left_lookup_key: &[u8], right_lookup_key: &[u8]) -> Vec<u8> {
@@ -747,36 +734,3 @@ fn encode_join_key(record: &Record, join_keys: &[usize]) -> Vec<u8> {
     }
     composite_lookup_key
 }
-
-// fn join_records(left_record: &Record, right_record: &Record) -> Record {
-//     let concat_values = [left_record.values.clone(), right_record.values.clone()].concat();
-//     let mut left_version = 0;
-//     if let Some(version) = left_record.version {
-//         left_version = version;
-//     }
-//     let mut right_version = 0;
-//     if let Some(version) = right_record.version {
-//         right_version = version;
-//     }
-//     Record::new(
-//         None,
-//         concat_values,
-//         Some((left_version * 100) + right_version),
-//     )
-// }
-
-// fn encode_join_key(record: &Record, join_keys: &[usize]) -> Result<Vec<u8>, TypeError> {
-//     let mut composite_lookup_key = vec![];
-//     let mut version = 0_u32;
-//     if let Some(record_version) = &record.version {
-//         version = *record_version;
-//     }
-//     composite_lookup_key.extend_from_slice(&version.to_be_bytes());
-//     for key in join_keys.iter() {
-//         let value = &record.values[*key].encode();
-//         let length = value.len() as u32;
-//         composite_lookup_key.extend_from_slice(&length.to_be_bytes());
-//         composite_lookup_key.extend_from_slice(value.as_slice());
-//     }
-//     Ok(composite_lookup_key)
-// }
