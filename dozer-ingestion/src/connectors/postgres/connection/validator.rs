@@ -596,7 +596,7 @@ mod tests {
             }
 
             // One replication slot is available
-            let result = validate_connection("pg_test_conn", config.clone(), None, None);
+            let result = validate_connection("pg_test_conn", config, None, None);
             assert!(result.is_ok());
         });
     }
@@ -633,7 +633,7 @@ mod tests {
                     .unwrap();
             }
 
-            let result = validate_connection("pg_test_conn", config.clone(), None, None);
+            let result = validate_connection("pg_test_conn", config, None, None);
 
             assert!(result.is_err());
 
