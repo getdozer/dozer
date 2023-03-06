@@ -9,7 +9,6 @@ use crate::pipeline::errors::JoinError;
 pub enum JoinAction {
     Insert,
     Delete,
-    // Update,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -102,7 +101,7 @@ impl JoinTable {
 
 #[derive(Clone, Debug)]
 pub struct JoinOperator {
-    _operator: JoinOperatorType,
+    operator: JoinOperatorType,
 
     left_join_key_indexes: Vec<usize>,
     right_join_key_indexes: Vec<usize>,
@@ -117,9 +116,9 @@ pub struct JoinOperator {
 }
 
 pub struct JoinBranch {
-    pub join_key: Vec<usize>,
+    pub join_key_indexes: Vec<usize>,
     pub source: Box<JoinSource>,
-    pub lookup_index: u32,
+    // lookup_index_map: MultiMap<Vec<Field>, Vec<Field>>,
 }
 
 impl JoinOperator {
@@ -130,9 +129,9 @@ impl JoinOperator {
         right_join_branch: JoinBranch,
     ) -> Self {
         Self {
-            _operator: operator,
-            left_join_key_indexes: left_join_branch.join_key,
-            right_join_key_indexes: right_join_branch.join_key,
+            operator,
+            left_join_key_indexes: left_join_branch.join_key_indexes,
+            right_join_key_indexes: right_join_branch.join_key_indexes,
             schema,
             left_source: left_join_branch.source,
             right_source: right_join_branch.source,
@@ -163,25 +162,25 @@ impl JoinOperator {
             let mut left_records = self.left_source.execute(action, from_port, record)?;
 
             // update left join index
-            for (_join_action, left_record, left_lookup_key) in left_records.iter_mut() {
+            for (join_action, left_record, left_lookup_key) in left_records.iter_mut() {
                 let left_join_key = get_join_key_fields(left_record, &self.left_join_key_indexes);
-                self.update_left_index(_join_action.clone(), &left_join_key, left_lookup_key)?;
+                self.update_left_index(join_action.clone(), &left_join_key, left_lookup_key);
 
-                let join_records = match self._operator {
+                let join_records = match self.operator {
                     JoinOperatorType::Inner => self.inner_join_left(
-                        _join_action.clone(),
+                        join_action.clone(),
                         left_join_key,
                         left_record,
                         left_lookup_key,
                     )?,
                     JoinOperatorType::LeftOuter => self.left_join(
-                        _join_action.clone(),
+                        join_action.clone(),
                         left_join_key,
                         left_record,
                         left_lookup_key,
                     )?,
                     JoinOperatorType::RightOuter => self.right_join_reverse(
-                        _join_action.clone(),
+                        join_action.clone(),
                         left_join_key,
                         left_record,
                         left_lookup_key,
@@ -199,26 +198,26 @@ impl JoinOperator {
             let mut right_records = self.right_source.execute(action, from_port, record)?;
 
             // update right join index
-            for (_join_action, right_record, right_lookup_key) in right_records.iter_mut() {
+            for (join_action, right_record, right_lookup_key) in right_records.iter_mut() {
                 let right_join_key =
                     get_join_key_fields(right_record, &self.right_join_key_indexes);
-                self.update_right_index(_join_action.clone(), &right_join_key, right_lookup_key)?;
+                self.update_right_index(join_action.clone(), &right_join_key, right_lookup_key);
 
-                let join_records = match self._operator {
+                let join_records = match self.operator {
                     JoinOperatorType::Inner => self.inner_join_right(
-                        _join_action.clone(),
+                        join_action.clone(),
                         right_join_key,
                         right_record,
                         right_lookup_key,
                     )?,
                     JoinOperatorType::RightOuter => self.right_join(
-                        _join_action.clone(),
+                        join_action.clone(),
                         right_join_key,
                         right_record,
                         right_lookup_key,
                     )?,
                     JoinOperatorType::LeftOuter => self.left_join_reverse(
-                        _join_action.clone(),
+                        join_action.clone(),
                         right_join_key,
                         right_record,
                         right_lookup_key,
@@ -233,7 +232,6 @@ impl JoinOperator {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn inner_join_left(
         &self,
         action: JoinAction,
@@ -264,7 +262,6 @@ impl JoinOperator {
         Ok(output_records)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn inner_join_right(
         &self,
         action: JoinAction,
@@ -294,7 +291,6 @@ impl JoinOperator {
         Ok(output_records)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn left_join(
         &self,
         action: JoinAction,
@@ -335,7 +331,6 @@ impl JoinOperator {
         Ok(output_records)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn right_join(
         &self,
         action: JoinAction,
@@ -376,7 +371,6 @@ impl JoinOperator {
         Ok(output_records)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn right_join_reverse(
         &self,
         action: JoinAction,
@@ -449,7 +443,6 @@ impl JoinOperator {
         Ok(output_records)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn left_join_reverse(
         &self,
         action: JoinAction,
@@ -519,12 +512,6 @@ impl JoinOperator {
                         }
                     }
                 }
-
-                // join the records
-                // let join_record = join_records(left_record, right_record);
-                // let join_lookup_key =
-                //     self.encode_join_lookup_key(left_lookup_key, right_lookup_key);
-                // output_records.push((action.clone(), join_record, join_lookup_key));
             }
         }
         Ok(output_records)
@@ -593,12 +580,7 @@ impl JoinOperator {
         Ok(output_records)
     }
 
-    pub fn update_left_index(
-        &mut self,
-        action: JoinAction,
-        key: &[Field],
-        value: &[Field],
-    ) -> Result<(), JoinError> {
+    pub fn update_left_index(&mut self, action: JoinAction, key: &[Field], value: &[Field]) {
         match action {
             JoinAction::Insert => {
                 self.left_lookup_index_map
@@ -608,16 +590,9 @@ impl JoinOperator {
                 self.left_lookup_index_map.remove(key);
             }
         }
-
-        Ok(())
     }
 
-    pub fn update_right_index(
-        &mut self,
-        action: JoinAction,
-        key: &[Field],
-        value: &[Field],
-    ) -> Result<(), JoinError> {
+    pub fn update_right_index(&mut self, action: JoinAction, key: &[Field], value: &[Field]) {
         match action {
             JoinAction::Insert => {
                 self.right_lookup_index_map
@@ -627,8 +602,6 @@ impl JoinOperator {
                 self.right_lookup_index_map.remove(key);
             }
         }
-
-        Ok(())
     }
 
     fn encode_join_lookup_key(
