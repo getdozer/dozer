@@ -29,34 +29,14 @@ impl Aggregator for CountAggregator {
         self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Count.to_string()))))
     }
 
-    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        match old.get_type() {
-            Some(field_type) => {
-                if field_type == return_type {
-                    self.current_state -= 1;
-                    get_count(self.current_state, return_type)
-                }
-                else {
-                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, old, Count.to_string()))))
-                }
-            },
-            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete record: {} for {}", old, Count.to_string())))),
-        }
+    fn delete(&mut self, _old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+        self.current_state -= 1;
+        get_count(self.current_state, return_type)
     }
 
-    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        match new.get_type() {
-            Some(field_type) => {
-                if field_type == return_type {
-                    self.current_state += 1;
-                    get_count(self.current_state, return_type)
-                }
-                else {
-                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, new, Count.to_string()))))
-                }
-            },
-            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Count.to_string())))),
-        }
+    fn insert(&mut self, _new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
+        self.current_state += 1;
+        get_count(self.current_state, return_type)
     }
 }
 
