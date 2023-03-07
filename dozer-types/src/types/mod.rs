@@ -228,15 +228,7 @@ impl Record {
     }
 
     pub fn get_key_fields(&self, schema: &Schema) -> Vec<Field> {
-        debug_assert!(
-            !&schema.primary_index.is_empty(),
-            "Primary key indexes cannot be empty"
-        );
-        let mut idx_values = Vec::with_capacity(schema.primary_index.len());
-        for i in &schema.primary_index {
-            idx_values.push(self.values[*i].clone());
-        }
-        idx_values
+        self.get_fields_by_indexes(&schema.primary_index)
     }
 
     pub fn get_fields_by_indexes(&self, indexes: &[usize]) -> Vec<Field> {
