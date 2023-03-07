@@ -40,12 +40,12 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(vec![
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![
             OutputPortDef::new(USER_PORT, OutputPortType::Stateless),
             OutputPortDef::new(DEPARTMENT_PORT, OutputPortType::Stateless),
             OutputPortDef::new(COUNTRY_PORT, OutputPortType::Stateless),
-        ])
+        ]
     }
 
     fn get_output_schema(
