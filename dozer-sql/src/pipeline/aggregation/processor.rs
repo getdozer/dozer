@@ -381,7 +381,9 @@ fn get_key(
     }
     let mut hasher = AHasher::default();
     key.hash(&mut hasher);
-    Ok(hasher.finish())
+    let v = hasher.finish();
+    println!("{}", v);
+    Ok(v)
 }
 
 impl Processor for AggregationProcessor {

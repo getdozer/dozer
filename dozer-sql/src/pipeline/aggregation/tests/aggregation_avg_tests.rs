@@ -584,7 +584,7 @@ fn test_avg_aggregation_int_null() {
         Italy, NULL
         Italy, 100
         -------------
-        AVG = 50
+        AVG = 100
     */
     inp = insert_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp);
@@ -592,7 +592,7 @@ fn test_avg_aggregation_int_null() {
         ITALY,
         ITALY,
         &get_decimal_field(0),
-        &get_decimal_field(50),
+        &get_decimal_field(100),
     )];
     assert_eq!(out, exp);
 
@@ -608,7 +608,7 @@ fn test_avg_aggregation_int_null() {
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        &get_decimal_field(50),
+        &get_decimal_field(100),
         &get_decimal_field(0),
     )];
     assert_eq!(out, exp);
@@ -667,11 +667,11 @@ fn test_avg_aggregation_float_null() {
         Italy, NULL
         Italy, 100
         -------------
-        AVG = 50
+        AVG = 100
     */
     inp = insert_field(ITALY, FIELD_100_FLOAT);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_50_FLOAT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
     // Update 100 for segment Italy to NULL
@@ -683,7 +683,7 @@ fn test_avg_aggregation_float_null() {
     */
     inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_50_FLOAT, FIELD_0_FLOAT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_0_FLOAT)];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -743,7 +743,7 @@ fn test_avg_aggregation_decimal_null() {
         ITALY,
         ITALY,
         &get_decimal_field(0),
-        &get_decimal_field(50),
+        &get_decimal_field(100),
     )];
     assert_eq!(out, exp);
 
@@ -759,7 +759,7 @@ fn test_avg_aggregation_decimal_null() {
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        &get_decimal_field(50),
+        &get_decimal_field(100),
         &get_decimal_field(0),
     )];
     assert_eq!(out, exp);

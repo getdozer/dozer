@@ -132,6 +132,10 @@ pub fn update_map(
     field_map: &mut BTreeMap<Field, u64>,
 ) {
     for field in fields {
+        if field == &Field::Null {
+            continue;
+        }
+
         let get_prev_count = field_map.get(field);
         let prev_count = match get_prev_count {
             Some(v) => *v,

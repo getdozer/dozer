@@ -794,7 +794,7 @@ fn test_min_aggregation_int_null() {
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
-    let mut exp = vec![insert_exp(ITALY, FIELD_0_INT)];
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -806,7 +806,7 @@ fn test_min_aggregation_int_null() {
     */
     inp = insert_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_100_INT)];
     assert_eq!(out, exp);
 
     // Update 100 for segment Italy to NULL
@@ -818,7 +818,7 @@ fn test_min_aggregation_int_null() {
     */
     inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -829,7 +829,7 @@ fn test_min_aggregation_int_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -839,7 +839,7 @@ fn test_min_aggregation_int_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![delete_exp(ITALY, FIELD_0_INT)];
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
@@ -862,7 +862,7 @@ fn test_min_aggregation_float_null() {
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
-    let mut exp = vec![insert_exp(ITALY, FIELD_0_FLOAT)];
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -874,7 +874,7 @@ fn test_min_aggregation_float_null() {
     */
     inp = insert_field(ITALY, FIELD_100_FLOAT);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
     // Update 100 for segment Italy to NULL
@@ -886,7 +886,7 @@ fn test_min_aggregation_float_null() {
     */
     inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -897,7 +897,7 @@ fn test_min_aggregation_float_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -907,7 +907,7 @@ fn test_min_aggregation_float_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![delete_exp(ITALY, FIELD_0_FLOAT)];
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
@@ -926,11 +926,11 @@ fn test_min_aggregation_decimal_null() {
     /*
         Italy, NULL
         -------------
-        MIN = 0.0
+        MIN = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
-    let mut exp = vec![insert_exp(ITALY, &get_decimal_field(0))];
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -938,15 +938,15 @@ fn test_min_aggregation_decimal_null() {
         Italy, NULL
         Italy, 100.0
         -------------
-        MIN = 0.0
+        MIN = NULL
     */
-    inp = insert_field(ITALY, &get_decimal_field(0));
+    inp = insert_field(ITALY, &get_decimal_field(100));
     out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        &get_decimal_field(0),
-        &get_decimal_field(0),
+        FIELD_NULL,
+        &get_decimal_field(100),
     )];
     assert_eq!(out, exp);
 
@@ -962,8 +962,8 @@ fn test_min_aggregation_decimal_null() {
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        &get_decimal_field(0),
-        &get_decimal_field(0),
+        &get_decimal_field(100),
+        FIELD_NULL,
     )];
     assert_eq!(out, exp);
 
@@ -975,12 +975,7 @@ fn test_min_aggregation_decimal_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(
-        ITALY,
-        ITALY,
-        &get_decimal_field(0),
-        &get_decimal_field(0),
-    )];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -990,7 +985,7 @@ fn test_min_aggregation_decimal_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![delete_exp(ITALY, &get_decimal_field(0))];
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
@@ -1013,7 +1008,7 @@ fn test_min_aggregation_timestamp_null() {
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
-    let mut exp = vec![insert_exp(ITALY, &get_ts_field(0))];
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -1025,7 +1020,7 @@ fn test_min_aggregation_timestamp_null() {
     */
     inp = insert_field(ITALY, &get_ts_field(100));
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(0), &get_ts_field(0))];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, &get_ts_field(100))];
     assert_eq!(out, exp);
 
     // Update 100 for segment Italy to NULL
@@ -1037,7 +1032,7 @@ fn test_min_aggregation_timestamp_null() {
     */
     inp = update_field(ITALY, ITALY, &get_ts_field(100), FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(0), &get_ts_field(0))];
+    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(100), FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -1048,7 +1043,7 @@ fn test_min_aggregation_timestamp_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(0), &get_ts_field(0))];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -1058,7 +1053,7 @@ fn test_min_aggregation_timestamp_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![delete_exp(ITALY, &get_ts_field(0))];
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
@@ -1073,17 +1068,15 @@ fn test_min_aggregation_date_null() {
     )
     .unwrap();
 
-    let date_null: &Field = &Field::Date(Utc.timestamp_millis_opt(0).unwrap().naive_utc().date());
-
     // Insert NULL for segment Italy
     /*
         Italy, NULL
         -------------
-        MIN = 0
+        MIN = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
-    let mut exp = vec![insert_exp(ITALY, date_null)];
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 2015-10-08 for segment Italy
@@ -1095,7 +1088,7 @@ fn test_min_aggregation_date_null() {
     */
     inp = insert_field(ITALY, &get_date_field(DATE8));
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, date_null, date_null)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, &get_date_field(DATE8))];
     assert_eq!(out, exp);
 
     // Update 2015-10-08 for segment Italy to NULL
@@ -1103,22 +1096,22 @@ fn test_min_aggregation_date_null() {
         Italy, NULL
         Italy, NULL
         -------------
-        MIN = 0
+        MIN = NULL
     */
     inp = update_field(ITALY, ITALY, &get_date_field(DATE8), FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, date_null, date_null)];
+    exp = vec![update_exp(ITALY, ITALY, &get_date_field(DATE8), FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete a record
     /*
         Italy, NULL
         -------------
-        MIN = 0
+        MIN = NULL
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, date_null, date_null)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -1128,6 +1121,6 @@ fn test_min_aggregation_date_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![delete_exp(ITALY, date_null)];
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
