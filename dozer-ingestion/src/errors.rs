@@ -9,7 +9,8 @@ use dozer_types::{rust_decimal, thiserror};
 
 use base64::DecodeError;
 
-use datafusion::error::DataFusionError;
+use deltalake::datafusion::error::DataFusionError;
+use deltalake::DeltaTableError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 use std::str::Utf8Error;
@@ -80,6 +81,15 @@ pub enum ConnectorError {
 
     #[error("Received empty message in connector")]
     EmptyMessage,
+
+    #[error("Delta table error: {0}")]
+    DeltaTableError(#[from] DeltaTableError),
+
+    #[error("Datafusion error: {0}")]
+    DataFusionError(#[from] DataFusionError),
+
+    #[error("Runtime creation error")]
+    RuntimeCreationError(#[from] std::io::Error),
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {

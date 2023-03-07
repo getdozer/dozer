@@ -322,3 +322,23 @@ impl LocalStorage {
             .map_or_else(|| table!(), |details| table!(["path", details.path]))
     }
 }
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct DeltaTable {
+    #[prost(string, tag = "1")]
+    pub path: String,
+    #[prost(string, tag = "2")]
+    pub name: String,
+}
+
+impl DeltaTable {
+    pub fn convert_to_table(&self) -> PrettyTable {
+        todo!()
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct DeltaLakeConfig {
+    #[prost(message, repeated, tag = "1")]
+    pub tables: Vec<DeltaTable>,
+}
