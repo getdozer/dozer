@@ -18,12 +18,8 @@ pub enum CacheError {
     Type(#[from] TypeError),
     #[error("Storage error: {0}")]
     Storage(#[from] dozer_storage::errors::StorageError),
-    #[error("Schema has no identifier")]
-    SchemaHasNoIdentifier,
-    #[error("Schema Identifier is not present: {0:?}")]
-    SchemaIdentifierNotFound(SchemaIdentifier),
-    #[error("Schema is not present: {0}")]
-    SchemaNotFound(String),
+    #[error("Schema is not present")]
+    SchemaNotFound,
     #[error("Schema Identifier is duplicated: {0:?}")]
     DuplicateSchemaIdentifier(SchemaIdentifier),
     #[error("Path not initialized for Cache Reader")]

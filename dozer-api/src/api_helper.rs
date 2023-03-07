@@ -3,7 +3,6 @@ use crate::errors::{ApiError, AuthError};
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::RecordWithId;
 use dozer_cache::{AccessFilter, CacheReader};
-use dozer_types::types::Schema;
 
 pub fn get_record(
     cache_reader: &CacheReader,
@@ -19,26 +18,24 @@ pub fn get_record(
 
 pub fn get_records_count(
     cache_reader: &CacheReader,
-    endpoint_name: &str,
     exp: &mut QueryExpression,
     access: Option<Access>,
 ) -> Result<usize, ApiError> {
     let access_filter = get_access_filter(access)?;
     cache_reader
-        .count(endpoint_name, exp, access_filter)
+        .count(exp, access_filter)
         .map_err(ApiError::CountFailed)
 }
 
 /// Get multiple records
-pub fn get_records<'a>(
-    cache_reader: &'a CacheReader,
-    endpoint_name: &str,
+pub fn get_records(
+    cache_reader: &CacheReader,
     exp: &mut QueryExpression,
     access: Option<Access>,
-) -> Result<(&'a Schema, Vec<RecordWithId>), ApiError> {
+) -> Result<Vec<RecordWithId>, ApiError> {
     let access_filter = get_access_filter(access)?;
     cache_reader
-        .query(endpoint_name, exp, access_filter)
+        .query(exp, access_filter)
         .map_err(ApiError::QueryFailed)
 }
 

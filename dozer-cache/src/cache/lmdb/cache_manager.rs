@@ -124,11 +124,13 @@ impl CacheManager for LmdbCacheManager {
 
     fn create_cache(
         &self,
-        schemas: Vec<(String, Schema, Vec<IndexDefinition>)>,
+        schema: Schema,
+        indexes: Vec<IndexDefinition>,
     ) -> Result<Box<dyn RwCache>, CacheError> {
         let name = self.generate_unique_name();
         let cache = LmdbRwCache::create(
-            schemas,
+            schema,
+            indexes,
             self.cache_common_options(name),
             self.cache_write_options(),
         )?;
@@ -186,7 +188,7 @@ mod tests {
     fn test_lmdb_cache_manager() {
         let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
         let real_name = cache_manager
-            .create_cache(vec![])
+            .create_cache(Schema::empty(), vec![])
             .unwrap()
             .name()
             .to_string();
@@ -238,7 +240,7 @@ mod tests {
         );
         // If name is both alias and real name, alias shadows real name.
         let real_name2 = cache_manager
-            .create_cache(vec![])
+            .create_cache(Schema::empty(), vec![])
             .unwrap()
             .name()
             .to_string();

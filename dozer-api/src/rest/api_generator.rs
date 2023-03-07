@@ -23,9 +23,7 @@ use dozer_types::serde_json;
 use dozer_types::serde_json::{json, Map, Value};
 
 fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {
-    let (schema, secondary_indexes) = reader
-        .get_schema_and_indexes_by_name(&endpoint.name)
-        .map_err(ApiError::SchemaNotFound)?;
+    let (schema, secondary_indexes) = reader.get_schema().map_err(ApiError::SchemaNotFound)?;
 
     let oapi_generator = OpenApiGenerator::new(
         schema,
@@ -56,7 +54,7 @@ pub async fn get(
 ) -> Result<HttpResponse, ApiError> {
     let cache_reader = &cache_endpoint.cache_reader();
     let schema = &cache_reader
-        .get_schema_and_indexes_by_name(&cache_endpoint.endpoint.name)
+        .get_schema()
         .map_err(ApiError::SchemaNotFound)?
         .0;
 
@@ -119,7 +117,6 @@ pub async fn count(
 
     get_records_count(
         &cache_endpoint.cache_reader(),
-        &cache_endpoint.endpoint.name,
         &mut query_expression,
         access.map(|a| a.into_inner()),
     )
@@ -153,12 +150,11 @@ fn get_records_map(
 ) -> Result<Vec<IndexMap<String, Value>>, ApiError> {
     let mut maps = vec![];
     let cache_reader = &cache_endpoint.cache_reader();
-    let (schema, records) = get_records(
-        cache_reader,
-        &cache_endpoint.endpoint.name,
-        exp,
-        access.map(|a| a.into_inner()),
-    )?;
+    let records = get_records(cache_reader, exp, access.map(|a| a.into_inner()))?;
+    let schema = &cache_reader
+        .get_schema()
+        .map_err(ApiError::SchemaNotFound)?
+        .0;
     for record in records.into_iter() {
         let map = record_to_map(record, schema)?;
         maps.push(map);

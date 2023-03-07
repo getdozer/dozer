@@ -11,10 +11,10 @@ fn read_and_write() {
 
     // write and read from cache from two different threads.
 
-    let schema_name = "sample";
     let (schema, secondary_indexes) = test_utils::schema_1();
     let cache_writer = LmdbRwCache::create(
-        [(schema_name.to_string(), schema.clone(), secondary_indexes)],
+        schema.clone(),
+        secondary_indexes,
         CacheCommonOptions {
             max_readers: 1,
             max_db_size: 100,
@@ -54,18 +54,14 @@ fn read_and_write() {
         assert_eq!(rec.record.values, values, "should be equal");
     }
     let records = cache_reader
-        .query(
-            "sample",
-            &QueryExpression {
-                filter: Some(FilterExpression::Simple(
-                    "a".to_string(),
-                    Operator::EQ,
-                    Value::from(1),
-                )),
-                ..Default::default()
-            },
-        )
-        .unwrap()
-        .1;
+        .query(&QueryExpression {
+            filter: Some(FilterExpression::Simple(
+                "a".to_string(),
+                Operator::EQ,
+                Value::from(1),
+            )),
+            ..Default::default()
+        })
+        .unwrap();
     assert_eq!(records.len(), 1);
 }

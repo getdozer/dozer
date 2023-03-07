@@ -12,58 +12,40 @@ use dozer_types::{
 
 use super::utils::create_cache;
 
-fn _setup() -> (LmdbRwCache, Schema, &'static str) {
-    let schema_name = "doc";
-    let (cache, schema, _) = create_cache(schema_name, test_utils::schema_0);
-    (cache, schema, schema_name)
+fn _setup() -> (LmdbRwCache, Schema) {
+    let (cache, schema, _) = create_cache(test_utils::schema_0);
+    (cache, schema)
 }
 
-fn _setup_empty_primary_index() -> (LmdbRwCache, Schema, &'static str) {
-    let schema_name = "doc";
-    let (cache, schema, _) = create_cache(schema_name, test_utils::schema_empty_primary_index);
-    (cache, schema, schema_name)
+fn _setup_empty_primary_index() -> (LmdbRwCache, Schema) {
+    let (cache, schema, _) = create_cache(test_utils::schema_empty_primary_index);
+    (cache, schema)
 }
 
-fn query_and_test(
-    cache: &dyn RwCache,
-    inserted_record: &Record,
-    schema_name: &str,
-    exp: &QueryExpression,
-) {
-    let records = cache.query(schema_name, exp).unwrap().1;
+fn query_and_test(cache: &dyn RwCache, inserted_record: &Record, exp: &QueryExpression) {
+    let records = cache.query(exp).unwrap();
     assert_eq!(records[0].record, inserted_record.clone(), "must be equal");
 }
 
 #[test]
 fn get_schema() {
-    let (cache, _, schema_name) = _setup();
-    let schema = &cache.get_schema_and_indexes_by_name(schema_name).unwrap().0;
+    let (cache, schema) = _setup();
 
-    let get_schema = cache.get_schema(schema.identifier.unwrap()).unwrap();
-    assert_eq!(get_schema, schema, "must be equal");
+    let get_schema = &cache.get_schema().unwrap().0;
+    assert_eq!(get_schema, &schema, "must be equal");
 }
 
 #[test]
 fn insert_get_and_delete_record() {
     let val = "bar".to_string();
-    let (cache, schema, schema_name) = _setup();
+    let (cache, schema) = _setup();
 
-    assert_eq!(
-        cache
-            .count(schema_name, &QueryExpression::with_no_limit())
-            .unwrap(),
-        0
-    );
+    assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
     let mut record = Record::new(schema.identifier, vec![Field::String(val.clone())], None);
     cache.insert(&mut record).unwrap();
 
-    assert_eq!(
-        cache
-            .count(schema_name, &QueryExpression::with_no_limit())
-            .unwrap(),
-        1
-    );
+    assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 1);
 
     let version = record.version.unwrap();
 
@@ -73,27 +55,16 @@ fn insert_get_and_delete_record() {
     assert_eq!(get_record, record, "must be equal");
 
     assert_eq!(cache.delete(&key).unwrap(), version);
-    assert_eq!(
-        cache
-            .count(schema_name, &QueryExpression::with_no_limit())
-            .unwrap(),
-        0
-    );
+    assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
     cache.get(&key).expect_err("Must not find a record");
 
-    assert_eq!(
-        cache
-            .query(schema_name, &QueryExpression::default())
-            .unwrap()
-            .1,
-        vec![]
-    );
+    assert_eq!(cache.query(&QueryExpression::default()).unwrap(), vec![]);
 }
 
 #[test]
 fn insert_and_update_record() {
-    let (cache, schema, _) = _setup();
+    let (cache, schema) = _setup();
     let mut foo = Record::new(
         schema.identifier,
         vec![Field::String("foo".to_string())],
@@ -114,7 +85,7 @@ fn insert_and_update_record() {
     assert_eq!(foo.version.unwrap(), old_version + 1);
 }
 
-fn insert_and_query_record_impl(cache: LmdbRwCache, schema: Schema, schema_name: &str) {
+fn insert_and_query_record_impl(cache: LmdbRwCache, schema: Schema) {
     let val = "bar".to_string();
     let mut record = Record::new(schema.identifier, vec![Field::String(val)], None);
 
@@ -127,21 +98,20 @@ fn insert_and_query_record_impl(cache: LmdbRwCache, schema: Schema, schema_name:
         Value::from("bar".to_string()),
     ));
 
-    query_and_test(&cache, &record, schema_name, &exp);
+    query_and_test(&cache, &record, &exp);
 
     // Query without an expression
     query_and_test(
         &cache,
         &record,
-        schema_name,
         &QueryExpression::new(None, vec![], Some(10), Skip::Skip(0)),
     );
 }
 
 #[test]
 fn insert_and_query_record() {
-    let (cache, schema, schema_name) = _setup();
-    insert_and_query_record_impl(cache, schema, schema_name);
-    let (cache, schema, schema_name) = _setup_empty_primary_index();
-    insert_and_query_record_impl(cache, schema, schema_name);
+    let (cache, schema) = _setup();
+    insert_and_query_record_impl(cache, schema);
+    let (cache, schema) = _setup_empty_primary_index();
+    insert_and_query_record_impl(cache, schema);
 }
