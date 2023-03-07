@@ -52,29 +52,29 @@ fn get_min(
     if field_map.is_empty() {
         Ok(Field::Null)
     } else {
-        let val: Field = calculate_err!(field_hash.keys().first(), Min);
+        let val = calculate_err!(field_map.keys().min(), Min).clone();
         match return_type {
             Some(FieldType::UInt) => {
-                Ok(Field::UInt(calculate_err_field!(*val.to_uint(), Min, val)))
+                Ok(Field::UInt(calculate_err_field!(val.to_uint(), Min, val)))
             }
-            Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(*val.to_int(), Min, val))),
+            Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(val.to_int(), Min, val))),
             Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
-                *val.to_float(),
+                val.to_float(),
                 Min,
                 val
             )))),
             Some(FieldType::Decimal) => Ok(Field::Decimal(calculate_err_field!(
-                *val.to_decimal(),
+                val.to_decimal(),
                 Min,
                 val
             ))),
             Some(FieldType::Timestamp) => Ok(Field::Timestamp(calculate_err_field!(
-                *val.to_timestamp(),
+                val.to_timestamp()?,
                 Min,
                 val
             ))),
             Some(FieldType::Date) => {
-                Ok(Field::Date(calculate_err_field!(*val.to_date(), Min, val)))
+                Ok(Field::Date(calculate_err_field!(val.to_date()?, Min, val)))
             }
             Some(not_supported_return_type) => {
                 Err(PipelineError::InternalExecutionError(InvalidType(format!(

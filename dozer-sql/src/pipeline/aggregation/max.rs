@@ -52,29 +52,29 @@ fn get_max(
     if field_map.is_empty() {
         Ok(Field::Null)
     } else {
-        let val: Field = calculate_err!(field_hash.keys().last(), Max);
+        let val = calculate_err!(field_map.keys().max(), Max).clone();
         match return_type {
             Some(FieldType::UInt) => {
-                Ok(Field::UInt(calculate_err_field!(*val.to_uint(), Max, val)))
+                Ok(Field::UInt(calculate_err_field!(val.to_uint(), Max, val)))
             }
-            Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(*val.to_int(), Max, val))),
+            Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(val.to_int(), Max, val))),
             Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
-                *val.to_float(),
+                val.to_float(),
                 Max,
                 val
             )))),
             Some(FieldType::Decimal) => Ok(Field::Decimal(calculate_err_field!(
-                *val.to_decimal(),
+                val.to_decimal(),
                 Max,
                 val
             ))),
             Some(FieldType::Timestamp) => Ok(Field::Timestamp(calculate_err_field!(
-                *val.to_timestamp(),
+                val.to_timestamp()?,
                 Max,
                 val
             ))),
             Some(FieldType::Date) => {
-                Ok(Field::Date(calculate_err_field!(*val.to_date(), Max, val)))
+                Ok(Field::Date(calculate_err_field!(val.to_date()?, Max, val)))
             }
             Some(not_supported_return_type) => {
                 Err(PipelineError::InternalExecutionError(InvalidType(format!(
