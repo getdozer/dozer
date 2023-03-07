@@ -11,6 +11,7 @@ use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, Inges
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
+use dozer_types::tracing::{self, span, Level};
 use dozer_types::types::{
     Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
 };
@@ -245,14 +246,25 @@ impl Source for ConnectorSource {
             let mut iterator = self.iterator.lock();
 
             for IngestionMessage { identifier, kind } in iterator.by_ref() {
+                let span = span!(
+                    Level::DEBUG,
+                    "ingest_message",
+                    identifier.txid,
+                    identifier.seq_in_tx
+                );
+                let _enter = span.enter();
+
                 let schema_id = match &kind {
                     IngestionMessageKind::OperationEvent(Operation::Delete { old }) => {
+                        tracing::debug!("Ingesting delete: {:?}", old);
                         Some(get_schema_id(old.schema_id)?)
                     }
                     IngestionMessageKind::OperationEvent(Operation::Insert { new }) => {
+                        tracing::debug!("Ingesting insert: {:?}", new);
                         Some(get_schema_id(new.schema_id)?)
                     }
                     IngestionMessageKind::OperationEvent(Operation::Update { old: _, new }) => {
+                        tracing::debug!("Ingesting update: {:?}", new);
                         Some(get_schema_id(new.schema_id)?)
                     }
                     IngestionMessageKind::SnapshottingDone => None,

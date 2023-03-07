@@ -1,6 +1,9 @@
 use crate::errors::{CacheError, IndexError};
 use dozer_storage::lmdb::RwTransaction;
-use dozer_types::types::{Field, IndexDefinition, Record, Schema};
+use dozer_types::{
+    tracing,
+    types::{Field, IndexDefinition, Record, Schema},
+};
 use itertools::Itertools;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -20,6 +23,14 @@ impl<'a> Indexer<'a> {
         secondary_indexes: &[IndexDefinition],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
+        let span = tracing::span!(
+            tracing::Level::TRACE,
+            "building indexes",
+            "{}",
+            schema.identifier.map(|id| id.id).unwrap_or_else(|| 0)
+        );
+        let _enter = span.enter();
+
         let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
 
         if secondary_indexes.is_empty() {

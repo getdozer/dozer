@@ -13,9 +13,10 @@ use crate::{
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::info;
+use dozer_types::tracing::Level;
 use dozer_types::types::SourceSchema;
 use tonic::transport::Server;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{self, TraceLayer};
 
 pub struct GrpcConnector<T>
 where
@@ -109,7 +110,11 @@ where
                 .unwrap();
             info!("Starting Dozer GRPC Ingestor  on http://{}:{} ", host, port,);
             Server::builder()
-                .layer(TraceLayer::new_for_http())
+                .layer(
+                    TraceLayer::new_for_http()
+                        .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                        .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+                )
                 .accept_http1(true)
                 .add_service(ingest_service)
                 .add_service(reflection_service)

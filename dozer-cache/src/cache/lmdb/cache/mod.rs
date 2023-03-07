@@ -10,6 +10,7 @@ use dozer_storage::lmdb_storage::{
 use dozer_types::node::SourceStates;
 use dozer_types::parking_lot::RwLockReadGuard;
 
+use dozer_types::tracing;
 use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
 
@@ -266,6 +267,13 @@ impl LmdbRwCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<u64, CacheError> {
+        let span = dozer_types::tracing::span!(
+            dozer_types::tracing::Level::DEBUG,
+            "insert_cache",
+            "{}",
+            record
+        );
+        let _enter = span.enter();
         let mut txn = self.txn.write();
         let txn = txn.txn_mut();
 
@@ -275,15 +283,19 @@ impl LmdbRwCache {
             let primary_key = get_primary_key(&schema.primary_index, &record.values);
             self.common.id.get_or_generate(txn, Some(&primary_key))?
         };
+        let id_u64 = id_from_bytes(id);
+
+        tracing::debug!("Inserting into common db, {id_u64}");
         self.common.db.insert(txn, id, record)?;
 
         let indexer = Indexer {
             secondary_indexes: &self.common.secondary_indexes,
         };
 
+        tracing::debug!("building indexes, {id_u64}");
         indexer.build_indexes(txn, record, schema, secondary_indexes, id)?;
 
-        Ok(id_from_bytes(id))
+        Ok(id_u64)
     }
 }
 
