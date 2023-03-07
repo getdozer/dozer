@@ -4,9 +4,9 @@ use crate::connectors::object_store::schema_helper::map_schema_to_dozer;
 use crate::connectors::TableInfo;
 use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::datasource::listing::ListingTableUrl;
-use datafusion::prelude::SessionContext;
+use deltalake::arrow::datatypes::SchemaRef;
+use deltalake::datafusion::datasource::listing::ListingTableUrl;
+use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::log::error;
 use dozer_types::types::ReplicationChangesTrackingType::Nothing;
 use dozer_types::types::{Schema, SchemaIdentifier, SourceSchema};
@@ -22,7 +22,7 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
         Self { config }
     }
 
-    fn map_schema(
+    pub fn map_schema(
         &self,
         id: u32,
         resolved_schema: SchemaRef,

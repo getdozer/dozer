@@ -181,7 +181,7 @@ mod tests {
 
             let postgres_config = PostgresConfig {
                 name: connector_name,
-                tables: Some(tables.clone()),
+                tables: Some(tables),
                 config: conn_config.clone(),
             };
 
@@ -252,7 +252,7 @@ mod tests {
 
             let postgres_config = PostgresConfig {
                 name: connector_name,
-                tables: Some(tables.clone()),
+                tables: Some(tables),
                 config: conn_config.clone(),
             };
 
@@ -312,7 +312,7 @@ mod tests {
 
             let postgres_config = PostgresConfig {
                 name: connector_name,
-                tables: Some(tables.clone()),
+                tables: Some(tables),
                 config: conn_config.clone(),
             };
 
