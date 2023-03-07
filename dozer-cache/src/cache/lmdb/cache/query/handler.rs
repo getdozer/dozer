@@ -69,40 +69,41 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         }
     }
 
-    pub fn all_ids(&self) -> Result<impl Iterator<Item = u64> + '_, CacheError> {
-        let cursor = self
+    pub fn all_ids(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + '_, CacheError> {
+        let all_ids = self
             .common
             .primary_key_to_record_id
-            .open_ro_cursor(self.txn)?;
-        Ok(skip(
-            CacheIterator::new(cursor, None, SortDirection::Ascending)
-                .map(map_index_database_entry_to_id),
-            self.query.skip,
-        )
-        .take(self.query.limit.unwrap_or(usize::MAX)))
+            .values(self.txn)?
+            .map(|result| {
+                result
+                    .map(|id| id.into_owned())
+                    .map_err(CacheError::Storage)
+            });
+        Ok(skip(all_ids, self.query.skip).take(self.query.limit.unwrap_or(usize::MAX)))
     }
 
     fn build_index_scan(
         &self,
         index_scans: Vec<IndexScan>,
-    ) -> Result<impl Iterator<Item = u64> + '_, CacheError> {
+    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + '_, CacheError> {
         debug_assert!(
             !index_scans.is_empty(),
             "Planner should not generate empty index scan"
         );
         let full_scan = if index_scans.len() == 1 {
             // The fast path, without intersection calculation.
-            Either::Left(self.query_with_secondary_index(&index_scans[0])?)
+            Either::Left(self.query_with_secondary_index(&index_scans[0])?.map(Ok))
         } else {
             // Intersection of multiple index scans.
             let iterators = index_scans
                 .iter()
                 .map(|index_scan| self.query_with_secondary_index(index_scan))
                 .collect::<Result<Vec<_>, CacheError>>()?;
-            Either::Right(intersection(
-                iterators,
-                self.common.cache_options.intersection_chunk_size,
-            ))
+            Either::Right(
+                intersection(iterators, self.common.cache_options.intersection_chunk_size).map(Ok),
+            )
         };
         Ok(skip(full_scan, self.query.skip).take(self.query.limit.unwrap_or(usize::MAX)))
     }
@@ -146,10 +147,11 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
 
     fn collect_records(
         &self,
-        ids: impl Iterator<Item = u64>,
+        ids: impl Iterator<Item = Result<u64, CacheError>>,
     ) -> Result<Vec<RecordWithId>, CacheError> {
-        ids.filter_map(|id| {
-            self.common
+        ids.filter_map(|id| match id {
+            Ok(id) => self
+                .common
                 .record_id_to_record
                 .get(self.txn, &id)
                 .transpose()
@@ -157,7 +159,8 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
                     record
                         .map(|record| RecordWithId::new(id, record.into_owned()))
                         .map_err(CacheError::Storage)
-                })
+                }),
+            Err(err) => Some(Err(err)),
         })
         .collect()
     }
@@ -362,13 +365,46 @@ fn map_index_database_entry_to_id((_, id): (&[u8], &[u8])) -> u64 {
     )
 }
 
-fn skip(iter: impl Iterator<Item = u64>, skip: Skip) -> impl Iterator<Item = u64> {
+fn skip(
+    iter: impl Iterator<Item = Result<u64, CacheError>>,
+    skip: Skip,
+) -> impl Iterator<Item = Result<u64, CacheError>> {
     match skip {
         Skip::Skip(n) => Either::Left(iter.skip(n)),
         Skip::After(after) => Either::Right(skip_after(iter, after)),
     }
 }
 
-fn skip_after(iter: impl Iterator<Item = u64>, after: u64) -> impl Iterator<Item = u64> {
-    iter.skip_while(move |id| *id != after).skip(1)
+struct SkipAfter<T: Iterator<Item = Result<u64, CacheError>>> {
+    inner: T,
+    after: Option<u64>,
+}
+
+impl<T: Iterator<Item = Result<u64, CacheError>>> Iterator for SkipAfter<T> {
+    type Item = Result<u64, CacheError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(after) = self.after {
+                match self.inner.next() {
+                    Some(Ok(id)) => {
+                        if id == after {
+                            self.after = None;
+                        }
+                    }
+                    Some(Err(e)) => return Some(Err(e)),
+                    None => return None,
+                }
+            } else {
+                return self.inner.next();
+            }
+        }
+    }
+}
+
+fn skip_after<T: Iterator<Item = Result<u64, CacheError>>>(iter: T, after: u64) -> SkipAfter<T> {
+    SkipAfter {
+        inner: iter,
+        after: Some(after),
+    }
 }

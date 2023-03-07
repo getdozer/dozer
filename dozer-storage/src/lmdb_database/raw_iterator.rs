@@ -5,9 +5,11 @@ use lmdb_sys::{
     MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_NEXT_NODUP, MDB_PREV, MDB_PREV_NODUP, MDB_SET_RANGE,
 };
 
+use crate::Encoded;
+
 enum IteratorState<'a> {
     First {
-        starting_key: Bound<&'a [u8]>,
+        starting_key: Bound<Encoded<'a>>,
         ascending: bool,
     },
     NotFirst {
@@ -64,7 +66,7 @@ impl<'txn, 'key, C: Cursor<'txn>> Iterator for RawIterator<'txn, 'key, C> {
 }
 
 impl<'txn, 'key, C: Cursor<'txn>> RawIterator<'txn, 'key, C> {
-    pub fn new(cursor: C, starting_key: Bound<&'key [u8]>, ascending: bool) -> Self {
+    pub fn new(cursor: C, starting_key: Bound<Encoded<'key>>, ascending: bool) -> Self {
         RawIterator {
             cursor,
             state: IteratorState::First {
@@ -383,7 +385,7 @@ mod tests {
         // Included ascending
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
-            let items = RawIterator::new(cursor, Bound::Included(b"3"), true)
+            let items = RawIterator::new(cursor, Bound::Included(Encoded::Borrowed(b"3")), true)
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -392,7 +394,7 @@ mod tests {
         // Excluded ascending
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
-            let items = RawIterator::new(cursor, Bound::Excluded(b"3"), true)
+            let items = RawIterator::new(cursor, Bound::Excluded(Encoded::Borrowed(b"3")), true)
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -410,7 +412,7 @@ mod tests {
         // Included descending
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
-            let items = RawIterator::new(cursor, Bound::Included(b"3"), false)
+            let items = RawIterator::new(cursor, Bound::Included(Encoded::Borrowed(b"3")), false)
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -419,7 +421,7 @@ mod tests {
         // Excluded descending
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
-            let items = RawIterator::new(cursor, Bound::Excluded(b"3"), false)
+            let items = RawIterator::new(cursor, Bound::Excluded(Encoded::Borrowed(b"3")), false)
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();

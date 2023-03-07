@@ -1,11 +1,11 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Bound};
 
 use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
     errors::StorageError,
     lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    LmdbKey, LmdbValType, LmdbValue,
+    Iterator, KeyIterator, LmdbKey, LmdbValType, LmdbValue, ValueIterator,
 };
 
 #[derive(Debug)]
@@ -90,13 +90,6 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
         self.db
     }
 
-    pub fn open_ro_cursor<'txn, T: Transaction>(
-        &self,
-        txn: &'txn T,
-    ) -> Result<RoCursor<'txn>, StorageError> {
-        txn.open_ro_cursor(self.db).map_err(Into::into)
-    }
-
     pub fn count<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
         Ok(lmdb_stat(txn, self.db).map(|stat| stat.ms_entries)?)
     }
@@ -138,6 +131,30 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
             Err(lmdb::Error::NotFound) => Ok(false),
             Err(e) => Err(e.into()),
         }
+    }
+
+    pub fn iter<'a, T: Transaction>(
+        &'a self,
+        txn: &'a T,
+    ) -> Result<Iterator<'_, '_, RoCursor, K, V>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        Iterator::new(cursor, Bound::Unbounded, true)
+    }
+
+    pub fn keys<'a, T: Transaction>(
+        &'a self,
+        txn: &'a T,
+    ) -> Result<KeyIterator<'_, '_, RoCursor, K>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        KeyIterator::new(cursor, Bound::Unbounded, false)
+    }
+
+    pub fn values<'a, T: Transaction>(
+        &'a self,
+        txn: &'a T,
+    ) -> Result<ValueIterator<'_, '_, RoCursor, V>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        ValueIterator::new::<K>(cursor, Bound::Unbounded, true)
     }
 }
 
