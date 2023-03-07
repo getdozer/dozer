@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
 use crate::pipeline::aggregation::avg::AvgAggregator;
 use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::aggregation::max::MaxAggregator;
 use crate::pipeline::aggregation::min::MinAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
+use std::collections::BTreeMap;
 
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
@@ -119,28 +119,29 @@ pub fn get_aggregator_type_from_aggregation_expression(
 }
 
 pub fn update_map(
-    field: &[Field],
+    fields: &[Field],
     val_delta: u64,
     decr: bool,
     field_hash: &mut BTreeMap<Field, u64>,
-) -> u64 {
-    let get_prev_count = field_hash.get(field);
-    let prev_count = match get_prev_count {
-        Some(v) => *v,
-        None => 0_u64,
-    };
-    let mut new_count = prev_count;
-    if decr {
-        new_count = new_count.wrapping_sub(val_delta);
-    } else {
-        new_count = new_count.wrapping_add(val_delta);
+) {
+    for field in fields {
+        let get_prev_count = field_hash.get(field);
+        let prev_count = match get_prev_count {
+            Some(v) => *v,
+            None => 0_u64,
+        };
+        let mut new_count = prev_count;
+        if decr {
+            new_count = new_count.wrapping_sub(val_delta);
+        } else {
+            new_count = new_count.wrapping_add(val_delta);
+        }
+        if new_count < 1 {
+            field_hash.remove(field);
+        } else {
+            field_hash.insert(field.clone(), new_count);
+        }
     }
-    if new_count < 1 {
-        field_hash.remove(field);
-    } else {
-        field_hash.insert(field.clone(), new_count);
-    }
-    new_count
 }
 
 #[macro_export]
@@ -183,15 +184,31 @@ macro_rules! try_unwrap {
 }
 
 #[macro_export]
+macro_rules! calculate_err {
+    ($stmt:expr, $aggr:expr, $field:expr) => {
+        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!(
+            "Failed to calculate {}",
+            $aggr
+        ))))?
+    };
+}
+
+#[macro_export]
 macro_rules! calculate_err_field {
     ($stmt:expr, $aggr:expr, $field:expr) => {
-        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!("Failed to calculate {} while parsing {}", $aggr, $field))))?
-    }
+        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!(
+            "Failed to calculate {} while parsing {}",
+            $aggr, $field
+        ))))?
+    };
 }
 
 #[macro_export]
 macro_rules! calculate_err_type {
     ($stmt:expr, $aggr:expr, $return_type:expr) => {
-        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!("Failed to calculate {} while casting {}", $aggr, $return_type))))?
-    }
+        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!(
+            "Failed to calculate {} while casting {}",
+            $aggr, $return_type
+        ))))?
+    };
 }

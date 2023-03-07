@@ -1,13 +1,13 @@
-use std::collections::BTreeMap;
-use num_traits::FromPrimitive;
+use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
+use crate::{calculate_err_field, calculate_err_type};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use crate::pipeline::aggregation::aggregator::{Aggregator, update_map};
-use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
-use crate::{calculate_err_field, calculate_err_type};
-use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
+use num_traits::FromPrimitive;
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct AvgAggregator {
@@ -29,11 +29,7 @@ impl Aggregator for AvgAggregator {
         self.return_type = Some(return_type);
     }
 
-    fn update(
-        &mut self,
-        old: &[Field],
-        new: &[Field],
-    ) -> Result<Field, PipelineError> {
+    fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError> {
         self.delete(old)?;
         self.insert(new)
     }
@@ -49,65 +45,78 @@ impl Aggregator for AvgAggregator {
     }
 }
 
-fn get_average(field_hash: &BTreeMap<Field, u64>, return_type: Option<FieldType>) -> Result<Field, PipelineError> {
+fn get_average(
+    field_map: &BTreeMap<Field, u64>,
+    return_type: Option<FieldType>,
+) -> Result<Field, PipelineError> {
     match return_type {
         Some(FieldType::UInt) => {
-            if field_hash.is_empty() {
+            if field_map.is_empty() {
                 Ok(Field::UInt(0_u64))
-            }
-            else {
+            } else {
                 let mut sum = 0_u64;
                 let mut count = 0_u64;
-                for (field, cnt) in field_hash {
-                    sum += calculate_err_field!(field.to_uint(), Avg.to_string(), field);
+                for (field, cnt) in field_map {
+                    sum += calculate_err_field!(field.to_uint(), Avg, field);
                     count += *cnt;
                 }
                 Ok(Field::UInt(sum / count))
             }
         }
         Some(FieldType::Int) => {
-            if field_hash.is_empty() {
+            if field_map.is_empty() {
                 Ok(Field::Int(0_i64))
-            }
-            else {
+            } else {
                 let mut sum = 0_i64;
                 let mut count = 0_i64;
-                for (field, cnt) in field_hash {
-                    sum += calculate_err_field!(field.to_int(), Avg.to_string(), field);
+                for (field, cnt) in field_map {
+                    sum += calculate_err_field!(field.to_int(), Avg, field);
                     count += *cnt as i64;
                 }
                 Ok(Field::Int(sum / count))
             }
         }
         Some(FieldType::Float) => {
-            if field_hash.is_empty() {
+            if field_map.is_empty() {
                 Ok(Field::Float(OrderedFloat::from(0_f64)))
-            }
-            else {
+            } else {
                 let mut sum = 0_f64;
                 let mut count = 0_f64;
-                for (field, cnt) in field_hash {
-                    sum += calculate_err_field!(field.to_float(), Avg.to_string(), field);
+                for (field, cnt) in field_map {
+                    sum += calculate_err_field!(field.to_float(), Avg, field);
                     count += *cnt as f64;
                 }
                 Ok(Field::Float(OrderedFloat::from(sum / count)))
             }
         }
         Some(FieldType::Decimal) => {
-            if field_hash.is_empty() {
-                Ok(Field::Decimal(calculate_err_type!(Decimal::from_f64(0_f64), Avg.to_string(), FieldType::Decimal)))
-            }
-            else {
-                let mut sum = calculate_err_type!(Decimal::from_f64(0_f64), Avg.to_string(), FieldType::Decimal);
-                let mut count = calculate_err_type!(Decimal::from_f64(0_f64), Avg.to_string(), FieldType::Decimal);
-                for (field, cnt) in field_hash {
-                    sum += calculate_err_field!(field.to_decimal(), Avg.to_string(), field);
-                    count += calculate_err_field!(Decimal::from_u64(*cnt), Avg.to_string(), field);
+            if field_map.is_empty() {
+                Ok(Field::Decimal(calculate_err_type!(
+                    Decimal::from_f64(0_f64),
+                    Avg,
+                    FieldType::Decimal
+                )))
+            } else {
+                let mut sum =
+                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
+                let mut count =
+                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
+                for (field, cnt) in field_map {
+                    sum += calculate_err_field!(field.to_decimal(), Avg, field);
+                    count += calculate_err_field!(Decimal::from_u64(*cnt), Avg., field);
                 }
                 Ok(Field::Decimal(sum / count))
             }
         }
-        Some(not_supported_return_type) => Err(PipelineError::InternalExecutionError(InvalidType(format!("Not supported return type {} for {}", not_supported_return_type, Avg.to_string())))),
-        None => Err(PipelineError::InternalExecutionError(InvalidType(format!("Not supported None return type for {}", Avg.to_string())))),
+        Some(not_supported_return_type) => {
+            Err(PipelineError::InternalExecutionError(InvalidType(format!(
+                "Not supported return type {} for {}",
+                not_supported_return_type, Avg
+            ))))
+        }
+        None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+            "Not supported None return type for {}",
+            Avg
+        )))),
     }
 }

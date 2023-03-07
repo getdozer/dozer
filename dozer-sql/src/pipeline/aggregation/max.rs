@@ -1,83 +1,92 @@
-use std::collections::BTreeMap;
-use dozer_core::errors::ExecutionError::InvalidOperation;
-use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::tonic::codegen::Body;
-use crate::pipeline::aggregation::aggregator::{Aggregator, update_map};
+use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
 use crate::pipeline::errors::PipelineError;
-use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Max;
+use crate::{calculate_err, calculate_err_field};
+use dozer_core::errors::ExecutionError::InvalidType;
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::types::{Field, FieldType};
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct MaxAggregator {
     current_state: BTreeMap<Field, u64>,
+    return_type: Option<FieldType>,
 }
 
 impl MaxAggregator {
     pub fn new() -> Self {
         Self {
             current_state: BTreeMap::new(),
+            return_type: None,
         }
     }
 }
 
 impl Aggregator for MaxAggregator {
     fn init(&mut self, return_type: FieldType) {
-        todo!()
+        self.return_type = Some(return_type);
     }
 
-    fn update(
-        &mut self,
-        old: &Field,
-        new: &Field,
-        return_type: FieldType,
-    ) -> Result<Field, PipelineError> {
-        self.delete(old, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while deleting record: {} for {}", old, Max.to_string()))))?;
-        self.insert(new, return_type).map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to update while inserting record: {} for {}", new, Max.to_string()))))
+    fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError> {
+        self.delete(old)?;
+        self.insert(new)
     }
 
-    fn delete(&mut self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        match old.get_type() {
-            Some(field_type) => {
-                if field_type == return_type {
-                    update_map(old, 1_u64, true, &mut self.current_state);
-                    get_max(&self.current_state, return_type)
-                }
-                else {
-                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, old, Max.to_string()))))
-                }
-            },
-            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", old, Max.to_string())))),
-        }
+    fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError> {
+        debug_assert!(old.iter().all(|field| field.get_type() == self.return_type));
+        update_map(old, 1_u64, true, &mut self.current_state);
+        get_max(&self.current_state, self.return_type)
     }
 
-    fn insert(&mut self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError> {
-        match new.get_type() {
-            Some(field_type) => {
-                if field_type == return_type {
-                    update_map(new, 1_u64, true, &mut self.current_state);
-                    get_max(&self.current_state, return_type)
-                }
-                else {
-                    Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to delete due to mismatch field type {} with record: {} for {}", field_type, new, Max.to_string()))))
-                }
-            },
-            None => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to insert record: {} for {}", new, Max.to_string())))),
-        }
+    fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
+        debug_assert!(new.iter().all(|field| field.get_type() == self.return_type));
+        update_map(new, 1_u64, false, &mut self.current_state);
+        get_max(&self.current_state, self.return_type)
     }
 }
 
-fn get_max(field_hash: &BTreeMap<Field, u64>, return_type: FieldType) -> Result<Field, PipelineError> {
-    if field_hash.is_empty() {
+fn get_max(
+    field_map: &BTreeMap<Field, u64>,
+    return_type: Option<FieldType>,
+) -> Result<Field, PipelineError> {
+    if field_map.is_empty() {
         Ok(Field::Null)
-    }
-    let val: Field = Vec::from(field_hash.keys()).last().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?;
-    match return_type {
-        FieldType::UInt => Ok(Field::UInt(val.to_uint().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
-        FieldType::Int => Ok(Field::Int(val.to_int().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
-        FieldType::Float => Ok(Field::Float(OrderedFloat::from(val.to_float().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?))),
-        FieldType::Decimal => Ok(Field::Decimal(val.to_decimal().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type))))?)),
-        FieldType::Timestamp => Ok(Field::Timestamp(val.to_timestamp().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type)))).unwrap()?)),
-        FieldType::Date => Ok(Field::Date(val.to_date().map_err(PipelineError::InternalExecutionError(InvalidOperation(format!("Failed to calculate max with return type {}", return_type)))).unwrap()?)),
-        _ => Err(PipelineError::InternalExecutionError(InvalidOperation(format!("Not supported return type {} for {}", return_type, Max.to_string())))),
+    } else {
+        let val: Field = calculate_err!(field_hash.keys().last(), Max);
+        match return_type {
+            Some(FieldType::UInt) => {
+                Ok(Field::UInt(calculate_err_field!(*val.to_uint(), Max, val)))
+            }
+            Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(*val.to_int(), Max, val))),
+            Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
+                *val.to_float(),
+                Max,
+                val
+            )))),
+            Some(FieldType::Decimal) => Ok(Field::Decimal(calculate_err_field!(
+                *val.to_decimal(),
+                Max,
+                val
+            ))),
+            Some(FieldType::Timestamp) => Ok(Field::Timestamp(calculate_err_field!(
+                *val.to_timestamp(),
+                Max,
+                val
+            ))),
+            Some(FieldType::Date) => {
+                Ok(Field::Date(calculate_err_field!(*val.to_date(), Max, val)))
+            }
+            Some(not_supported_return_type) => {
+                Err(PipelineError::InternalExecutionError(InvalidType(format!(
+                    "Not supported return type {} for {}",
+                    not_supported_return_type,
+                    Max
+                ))))
+            }
+            None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+                "Not supported None return type for {}",
+                Max
+            )))),
+        }
     }
 }
