@@ -394,7 +394,7 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        txn: &SharedTransaction,
+        _txn: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         let ops = self.aggregate(op).map_err(|e| InternalError(Box::new(e)))?;
         for fop in ops {

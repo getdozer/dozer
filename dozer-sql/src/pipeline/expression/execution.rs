@@ -447,12 +447,7 @@ fn get_aggregate_function_type(
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => Ok(ExpressionType::new(
-            FieldType::Float,
-            false,
-            SourceDefinition::Dynamic,
-            false,
-        )),
+        AggregateFunctionType::Avg => argv!(args, 0, AggregateFunctionType::Avg)?.get_type(schema),
         AggregateFunctionType::Count => Ok(ExpressionType::new(
             FieldType::Int,
             false,
