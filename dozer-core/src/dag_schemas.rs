@@ -207,7 +207,6 @@ fn populate_schemas<T: Clone>(
                 for edge in dag.graph().edges(node_index) {
                     let port = find_output_port_def(&ports, edge);
                     let (schema, ctx) = source.get_output_schema(&port.handle)?;
-                    let schema = prepare_schema_based_on_output_type(schema, port.typ);
                     create_edge(&mut edges, edge, port, schema, ctx);
                 }
             }
@@ -222,7 +221,6 @@ fn populate_schemas<T: Clone>(
                     let port = find_output_port_def(&ports, edge);
                     let (schema, ctx) =
                         processor.get_output_schema(&port.handle, &input_schemas)?;
-                    let schema = prepare_schema_based_on_output_type(schema, port.typ);
                     create_edge(&mut edges, edge, port, schema, ctx);
                 }
             }
@@ -257,12 +255,6 @@ fn find_output_port_def<'a>(
         }
     }
     panic!("BUG: port {handle} not found")
-}
-
-fn prepare_schema_based_on_output_type(schema: Schema, typ: OutputPortType) -> Schema {
-    match typ {
-        OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => schema,
-    }
 }
 
 fn create_edge<T>(

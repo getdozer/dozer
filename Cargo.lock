@@ -2154,7 +2154,6 @@ dependencies = [
  "dozer-types",
  "dyn-clone",
  "fp_rust",
- "hashbrown 0.13.2",
  "tempdir",
  "uuid",
 ]
