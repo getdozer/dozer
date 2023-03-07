@@ -516,7 +516,7 @@ mod tests {
 
     use dozer_types::node::NodeHandle;
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
-    
+
     use tempdir::TempDir;
 
     #[test]

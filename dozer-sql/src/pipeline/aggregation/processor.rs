@@ -7,11 +7,9 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::errors::ExecutionError;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
-use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 
 use crate::pipeline::aggregation::aggregator::{
@@ -20,13 +18,7 @@ use crate::pipeline::aggregation::aggregator::{
 };
 use ahash::AHasher;
 use dozer_core::epoch::Epoch;
-use dozer_core::storage::common::Database;
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use hashbrown::HashMap;
-use lmdb::DatabaseFlags;
-use std::mem::size_of_val;
-use std::ptr::hash;
-use std::rc::Rc;
 
 const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 

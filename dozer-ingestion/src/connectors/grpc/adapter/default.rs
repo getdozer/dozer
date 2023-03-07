@@ -164,11 +164,9 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
                 grpc_types::types::value::Value::PointValue(_),
                 dozer_types::types::FieldType::Point,
             ) => Ok(dozer_types::types::Field::Null),
-            (a, b) => {
-                Err(ConnectorError::InitializationError(format!(
-                    "data is not valid at index: {idx}, Type: {a:?}, Expected Type: {b}"
-                )))
-            }
+            (a, b) => Err(ConnectorError::InitializationError(format!(
+                "data is not valid at index: {idx}, Type: {a:?}, Expected Type: {b}"
+            ))),
         });
         values.push(v.unwrap_or(Ok(dozer_types::types::Field::Null))?);
     }

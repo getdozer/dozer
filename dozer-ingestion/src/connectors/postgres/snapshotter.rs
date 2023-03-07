@@ -201,8 +201,8 @@ mod tests {
             let (ingestor, mut iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables: tables,
-                conn_config: conn_config,
+                tables,
+                conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };
@@ -278,8 +278,8 @@ mod tests {
             let (ingestor, mut _iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables: tables,
-                conn_config: conn_config,
+                tables,
+                conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };
@@ -333,7 +333,7 @@ mod tests {
 
             let input_tables = vec![TableInfo {
                 name: table_name.clone(),
-                table_name: table_name,
+                table_name,
                 id: 0,
                 columns: None,
             }];
@@ -342,8 +342,8 @@ mod tests {
             let (ingestor, mut _iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables: tables,
-                conn_config: conn_config,
+                tables,
+                conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };

@@ -146,8 +146,7 @@ mod tests {
                 .simple_query(&create_replication_slot_query)
                 .expect("failed");
 
-            let actual =
-                ReplicationSlotHelper::create_replication_slot(client_ref, slot_name);
+            let actual = ReplicationSlotHelper::create_replication_slot(client_ref, slot_name);
 
             assert!(actual.is_err());
 
@@ -202,8 +201,7 @@ mod tests {
                 .simple_query(&create_replication_slot_query)
                 .expect("failed");
 
-            let actual =
-                ReplicationSlotHelper::drop_replication_slot(client_ref, slot_name);
+            let actual = ReplicationSlotHelper::drop_replication_slot(client_ref, slot_name);
 
             assert!(actual.is_ok());
         });
@@ -228,8 +226,7 @@ mod tests {
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
                 .unwrap();
 
-            let actual =
-                ReplicationSlotHelper::drop_replication_slot(client_ref, slot_name);
+            let actual = ReplicationSlotHelper::drop_replication_slot(client_ref, slot_name);
 
             assert!(actual.is_err());
 
