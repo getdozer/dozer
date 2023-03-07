@@ -8,9 +8,15 @@ pub enum StorageError {
     #[error("Unable to open or create database at location: {0}")]
     OpenOrCreateError(String),
     #[error("Unable to deserialize type: {} - Reason: {}", typ, reason.to_string())]
-    DeserializationError { typ: String, reason: BoxedError },
+    DeserializationError {
+        typ: &'static str,
+        reason: BoxedError,
+    },
     #[error("Unable to serialize type: {} - Reason: {}", typ, reason.to_string())]
-    SerializationError { typ: String, reason: BoxedError },
+    SerializationError {
+        typ: &'static str,
+        reason: BoxedError,
+    },
     #[error("Invalid dataset: {0}")]
     InvalidDatasetIdentifier(String),
     #[error("Invalid key: {0}")]
@@ -19,8 +25,6 @@ pub enum StorageError {
     InvalidRecord,
 
     // Error forwarding
-    #[error(transparent)]
-    InternalDbError(#[from] lmdb::Error),
-    #[error(transparent)]
-    InternalError(#[from] BoxedError),
+    #[error("Lmdb error: {0}")]
+    Lmdb(#[from] lmdb::Error),
 }

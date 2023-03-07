@@ -1,11 +1,17 @@
 use std::borrow::Cow;
 
+use dozer_types::{
+    node::{NodeHandle, OpIdentifier},
+    types::{IndexDefinition, Record, Schema},
+};
+
 use crate::errors::StorageError;
 
 pub enum Encoded<'a> {
     U8([u8; 1]),
     U8x4([u8; 4]),
     U8x8([u8; 8]),
+    U8x16([u8; 16]),
     Vec(Vec<u8>),
     Borrowed(&'a [u8]),
 }
@@ -16,6 +22,7 @@ impl<'a> AsRef<[u8]> for Encoded<'a> {
             Self::U8(v) => v.as_slice(),
             Self::U8x4(v) => v.as_slice(),
             Self::U8x8(v) => v.as_slice(),
+            Self::U8x16(v) => v.as_slice(),
             Self::Vec(v) => v.as_slice(),
             Self::Borrowed(v) => v,
         }
@@ -125,6 +132,104 @@ impl Decode for [u8] {
 
 unsafe impl LmdbKey for [u8] {
     const TYPE: LmdbValType = LmdbValType::VariableSize;
+}
+
+impl Encode for str {
+    fn encode(&self) -> Result<Encoded, StorageError> {
+        Ok(Encoded::Borrowed(self.as_bytes()))
+    }
+}
+
+impl Decode for str {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        Ok(Cow::Borrowed(std::str::from_utf8(bytes).unwrap()))
+    }
+}
+
+unsafe impl LmdbKey for str {
+    const TYPE: LmdbValType = LmdbValType::VariableSize;
+}
+
+impl Encode for Record {
+    fn encode(&self) -> Result<Encoded, StorageError> {
+        dozer_types::bincode::serialize(self)
+            .map(Encoded::Vec)
+            .map_err(|e| StorageError::SerializationError {
+                typ: "Record",
+                reason: Box::new(e),
+            })
+    }
+}
+
+impl Decode for Record {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        dozer_types::bincode::deserialize(bytes)
+            .map(Cow::Owned)
+            .map_err(|e| StorageError::DeserializationError {
+                typ: "Record",
+                reason: Box::new(e),
+            })
+    }
+}
+
+unsafe impl LmdbKey for Record {
+    const TYPE: LmdbValType = LmdbValType::VariableSize;
+}
+
+impl Encode for (Schema, Vec<IndexDefinition>) {
+    fn encode(&self) -> Result<Encoded, StorageError> {
+        dozer_types::bincode::serialize(self)
+            .map(Encoded::Vec)
+            .map_err(|e| StorageError::SerializationError {
+                typ: "(Schema, Vec<IndexDefinition>)",
+                reason: Box::new(e),
+            })
+    }
+}
+
+impl Decode for (Schema, Vec<IndexDefinition>) {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        dozer_types::bincode::deserialize(bytes)
+            .map(Cow::Owned)
+            .map_err(|e| StorageError::DeserializationError {
+                typ: "(Schema, Vec<IndexDefinition>)",
+                reason: Box::new(e),
+            })
+    }
+}
+
+impl Encode for NodeHandle {
+    fn encode(&self) -> Result<Encoded, StorageError> {
+        Ok(Encoded::Vec(self.to_bytes()))
+    }
+}
+
+impl Decode for NodeHandle {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        Ok(Cow::Owned(NodeHandle::from_bytes(bytes)))
+    }
+}
+
+unsafe impl LmdbKey for NodeHandle {
+    const TYPE: LmdbValType = LmdbValType::VariableSize;
+}
+
+impl Encode for OpIdentifier {
+    fn encode(&self) -> Result<Encoded, StorageError> {
+        Ok(Encoded::U8x16(self.to_bytes()))
+    }
+}
+
+impl Decode for OpIdentifier {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        Ok(Cow::Owned(OpIdentifier::from_bytes(
+            bytes.try_into().unwrap(),
+        )))
+    }
+}
+
+unsafe impl LmdbKey for OpIdentifier {
+    const TYPE: LmdbValType = LmdbValType::FixedSizeOtherThanU32OrUsize;
 }
 
 #[cfg(test)]

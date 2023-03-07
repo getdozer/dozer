@@ -1,7 +1,12 @@
-use dozer_storage::lmdb::Cursor;
+use std::borrow::Cow;
+
+use dozer_storage::lmdb::Transaction;
 use dozer_types::types::{Field, IndexDefinition, Record, Schema};
 
-use crate::cache::{lmdb::cache::LmdbRwCache, RwCache};
+use crate::cache::{
+    lmdb::cache::{LmdbRwCache, SecondaryIndexDatabases},
+    RwCache,
+};
 
 pub fn create_cache(
     schema_name: &str,
@@ -54,19 +59,17 @@ pub fn insert_full_text(
     cache.insert(&mut record).unwrap();
 }
 
-pub fn get_indexes(cache: &LmdbRwCache) -> Vec<Vec<(&[u8], &[u8])>> {
-    let (txn, secondary_indexes) = cache.get_txn_and_secondary_indexes();
-    let txn = txn.read();
-
+pub fn get_indexes<'txn, T: Transaction>(
+    txn: &'txn T,
+    secondary_index_databases: &SecondaryIndexDatabases,
+) -> Vec<Vec<(Cow<'txn, [u8]>, Cow<'txn, u64>)>> {
     let mut items = Vec::new();
-    for db in secondary_indexes.values() {
-        let mut cursor = db.open_ro_cursor(txn.txn()).unwrap();
+    for db in secondary_index_databases.values() {
         items.push(
-            cursor
-                .iter_dup()
-                .flatten()
-                .collect::<dozer_storage::lmdb::Result<Vec<_>>>()
-                .unwrap(),
+            db.iter(txn)
+                .unwrap()
+                .map(|result| result.unwrap())
+                .collect(),
         );
     }
     items

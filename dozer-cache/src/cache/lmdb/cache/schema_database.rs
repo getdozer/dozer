@@ -1,20 +1,13 @@
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
-use dozer_storage::{
-    errors::StorageError,
-    lmdb::{Cursor, Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags},
-    lmdb_storage::LmdbEnvironmentManager,
-};
-use dozer_types::{
-    bincode,
-    types::{IndexDefinition, Schema, SchemaIdentifier},
-};
+use dozer_storage::{lmdb::RwTransaction, lmdb_storage::LmdbEnvironmentManager, LmdbMap};
+use dozer_types::types::{IndexDefinition, Schema, SchemaIdentifier};
 
-use crate::errors::{CacheError, QueryError};
+use crate::errors::CacheError;
 
 #[derive(Debug, Clone)]
 pub struct SchemaDatabase {
-    inner: Database,
+    database: LmdbMap<str, (Schema, Vec<IndexDefinition>)>,
     schemas: Vec<(Schema, Vec<IndexDefinition>)>,
     schema_name_to_index: HashMap<String, usize>,
     schema_id_to_index: HashMap<SchemaIdentifier, usize>,
@@ -25,33 +18,36 @@ impl SchemaDatabase {
         env: &mut LmdbEnvironmentManager,
         create_if_not_exist: bool,
     ) -> Result<Self, CacheError> {
-        // Open or create database.
-        let flags = if create_if_not_exist {
-            Some(DatabaseFlags::empty())
-        } else {
-            None
-        };
-        let db = env.create_database(Some("schemas"), flags)?;
+        let database = LmdbMap::new_from_env(env, Some("schemas"), create_if_not_exist)?;
 
         // Collect existing schemas.
         let txn = env.begin_ro_txn()?;
         let mut schema_name_to_index = HashMap::new();
         let mut schema_id_to_index = HashMap::new();
-        let schemas = get_all_schemas(&txn, db)?
-            .into_iter()
+        let schemas = database
+            .iter(&txn)?
             .enumerate()
-            .map(|(index, (name, schema, indexes))| {
-                schema_name_to_index.insert(name.to_string(), index);
-                let identifier = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
-                if schema_id_to_index.insert(identifier, index).is_some() {
-                    return Err(CacheError::DuplicateSchemaIdentifier(identifier));
-                }
-                Ok((schema, indexes))
+            .map(|(index, result)| {
+                result.map_err(CacheError::Storage).and_then(
+                    |(name, schema_and_indexes): (
+                        Cow<str>,
+                        Cow<(Schema, Vec<IndexDefinition>)>,
+                    )| {
+                        let (schema, indexes) = schema_and_indexes.into_owned();
+                        schema_name_to_index.insert(name.into_owned(), index);
+                        let identifier =
+                            schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
+                        if schema_id_to_index.insert(identifier, index).is_some() {
+                            return Err(CacheError::DuplicateSchemaIdentifier(identifier));
+                        }
+                        Ok((schema, indexes))
+                    },
+                )
             })
             .collect::<Result<_, _>>()?;
 
         Ok(Self {
-            inner: db,
+            database,
             schemas,
             schema_name_to_index,
             schema_id_to_index,
@@ -67,14 +63,16 @@ impl SchemaDatabase {
     ) -> Result<(), CacheError> {
         let identifier = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
 
-        let encoded: Vec<u8> = bincode::serialize(&(&schema, &secondary_indexes))
-            .map_err(CacheError::map_serialization_error)?;
-
-        txn.put(self.inner, &schema_name, &encoded, WriteFlags::NO_OVERWRITE)
-            .map_err(|e| CacheError::Query(QueryError::InsertValue(e)))?;
+        let schema_and_indexes = (schema, secondary_indexes);
+        if !self
+            .database
+            .insert(txn, &schema_name, &schema_and_indexes)?
+        {
+            panic!("Schema {schema_name} already exists");
+        }
 
         let index = self.schemas.len();
-        self.schemas.push((schema, secondary_indexes));
+        self.schemas.push(schema_and_indexes);
         self.schema_name_to_index.insert(schema_name, index);
         if self.schema_id_to_index.insert(identifier, index).is_some() {
             return Err(CacheError::DuplicateSchemaIdentifier(identifier));
@@ -103,33 +101,33 @@ impl SchemaDatabase {
     }
 }
 
-#[allow(clippy::type_complexity)]
-fn get_all_schemas<T: Transaction>(
-    txn: &T,
-    db: Database,
-) -> Result<Vec<(&str, Schema, Vec<IndexDefinition>)>, CacheError> {
-    let mut cursor = txn
-        .open_ro_cursor(db)
-        .map_err(|e| CacheError::Storage(StorageError::InternalDbError(e)))?;
-
-    let mut result = vec![];
-    for item in cursor.iter_start() {
-        let (key, value) = item.map_err(QueryError::GetValue)?;
-        let name = std::str::from_utf8(key).expect("Schema name should always be utf8 string");
-        let (schema, indexes): (Schema, Vec<IndexDefinition>) =
-            bincode::deserialize(value).map_err(CacheError::map_deserialization_error)?;
-        result.push((name, schema, indexes));
-    }
-    Ok(result)
-}
-
 #[cfg(test)]
 mod tests {
+    use dozer_storage::{errors::StorageError, lmdb::Transaction};
     use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 
     use crate::cache::lmdb::utils::{init_env, CacheOptions};
 
     use super::*;
+
+    fn get_all_schemas<T: Transaction>(
+        txn: &T,
+        map: LmdbMap<str, (Schema, Vec<IndexDefinition>)>,
+    ) -> Result<Vec<(String, Schema, Vec<IndexDefinition>)>, StorageError> {
+        map.iter(txn)?
+            .map(|result| {
+                result.and_then(
+                    |(name, schema_and_indexes): (
+                        Cow<str>,
+                        Cow<(Schema, Vec<IndexDefinition>)>,
+                    )| {
+                        let (schema, indexes) = schema_and_indexes.into_owned();
+                        Ok((name.into_owned(), schema, indexes))
+                    },
+                )
+            })
+            .collect()
+    }
 
     #[test]
     fn test_schema_database() {
@@ -179,12 +177,16 @@ mod tests {
 
         let (schema, secondary_indexes) = expected;
         assert_eq!(
-            get_all_schemas(txn.txn(), writer.inner).unwrap(),
-            vec![(schema_name, schema.clone(), secondary_indexes.clone())]
+            get_all_schemas(txn.txn(), writer.database).unwrap(),
+            vec![(
+                schema_name.to_string(),
+                schema.clone(),
+                secondary_indexes.clone()
+            )]
         );
         assert_eq!(
-            get_all_schemas(txn.txn(), reader.inner).unwrap(),
-            vec![(schema_name, schema, secondary_indexes)]
+            get_all_schemas(txn.txn(), reader.database).unwrap(),
+            vec![(schema_name.to_string(), schema, secondary_indexes)]
         );
     }
 }

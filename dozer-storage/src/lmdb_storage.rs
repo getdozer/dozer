@@ -1,5 +1,4 @@
 use crate::errors::StorageError;
-use crate::errors::StorageError::InternalDbError;
 use dozer_types::parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use lmdb::{
     Database, DatabaseFlags, Environment, EnvironmentFlags, RoCursor, RoTransaction, RwCursor,
@@ -85,7 +84,7 @@ impl LmdbEnvironmentManager {
                 | EnvironmentFlags::NO_LOCK,
         );
 
-        let env = builder.open(&full_path).map_err(InternalDbError)?;
+        let env = builder.open(&full_path)?;
         Ok(LmdbEnvironmentManager { inner: env })
     }
 
@@ -216,7 +215,7 @@ impl LmdbExclusiveTransaction {
             .as_mut()
             .expect(PANIC_MESSAGE)
             .put(db, &key, &value, WriteFlags::default())
-            .map_err(InternalDbError)
+            .map_err(Into::into)
     }
 
     #[inline]
