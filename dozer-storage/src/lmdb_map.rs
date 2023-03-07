@@ -3,7 +3,9 @@ use std::borrow::Cow;
 use lmdb::{Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
-    errors::StorageError, lmdb_storage::LmdbExclusiveTransaction, LmdbKey, LmdbValType, LmdbValue,
+    errors::StorageError,
+    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
+    LmdbKey, LmdbValType, LmdbValue,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -13,7 +15,38 @@ pub struct LmdbMap<K: ?Sized, V: ?Sized> {
     _value: std::marker::PhantomData<*const V>,
 }
 
+// Safety: `Database` is `Send` and `Sync`.
+unsafe impl<K: ?Sized, V: ?Sized> Send for LmdbMap<K, V> {}
+unsafe impl<K: ?Sized, V: ?Sized> Sync for LmdbMap<K, V> {}
+
 impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
+    pub fn new_from_env(
+        env: &mut LmdbEnvironmentManager,
+        name: Option<&str>,
+        create_if_not_exist: bool,
+    ) -> Result<Self, StorageError> {
+        let create_flags = if create_if_not_exist {
+            Some(match K::TYPE {
+                LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
+                #[cfg(target_pointer_width = "64")]
+                LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
+                LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
+                    DatabaseFlags::empty()
+                }
+            })
+        } else {
+            None
+        };
+
+        let db = env.create_database(name, create_flags)?;
+
+        Ok(Self {
+            db,
+            _key: std::marker::PhantomData,
+            _value: std::marker::PhantomData,
+        })
+    }
+
     pub fn new(
         txn: &mut LmdbExclusiveTransaction,
         name: Option<&str>,

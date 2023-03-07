@@ -290,7 +290,7 @@ fn write_schemas<'a>(
         let mut key: Vec<u8> = vec![identifier];
         key.extend(handle.to_be_bytes());
         let value = bincode::serialize(schema).map_err(|e| SerializationError {
-            typ: "Schema".to_string(),
+            typ: "Schema",
             reason: Box::new(e),
         })?;
         txn.put(db, &key, &value)?;
@@ -305,7 +305,7 @@ fn deserialize_schema(key: &[u8], value: &[u8]) -> Result<(PortHandle, Schema), 
             .map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
     );
     let schema: Schema = bincode::deserialize(value).map_err(|e| DeserializationError {
-        typ: "Schema".to_string(),
+        typ: "Schema",
         reason: Box::new(e),
     })?;
     Ok((handle, schema))

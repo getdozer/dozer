@@ -6,6 +6,7 @@ use dozer_storage::lmdb::{RoTransaction, RwTransaction, Transaction};
 use dozer_storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
+use dozer_storage::LmdbMap;
 
 use dozer_types::node::SourceStates;
 use dozer_types::parking_lot::RwLockReadGuard;
@@ -27,13 +28,11 @@ mod checkpoint_database;
 mod helper;
 mod id_database;
 mod query;
-mod record_database;
 mod schema_database;
 mod secondary_index_database;
 
 use checkpoint_database::CheckpointDatabase;
 pub use id_database::IdDatabase;
-pub use record_database::RecordDatabase;
 use schema_database::SchemaDatabase;
 use secondary_index_database::SecondaryIndexDatabase;
 
@@ -153,8 +152,14 @@ impl<C: LmdbCache> RoCache for C {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
         let id = self.common().id.get(txn, key)?;
-        let record = self.common().db.get(txn, id)?;
-        Ok(RecordWithId::new(id_from_bytes(id), record))
+        let id = id_from_bytes(id);
+        let record = self
+            .common()
+            .record_id_to_record
+            .get(txn, &id)?
+            .ok_or(CacheError::PrimaryKeyNotFound)?
+            .into_owned();
+        Ok(RecordWithId::new(id, record))
     }
 
     fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError> {
@@ -248,7 +253,13 @@ impl LmdbRwCache {
         let txn = txn.txn_mut();
 
         let id = self.common.id.get(txn, key)?;
-        self.common.db.delete(txn, id)?;
+        if !self
+            .common
+            .record_id_to_record
+            .remove(txn, &id_from_bytes(id))?
+        {
+            return Err(CacheError::PrimaryKeyNotFound);
+        }
 
         let indexer = Indexer {
             secondary_indexes: &self.common.secondary_indexes,
@@ -275,7 +286,13 @@ impl LmdbRwCache {
             let primary_key = get_primary_key(&schema.primary_index, &record.values);
             self.common.id.get_or_generate(txn, Some(&primary_key))?
         };
-        self.common.db.insert(txn, id, record)?;
+        if !self
+            .common
+            .record_id_to_record
+            .insert(txn, &id_from_bytes(id), record)?
+        {
+            return Err(CacheError::PrimaryKeyExists);
+        }
 
         let indexer = Indexer {
             secondary_indexes: &self.common.secondary_indexes,
@@ -405,7 +422,7 @@ const INITIAL_RECORD_VERSION: u32 = 1_u32;
 
 #[derive(Debug)]
 pub struct LmdbCacheCommon {
-    db: RecordDatabase,
+    record_id_to_record: LmdbMap<u64, Record>,
     id: IdDatabase,
     secondary_indexes: SecondaryIndexDatabases,
     schema_db: SchemaDatabase,
@@ -422,7 +439,7 @@ impl LmdbCacheCommon {
         read_only: bool,
     ) -> Result<Self, CacheError> {
         // Create or open must have databases.
-        let db = RecordDatabase::new(env, !read_only)?;
+        let record_id_to_record = LmdbMap::new_from_env(env, Some("records"), !read_only)?;
         let id = IdDatabase::new(env, !read_only)?;
         let schema_db = SchemaDatabase::new(env, !read_only)?;
 
@@ -437,7 +454,7 @@ impl LmdbCacheCommon {
         }
 
         Ok(Self {
-            db,
+            record_id_to_record,
             id,
             secondary_indexes: secondary_indexe_databases,
             schema_db,

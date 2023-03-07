@@ -1,17 +1,6 @@
-use crate::errors::{CacheError, QueryError};
 use dozer_storage::lmdb::{Database, Transaction};
 use dozer_storage::lmdb_sys as ffi;
-use dozer_types::{bincode, serde};
 use std::{cmp::Ordering, ffi::c_void};
-pub fn get<T>(txn: &impl Transaction, db: Database, id: &[u8]) -> Result<T, CacheError>
-where
-    T: for<'a> serde::de::Deserialize<'a>,
-{
-    let rec = txn
-        .get(db, &id)
-        .map_err(|e| CacheError::Query(QueryError::GetValue(e)))?;
-    bincode::deserialize(rec).map_err(CacheError::map_deserialization_error)
-}
 
 pub fn lmdb_cmp<T: Transaction>(txn: &T, db: Database, a: &[u8], b: &[u8]) -> Ordering {
     let a: ffi::MDB_val = ffi::MDB_val {

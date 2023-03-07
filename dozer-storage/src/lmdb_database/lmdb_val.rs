@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use dozer_types::types::Record;
+
 use crate::errors::StorageError;
 
 pub enum Encoded<'a> {
@@ -124,6 +126,32 @@ impl Decode for [u8] {
 }
 
 unsafe impl LmdbKey for [u8] {
+    const TYPE: LmdbValType = LmdbValType::VariableSize;
+}
+
+impl Encode for Record {
+    fn encode(&self) -> Result<Encoded, StorageError> {
+        dozer_types::bincode::serialize(self)
+            .map(Encoded::Vec)
+            .map_err(|e| StorageError::SerializationError {
+                typ: "Record",
+                reason: Box::new(e),
+            })
+    }
+}
+
+impl Decode for Record {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        dozer_types::bincode::deserialize(bytes)
+            .map(Cow::Owned)
+            .map_err(|e| StorageError::DeserializationError {
+                typ: "Record",
+                reason: Box::new(e),
+            })
+    }
+}
+
+unsafe impl LmdbKey for Record {
     const TYPE: LmdbValType = LmdbValType::VariableSize;
 }
 

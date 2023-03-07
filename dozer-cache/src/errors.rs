@@ -17,7 +17,7 @@ pub enum CacheError {
     Plan(#[from] PlanError),
     #[error(transparent)]
     Type(#[from] TypeError),
-    #[error(transparent)]
+    #[error("Storage error: {0}")]
     Storage(#[from] dozer_storage::errors::StorageError),
     #[error("Schema has no identifier")]
     SchemaHasNoIdentifier,
@@ -31,6 +31,10 @@ pub enum CacheError {
     PathNotInitialized,
     #[error("Secondary index database is not found")]
     SecondaryIndexDatabaseNotFound,
+    #[error("Primary key is not found")]
+    PrimaryKeyNotFound,
+    #[error("Primary key already exists")]
+    PrimaryKeyExists,
 }
 
 impl CacheError {

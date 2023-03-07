@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use super::intersection::intersection;
 use super::iterator::{CacheIterator, KeyEndpoint};
 use crate::cache::expression::Skip;
-use crate::cache::lmdb::cache::{id_from_bytes, id_to_bytes, LmdbCacheCommon};
+use crate::cache::lmdb::cache::{id_from_bytes, LmdbCacheCommon};
 use crate::cache::RecordWithId;
 use crate::cache::{
     expression::{Operator, QueryExpression, SortDirection},
@@ -47,7 +47,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             Plan::SeqScan(_) => Ok(match self.query.skip {
                 Skip::Skip(skip) => self
                     .common
-                    .db
+                    .record_id_to_record
                     .count(self.txn)?
                     .saturating_sub(skip)
                     .min(self.query.limit.unwrap_or(usize::MAX)),
@@ -145,11 +145,16 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         &self,
         ids: impl Iterator<Item = u64>,
     ) -> Result<Vec<RecordWithId>, CacheError> {
-        ids.map(|id| {
+        ids.filter_map(|id| {
             self.common
-                .db
-                .get(self.txn, id_to_bytes(id))
-                .map(|record| RecordWithId::new(id, record))
+                .record_id_to_record
+                .get(self.txn, &id)
+                .transpose()
+                .map(|record| {
+                    record
+                        .map(|record| RecordWithId::new(id, record.into_owned()))
+                        .map_err(CacheError::Storage)
+                })
         })
         .collect()
     }
