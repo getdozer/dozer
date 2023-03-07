@@ -185,7 +185,7 @@ macro_rules! try_unwrap {
 
 #[macro_export]
 macro_rules! calculate_err {
-    ($stmt:expr, $aggr:expr, $field:expr) => {
+    ($stmt:expr, $aggr:expr) => {
         $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!(
             "Failed to calculate {}",
             $aggr
