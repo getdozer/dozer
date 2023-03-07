@@ -103,7 +103,7 @@ fn get_average(
                     calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
                 for (field, cnt) in field_map {
                     sum += calculate_err_field!(field.to_decimal(), Avg, field);
-                    count += calculate_err_field!(Decimal::from_u64(*cnt), Avg., field);
+                    count += calculate_err_field!(Decimal::from_u64(*cnt), Avg, field);
                 }
                 Ok(Field::Decimal(sum / count))
             }
