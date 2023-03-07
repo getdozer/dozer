@@ -177,7 +177,7 @@ impl PrimaryKeyLookupRecordWriter {
                 let mut v = Vec::with_capacity(32);
                 v.extend(RECORD_PRESENT_FLAG.to_le_bytes());
                 v.extend(bincode::serialize(r).map_err(|e| SerializationError {
-                    typ: "Record".to_string(),
+                    typ: "Record",
                     reason: Box::new(e),
                 })?);
                 v
@@ -206,7 +206,7 @@ impl PrimaryKeyLookupRecordWriter {
             RECORD_PRESENT_FLAG => {
                 Some(
                     bincode::deserialize(&curr[1..]).map_err(|e| DeserializationError {
-                        typ: "Record".to_string(),
+                        typ: "Record",
                         reason: Box::new(e),
                     })?,
                 )
@@ -322,7 +322,7 @@ impl RecordReader for PrimaryKeyLookupRecordReader {
             RECORD_PRESENT_FLAG => {
                 let mut r: Record =
                     bincode::deserialize(&buf[1..]).map_err(|e| DeserializationError {
-                        typ: "Record".to_string(),
+                        typ: "Record",
                         reason: Box::new(e),
                     })?;
                 r.version = Some(INITIAL_RECORD_VERSION);
@@ -373,7 +373,7 @@ impl AutogenRowKeyLookupRecordWriter {
     ) -> Result<(), ExecutionError> {
         let key = rec.get_key(&schema.primary_index);
         let value = bincode::serialize(&rec).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
+            typ: "Record",
             reason: Box::new(e),
         })?;
         tx.write().put(self.db, key.as_slice(), value.as_slice())?;
@@ -387,7 +387,7 @@ impl AutogenRowKeyLookupRecordWriter {
         {
             Some(c) => u64::from_le_bytes(c.try_into().map_err(|e| {
                 StorageError::DeserializationError {
-                    typ: "u64".to_string(),
+                    typ: "u64",
                     reason: Box::new(e),
                 }
             })?),
@@ -448,7 +448,7 @@ impl RecordReader for AutogenRowKeyLookupRecordReader {
             Some(buf) => {
                 let mut r: Record =
                     bincode::deserialize(buf).map_err(|e| DeserializationError {
-                        typ: "Record".to_string(),
+                        typ: "Record",
                         reason: Box::new(e),
                     })?;
                 r.version = Some(INITIAL_RECORD_VERSION);

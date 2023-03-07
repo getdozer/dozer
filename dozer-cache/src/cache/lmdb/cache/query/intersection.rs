@@ -1,11 +1,11 @@
 use roaring::{MultiOps, RoaringTreemap};
 
-pub fn intersection<I: Iterator<Item = u64>>(
+pub fn intersection<E, I: Iterator<Item = Result<u64, E>>>(
     iterators: Vec<I>,
     chunk_size: usize,
-) -> Intersetion<I> {
+) -> Intersection<E, I> {
     let all_iterated_ids = vec![RoaringTreemap::new(); iterators.len()];
-    Intersetion {
+    Intersection {
         intersection: None,
         iterators,
         all_iterated_ids,
@@ -13,21 +13,23 @@ pub fn intersection<I: Iterator<Item = u64>>(
     }
 }
 
-pub struct Intersetion<I: Iterator<Item = u64>> {
+pub struct Intersection<E, I: Iterator<Item = Result<u64, E>>> {
     intersection: Option<roaring::treemap::IntoIter>,
     iterators: Vec<I>,
     all_iterated_ids: Vec<RoaringTreemap>,
     chunk_size: usize,
 }
 
-impl<I: Iterator<Item = u64>> Iterator for Intersetion<I> {
-    type Item = u64;
+impl<E, I: Iterator<Item = Result<u64, E>>> Iterator for Intersection<E, I> {
+    type Item = Result<u64, E>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(intersection) = &mut self.intersection {
                 if let Some(id) = intersection.next() {
-                    return Some(id);
+                    return Some(Ok(id));
+                } else {
+                    self.intersection = None;
                 }
             }
 
@@ -42,7 +44,14 @@ impl<I: Iterator<Item = u64>> Iterator for Intersetion<I> {
                 for _ in 0..self.chunk_size {
                     if let Some(id) = iterator.next() {
                         exhaused = false;
-                        iterated_ids.insert(id);
+                        match id {
+                            Ok(id) => {
+                                iterated_ids.insert(id);
+                            }
+                            Err(e) => {
+                                return Some(Err(e));
+                            }
+                        }
                     } else {
                         break;
                     }
@@ -63,11 +72,30 @@ impl<I: Iterator<Item = u64>> Iterator for Intersetion<I> {
     }
 }
 
-#[test]
-fn test_intersection() {
-    let a = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    let b = vec![1, 3, 5, 7, 9];
-    let c = vec![1, 2, 3, 5, 8];
-    let intersection = intersection(vec![a.into_iter(), b.into_iter(), c.into_iter()], 2);
-    assert_eq!(intersection.collect::<Vec<_>>(), vec![1, 3, 5]);
+#[cfg(test)]
+mod tests {
+    use std::convert::Infallible;
+
+    use super::*;
+
+    #[test]
+    fn test_intersection() {
+        let a = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let b = vec![1, 3, 5, 7, 9];
+        let c = vec![1, 2, 3, 5, 8];
+        let intersection = intersection(
+            vec![
+                a.into_iter().map(Ok),
+                b.into_iter().map(Ok),
+                c.into_iter().map(Ok),
+            ],
+            2,
+        );
+        assert_eq!(
+            intersection
+                .collect::<Result<Vec<_>, Infallible>>()
+                .unwrap(),
+            vec![1, 3, 5]
+        );
+    }
 }

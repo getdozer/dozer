@@ -1,33 +1,64 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Bound};
 
-use lmdb::{Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags};
+use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
-    errors::StorageError, lmdb_storage::LmdbExclusiveTransaction, LmdbKey, LmdbValType, LmdbValue,
+    errors::StorageError,
+    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
+    Iterator, KeyIterator, LmdbKey, LmdbValType, LmdbValue, ValueIterator,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct LmdbMap<K: ?Sized, V: ?Sized> {
     db: Database,
     _key: std::marker::PhantomData<*const K>,
     _value: std::marker::PhantomData<*const V>,
 }
 
+impl<K: ?Sized, V: ?Sized> Clone for LmdbMap<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db,
+            _key: std::marker::PhantomData,
+            _value: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<K: ?Sized, V: ?Sized> Copy for LmdbMap<K, V> {}
+
+// Safety: `Database` is `Send` and `Sync`.
+unsafe impl<K: ?Sized, V: ?Sized> Send for LmdbMap<K, V> {}
+unsafe impl<K: ?Sized, V: ?Sized> Sync for LmdbMap<K, V> {}
+
 impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
-    pub fn new(
+    pub fn new_from_env(
+        env: &mut LmdbEnvironmentManager,
+        name: Option<&str>,
+        create_if_not_exist: bool,
+    ) -> Result<Self, StorageError> {
+        let create_flags = if create_if_not_exist {
+            Some(database_key_flag::<K>())
+        } else {
+            None
+        };
+
+        let db = env.create_database(name, create_flags)?;
+
+        Ok(Self {
+            db,
+            _key: std::marker::PhantomData,
+            _value: std::marker::PhantomData,
+        })
+    }
+
+    pub fn new_from_txn(
         txn: &mut LmdbExclusiveTransaction,
         name: Option<&str>,
         create_if_not_exist: bool,
     ) -> Result<Self, StorageError> {
         let create_flags = if create_if_not_exist {
-            Some(match K::TYPE {
-                LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
-                #[cfg(target_pointer_width = "64")]
-                LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
-                LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
-                    DatabaseFlags::empty()
-                }
-            })
+            Some(database_key_flag::<K>())
         } else {
             None
         };
@@ -87,6 +118,61 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
             Err(e) => Err(e.into()),
         }
     }
+
+    pub fn clear(&self, txn: &mut RwTransaction) -> Result<(), StorageError> {
+        txn.clear_db(self.db).map_err(Into::into)
+    }
+
+    pub fn iter<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<Iterator<'txn, RoCursor<'txn>, K, V>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        Iterator::new(cursor, Bound::Unbounded, true)
+    }
+
+    pub fn keys<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<KeyIterator<'txn, RoCursor<'txn>, K>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        KeyIterator::new(cursor, Bound::Unbounded, true)
+    }
+
+    pub fn values<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<ValueIterator<'txn, RoCursor<'txn>, V>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        ValueIterator::new::<K>(cursor, Bound::Unbounded, true)
+    }
+}
+
+impl<'a, K: LmdbKey + 'a + ?Sized, V: LmdbValue + 'a + ?Sized> LmdbMap<K, V> {
+    /// Extend the map with the contents of an iterator.
+    ///
+    /// Keys that exist in the map before insertion are ignored.
+    pub fn extend(
+        &self,
+        txn: &mut RwTransaction,
+        iter: impl IntoIterator<Item = (&'a K, &'a V)>,
+    ) -> Result<(), StorageError> {
+        for (key, value) in iter {
+            self.insert(txn, key, value)?;
+        }
+        Ok(())
+    }
+}
+
+pub fn database_key_flag<K: LmdbKey + ?Sized>() -> DatabaseFlags {
+    match K::TYPE {
+        LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
+        #[cfg(target_pointer_width = "64")]
+        LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
+        LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
+            DatabaseFlags::empty()
+        }
+    }
 }
 
 fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<lmdb_sys::MDB_stat, lmdb::Error> {
@@ -126,7 +212,7 @@ mod tests {
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
 
-        let map = LmdbMap::new(&mut txn, None, true).unwrap();
+        let map = LmdbMap::new_from_txn(&mut txn, None, true).unwrap();
         assert_eq!(map.count(txn.txn()).unwrap(), 0);
 
         assert!(map

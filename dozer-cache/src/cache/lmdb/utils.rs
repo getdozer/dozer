@@ -38,8 +38,7 @@ pub fn init_env(options: &CacheOptions) -> Result<(LmdbEnvironmentManager, Strin
         CacheOptionsKind::Write(write_options) => {
             let (base_path, name, _temp_dir) = match &options.common.path {
                 None => {
-                    let base_path =
-                        TempDir::new("dozer").map_err(|e| CacheError::Internal(Box::new(e)))?;
+                    let base_path = TempDir::new("dozer")?;
                     (
                         base_path.path().to_path_buf(),
                         "dozer-cache",
@@ -47,7 +46,7 @@ pub fn init_env(options: &CacheOptions) -> Result<(LmdbEnvironmentManager, Strin
                     )
                 }
                 Some((base_path, name)) => {
-                    fs::create_dir_all(base_path).map_err(|e| CacheError::Internal(Box::new(e)))?;
+                    fs::create_dir_all(base_path)?;
                     (base_path.clone(), name.deref(), None)
                 }
             };

@@ -60,7 +60,7 @@ impl LmdbCacheManager {
     pub fn new(options: CacheManagerOptions) -> Result<Self, CacheError> {
         let (temp_dir, base_path) = match &options.path {
             Some(path) => {
-                std::fs::create_dir_all(path).map_err(|e| CacheError::Internal(Box::new(e)))?;
+                std::fs::create_dir_all(path)?;
                 (None, path.clone())
             }
             None => {

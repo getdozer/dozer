@@ -18,7 +18,7 @@ impl<'a> Indexer<'a> {
         record: &Record,
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
-        id: [u8; 8],
+        id: u64,
     ) -> Result<(), CacheError> {
         let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
 
@@ -34,13 +34,15 @@ impl<'a> Indexer<'a> {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
-                    db.insert(txn, &secondary_key, id)?;
+                    // Ignore existing pair.
+                    db.insert(txn, &secondary_key, &id)?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         Self::_build_indices_full_text(*field_index, &record.values)?
                     {
-                        db.insert(txn, &secondary_key, id)?;
+                        // Ignore existing pair.
+                        db.insert(txn, &secondary_key, &id)?;
                     }
                 }
             }
@@ -54,7 +56,7 @@ impl<'a> Indexer<'a> {
         record: &Record,
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
-        id: [u8; 8],
+        id: u64,
     ) -> Result<(), CacheError> {
         let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
         for (idx, index) in secondary_indexes.iter().enumerate() {
@@ -66,13 +68,15 @@ impl<'a> Indexer<'a> {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
-                    db.delete(txn, &secondary_key, id)?;
+                    // Ignore if not found.
+                    db.remove(txn, &secondary_key, &id)?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         Self::_build_indices_full_text(*field_index, &record.values)?
                     {
-                        db.delete(txn, &secondary_key, id)?;
+                        // Ignore if not found.
+                        db.remove(txn, &secondary_key, &id)?;
                     }
                 }
             }
@@ -134,6 +138,7 @@ mod tests {
     fn test_secondary_indexes() {
         let schema_name = "sample";
         let (cache, schema, secondary_indexes) = create_cache(schema_name, test_utils::schema_1);
+        let (txn, secondary_index_databases) = cache.get_txn_and_secondary_indexes();
 
         let items = vec![
             (1, Some("a".to_string()), Some(521)),
@@ -145,30 +150,35 @@ mod tests {
         for val in items.clone() {
             lmdb_utils::insert_rec_1(&cache, &schema, val);
         }
-        // No of index dbs
-        let indexes = lmdb_utils::get_indexes(&cache);
 
-        let index_count = indexes.iter().flatten().count();
-        let expected_count = secondary_indexes.len();
-        // 3 columns, 1 compound, 1 descending
-        assert_eq!(
-            indexes.len(),
-            expected_count,
-            "Must create db for each index"
-        );
+        {
+            let txn = txn.read();
+            // No of index dbs
+            let indexes = lmdb_utils::get_indexes(txn.txn(), &secondary_index_databases);
 
-        assert_eq!(
-            index_count,
-            items.len() * expected_count,
-            "Must index each field"
-        );
+            let index_count = indexes.iter().flatten().count();
+            let expected_count = secondary_indexes.len();
+            // 3 columns, 1 compound, 1 descending
+            assert_eq!(
+                indexes.len(),
+                expected_count,
+                "Must create db for each index"
+            );
+
+            assert_eq!(
+                index_count,
+                items.len() * expected_count,
+                "Must index each field"
+            );
+        }
 
         for a in [1i64, 2, 3, 4] {
             cache.delete(&Field::Int(a).encode()).unwrap();
         }
 
+        let txn = txn.read();
         assert_eq!(
-            lmdb_utils::get_indexes(&cache)
+            lmdb_utils::get_indexes(txn.txn(), secondary_index_databases)
                 .into_iter()
                 .flatten()
                 .count(),
@@ -221,8 +231,10 @@ mod tests {
             cache.delete(&Field::String(a).encode()).unwrap();
         }
 
+        let (txn, secondary_index_databases) = cache.get_txn_and_secondary_indexes();
+        let txn = txn.read();
         assert_eq!(
-            lmdb_utils::get_indexes(&cache)
+            lmdb_utils::get_indexes(txn.txn(), secondary_index_databases)
                 .into_iter()
                 .flatten()
                 .count(),
