@@ -10,6 +10,12 @@ pub struct NodeHandle {
     pub id: String,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct NodeHandleBorrow {
+    pub ns: Option<u16>,
+    pub id: str,
+}
+
 impl NodeHandle {
     pub fn new(ns: Option<u16>, id: String) -> Self {
         Self { ns, id }

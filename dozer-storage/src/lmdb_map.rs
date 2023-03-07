@@ -133,6 +133,10 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
         }
     }
 
+    pub fn clear(&self, txn: &mut RwTransaction) -> Result<(), StorageError> {
+        txn.clear_db(self.db).map_err(Into::into)
+    }
+
     pub fn iter<'a, T: Transaction>(
         &'a self,
         txn: &'a T,
@@ -155,6 +159,22 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
     ) -> Result<ValueIterator<'_, '_, RoCursor, V>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
         ValueIterator::new::<K>(cursor, Bound::Unbounded, true)
+    }
+}
+
+impl<'a, K: LmdbKey + 'a + ?Sized, V: LmdbValue + 'a + ?Sized> LmdbMap<K, V> {
+    /// Extend the map with the contents of an iterator.
+    ///
+    /// Keys that exist in the map before insertion are ignored.
+    pub fn extend(
+        &self,
+        txn: &mut RwTransaction,
+        iter: impl IntoIterator<Item = (&'a K, &'a V)>,
+    ) -> Result<(), StorageError> {
+        for (key, value) in iter {
+            self.insert(txn, key, value)?;
+        }
+        Ok(())
     }
 }
 
