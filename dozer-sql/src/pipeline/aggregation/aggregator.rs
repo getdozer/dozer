@@ -119,10 +119,10 @@ pub fn get_aggregator_type_from_aggregation_expression(
 }
 
 pub fn update_map(
-    field: &Field,
+    field: &[Field],
     val_delta: u64,
     decr: bool,
-    field_hash: &mut SumAggregatorState,
+    field_hash: &mut BTreeMap<Field, u64>,
 ) -> u64 {
     let get_prev_count = field_hash.get(field);
     let prev_count = match get_prev_count {
@@ -180,4 +180,18 @@ macro_rules! try_unwrap {
     ($stmt:expr) => {
         $stmt.unwrap_or_else(|e| panic!("{}", e.to_string()))
     };
+}
+
+#[macro_export]
+macro_rules! calculate_err_field {
+    ($stmt:expr, $aggr:expr, $field:expr) => {
+        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!("Failed to calculate {} while parsing {}", $aggr, $field))))?
+    }
+}
+
+#[macro_export]
+macro_rules! calculate_err_type {
+    ($stmt:expr, $aggr:expr, $return_type:expr) => {
+        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!("Failed to calculate {} while casting {}", $aggr, $return_type))))?
+    }
 }

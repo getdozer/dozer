@@ -22,6 +22,8 @@ pub enum ExecutionError {
     DuplicateInput { node: NodeHandle, port: PortHandle },
     #[error("Invalid operation: {0}")]
     InvalidOperation(String),
+    #[error("Invalid type: {0}")]
+    InvalidType(String),
     #[error("Schema not initialized")]
     SchemaNotInitialized,
     #[error("The database is invalid")]
