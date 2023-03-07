@@ -75,8 +75,8 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + '_, CacheError> {
         let all_ids = self
             .common
-            .primary_key_to_record_id
-            .values(self.txn)?
+            .record_id_to_record
+            .keys(self.txn)?
             .map(|result| {
                 result
                     .map(|id| id.into_owned())
