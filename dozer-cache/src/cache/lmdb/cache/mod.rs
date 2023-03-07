@@ -75,7 +75,7 @@ impl LmdbRoCache {
             common: options.clone(),
             kind: CacheOptionsKind::ReadOnly(CacheReadOptions {}),
         })?;
-        let common = LmdbCacheCommon::new(&mut env, options, name, true)?;
+        let common = LmdbCacheCommon::new(&mut env, options, name, false)?;
         Ok(Self { common, env })
     }
 }
@@ -131,7 +131,7 @@ impl LmdbRwCache {
             common: common_options.clone(),
             kind: CacheOptionsKind::Write(write_options),
         })?;
-        let common = LmdbCacheCommon::new(&mut env, common_options, name, false)?;
+        let common = LmdbCacheCommon::new(&mut env, common_options, name, true)?;
         let checkpoint_db = LmdbMap::new_from_env(&mut env, Some("checkpoint"), true)?;
         let txn = env.create_txn()?;
         Ok(Self {
@@ -450,13 +450,14 @@ impl LmdbCacheCommon {
         env: &mut LmdbEnvironmentManager,
         options: CacheCommonOptions,
         name: String,
-        read_only: bool,
+        create_db_if_not_exist: bool,
     ) -> Result<Self, CacheError> {
         // Create or open must have databases.
-        let record_id_to_record = LmdbMap::new_from_env(env, Some("records"), !read_only)?;
+        let record_id_to_record =
+            LmdbMap::new_from_env(env, Some("records"), create_db_if_not_exist)?;
         let primary_key_to_record_id =
-            LmdbMap::new_from_env(env, Some("primary_index"), !read_only)?;
-        let schema_db = SchemaDatabase::new(env, !read_only)?;
+            LmdbMap::new_from_env(env, Some("primary_index"), create_db_if_not_exist)?;
+        let schema_db = SchemaDatabase::new(env, create_db_if_not_exist)?;
 
         // Open existing secondary index databases.
         let mut secondary_indexe_databases = HashMap::default();

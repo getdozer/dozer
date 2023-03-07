@@ -38,14 +38,7 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
         create_if_not_exist: bool,
     ) -> Result<Self, StorageError> {
         let create_flags = if create_if_not_exist {
-            Some(match K::TYPE {
-                LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
-                #[cfg(target_pointer_width = "64")]
-                LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
-                LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
-                    DatabaseFlags::empty()
-                }
-            })
+            Some(database_key_flag::<K>())
         } else {
             None
         };
@@ -59,20 +52,13 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
         })
     }
 
-    pub fn new(
+    pub fn new_from_txn(
         txn: &mut LmdbExclusiveTransaction,
         name: Option<&str>,
         create_if_not_exist: bool,
     ) -> Result<Self, StorageError> {
         let create_flags = if create_if_not_exist {
-            Some(match K::TYPE {
-                LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
-                #[cfg(target_pointer_width = "64")]
-                LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
-                LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
-                    DatabaseFlags::empty()
-                }
-            })
+            Some(database_key_flag::<K>())
         } else {
             None
         };
@@ -178,6 +164,17 @@ impl<'a, K: LmdbKey + 'a + ?Sized, V: LmdbValue + 'a + ?Sized> LmdbMap<K, V> {
     }
 }
 
+pub fn database_key_flag<K: LmdbKey + ?Sized>() -> DatabaseFlags {
+    match K::TYPE {
+        LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
+        #[cfg(target_pointer_width = "64")]
+        LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
+        LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
+            DatabaseFlags::empty()
+        }
+    }
+}
+
 fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<lmdb_sys::MDB_stat, lmdb::Error> {
     let mut stat = lmdb_sys::MDB_stat {
         ms_psize: 0,
@@ -215,7 +212,7 @@ mod tests {
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
 
-        let map = LmdbMap::new(&mut txn, None, true).unwrap();
+        let map = LmdbMap::new_from_txn(&mut txn, None, true).unwrap();
         assert_eq!(map.count(txn.txn()).unwrap(), 0);
 
         assert!(map
