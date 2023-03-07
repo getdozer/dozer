@@ -129,6 +129,22 @@ unsafe impl LmdbKey for [u8] {
     const TYPE: LmdbValType = LmdbValType::VariableSize;
 }
 
+impl Encode for str {
+    fn encode(&self) -> Result<Encoded, StorageError> {
+        Ok(Encoded::Borrowed(self.as_bytes()))
+    }
+}
+
+impl Decode for str {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        Ok(Cow::Borrowed(std::str::from_utf8(bytes).unwrap()))
+    }
+}
+
+unsafe impl LmdbKey for str {
+    const TYPE: LmdbValType = LmdbValType::VariableSize;
+}
+
 impl Encode for Record {
     fn encode(&self) -> Result<Encoded, StorageError> {
         dozer_types::bincode::serialize(self)
