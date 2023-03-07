@@ -261,27 +261,23 @@ impl RwCache for LmdbRwCache {
 
 impl LmdbRwCache {
     fn delete_impl(&self, key: &[u8]) -> Result<(&Schema, &[IndexDefinition], u32), CacheError> {
-        let record = self.get(key)?.record;
-        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&record)?;
+        let record = self.get(key)?;
+        let (schema, secondary_indexes) =
+            self.get_schema_and_indexes_from_record(&record.record)?;
 
         let mut txn = self.txn.write();
         let txn = txn.txn_mut();
 
-        let id = self
-            .common
-            .primary_key_to_record_id
-            .get(txn, key)?
-            .ok_or(CacheError::PrimaryKeyNotFound)?
-            .into_owned();
-        if !self.common.record_id_to_record.remove(txn, &id)? {
-            return Err(CacheError::PrimaryKeyNotFound);
+        if !self.common.record_id_to_record.remove(txn, &record.id)? {
+            panic!("We just got this key from the map");
         }
 
         let indexer = Indexer {
             secondary_indexes: &self.common.secondary_indexes,
         };
-        indexer.delete_indexes(txn, &record, schema, secondary_indexes, id)?;
+        indexer.delete_indexes(txn, &record.record, schema, secondary_indexes, record.id)?;
         let version = record
+            .record
             .version
             .expect("All records in cache should have a version");
         Ok((schema, secondary_indexes, version))
