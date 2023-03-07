@@ -116,13 +116,13 @@ mod tests {
     ) -> Result<Vec<(String, Schema, Vec<IndexDefinition>)>, StorageError> {
         map.iter(txn)?
             .map(|result| {
-                result.and_then(
+                result.map(
                     |(name, schema_and_indexes): (
                         Cow<str>,
                         Cow<(Schema, Vec<IndexDefinition>)>,
                     )| {
                         let (schema, indexes) = schema_and_indexes.into_owned();
-                        Ok((name.into_owned(), schema, indexes))
+                        (name.into_owned(), schema, indexes)
                     },
                 )
             })

@@ -149,8 +149,8 @@ pub fn update_map(
         }
         if new_count < 1 {
             field_map.remove(field);
-        } else if field_map.contains_key(&field) {
-            if let Some(val) = field_map.get_mut(&field) {
+        } else if field_map.contains_key(field) {
+            if let Some(val) = field_map.get_mut(field) {
                 *val = new_count;
             }
         } else {

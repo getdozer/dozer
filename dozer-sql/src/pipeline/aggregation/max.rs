@@ -3,7 +3,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Max;
 use crate::{calculate_err, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
-use dozer_types::log::info;
+
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType};
 use std::collections::BTreeMap;

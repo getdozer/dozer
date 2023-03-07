@@ -84,7 +84,7 @@ fn test_planner_with_aggregator() {
     )
     .unwrap();
 
-    let tx = storage.create_txn().unwrap();
+    let _tx = storage.create_txn().unwrap();
     let mut processor = AggregationProcessor::new(
         projection_planner.groupby,
         projection_planner.aggregation_output,
