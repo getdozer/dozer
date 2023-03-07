@@ -1,18 +1,36 @@
-use lmdb::{Database, DatabaseFlags, RwTransaction, WriteFlags};
+use std::ops::Bound;
+
+use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
     errors::StorageError,
     lmdb_map::database_key_flag,
     lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    LmdbDupValue, LmdbKey, LmdbValType,
+    Iterator, LmdbDupValue, LmdbKey, LmdbValType,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct LmdbMultimap<K: ?Sized, V: ?Sized> {
     db: Database,
     _key: std::marker::PhantomData<*const K>,
     _value: std::marker::PhantomData<*const V>,
 }
+
+impl<K: ?Sized, V: ?Sized> Clone for LmdbMultimap<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db,
+            _key: std::marker::PhantomData,
+            _value: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<K: ?Sized, V: ?Sized> Copy for LmdbMultimap<K, V> {}
+
+// Safety: `Database` is `Send` and `Sync`.
+unsafe impl<K: ?Sized, V: ?Sized> Send for LmdbMultimap<K, V> {}
+unsafe impl<K: ?Sized, V: ?Sized> Sync for LmdbMultimap<K, V> {}
 
 impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
     pub fn new_from_env(
@@ -89,6 +107,24 @@ impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
             Err(lmdb::Error::NotFound) => Ok(false),
             Err(err) => Err(err.into()),
         }
+    }
+
+    pub fn iter<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<Iterator<'txn, RoCursor<'txn>, K, V>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        Iterator::new(cursor, Bound::Unbounded, true)
+    }
+
+    pub fn range<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+        starting_key: Bound<&K>,
+        ascending: bool,
+    ) -> Result<Iterator<'txn, RoCursor<'txn>, K, V>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        Iterator::new(cursor, starting_key, ascending)
     }
 }
 

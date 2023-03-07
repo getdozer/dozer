@@ -1,15 +1,17 @@
-use std::{marker::PhantomData, ops::Bound};
+use std::ops::Bound;
 
 use lmdb::Cursor;
 use lmdb_sys::{
     MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_NEXT_NODUP, MDB_PREV, MDB_PREV_NODUP, MDB_SET_RANGE,
 };
 
-use crate::Encoded;
+use crate::errors::StorageError;
 
-enum IteratorState<'a> {
+type KeyValuePair<'txn> = (&'txn [u8], &'txn [u8]);
+
+enum IteratorState<'txn> {
     First {
-        starting_key: Bound<Encoded<'a>>,
+        item: Option<KeyValuePair<'txn>>,
         ascending: bool,
     },
     NotFirst {
@@ -17,68 +19,57 @@ enum IteratorState<'a> {
     },
 }
 
-pub struct RawIterator<'txn, 'key, C: Cursor<'txn>> {
+pub struct RawIterator<'txn, C: Cursor<'txn>> {
     cursor: C,
-    state: IteratorState<'key>,
-    _marker: PhantomData<fn() -> &'txn ()>,
+    state: IteratorState<'txn>,
 }
 
-impl<'txn, 'key, C: Cursor<'txn>> Iterator for RawIterator<'txn, 'key, C> {
+impl<'txn, C: Cursor<'txn>> Iterator for RawIterator<'txn, C> {
     type Item = Result<(&'txn [u8], &'txn [u8]), lmdb::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match &self.state {
-            IteratorState::First {
-                starting_key,
-                ascending,
-            } => {
-                let item = match (starting_key, *ascending) {
-                    (Bound::Included(starting_key), true) => {
-                        cursor_get_greater_than_or_equal_to(&self.cursor, starting_key.as_ref())
-                    }
-                    (Bound::Excluded(starting_key), true) => {
-                        cursor_get_greater_than(&self.cursor, starting_key.as_ref())
-                    }
-                    (Bound::Unbounded, true) => cursor_get(&self.cursor, MDB_FIRST),
-                    (Bound::Included(starting_key), false) => {
-                        cursor_get_less_than_or_equal_to(&self.cursor, starting_key.as_ref())
-                    }
-                    (Bound::Excluded(starting_key), false) => {
-                        cursor_get_less_than(&self.cursor, starting_key.as_ref())
-                    }
-                    (Bound::Unbounded, false) => cursor_get(&self.cursor, MDB_LAST),
-                };
+            IteratorState::First { item, ascending } => {
+                let item = *item;
                 self.state = IteratorState::NotFirst {
                     ascending: *ascending,
                 };
-                item
+                item.map(Ok)
             }
-            IteratorState::NotFirst { ascending } => {
-                if *ascending {
-                    cursor_get(&self.cursor, MDB_NEXT)
-                } else {
-                    cursor_get(&self.cursor, MDB_PREV)
-                }
+            IteratorState::NotFirst { ascending } => if *ascending {
+                cursor_get(&self.cursor, MDB_NEXT)
+            } else {
+                cursor_get(&self.cursor, MDB_PREV)
             }
+            .transpose(),
         }
-        .transpose()
     }
 }
 
-impl<'txn, 'key, C: Cursor<'txn>> RawIterator<'txn, 'key, C> {
-    pub fn new(cursor: C, starting_key: Bound<Encoded<'key>>, ascending: bool) -> Self {
-        RawIterator {
+impl<'txn, C: Cursor<'txn>> RawIterator<'txn, C> {
+    pub fn new(
+        cursor: C,
+        starting_key: Bound<&[u8]>,
+        ascending: bool,
+    ) -> Result<Self, StorageError> {
+        let item = match (starting_key, ascending) {
+            (Bound::Included(starting_key), true) => {
+                cursor_get_greater_than_or_equal_to(&cursor, starting_key)
+            }
+            (Bound::Excluded(starting_key), true) => cursor_get_greater_than(&cursor, starting_key),
+            (Bound::Unbounded, true) => cursor_get(&cursor, MDB_FIRST),
+            (Bound::Included(starting_key), false) => {
+                cursor_get_less_than_or_equal_to(&cursor, starting_key)
+            }
+            (Bound::Excluded(starting_key), false) => cursor_get_less_than(&cursor, starting_key),
+            (Bound::Unbounded, false) => cursor_get(&cursor, MDB_LAST),
+        }?;
+        Ok(RawIterator {
             cursor,
-            state: IteratorState::First {
-                starting_key,
-                ascending,
-            },
-            _marker: PhantomData::default(),
-        }
+            state: IteratorState::First { item, ascending },
+        })
     }
 }
-
-type KeyValuePair<'txn> = (&'txn [u8], &'txn [u8]);
 
 fn cursor_get<'txn, C: Cursor<'txn>>(
     cursor: &C,
@@ -369,11 +360,13 @@ mod tests {
             let txn = txn.read();
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Unbounded, true)
+                .unwrap()
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
             assert_eq!(items, vec![]);
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Unbounded, false)
+                .unwrap()
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
             assert_eq!(items, vec![]);
@@ -385,7 +378,8 @@ mod tests {
         // Included ascending
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
-            let items = RawIterator::new(cursor, Bound::Included(Encoded::Borrowed(b"3")), true)
+            let items = RawIterator::new(cursor, Bound::Included(b"3"), true)
+                .unwrap()
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -394,7 +388,8 @@ mod tests {
         // Excluded ascending
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
-            let items = RawIterator::new(cursor, Bound::Excluded(Encoded::Borrowed(b"3")), true)
+            let items = RawIterator::new(cursor, Bound::Excluded(b"3"), true)
+                .unwrap()
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -404,6 +399,7 @@ mod tests {
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Unbounded, true)
+                .unwrap()
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -412,7 +408,8 @@ mod tests {
         // Included descending
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
-            let items = RawIterator::new(cursor, Bound::Included(Encoded::Borrowed(b"3")), false)
+            let items = RawIterator::new(cursor, Bound::Included(b"3"), false)
+                .unwrap()
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -421,7 +418,8 @@ mod tests {
         // Excluded descending
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
-            let items = RawIterator::new(cursor, Bound::Excluded(Encoded::Borrowed(b"3")), false)
+            let items = RawIterator::new(cursor, Bound::Excluded(b"3"), false)
+                .unwrap()
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -431,6 +429,7 @@ mod tests {
         {
             let cursor = txn.txn().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Unbounded, false)
+                .unwrap()
                 .map(|result| result.map(|(key, _)| key))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();

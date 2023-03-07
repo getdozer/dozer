@@ -123,26 +123,26 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
         txn.clear_db(self.db).map_err(Into::into)
     }
 
-    pub fn iter<'a, T: Transaction>(
-        &'a self,
-        txn: &'a T,
-    ) -> Result<Iterator<'_, '_, RoCursor, K, V>, StorageError> {
+    pub fn iter<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<Iterator<'txn, RoCursor<'txn>, K, V>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
         Iterator::new(cursor, Bound::Unbounded, true)
     }
 
-    pub fn keys<'a, T: Transaction>(
-        &'a self,
-        txn: &'a T,
-    ) -> Result<KeyIterator<'_, '_, RoCursor, K>, StorageError> {
+    pub fn keys<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<KeyIterator<'txn, RoCursor<'txn>, K>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
         KeyIterator::new(cursor, Bound::Unbounded, false)
     }
 
-    pub fn values<'a, T: Transaction>(
-        &'a self,
-        txn: &'a T,
-    ) -> Result<ValueIterator<'_, '_, RoCursor, V>, StorageError> {
+    pub fn values<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<ValueIterator<'txn, RoCursor<'txn>, V>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
         ValueIterator::new::<K>(cursor, Bound::Unbounded, true)
     }

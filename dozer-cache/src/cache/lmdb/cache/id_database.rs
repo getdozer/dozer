@@ -1,7 +1,5 @@
 use dozer_storage::{errors::StorageError, lmdb::RwTransaction, LmdbMap};
 
-use super::id_to_bytes;
-
 pub fn get_or_generate_id(
     map: LmdbMap<[u8], u64>,
     txn: &mut RwTransaction,
@@ -24,7 +22,7 @@ fn generate_id(
 ) -> Result<u64, StorageError> {
     let id = map.count(txn)? as u64;
 
-    let id_bytes = id_to_bytes(id);
+    let id_bytes = id.to_be_bytes();
     let key = key.unwrap_or(&id_bytes);
 
     if !map.insert(txn, key, &id)? {

@@ -6,8 +6,8 @@ use crate::{errors::StorageError, Decode, Encode, Encoded};
 
 use super::raw_iterator::RawIterator;
 
-pub struct KeyIterator<'txn, 'key, C: Cursor<'txn>, K: ?Sized> {
-    inner: RawIterator<'txn, 'key, C>,
+pub struct KeyIterator<'txn, C: Cursor<'txn>, K: ?Sized> {
+    inner: RawIterator<'txn, C>,
     _key: std::marker::PhantomData<*const K>,
 }
 
@@ -19,14 +19,18 @@ fn encode_bound<K: Encode + ?Sized>(key: Bound<&K>) -> Result<Bound<Encoded>, St
     }
 }
 
-impl<'txn, 'key, C: Cursor<'txn>, K: Encode + ?Sized> KeyIterator<'txn, 'key, C, K> {
-    pub fn new(
-        cursor: C,
-        starting_key: Bound<&'key K>,
-        ascending: bool,
-    ) -> Result<Self, StorageError> {
+fn bound_as_ref<'a>(bound: &'a Bound<Encoded<'a>>) -> Bound<&'a [u8]> {
+    match bound {
+        Bound::Included(key) => Bound::Included(key.as_ref()),
+        Bound::Excluded(key) => Bound::Excluded(key.as_ref()),
+        Bound::Unbounded => Bound::Unbounded,
+    }
+}
+
+impl<'txn, C: Cursor<'txn>, K: Encode + ?Sized> KeyIterator<'txn, C, K> {
+    pub fn new(cursor: C, starting_key: Bound<&K>, ascending: bool) -> Result<Self, StorageError> {
         let starting_key = encode_bound(starting_key)?;
-        let inner = RawIterator::new(cursor, starting_key, ascending);
+        let inner = RawIterator::new(cursor, bound_as_ref(&starting_key), ascending)?;
         Ok(Self {
             inner,
             _key: std::marker::PhantomData,
@@ -42,8 +46,8 @@ fn decode_key<'a, K: Decode + 'a + ?Sized>(key: &'a [u8]) -> Result<Cow<'a, K>, 
     Ok(key)
 }
 
-impl<'txn, 'key, C: Cursor<'txn>, K: Decode + 'txn + ?Sized> std::iter::Iterator
-    for KeyIterator<'txn, 'key, C, K>
+impl<'txn, C: Cursor<'txn>, K: Decode + 'txn + ?Sized> std::iter::Iterator
+    for KeyIterator<'txn, C, K>
 {
     type Item = Result<Cow<'txn, K>, StorageError>;
 
@@ -55,19 +59,19 @@ impl<'txn, 'key, C: Cursor<'txn>, K: Decode + 'txn + ?Sized> std::iter::Iterator
     }
 }
 
-pub struct ValueIterator<'txn, 'key, C: Cursor<'txn>, V: ?Sized> {
-    inner: RawIterator<'txn, 'key, C>,
+pub struct ValueIterator<'txn, C: Cursor<'txn>, V: ?Sized> {
+    inner: RawIterator<'txn, C>,
     _value: std::marker::PhantomData<*const V>,
 }
 
-impl<'txn, 'key, C: Cursor<'txn>, V: ?Sized> ValueIterator<'txn, 'key, C, V> {
+impl<'txn, C: Cursor<'txn>, V: ?Sized> ValueIterator<'txn, C, V> {
     pub fn new<K: Encode + ?Sized>(
         cursor: C,
-        starting_key: Bound<&'key K>,
+        starting_key: Bound<&K>,
         ascending: bool,
     ) -> Result<Self, StorageError> {
         let starting_key = encode_bound(starting_key)?;
-        let inner = RawIterator::new(cursor, starting_key, ascending);
+        let inner = RawIterator::new(cursor, bound_as_ref(&starting_key), ascending)?;
         Ok(Self {
             inner,
             _value: std::marker::PhantomData,
@@ -83,8 +87,8 @@ fn decode_value<'a, V: Decode + 'a + ?Sized>(value: &'a [u8]) -> Result<Cow<'a, 
     Ok(value)
 }
 
-impl<'txn, 'key, C: Cursor<'txn>, V: Decode + 'txn + ?Sized> std::iter::Iterator
-    for ValueIterator<'txn, 'key, C, V>
+impl<'txn, C: Cursor<'txn>, V: Decode + 'txn + ?Sized> std::iter::Iterator
+    for ValueIterator<'txn, C, V>
 {
     type Item = Result<Cow<'txn, V>, StorageError>;
 
@@ -96,20 +100,16 @@ impl<'txn, 'key, C: Cursor<'txn>, V: Decode + 'txn + ?Sized> std::iter::Iterator
     }
 }
 
-pub struct Iterator<'txn, 'key, C: Cursor<'txn>, K: ?Sized, V: ?Sized> {
-    inner: RawIterator<'txn, 'key, C>,
+pub struct Iterator<'txn, C: Cursor<'txn>, K: ?Sized, V: ?Sized> {
+    inner: RawIterator<'txn, C>,
     _key: std::marker::PhantomData<*const K>,
     _value: std::marker::PhantomData<*const V>,
 }
 
-impl<'txn, 'key, C: Cursor<'txn>, K: Encode + ?Sized, V: ?Sized> Iterator<'txn, 'key, C, K, V> {
-    pub fn new(
-        cursor: C,
-        starting_key: Bound<&'key K>,
-        ascending: bool,
-    ) -> Result<Self, StorageError> {
+impl<'txn, C: Cursor<'txn>, K: Encode + ?Sized, V: ?Sized> Iterator<'txn, C, K, V> {
+    pub fn new(cursor: C, starting_key: Bound<&K>, ascending: bool) -> Result<Self, StorageError> {
         let starting_key = encode_bound(starting_key)?;
-        let inner = RawIterator::new(cursor, starting_key, ascending);
+        let inner = RawIterator::new(cursor, bound_as_ref(&starting_key), ascending)?;
         Ok(Self {
             inner,
             _key: std::marker::PhantomData,
@@ -127,8 +127,8 @@ fn decode_key_value<'a, K: Decode + 'a + ?Sized, V: Decode + 'a + ?Sized>(
     Ok((key, value))
 }
 
-impl<'txn, 'key, C: Cursor<'txn>, K: Decode + 'txn + ?Sized, V: Decode + 'txn + ?Sized>
-    std::iter::Iterator for Iterator<'txn, 'key, C, K, V>
+impl<'txn, C: Cursor<'txn>, K: Decode + 'txn + ?Sized, V: Decode + 'txn + ?Sized>
+    std::iter::Iterator for Iterator<'txn, C, K, V>
 {
     type Item = Result<(Cow<'txn, K>, Cow<'txn, V>), StorageError>;
 

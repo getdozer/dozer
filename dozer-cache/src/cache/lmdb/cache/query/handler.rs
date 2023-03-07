@@ -1,9 +1,10 @@
 use std::cmp::Ordering;
+use std::ops::Bound;
 
 use super::intersection::intersection;
-use super::iterator::{CacheIterator, KeyEndpoint};
 use crate::cache::expression::Skip;
-use crate::cache::lmdb::cache::{id_from_bytes, LmdbCacheCommon};
+use crate::cache::lmdb::cache::helper::lmdb_cmp;
+use crate::cache::lmdb::cache::LmdbCacheCommon;
 use crate::cache::RecordWithId;
 use crate::cache::{
     expression::{Operator, QueryExpression, SortDirection},
@@ -94,16 +95,17 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         );
         let full_scan = if index_scans.len() == 1 {
             // The fast path, without intersection calculation.
-            Either::Left(self.query_with_secondary_index(&index_scans[0])?.map(Ok))
+            Either::Left(self.query_with_secondary_index(&index_scans[0])?)
         } else {
             // Intersection of multiple index scans.
             let iterators = index_scans
                 .iter()
                 .map(|index_scan| self.query_with_secondary_index(index_scan))
                 .collect::<Result<Vec<_>, CacheError>>()?;
-            Either::Right(
-                intersection(iterators, self.common.cache_options.intersection_chunk_size).map(Ok),
-            )
+            Either::Right(intersection(
+                iterators,
+                self.common.cache_options.intersection_chunk_size,
+            ))
         };
         Ok(skip(full_scan, self.query.skip).take(self.query.limit.unwrap_or(usize::MAX)))
     }
@@ -111,7 +113,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     fn query_with_secondary_index(
         &'a self,
         index_scan: &IndexScan,
-    ) -> Result<impl Iterator<Item = u64> + 'a, CacheError> {
+    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + 'a, CacheError> {
         let schema_id = self
             .schema
             .identifier
@@ -127,22 +129,33 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             end,
             direction,
         } = get_range_spec(&index_scan.kind, index_scan.is_single_field_sorted_inverted)?;
+        let start = match &start {
+            Some(KeyEndpoint::Including(key)) => Bound::Included(key.as_slice()),
+            Some(KeyEndpoint::Excluding(key)) => Bound::Excluded(key.as_slice()),
+            None => Bound::Unbounded,
+        };
 
-        let cursor = index_db.open_ro_cursor(self.txn)?;
-
-        Ok(CacheIterator::new(cursor, start, direction)
-            .take_while(move |(key, _)| {
-                if let Some(end_key) = &end {
-                    match index_db.cmp(self.txn, key, end_key.key()) {
-                        Ordering::Less => matches!(direction, SortDirection::Ascending),
-                        Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
-                        Ordering::Greater => matches!(direction, SortDirection::Descending),
+        Ok(index_db
+            .range(self.txn, start, direction == SortDirection::Ascending)?
+            .take_while(move |result| match result {
+                Ok((key, _)) => {
+                    if let Some(end_key) = &end {
+                        match lmdb_cmp(self.txn, index_db.database(), key, end_key.key()) {
+                            Ordering::Less => matches!(direction, SortDirection::Ascending),
+                            Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
+                            Ordering::Greater => matches!(direction, SortDirection::Descending),
+                        }
+                    } else {
+                        true
                     }
-                } else {
-                    true
                 }
+                Err(_) => true,
             })
-            .map(map_index_database_entry_to_id))
+            .map(|result| {
+                result
+                    .map(|(_, id)| id.into_owned())
+                    .map_err(CacheError::Storage)
+            }))
     }
 
     fn collect_records(
@@ -163,6 +176,21 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             Err(err) => Some(Err(err)),
         })
         .collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum KeyEndpoint {
+    Including(Vec<u8>),
+    Excluding(Vec<u8>),
+}
+
+impl KeyEndpoint {
+    pub fn key(&self) -> &[u8] {
+        match self {
+            KeyEndpoint::Including(key) => key,
+            KeyEndpoint::Excluding(key) => key,
+        }
     }
 }
 
@@ -356,13 +384,6 @@ fn get_key_interval_from_range_query(
             panic!("operator {other:?} is not supported by sorted inverted index range query")
         }
     }
-}
-
-fn map_index_database_entry_to_id((_, id): (&[u8], &[u8])) -> u64 {
-    id_from_bytes(
-        id.try_into()
-            .expect("All values must be u64 ids in index database"),
-    )
 }
 
 fn skip(

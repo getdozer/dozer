@@ -6,7 +6,7 @@ use dozer_storage::lmdb::{RoTransaction, RwTransaction, Transaction};
 use dozer_storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
-use dozer_storage::LmdbMap;
+use dozer_storage::{LmdbMap, LmdbMultimap};
 
 use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 use dozer_types::parking_lot::RwLockReadGuard;
@@ -15,6 +15,9 @@ use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
 
 use self::id_database::get_or_generate_id;
+use self::secondary_index_database::{
+    new_secondary_index_database_from_env, new_secondary_index_database_from_txn,
+};
 
 use super::super::{RoCache, RwCache};
 use super::indexer::Indexer;
@@ -33,9 +36,8 @@ mod schema_database;
 mod secondary_index_database;
 
 use schema_database::SchemaDatabase;
-use secondary_index_database::SecondaryIndexDatabase;
 
-pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), SecondaryIndexDatabase>;
+pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), LmdbMultimap<[u8], u64>>;
 
 #[derive(Clone, Debug)]
 pub struct CacheCommonOptions {
@@ -278,7 +280,7 @@ impl LmdbRwCache {
         let indexer = Indexer {
             secondary_indexes: &self.common.secondary_indexes,
         };
-        indexer.delete_indexes(txn, &record, schema, secondary_indexes, id_to_bytes(id))?;
+        indexer.delete_indexes(txn, &record, schema, secondary_indexes, id)?;
         let version = record
             .version
             .expect("All records in cache should have a version");
@@ -312,18 +314,10 @@ impl LmdbRwCache {
             secondary_indexes: &self.common.secondary_indexes,
         };
 
-        indexer.build_indexes(txn, record, schema, secondary_indexes, id_to_bytes(id))?;
+        indexer.build_indexes(txn, record, schema, secondary_indexes, id)?;
 
         Ok(id)
     }
-}
-
-fn id_from_bytes(bytes: [u8; 8]) -> u64 {
-    u64::from_be_bytes(bytes)
-}
-
-fn id_to_bytes(id: u64) -> [u8; 8] {
-    id.to_be_bytes()
 }
 
 /// This trait abstracts the behavior of getting a transaction from a `LmdbExclusiveTransaction` or a `lmdb::Transaction`.
@@ -464,7 +458,13 @@ impl LmdbCacheCommon {
         for (schema, secondary_indexes) in schema_db.get_all_schemas() {
             let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
             for (index, index_definition) in secondary_indexes.iter().enumerate() {
-                let db = SecondaryIndexDatabase::open(env, &schema_id, index, index_definition)?;
+                let db = new_secondary_index_database_from_env(
+                    env,
+                    &schema_id,
+                    index,
+                    index_definition,
+                    false,
+                )?;
                 secondary_indexe_databases.insert((schema_id, index), db);
             }
         }
@@ -488,8 +488,13 @@ impl LmdbCacheCommon {
     ) -> Result<(), CacheError> {
         let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
         for (index, index_definition) in secondary_indexes.iter().enumerate() {
-            let db =
-                SecondaryIndexDatabase::create(txn, &schema_id, index, index_definition, true)?;
+            let db = new_secondary_index_database_from_txn(
+                txn,
+                &schema_id,
+                index,
+                index_definition,
+                true,
+            )?;
             self.secondary_indexes.insert((schema_id, index), db);
         }
 
