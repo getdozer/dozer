@@ -54,9 +54,7 @@ fn get_max(
     } else {
         let val = calculate_err!(field_map.keys().max(), Max).clone();
         match return_type {
-            Some(FieldType::UInt) => {
-                Ok(Field::UInt(calculate_err_field!(val.to_uint(), Max, val)))
-            }
+            Some(FieldType::UInt) => Ok(Field::UInt(calculate_err_field!(val.to_uint(), Max, val))),
             Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(val.to_int(), Max, val))),
             Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
                 val.to_float(),
@@ -79,8 +77,7 @@ fn get_max(
             Some(not_supported_return_type) => {
                 Err(PipelineError::InternalExecutionError(InvalidType(format!(
                     "Not supported return type {} for {}",
-                    not_supported_return_type,
-                    Max
+                    not_supported_return_type, Max
                 ))))
             }
             None => Err(PipelineError::InternalExecutionError(InvalidType(format!(

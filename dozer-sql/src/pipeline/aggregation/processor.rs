@@ -1,29 +1,21 @@
 #![allow(clippy::too_many_arguments)]
-
-use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::ExpressionExecutor;
-use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
-use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::errors::ExecutionError;
-use dozer_core::errors::ExecutionError::InternalError;
-use dozer_core::node::{PortHandle, Processor};
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
-use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::errors::types::TypeError;
-use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
-use std::cell::RefCell;
-
 use crate::pipeline::aggregation::aggregator::{
     get_aggregator_from_aggregator_type, get_aggregator_type_from_aggregation_expression,
     AggregatorType,
 };
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::execution::ExpressionExecutor;
+use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
+use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
-use dozer_core::storage::common::Database;
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
+use dozer_core::errors::ExecutionError;
+use dozer_core::errors::ExecutionError::InternalError;
+use dozer_core::node::{PortHandle, Processor};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
+use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use hashbrown::HashMap;
-use lmdb::DatabaseFlags;
 use std::mem::size_of_val;
-use std::rc::Rc;
 
 const COUNTER_KEY: u8 = 1_u8;
 
@@ -125,14 +117,14 @@ impl AggregationProcessor {
         let mut new_fields: Vec<Field> = Vec::with_capacity(measures.len());
 
         for (idx, measure) in measures.iter().enumerate() {
-            let mut curr_aggr = &mut curr_state.states[idx];
+            let curr_aggr = &mut curr_state.states[idx];
             let curr_val_opt: Option<&Field> = curr_state.values.as_ref().map(|e| &e[idx]);
 
             let new_val = match op {
                 AggregatorOperation::Insert => {
                     let mut inserted_fields = Vec::with_capacity(measure.len());
                     for m in measure {
-                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), &input_schema)?);
+                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), input_schema)?);
                     }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
@@ -142,7 +134,7 @@ impl AggregationProcessor {
                 AggregatorOperation::Delete => {
                     let mut deleted_fields = Vec::with_capacity(measure.len());
                     for m in measure {
-                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), &input_schema)?);
+                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), input_schema)?);
                     }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
@@ -152,11 +144,11 @@ impl AggregationProcessor {
                 AggregatorOperation::Update => {
                     let mut deleted_fields = Vec::with_capacity(measure.len());
                     for m in measure {
-                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), &input_schema)?);
+                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), input_schema)?);
                     }
                     let mut inserted_fields = Vec::with_capacity(measure.len());
                     for m in measure {
-                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), &input_schema)?);
+                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), input_schema)?);
                     }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
@@ -180,7 +172,7 @@ impl AggregationProcessor {
             vec![Field::Null]
         };
 
-        let mut curr_state_opt = self.states.get_mut(&key);
+        let curr_state_opt = self.states.get_mut(&key);
         assert!(
             curr_state_opt.is_some(),
             "Unable to find aggregator state during DELETE operation"
@@ -297,7 +289,7 @@ impl AggregationProcessor {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
-        let mut curr_state_opt = self.states.get_mut(&key);
+        let curr_state_opt = self.states.get_mut(&key);
         assert!(
             curr_state_opt.is_some(),
             "Unable to find aggregator state during UPDATE operation"
@@ -399,7 +391,7 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        txn: &SharedTransaction,
+        _txn: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         let ops = self.aggregate(op).map_err(|e| InternalError(Box::new(e)))?;
         for fop in ops {

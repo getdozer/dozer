@@ -8,7 +8,6 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 use dozer_core::DEFAULT_PORT_HANDLE;
 
 use dozer_types::types::FieldType::Int;
-use dozer_types::types::{Field, Operation, Record};
 use std::collections::HashMap;
 //
 // #[test]

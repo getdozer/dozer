@@ -1,8 +1,4 @@
-use dozer_core::{
-    node::PortHandle,
-    storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
-    DEFAULT_PORT_HANDLE,
-};
+use dozer_core::{node::PortHandle, DEFAULT_PORT_HANDLE};
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, DATE_FORMAT,
 };

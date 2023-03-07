@@ -8,8 +8,7 @@ use std::collections::BTreeMap;
 
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
-use dozer_core::storage::common::Database;
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
+
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter, Write};
 

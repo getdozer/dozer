@@ -1,4 +1,4 @@
-use num_traits::FromPrimitive;
+use crate::calculate_err_field;
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Sum;
@@ -6,7 +6,7 @@ use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType};
-use crate::calculate_err_field;
+use num_traits::FromPrimitive;
 
 #[derive(Debug)]
 pub struct SumAggregator {
@@ -123,8 +123,7 @@ fn get_sum(
         Some(not_supported_return_type) => {
             Err(PipelineError::InternalExecutionError(InvalidType(format!(
                 "Not supported return type {} for {}",
-                not_supported_return_type,
-                Sum
+                not_supported_return_type, Sum
             ))))
         }
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(

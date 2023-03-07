@@ -1,11 +1,11 @@
 use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Min;
+use crate::{calculate_err, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType};
 use std::collections::BTreeMap;
-use crate::{calculate_err, calculate_err_field};
 
 #[derive(Debug)]
 pub struct MinAggregator {
@@ -54,9 +54,7 @@ fn get_min(
     } else {
         let val = calculate_err!(field_map.keys().min(), Min).clone();
         match return_type {
-            Some(FieldType::UInt) => {
-                Ok(Field::UInt(calculate_err_field!(val.to_uint(), Min, val)))
-            }
+            Some(FieldType::UInt) => Ok(Field::UInt(calculate_err_field!(val.to_uint(), Min, val))),
             Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(val.to_int(), Min, val))),
             Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
                 val.to_float(),
@@ -79,8 +77,7 @@ fn get_min(
             Some(not_supported_return_type) => {
                 Err(PipelineError::InternalExecutionError(InvalidType(format!(
                     "Not supported return type {} for {}",
-                    not_supported_return_type,
-                    Min
+                    not_supported_return_type, Min
                 ))))
             }
             None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
