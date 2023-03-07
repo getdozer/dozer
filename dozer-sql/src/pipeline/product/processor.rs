@@ -6,7 +6,7 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 
 use dozer_core::storage::lmdb_storage::SharedTransaction;
-use dozer_types::types::{Operation, Record};
+use dozer_types::types::{Field, Operation, Record};
 use std::collections::HashMap;
 
 use super::join::{JoinAction, JoinSource};
@@ -36,7 +36,7 @@ impl FromProcessor {
         &mut self,
         from_port: PortHandle,
         record: &Record,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<Field>)>, ProductError> {
         self.operator
             .execute(JoinAction::Delete, from_port, record)
             .map_err(|err| ProductError::DeleteError(self.get_port_name(from_port), Box::new(err)))
@@ -46,7 +46,7 @@ impl FromProcessor {
         &mut self,
         from_port: PortHandle,
         record: &Record,
-    ) -> Result<Vec<(JoinAction, Record, Vec<u8>)>, ProductError> {
+    ) -> Result<Vec<(JoinAction, Record, Vec<Field>)>, ProductError> {
         self.operator
             .execute(JoinAction::Insert, from_port, record)
             .map_err(|err| ProductError::InsertError(self.get_port_name(from_port), Box::new(err)))
@@ -60,8 +60,8 @@ impl FromProcessor {
         new: &Record,
     ) -> Result<
         (
-            Vec<(JoinAction, Record, Vec<u8>)>,
-            Vec<(JoinAction, Record, Vec<u8>)>,
+            Vec<(JoinAction, Record, Vec<Field>)>,
+            Vec<(JoinAction, Record, Vec<Field>)>,
         ),
         ProductError,
     > {
@@ -119,10 +119,10 @@ impl Processor for FromProcessor {
                 for (action, record, _key) in records.into_iter() {
                     match action {
                         JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
                         }
                         JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
                         }
                     }
                 }
@@ -135,10 +135,10 @@ impl Processor for FromProcessor {
                 for (action, record, _key) in records.into_iter() {
                     match action {
                         JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
                         }
                         JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
                         }
                     }
                 }
@@ -151,10 +151,10 @@ impl Processor for FromProcessor {
                 for (action, old, _key) in old_join_records.into_iter() {
                     match action {
                         JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE)?;
                         }
                         JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE)?;
                         }
                     }
                 }
@@ -162,10 +162,10 @@ impl Processor for FromProcessor {
                 for (action, new, _key) in new_join_records.into_iter() {
                     match action {
                         JoinAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE)?;
                         }
                         JoinAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE)?;
                         }
                     }
                 }

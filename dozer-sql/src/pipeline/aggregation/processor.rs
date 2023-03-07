@@ -17,7 +17,7 @@ use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use hashbrown::HashMap;
 use std::mem::size_of_val;
 
-const COUNTER_KEY: u8 = 1_u8;
+const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 
 enum DimensionAggregationDataType {}
 
@@ -54,7 +54,8 @@ pub struct AggregationProcessor {
     projections: Vec<Expression>,
     input_schema: Schema,
     aggregation_schema: Schema,
-    states: HashMap<Vec<Field>, AggregationState>,
+    states: HashMap<u64, AggregationState>,
+    default_segment_key: u64,
 }
 
 enum AggregatorOperation {
@@ -83,6 +84,9 @@ impl AggregationProcessor {
             aggr_measures_ret_types.push(measure.get_type(&input_schema)?.return_type)
         }
 
+        let mut hasher = AHasher::default();
+        DEFAULT_SEGMENT_KEY.hash(&mut hasher);
+
         Ok(Self {
             dimensions,
             projections,
@@ -92,14 +96,8 @@ impl AggregationProcessor {
             measures: aggr_measures,
             measures_types: aggr_types,
             measures_return_types: aggr_measures_ret_types,
+            default_segment_key: hasher.finish(),
         })
-    }
-
-    fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
-        let mut vec = Vec::with_capacity(hash.len().wrapping_add(size_of_val(&database_id)));
-        vec.extend_from_slice(&database_id.to_be_bytes());
-        vec.extend(hash);
-        Ok(vec)
     }
 
     fn calc_and_fill_measures(
@@ -169,7 +167,7 @@ impl AggregationProcessor {
         let key = if !self.dimensions.is_empty() {
             get_key(&self.input_schema, old, &self.dimensions)?
         } else {
-            vec![Field::Null]
+            self.default_segment_key
         };
 
         let curr_state_opt = self.states.get_mut(&key);
@@ -229,7 +227,7 @@ impl AggregationProcessor {
         let key = if !self.dimensions.is_empty() {
             get_key(&self.input_schema, new, &self.dimensions)?
         } else {
-            vec![Field::Null]
+            self.default_segment_key
         };
 
         let curr_state = self.states.entry(key).or_insert(AggregationState::new(
@@ -284,7 +282,7 @@ impl AggregationProcessor {
         &mut self,
         old: &mut Record,
         new: &mut Record,
-        key: Vec<Field>,
+        key: u64,
     ) -> Result<Operation, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
@@ -351,7 +349,7 @@ impl AggregationProcessor {
                 ref mut new,
             } => {
                 let (old_record_hash, new_record_hash) = if self.dimensions.is_empty() {
-                    (vec![Field::Null], vec![Field::Null])
+                    (self.default_segment_key, self.default_segment_key)
                 } else {
                     (
                         get_key(&self.input_schema, old, &self.dimensions)?,
@@ -373,12 +371,14 @@ fn get_key(
     schema: &Schema,
     record: &Record,
     dimensions: &[Expression],
-) -> Result<Vec<Field>, PipelineError> {
+) -> Result<u64, PipelineError> {
     let mut key = Vec::<Field>::with_capacity(dimensions.len());
     for dimension in dimensions.iter() {
         key.push(dimension.evaluate(record, schema)?);
     }
-    Ok(key)
+    let mut hasher = AHasher::default();
+    key.hash(&mut hasher);
+    Ok(hasher.finish())
 }
 
 impl Processor for AggregationProcessor {

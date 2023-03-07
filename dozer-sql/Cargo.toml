@@ -19,6 +19,7 @@ dozer-types = {path = "../dozer-types"}
 dozer-core = {path = "../dozer-core"}
 dozer-tracing = {path = "../dozer-tracing"}
 hashbrown = "0.13"
+ahash = "0.8.3"
 
 [dev-dependencies]
 tempdir = "0.3.7"
