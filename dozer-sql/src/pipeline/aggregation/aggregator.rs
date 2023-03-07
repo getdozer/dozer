@@ -11,21 +11,22 @@ use crate::pipeline::expression::execution::Expression;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::{Field, FieldType, Schema};
-use std::fmt::{Display, Formatter};
-use hashbrown::HashMap;
+use std::fmt::{Debug, Display, Formatter, Write};
 
-pub trait Aggregator {
-    fn update(
-        &self,
-        old: &Field,
-        new: &Field,
-        return_type: FieldType,
-    ) -> Result<Field, PipelineError>;
-    fn delete(&self, old: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
-    fn insert(&self, new: &Field, return_type: FieldType) -> Result<Field, PipelineError>;
+pub trait Aggregator: Send + Sync {
+    fn init(&mut self, return_type: FieldType);
+    fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError>;
+    fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError>;
+    fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
+impl Debug for dyn Aggregator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Aggregator")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub enum AggregatorType {
     Avg,
     Count,
@@ -37,78 +38,82 @@ pub enum AggregatorType {
 impl Display for AggregatorType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Aggregator::Avg => f.write_str("avg"),
-            Aggregator::Count => f.write_str("count"),
-            Aggregator::Max => f.write_str("max"),
-            Aggregator::Min => f.write_str("min"),
-            Aggregator::Sum => f.write_str("sum"),
+            AggregatorType::Avg => f.write_str("avg"),
+            AggregatorType::Count => f.write_str("count"),
+            AggregatorType::Max => f.write_str("max"),
+            AggregatorType::Min => f.write_str("min"),
+            AggregatorType::Sum => f.write_str("sum"),
         }
     }
 }
 
 pub fn get_aggregator_from_aggregator_type(typ: AggregatorType) -> Box<dyn Aggregator> {
-    Box::new(match typ {
-        AggregatorType::Avg => AvgAggregator::new(),
-        AggregatorType::Count => CountAggregator::new(),
-        AggregatorType::Max => MaxAggregator::new(),
-        AggregatorType::Min => MinAggregator::new(),
-        AggregatorType::Sum => SumAggregator::new(),
-    })
+    match typ {
+        AggregatorType::Avg => Box::new(AvgAggregator::new()),
+        AggregatorType::Count => Box::new(CountAggregator::new()),
+        AggregatorType::Max => Box::new(MaxAggregator::new()),
+        AggregatorType::Min => Box::new(MinAggregator::new()),
+        AggregatorType::Sum => Box::new(SumAggregator::new()),
+    }
 }
 
 pub fn get_aggregator_type_from_aggregation_expression(
     e: &Expression,
     schema: &Schema,
-) -> Result<(Expression, AggregatorType), PipelineError> {
+) -> Result<(Vec<Expression>, AggregatorType), PipelineError> {
     match e {
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Sum,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Sum.to_string())
                 })?
-                .clone(),
+                .clone()],
             AggregatorType::Sum,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Min,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Min.to_string())
                 })?
-                .clone(),
+                .clone()],
             AggregatorType::Min,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Max,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
                 })?
-                .clone(),
+                .clone()],
             AggregatorType::Max,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Avg,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Avg.to_string())
                 })?
-                .clone(),
+                .clone()],
             AggregatorType::Avg,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Count,
             args: _,
-        } => Ok((Expression::Literal(Field::Int(0)), AggregatorType::Count)),
+        } => Ok((vec![], AggregatorType::Count)),
         _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
     }
 }

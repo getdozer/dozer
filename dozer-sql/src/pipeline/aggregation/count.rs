@@ -6,6 +6,7 @@ use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Count;
 
+#[derive(Debug)]
 pub struct CountAggregator {
     pub current_state: u64,
 }

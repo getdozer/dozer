@@ -20,7 +20,7 @@ use std::ops::Div;
 pub(crate) fn init_processor(
     sql: &str,
     input_schemas: HashMap<PortHandle, Schema>,
-) -> Result<(AggregationProcessor, SharedTransaction), PipelineError> {
+) -> Result<AggregationProcessor, PipelineError> {
     let input_schema = input_schemas
         .get(&DEFAULT_PORT_HANDLE)
         .unwrap_or_else(|| panic!("Error getting Input Schema"));
@@ -30,26 +30,16 @@ pub(crate) fn init_processor(
 
     projection_planner.plan(*statement).unwrap();
 
-    let storage = LmdbEnvironmentManager::create(
-        tempdir::TempDir::new("test").unwrap().path(),
-        "aggregation_test",
-        Default::default(),
-    )
-    .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    let tx = storage.create_txn().unwrap();
-
     let processor = AggregationProcessor::new(
         projection_planner.groupby,
         projection_planner.aggregation_output,
         projection_planner.projection_output,
         input_schema.clone(),
         projection_planner.post_aggregation_schema,
-        &mut tx.write(),
     )
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    Ok((processor, tx))
+    Ok(processor)
 }
 
 pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) -> Schema {
@@ -211,9 +201,9 @@ pub fn get_date_field(val: &str) -> Field {
 
 #[macro_export]
 macro_rules! output {
-    ($processor:expr, $inp:expr, $tx:expr) => {
+    ($processor:expr, $inp:expr) => {
         $processor
-            .aggregate(&mut $tx.write(), $processor.db, $inp)
+            .aggregate($inp)
             .unwrap_or_else(|_e| panic!("Error executing aggregate"))
     };
 }

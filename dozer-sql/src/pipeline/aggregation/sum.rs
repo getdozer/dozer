@@ -7,6 +7,7 @@ use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Sum;
 
+#[derive(Debug)]
 pub struct SumAggregator {
     current_state: SumAggregatorState
 }
@@ -32,6 +33,10 @@ impl SumAggregator {
 }
 
 impl Aggregator for SumAggregator {
+    fn init(&mut self, return_type: FieldType) {
+        todo!()
+    }
+
     fn update(
         &mut self,
         old: &Field,

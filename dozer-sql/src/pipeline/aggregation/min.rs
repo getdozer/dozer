@@ -8,6 +8,7 @@ use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Min;
 
+#[derive(Debug)]
 pub struct MinAggregator {
     current_state: BTreeMap<Field, u64>,
 }
@@ -21,6 +22,10 @@ impl MinAggregator {
 }
 
 impl Aggregator for MinAggregator {
+    fn init(&mut self, return_type: FieldType) {
+        todo!()
+    }
+
     fn update(
         &mut self,
         old: &Field,
