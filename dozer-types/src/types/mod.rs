@@ -236,6 +236,16 @@ impl Record {
         idx_values
     }
 
+    pub fn get_fields_by_indexes(&self, indexes: &[usize]) -> Vec<Field> {
+        debug_assert!(!&indexes.is_empty(), "Primary key indexes cannot be empty");
+
+        let mut fields = Vec::with_capacity(indexes.len());
+        for i in indexes {
+            fields.push(self.values[*i].clone());
+        }
+        fields
+    }
+
     pub fn get_key(&self, indexes: &Vec<usize>) -> Vec<u8> {
         debug_assert!(!indexes.is_empty(), "Primary key indexes cannot be empty");
 
