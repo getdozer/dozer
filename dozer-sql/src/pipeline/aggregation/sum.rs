@@ -47,12 +47,10 @@ impl Aggregator for SumAggregator {
     }
 
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError> {
-        debug_assert!(old.iter().all(|field| field.get_type() == self.return_type || field.get_type() == None));
         get_sum(old, &mut self.current_state, self.return_type, true)
     }
 
     fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
-        debug_assert!(new.iter().all(|field| field.get_type() == self.return_type || field.get_type() == None));
         get_sum(new, &mut self.current_state, self.return_type, false)
     }
 }

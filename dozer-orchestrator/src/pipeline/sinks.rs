@@ -367,68 +367,68 @@ impl Sink for CacheSink {
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
 
-        // let endpoint_name = &self.api_endpoint.name;
-        // let schema = &self
-        //     .cache
-        //     .get_schema_and_indexes_by_name(endpoint_name)
-        //     .map_err(|_| ExecutionError::SchemaNotInitialized)?
-        //     .0;
-        //
-        // match op {
-        //     Operation::Delete { mut old } => {
-        //         old.schema_id = schema.identifier;
-        //         let key = get_primary_key(&schema.primary_index, &old.values);
-        //         let version = self.cache.delete(&key).map_err(|e| {
-        //             ExecutionError::SinkError(SinkError::CacheDeleteFailed(
-        //                 endpoint_name.clone(),
-        //                 Box::new(e),
-        //             ))
-        //         })?;
-        //         old.version = Some(version);
-        //
-        //         if let Some(notifier) = &self.notifier {
-        //             let op =
-        //                 types_helper::map_delete_operation(self.api_endpoint.name.clone(), old);
-        //             try_send(&notifier.1, op)?;
-        //         }
-        //     }
-        //     Operation::Insert { mut new } => {
-        //         new.schema_id = schema.identifier;
-        //         let id = self.cache.insert(&mut new).map_err(|e| {
-        //             ExecutionError::SinkError(SinkError::CacheInsertFailed(
-        //                 endpoint_name.clone(),
-        //                 Box::new(e),
-        //             ))
-        //         })?;
-        //
-        //         if let Some(notifier) = &self.notifier {
-        //             let op =
-        //                 types_helper::map_insert_operation(self.api_endpoint.name.clone(), new, id);
-        //             try_send(&notifier.1, op)?;
-        //         }
-        //     }
-        //     Operation::Update { mut old, mut new } => {
-        //         old.schema_id = schema.identifier;
-        //         new.schema_id = schema.identifier;
-        //         let key = get_primary_key(&schema.primary_index, &old.values);
-        //         let old_version = self.cache.update(&key, &mut new).map_err(|e| {
-        //             ExecutionError::SinkError(SinkError::CacheUpdateFailed(
-        //                 endpoint_name.clone(),
-        //                 Box::new(e),
-        //             ))
-        //         })?;
-        //         old.version = Some(old_version);
-        //
-        //         if let Some(notifier) = &self.notifier {
-        //             let op = types_helper::map_update_operation(
-        //                 self.api_endpoint.name.clone(),
-        //                 old,
-        //                 new,
-        //             );
-        //             try_send(&notifier.1, op)?;
-        //         }
-        //     }
-        // };
+        let endpoint_name = &self.api_endpoint.name;
+        let schema = &self
+            .cache
+            .get_schema_and_indexes_by_name(endpoint_name)
+            .map_err(|_| ExecutionError::SchemaNotInitialized)?
+            .0;
+
+        match op {
+            Operation::Delete { mut old } => {
+                old.schema_id = schema.identifier;
+                let key = get_primary_key(&schema.primary_index, &old.values);
+                let version = self.cache.delete(&key).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheDeleteFailed(
+                        endpoint_name.clone(),
+                        Box::new(e),
+                    ))
+                })?;
+                old.version = Some(version);
+
+                if let Some(notifier) = &self.notifier {
+                    let op =
+                        types_helper::map_delete_operation(self.api_endpoint.name.clone(), old);
+                    try_send(&notifier.1, op)?;
+                }
+            }
+            Operation::Insert { mut new } => {
+                new.schema_id = schema.identifier;
+                let id = self.cache.insert(&mut new).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheInsertFailed(
+                        endpoint_name.clone(),
+                        Box::new(e),
+                    ))
+                })?;
+
+                if let Some(notifier) = &self.notifier {
+                    let op =
+                        types_helper::map_insert_operation(self.api_endpoint.name.clone(), new, id);
+                    try_send(&notifier.1, op)?;
+                }
+            }
+            Operation::Update { mut old, mut new } => {
+                old.schema_id = schema.identifier;
+                new.schema_id = schema.identifier;
+                let key = get_primary_key(&schema.primary_index, &old.values);
+                let old_version = self.cache.update(&key, &mut new).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheUpdateFailed(
+                        endpoint_name.clone(),
+                        Box::new(e),
+                    ))
+                })?;
+                old.version = Some(old_version);
+
+                if let Some(notifier) = &self.notifier {
+                    let op = types_helper::map_update_operation(
+                        self.api_endpoint.name.clone(),
+                        old,
+                        new,
+                    );
+                    try_send(&notifier.1, op)?;
+                }
+            }
+        };
 
         Ok(())
     }

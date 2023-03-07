@@ -5,14 +5,13 @@ use ordered_float::OrderedFloat;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
-use std::borrow::{BorrowMut, Cow};
-use std::cmp::Ordering;
+use std::borrow::Cow;
 
 use crate::types::DozerPoint;
 use std::fmt::{Display, Formatter};
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub enum Field {
     UInt(u64),
     Int(i64),
@@ -44,24 +43,6 @@ pub enum FieldBorrow<'a> {
     Bson(&'a [u8]),
     Point(DozerPoint),
     Null,
-}
-
-// make partial_cmp() just return result from cmp()
-impl PartialOrd for Field {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Field {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Field::Null, Field::Null) => Ordering::Equal,
-            (Field::Null, _) => Ordering::Less,
-            (_, Field::Null) => Ordering::Greater,
-            (_, _) => FieldBorrow::cmp(&self.borrow(), &other.borrow()),
-        }
-    }
 }
 
 impl Field {
@@ -144,28 +125,27 @@ impl Field {
         let first_byte = *buf.first().ok_or(DeserializationError::EmptyInput)?;
         let val = &buf[1..];
         match first_byte {
-            0 => Ok(FieldBorrow::Null),
-            1 => Ok(FieldBorrow::UInt(u64::from_be_bytes(
+            0 => Ok(FieldBorrow::UInt(u64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            2 => Ok(FieldBorrow::Int(i64::from_be_bytes(
+            1 => Ok(FieldBorrow::Int(i64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            3 => Ok(FieldBorrow::Float(OrderedFloat(f64::from_be_bytes(
+            2 => Ok(FieldBorrow::Float(OrderedFloat(f64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             )))),
-            4 => Ok(FieldBorrow::Boolean(val[0] == 1)),
-            5 => Ok(FieldBorrow::String(std::str::from_utf8(val)?)),
-            6 => Ok(FieldBorrow::Text(std::str::from_utf8(val)?)),
-            7 => Ok(FieldBorrow::Binary(val)),
-            8 => Ok(FieldBorrow::Decimal(Decimal::deserialize(
+            3 => Ok(FieldBorrow::Boolean(val[0] == 1)),
+            4 => Ok(FieldBorrow::String(std::str::from_utf8(val)?)),
+            5 => Ok(FieldBorrow::Text(std::str::from_utf8(val)?)),
+            6 => Ok(FieldBorrow::Binary(val)),
+            7 => Ok(FieldBorrow::Decimal(Decimal::deserialize(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            9 => {
+            8 => {
                 let timestamp = Utc.timestamp_millis_opt(i64::from_be_bytes(
                     val.try_into()
                         .map_err(|_| DeserializationError::BadDataLength)?,
@@ -181,51 +161,34 @@ impl Field {
                     ))),
                 }
             }
-            10 => Ok(FieldBorrow::Date(NaiveDate::parse_from_str(
+            9 => Ok(FieldBorrow::Date(NaiveDate::parse_from_str(
                 std::str::from_utf8(val)?,
                 DATE_FORMAT,
             )?)),
-            11 => Ok(FieldBorrow::Bson(val)),
-            12 => Ok(FieldBorrow::Point(
+            10 => Ok(FieldBorrow::Bson(val)),
+            11 => Ok(FieldBorrow::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
+            12 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
 
     fn get_type_prefix(&self) -> u8 {
         match self {
-            Field::Null => 0,
-            Field::UInt(_) => 1,
-            Field::Int(_) => 2,
-            Field::Float(_) => 3,
-            Field::Boolean(_) => 4,
-            Field::String(_) => 5,
-            Field::Text(_) => 6,
-            Field::Binary(_) => 7,
-            Field::Decimal(_) => 8,
-            Field::Timestamp(_) => 9,
-            Field::Date(_) => 10,
-            Field::Bson(_) => 11,
-            Field::Point(_) => 12,
-        }
-    }
-
-    pub fn get_type(&self) -> Option<FieldType> {
-        match self {
-            Field::UInt(_) => Some(FieldType::UInt),
-            Field::Int(_) => Some(FieldType::Int),
-            Field::Float(_) => Some(FieldType::Float),
-            Field::Boolean(_) => Some(FieldType::Boolean),
-            Field::String(_) => Some(FieldType::String),
-            Field::Text(_) => Some(FieldType::Text),
-            Field::Binary(_) => Some(FieldType::Binary),
-            Field::Decimal(_) => Some(FieldType::Decimal),
-            Field::Timestamp(_) => Some(FieldType::Timestamp),
-            Field::Date(_) => Some(FieldType::Date),
-            Field::Bson(_) => Some(FieldType::Bson),
-            Field::Point(_) => Some(FieldType::Point),
-            Field::Null => None,
+            Field::UInt(_) => 0,
+            Field::Int(_) => 1,
+            Field::Float(_) => 2,
+            Field::Boolean(_) => 3,
+            Field::String(_) => 4,
+            Field::Text(_) => 5,
+            Field::Binary(_) => 6,
+            Field::Decimal(_) => 7,
+            Field::Timestamp(_) => 8,
+            Field::Date(_) => 9,
+            Field::Bson(_) => 10,
+            Field::Point(_) => 11,
+            Field::Null => 12,
         }
     }
 
@@ -545,7 +508,6 @@ impl TryFrom<&str> for FieldType {
             "timestamp" => FieldType::Timestamp,
             "date" => FieldType::Date,
             "bson" => FieldType::Bson,
-            "point" => FieldType::Point,
             _ => return Err(format!("Unsupported '{value}' type")),
         };
 
