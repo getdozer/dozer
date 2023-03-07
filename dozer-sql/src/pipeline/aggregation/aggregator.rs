@@ -111,8 +111,20 @@ pub fn get_aggregator_type_from_aggregation_expression(
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Count,
-            args: _,
-        } => Ok((vec![], AggregatorType::Count)),
+            args,
+        } => Ok((
+            vec![args
+                .get(0)
+                .ok_or_else(|| {
+                    PipelineError::NotEnoughArguments(AggregateFunctionType::Count.to_string())
+                })?
+                .clone()],
+            AggregatorType::Count,
+        )),
+        // Expression::AggregateFunction {
+        //     fun: AggregateFunctionType::Count,
+        //     args: _,
+        // } => Ok((vec![], AggregatorType::Count)),
         _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
     }
 }
