@@ -22,8 +22,6 @@ use hashbrown::HashMap;
 
 const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 
-enum DimensionAggregationDataType {}
-
 #[derive(Debug)]
 struct AggregationState {
     count: usize,
@@ -32,7 +30,7 @@ struct AggregationState {
 }
 
 impl AggregationState {
-    pub fn new(types: &Vec<AggregatorType>, ret_types: &Vec<FieldType>) -> Self {
+    pub fn new(types: &[AggregatorType], ret_types: &[FieldType]) -> Self {
         let mut states: Vec<Box<dyn Aggregator>> = Vec::new();
         for (idx, typ) in types.iter().enumerate() {
             let mut aggr = get_aggregator_from_aggregator_type(*typ);

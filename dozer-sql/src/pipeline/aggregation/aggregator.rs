@@ -10,7 +10,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
 
 use dozer_types::types::{Field, FieldType, Schema};
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 
 pub trait Aggregator: Send + Sync {
     fn init(&mut self, return_type: FieldType);

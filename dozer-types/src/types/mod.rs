@@ -1,10 +1,8 @@
-use ahash::AHasher;
 use geo::{point, GeodesicDistance, Point};
 use ordered_float::OrderedFloat;
 use std::array::TryFromSliceError;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
-use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use crate::errors::types::TypeError;
@@ -268,68 +266,6 @@ impl Record {
         }
         res_buffer
     }
-
-    pub fn get_values_hash(&self) -> u64 {
-        let mut hasher = AHasher::default();
-
-        for (index, field) in self.values.iter().enumerate() {
-            hasher.write_i32(index as i32);
-            match field {
-                Field::UInt(i) => {
-                    hasher.write_u8(1);
-                    hasher.write_u64(*i);
-                }
-                Field::Int(i) => {
-                    hasher.write_u8(2);
-                    hasher.write_i64(*i);
-                }
-                Field::Float(f) => {
-                    hasher.write_u8(3);
-                    hasher.write(&((*f).to_ne_bytes()));
-                }
-                Field::Boolean(b) => {
-                    hasher.write_u8(4);
-                    hasher.write_u8(if *b { 1_u8 } else { 0_u8 });
-                }
-                Field::String(s) => {
-                    hasher.write_u8(5);
-                    hasher.write(s.as_str().as_bytes());
-                }
-                Field::Text(t) => {
-                    hasher.write_u8(6);
-                    hasher.write(t.as_str().as_bytes());
-                }
-                Field::Binary(b) => {
-                    hasher.write_u8(7);
-                    hasher.write(b.as_ref());
-                }
-                Field::Decimal(d) => {
-                    hasher.write_u8(8);
-                    hasher.write(&d.serialize());
-                }
-                Field::Timestamp(t) => {
-                    hasher.write_u8(9);
-                    hasher.write_i64(t.timestamp())
-                }
-                Field::Date(d) => {
-                    hasher.write_u8(10);
-                    hasher.write(d.to_string().as_bytes());
-                }
-                Field::Bson(b) => {
-                    hasher.write_u8(11);
-                    hasher.write(b.as_ref());
-                }
-                Field::Point(p) => {
-                    hasher.write_u8(12);
-                    hasher.write(p.to_bytes().as_slice());
-                }
-                Field::Null => {
-                    hasher.write_u8(0);
-                }
-            }
-        }
-        hasher.finish()
-    }
 }
 
 impl Display for Record {
@@ -337,7 +273,7 @@ impl Display for Record {
         let v = self
             .values
             .iter()
-            .map(|f| Cell::new(&f.to_string().unwrap_or("".to_string())))
+            .map(|f| Cell::new(&f.to_string().unwrap_or_default()))
             .collect::<Vec<Cell>>();
 
         let mut table = Table::new();
