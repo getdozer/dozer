@@ -8,7 +8,7 @@ use std::thread;
 use std::time::Instant;
 
 fn main() {
-    dozer_tracing::init_telemetry(false).unwrap();
+    dozer_tracing::init_telemetry(None, None);
 
     let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
     let tables = vec![TableInfo {

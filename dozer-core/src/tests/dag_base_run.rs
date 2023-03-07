@@ -86,8 +86,6 @@ impl Processor for NoopProcessor {
 
 #[test]
 fn test_run_dag() {
-    // dozer_tracing::init_telemetry(false).unwrap();
-
     let count: u64 = 1_000;
 
     let mut dag = Dag::new();

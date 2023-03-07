@@ -523,7 +523,7 @@ impl Sink for TestSink {
 #[test]
 #[ignore]
 fn test_pipeline_builder() {
-    dozer_tracing::init_telemetry(false).unwrap();
+    dozer_tracing::init_telemetry(None, None);
 
     let mut pipeline = AppPipeline::new();
 
