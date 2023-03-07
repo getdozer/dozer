@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use dozer_types::types::Record;
+use dozer_types::types::{IndexDefinition, Record, Schema};
 
 use crate::errors::StorageError;
 
@@ -169,6 +169,28 @@ impl Decode for Record {
 
 unsafe impl LmdbKey for Record {
     const TYPE: LmdbValType = LmdbValType::VariableSize;
+}
+
+impl Encode for (Schema, Vec<IndexDefinition>) {
+    fn encode(&self) -> Result<Encoded, StorageError> {
+        dozer_types::bincode::serialize(self)
+            .map(Encoded::Vec)
+            .map_err(|e| StorageError::SerializationError {
+                typ: "(Schema, Vec<IndexDefinition>)",
+                reason: Box::new(e),
+            })
+    }
+}
+
+impl Decode for (Schema, Vec<IndexDefinition>) {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        dozer_types::bincode::deserialize(bytes)
+            .map(Cow::Owned)
+            .map_err(|e| StorageError::DeserializationError {
+                typ: "(Schema, Vec<IndexDefinition>)",
+                reason: Box::new(e),
+            })
+    }
 }
 
 #[cfg(test)]
