@@ -380,7 +380,6 @@ fn get_key(
     let mut hasher = AHasher::default();
     key.hash(&mut hasher);
     let v = hasher.finish();
-    println!("{}", v);
     Ok(v)
 }
 
