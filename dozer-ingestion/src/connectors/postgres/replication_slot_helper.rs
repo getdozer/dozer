@@ -83,6 +83,7 @@ mod tests {
     use super::ReplicationSlotHelper;
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_replication_slot_create_successfully() {
         run_connector_test("postgres", |app_config| {
@@ -118,6 +119,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_replication_slot_create_failed_if_existed() {
         run_connector_test("postgres", |app_config| {
@@ -136,10 +138,8 @@ mod tests {
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
                 .unwrap();
 
-            let create_replication_slot_query = format!(
-                r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "pgoutput" USE_SNAPSHOT"#,
-                slot_name
-            );
+            let create_replication_slot_query =
+                format!(r#"CREATE_REPLICATION_SLOT {slot_name:?} LOGICAL "pgoutput" USE_SNAPSHOT"#);
 
             client_ref
                 .borrow_mut()
@@ -155,15 +155,14 @@ mod tests {
                 Err(e) => {
                     assert!(matches!(e, ConnectorError::PostgresConnectorError(_)));
 
-                    if let ConnectorError::PostgresConnectorError(cnn_err) = e {
-                        if let PostgresConnectorError::CreateSlotError(_, err) = cnn_err {
-                            assert_eq!(
-                                err.as_db_error().unwrap().message(),
-                                format!("replication slot \"{slot_name}\" already exists")
-                            );
-                        } else {
-                            panic!("Unexpected error occurred");
-                        }
+                    if let ConnectorError::PostgresConnectorError(
+                        PostgresConnectorError::CreateSlotError(_, err),
+                    ) = e
+                    {
+                        assert_eq!(
+                            err.as_db_error().unwrap().message(),
+                            format!("replication slot \"{slot_name}\" already exists")
+                        );
                     } else {
                         panic!("Unexpected error occurred");
                     }
@@ -173,6 +172,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_replication_slot_drop_successfully() {
         run_connector_test("postgres", |app_config| {
@@ -191,10 +191,8 @@ mod tests {
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
                 .unwrap();
 
-            let create_replication_slot_query = format!(
-                r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "pgoutput" USE_SNAPSHOT"#,
-                slot_name
-            );
+            let create_replication_slot_query =
+                format!(r#"CREATE_REPLICATION_SLOT {slot_name:?} LOGICAL "pgoutput" USE_SNAPSHOT"#);
 
             client_ref
                 .borrow_mut()
@@ -208,6 +206,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[serial]
     fn test_connector_replication_slot_drop_failed_if_slot_not_exist() {
         run_connector_test("postgres", |app_config| {

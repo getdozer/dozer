@@ -30,10 +30,6 @@ pub enum ExecutionError {
     InvalidDatabase,
     #[error("Field not found at position {0}")]
     FieldNotFound(String),
-    #[error("Port not found in source for schema_id: {0}.")]
-    PortNotFound(String),
-    #[error("Replication type not found")]
-    ReplicationTypeNotFound,
     #[error("Record not found")]
     RecordNotFound(),
     #[error("Node {node} has incompatible {typ:?} schemas: {source}")]

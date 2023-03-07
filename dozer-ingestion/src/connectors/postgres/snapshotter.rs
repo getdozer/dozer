@@ -20,14 +20,13 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::Operation;
 
 pub struct PostgresSnapshotter<'a> {
-    pub tables: Vec<TableInfo>,
     pub conn_config: tokio_postgres::Config,
     pub ingestor: &'a Ingestor,
     pub connector_id: u64,
 }
 
 impl<'a> PostgresSnapshotter<'a> {
-    pub fn get_tables(&self, tables: Vec<TableInfo>) -> Result<Vec<SourceSchema>, ConnectorError> {
+    pub fn get_tables(&self, tables: &[TableInfo]) -> Result<Vec<SourceSchema>, ConnectorError> {
         let helper = SchemaHelper::new(self.conn_config.clone(), None);
         helper
             .get_schemas(Some(tables))
@@ -85,7 +84,7 @@ impl<'a> PostgresSnapshotter<'a> {
         Ok(())
     }
 
-    pub fn sync_tables(&self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
+    pub fn sync_tables(&self, tables: &[TableInfo]) -> Result<(), ConnectorError> {
         let tables = self.get_tables(tables)?;
 
         let mut left_tables_count = tables.len();
@@ -175,8 +174,6 @@ mod tests {
 
             let tables = vec![TableInfo {
                 name: table_name.clone(),
-                table_name: table_name.clone(),
-                id: 0,
                 columns: None,
             }];
 
@@ -191,9 +188,7 @@ mod tests {
             let connector = PostgresConnector::new(1, postgres_config);
 
             let input_tables = vec![TableInfo {
-                name: table_name.clone(),
-                table_name: table_name.clone(),
-                id: 0,
+                name: table_name,
                 columns: None,
             }];
 
@@ -201,13 +196,12 @@ mod tests {
             let (ingestor, mut iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables,
                 conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };
 
-            let actual = snapshotter.sync_tables(input_tables);
+            let actual = snapshotter.sync_tables(&input_tables);
 
             assert!(actual.is_ok());
 
@@ -250,9 +244,7 @@ mod tests {
             test_client.insert_rows(&table_name, 2, None);
 
             let tables = vec![TableInfo {
-                name: table_name.clone(),
-                table_name: table_name.clone(),
-                id: 0,
+                name: table_name,
                 columns: None,
             }];
 
@@ -268,9 +260,7 @@ mod tests {
 
             let input_table_name = String::from("not_existing_table");
             let input_tables = vec![TableInfo {
-                name: input_table_name.clone(),
-                table_name: input_table_name,
-                id: 0,
+                name: input_table_name,
                 columns: None,
             }];
 
@@ -278,13 +268,12 @@ mod tests {
             let (ingestor, mut _iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables,
                 conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };
 
-            let actual = snapshotter.sync_tables(input_tables);
+            let actual = snapshotter.sync_tables(&input_tables);
 
             assert!(actual.is_err());
 
@@ -316,8 +305,6 @@ mod tests {
 
             let tables = vec![TableInfo {
                 name: table_name.clone(),
-                table_name: table_name.clone(),
-                id: 0,
                 columns: None,
             }];
 
@@ -332,9 +319,7 @@ mod tests {
             let connector = PostgresConnector::new(1, postgres_config);
 
             let input_tables = vec![TableInfo {
-                name: table_name.clone(),
-                table_name,
-                id: 0,
+                name: table_name,
                 columns: None,
             }];
 
@@ -342,13 +327,12 @@ mod tests {
             let (ingestor, mut _iterator) = Ingestor::initialize_channel(ingestion_config);
 
             let snapshotter = PostgresSnapshotter {
-                tables,
                 conn_config,
                 ingestor: &ingestor,
                 connector_id: connector.id,
             };
 
-            let actual = snapshotter.sync_tables(input_tables);
+            let actual = snapshotter.sync_tables(&input_tables);
 
             assert!(actual.is_err());
 

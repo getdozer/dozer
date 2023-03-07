@@ -90,15 +90,14 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         Ok((schema, SchemaSQLContext::default()))
     }
 
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(self
-            .schemas
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        self.schemas
             .iter()
             .enumerate()
             .map(|(idx, _)| {
                 OutputPortDef::new(idx as u16, OutputPortType::StatefulWithPrimaryKeyLookup)
             })
-            .collect())
+            .collect()
     }
 
     fn build(

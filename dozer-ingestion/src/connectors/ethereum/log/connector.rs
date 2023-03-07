@@ -141,7 +141,7 @@ impl Connector for EthLogConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|s| tables.iter().any(|t| t.table_name == s.name))
+                .filter(|s| tables.iter().any(|t| t.name == s.name))
                 .cloned()
                 .collect()
         } else {
@@ -191,8 +191,8 @@ impl Connector for EthLogConnector {
         Ok(HashMap::new())
     }
 
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default(tables)
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
+        self.get_tables_default()
     }
 
     fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {

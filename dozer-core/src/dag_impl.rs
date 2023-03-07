@@ -392,7 +392,7 @@ fn contains_port<T>(
         }
         NodeKind::Source(s) => {
             if direction == PortDirection::Output {
-                s.get_output_ports()?.iter().any(|e| e.handle == port)
+                s.get_output_ports().iter().any(|e| e.handle == port)
             } else {
                 false
             }

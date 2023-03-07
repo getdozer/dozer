@@ -41,7 +41,7 @@ impl OutputPortDef {
 
 pub trait SourceFactory<T>: Send + Sync + Debug {
     fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), ExecutionError>;
-    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError>;
+    fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,

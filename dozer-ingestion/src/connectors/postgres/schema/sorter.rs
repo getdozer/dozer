@@ -19,7 +19,7 @@ pub fn sort_schemas(
         |tables| {
             let mut sorted_tables: Vec<(String, PostgresTable)> = Vec::new();
             for table in tables.iter() {
-                let postgres_table = mapped_tables.get(&table.table_name).ok_or(ColumnNotFound)?;
+                let postgres_table = mapped_tables.get(&table.name).ok_or(ColumnNotFound)?;
 
                 let sorted_table = table.columns.as_ref().map_or_else(
                     || Ok(postgres_table.clone()),
@@ -40,7 +40,7 @@ pub fn sort_schemas(
                     },
                 )?;
 
-                sorted_tables.push((table.table_name.clone(), sorted_table));
+                sorted_tables.push((table.name.clone(), sorted_table));
             }
 
             Ok(sorted_tables)
@@ -152,8 +152,6 @@ mod tests {
 
         let expected_table_order = &[TableInfo {
             name: "sort_test".to_string(),
-            table_name: "sort_test".to_string(),
-            id: 0,
             columns: None,
         }];
 
@@ -197,8 +195,6 @@ mod tests {
         }];
         let expected_table_order = &[TableInfo {
             name: "sort_test".to_string(),
-            table_name: "sort_test".to_string(),
-            id: 0,
             columns: Some(columns_order.clone()),
         }];
 
@@ -232,8 +228,6 @@ mod tests {
         ];
         let expected_table_order = &[TableInfo {
             name: "sort_test".to_string(),
-            table_name: "sort_test".to_string(),
-            id: 0,
             columns: Some(columns_order.clone()),
         }];
 
@@ -292,14 +286,10 @@ mod tests {
         let expected_table_order = &[
             TableInfo {
                 name: "sort_test_first".to_string(),
-                table_name: "sort_test_first".to_string(),
-                id: 0,
                 columns: Some(columns_order_1.clone()),
             },
             TableInfo {
                 name: "sort_test_second".to_string(),
-                table_name: "sort_test_second".to_string(),
-                id: 0,
                 columns: Some(columns_order_2.clone()),
             },
         ];

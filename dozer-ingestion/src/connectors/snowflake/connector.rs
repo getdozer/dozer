@@ -86,8 +86,8 @@ impl Connector for SnowflakeConnector {
         })
     }
 
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default(tables)
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
+        self.get_tables_default()
     }
 
     fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
@@ -117,19 +117,17 @@ async fn run(
             if iteration == 0 {
                 match from_seq {
                     None | Some((0, _)) => {
-                        info!("[{}][{}] Creating new stream", name, table.table_name);
-                        StreamConsumer::drop_stream(&client, &table.table_name)?;
-                        StreamConsumer::create_stream(&client, &table.table_name)?;
+                        info!("[{}][{}] Creating new stream", name, table.name);
+                        StreamConsumer::drop_stream(&client, &table.name)?;
+                        StreamConsumer::create_stream(&client, &table.name)?;
                     }
                     Some((lsn, seq)) => {
                         info!(
                             "[{}][{}] Continuing ingestion from {}/{}",
-                            name, table.table_name, lsn, seq
+                            name, table.name, lsn, seq
                         );
                         iteration = lsn;
-                        if let Ok(false) =
-                            StreamConsumer::is_stream_created(&client, &table.table_name)
-                        {
+                        if let Ok(false) = StreamConsumer::is_stream_created(&client, &table.name) {
                             return Err(ConnectorError::SnowflakeError(
                                 SnowflakeError::SnowflakeStreamError(
                                     SnowflakeStreamError::StreamNotFound,
@@ -140,12 +138,9 @@ async fn run(
                 }
             }
 
-            debug!(
-                "[{}][{}] Reading from changes stream",
-                name, table.table_name
-            );
+            debug!("[{}][{}] Reading from changes stream", name, table.name);
 
-            consumer.consume_stream(&stream_client, &table.table_name, ingestor, idx, iteration)?;
+            consumer.consume_stream(&stream_client, &table.name, ingestor, idx, iteration)?;
 
             interval.tick().await;
         }

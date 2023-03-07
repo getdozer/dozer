@@ -32,9 +32,7 @@ pub fn get_iterator(config: Connection, table_name: String) -> IngestionIterator
 
     thread::spawn(move || {
         let tables: Vec<TableInfo> = vec![TableInfo {
-            name: table_name.clone(),
-            table_name: table_name.clone(),
-            id: 0,
+            name: table_name,
             columns: None,
         }];
 

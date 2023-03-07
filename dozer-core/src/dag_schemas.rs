@@ -202,7 +202,7 @@ fn populate_schemas<T: Clone>(
 
         match &node.kind {
             NodeKind::Source(source) => {
-                let ports = source.get_output_ports()?;
+                let ports = source.get_output_ports();
 
                 for edge in dag.graph().edges(node_index) {
                     let port = find_output_port_def(&ports, edge);

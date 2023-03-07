@@ -75,13 +75,13 @@ If type is not supported, connector should return error, during schema validatio
 During pipeline start,  `start`  function receives tuple  `from_seq: (u64, u64)`. That tuple is used to tell last message lsn and seq no. One lsn is shared for all operations inside single transaction, while second parameter is used for determining how many messages were successfully processed from transaction.
 
 ### Unit tests
-Unit tests are only possible in places where connection to external database is not required. It is important to have unit tests for schema mapping and data casting to dozer types. More complex tests should be implemented using E2E tests.
-
-### E2E tests
+It is important to have unit tests for schema mapping and data casting to dozer types.
 More complex tests require to have connection real database. Such tests cases expect to have several things:
 - Database infrastructure, preferably created in docker container(s)
 - Connection configuration (with placeholders)
 - It should be possible to run test cases without doing any manual modifications in database.
+
+[Short description how to run existing tests](src/tests/README.md)
 
 ### Replication changes tracking types
 

@@ -104,7 +104,7 @@ pub fn decode_event(
                 .to_owned();
 
             let table_name = get_table_name(contract_tuple, &event.name);
-            let is_table_required = tables.iter().any(|t| t.table_name == table_name);
+            let is_table_required = tables.iter().any(|t| t.name == table_name);
             if is_table_required {
                 let parsed_event = event.parse_log(RawLog {
                     topics: log.topics,
@@ -171,10 +171,7 @@ pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
 }
 pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<Operation> {
     // Check if table is requested
-    let is_table_required = details
-        .tables
-        .iter()
-        .any(|t| t.table_name == ETH_LOGS_TABLE);
+    let is_table_required = details.tables.iter().any(|t| t.name == ETH_LOGS_TABLE);
 
     if !is_table_required {
         None

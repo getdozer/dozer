@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use dozer_types::{
     grpc_types::ingest::{IngestArrowRequest, IngestRequest},
-    types::{Schema, SchemaIdentifier, SourceSchema},
+    types::{Schema, SourceSchema},
 };
 
 use crate::{errors::ConnectorError, ingestion::Ingestor};
@@ -46,28 +46,12 @@ where
     pub fn new(schemas_str: String) -> Result<Self, ConnectorError> {
         let adapter = T::new();
         let schemas = adapter.get_schemas(&schemas_str)?;
-        let schema_map = Self::get_schema_map(schemas)?;
-
+        let schema_map = schemas.into_iter().map(|v| (v.name, v.schema)).collect();
         Ok(Self {
             schemas_str,
             schema_map: Box::leak(Box::new(schema_map)),
             adapter,
         })
-    }
-    pub fn get_schema_map(
-        schemas: Vec<SourceSchema>,
-    ) -> Result<HashMap<String, Schema>, ConnectorError> {
-        Ok(schemas
-            .into_iter()
-            .enumerate()
-            .map(|(id, mut v)| {
-                v.schema.identifier = Some(SchemaIdentifier {
-                    id: id as u32,
-                    version: 1,
-                });
-                (v.name, v.schema)
-            })
-            .collect())
     }
 }
 
