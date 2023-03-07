@@ -67,20 +67,15 @@ impl SqlMapper {
         let st: &Statement = &ast[0];
         match st {
             Statement::Insert {
-                or: _,
-                into: _,
                 columns,
-                overwrite: _,
-                partitioned: _,
                 table_name,
                 source,
-
-                after_columns: _,
-                table: _,
-                on: _,
+                ..
             } => {
                 let expr_values: Vec<Field> = match &*source.body {
-                    SetExpr::Values(values) => values.0[0].iter().map(parse_exp_to_field).collect(),
+                    SetExpr::Values(values) => {
+                        values.rows[0].iter().map(parse_exp_to_field).collect()
+                    }
                     _ => panic!("{}", format!("{} not supported", &*source.body)),
                 };
                 let name = get_table_name(table_name);
@@ -111,8 +106,8 @@ impl SqlMapper {
             Statement::Update {
                 table,
                 assignments,
-                from: _,
                 selection,
+                ..
             } => {
                 let (rec, schema_res) = self.map_selection(&table.relation, selection);
                 let mut rec2 = rec.clone();
@@ -139,8 +134,8 @@ impl SqlMapper {
             }
             Statement::Delete {
                 table_name,
-                using: _,
                 selection,
+                ..
             } => {
                 let (rec, _) = self.map_selection(table_name, selection);
                 Operation::Delete { old: rec }
@@ -239,13 +234,7 @@ impl SqlMapper {
         table_factor: &TableFactor,
         selection: &Option<Expr>,
     ) -> (Record, SchemaResponse) {
-        if let TableFactor::Table {
-            name,
-            alias: _,
-            args: _,
-            with_hints: _,
-        } = table_factor
-        {
+        if let TableFactor::Table { name, .. } = table_factor {
             let name = get_table_name(name);
             let schema = self
                 .schema_map
