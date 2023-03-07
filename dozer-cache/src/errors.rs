@@ -1,21 +1,20 @@
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 
-use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::types::SchemaIdentifier;
 
 #[derive(Error, Debug)]
 pub enum CacheError {
-    #[error(transparent)]
-    Internal(#[from] BoxedError),
-    #[error(transparent)]
+    #[error("Io error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Query error: {0}")]
     Query(#[from] QueryError),
-    #[error(transparent)]
+    #[error("Index error: {0}")]
     Index(#[from] IndexError),
-    #[error(transparent)]
+    #[error("Plan error: {0}")]
     Plan(#[from] PlanError),
-    #[error(transparent)]
+    #[error("Type error: {0}")]
     Type(#[from] TypeError),
     #[error("Storage error: {0}")]
     Storage(#[from] dozer_storage::errors::StorageError),
@@ -70,7 +69,7 @@ pub enum CompareError {
     CannotReadField,
     #[error("invalid sort direction")]
     InvalidSortDirection(u8),
-    #[error(transparent)]
+    #[error("deserialization error: {0:?}")]
     DeserializationError(#[from] DeserializationError),
 }
 
@@ -100,7 +99,7 @@ pub enum IndexError {
 pub enum PlanError {
     #[error("Field {0:?} not found in query")]
     FieldNotFound(String),
-    #[error(transparent)]
+    #[error("Type error: {0}")]
     TypeError(#[from] TypeError),
     #[error("Cannot sort full text filter")]
     CannotSortFullTextFilter,
