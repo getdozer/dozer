@@ -136,7 +136,7 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
         txn: &'txn T,
     ) -> Result<KeyIterator<'txn, RoCursor<'txn>, K>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
-        KeyIterator::new(cursor, Bound::Unbounded, false)
+        KeyIterator::new(cursor, Bound::Unbounded, true)
     }
 
     pub fn values<'txn, T: Transaction>(
