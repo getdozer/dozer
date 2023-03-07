@@ -35,7 +35,7 @@ impl DeltaLakeReader {
         table: &TableInfo,
         ingestor: &Ingestor,
     ) -> ConnectorResult<()> {
-        let table_path = table_path(&self.config, &table.table_name)?;
+        let table_path = table_path(&self.config, &table.name)?;
         let ctx = SessionContext::new();
         let delta_table = deltalake::open_table(table_path).await?;
         let table_schema = delta_table.get_schema()?;
