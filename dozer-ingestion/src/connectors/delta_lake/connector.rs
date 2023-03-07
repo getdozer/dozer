@@ -47,8 +47,8 @@ impl Connector for DeltaLakeConnector {
         let existing_schemas_names: Vec<String> = schemas.iter().map(|s| s.name.clone()).collect();
         for table in tables {
             let mut result = vec![];
-            if !existing_schemas_names.contains(&table.table_name) {
-                result.push((None, Err(TableNotFound(table.table_name.clone()))));
+            if !existing_schemas_names.contains(&table.name) {
+                result.push((None, Err(TableNotFound(table.name.clone()))));
             }
 
             validation_result.insert(table.name.clone(), result);
@@ -83,7 +83,7 @@ impl Connector for DeltaLakeConnector {
         reader.read(&tables, ingestor)
     }
 
-    fn get_tables(&self, tables: Option<&[TableInfo]>) -> ConnectorResult<Vec<TableInfo>> {
-        self.get_tables_default(tables)
+    fn get_tables(&self) -> ConnectorResult<Vec<TableInfo>> {
+        self.get_tables_default()
     }
 }

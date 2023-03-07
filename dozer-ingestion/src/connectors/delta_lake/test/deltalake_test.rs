@@ -23,8 +23,6 @@ fn get_schema_from_deltalake() {
     let connector = DeltaLakeConnector::new(1, config);
     let table_info = TableInfo {
         name: table_name.to_string(),
-        table_name: table_name.to_string(),
-        id: 0,
         columns: None,
     };
     let field = connector.get_schemas(Some(vec![table_info])).unwrap()[0]
@@ -55,8 +53,6 @@ fn read_deltalake() {
     let (ingestor, iterator) = Ingestor::initialize_channel(config);
     let table = TableInfo {
         name: "test_table".to_string(),
-        table_name: "test_table".to_string(),
-        id: 0,
         columns: None,
     };
     thread::spawn(move || {
@@ -64,15 +60,13 @@ fn read_deltalake() {
         let _ = connector.start(None, &ingestor, tables);
     });
 
-    let mut idx = 0;
     let fields = vec![Field::Int(0), Field::Int(1), Field::Int(2), Field::Int(4)];
     let mut values = vec![];
-    for IngestionMessage { identifier, kind } in iterator {
+    for (idx, IngestionMessage { identifier, kind }) in iterator.enumerate() {
         assert_eq!(idx, identifier.seq_in_tx as usize);
         if let IngestionMessageKind::OperationEvent(Operation::Insert { new }) = kind {
             values.extend(new.values);
         }
-        idx += 1;
     }
     values.sort();
     assert_eq!(fields, values);

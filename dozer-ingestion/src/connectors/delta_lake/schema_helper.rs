@@ -37,7 +37,7 @@ impl SchemaHelper {
     }
 
     async fn get_schemas_impl(&self, id: u64, table: &TableInfo) -> ConnectorResult<SourceSchema> {
-        let table_path = table_path(&self.config, &table.table_name)?;
+        let table_path = table_path(&self.config, &table.name)?;
         let ctx = SessionContext::new();
         let delta_table = deltalake::open_table(table_path).await?;
         let arrow_schema: SchemaRef = (*ctx.read_table(Arc::new(delta_table))?.schema())
@@ -45,6 +45,6 @@ impl SchemaHelper {
             .into();
         let schema_mapper = SchemaMapper::new(self.config.clone());
         let schema = schema_mapper.map_schema(id as u32, arrow_schema, table)?;
-        Ok(SourceSchema::new(table.table_name.clone(), schema, Nothing))
+        Ok(SourceSchema::new(table.name.clone(), schema, Nothing))
     }
 }
