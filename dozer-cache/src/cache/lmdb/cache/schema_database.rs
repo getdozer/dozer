@@ -110,7 +110,7 @@ fn get_all_schemas<T: Transaction>(
 ) -> Result<Vec<(&str, Schema, Vec<IndexDefinition>)>, CacheError> {
     let mut cursor = txn
         .open_ro_cursor(db)
-        .map_err(|e| CacheError::Storage(StorageError::InternalDbError(e)))?;
+        .map_err(|e| CacheError::Storage(StorageError::Lmdb(e)))?;
 
     let mut result = vec![];
     for item in cursor.iter_start() {

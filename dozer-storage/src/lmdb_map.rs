@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use lmdb::{Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags};
+use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
     errors::StorageError,
@@ -8,12 +8,24 @@ use crate::{
     LmdbKey, LmdbValType, LmdbValue,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct LmdbMap<K: ?Sized, V: ?Sized> {
     db: Database,
     _key: std::marker::PhantomData<*const K>,
     _value: std::marker::PhantomData<*const V>,
 }
+
+impl<K: ?Sized, V: ?Sized> Clone for LmdbMap<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db,
+            _key: std::marker::PhantomData,
+            _value: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<K: ?Sized, V: ?Sized> Copy for LmdbMap<K, V> {}
 
 // Safety: `Database` is `Send` and `Sync`.
 unsafe impl<K: ?Sized, V: ?Sized> Send for LmdbMap<K, V> {}
@@ -76,6 +88,13 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
 
     pub fn database(&self) -> Database {
         self.db
+    }
+
+    pub fn open_ro_cursor<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+    ) -> Result<RoCursor<'txn>, StorageError> {
+        txn.open_ro_cursor(self.db).map_err(Into::into)
     }
 
     pub fn count<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {

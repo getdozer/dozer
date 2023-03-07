@@ -14,23 +14,3 @@ pub fn lmdb_cmp<T: Transaction>(txn: &T, db: Database, a: &[u8], b: &[u8]) -> Or
     let result = unsafe { dozer_storage::lmdb_sys::mdb_cmp(txn.txn(), db.dbi(), &a, &b) };
     result.cmp(&0)
 }
-
-pub fn lmdb_stat<T: Transaction>(
-    txn: &T,
-    db: Database,
-) -> Result<ffi::MDB_stat, dozer_storage::lmdb::Error> {
-    let mut stat = ffi::MDB_stat {
-        ms_psize: 0,
-        ms_depth: 0,
-        ms_branch_pages: 0,
-        ms_leaf_pages: 0,
-        ms_overflow_pages: 0,
-        ms_entries: 0,
-    };
-    let code = unsafe { dozer_storage::lmdb_sys::mdb_stat(txn.txn(), db.dbi(), &mut stat) };
-    if code == ffi::MDB_SUCCESS {
-        Ok(stat)
-    } else {
-        Err(dozer_storage::lmdb::Error::from_err_code(code))
-    }
-}

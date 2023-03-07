@@ -32,7 +32,7 @@ impl SecondaryIndexDatabase {
             comparator::set_sorted_inverted_comparator(&txn, db, fields)?;
         }
 
-        txn.commit().map_err(StorageError::InternalDbError)?;
+        txn.commit().map_err(StorageError::Lmdb)?;
 
         Ok(Self(db))
     }

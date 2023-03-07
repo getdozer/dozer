@@ -70,7 +70,10 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     }
 
     pub fn all_ids(&self) -> Result<impl Iterator<Item = u64> + '_, CacheError> {
-        let cursor = self.common.id.open_ro_cursor(self.txn)?;
+        let cursor = self
+            .common
+            .primary_key_to_record_id
+            .open_ro_cursor(self.txn)?;
         Ok(skip(
             CacheIterator::new(cursor, None, SortDirection::Ascending)
                 .map(map_index_database_entry_to_id),

@@ -25,8 +25,6 @@ pub enum StorageError {
     InvalidRecord,
 
     // Error forwarding
-    #[error(transparent)]
-    InternalDbError(#[from] lmdb::Error),
-    #[error(transparent)]
-    InternalError(#[from] BoxedError),
+    #[error("Lmdb error: {0}")]
+    Lmdb(#[from] lmdb::Error),
 }

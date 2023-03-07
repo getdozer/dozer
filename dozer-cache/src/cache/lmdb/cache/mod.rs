@@ -14,6 +14,8 @@ use dozer_types::parking_lot::RwLockReadGuard;
 use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
 
+use self::id_database::get_or_generate_id;
+
 use super::super::{RoCache, RwCache};
 use super::indexer::Indexer;
 use super::utils::{self, CacheReadOptions};
@@ -32,7 +34,6 @@ mod schema_database;
 mod secondary_index_database;
 
 use checkpoint_database::CheckpointDatabase;
-pub use id_database::IdDatabase;
 use schema_database::SchemaDatabase;
 use secondary_index_database::SecondaryIndexDatabase;
 
@@ -151,8 +152,12 @@ impl<C: LmdbCache> RoCache for C {
     fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
-        let id = self.common().id.get(txn, key)?;
-        let id = id_from_bytes(id);
+        let id = self
+            .common()
+            .primary_key_to_record_id
+            .get(txn, key)?
+            .ok_or(CacheError::PrimaryKeyNotFound)?
+            .into_owned();
         let record = self
             .common()
             .record_id_to_record
@@ -252,19 +257,20 @@ impl LmdbRwCache {
         let mut txn = self.txn.write();
         let txn = txn.txn_mut();
 
-        let id = self.common.id.get(txn, key)?;
-        if !self
+        let id = self
             .common
-            .record_id_to_record
-            .remove(txn, &id_from_bytes(id))?
-        {
+            .primary_key_to_record_id
+            .get(txn, key)?
+            .ok_or(CacheError::PrimaryKeyNotFound)?
+            .into_owned();
+        if !self.common.record_id_to_record.remove(txn, &id)? {
             return Err(CacheError::PrimaryKeyNotFound);
         }
 
         let indexer = Indexer {
             secondary_indexes: &self.common.secondary_indexes,
         };
-        indexer.delete_indexes(txn, &record, schema, secondary_indexes, id)?;
+        indexer.delete_indexes(txn, &record, schema, secondary_indexes, id_to_bytes(id))?;
         let version = record
             .version
             .expect("All records in cache should have a version");
@@ -281,16 +287,16 @@ impl LmdbRwCache {
         let txn = txn.txn_mut();
 
         let id = if schema.primary_index.is_empty() {
-            self.common.id.get_or_generate(txn, None)?
+            get_or_generate_id(self.common.primary_key_to_record_id, txn, None)?
         } else {
             let primary_key = get_primary_key(&schema.primary_index, &record.values);
-            self.common.id.get_or_generate(txn, Some(&primary_key))?
+            get_or_generate_id(
+                self.common.primary_key_to_record_id,
+                txn,
+                Some(&primary_key),
+            )?
         };
-        if !self
-            .common
-            .record_id_to_record
-            .insert(txn, &id_from_bytes(id), record)?
-        {
+        if !self.common.record_id_to_record.insert(txn, &id, record)? {
             return Err(CacheError::PrimaryKeyExists);
         }
 
@@ -298,9 +304,9 @@ impl LmdbRwCache {
             secondary_indexes: &self.common.secondary_indexes,
         };
 
-        indexer.build_indexes(txn, record, schema, secondary_indexes, id)?;
+        indexer.build_indexes(txn, record, schema, secondary_indexes, id_to_bytes(id))?;
 
-        Ok(id_from_bytes(id))
+        Ok(id)
     }
 }
 
@@ -423,7 +429,7 @@ const INITIAL_RECORD_VERSION: u32 = 1_u32;
 #[derive(Debug)]
 pub struct LmdbCacheCommon {
     record_id_to_record: LmdbMap<u64, Record>,
-    id: IdDatabase,
+    primary_key_to_record_id: LmdbMap<[u8], u64>,
     secondary_indexes: SecondaryIndexDatabases,
     schema_db: SchemaDatabase,
     cache_options: CacheCommonOptions,
@@ -440,7 +446,8 @@ impl LmdbCacheCommon {
     ) -> Result<Self, CacheError> {
         // Create or open must have databases.
         let record_id_to_record = LmdbMap::new_from_env(env, Some("records"), !read_only)?;
-        let id = IdDatabase::new(env, !read_only)?;
+        let primary_key_to_record_id =
+            LmdbMap::new_from_env(env, Some("primary_index"), !read_only)?;
         let schema_db = SchemaDatabase::new(env, !read_only)?;
 
         // Open existing secondary index databases.
@@ -455,7 +462,7 @@ impl LmdbCacheCommon {
 
         Ok(Self {
             record_id_to_record,
-            id,
+            primary_key_to_record_id,
             secondary_indexes: secondary_indexe_databases,
             schema_db,
             cache_options: options,
