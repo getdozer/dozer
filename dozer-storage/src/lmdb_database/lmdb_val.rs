@@ -31,10 +31,11 @@ pub trait Decode: ToOwned {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LmdbKeyType {
+pub enum LmdbValType {
     U32,
     #[cfg(target_pointer_width = "64")]
     U64,
+    FixedSizeOtherThanU32OrUsize,
     VariableSize,
 }
 
@@ -48,12 +49,16 @@ pub enum LmdbKeyType {
 ///
 /// The implementation for `u32` and `u64` has a caveat: The values are encoded in big-endian but compared in native-endian.
 pub unsafe trait LmdbKey: Encode {
-    const TYPE: LmdbKeyType;
+    const TYPE: LmdbValType;
 }
 
 pub trait LmdbValue: Encode + Decode {}
 
 impl<T: Encode + Decode + ?Sized> LmdbValue for T {}
+
+pub trait LmdbDupValue: LmdbKey + LmdbValue {}
+
+impl<T: LmdbKey + LmdbValue + ?Sized> LmdbDupValue for T {}
 
 impl Encode for u8 {
     fn encode(&self) -> Result<Encoded, StorageError> {
@@ -68,7 +73,7 @@ impl Decode for u8 {
 }
 
 unsafe impl LmdbKey for u8 {
-    const TYPE: LmdbKeyType = LmdbKeyType::VariableSize;
+    const TYPE: LmdbValType = LmdbValType::FixedSizeOtherThanU32OrUsize;
 }
 
 impl Encode for u32 {
@@ -84,7 +89,7 @@ impl Decode for u32 {
 }
 
 unsafe impl LmdbKey for u32 {
-    const TYPE: LmdbKeyType = LmdbKeyType::U32;
+    const TYPE: LmdbValType = LmdbValType::U32;
 }
 
 impl Encode for u64 {
@@ -101,9 +106,9 @@ impl Decode for u64 {
 
 unsafe impl LmdbKey for u64 {
     #[cfg(target_pointer_width = "64")]
-    const TYPE: LmdbKeyType = LmdbKeyType::U64;
+    const TYPE: LmdbValType = LmdbValType::U64;
     #[cfg(not(target_pointer_width = "64"))]
-    const TYPE: LmdbKeyType = LmdbKeyType::VariableSize;
+    const TYPE: LmdbValType = LmdbValType::FixedSizeOtherThanU32OrUsize;
 }
 
 impl Encode for [u8] {
@@ -119,7 +124,7 @@ impl Decode for [u8] {
 }
 
 unsafe impl LmdbKey for [u8] {
-    const TYPE: LmdbKeyType = LmdbKeyType::VariableSize;
+    const TYPE: LmdbValType = LmdbValType::VariableSize;
 }
 
 #[cfg(test)]
@@ -128,9 +133,9 @@ mod tests {
 
     #[test]
     fn test_lmdb_key_types() {
-        assert_eq!(u8::TYPE, LmdbKeyType::VariableSize);
-        assert_eq!(u32::TYPE, LmdbKeyType::U32);
-        assert_eq!(u64::TYPE, LmdbKeyType::U64);
-        assert_eq!(<[u8]>::TYPE, LmdbKeyType::VariableSize);
+        assert_eq!(u8::TYPE, LmdbValType::FixedSizeOtherThanU32OrUsize);
+        assert_eq!(u32::TYPE, LmdbValType::U32);
+        assert_eq!(u64::TYPE, LmdbValType::U64);
+        assert_eq!(<[u8]>::TYPE, LmdbValType::VariableSize);
     }
 }

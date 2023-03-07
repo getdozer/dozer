@@ -1,3 +1,3 @@
 mod lmdb_val;
 
-pub use lmdb_val::{Decode, Encode, Encoded, LmdbKey, LmdbKeyType, LmdbValue};
+pub use lmdb_val::{Decode, Encode, Encoded, LmdbDupValue, LmdbKey, LmdbValType, LmdbValue};

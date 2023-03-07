@@ -3,9 +3,7 @@ use std::borrow::Cow;
 use lmdb::{Database, DatabaseFlags, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
-    errors::StorageError,
-    lmdb_database::{LmdbKey, LmdbKeyType, LmdbValue},
-    lmdb_storage::LmdbExclusiveTransaction,
+    errors::StorageError, lmdb_storage::LmdbExclusiveTransaction, LmdbKey, LmdbValType, LmdbValue,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -23,10 +21,12 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
     ) -> Result<Self, StorageError> {
         let create_flags = if create_if_not_exist {
             Some(match K::TYPE {
-                LmdbKeyType::U32 => DatabaseFlags::INTEGER_KEY,
+                LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
                 #[cfg(target_pointer_width = "64")]
-                LmdbKeyType::U64 => DatabaseFlags::INTEGER_KEY,
-                LmdbKeyType::VariableSize => DatabaseFlags::empty(),
+                LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
+                LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
+                    DatabaseFlags::empty()
+                }
             })
         } else {
             None
