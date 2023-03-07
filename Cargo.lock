@@ -2160,6 +2160,7 @@ dependencies = [
 name = "dozer-sql"
 version = "0.1.10"
 dependencies = [
+ "ahash 0.8.3",
  "dozer-core",
  "dozer-tracing",
  "dozer-types",
