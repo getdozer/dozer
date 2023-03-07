@@ -1,4 +1,7 @@
 #![allow(clippy::too_many_arguments)]
+
+use ahash::AHasher;
+use std::hash::Hash;
 use crate::pipeline::aggregation::aggregator::{
     get_aggregator_from_aggregator_type, get_aggregator_type_from_aggregation_expression,
     AggregatorType,
