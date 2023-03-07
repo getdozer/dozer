@@ -129,10 +129,10 @@ pub fn update_map(
     fields: &[Field],
     val_delta: u64,
     decr: bool,
-    field_hash: &mut BTreeMap<Field, u64>,
+    field_map: &mut BTreeMap<Field, u64>,
 ) {
     for field in fields {
-        let get_prev_count = field_hash.get(field);
+        let get_prev_count = field_map.get(field);
         let prev_count = match get_prev_count {
             Some(v) => *v,
             None => 0_u64,
@@ -144,9 +144,13 @@ pub fn update_map(
             new_count = new_count.wrapping_add(val_delta);
         }
         if new_count < 1 {
-            field_hash.remove(field);
+            field_map.remove(field);
+        } else if field_map.contains_key(&field) {
+            if let Some(val) = field_map.get_mut(&field) {
+                *val = new_count;
+            }
         } else {
-            field_hash.insert(field.clone(), new_count);
+            field_map.insert(field.clone(), new_count);
         }
     }
 }

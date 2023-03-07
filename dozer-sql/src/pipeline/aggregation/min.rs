@@ -33,13 +33,13 @@ impl Aggregator for MinAggregator {
     }
 
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError> {
-        debug_assert!(old.iter().all(|field| field.get_type() == self.return_type));
+        debug_assert!(old.iter().all(|field| field.get_type() == self.return_type || field.get_type() == None));
         update_map(old, 1_u64, true, &mut self.current_state);
         get_min(&self.current_state, self.return_type)
     }
 
     fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
-        debug_assert!(new.iter().all(|field| field.get_type() == self.return_type));
+        debug_assert!(new.iter().all(|field| field.get_type() == self.return_type || field.get_type() == None));
         update_map(new, 1_u64, false, &mut self.current_state);
         get_min(&self.current_state, self.return_type)
     }

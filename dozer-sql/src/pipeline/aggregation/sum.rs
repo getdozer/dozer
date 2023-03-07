@@ -47,12 +47,12 @@ impl Aggregator for SumAggregator {
     }
 
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError> {
-        debug_assert!(old.iter().all(|field| field.get_type() == self.return_type));
-        get_sum(old, &mut self.current_state, self.return_type, false)
+        debug_assert!(old.iter().all(|field| field.get_type() == self.return_type || field.get_type() == None));
+        get_sum(old, &mut self.current_state, self.return_type, true)
     }
 
     fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
-        debug_assert!(new.iter().all(|field| field.get_type() == self.return_type));
+        debug_assert!(new.iter().all(|field| field.get_type() == self.return_type || field.get_type() == None));
         get_sum(new, &mut self.current_state, self.return_type, false)
     }
 }
@@ -115,7 +115,7 @@ fn get_sum(
             } else {
                 for field in fields {
                     let val = calculate_err_field!(field.to_decimal(), Sum, field);
-                    current_state.decimal_state -= val;
+                    current_state.decimal_state += val;
                 }
             }
             Ok(Field::Decimal(current_state.decimal_state))

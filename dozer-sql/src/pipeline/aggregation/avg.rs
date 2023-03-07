@@ -52,28 +52,42 @@ fn get_average(
     match return_type {
         Some(FieldType::UInt) => {
             if field_map.is_empty() {
-                Ok(Field::UInt(0_u64))
+                Ok(Field::Decimal(calculate_err_type!(
+                    Decimal::from_f64(0_f64),
+                    Avg,
+                    FieldType::Decimal
+                )))
             } else {
-                let mut sum = 0_u64;
-                let mut count = 0_u64;
+                let mut sum =
+                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
+                let mut count =
+                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
                 for (field, cnt) in field_map {
-                    sum += calculate_err_field!(field.to_uint(), Avg, field);
-                    count += *cnt;
+                    let cnt = calculate_err_field!(Decimal::from_u64(*cnt), Avg, field);
+                    sum += calculate_err_field!(field.to_decimal(), Avg, field) * cnt;
+                    count += cnt;
                 }
-                Ok(Field::UInt(sum / count))
+                Ok(Field::Decimal(sum / count))
             }
         }
         Some(FieldType::Int) => {
             if field_map.is_empty() {
-                Ok(Field::Int(0_i64))
+                Ok(Field::Decimal(calculate_err_type!(
+                    Decimal::from_f64(0_f64),
+                    Avg,
+                    FieldType::Decimal
+                )))
             } else {
-                let mut sum = 0_i64;
-                let mut count = 0_i64;
+                let mut sum =
+                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
+                let mut count =
+                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
                 for (field, cnt) in field_map {
-                    sum += calculate_err_field!(field.to_int(), Avg, field);
-                    count += *cnt as i64;
+                    let cnt = calculate_err_field!(Decimal::from_u64(*cnt), Avg, field);
+                    sum += calculate_err_field!(field.to_decimal(), Avg, field) * cnt;
+                    count += cnt;
                 }
-                Ok(Field::Int(sum / count))
+                Ok(Field::Decimal(sum / count))
             }
         }
         Some(FieldType::Float) => {
@@ -83,7 +97,7 @@ fn get_average(
                 let mut sum = 0_f64;
                 let mut count = 0_f64;
                 for (field, cnt) in field_map {
-                    sum += calculate_err_field!(field.to_float(), Avg, field);
+                    sum += calculate_err_field!(field.to_float(), Avg, field) * (*cnt as f64);
                     count += *cnt as f64;
                 }
                 Ok(Field::Float(OrderedFloat::from(sum / count)))
@@ -102,8 +116,9 @@ fn get_average(
                 let mut count =
                     calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
                 for (field, cnt) in field_map {
-                    sum += calculate_err_field!(field.to_decimal(), Avg, field);
-                    count += calculate_err_field!(Decimal::from_u64(*cnt), Avg, field);
+                    let cnt = calculate_err_field!(Decimal::from_u64(*cnt), Avg, field);
+                    sum += calculate_err_field!(field.to_decimal(), Avg, field) * cnt;
+                    count += cnt;
                 }
                 Ok(Field::Decimal(sum / count))
             }

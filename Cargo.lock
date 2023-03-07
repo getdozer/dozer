@@ -942,6 +942,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bit-vec"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02b4ff8b16e6076c3e14220b39fbc1fabb6737522281a388998046859400895f"
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1006,6 +1012,15 @@ name = "block-padding"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
+
+[[package]]
+name = "bloom"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d00ac8e5056d6d65376a3c1aa5c7c34850d6949ace17f0266953a254eb3d6fe8"
+dependencies = [
+ "bit-vec",
+]
 
 [[package]]
 name = "borsh"
@@ -2161,6 +2176,7 @@ name = "dozer-sql"
 version = "0.1.10"
 dependencies = [
  "ahash 0.8.3",
+ "bloom",
  "dozer-core",
  "dozer-tracing",
  "dozer-types",
