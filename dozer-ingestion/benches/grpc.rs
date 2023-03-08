@@ -76,9 +76,8 @@ async fn ingest_arrow(batch_size: usize, total: usize, pb: ProgressBar) {
     while idx < total - batch_size {
         let o = idx + batch_size;
 
-        let ids = (idx..o).into_iter().map(|i| i as i32).collect::<Vec<i32>>();
+        let ids = (idx..o).map(|i| i as i32).collect::<Vec<i32>>();
         let names = (idx..o)
-            .into_iter()
             .map(|i| format!("dario_{i}"))
             .collect::<Vec<String>>();
         let a = Int32Array::from_iter(ids);

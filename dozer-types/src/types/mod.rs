@@ -73,17 +73,15 @@ pub struct Schema {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Default)]
 pub enum ReplicationChangesTrackingType {
     FullChanges,
     OnlyPK,
+    #[default]
     Nothing,
 }
 
-impl Default for ReplicationChangesTrackingType {
-    fn default() -> Self {
-        ReplicationChangesTrackingType::Nothing
-    }
-}
+
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct SourceSchema {
