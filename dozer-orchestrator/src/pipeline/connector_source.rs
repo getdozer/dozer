@@ -61,17 +61,9 @@ fn map_replication_type_to_output_port_type(
     typ: &ReplicationChangesTrackingType,
 ) -> OutputPortType {
     match typ {
-        ReplicationChangesTrackingType::FullChanges => {
-            OutputPortType::StatefulWithPrimaryKeyLookup {
-                retr_old_records_for_deletes: false,
-                retr_old_records_for_updates: false,
-            }
-        }
-        ReplicationChangesTrackingType::OnlyPK => OutputPortType::StatefulWithPrimaryKeyLookup {
-            retr_old_records_for_deletes: true,
-            retr_old_records_for_updates: true,
-        },
-        ReplicationChangesTrackingType::Nothing => OutputPortType::AutogenRowKeyLookup,
+        ReplicationChangesTrackingType::FullChanges => OutputPortType::StatefulWithPrimaryKeyLookup,
+        ReplicationChangesTrackingType::OnlyPK => OutputPortType::StatefulWithPrimaryKeyLookup,
+        ReplicationChangesTrackingType::Nothing => OutputPortType::Stateless,
     }
 }
 

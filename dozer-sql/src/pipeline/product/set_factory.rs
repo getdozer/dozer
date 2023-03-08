@@ -70,16 +70,13 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        txn: &mut LmdbExclusiveTransaction,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(
-            SetProcessor::new(
-                SetOperation {
-                    op: SetOperator::Union,
-                    quantifier: self.set_quantifier,
-                },
-                txn,
-            )
+            SetProcessor::new(SetOperation {
+                op: SetOperator::Union,
+                quantifier: self.set_quantifier,
+            })
             .map_err(|err| ExecutionError::InternalError(Box::new(err)))?,
         ))
     }

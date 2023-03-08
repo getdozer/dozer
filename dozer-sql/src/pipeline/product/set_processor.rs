@@ -1,59 +1,52 @@
 use crate::pipeline::errors::{PipelineError, ProductError};
 use crate::pipeline::product::set::{SetAction, SetOperation};
+use bloom::CountingBloomFilter;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::record_store::RecordReader;
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record};
-use lmdb::{Database, DatabaseFlags};
-use std::collections::HashMap;
+use std::collections::hash_map::RandomState;
+use std::fmt::{Debug, Formatter};
 
-#[derive(Debug)]
 pub struct SetProcessor {
     /// Set operations
     operator: SetOperation,
-    /// Database to store Join indexes
-    db: Database,
+    /// Hashmap containing records with its occurrence
+    record_map: CountingBloomFilter,
 }
 
+const BITS_PER_ENTRY: usize = 8;
+const FALSE_POSITIVE_RATE: f32 = 0.01;
+const EXPECTED_NUM_ITEMS: u32 = 10000000;
+
 impl SetProcessor {
-    /// Creates a new [`FromProcessor`].
-    pub fn new(
-        operator: SetOperation,
-        txn: &mut LmdbExclusiveTransaction,
-    ) -> Result<Self, PipelineError> {
+    /// Creates a new [`SetProcessor`].
+    pub fn new(operator: SetOperation) -> Result<Self, PipelineError> {
+        let _s = RandomState::new();
         Ok(Self {
             operator,
-            db: txn.create_database(Some("set"), Some(DatabaseFlags::empty()))?,
+            record_map: CountingBloomFilter::with_rate(
+                BITS_PER_ENTRY,
+                FALSE_POSITIVE_RATE,
+                EXPECTED_NUM_ITEMS,
+            ),
         })
     }
 
-    fn delete(
-        &mut self,
-        _from_port: PortHandle,
-        record: &Record,
-        txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(SetAction, Record)>, ProductError> {
+    fn delete(&mut self, record: &Record) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
-            .execute(SetAction::Delete, record, &self.db, txn)
+            .execute(SetAction::Delete, record, &mut self.record_map)
             .map_err(|err| {
                 ProductError::DeleteError("UNION query error:".to_string(), Box::new(err))
             })
     }
 
-    fn insert(
-        &mut self,
-        _from_port: PortHandle,
-        record: &Record,
-        txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
-    ) -> Result<Vec<(SetAction, Record)>, ProductError> {
+    fn insert(&mut self, record: &Record) -> Result<Vec<(SetAction, Record)>, ProductError> {
         self.operator
-            .execute(SetAction::Insert, record, &self.db, txn)
+            .execute(SetAction::Insert, record, &mut self.record_map)
             .map_err(|err| {
                 ProductError::InsertError("UNION query error:".to_string(), Box::new(err))
             })
@@ -62,27 +55,30 @@ impl SetProcessor {
     #[allow(clippy::type_complexity)]
     fn update(
         &mut self,
-        _from_port: PortHandle,
         old: &Record,
         new: &Record,
-        txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
         let old_records = self
             .operator
-            .execute(SetAction::Delete, old, &self.db, txn)
+            .execute(SetAction::Delete, old, &mut self.record_map)
             .map_err(|err| {
                 ProductError::UpdateOldError("UNION query error:".to_string(), Box::new(err))
             })?;
 
         let new_records = self
             .operator
-            .execute(SetAction::Insert, new, &self.db, txn)
+            .execute(SetAction::Insert, new, &mut self.record_map)
             .map_err(|err| {
                 ProductError::UpdateNewError("UNION query error:".to_string(), Box::new(err))
             })?;
 
         Ok((old_records, new_records))
+    }
+}
+
+impl Debug for SetProcessor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SetProcessor").field(&self.operator).finish()
     }
 }
 
@@ -93,16 +89,15 @@ impl Processor for SetProcessor {
 
     fn process(
         &mut self,
-        from_port: PortHandle,
+        _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        transaction: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        _transaction: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {
                 let records = self
-                    .delete(from_port, old, transaction, reader)
+                    .delete(old)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record) in records.into_iter() {
@@ -118,7 +113,7 @@ impl Processor for SetProcessor {
             }
             Operation::Insert { ref new } => {
                 let records = self
-                    .insert(from_port, new, transaction, reader)
+                    .insert(new)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, record) in records.into_iter() {
@@ -134,7 +129,7 @@ impl Processor for SetProcessor {
             }
             Operation::Update { ref old, ref new } => {
                 let (old_records, new_records) = self
-                    .update(from_port, old, new, transaction, reader)
+                    .update(old, new)
                     .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
 
                 for (action, old) in old_records.into_iter() {

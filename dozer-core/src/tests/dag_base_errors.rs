@@ -6,14 +6,13 @@ use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
     Source, SourceFactory,
 };
-use crate::record_store::RecordReader;
 use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::node::{NodeHandle, SourceStates};
+use dozer_types::node::NodeHandle;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -89,7 +88,6 @@ impl Processor for ErrorProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.count += 1;
         if self.count == self.err_on {
@@ -453,7 +451,6 @@ impl SinkFactory<NoneContext> for ErrSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(ErrSink {
             err_at: self.err_at,
@@ -470,7 +467,7 @@ pub(crate) struct ErrSink {
     panic: bool,
 }
 impl Sink for ErrSink {
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -479,7 +476,6 @@ impl Sink for ErrSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;
         if self.current == self.err_at {

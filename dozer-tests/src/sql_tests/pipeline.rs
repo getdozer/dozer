@@ -11,22 +11,18 @@ use dozer_core::petgraph::Direction;
 use dozer_core::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::node::SourceStates;
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::thread;
-
-use dozer_core::epoch::Epoch;
 
 use std::time::Duration;
 use tempdir::TempDir;
@@ -96,13 +92,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             .iter()
             .enumerate()
             .map(|(idx, _)| {
-                OutputPortDef::new(
-                    idx as u16,
-                    OutputPortType::StatefulWithPrimaryKeyLookup {
-                        retr_old_records_for_deletes: true,
-                        retr_old_records_for_updates: true,
-                    },
-                )
+                OutputPortDef::new(idx as u16, OutputPortType::StatefulWithPrimaryKeyLookup)
             })
             .collect()
     }
@@ -187,7 +177,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
 
@@ -219,7 +208,6 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         let sql = self
             .mapper
@@ -238,7 +226,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 

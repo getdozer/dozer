@@ -1,15 +1,12 @@
 use dozer_core::{
-    epoch::Epoch,
     errors::ExecutionError,
     node::{PortHandle, Sink, SinkFactory},
-    record_store::RecordReader,
     storage::lmdb_storage::SharedTransaction,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::{
     crossbeam,
-    node::SourceStates,
     types::{Operation, Schema},
 };
 use std::collections::HashMap;
@@ -33,7 +30,6 @@ impl SinkFactory<SchemaSQLContext> for StreamingSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _checkpoint: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(StreamingSink {
             current: 0,
@@ -61,7 +57,6 @@ impl Sink for StreamingSink {
         _from_port: PortHandle,
         op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;
         let _res = self
@@ -72,7 +67,7 @@ impl Sink for StreamingSink {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 

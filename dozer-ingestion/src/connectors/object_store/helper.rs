@@ -1,7 +1,7 @@
 use crate::errors::ObjectStoreObjectError;
-use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::datasource::listing::ListingOptions;
+use deltalake::datafusion::datasource::file_format::csv::CsvFormat;
+use deltalake::datafusion::datasource::file_format::parquet::ParquetFormat;
+use deltalake::datafusion::datasource::listing::ListingOptions;
 use dozer_types::ingestion_types::Table;
 use std::sync::Arc;
 

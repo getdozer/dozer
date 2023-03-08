@@ -1,9 +1,10 @@
 use std::cmp::Ordering;
+use std::ops::Bound;
 
 use super::intersection::intersection;
-use super::iterator::{CacheIterator, KeyEndpoint};
 use crate::cache::expression::Skip;
-use crate::cache::lmdb::cache::{id_from_bytes, id_to_bytes, LmdbCacheCommon};
+use crate::cache::lmdb::cache::helper::lmdb_cmp;
+use crate::cache::lmdb::cache::LmdbCacheCommon;
 use crate::cache::RecordWithId;
 use crate::cache::{
     expression::{Operator, QueryExpression, SortDirection},
@@ -47,7 +48,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             Plan::SeqScan(_) => Ok(match self.query.skip {
                 Skip::Skip(skip) => self
                     .common
-                    .db
+                    .record_id_to_record
                     .count(self.txn)?
                     .saturating_sub(skip)
                     .min(self.query.limit.unwrap_or(usize::MAX)),
@@ -69,20 +70,25 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         }
     }
 
-    pub fn all_ids(&self) -> Result<impl Iterator<Item = u64> + '_, CacheError> {
-        let cursor = self.common.id.open_ro_cursor(self.txn)?;
-        Ok(skip(
-            CacheIterator::new(cursor, None, SortDirection::Ascending)
-                .map(map_index_database_entry_to_id),
-            self.query.skip,
-        )
-        .take(self.query.limit.unwrap_or(usize::MAX)))
+    pub fn all_ids(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + '_, CacheError> {
+        let all_ids = self
+            .common
+            .record_id_to_record
+            .keys(self.txn)?
+            .map(|result| {
+                result
+                    .map(|id| id.into_owned())
+                    .map_err(CacheError::Storage)
+            });
+        Ok(skip(all_ids, self.query.skip).take(self.query.limit.unwrap_or(usize::MAX)))
     }
 
     fn build_index_scan(
         &self,
         index_scans: Vec<IndexScan>,
-    ) -> Result<impl Iterator<Item = u64> + '_, CacheError> {
+    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + '_, CacheError> {
         debug_assert!(
             !index_scans.is_empty(),
             "Planner should not generate empty index scan"
@@ -107,51 +113,76 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     fn query_with_secondary_index(
         &'a self,
         index_scan: &IndexScan,
-    ) -> Result<impl Iterator<Item = u64> + 'a, CacheError> {
-        let schema_id = self
-            .schema
-            .identifier
-            .ok_or(CacheError::SchemaHasNoIdentifier)?;
-        let index_db = *self
-            .common
-            .secondary_indexes
-            .get(&(schema_id, index_scan.index_id))
-            .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
+    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + 'a, CacheError> {
+        let index_db = self.common.secondary_indexes[index_scan.index_id];
 
         let RangeSpec {
             start,
             end,
             direction,
         } = get_range_spec(&index_scan.kind, index_scan.is_single_field_sorted_inverted)?;
+        let start = match &start {
+            Some(KeyEndpoint::Including(key)) => Bound::Included(key.as_slice()),
+            Some(KeyEndpoint::Excluding(key)) => Bound::Excluded(key.as_slice()),
+            None => Bound::Unbounded,
+        };
 
-        let cursor = index_db.open_ro_cursor(self.txn)?;
-
-        Ok(CacheIterator::new(cursor, start, direction)
-            .take_while(move |(key, _)| {
-                if let Some(end_key) = &end {
-                    match index_db.cmp(self.txn, key, end_key.key()) {
-                        Ordering::Less => matches!(direction, SortDirection::Ascending),
-                        Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
-                        Ordering::Greater => matches!(direction, SortDirection::Descending),
+        Ok(index_db
+            .range(self.txn, start, direction == SortDirection::Ascending)?
+            .take_while(move |result| match result {
+                Ok((key, _)) => {
+                    if let Some(end_key) = &end {
+                        match lmdb_cmp(self.txn, index_db.database(), key, end_key.key()) {
+                            Ordering::Less => matches!(direction, SortDirection::Ascending),
+                            Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
+                            Ordering::Greater => matches!(direction, SortDirection::Descending),
+                        }
+                    } else {
+                        true
                     }
-                } else {
-                    true
                 }
+                Err(_) => true,
             })
-            .map(map_index_database_entry_to_id))
+            .map(|result| {
+                result
+                    .map(|(_, id)| id.into_owned())
+                    .map_err(CacheError::Storage)
+            }))
     }
 
     fn collect_records(
         &self,
-        ids: impl Iterator<Item = u64>,
+        ids: impl Iterator<Item = Result<u64, CacheError>>,
     ) -> Result<Vec<RecordWithId>, CacheError> {
-        ids.map(|id| {
-            self.common
-                .db
-                .get(self.txn, id_to_bytes(id))
-                .map(|record| RecordWithId::new(id, record))
+        ids.filter_map(|id| match id {
+            Ok(id) => self
+                .common
+                .record_id_to_record
+                .get(self.txn, &id)
+                .transpose()
+                .map(|record| {
+                    record
+                        .map(|record| RecordWithId::new(id, record.into_owned()))
+                        .map_err(CacheError::Storage)
+                }),
+            Err(err) => Some(Err(err)),
         })
         .collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum KeyEndpoint {
+    Including(Vec<u8>),
+    Excluding(Vec<u8>),
+}
+
+impl KeyEndpoint {
+    pub fn key(&self) -> &[u8] {
+        match self {
+            KeyEndpoint::Including(key) => key,
+            KeyEndpoint::Excluding(key) => key,
+        }
     }
 }
 
@@ -347,20 +378,46 @@ fn get_key_interval_from_range_query(
     }
 }
 
-fn map_index_database_entry_to_id((_, id): (&[u8], &[u8])) -> u64 {
-    id_from_bytes(
-        id.try_into()
-            .expect("All values must be u64 ids in index database"),
-    )
-}
-
-fn skip(iter: impl Iterator<Item = u64>, skip: Skip) -> impl Iterator<Item = u64> {
+fn skip(
+    iter: impl Iterator<Item = Result<u64, CacheError>>,
+    skip: Skip,
+) -> impl Iterator<Item = Result<u64, CacheError>> {
     match skip {
         Skip::Skip(n) => Either::Left(iter.skip(n)),
         Skip::After(after) => Either::Right(skip_after(iter, after)),
     }
 }
 
-fn skip_after(iter: impl Iterator<Item = u64>, after: u64) -> impl Iterator<Item = u64> {
-    iter.skip_while(move |id| *id != after).skip(1)
+struct SkipAfter<T: Iterator<Item = Result<u64, CacheError>>> {
+    inner: T,
+    after: Option<u64>,
+}
+
+impl<T: Iterator<Item = Result<u64, CacheError>>> Iterator for SkipAfter<T> {
+    type Item = Result<u64, CacheError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(after) = self.after {
+                match self.inner.next() {
+                    Some(Ok(id)) => {
+                        if id == after {
+                            self.after = None;
+                        }
+                    }
+                    Some(Err(e)) => return Some(Err(e)),
+                    None => return None,
+                }
+            } else {
+                return self.inner.next();
+            }
+        }
+    }
+}
+
+fn skip_after<T: Iterator<Item = Result<u64, CacheError>>>(iter: T, after: u64) -> SkipAfter<T> {
+    SkipAfter {
+        inner: iter,
+        after: Some(after),
+    }
 }

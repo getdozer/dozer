@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-use crate::deserialize;
+
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
@@ -7,33 +7,41 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::errors::ExecutionError;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::errors::types::TypeError;
-use dozer_types::types::{Field, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
+use std::hash::{Hash, Hasher};
 
-use crate::pipeline::aggregation::aggregator::get_aggregator_from_aggregation_expression;
+use crate::pipeline::aggregation::aggregator::{
+    get_aggregator_from_aggregator_type, get_aggregator_type_from_aggregation_expression,
+    AggregatorType,
+};
+use ahash::AHasher;
 use dozer_core::epoch::Epoch;
-use dozer_core::record_store::RecordReader;
-use dozer_core::storage::common::Database;
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
-use lmdb::DatabaseFlags;
-use std::{collections::HashMap, mem::size_of_val};
+use hashbrown::HashMap;
 
-const COUNTER_KEY: u8 = 1_u8;
+const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 
-pub(crate) struct AggregationData<'a> {
-    pub value: Field,
-    pub state: Option<&'a [u8]>,
-    pub prefix: u32,
+#[derive(Debug)]
+struct AggregationState {
+    count: usize,
+    states: Vec<Box<dyn Aggregator>>,
+    values: Option<Vec<Field>>,
 }
 
-impl<'a> AggregationData<'a> {
-    pub fn new(value: Field, state: Option<&'a [u8]>, prefix: u32) -> Self {
+impl AggregationState {
+    pub fn new(types: &[AggregatorType], ret_types: &[FieldType]) -> Self {
+        let mut states: Vec<Box<dyn Aggregator>> = Vec::new();
+        for (idx, typ) in types.iter().enumerate() {
+            let mut aggr = get_aggregator_from_aggregator_type(*typ);
+            aggr.init(ret_types[idx]);
+            states.push(aggr);
+        }
+
         Self {
-            value,
-            state,
-            prefix,
+            count: 0,
+            states,
+            values: None,
         }
     }
 }
@@ -41,13 +49,14 @@ impl<'a> AggregationData<'a> {
 #[derive(Debug)]
 pub struct AggregationProcessor {
     dimensions: Vec<Expression>,
-    measures: Vec<(Expression, Aggregator)>,
+    measures: Vec<Vec<Expression>>,
+    measures_types: Vec<AggregatorType>,
+    measures_return_types: Vec<FieldType>,
     projections: Vec<Expression>,
-    pub db: Database,
-    meta_db: Database,
-    aggregators_db: Database,
     input_schema: Schema,
     aggregation_schema: Schema,
+    states: HashMap<u64, AggregationState>,
+    default_segment_key: u64,
 }
 
 enum AggregatorOperation {
@@ -56,11 +65,6 @@ enum AggregatorOperation {
     Update,
 }
 
-const AGG_VALUES_DATASET_ID: u16 = 0x0000_u16;
-const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
-
-const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
-
 impl AggregationProcessor {
     pub fn new(
         dimensions: Vec<Expression>,
@@ -68,411 +72,285 @@ impl AggregationProcessor {
         projections: Vec<Expression>,
         input_schema: Schema,
         aggregation_schema: Schema,
-        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Self, PipelineError> {
-        let mut aggregators: Vec<(Expression, Aggregator)> = Vec::new();
+        let mut aggr_types = Vec::new();
+        let mut aggr_measures = Vec::new();
+        let mut aggr_measures_ret_types = Vec::new();
+
         for measure in measures {
-            aggregators.push(get_aggregator_from_aggregation_expression(
-                &measure,
-                &input_schema,
-            )?)
+            let (aggr_measure, aggr_type) =
+                get_aggregator_type_from_aggregation_expression(&measure, &input_schema)?;
+            aggr_measures.push(aggr_measure);
+            aggr_types.push(aggr_type);
+            aggr_measures_ret_types.push(measure.get_type(&input_schema)?.return_type)
         }
+
+        let mut hasher = AHasher::default();
+        DEFAULT_SEGMENT_KEY.hash(&mut hasher);
 
         Ok(Self {
             dimensions,
-            measures: aggregators,
             projections,
-            db: txn.create_database(Some("aggr"), Some(DatabaseFlags::empty()))?,
-            meta_db: txn.create_database(Some("meta"), Some(DatabaseFlags::empty()))?,
-            aggregators_db: txn.create_database(Some("aggr_data"), Some(DatabaseFlags::empty()))?,
             input_schema,
             aggregation_schema,
+            states: HashMap::new(),
+            measures: aggr_measures,
+            measures_types: aggr_types,
+            measures_return_types: aggr_measures_ret_types,
+            default_segment_key: hasher.finish(),
         })
     }
 
-    fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
-        let mut vec = Vec::with_capacity(hash.len().wrapping_add(size_of_val(&database_id)));
-        vec.extend_from_slice(&database_id.to_be_bytes());
-        vec.extend(hash);
-        Ok(vec)
-    }
-
-    fn get_counter(&self, txn: &mut LmdbExclusiveTransaction) -> Result<u32, PipelineError> {
-        let curr_ctr = match txn.get(self.meta_db, &COUNTER_KEY.to_be_bytes())? {
-            Some(v) => u32::from_be_bytes(deserialize!(v)),
-            None => 1_u32,
-        };
-        txn.put(
-            self.meta_db,
-            &COUNTER_KEY.to_be_bytes(),
-            &(curr_ctr + 1).to_be_bytes(),
-        )?;
-        Ok(curr_ctr + 1)
-    }
-
-    pub(crate) fn decode_buffer(buf: &[u8]) -> Result<(usize, AggregationData), PipelineError> {
-        let prefix = u32::from_be_bytes(buf[0..4].try_into().unwrap());
-        let mut offset: usize = 4;
-
-        let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
-        offset += 2;
-        let val: Field = Field::decode(&buf[offset..offset + val_len as usize])
-            .map_err(TypeError::DeserializationError)?;
-        offset += val_len as usize;
-        let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
-        offset += 2;
-        let state: Option<&[u8]> = if state_len > 0 {
-            Some(&buf[offset..offset + state_len as usize])
-        } else {
-            None
-        };
-        offset += state_len as usize;
-
-        let r = AggregationData::new(val, state, prefix);
-        Ok((offset, r))
-    }
-
-    pub(crate) fn encode_buffer(
-        prefix: u32,
-        value: &Field,
-        state: &Option<Vec<u8>>,
-    ) -> Result<(usize, Vec<u8>), PipelineError> {
-        let mut r = Vec::with_capacity(512);
-        r.extend(prefix.to_be_bytes());
-
-        let sz_val = value.encode();
-        r.extend((sz_val.len() as u16).to_be_bytes());
-        r.extend(&sz_val);
-
-        let len = if let Some(state) = state.as_ref() {
-            r.extend((state.len() as u16).to_be_bytes());
-            r.extend(state);
-            state.len()
-        } else {
-            r.extend(0_u16.to_be_bytes());
-            0_usize
-        };
-
-        Ok((5 + sz_val.len() + len, r))
-    }
-
     fn calc_and_fill_measures(
-        &self,
-        txn: &mut LmdbExclusiveTransaction,
-        cur_state: &Option<Vec<u8>>,
+        curr_state: &mut AggregationState,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
         out_rec_delete: &mut Vec<Field>,
         out_rec_insert: &mut Vec<Field>,
         op: AggregatorOperation,
-    ) -> Result<Vec<u8>, PipelineError> {
-        // array holding the list of states for all measures
-        let mut next_state = Vec::<u8>::new();
-        let mut offset: usize = 0;
+        measures: &Vec<Vec<Expression>>,
+        input_schema: &Schema,
+    ) -> Result<Vec<Field>, PipelineError> {
+        //
 
-        for measure in &self.measures {
-            let curr_agg_data = match cur_state {
-                Some(ref e) => {
-                    let (len, res) = Self::decode_buffer(&e[offset..])?;
-                    offset += len;
-                    Some(res)
-                }
-                None => None,
-            };
+        let mut new_fields: Vec<Field> = Vec::with_capacity(measures.len());
 
-            let (prefix, next_state_slice) = match op {
+        for (idx, measure) in measures.iter().enumerate() {
+            let curr_aggr = &mut curr_state.states[idx];
+            let curr_val_opt: Option<&Field> = curr_state.values.as_ref().map(|e| &e[idx]);
+
+            let new_val = match op {
                 AggregatorOperation::Insert => {
-                    let inserted_field = measure
-                        .0
-                        .evaluate(inserted_record.unwrap(), &self.input_schema)?;
-                    if let Some(curr) = curr_agg_data {
-                        out_rec_delete.push(curr.value);
-                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
-                        let r = measure.1.insert(
-                            curr.state,
-                            &inserted_field,
-                            measure.0.get_type(&self.input_schema)?.return_type,
-                            &mut p_tx,
-                            self.aggregators_db,
-                        )?;
-                        (curr.prefix, r)
-                    } else {
-                        let prefix = self.get_counter(txn)?;
-                        let mut p_tx = PrefixTransaction::new(txn, prefix);
-                        let r = measure.1.insert(
-                            None,
-                            &inserted_field,
-                            measure.0.get_type(&self.input_schema)?.return_type,
-                            &mut p_tx,
-                            self.aggregators_db,
-                        )?;
-                        (prefix, r)
+                    let mut inserted_fields = Vec::with_capacity(measure.len());
+                    for m in measure {
+                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), input_schema)?);
                     }
+                    if let Some(curr_val) = curr_val_opt {
+                        out_rec_delete.push(curr_val.clone());
+                    }
+                    curr_aggr.insert(&inserted_fields)?
                 }
                 AggregatorOperation::Delete => {
-                    let deleted_field = measure
-                        .0
-                        .evaluate(deleted_record.unwrap(), &self.input_schema)?;
-                    if let Some(curr) = curr_agg_data {
-                        out_rec_delete.push(curr.value);
-                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
-                        let r = measure.1.delete(
-                            curr.state,
-                            &deleted_field,
-                            measure.0.get_type(&self.input_schema)?.return_type,
-                            &mut p_tx,
-                            self.aggregators_db,
-                        )?;
-                        (curr.prefix, r)
-                    } else {
-                        let prefix = self.get_counter(txn)?;
-                        let mut p_tx = PrefixTransaction::new(txn, prefix);
-                        let r = measure.1.delete(
-                            None,
-                            &deleted_field,
-                            measure.0.get_type(&self.input_schema)?.return_type,
-                            &mut p_tx,
-                            self.aggregators_db,
-                        )?;
-                        (prefix, r)
+                    let mut deleted_fields = Vec::with_capacity(measure.len());
+                    for m in measure {
+                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), input_schema)?);
                     }
+                    if let Some(curr_val) = curr_val_opt {
+                        out_rec_delete.push(curr_val.clone());
+                    }
+                    curr_aggr.delete(&deleted_fields)?
                 }
                 AggregatorOperation::Update => {
-                    let deleted_field = measure
-                        .0
-                        .evaluate(deleted_record.unwrap(), &self.input_schema)?;
-                    let updated_field = measure
-                        .0
-                        .evaluate(inserted_record.unwrap(), &self.input_schema)?;
-
-                    if let Some(curr) = curr_agg_data {
-                        out_rec_delete.push(curr.value);
-                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
-                        let r = measure.1.update(
-                            curr.state,
-                            &deleted_field,
-                            &updated_field,
-                            measure.0.get_type(&self.input_schema)?.return_type,
-                            &mut p_tx,
-                            self.aggregators_db,
-                        )?;
-                        (curr.prefix, r)
-                    } else {
-                        let prefix = self.get_counter(txn)?;
-                        let mut p_tx = PrefixTransaction::new(txn, prefix);
-                        let r = measure.1.update(
-                            None,
-                            &deleted_field,
-                            &updated_field,
-                            measure.0.get_type(&self.input_schema)?.return_type,
-                            &mut p_tx,
-                            self.aggregators_db,
-                        )?;
-                        (prefix, r)
+                    let mut deleted_fields = Vec::with_capacity(measure.len());
+                    for m in measure {
+                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), input_schema)?);
                     }
+                    let mut inserted_fields = Vec::with_capacity(measure.len());
+                    for m in measure {
+                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), input_schema)?);
+                    }
+                    if let Some(curr_val) = curr_val_opt {
+                        out_rec_delete.push(curr_val.clone());
+                    }
+                    curr_aggr.update(&deleted_fields, &inserted_fields)?
                 }
             };
-
-            next_state.extend(
-                &Self::encode_buffer(prefix, &next_state_slice.value, &next_state_slice.state)?.1,
-            );
-            out_rec_insert.push(next_state_slice.value);
+            out_rec_insert.push(new_val.clone());
+            new_fields.push(new_val);
         }
-
-        Ok(next_state)
+        Ok(new_fields)
     }
 
-    fn update_segment_count(
-        &self,
-        txn: &mut LmdbExclusiveTransaction,
-        db: Database,
-        key: Vec<u8>,
-        delta: u64,
-        decr: bool,
-    ) -> Result<u64, PipelineError> {
-        let bytes = txn.get(db, key.as_slice())?;
-
-        let curr_count = match bytes {
-            Some(b) => u64::from_be_bytes(deserialize!(b)),
-            None => 0_u64,
-        };
-
-        let new_val = if decr {
-            curr_count.wrapping_sub(delta)
-        } else {
-            curr_count.wrapping_add(delta)
-        };
-
-        if new_val > 0 {
-            txn.put(db, key.as_slice(), new_val.to_be_bytes().as_slice())?;
-        } else {
-            txn.del(db, key.as_slice(), None)?;
-        }
-        Ok(curr_count)
-    }
-
-    fn agg_delete(
-        &self,
-        txn: &mut LmdbExclusiveTransaction,
-        db: Database,
-        old: &mut Record,
-    ) -> Result<Operation, PipelineError> {
+    fn agg_delete(&mut self, old: &mut Record) -> Result<Operation, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
-        let record_hash = if !self.dimensions.is_empty() {
+        let key = if !self.dimensions.is_empty() {
             get_key(&self.input_schema, old, &self.dimensions)?
         } else {
-            vec![AGG_DEFAULT_DIMENSION_ID]
+            self.default_segment_key
         };
 
-        let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
+        let curr_state_opt = self.states.get_mut(&key);
+        assert!(
+            curr_state_opt.is_some(),
+            "Unable to find aggregator state during DELETE operation"
+        );
+        let mut curr_state = curr_state_opt.unwrap();
 
-        let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
-        let prev_count = self.update_segment_count(txn, db, record_count_key, 1, true)?;
-
-        let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
-        let new_state = self.calc_and_fill_measures(
-            txn,
-            &cur_state,
+        let new_values = Self::calc_and_fill_measures(
+            curr_state,
             Some(old),
             None,
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Delete,
+            &self.measures,
+            &self.input_schema,
         )?;
 
-        let res = if prev_count == 1 {
+        let res = if curr_state.count == 1 {
+            self.states.remove(&key);
             Operation::Delete {
-                old: self.build_projection(old, out_rec_delete)?,
+                old: Self::build_projection(
+                    old,
+                    out_rec_delete,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
             }
         } else {
+            curr_state.count -= 1;
+            curr_state.values = Some(new_values);
             Operation::Update {
-                new: self.build_projection(old, out_rec_insert)?,
-                old: self.build_projection(old, out_rec_delete)?,
+                new: Self::build_projection(
+                    old,
+                    out_rec_insert,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+                old: Self::build_projection(
+                    old,
+                    out_rec_delete,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
             }
         };
 
-        if prev_count == 1 {
-            let _ = txn.del(db, record_key.as_slice(), None)?;
-        } else {
-            txn.put(db, record_key.as_slice(), new_state.as_slice())?;
-        }
         Ok(res)
     }
 
-    fn agg_insert(
-        &self,
-        txn: &mut LmdbExclusiveTransaction,
-        db: Database,
-        new: &mut Record,
-    ) -> Result<Operation, PipelineError> {
+    fn agg_insert(&mut self, new: &mut Record) -> Result<Operation, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
-        let record_hash = if !self.dimensions.is_empty() {
+        let key = if !self.dimensions.is_empty() {
             get_key(&self.input_schema, new, &self.dimensions)?
         } else {
-            vec![AGG_DEFAULT_DIMENSION_ID]
+            self.default_segment_key
         };
 
-        let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
+        let curr_state = self.states.entry(key).or_insert(AggregationState::new(
+            &self.measures_types,
+            &self.measures_return_types,
+        ));
 
-        let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
-        self.update_segment_count(txn, db, record_count_key, 1, false)?;
-
-        let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
-        let new_state = self.calc_and_fill_measures(
-            txn,
-            &cur_state,
+        let new_values = Self::calc_and_fill_measures(
+            curr_state,
             None,
             Some(new),
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Insert,
+            &self.measures,
+            &self.input_schema,
         )?;
 
-        let res = if cur_state.is_none() {
+        let res = if curr_state.count == 0 {
             Operation::Insert {
-                new: self.build_projection(new, out_rec_insert)?,
+                new: Self::build_projection(
+                    new,
+                    out_rec_insert,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
             }
         } else {
             Operation::Update {
-                new: self.build_projection(new, out_rec_insert)?,
-                old: self.build_projection(new, out_rec_delete)?,
+                new: Self::build_projection(
+                    new,
+                    out_rec_insert,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+                old: Self::build_projection(
+                    new,
+                    out_rec_delete,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
             }
         };
 
-        txn.put(db, record_key.as_slice(), new_state.as_slice())?;
+        curr_state.count += 1;
+        curr_state.values = Some(new_values);
+
         Ok(res)
     }
 
     fn agg_update(
-        &self,
-        txn: &mut LmdbExclusiveTransaction,
-        db: Database,
+        &mut self,
         old: &mut Record,
         new: &mut Record,
-        record_hash: Vec<u8>,
+        key: u64,
     ) -> Result<Operation, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
-        let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
-        let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
-        let new_state = self.calc_and_fill_measures(
-            txn,
-            &cur_state,
+        let curr_state_opt = self.states.get_mut(&key);
+        assert!(
+            curr_state_opt.is_some(),
+            "Unable to find aggregator state during UPDATE operation"
+        );
+        let mut curr_state = curr_state_opt.unwrap();
+
+        let new_values = Self::calc_and_fill_measures(
+            curr_state,
             Some(old),
             Some(new),
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Update,
+            &self.measures,
+            &self.input_schema,
         )?;
 
         let res = Operation::Update {
-            new: self.build_projection(new, out_rec_insert)?,
-            old: self.build_projection(old, out_rec_delete)?,
+            new: Self::build_projection(
+                new,
+                out_rec_insert,
+                &self.projections,
+                &self.aggregation_schema,
+            )?,
+            old: Self::build_projection(
+                old,
+                out_rec_delete,
+                &self.projections,
+                &self.aggregation_schema,
+            )?,
         };
 
-        txn.put(db, record_key.as_slice(), new_state.as_slice())?;
-
+        curr_state.values = Some(new_values);
         Ok(res)
     }
 
     pub fn build_projection(
-        &self,
         original: &mut Record,
         measures: Vec<Field>,
+        projections: &Vec<Expression>,
+        aggregation_schema: &Schema,
     ) -> Result<Record, PipelineError> {
         let original_len = original.values.len();
         original.values.extend(measures);
-        let mut output = Vec::<Field>::with_capacity(self.projections.len());
-        for exp in &self.projections {
-            output.push(exp.evaluate(original, &self.aggregation_schema)?);
+        let mut output = Vec::<Field>::with_capacity(projections.len());
+        for exp in projections {
+            output.push(exp.evaluate(original, aggregation_schema)?);
         }
         original.values.drain(original_len..);
         Ok(Record::new(None, output, None))
     }
 
-    pub fn aggregate(
-        &self,
-        txn: &mut LmdbExclusiveTransaction,
-        db: Database,
-        mut op: Operation,
-    ) -> Result<Vec<Operation>, PipelineError> {
+    pub fn aggregate(&mut self, mut op: Operation) -> Result<Vec<Operation>, PipelineError> {
         match op {
-            Operation::Insert { ref mut new } => Ok(vec![self.agg_insert(txn, db, new)?]),
-            Operation::Delete { ref mut old } => Ok(vec![self.agg_delete(txn, db, old)?]),
+            Operation::Insert { ref mut new } => Ok(vec![self.agg_insert(new)?]),
+            Operation::Delete { ref mut old } => Ok(vec![self.agg_delete(old)?]),
             Operation::Update {
                 ref mut old,
                 ref mut new,
             } => {
                 let (old_record_hash, new_record_hash) = if self.dimensions.is_empty() {
-                    (
-                        vec![AGG_DEFAULT_DIMENSION_ID],
-                        vec![AGG_DEFAULT_DIMENSION_ID],
-                    )
+                    (self.default_segment_key, self.default_segment_key)
                 } else {
                     (
                         get_key(&self.input_schema, old, &self.dimensions)?,
@@ -481,12 +359,9 @@ impl AggregationProcessor {
                 };
 
                 if old_record_hash == new_record_hash {
-                    Ok(vec![self.agg_update(txn, db, old, new, old_record_hash)?])
+                    Ok(vec![self.agg_update(old, new, old_record_hash)?])
                 } else {
-                    Ok(vec![
-                        self.agg_delete(txn, db, old)?,
-                        self.agg_insert(txn, db, new)?,
-                    ])
+                    Ok(vec![self.agg_delete(old)?, self.agg_insert(new)?])
                 }
             }
         }
@@ -497,22 +372,15 @@ fn get_key(
     schema: &Schema,
     record: &Record,
     dimensions: &[Expression],
-) -> Result<Vec<u8>, PipelineError> {
-    let mut tot_size = 0_usize;
-    let mut buffers = Vec::<Vec<u8>>::with_capacity(dimensions.len());
-
+) -> Result<u64, PipelineError> {
+    let mut key = Vec::<Field>::with_capacity(dimensions.len());
     for dimension in dimensions.iter() {
-        let value = dimension.evaluate(record, schema)?;
-        let bytes = value.encode();
-        tot_size += bytes.len();
-        buffers.push(bytes);
+        key.push(dimension.evaluate(record, schema)?);
     }
-
-    let mut res_buffer = Vec::<u8>::with_capacity(tot_size);
-    for i in buffers {
-        res_buffer.extend(i);
-    }
-    Ok(res_buffer)
+    let mut hasher = AHasher::default();
+    key.hash(&mut hasher);
+    let v = hasher.finish();
+    Ok(v)
 }
 
 impl Processor for AggregationProcessor {
@@ -525,12 +393,9 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
+        _txn: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
-        let ops = self
-            .aggregate(&mut txn.write(), self.db, op)
-            .map_err(|e| InternalError(Box::new(e)))?;
+        let ops = self.aggregate(op).map_err(|e| InternalError(Box::new(e)))?;
         for fop in ops {
             fw.send(fop, DEFAULT_PORT_HANDLE)?;
         }

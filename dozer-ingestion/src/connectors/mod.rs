@@ -17,11 +17,14 @@ use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
+
+use crate::connectors::delta_lake::DeltaLakeConnector;
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::SourceSchema;
 
+pub mod delta_lake;
 pub mod snowflake;
 
 use self::ethereum::{EthLogConnector, EthTraceConnector};
@@ -148,6 +151,9 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         }
         ConnectionConfig::LocalStorage(object_store_config) => {
             Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
+        }
+        ConnectionConfig::DeltaLake(delta_lake_config) => {
+            Ok(Box::new(DeltaLakeConnector::new(6, delta_lake_config)))
         }
     }
 }

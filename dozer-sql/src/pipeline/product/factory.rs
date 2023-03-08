@@ -78,14 +78,13 @@ impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        txn: &mut LmdbExclusiveTransaction,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let build = || {
             let (join_operator, source_names) = build_join_tree(&self.input_tables, input_schemas)?;
             Ok::<Box<dyn Processor>, PipelineError>(Box::new(FromProcessor::new(
                 join_operator,
                 source_names,
-                txn,
             )?))
         };
 
@@ -103,8 +102,6 @@ pub fn build_join_tree(
     join_tables: &IndexedTableWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<(JoinSource, HashMap<u16, String>), PipelineError> {
-    const RIGHT_JOIN_FLAG: u32 = 0x80000000;
-
     let mut source_names = HashMap::new();
 
     let port = 0 as PortHandle;
@@ -171,14 +168,12 @@ pub fn build_join_tree(
             join_type,
             join_schema.clone(),
             JoinBranch {
-                join_key: left_keys,
+                join_key_indexes: left_keys,
                 source: Box::new(left_join_table),
-                lookup_index: index as u32,
             },
             JoinBranch {
-                join_key: right_keys,
+                join_key_indexes: right_keys,
                 source: Box::new(right_join_table),
-                lookup_index: (index + 1) as u32 | RIGHT_JOIN_FLAG,
             },
         );
 

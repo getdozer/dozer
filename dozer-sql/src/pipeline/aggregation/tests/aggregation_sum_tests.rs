@@ -14,7 +14,7 @@ use std::collections::HashMap;
 #[test]
 fn test_sum_aggregation_float() {
     let schema = init_input_schema(Float, "SUM");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -29,7 +29,7 @@ fn test_sum_aggregation_float() {
         SUM = 100.0
     */
     let mut inp = insert_field(ITALY, FIELD_100_FLOAT);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
@@ -41,7 +41,7 @@ fn test_sum_aggregation_float() {
         SUM = 200.0
     */
     inp = insert_field(ITALY, FIELD_100_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_200_FLOAT)];
     assert_eq!(out, exp);
 
@@ -57,7 +57,7 @@ fn test_sum_aggregation_float() {
         SUM = 50.0
     */
     inp = insert_field(SINGAPORE, FIELD_50_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, FIELD_50_FLOAT)];
     assert_eq!(out, exp);
 
@@ -70,7 +70,7 @@ fn test_sum_aggregation_float() {
         SUM = 250.0
     */
     inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, FIELD_50_FLOAT),
         update_exp(ITALY, ITALY, FIELD_200_FLOAT, FIELD_250_FLOAT),
@@ -86,7 +86,7 @@ fn test_sum_aggregation_float() {
         SUM = 350.0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_200_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_250_FLOAT, FIELD_350_FLOAT)];
     assert_eq!(out, exp);
 
@@ -98,7 +98,7 @@ fn test_sum_aggregation_float() {
         SUM = 150.0
     */
     inp = delete_field(ITALY, FIELD_200_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_350_FLOAT, FIELD_150_FLOAT)];
     assert_eq!(out, exp);
 
@@ -109,7 +109,7 @@ fn test_sum_aggregation_float() {
         SUM = 100.0
     */
     inp = delete_field(ITALY, FIELD_50_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_150_FLOAT, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
@@ -119,7 +119,7 @@ fn test_sum_aggregation_float() {
         SUM = 0.0
     */
     inp = delete_field(ITALY, FIELD_100_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 }
@@ -127,7 +127,7 @@ fn test_sum_aggregation_float() {
 #[test]
 fn test_sum_aggregation_int() {
     let schema = init_input_schema(Int, "SUM");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -142,7 +142,7 @@ fn test_sum_aggregation_int() {
         SUM = 100.0
     */
     let mut inp = insert_field(ITALY, FIELD_100_INT);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, FIELD_100_INT)];
     assert_eq!(out, exp);
 
@@ -154,7 +154,7 @@ fn test_sum_aggregation_int() {
         SUM = 200.0
     */
     inp = insert_field(ITALY, FIELD_100_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_200_INT)];
     assert_eq!(out, exp);
 
@@ -170,7 +170,7 @@ fn test_sum_aggregation_int() {
         SUM = 50.0
     */
     inp = insert_field(SINGAPORE, FIELD_50_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, FIELD_50_INT)];
     assert_eq!(out, exp);
 
@@ -183,7 +183,7 @@ fn test_sum_aggregation_int() {
         SUM = 250.0
     */
     inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, FIELD_50_INT),
         update_exp(ITALY, ITALY, FIELD_200_INT, FIELD_250_INT),
@@ -199,7 +199,7 @@ fn test_sum_aggregation_int() {
         SUM = 350.0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_200_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_250_INT, FIELD_350_INT)];
     assert_eq!(out, exp);
 
@@ -211,7 +211,7 @@ fn test_sum_aggregation_int() {
         SUM = 150.0
     */
     inp = delete_field(ITALY, FIELD_200_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_350_INT, FIELD_150_INT)];
     assert_eq!(out, exp);
 
@@ -222,7 +222,7 @@ fn test_sum_aggregation_int() {
         SUM = 100.0
     */
     inp = delete_field(ITALY, FIELD_50_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_150_INT, FIELD_100_INT)];
     assert_eq!(out, exp);
 
@@ -232,7 +232,7 @@ fn test_sum_aggregation_int() {
         SUM = 0.0
     */
     inp = delete_field(ITALY, FIELD_100_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, FIELD_100_INT)];
     assert_eq!(out, exp);
 }
@@ -240,7 +240,7 @@ fn test_sum_aggregation_int() {
 #[test]
 fn test_sum_aggregation_uint() {
     let schema = init_input_schema(UInt, "SUM");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -255,7 +255,7 @@ fn test_sum_aggregation_uint() {
         SUM = 100.0
     */
     let mut inp = insert_field(ITALY, FIELD_100_UINT);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, FIELD_100_UINT)];
     assert_eq!(out, exp);
 
@@ -267,7 +267,7 @@ fn test_sum_aggregation_uint() {
         SUM = 200.0
     */
     inp = insert_field(ITALY, FIELD_100_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_200_UINT)];
     assert_eq!(out, exp);
 
@@ -283,7 +283,7 @@ fn test_sum_aggregation_uint() {
         SUM = 50.0
     */
     inp = insert_field(SINGAPORE, FIELD_50_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, FIELD_50_UINT)];
     assert_eq!(out, exp);
 
@@ -296,7 +296,7 @@ fn test_sum_aggregation_uint() {
         SUM = 250.0
     */
     inp = update_field(SINGAPORE, ITALY, FIELD_50_UINT, FIELD_50_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, FIELD_50_UINT),
         update_exp(ITALY, ITALY, FIELD_200_UINT, FIELD_250_UINT),
@@ -312,7 +312,7 @@ fn test_sum_aggregation_uint() {
         SUM = 350.0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_UINT, FIELD_200_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_250_UINT, FIELD_350_UINT)];
     assert_eq!(out, exp);
 
@@ -324,7 +324,7 @@ fn test_sum_aggregation_uint() {
         SUM = 150.0
     */
     inp = delete_field(ITALY, FIELD_200_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_350_UINT, FIELD_150_UINT)];
     assert_eq!(out, exp);
 
@@ -335,7 +335,7 @@ fn test_sum_aggregation_uint() {
         SUM = 100.0
     */
     inp = delete_field(ITALY, FIELD_50_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_150_UINT, FIELD_100_UINT)];
     assert_eq!(out, exp);
 
@@ -345,7 +345,7 @@ fn test_sum_aggregation_uint() {
         SUM = 0.0
     */
     inp = delete_field(ITALY, FIELD_100_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, FIELD_100_UINT)];
     assert_eq!(out, exp);
 }
@@ -353,7 +353,7 @@ fn test_sum_aggregation_uint() {
 #[test]
 fn test_sum_aggregation_decimal() {
     let schema = init_input_schema(Decimal, "SUM");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -368,7 +368,7 @@ fn test_sum_aggregation_decimal() {
         SUM = 100.0
     */
     let mut inp = insert_field(ITALY, &get_decimal_field(100));
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, &get_decimal_field(100))];
     assert_eq!(out, exp);
 
@@ -380,7 +380,7 @@ fn test_sum_aggregation_decimal() {
         SUM = 200.0
     */
     inp = insert_field(ITALY, &get_decimal_field(100));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -401,7 +401,7 @@ fn test_sum_aggregation_decimal() {
         SUM = 50.0
     */
     inp = insert_field(SINGAPORE, &get_decimal_field(50));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, &get_decimal_field(50))];
     assert_eq!(out, exp);
 
@@ -419,7 +419,7 @@ fn test_sum_aggregation_decimal() {
         &get_decimal_field(50),
         &get_decimal_field(50),
     );
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, &get_decimal_field(50)),
         update_exp(
@@ -445,7 +445,7 @@ fn test_sum_aggregation_decimal() {
         &get_decimal_field(100),
         &get_decimal_field(200),
     );
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -462,7 +462,7 @@ fn test_sum_aggregation_decimal() {
         SUM = 150.0
     */
     inp = delete_field(ITALY, &get_decimal_field(200));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -478,7 +478,7 @@ fn test_sum_aggregation_decimal() {
         SUM = 100.0
     */
     inp = delete_field(ITALY, &get_decimal_field(50));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -493,7 +493,7 @@ fn test_sum_aggregation_decimal() {
         SUM = 0.0
     */
     inp = delete_field(ITALY, &get_decimal_field(100));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, &get_decimal_field(100))];
     assert_eq!(out, exp);
 }
@@ -501,7 +501,7 @@ fn test_sum_aggregation_decimal() {
 #[test]
 fn test_sum_aggregation_int_null() {
     let schema = init_input_schema(Int, "SUM");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -516,7 +516,7 @@ fn test_sum_aggregation_int_null() {
         SUM = 0
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, FIELD_0_INT)];
     assert_eq!(out, exp);
 
@@ -528,7 +528,7 @@ fn test_sum_aggregation_int_null() {
         SUM = 100
     */
     inp = insert_field(ITALY, FIELD_100_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_100_INT)];
     assert_eq!(out, exp);
 
@@ -540,7 +540,7 @@ fn test_sum_aggregation_int_null() {
         SUM = 0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_0_INT)];
     assert_eq!(out, exp);
 
@@ -551,7 +551,7 @@ fn test_sum_aggregation_int_null() {
         SUM = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
     assert_eq!(out, exp);
 
@@ -561,7 +561,7 @@ fn test_sum_aggregation_int_null() {
         SUM = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, FIELD_0_INT)];
     assert_eq!(out, exp);
 }
@@ -569,7 +569,7 @@ fn test_sum_aggregation_int_null() {
 #[test]
 fn test_sum_aggregation_float_null() {
     let schema = init_input_schema(Float, "SUM");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -584,7 +584,7 @@ fn test_sum_aggregation_float_null() {
         SUM = 0
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, FIELD_0_FLOAT)];
     assert_eq!(out, exp);
 
@@ -596,7 +596,7 @@ fn test_sum_aggregation_float_null() {
         SUM = 100
     */
     inp = insert_field(ITALY, FIELD_100_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
@@ -608,7 +608,7 @@ fn test_sum_aggregation_float_null() {
         SUM = 0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_0_FLOAT)];
     assert_eq!(out, exp);
 
@@ -619,7 +619,7 @@ fn test_sum_aggregation_float_null() {
         SUM = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
     assert_eq!(out, exp);
 
@@ -629,7 +629,7 @@ fn test_sum_aggregation_float_null() {
         SUM = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, FIELD_0_FLOAT)];
     assert_eq!(out, exp);
 }
@@ -637,7 +637,7 @@ fn test_sum_aggregation_float_null() {
 #[test]
 fn test_sum_aggregation_decimal_null() {
     let schema = init_input_schema(Decimal, "SUM");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -652,7 +652,7 @@ fn test_sum_aggregation_decimal_null() {
         SUM = 0
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, &get_decimal_field(0))];
     assert_eq!(out, exp);
 
@@ -664,7 +664,7 @@ fn test_sum_aggregation_decimal_null() {
         SUM = 100
     */
     inp = insert_field(ITALY, &get_decimal_field(100));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -681,7 +681,7 @@ fn test_sum_aggregation_decimal_null() {
         SUM = 0
     */
     inp = update_field(ITALY, ITALY, &get_decimal_field(100), FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -697,7 +697,7 @@ fn test_sum_aggregation_decimal_null() {
         SUM = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -712,7 +712,7 @@ fn test_sum_aggregation_decimal_null() {
         SUM = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, &get_decimal_field(0))];
     assert_eq!(out, exp);
 }

@@ -121,7 +121,6 @@ impl TypedService {
                     let response = count(
                         request,
                         &self.cache_endpoint.cache_reader(),
-                        &self.cache_endpoint.endpoint.name,
                         self.response_desc
                             .take()
                             .expect("This future shouldn't be polled twice"),
@@ -151,7 +150,6 @@ impl TypedService {
                     let response = query(
                         request,
                         &self.cache_endpoint.cache_reader(),
-                        &self.cache_endpoint.endpoint.name,
                         self.response_desc
                             .take()
                             .expect("This future shouldn't be polled twice"),
@@ -304,13 +302,12 @@ fn parse_request(
 fn count(
     request: Request<DynamicMessage>,
     reader: &CacheReader,
-    endpoint_name: &str,
     response_desc: CountResponseDesc,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let count = shared_impl::count(reader, endpoint_name, query.as_deref(), access)?;
+    let count = shared_impl::count(reader, query.as_deref(), access)?;
     let res = count_response_to_typed_response(count, response_desc);
     Ok(Response::new(res))
 }
@@ -318,13 +315,12 @@ fn count(
 fn query(
     request: Request<DynamicMessage>,
     reader: &CacheReader,
-    endpoint_name: &str,
     response_desc: QueryResponseDesc,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let (_, records) = shared_impl::query(reader, endpoint_name, query.as_deref(), access)?;
+    let records = shared_impl::query(reader, query.as_deref(), access)?;
     let res = query_response_to_typed_response(records, response_desc);
     Ok(Response::new(res))
 }

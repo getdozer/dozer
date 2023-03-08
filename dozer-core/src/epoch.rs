@@ -199,7 +199,6 @@ mod tests {
                             .wait_for_epoch_close(termination_gen(index), commit_gen(index))
                     })
                 })
-                .into_iter()
                 .collect::<Vec<_>>();
             let results = handles
                 .into_iter()

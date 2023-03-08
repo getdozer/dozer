@@ -1,10 +1,8 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::epoch::Epoch;
 use crate::errors::ExecutionError;
-use crate::record_store::RecordReader;
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 
-use dozer_types::node::SourceStates;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -14,11 +12,7 @@ pub type PortHandle = u16;
 #[derive(Debug, Clone, Copy)]
 pub enum OutputPortType {
     Stateless,
-    StatefulWithPrimaryKeyLookup {
-        retr_old_records_for_deletes: bool,
-        retr_old_records_for_updates: bool,
-    },
-    AutogenRowKeyLookup,
+    StatefulWithPrimaryKeyLookup,
 }
 
 impl Display for OutputPortType {
@@ -28,7 +22,6 @@ impl Display for OutputPortType {
             OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
                 f.write_str("StatefulWithPrimaryKeyLookup")
             }
-            OutputPortType::AutogenRowKeyLookup => f.write_str("AutogenRowKeyLookup"),
         }
     }
 }
@@ -89,7 +82,6 @@ pub trait Processor: Send + Sync + Debug {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         tx: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError>;
 }
 
@@ -102,22 +94,16 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
-        checkpoint: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError>;
 }
 
 pub trait Sink: Send + Sync + Debug {
-    fn commit(
-        &mut self,
-        epoch_details: &Epoch,
-        tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError>;
+    fn commit(&mut self, tx: &SharedTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         op: Operation,
         state: &SharedTransaction,
-        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError>;
 
     fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError>;

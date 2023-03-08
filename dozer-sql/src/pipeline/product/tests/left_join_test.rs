@@ -1,17 +1,14 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::node::SourceStates;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
 use dozer_types::types::{
@@ -43,27 +40,12 @@ impl TestSourceFactory {
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![
-            OutputPortDef::new(
-                USER_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates: true,
-                    retr_old_records_for_deletes: true,
-                },
-            ),
+            OutputPortDef::new(USER_PORT, OutputPortType::StatefulWithPrimaryKeyLookup),
             OutputPortDef::new(
                 DEPARTMENT_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates: true,
-                    retr_old_records_for_deletes: true,
-                },
+                OutputPortType::StatefulWithPrimaryKeyLookup,
             ),
-            OutputPortDef::new(
-                COUNTRY_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates: true,
-                    retr_old_records_for_deletes: true,
-                },
-            ),
+            OutputPortDef::new(COUNTRY_PORT, OutputPortType::StatefulWithPrimaryKeyLookup),
         ]
     }
 
@@ -466,7 +448,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink {
             expected: self.expected,
@@ -496,7 +477,6 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match _op {
             Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
@@ -517,7 +497,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 

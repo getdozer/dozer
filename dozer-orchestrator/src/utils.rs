@@ -26,13 +26,13 @@ pub fn get_cache_dir(config: &Config) -> PathBuf {
 fn get_cache_max_map_size(config: &Config) -> u64 {
     config
         .cache_max_map_size
-        .unwrap_or(default_cache_max_map_size())
+        .unwrap_or_else(default_cache_max_map_size)
 }
 
 fn get_app_max_map_size(config: &Config) -> u64 {
     config
         .app_max_map_size
-        .unwrap_or(default_app_max_map_size())
+        .unwrap_or_else(default_app_max_map_size)
 }
 
 fn get_commit_time_threshold(config: &Config) -> Duration {
@@ -44,11 +44,13 @@ fn get_commit_time_threshold(config: &Config) -> Duration {
 }
 
 fn get_buffer_size(config: &Config) -> u32 {
-    config.app_buffer_size.unwrap_or(default_app_buffer_size())
+    config
+        .app_buffer_size
+        .unwrap_or_else(default_app_buffer_size)
 }
 
 fn get_commit_size(config: &Config) -> u32 {
-    config.commit_size.unwrap_or(default_commit_size())
+    config.commit_size.unwrap_or_else(default_commit_size)
 }
 
 pub fn get_api_dir(config: &Config) -> PathBuf {

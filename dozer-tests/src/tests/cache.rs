@@ -24,7 +24,7 @@ async fn test_cache_query() {
         IndexDefinition::FullText(12),
     ];
 
-    let (cache, schema_name, collection) = load_database(secondary_indexes).await;
+    let (cache, collection) = load_database(secondary_indexes).await;
 
     let test_cases = vec![
         // empty
@@ -222,18 +222,13 @@ async fn test_cache_query() {
     ];
 
     for test_case in test_cases {
-        validate_query(&*cache, schema_name, &collection, test_case).await;
+        validate_query(&*cache, &collection, test_case).await;
     }
 }
 
-async fn validate_query(
-    cache: &dyn RoCache,
-    schema_name: &str,
-    collection: &Collection<Film>,
-    query: Value,
-) {
+async fn validate_query(cache: &dyn RoCache, collection: &Collection<Film>, query: Value) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
-    let (query, records) = skip_and_limit::validate(cache, schema_name, query);
+    let (query, records) = skip_and_limit::validate(cache, query);
     order::validate(&film_schema(), &records, &query.order_by.0);
     filter::validate(&query, records, collection).await;
 }

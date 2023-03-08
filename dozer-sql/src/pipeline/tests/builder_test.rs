@@ -6,18 +6,14 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
-use dozer_types::node::SourceStates;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
-
-use dozer_core::epoch::Epoch;
 
 use std::collections::HashMap;
 use std::fs;
@@ -151,7 +147,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink {}))
     }
@@ -173,12 +168,11 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 

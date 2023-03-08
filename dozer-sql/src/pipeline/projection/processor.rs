@@ -5,11 +5,9 @@ use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record, Schema};
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ProjectionProcessor {
@@ -82,7 +80,6 @@ impl Processor for ProjectionProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         let _ = match op {
             Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),

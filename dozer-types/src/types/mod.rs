@@ -4,7 +4,8 @@ use ordered_float::OrderedFloat;
 use std::array::TryFromSliceError;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::str::FromStr;
 
 use crate::errors::types::TypeError;
@@ -16,16 +17,17 @@ mod field;
 use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum SourceDefinition {
-    Table { connection: String, name: String },
-    Alias { name: String },
+    Table {
+        connection: String,
+        name: String,
+    },
+    Alias {
+        name: String,
+    },
+    #[default]
     Dynamic,
-}
-impl Default for SourceDefinition {
-    fn default() -> Self {
-        SourceDefinition::Dynamic
-    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -73,20 +75,15 @@ pub struct Schema {
     pub primary_index: Vec<usize>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
 pub enum ReplicationChangesTrackingType {
     FullChanges,
     OnlyPK,
+    #[default]
     Nothing,
 }
 
-impl Default for ReplicationChangesTrackingType {
-    fn default() -> Self {
-        ReplicationChangesTrackingType::Nothing
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct SourceSchema {
     pub name: String,
     pub schema: Schema,
@@ -170,7 +167,7 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
@@ -228,6 +225,34 @@ impl Record {
         }
     }
 
+    pub fn get_key_fields(&self, schema: &Schema) -> Vec<Field> {
+        self.get_fields_by_indexes(&schema.primary_index)
+    }
+
+    pub fn get_fields_by_indexes(&self, indexes: &[usize]) -> Vec<Field> {
+        debug_assert!(!&indexes.is_empty(), "Primary key indexes cannot be empty");
+
+        let mut fields = Vec::with_capacity(indexes.len());
+        for i in indexes {
+            fields.push(self.values[*i].clone());
+        }
+        fields
+    }
+
+    pub fn get_hashed_primary_key(&self, schema: &Schema) -> u64 {
+        let mut hasher = AHasher::default();
+        if schema.primary_index.is_empty() {
+            self.values.hash(&mut hasher);
+        } else {
+            let mut fields = Vec::with_capacity(schema.primary_index.len());
+            for idx in &schema.primary_index {
+                fields.push(&self.values[*idx]);
+            }
+            fields.hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
     pub fn get_key(&self, indexes: &Vec<usize>) -> Vec<u8> {
         debug_assert!(!indexes.is_empty(), "Primary key indexes cannot be empty");
 
@@ -245,68 +270,6 @@ impl Record {
         }
         res_buffer
     }
-
-    pub fn get_values_hash(&self) -> u64 {
-        let mut hasher = AHasher::default();
-
-        for (index, field) in self.values.iter().enumerate() {
-            hasher.write_i32(index as i32);
-            match field {
-                Field::UInt(i) => {
-                    hasher.write_u8(1);
-                    hasher.write_u64(*i);
-                }
-                Field::Int(i) => {
-                    hasher.write_u8(2);
-                    hasher.write_i64(*i);
-                }
-                Field::Float(f) => {
-                    hasher.write_u8(3);
-                    hasher.write(&((*f).to_ne_bytes()));
-                }
-                Field::Boolean(b) => {
-                    hasher.write_u8(4);
-                    hasher.write_u8(if *b { 1_u8 } else { 0_u8 });
-                }
-                Field::String(s) => {
-                    hasher.write_u8(5);
-                    hasher.write(s.as_str().as_bytes());
-                }
-                Field::Text(t) => {
-                    hasher.write_u8(6);
-                    hasher.write(t.as_str().as_bytes());
-                }
-                Field::Binary(b) => {
-                    hasher.write_u8(7);
-                    hasher.write(b.as_ref());
-                }
-                Field::Decimal(d) => {
-                    hasher.write_u8(8);
-                    hasher.write(&d.serialize());
-                }
-                Field::Timestamp(t) => {
-                    hasher.write_u8(9);
-                    hasher.write_i64(t.timestamp())
-                }
-                Field::Date(d) => {
-                    hasher.write_u8(10);
-                    hasher.write(d.to_string().as_bytes());
-                }
-                Field::Bson(b) => {
-                    hasher.write_u8(11);
-                    hasher.write(b.as_ref());
-                }
-                Field::Point(p) => {
-                    hasher.write_u8(12);
-                    hasher.write(p.to_bytes().as_slice());
-                }
-                Field::Null => {
-                    hasher.write_u8(0);
-                }
-            }
-        }
-        hasher.finish()
-    }
 }
 
 impl Display for Record {
@@ -314,7 +277,7 @@ impl Display for Record {
         let v = self
             .values
             .iter()
-            .map(|f| Cell::new(&f.to_string().unwrap_or("".to_string())))
+            .map(|f| Cell::new(&f.to_string().unwrap_or_default()))
             .collect::<Vec<Cell>>();
 
         let mut table = Table::new();
@@ -330,7 +293,7 @@ pub enum Operation {
     Update { old: Record, new: Record },
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct DozerPoint(pub Point<OrderedFloat<f64>>);
 
 impl GeodesicDistance<OrderedFloat<f64>> for DozerPoint {
