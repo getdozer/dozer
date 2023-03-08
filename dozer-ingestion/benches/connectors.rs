@@ -29,7 +29,7 @@ fn connectors(criter: &mut Criterion) {
 }
 
 pub fn load_test_config() -> Vec<TestConfig> {
-    let test_config = include_str!("./connectors.yaml");
+    let test_config = include_str!("./connectors.sample.yaml");
     serde_yaml::from_str::<Vec<TestConfig>>(test_config).unwrap()
 }
 

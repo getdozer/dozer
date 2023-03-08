@@ -7,7 +7,7 @@ use crate::node::{
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
-use dozer_types::node::{NodeHandle, SourceStates};
+use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
 
@@ -186,7 +186,6 @@ impl SinkFactory<NoneContext> for TestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn crate::node::Sink>, ExecutionError> {
         todo!()
     }

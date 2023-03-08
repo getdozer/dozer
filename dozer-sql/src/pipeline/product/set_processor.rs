@@ -1,5 +1,6 @@
 use crate::pipeline::errors::{PipelineError, ProductError};
 use crate::pipeline::product::set::{SetAction, SetOperation};
+use bloom::CountingBloomFilter;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
@@ -7,16 +8,19 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record};
-use hashbrown::HashMap;
 use std::collections::hash_map::RandomState;
+use std::fmt::{Debug, Formatter};
 
-#[derive(Debug)]
 pub struct SetProcessor {
     /// Set operations
     operator: SetOperation,
     /// Hashmap containing records with its occurrence
-    record_map: HashMap<Record, usize>,
+    record_map: CountingBloomFilter,
 }
+
+const BITS_PER_ENTRY: usize = 8;
+const FALSE_POSITIVE_RATE: f32 = 0.01;
+const EXPECTED_NUM_ITEMS: u32 = 10000000;
 
 impl SetProcessor {
     /// Creates a new [`SetProcessor`].
@@ -24,7 +28,11 @@ impl SetProcessor {
         let _s = RandomState::new();
         Ok(Self {
             operator,
-            record_map: HashMap::new(),
+            record_map: CountingBloomFilter::with_rate(
+                BITS_PER_ENTRY,
+                FALSE_POSITIVE_RATE,
+                EXPECTED_NUM_ITEMS,
+            ),
         })
     }
 
@@ -65,6 +73,12 @@ impl SetProcessor {
             })?;
 
         Ok((old_records, new_records))
+    }
+}
+
+impl Debug for SetProcessor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SetProcessor").field(&self.operator).finish()
     }
 }
 

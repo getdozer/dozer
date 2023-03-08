@@ -37,12 +37,10 @@ macro_rules! define_comparison {
                     // left: Int, right: UInt
                     Field::UInt(right_v) => Ok(Field::Boolean($function(
                         left_v,
-                        right_v
-                            .to_i64()
-                            .ok_or(PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to i64",
-                                right_v
-                            )))?,
+                        right_v.to_i64().ok_or(PipelineError::UnableToCast(
+                            format!("{}", right_v),
+                            "i64".to_string(),
+                        ))?,
                     ))),
                     // left: Int, right: Float
                     Field::Float(right_v) => {
@@ -52,24 +50,27 @@ macro_rules! define_comparison {
                     // left: Int, right: Decimal
                     Field::Decimal(right_v) => {
                         let left_v_d =
-                            Decimal::from_i64(left_v).ok_or(PipelineError::InvalidOperandType(
-                                format!("Unable to cast {} to decimal", left_v),
+                            Decimal::from_i64(left_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Decimal".to_string(),
                             ))?;
                         Ok(Field::Boolean($function(left_v_d, right_v)))
                     }
                     // left: Int, right: Null
                     Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
                 Field::UInt(left_v) => match right_p {
                     // left: UInt, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(
-                        left_v
-                            .to_i64()
-                            .ok_or(PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to i64",
-                                left_v
-                            )))?,
+                        left_v.to_i64().ok_or(PipelineError::UnableToCast(
+                            format!("{}", left_v),
+                            "i64".to_string(),
+                        ))?,
                         right_v,
                     ))),
                     // left: UInt, right: UInt
@@ -77,10 +78,7 @@ macro_rules! define_comparison {
                     // left: UInt, right: Float
                     Field::Float(right_v) => {
                         let left_v_f = OrderedFloat::<f64>::from_i64(left_v.to_i64().ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to i64",
-                                left_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", left_v), "i64".to_string()),
                         )?)
                         .unwrap();
                         Ok(Field::Boolean($function(left_v_f, right_v)))
@@ -88,20 +86,21 @@ macro_rules! define_comparison {
                     // left: UInt, right: Decimal
                     Field::Decimal(right_v) => {
                         let left_v_d = Decimal::from_i64(left_v.to_i64().ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to i64",
-                                left_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", left_v), "i64".to_string()),
                         )?)
-                        .ok_or(PipelineError::InvalidOperandType(format!(
-                            "Unable to cast {} to decimal",
-                            left_v
-                        )))?;
+                        .ok_or(PipelineError::UnableToCast(
+                            format!("{}", left_v),
+                            "Decimal".to_string(),
+                        ))?;
                         Ok(Field::Boolean($function(left_v_d, right_v)))
                     }
                     // left: UInt, right: Null
                     Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
                 Field::Float(left_v) => match right_p {
                     // left: Float, right: Float
@@ -109,10 +108,10 @@ macro_rules! define_comparison {
                     // left: Float, right: Int
                     Field::UInt(right_v) => {
                         let right_v_f = OrderedFloat::<f64>::from_i64(right_v.to_i64().ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to i64",
-                                right_v
-                            )),
+                            PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
+                            ),
                         )?)
                         .unwrap();
                         Ok(Field::Boolean($function(left_v, right_v_f)))
@@ -125,77 +124,92 @@ macro_rules! define_comparison {
                     // left: Float, right: Decimal
                     Field::Decimal(right_v) => {
                         let left_v_d = Decimal::from_f64(left_v.to_f64().ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to f64",
-                                left_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", left_v), "i64".to_string()),
                         )?)
-                        .ok_or(PipelineError::InvalidOperandType(format!(
-                            "Unable to cast {} to decimal",
-                            left_v
-                        )))?;
+                        .ok_or(PipelineError::UnableToCast(
+                            format!("{}", left_v),
+                            "Decimal".to_string(),
+                        ))?;
                         Ok(Field::Boolean($function(left_v_d, right_v)))
                     }
                     // left: Float, right: Null
                     Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
                 Field::Decimal(left_v) => match right_p {
                     // left: Decimal, right: Float
                     Field::Float(right_v) => {
                         let right_v_d = Decimal::from_f64(right_v.to_f64().ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to f64",
-                                left_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", right_v), "f64".to_string()),
                         )?)
-                        .ok_or(PipelineError::InvalidOperandType(format!(
-                            "Unable to cast {} to decimal",
-                            right_v
-                        )))?;
+                        .ok_or(PipelineError::UnableToCast(
+                            format!("{}", right_v),
+                            "Decimal".to_string(),
+                        ))?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
                     // left: Decimal, right: Int
                     Field::Int(right_v) => {
                         let right_v_d =
-                            Decimal::from_i64(right_v).ok_or(PipelineError::InvalidOperandType(
-                                format!("Unable to cast {} to decimal", right_v),
+                            Decimal::from_i64(right_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
                             ))?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
                     // left: Decimal, right: UInt
                     Field::UInt(right_v) => {
                         let right_v_d = Decimal::from_i64(right_v.to_i64().ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to i64",
-                                right_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", right_v), "i64".to_string()),
                         )?)
-                        .ok_or(PipelineError::InvalidOperandType(format!(
-                            "Unable to cast {} to decimal",
-                            right_v
-                        )))?;
+                        .ok_or(PipelineError::UnableToCast(
+                            format!("{}", right_v),
+                            "Decimal".to_string(),
+                        ))?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
                     // left: Decimal, right: Decimal
                     Field::Decimal(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: Decimal, right: Null
                     Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
-                Field::String(left_v) => match right_p {
-                    Field::String(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                Field::String(ref left_v) => match right_p {
+                    Field::String(ref right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
                 Field::Timestamp(left_v) => match right_p {
                     Field::Timestamp(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
-                Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType($op.to_string())),
-
-                _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                Field::Binary(ref _left_v) => Err(PipelineError::InvalidTypeComparison(
+                    left_p,
+                    right_p,
+                    $op.to_string(),
+                )),
+                _ => Err(PipelineError::InvalidTypeComparison(
+                    left_p,
+                    right_p,
+                    $op.to_string(),
+                )),
             }
         }
     };
@@ -226,7 +240,11 @@ pub fn evaluate_lt(
                 Ok(Field::Boolean(left_v_f < right_v))
             }
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType("<".to_string())),
+            _ => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
         },
         Field::Float(left_v) => match right_p {
             Field::Float(right_v) => Ok(Field::Boolean(left_v < right_v)),
@@ -235,20 +253,40 @@ pub fn evaluate_lt(
                 Ok(Field::Boolean(left_v < right_v_f))
             }
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType("<".to_string())),
+            _ => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
         },
-        Field::String(left_v) => match right_p {
-            Field::String(right_v) => Ok(Field::Boolean(left_v < right_v)),
+        Field::String(ref left_v) => match right_p {
+            Field::String(ref right_v) => Ok(Field::Boolean(left_v < right_v)),
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType("<".to_string())),
+            _ => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v < right_v)),
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType("<".to_string())),
+            _ => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
         },
-        Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType("<".to_string())),
-        _ => Err(PipelineError::InvalidOperandType("<".to_string())),
+        Field::Binary(ref _left_v) => Err(PipelineError::InvalidTypeComparison(
+            left_p,
+            right_p,
+            "<".to_string(),
+        )),
+        _ => Err(PipelineError::InvalidTypeComparison(
+            left_p,
+            right_p,
+            "<".to_string(),
+        )),
     }
 }
 
@@ -277,7 +315,11 @@ pub fn evaluate_gt(
                 Ok(Field::Boolean(left_v_f > right_v))
             }
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType(">".to_string())),
+            _ => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                ">".to_string(),
+            )),
         },
         Field::Float(left_v) => match right_p {
             Field::Float(right_v) => Ok(Field::Boolean(left_v > right_v)),
@@ -286,21 +328,40 @@ pub fn evaluate_gt(
                 Ok(Field::Boolean(left_v > right_v_f))
             }
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType(">".to_string())),
+            _ => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                ">".to_string(),
+            )),
         },
-        Field::String(left_v) => match right_p {
-            Field::String(right_v) => Ok(Field::Boolean(left_v > right_v)),
+        Field::String(ref left_v) => match right_p {
+            Field::String(ref right_v) => Ok(Field::Boolean(left_v > right_v)),
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType(">".to_string())),
+            _ => Err(PipelineError::InvalidTypeComparison(
+                left_p.clone(),
+                right_p,
+                ">".to_string(),
+            )),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v > right_v)),
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType(">".to_string())),
+            _ => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                ">".to_string(),
+            )),
         },
-        Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType(">".to_string())),
-
-        _ => Err(PipelineError::InvalidOperandType(">".to_string())),
+        Field::Binary(ref _left_v) => Err(PipelineError::InvalidTypeComparison(
+            left_p.clone(),
+            right_p,
+            ">".to_string(),
+        )),
+        _ => Err(PipelineError::InvalidTypeComparison(
+            left_p,
+            right_p,
+            ">".to_string(),
+        )),
     }
 }
 

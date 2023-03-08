@@ -4,7 +4,6 @@ use dozer_cache::CacheReader;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::log::warn;
 use dozer_types::serde_json;
-use dozer_types::types::Schema;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
@@ -37,31 +36,24 @@ fn parse_query(
 
 pub fn count(
     reader: &CacheReader,
-    endpoint_name: &str,
     query: Option<&str>,
     access: Option<Access>,
 ) -> Result<usize, Status> {
     let mut query = parse_query(query, QueryExpression::with_no_limit)?;
-    Ok(get_records_count(
-        reader,
-        endpoint_name,
-        &mut query,
-        access,
-    )?)
+    Ok(get_records_count(reader, &mut query, access)?)
 }
 
-pub fn query<'a>(
-    reader: &'a CacheReader,
-    endpoint_name: &'a str,
+pub fn query(
+    reader: &CacheReader,
     query: Option<&str>,
     access: Option<Access>,
-) -> Result<(&'a Schema, Vec<RecordWithId>), Status> {
+) -> Result<Vec<RecordWithId>, Status> {
     let mut query = parse_query(query, QueryExpression::with_default_limit)?;
     if query.limit.is_none() {
         query.limit = Some(default_limit_for_query());
     }
-    let (schema, records) = get_records(reader, endpoint_name, &mut query, access)?;
-    Ok((schema, records))
+    let records = get_records(reader, &mut query, access)?;
+    Ok(records)
 }
 
 pub fn on_event<T: Send + 'static>(
@@ -91,7 +83,7 @@ pub fn on_event<T: Send + 'static>(
         None => None,
     };
     let schema = reader
-        .get_schema_and_indexes_by_name(endpoint_name)
+        .get_schema()
         .map_err(|_| Status::invalid_argument(endpoint_name))?
         .0
         .clone();

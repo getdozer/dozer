@@ -114,15 +114,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         &'a self,
         index_scan: &IndexScan,
     ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + 'a, CacheError> {
-        let schema_id = self
-            .schema
-            .identifier
-            .ok_or(CacheError::SchemaHasNoIdentifier)?;
-        let index_db = *self
-            .common
-            .secondary_indexes
-            .get(&(schema_id, index_scan.index_id))
-            .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
+        let index_db = self.common.secondary_indexes[index_scan.index_id];
 
         let RangeSpec {
             start,

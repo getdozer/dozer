@@ -4,7 +4,6 @@ use dozer_api::grpc::types_helper;
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::{CacheManager, RwCache};
-use dozer_core::epoch::Epoch;
 use dozer_core::errors::{ExecutionError, SinkError};
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::storage::lmdb_storage::SharedTransaction;
@@ -17,7 +16,6 @@ use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
-use dozer_types::node::SourceStates;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::HashMap;
@@ -199,14 +197,12 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
-        checkpoint: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         // Create cache.
         let (schema, secondary_indexes) = self.get_output_schema(input_schemas)?;
         Ok(Box::new(CacheSink::new(
             self.cache_manager.clone(),
             self.api_endpoint.clone(),
-            checkpoint,
             schema,
             secondary_indexes,
             self.notifier.clone(),
@@ -244,7 +240,6 @@ fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
 fn open_or_create_cache(
     cache_manager: &dyn CacheManager,
     name: &str,
-    checkpoint: &SourceStates,
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
 ) -> Result<(Box<dyn RwCache>, Option<usize>), ExecutionError> {
@@ -252,7 +247,7 @@ fn open_or_create_cache(
 
     let create_cache = || {
         cache_manager
-            .create_cache(vec![(name.to_string(), schema, secondary_indexes)])
+            .create_cache(schema, secondary_indexes)
             .map_err(|e| {
                 ExecutionError::SinkError(SinkError::CacheCreateFailed(
                     name.to_string(),
@@ -269,38 +264,24 @@ fn open_or_create_cache(
             debug!("Cache {} is append only", name);
             Ok((cache, None))
         } else {
-            let cache_checkpoint = cache.get_checkpoint().map_err(|e| {
-                ExecutionError::SinkError(SinkError::CacheGetCheckpointFailed(
-                    name.to_string(),
-                    Box::new(e),
-                ))
-            })?;
-            if &cache_checkpoint == checkpoint {
-                debug!("Cache {} is consistent with the pipeline", name);
-                Ok((cache, None))
-            } else {
-                let old_name = cache.name();
-                let old_count = cache
-                    .count(name, &QueryExpression::with_no_limit())
-                    .map_err(|e| {
-                        ExecutionError::SinkError(SinkError::CacheCountFailed(
-                            name.to_string(),
-                            Box::new(e),
-                        ))
-                    })?;
-                let cache = create_cache()?;
-                debug!(
-                    "[pipeline] Cache {} is at {:?}, while pipeline is at {:?}",
-                    name, cache_checkpoint, checkpoint
-                );
-                info!(
-                    "[pipeline] Cache {} writing to {} while serving {}",
-                    name,
-                    cache.name(),
-                    old_name
-                );
-                Ok((cache, Some(old_count)))
-            }
+            let old_name = cache.name();
+            let old_count = cache
+                .count(&QueryExpression::with_no_limit())
+                .map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheCountFailed(
+                        name.to_string(),
+                        Box::new(e),
+                    ))
+                })?;
+            let cache = create_cache()?;
+            debug!("Cache {} is not append only", name);
+            info!(
+                "[pipeline] Cache {} writing to {} while serving {}",
+                name,
+                cache.name(),
+                old_name
+            );
+            Ok((cache, Some(old_count)))
         }
     } else {
         debug!("Cache {} does not exist", name);
@@ -337,11 +318,11 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn commit(&mut self, epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         let endpoint_name = self.api_endpoint.name.clone();
         // Update Counter on commit
         self.pb.set_position(self.counter as u64);
-        self.cache.commit(&epoch.details).map_err(|e| {
+        self.cache.commit().map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(
                 endpoint_name,
                 Box::new(e),
@@ -370,7 +351,7 @@ impl Sink for CacheSink {
         let endpoint_name = &self.api_endpoint.name;
         let schema = &self
             .cache
-            .get_schema_and_indexes_by_name(endpoint_name)
+            .get_schema()
             .map_err(|_| ExecutionError::SchemaNotInitialized)?
             .0;
 
@@ -443,7 +424,6 @@ impl CacheSink {
     pub fn new(
         cache_manager: Arc<dyn CacheManager>,
         api_endpoint: ApiEndpoint,
-        checkpoint: &SourceStates,
         schema: Schema,
         secondary_indexes: Vec<IndexDefinition>,
         notifier: Option<PipelineEventSenders>,
@@ -453,11 +433,10 @@ impl CacheSink {
         let (cache, current_alias_count) = open_or_create_cache(
             &*cache_manager,
             &api_endpoint.name,
-            checkpoint,
             schema,
             secondary_indexes,
         )?;
-        let counter = cache.count(&api_endpoint.name, &query).map_err(|e| {
+        let counter = cache.count(&query).map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCountFailed(
                 api_endpoint.name.clone(),
                 Box::new(e),
@@ -514,7 +493,6 @@ mod tests {
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
     use dozer_core::DEFAULT_PORT_HANDLE;
 
-    use dozer_types::node::NodeHandle;
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
 
     use tempdir::TempDir;
@@ -571,16 +549,7 @@ mod tests {
 
         sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn)
             .unwrap();
-        sink.commit(
-            &dozer_core::epoch::Epoch::from(
-                0,
-                NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
-                0,
-                0,
-            ),
-            &txn,
-        )
-        .unwrap();
+        sink.commit(&txn).unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
@@ -589,13 +558,7 @@ mod tests {
 
         sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn)
             .unwrap();
-        let epoch1 = dozer_core::epoch::Epoch::from(
-            0,
-            NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
-            0,
-            1,
-        );
-        sink.commit(&epoch1, &txn).unwrap();
+        sink.commit(&txn).unwrap();
 
         // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);

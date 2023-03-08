@@ -27,8 +27,6 @@ fn get(cache: &dyn RwCache, n: usize) {
     let _get_record = cache.get(&key).unwrap();
 }
 
-const SCHEMA_NAME: &str = "benches";
-
 fn query(cache: &dyn RwCache, _n: usize) {
     let exp = QueryExpression::new(
         Some(FilterExpression::Simple(
@@ -41,18 +39,14 @@ fn query(cache: &dyn RwCache, _n: usize) {
         Skip::Skip(0),
     );
 
-    let _get_record = cache.query(SCHEMA_NAME, &exp).unwrap();
+    let _get_record = cache.query(&exp).unwrap();
 }
 
 fn cache(c: &mut Criterion) {
     let (schema, secondary_indexes) = test_utils::schema_0();
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let cache = cache_manager
-        .create_cache(vec![(
-            SCHEMA_NAME.to_string(),
-            schema.clone(),
-            secondary_indexes,
-        )])
+        .create_cache(schema.clone(), secondary_indexes)
         .unwrap();
 
     let size: usize = 1000000;
