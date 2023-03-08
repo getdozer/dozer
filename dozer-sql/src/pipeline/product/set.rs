@@ -86,7 +86,6 @@ impl SetOperation {
             record_map.insert(&record);
         }
 
-        
         record_map.estimate_count(&record)
     }
 }
