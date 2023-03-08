@@ -1,12 +1,11 @@
-use crate::errors::types::{DeserializationError, TypeError};
 #[allow(unused_imports)]
+use crate::errors::types::{DeserializationError, TypeError};
 use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
-
 use crate::types::DozerPoint;
 use std::fmt::{Display, Formatter};
 
@@ -25,10 +24,11 @@ pub enum Field {
     Date(NaiveDate),
     Bson(Vec<u8>),
     Point(DozerPoint),
+    Array(Vec<Field>),
     Null,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum FieldBorrow<'a> {
     UInt(u64),
     Int(i64),
@@ -42,6 +42,7 @@ pub enum FieldBorrow<'a> {
     Date(NaiveDate),
     Bson(&'a [u8]),
     Point(DozerPoint),
+    Array(Vec<Field>),
     Null,
 }
 
@@ -60,6 +61,7 @@ impl Field {
             Field::Date(_) => 10,
             Field::Bson(b) => b.len(),
             Field::Point(_p) => 16,
+            Field::Array(a) => 16 * a.len(),
             Field::Null => 0,
         }
     }
@@ -79,6 +81,8 @@ impl Field {
             Field::Bson(b) => Cow::Borrowed(b),
             Field::Null => Cow::Owned([].into()),
             Field::Point(p) => Cow::Owned(p.to_bytes().into()),
+            // Field::Array(a) => Cow::Owned(a.into()),  // todo: to be confirmed
+            _ => Cow::Owned([].into()),
         }
     }
 
@@ -113,6 +117,7 @@ impl Field {
             Field::Date(t) => FieldBorrow::Date(*t),
             Field::Bson(b) => FieldBorrow::Bson(b),
             Field::Point(p) => FieldBorrow::Point(*p),
+            Field::Array(a) => FieldBorrow::Array(a.clone()),
             Field::Null => FieldBorrow::Null,
         }
     }
@@ -169,7 +174,8 @@ impl Field {
             11 => Ok(FieldBorrow::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
-            12 => Ok(FieldBorrow::Null),
+            // 12 => Ok(FieldBorrow::Array(val)),  // todo: to be confirmed
+            13 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
@@ -188,7 +194,8 @@ impl Field {
             Field::Date(_) => 9,
             Field::Bson(_) => 10,
             Field::Point(_) => 11,
-            Field::Null => 12,
+            Field::Array(_) => 12,
+            Field::Null => 13,
         }
     }
 
@@ -272,6 +279,13 @@ impl Field {
     pub fn as_point(&self) -> Option<DozerPoint> {
         match self {
             Field::Point(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    pub fn as_array(&self) -> Option<Vec<Field>> {
+        match self {
+            Field::Array(a) => Some(a.to_owned()),
             _ => None,
         }
     }
@@ -428,6 +442,13 @@ impl Field {
         }
     }
 
+    pub fn to_array(&self) -> Option<&Vec<Field>> {
+        match self {
+            Field::Array(a) => Some(a),
+            _ => None,
+        }
+    }
+
     pub fn to_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
@@ -452,6 +473,7 @@ impl Display for Field {
             Field::Bson(v) => f.write_str(&format!("{v:x?}")),
             Field::Null => f.write_str("NULL"),
             Field::Point(v) => f.write_str(&format!("{v} (Point)")),
+            Field::Array(a) => f.write_str(&format!("{a:?} (Array)")),
         }
     }
 }
@@ -471,12 +493,13 @@ impl<'a> FieldBorrow<'a> {
             FieldBorrow::Date(d) => Field::Date(d),
             FieldBorrow::Bson(b) => Field::Bson(b.to_owned()),
             FieldBorrow::Point(p) => Field::Point(p),
+            FieldBorrow::Array(a) => Field::Array(a),
             FieldBorrow::Null => Field::Null,
         }
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FieldType {
     UInt,
     Int,
@@ -490,6 +513,7 @@ pub enum FieldType {
     Date,
     Bson,
     Point,
+    Array(Box<FieldType>),
 }
 
 impl TryFrom<&str> for FieldType {
@@ -497,9 +521,9 @@ impl TryFrom<&str> for FieldType {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let res = match value.to_lowercase().as_str() {
-            "float" => FieldType::Float,
             "uint" => FieldType::UInt,
             "int" => FieldType::Int,
+            "float" => FieldType::Float,
             "boolean" => FieldType::Boolean,
             "string" => FieldType::String,
             "text" => FieldType::Text,
@@ -508,6 +532,8 @@ impl TryFrom<&str> for FieldType {
             "timestamp" => FieldType::Timestamp,
             "date" => FieldType::Date,
             "bson" => FieldType::Bson,
+            "point" => FieldType::Point,
+            // "array" => FieldType::Array(..),  // to be confirmed
             _ => return Err(format!("Unsupported '{value}' type")),
         };
 
@@ -530,6 +556,7 @@ impl Display for FieldType {
             FieldType::Date => f.write_str("date"),
             FieldType::Bson => f.write_str("bson"),
             FieldType::Point => f.write_str("point"),
+            FieldType::Array(..) => f.write_str("array"),
         }
     }
 }
@@ -588,6 +615,7 @@ impl pyo3::ToPyObject for Field {
             Field::Bson(val) => val.to_object(py),
             Field::Null => unreachable!(),
             Field::Point(_val) => todo!(),
+            Field::Array(_val) => todo!(),
         }
     }
 }
