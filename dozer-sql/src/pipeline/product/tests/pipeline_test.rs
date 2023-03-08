@@ -514,10 +514,11 @@ fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new();
 
     let context = statement_to_pipeline(
-        "SELECT  name, dname, salary \
-        FROM user JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
+        "SELECT trips.taxi_id, puz.zone, trips.completed_at, trips.window_start, trips.window_end \
+        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips \
+        JOIN zones puz ON trips.pu_location_id = puz.location_id",
         &mut pipeline,
-        Some("results".to_string())
+        Some("results".to_string()),
     )
     .unwrap();
 

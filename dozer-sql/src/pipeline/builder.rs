@@ -4,12 +4,14 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::product::set_factory::SetProcessorFactory;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
+use crate::pipeline::window::builder::relation_is_a_window;
 use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
 use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
+use sqlparser::keywords::DEFAULT;
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::AnsiDialect,
@@ -18,8 +20,9 @@ use sqlparser::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::errors::UnsupportedSqlError;
+use super::errors::{UnsupportedSqlError, WindowError};
 use super::product::factory::FromProcessorFactory;
+use super::window::factory::WindowProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
 pub struct SchemaSQLContext {}
@@ -228,32 +231,39 @@ fn select_to_pipeline(
 
     let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
 
-    let product = FromProcessorFactory::new(input_tables.clone());
+    // let product = FromProcessorFactory::new(input_tables.clone());
 
-    let input_endpoints =
-        get_entry_points(&input_tables, &mut query_ctx.pipeline_map, pipeline_idx)?;
+    // let input_endpoints =
+    //     get_entry_points(&input_tables, &mut query_ctx.pipeline_map, pipeline_idx)?;
 
-    let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
+    let (pipeline_entrypoints, input_nodes, output_node) = add_from_to_pipeline(
+        pipeline,
+        &input_tables,
+        &mut query_ctx.pipeline_map,
+        pipeline_idx,
+    )?;
+
+    //let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
     let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
-    pipeline.add_processor(Arc::new(product), &gen_product_name, input_endpoints);
+    let (gen_product_name, product_output_port) = output_node;
+    //pipeline.add_processor(Arc::new(product), &gen_product_name, input_endpoints);
 
-    let input_names = get_input_names(&input_tables);
-    for (port_index, table_name) in input_names.iter().enumerate() {
+    for (source_name, processor_name, processor_port) in input_nodes.iter() {
         if let Some(table_info) = query_ctx
             .pipeline_map
-            .get(&(pipeline_idx, table_name.0.clone()))
+            .get(&(pipeline_idx, source_name.clone()))
         {
             pipeline.connect_nodes(
                 &table_info.node,
                 Some(table_info.port),
-                &gen_product_name,
-                Some(port_index as PortHandle),
+                &processor_name,
+                Some(*processor_port as PortHandle),
                 true,
             )?;
             // If not present in pipeline_map, insert into used_sources as this is coming from source
         } else {
-            query_ctx.used_sources.push(table_name.0.clone());
+            query_ctx.used_sources.push(source_name.clone());
         }
     }
 
@@ -269,7 +279,7 @@ fn select_to_pipeline(
 
         pipeline.connect_nodes(
             &gen_product_name,
-            Some(DEFAULT_PORT_HANDLE),
+            Some(product_output_port),
             &gen_selection_name,
             Some(DEFAULT_PORT_HANDLE),
             true,
@@ -285,7 +295,7 @@ fn select_to_pipeline(
     } else {
         pipeline.connect_nodes(
             &gen_product_name,
-            Some(DEFAULT_PORT_HANDLE),
+            Some(product_output_port),
             &gen_agg_name,
             Some(DEFAULT_PORT_HANDLE),
             true,
@@ -318,6 +328,156 @@ fn select_to_pipeline(
     }
 
     Ok(gen_agg_name)
+}
+
+fn add_from_to_pipeline(
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    input_tables: &IndexedTableWithJoins,
+    pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
+    pipeline_idx: usize,
+) -> Result<
+    (
+        Vec<PipelineEntryPoint>,
+        Vec<(String, String, PortHandle)>,
+        (String, PortHandle),
+    ),
+    PipelineError,
+> {
+    let mut pipeline_entry_points = vec![];
+    let mut product_entry_points = vec![];
+    let mut input_nodes = vec![];
+
+    let (relation_name_or_alias, relation) = input_tables.relation.clone();
+
+    let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
+    let product_processor = FromProcessorFactory::new(input_tables.clone());
+
+    if relation_is_a_window(&relation).map_err(|err| PipelineError::WindowError(err))? {
+        let window_processor = WindowProcessorFactory::new(relation.clone());
+        let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
+        let window_input_name = window_processor.get_source_name()?;
+        let mut window_entry_points = vec![];
+
+        if is_an_entry_point(&window_input_name, pipeline_map, pipeline_idx) {
+            let entry_point = PipelineEntryPoint::new(
+                AppSourceId::new(window_input_name, None),
+                DEFAULT_PORT_HANDLE as PortHandle,
+            );
+
+            window_entry_points.push(entry_point.clone());
+            pipeline_entry_points.push(entry_point);
+        } else {
+            input_nodes.push((
+                window_input_name,
+                window_processor_name.clone(),
+                DEFAULT_PORT_HANDLE as PortHandle,
+            ));
+        }
+
+        pipeline.add_processor(
+            Arc::new(window_processor),
+            &window_processor_name,
+            window_entry_points,
+        );
+
+        pipeline.connect_nodes(
+            &window_processor_name,
+            Some(DEFAULT_PORT_HANDLE as PortHandle),
+            &product_processor_name,
+            Some(0 as PortHandle),
+            true,
+        )?;
+    } else {
+        let product_input_name = relation_name_or_alias.0;
+
+        if is_an_entry_point(&product_input_name, pipeline_map, pipeline_idx) {
+            let entry_point = PipelineEntryPoint::new(
+                AppSourceId::new(product_input_name, None),
+                0 as PortHandle,
+            );
+
+            product_entry_points.push(entry_point.clone());
+            pipeline_entry_points.push(entry_point);
+        } else {
+            input_nodes.push((
+                product_input_name,
+                product_processor_name.clone(),
+                DEFAULT_PORT_HANDLE as PortHandle,
+            ));
+        }
+    }
+
+    for (index, (join_relation_alias, join)) in input_tables.joins.iter().enumerate() {
+        let (relation_name_or_alias, relation) =
+            (join_relation_alias.clone(), join.relation.clone());
+
+        if relation_is_a_window(&relation).map_err(|err| PipelineError::WindowError(err))? {
+            let window_processor = WindowProcessorFactory::new(relation.clone());
+            let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
+            let window_input_name = window_processor.get_source_name()?;
+            let mut window_entry_points = vec![];
+
+            if is_an_entry_point(&window_input_name, pipeline_map, pipeline_idx) {
+                let entry_point = PipelineEntryPoint::new(
+                    AppSourceId::new(window_input_name, None),
+                    DEFAULT_PORT_HANDLE as PortHandle,
+                );
+
+                window_entry_points.push(entry_point.clone());
+                pipeline_entry_points.push(entry_point);
+            } else {
+                input_nodes.push((
+                    window_input_name,
+                    window_processor_name.clone(),
+                    DEFAULT_PORT_HANDLE as PortHandle,
+                ));
+            }
+
+            pipeline.add_processor(
+                Arc::new(window_processor),
+                &window_processor_name,
+                window_entry_points,
+            );
+
+            pipeline.connect_nodes(
+                &window_processor_name,
+                Some(DEFAULT_PORT_HANDLE as PortHandle),
+                &product_processor_name,
+                Some((index + 1) as PortHandle),
+                true,
+            )?;
+        } else {
+            let product_input_name = relation_name_or_alias.0;
+
+            if is_an_entry_point(&product_input_name, pipeline_map, pipeline_idx) {
+                let entry_point = PipelineEntryPoint::new(
+                    AppSourceId::new(product_input_name, None),
+                    (index + 1) as PortHandle,
+                );
+
+                product_entry_points.push(entry_point.clone());
+                pipeline_entry_points.push(entry_point);
+            } else {
+                input_nodes.push((
+                    product_input_name,
+                    product_processor_name.clone(),
+                    DEFAULT_PORT_HANDLE as PortHandle,
+                ));
+            }
+        }
+    }
+
+    pipeline.add_processor(
+        Arc::new(product_processor),
+        &product_processor_name,
+        product_entry_points,
+    );
+
+    Ok((
+        pipeline_entry_points,
+        input_nodes,
+        (product_processor_name, DEFAULT_PORT_HANDLE as PortHandle),
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -527,6 +687,17 @@ pub fn get_entry_points(
     }
 
     Ok(endpoints)
+}
+
+pub fn is_an_entry_point(
+    name: &String,
+    pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
+    pipeline_idx: usize,
+) -> bool {
+    if !pipeline_map.contains_key(&(pipeline_idx, name.clone())) {
+        return true;
+    }
+    false
 }
 
 pub fn get_from_source(

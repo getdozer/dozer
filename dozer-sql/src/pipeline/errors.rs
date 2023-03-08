@@ -2,6 +2,7 @@
 
 use dozer_core::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
+use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, TypeError};
 use dozer_types::thiserror;
@@ -97,7 +98,11 @@ pub enum PipelineError {
 
     #[error(transparent)]
     SqlError(#[from] SqlError),
+
+    #[error(transparent)]
+    WindowError(#[from] WindowError),
 }
+
 #[cfg(feature = "python")]
 impl From<dozer_types::pyo3::PyErr> for PipelineError {
     fn from(py_err: dozer_types::pyo3::PyErr) -> Self {
@@ -203,6 +208,12 @@ pub enum JoinError {
 
     #[error("Error reading key: {0:x?} from the JOIN index\n")]
     IndexGetError(Vec<u8>),
+
+    #[error("Error in the FROM clause, Invalid function {0:x?}")]
+    UnsupportedRelationFunction(String),
+
+    #[error("Invalid Join Source: {0}")]
+    InvalidSourceName(String),
 }
 
 #[derive(Error, Debug)]
@@ -221,4 +232,72 @@ pub enum ProductError {
 
     #[error("Error updating a record from {0} cannot insert the new entry\n{1}")]
     UpdateNewError(String, #[source] BoxedError),
+}
+
+#[derive(Error, Debug)]
+pub enum WindowError {
+    #[error("Error in the FROM clause, Invalid function {0:x?}")]
+    UnsupportedRelationFunction(String),
+
+    #[error("Column name not specified in the window function")]
+    WindowMissingColumnArgument,
+
+    #[error("Interval not specified in the window function")]
+    WindowMissingIntervalArgument,
+
+    #[error("Hop size not specified in the window function")]
+    WindowMissingHopSizeArgument,
+
+    #[error("Invalid time reference column {0} in the window function")]
+    WindowInvalidColumn(String),
+
+    #[error("Invalid time interval '{0}' specified in the window function")]
+    WindowInvalidInterval(String),
+
+    #[error("Invalid time hop '{0}' specified in the window function")]
+    WindowInvalidHop(String),
+
+    #[error("Error in the FROM clause, Derived Table is not supported")]
+    UnsupportedDerivedTable,
+
+    #[error("Error in the FROM clause, Table Function is not supported")]
+    UnsupportedTableFunction,
+
+    #[error("Error in the FROM clause, UNNEST is not supported")]
+    UnsupportedUnnest,
+
+    #[error("This type of Nested Join is not supported")]
+    UnsupportedNestedJoin,
+
+    #[error("Invalid column specified in Tumble Windowing function.\nOnly Timestamp and Date types are supported")]
+    TumbleInvalidColumnType(),
+    #[error("Invalid column specified in Tumble Windowing function.")]
+    TumbleInvalidColumnIndex(),
+    #[error("Error in Tumble Windowing function:\n{0}")]
+    TumbleRoundingError(#[source] RoundingError),
+
+    #[error("Invalid column specified in Hop Windowing function.\nOnly Timestamp and Date types are supported")]
+    HopInvalidColumnType(),
+    #[error("Invalid column specified in Hop Windowing function.")]
+    HopInvalidColumnIndex(),
+    #[error("Error in Hop Windowing function:\n{0}")]
+    HopRoundingError(#[source] RoundingError),
+
+    #[error("Invalid WINDOW function")]
+    InvalidWindow(),
+
+    #[error("For WINDOW functions and alias must be specified")]
+    AliasNotSpecified(),
+
+    #[error("Source table not specified in the window function")]
+    WindowMissingSourceArgument,
+
+    #[error("Error in the FROM clause, Derived Table is not supported as WINDOW source")]
+    UnsupportedDerived,
+
+    #[error("Invalid source table {0} in the window function")]
+    WindowInvalidSource(String),
+
+    #[error("WINDOW functions require alias")]
+    NoAlias,
 }

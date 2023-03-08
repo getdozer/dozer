@@ -9,14 +9,11 @@ use dozer_core::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
-use crate::pipeline::expression::builder::ExpressionBuilder;
+use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
+use crate::pipeline::{builder::IndexedTableWithJoins, errors::PipelineError};
 use crate::pipeline::{
     builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
     product::join::JoinBranch,
-};
-use crate::pipeline::{
-    builder::{get_input_names, IndexedTableWithJoins},
-    errors::PipelineError,
 };
 use sqlparser::ast::Expr as SqlExpr;
 
@@ -35,6 +32,49 @@ impl FromProcessorFactory {
     pub fn new(input_tables: IndexedTableWithJoins) -> Self {
         Self { input_tables }
     }
+
+    pub(crate) fn get_inputs(&self) -> HashMap<NameOrAlias, PortHandle> {
+        let mut input_names = HashMap::new();
+
+        input_names.insert(self.input_tables.relation.0.clone(), 0 as PortHandle);
+
+        for (index, join) in self.input_tables.joins.iter().enumerate() {
+            input_names.insert(join.0.clone(), (index + 1) as PortHandle);
+        }
+        input_names
+    }
+
+    // pub(crate) fn get_input_port(&self, input_name: String) -> Result<PortHandle, PipelineError> {
+    //     // Search in aliases first
+    //     if let Some(alias) = self.input_tables.relation.0 .1 {
+    //         if alias == input_name {
+    //             return Ok(0 as PortHandle);
+    //         }
+    //     }
+
+    //     for (index, (input_table_name, _)) in self.input_tables.joins.iter().enumerate() {
+    //         if let Some(alias) = input_table_name.1 {
+    //             if alias == input_name {
+    //                 return Ok((index + 1) as PortHandle);
+    //             }
+    //         }
+    //     }
+
+    //     // Search in table names
+    //     if self.input_tables.relation.0 .0 == input_name {
+    //         return Ok(0 as PortHandle);
+    //     }
+
+    //     for (index, (input_table_name, _)) in self.input_tables.joins.iter().enumerate() {
+    //         if input_table_name.0 == input_name {
+    //             return Ok((index + 1) as PortHandle);
+    //         }
+    //     }
+
+    //     Err(PipelineError::JoinError(JoinError::InvalidSourceName(
+    //         input_name,
+    //     )))
+    // }
 }
 
 impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {
@@ -361,4 +401,14 @@ fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {
     }
 
     output_schema
+}
+
+pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias> {
+    let mut input_names = vec![];
+    input_names.push(input_tables.relation.0.clone());
+
+    for join in &input_tables.joins {
+        input_names.push(join.0.clone());
+    }
+    input_names
 }
