@@ -9,7 +9,7 @@ use crate::pipeline::{
     expression::builder::ExpressionBuilder,
 };
 
-use super::window::WindowType;
+use super::operator::WindowType;
 
 pub(crate) fn window_from_relation(
     relation: &TableFactor,
@@ -103,18 +103,18 @@ pub(crate) fn window_source_name(relation: &TableFactor) -> Result<String, Windo
 
                     Ok(source_name)
                 } else {
-                    return Err(WindowError::UnsupportedRelationFunction(function_name));
+                    Err(WindowError::UnsupportedRelationFunction(function_name))
                 }
             } else {
                 // not a function, most probably just a relation name
-                return Err(WindowError::UnsupportedRelationFunction(function_name));
+                Err(WindowError::UnsupportedRelationFunction(function_name))
             }
         }
         TableFactor::Derived {
             lateral: _,
             subquery: _,
             alias: _,
-        } => return Err(WindowError::UnsupportedDerived),
+        } => Err(WindowError::UnsupportedDerived),
         TableFactor::TableFunction { expr: _, alias: _ } => {
             Err(WindowError::UnsupportedTableFunction)
         }
@@ -338,13 +338,12 @@ pub(crate) fn relation_is_a_window(relation: &TableFactor) -> Result<bool, Windo
         } => {
             let function_name = string_from_sql_object_name(name);
 
-            if let Some(args) = args {
-                if function_name.to_uppercase() == "TUMBLE" {
+            if args.is_some() {
+                if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP"
+                {
                     Ok(true)
-                } else if function_name.to_uppercase() == "HOP" {
-                    return Ok(true);
                 } else {
-                    return Err(WindowError::UnsupportedRelationFunction(function_name));
+                    Err(WindowError::UnsupportedRelationFunction(function_name))
                 }
             } else {
                 // not a function, most probably just a relation name

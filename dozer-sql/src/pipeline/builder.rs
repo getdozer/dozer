@@ -11,7 +11,7 @@ use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
-use sqlparser::keywords::DEFAULT;
+
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::AnsiDialect,
@@ -20,7 +20,7 @@ use sqlparser::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::errors::{UnsupportedSqlError, WindowError};
+use super::errors::UnsupportedSqlError;
 use super::product::factory::FromProcessorFactory;
 use super::window::factory::WindowProcessorFactory;
 
@@ -236,7 +236,7 @@ fn select_to_pipeline(
     // let input_endpoints =
     //     get_entry_points(&input_tables, &mut query_ctx.pipeline_map, pipeline_idx)?;
 
-    let (pipeline_entrypoints, input_nodes, output_node) = add_from_to_pipeline(
+    let (input_nodes, output_node) = add_from_to_pipeline(
         pipeline,
         &input_tables,
         &mut query_ctx.pipeline_map,
@@ -257,7 +257,7 @@ fn select_to_pipeline(
             pipeline.connect_nodes(
                 &table_info.node,
                 Some(table_info.port),
-                &processor_name,
+                processor_name,
                 Some(*processor_port as PortHandle),
                 true,
             )?;
@@ -330,19 +330,13 @@ fn select_to_pipeline(
     Ok(gen_agg_name)
 }
 
+#[allow(clippy::type_complexity)]
 fn add_from_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     input_tables: &IndexedTableWithJoins,
     pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
     pipeline_idx: usize,
-) -> Result<
-    (
-        Vec<PipelineEntryPoint>,
-        Vec<(String, String, PortHandle)>,
-        (String, PortHandle),
-    ),
-    PipelineError,
-> {
+) -> Result<(Vec<(String, String, PortHandle)>, (String, PortHandle)), PipelineError> {
     let mut pipeline_entry_points = vec![];
     let mut product_entry_points = vec![];
     let mut input_nodes = vec![];
@@ -352,15 +346,15 @@ fn add_from_to_pipeline(
     let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
     let product_processor = FromProcessorFactory::new(input_tables.clone());
 
-    if relation_is_a_window(&relation).map_err(|err| PipelineError::WindowError(err))? {
-        let window_processor = WindowProcessorFactory::new(relation.clone());
+    if relation_is_a_window(&relation).map_err(PipelineError::WindowError)? {
+        let window_processor = WindowProcessorFactory::new(relation);
         let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
-        let window_input_name = window_processor.get_source_name()?;
+        let window_source_name = window_processor.get_source_name()?;
         let mut window_entry_points = vec![];
 
-        if is_an_entry_point(&window_input_name, pipeline_map, pipeline_idx) {
+        if is_an_entry_point(&window_source_name, pipeline_map, pipeline_idx) {
             let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(window_input_name, None),
+                AppSourceId::new(window_source_name, None),
                 DEFAULT_PORT_HANDLE as PortHandle,
             );
 
@@ -368,7 +362,7 @@ fn add_from_to_pipeline(
             pipeline_entry_points.push(entry_point);
         } else {
             input_nodes.push((
-                window_input_name,
+                window_source_name,
                 window_processor_name.clone(),
                 DEFAULT_PORT_HANDLE as PortHandle,
             ));
@@ -402,7 +396,7 @@ fn add_from_to_pipeline(
             input_nodes.push((
                 product_input_name,
                 product_processor_name.clone(),
-                DEFAULT_PORT_HANDLE as PortHandle,
+                0 as PortHandle,
             ));
         }
     }
@@ -411,7 +405,7 @@ fn add_from_to_pipeline(
         let (relation_name_or_alias, relation) =
             (join_relation_alias.clone(), join.relation.clone());
 
-        if relation_is_a_window(&relation).map_err(|err| PipelineError::WindowError(err))? {
+        if relation_is_a_window(&relation).map_err(PipelineError::WindowError)? {
             let window_processor = WindowProcessorFactory::new(relation.clone());
             let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
             let window_input_name = window_processor.get_source_name()?;
@@ -461,7 +455,7 @@ fn add_from_to_pipeline(
                 input_nodes.push((
                     product_input_name,
                     product_processor_name.clone(),
-                    DEFAULT_PORT_HANDLE as PortHandle,
+                    (index + 1) as PortHandle,
                 ));
             }
         }
@@ -474,7 +468,6 @@ fn add_from_to_pipeline(
     );
 
     Ok((
-        pipeline_entry_points,
         input_nodes,
         (product_processor_name, DEFAULT_PORT_HANDLE as PortHandle),
     ))
@@ -690,11 +683,11 @@ pub fn get_entry_points(
 }
 
 pub fn is_an_entry_point(
-    name: &String,
+    name: &str,
     pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
     pipeline_idx: usize,
 ) -> bool {
-    if !pipeline_map.contains_key(&(pipeline_idx, name.clone())) {
+    if !pipeline_map.contains_key(&(pipeline_idx, name.to_owned())) {
         return true;
     }
     false

@@ -7,7 +7,7 @@ use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record};
 
-use super::window::WindowType;
+use super::operator::WindowType;
 
 #[derive(Debug)]
 pub struct WindowProcessor {

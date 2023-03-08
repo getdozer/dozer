@@ -30,7 +30,7 @@ impl WindowProcessorFactory {
     }
 
     pub(crate) fn get_source_name(&self) -> Result<String, PipelineError> {
-        window_source_name(&self.table).map_err(|e| PipelineError::WindowError(e))
+        window_source_name(&self.table).map_err(PipelineError::WindowError)
     }
 }
 

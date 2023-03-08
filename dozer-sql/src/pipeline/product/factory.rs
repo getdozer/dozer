@@ -32,49 +32,6 @@ impl FromProcessorFactory {
     pub fn new(input_tables: IndexedTableWithJoins) -> Self {
         Self { input_tables }
     }
-
-    pub(crate) fn get_inputs(&self) -> HashMap<NameOrAlias, PortHandle> {
-        let mut input_names = HashMap::new();
-
-        input_names.insert(self.input_tables.relation.0.clone(), 0 as PortHandle);
-
-        for (index, join) in self.input_tables.joins.iter().enumerate() {
-            input_names.insert(join.0.clone(), (index + 1) as PortHandle);
-        }
-        input_names
-    }
-
-    // pub(crate) fn get_input_port(&self, input_name: String) -> Result<PortHandle, PipelineError> {
-    //     // Search in aliases first
-    //     if let Some(alias) = self.input_tables.relation.0 .1 {
-    //         if alias == input_name {
-    //             return Ok(0 as PortHandle);
-    //         }
-    //     }
-
-    //     for (index, (input_table_name, _)) in self.input_tables.joins.iter().enumerate() {
-    //         if let Some(alias) = input_table_name.1 {
-    //             if alias == input_name {
-    //                 return Ok((index + 1) as PortHandle);
-    //             }
-    //         }
-    //     }
-
-    //     // Search in table names
-    //     if self.input_tables.relation.0 .0 == input_name {
-    //         return Ok(0 as PortHandle);
-    //     }
-
-    //     for (index, (input_table_name, _)) in self.input_tables.joins.iter().enumerate() {
-    //         if input_table_name.0 == input_name {
-    //             return Ok((index + 1) as PortHandle);
-    //         }
-    //     }
-
-    //     Err(PipelineError::JoinError(JoinError::InvalidSourceName(
-    //         input_name,
-    //     )))
-    // }
 }
 
 impl ProcessorFactory<SchemaSQLContext> for FromProcessorFactory {

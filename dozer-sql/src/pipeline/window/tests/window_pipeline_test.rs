@@ -1,7 +1,6 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
@@ -414,10 +413,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _txn: &std::collections::HashMap<
-            dozer_types::node::NodeHandle,
-            dozer_types::node::OpIdentifier,
-        >,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink {
             expected: self.expected,
@@ -468,7 +463,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
