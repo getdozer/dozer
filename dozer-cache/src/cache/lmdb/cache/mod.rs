@@ -163,33 +163,18 @@ impl<C: LmdbCache> RoCache for C {
 
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError> {
         let txn = self.begin_txn()?;
-        let txn = txn.as_txn();
-        let (schema, secondary_indexes) = self
-            .common()
-            .schema_db
-            .get_schema()
-            .ok_or_else(|| CacheError::SchemaNotFound)?;
-        let handler = LmdbQueryHandler::new(self.common(), txn, schema, secondary_indexes, query);
+        let handler = self.create_query_handler(&txn, query)?;
         handler.count()
     }
 
     fn query(&self, query: &QueryExpression) -> Result<Vec<RecordWithId>, CacheError> {
         let txn = self.begin_txn()?;
-        let txn = txn.as_txn();
-        let (schema, secondary_indexes) = self
-            .common()
-            .schema_db
-            .get_schema()
-            .ok_or_else(|| CacheError::SchemaNotFound)?;
-        let handler = LmdbQueryHandler::new(self.common(), txn, schema, secondary_indexes, query);
+        let handler = self.create_query_handler(&txn, query)?;
         handler.query()
     }
 
     fn get_schema(&self) -> Result<&(Schema, Vec<IndexDefinition>), CacheError> {
-        self.common()
-            .schema_db
-            .get_schema()
-            .ok_or(CacheError::SchemaNotFound)
+        self.get_schema_impl()
     }
 }
 
@@ -325,6 +310,27 @@ trait LmdbCache: Send + Sync + Debug {
 
     fn common(&self) -> &LmdbCacheCommon;
     fn begin_txn(&self) -> Result<Self::AsTransaction<'_>, CacheError>;
+
+    fn get_schema_impl(&self) -> Result<&(Schema, Vec<IndexDefinition>), CacheError> {
+        self.common()
+            .schema_db
+            .get_schema()
+            .ok_or(CacheError::SchemaNotFound)
+    }
+
+    fn create_query_handler<'a, 'as_txn>(
+        &'a self,
+        txn: &'a Self::AsTransaction<'as_txn>,
+        query: &'a QueryExpression,
+    ) -> Result<
+        LmdbQueryHandler<'a, <Self::AsTransaction<'as_txn> as AsTransaction>::Transaction<'a>>,
+        CacheError,
+    > {
+        let txn = txn.as_txn();
+        let (schema, secondary_indexes) = self.get_schema_impl()?;
+        let handler = LmdbQueryHandler::new(self.common(), txn, schema, secondary_indexes, query);
+        Ok(handler)
+    }
 }
 
 impl LmdbCache for LmdbRoCache {
