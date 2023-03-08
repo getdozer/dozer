@@ -36,7 +36,6 @@ pub fn init_sink(
     let cache = CacheSink::new(
         cache_manager.clone(),
         init_endpoint(),
-        &Default::default(),
         schema,
         secondary_indexes,
         None,

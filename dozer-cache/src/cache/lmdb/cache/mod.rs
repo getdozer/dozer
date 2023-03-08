@@ -7,7 +7,6 @@ use dozer_storage::lmdb_storage::{
 };
 use dozer_storage::{LmdbMap, LmdbMultimap};
 
-use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 use dozer_types::parking_lot::RwLockReadGuard;
 
 use dozer_types::types::Schema;
@@ -97,7 +96,6 @@ impl Default for CacheWriteOptions {
 #[derive(Debug)]
 pub struct LmdbRwCache {
     common: LmdbCacheCommon,
-    checkpoint_db: LmdbMap<NodeHandle, OpIdentifier>,
     txn: SharedTransaction,
 }
 
@@ -128,13 +126,8 @@ impl LmdbRwCache {
             kind: CacheOptionsKind::Write(write_options),
         })?;
         let common = LmdbCacheCommon::new(&mut env, common_options, name, true)?;
-        let checkpoint_db = LmdbMap::new_from_env(&mut env, Some("checkpoint"), true)?;
         let txn = env.create_txn()?;
-        Ok(Self {
-            common,
-            checkpoint_db,
-            txn,
-        })
+        Ok(Self { common, txn })
     }
 }
 
@@ -197,26 +190,10 @@ impl RwCache for LmdbRwCache {
         Ok(old_version)
     }
 
-    fn commit(&self, checkpoint: &SourceStates) -> Result<(), CacheError> {
+    fn commit(&self) -> Result<(), CacheError> {
         let mut txn = self.txn.write();
-        self.checkpoint_db.clear(txn.txn_mut())?;
-        self.checkpoint_db.extend(txn.txn_mut(), checkpoint)?;
         txn.commit_and_renew()?;
         Ok(())
-    }
-
-    fn get_checkpoint(&self) -> Result<SourceStates, CacheError> {
-        let txn = self.txn.read();
-        let result = self
-            .checkpoint_db
-            .iter(txn.txn())?
-            .map(|result| {
-                result
-                    .map(|(key, value)| (key.into_owned(), value.into_owned()))
-                    .map_err(CacheError::Storage)
-            })
-            .collect();
-        result
     }
 }
 

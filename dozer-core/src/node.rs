@@ -3,7 +3,6 @@ use crate::epoch::Epoch;
 use crate::errors::ExecutionError;
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 
-use dozer_types::node::SourceStates;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -95,16 +94,11 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
-        checkpoint: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError>;
 }
 
 pub trait Sink: Send + Sync + Debug {
-    fn commit(
-        &mut self,
-        epoch_details: &Epoch,
-        tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError>;
+    fn commit(&mut self, tx: &SharedTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
