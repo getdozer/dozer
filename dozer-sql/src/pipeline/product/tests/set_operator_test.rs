@@ -83,9 +83,6 @@ fn test_set_union_pipeline_builder() {
     }
     std::fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-    use std::time::Instant;
-    let now = Instant::now();
-
     let tmp_dir = TempDir::new("test").unwrap();
 
     DagExecutor::new(
@@ -98,9 +95,6 @@ fn test_set_union_pipeline_builder() {
     .unwrap()
     .join()
     .unwrap();
-
-    let elapsed = now.elapsed();
-    debug!("Elapsed: {:.2?}", elapsed);
 }
 
 #[test]

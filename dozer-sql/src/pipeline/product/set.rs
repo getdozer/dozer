@@ -57,7 +57,7 @@ impl SetOperation {
         record: &Record,
         record_map: &mut CountingBloomFilter,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_map(record, 1, false, record_map);
+        let _count = self.update_map(record, false, record_map);
         if _count == 1 {
             Ok(vec![(action, record.to_owned())])
         } else {
@@ -71,7 +71,7 @@ impl SetOperation {
         record: &Record,
         record_map: &mut CountingBloomFilter,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_map(record, 1, true, record_map);
+        let _count = self.update_map(record, true, record_map);
         if _count == 0 {
             Ok(vec![(action, record.to_owned())])
         } else {
@@ -82,16 +82,16 @@ impl SetOperation {
     fn update_map(
         &self,
         record: &Record,
-        _val_delta: usize,
         decr: bool,
         record_map: &mut CountingBloomFilter,
     ) -> u32 {
         if decr {
-            record_map.insert(record);
+            record_map.remove(&record);
         } else {
-            record_map.remove(record);
+            record_map.insert(&record);
         }
 
-        record_map.estimate_count(record)
+        let count = record_map.estimate_count(&record);
+        count
     }
 }
