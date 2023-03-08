@@ -3,10 +3,10 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Max;
 use crate::{calculate_err, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
+
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType};
 use std::collections::BTreeMap;
-use dozer_types::log::info;
 
 #[derive(Debug)]
 pub struct MaxAggregator {
@@ -34,13 +34,11 @@ impl Aggregator for MaxAggregator {
     }
 
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError> {
-        debug_assert!(old.iter().all(|field| field.get_type() == self.return_type || field.get_type() == None));
         update_map(old, 1_u64, true, &mut self.current_state);
         get_max(&self.current_state, self.return_type)
     }
 
     fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
-        debug_assert!(new.iter().all(|field| field.get_type() == self.return_type || field.get_type() == None));
         update_map(new, 1_u64, false, &mut self.current_state);
         get_max(&self.current_state, self.return_type)
     }

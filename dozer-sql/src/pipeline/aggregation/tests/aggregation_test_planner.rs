@@ -84,7 +84,7 @@ fn test_planner_with_aggregator() {
     )
     .unwrap();
 
-    let tx = storage.create_txn().unwrap();
+    let _tx = storage.create_txn().unwrap();
     let mut processor = AggregationProcessor::new(
         projection_planner.groupby,
         projection_planner.aggregation_output,
@@ -95,38 +95,34 @@ fn test_planner_with_aggregator() {
     .unwrap();
 
     let _r = processor
-        .aggregate(
-            Operation::Insert {
-                new: Record::new(
-                    None,
-                    vec![
-                        Field::String("John Smith".to_string()),
-                        Field::String("Johor".to_string()),
-                        Field::String("Malaysia".to_string()),
-                        Field::Int(2),
-                        Field::Int(1),
-                    ],
-                    None,
-                ),
-            },
-        )
+        .aggregate(Operation::Insert {
+            new: Record::new(
+                None,
+                vec![
+                    Field::String("John Smith".to_string()),
+                    Field::String("Johor".to_string()),
+                    Field::String("Malaysia".to_string()),
+                    Field::Int(2),
+                    Field::Int(1),
+                ],
+                None,
+            ),
+        })
         .unwrap();
 
     let _r = processor
-        .aggregate(
-            Operation::Insert {
-                new: Record::new(
-                    None,
-                    vec![
-                        Field::String("Todd Enton".to_string()),
-                        Field::String("Johor".to_string()),
-                        Field::String("Malaysia".to_string()),
-                        Field::Int(2),
-                        Field::Int(2),
-                    ],
-                    None,
-                ),
-            },
-        )
+        .aggregate(Operation::Insert {
+            new: Record::new(
+                None,
+                vec![
+                    Field::String("Todd Enton".to_string()),
+                    Field::String("Johor".to_string()),
+                    Field::String("Malaysia".to_string()),
+                    Field::Int(2),
+                    Field::Int(2),
+                ],
+                None,
+            ),
+        })
         .unwrap();
 }

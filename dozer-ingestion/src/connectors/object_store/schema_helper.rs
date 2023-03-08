@@ -4,9 +4,9 @@ use crate::errors::ObjectStoreSchemaError::DateTimeConversionError;
 use crate::errors::ObjectStoreSchemaError::DurationConversionError;
 use crate::errors::ObjectStoreSchemaError::FieldTypeNotSupported;
 use crate::errors::ObjectStoreSchemaError::TimeConversionError;
-use datafusion::arrow::array;
-use datafusion::arrow::array::{Array, ArrayRef};
-use datafusion::arrow::datatypes::{DataType, Field, TimeUnit};
+use deltalake::arrow::array;
+use deltalake::arrow::array::{Array, ArrayRef};
+use deltalake::arrow::datatypes::{DataType, Field, TimeUnit};
 
 use dozer_types::types::{Field as DozerField, FieldDefinition, FieldType, SourceDefinition};
 

@@ -22,8 +22,6 @@ use hashbrown::HashMap;
 
 const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 
-enum DimensionAggregationDataType {}
-
 #[derive(Debug)]
 struct AggregationState {
     count: usize,
@@ -32,7 +30,7 @@ struct AggregationState {
 }
 
 impl AggregationState {
-    pub fn new(types: &Vec<AggregatorType>, ret_types: &Vec<FieldType>) -> Self {
+    pub fn new(types: &[AggregatorType], ret_types: &[FieldType]) -> Self {
         let mut states: Vec<Box<dyn Aggregator>> = Vec::new();
         for (idx, typ) in types.iter().enumerate() {
             let mut aggr = get_aggregator_from_aggregator_type(*typ);
@@ -118,14 +116,14 @@ impl AggregationProcessor {
         let mut new_fields: Vec<Field> = Vec::with_capacity(measures.len());
 
         for (idx, measure) in measures.iter().enumerate() {
-            let mut curr_aggr = &mut curr_state.states[idx];
+            let curr_aggr = &mut curr_state.states[idx];
             let curr_val_opt: Option<&Field> = curr_state.values.as_ref().map(|e| &e[idx]);
 
             let new_val = match op {
                 AggregatorOperation::Insert => {
                     let mut inserted_fields = Vec::with_capacity(measure.len());
                     for m in measure {
-                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), &input_schema)?);
+                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), input_schema)?);
                     }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
@@ -135,7 +133,7 @@ impl AggregationProcessor {
                 AggregatorOperation::Delete => {
                     let mut deleted_fields = Vec::with_capacity(measure.len());
                     for m in measure {
-                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), &input_schema)?);
+                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), input_schema)?);
                     }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
@@ -145,11 +143,11 @@ impl AggregationProcessor {
                 AggregatorOperation::Update => {
                     let mut deleted_fields = Vec::with_capacity(measure.len());
                     for m in measure {
-                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), &input_schema)?);
+                        deleted_fields.push(m.evaluate(deleted_record.unwrap(), input_schema)?);
                     }
                     let mut inserted_fields = Vec::with_capacity(measure.len());
                     for m in measure {
-                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), &input_schema)?);
+                        inserted_fields.push(m.evaluate(inserted_record.unwrap(), input_schema)?);
                     }
                     if let Some(curr_val) = curr_val_opt {
                         out_rec_delete.push(curr_val.clone());
@@ -173,7 +171,7 @@ impl AggregationProcessor {
             self.default_segment_key
         };
 
-        let mut curr_state_opt = self.states.get_mut(&key);
+        let curr_state_opt = self.states.get_mut(&key);
         assert!(
             curr_state_opt.is_some(),
             "Unable to find aggregator state during DELETE operation"
@@ -290,7 +288,7 @@ impl AggregationProcessor {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
-        let mut curr_state_opt = self.states.get_mut(&key);
+        let curr_state_opt = self.states.get_mut(&key);
         assert!(
             curr_state_opt.is_some(),
             "Unable to find aggregator state during UPDATE operation"
@@ -381,7 +379,8 @@ fn get_key(
     }
     let mut hasher = AHasher::default();
     key.hash(&mut hasher);
-    Ok(hasher.finish())
+    let v = hasher.finish();
+    Ok(v)
 }
 
 impl Processor for AggregationProcessor {

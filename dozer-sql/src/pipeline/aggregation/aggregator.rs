@@ -10,7 +10,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
 
 use dozer_types::types::{Field, FieldType, Schema};
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 
 pub trait Aggregator: Send + Sync {
     fn init(&mut self, return_type: FieldType);
@@ -132,6 +132,10 @@ pub fn update_map(
     field_map: &mut BTreeMap<Field, u64>,
 ) {
     for field in fields {
+        if field == &Field::Null {
+            continue;
+        }
+
         let get_prev_count = field_map.get(field);
         let prev_count = match get_prev_count {
             Some(v) => *v,
@@ -145,8 +149,8 @@ pub fn update_map(
         }
         if new_count < 1 {
             field_map.remove(field);
-        } else if field_map.contains_key(&field) {
-            if let Some(val) = field_map.get_mut(&field) {
+        } else if field_map.contains_key(field) {
+            if let Some(val) = field_map.get_mut(field) {
                 *val = new_count;
             }
         } else {

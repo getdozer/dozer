@@ -46,9 +46,25 @@ fn get_schema() {
 #[test]
 fn insert_get_and_delete_record() {
     let val = "bar".to_string();
-    let (cache, schema, _) = _setup();
+    let (cache, schema, schema_name) = _setup();
+
+    assert_eq!(
+        cache
+            .count(schema_name, &QueryExpression::with_no_limit())
+            .unwrap(),
+        0
+    );
+
     let mut record = Record::new(schema.identifier, vec![Field::String(val.clone())], None);
     cache.insert(&mut record).unwrap();
+
+    assert_eq!(
+        cache
+            .count(schema_name, &QueryExpression::with_no_limit())
+            .unwrap(),
+        1
+    );
+
     let version = record.version.unwrap();
 
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
@@ -57,8 +73,22 @@ fn insert_get_and_delete_record() {
     assert_eq!(get_record, record, "must be equal");
 
     assert_eq!(cache.delete(&key).unwrap(), version);
+    assert_eq!(
+        cache
+            .count(schema_name, &QueryExpression::with_no_limit())
+            .unwrap(),
+        0
+    );
 
     cache.get(&key).expect_err("Must not find a record");
+
+    assert_eq!(
+        cache
+            .query(schema_name, &QueryExpression::default())
+            .unwrap()
+            .1,
+        vec![]
+    );
 }
 
 #[test]
