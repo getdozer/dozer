@@ -23,6 +23,11 @@ use std::sync::Arc;
 use tempdir::TempDir;
 
 #[test]
+fn setup() {
+    dozer_tracing::init_telemetry(false).unwrap();
+}
+
+#[test]
 fn test_set_union_pipeline_builder() {
     let sql = "WITH supplier_id_union AS (
                         SELECT supplier_id
@@ -34,8 +39,6 @@ fn test_set_union_pipeline_builder() {
                     SELECT supplier_id
                     INTO set_results
                     FROM supplier_id_union;";
-
-    dozer_tracing::init_telemetry(false).unwrap();
 
     let mut pipeline: AppPipeline<SchemaSQLContext> = AppPipeline::new();
     let query_ctx =
@@ -102,7 +105,7 @@ fn test_set_union_pipeline_builder() {
 
 #[test]
 fn test_set_union_all_pipeline_builder() {
-    let sql = "WITH supplier_id_union AS (
+    let sql = "WITH supplier_id_union_all AS (
                         SELECT supplier_id
                         FROM suppliers
                         UNION ALL
@@ -110,16 +113,14 @@ fn test_set_union_all_pipeline_builder() {
                         FROM orders
                     )
                     SELECT supplier_id
-                    INTO set_results
-                    FROM supplier_id_union;";
-
-    dozer_tracing::init_telemetry(false).unwrap();
+                    INTO set_results_all
+                    FROM supplier_id_union_all;";
 
     let mut pipeline: AppPipeline<SchemaSQLContext> = AppPipeline::new();
     let query_ctx =
-        statement_to_pipeline(sql, &mut pipeline, Some("set_results".to_string())).unwrap();
+        statement_to_pipeline(sql, &mut pipeline, Some("set_results_all".to_string())).unwrap();
 
-    let table_info = query_ctx.output_tables_map.get("set_results").unwrap();
+    let table_info = query_ctx.output_tables_map.get("set_results_all").unwrap();
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
