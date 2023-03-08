@@ -16,7 +16,7 @@ use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
-use dozer_types::node::SourceStates;
+
 use dozer_types::tracing::{self, span};
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};

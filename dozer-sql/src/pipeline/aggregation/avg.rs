@@ -125,13 +125,11 @@ fn get_average(
         }
         Some(not_supported_return_type) => {
             Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                "Not supported return type {} for {}",
-                not_supported_return_type, Avg
+                "Not supported return type {not_supported_return_type} for {Avg}"
             ))))
         }
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
-            "Not supported None return type for {}",
-            Avg
+            "Not supported None return type for {Avg}"
         )))),
     }
 }
