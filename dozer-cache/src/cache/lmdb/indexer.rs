@@ -1,36 +1,27 @@
 use crate::errors::{CacheError, IndexError};
-use dozer_storage::lmdb::RwTransaction;
-use dozer_types::types::{Field, IndexDefinition, Record, Schema};
+use dozer_storage::{lmdb::RwTransaction, LmdbMultimap};
+use dozer_types::types::{Field, IndexDefinition, Record};
 use itertools::Itertools;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cache::index::{self, get_full_text_secondary_index};
 
-use super::cache::SecondaryIndexDatabases;
-
 pub struct Indexer<'a> {
-    pub secondary_indexes: &'a SecondaryIndexDatabases,
+    pub secondary_indexes: &'a [LmdbMultimap<[u8], u64>],
 }
 impl<'a> Indexer<'a> {
     pub fn build_indexes(
         &self,
         txn: &mut RwTransaction,
         record: &Record,
-        schema: &Schema,
         secondary_indexes: &[IndexDefinition],
         id: u64,
     ) -> Result<(), CacheError> {
-        let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
-
+        debug_assert!(secondary_indexes.len() == self.secondary_indexes.len());
         if secondary_indexes.is_empty() {
             return Err(CacheError::Index(IndexError::MissingSecondaryIndexes));
         }
-        for (idx, index) in secondary_indexes.iter().enumerate() {
-            let db = *self
-                .secondary_indexes
-                .get(&(schema_id, idx))
-                .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
-
+        for (index, db) in secondary_indexes.iter().zip(self.secondary_indexes) {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
@@ -54,17 +45,10 @@ impl<'a> Indexer<'a> {
         &self,
         txn: &mut RwTransaction,
         record: &Record,
-        schema: &Schema,
         secondary_indexes: &[IndexDefinition],
         id: u64,
     ) -> Result<(), CacheError> {
-        let schema_id = schema.identifier.ok_or(CacheError::SchemaHasNoIdentifier)?;
-        for (idx, index) in secondary_indexes.iter().enumerate() {
-            let db = *self
-                .secondary_indexes
-                .get(&(schema_id, idx))
-                .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
-
+        for (index, db) in secondary_indexes.iter().zip(self.secondary_indexes) {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
@@ -136,8 +120,7 @@ mod tests {
 
     #[test]
     fn test_secondary_indexes() {
-        let schema_name = "sample";
-        let (cache, schema, secondary_indexes) = create_cache(schema_name, test_utils::schema_1);
+        let (cache, schema, secondary_indexes) = create_cache(test_utils::schema_1);
         let (txn, secondary_index_databases) = cache.get_txn_and_secondary_indexes();
 
         let items = vec![
@@ -208,10 +191,10 @@ mod tests {
 
     #[test]
     fn test_full_text_secondary_index_with_duplicated_words() {
-        let schema_name = "sample";
         let (schema, secondary_indexes) = test_utils::schema_full_text();
         let cache = LmdbRwCache::create(
-            [(schema_name.to_string(), schema.clone(), secondary_indexes)],
+            schema.clone(),
+            secondary_indexes,
             Default::default(),
             Default::default(),
         )

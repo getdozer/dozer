@@ -252,7 +252,7 @@ fn open_or_create_cache(
 
     let create_cache = || {
         cache_manager
-            .create_cache(vec![(name.to_string(), schema, secondary_indexes)])
+            .create_cache(schema, secondary_indexes)
             .map_err(|e| {
                 ExecutionError::SinkError(SinkError::CacheCreateFailed(
                     name.to_string(),
@@ -281,7 +281,7 @@ fn open_or_create_cache(
             } else {
                 let old_name = cache.name();
                 let old_count = cache
-                    .count(name, &QueryExpression::with_no_limit())
+                    .count(&QueryExpression::with_no_limit())
                     .map_err(|e| {
                         ExecutionError::SinkError(SinkError::CacheCountFailed(
                             name.to_string(),
@@ -370,7 +370,7 @@ impl Sink for CacheSink {
         let endpoint_name = &self.api_endpoint.name;
         let schema = &self
             .cache
-            .get_schema_and_indexes_by_name(endpoint_name)
+            .get_schema()
             .map_err(|_| ExecutionError::SchemaNotInitialized)?
             .0;
 
@@ -457,7 +457,7 @@ impl CacheSink {
             schema,
             secondary_indexes,
         )?;
-        let counter = cache.count(&api_endpoint.name, &query).map_err(|e| {
+        let counter = cache.count(&query).map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCountFailed(
                 api_endpoint.name.clone(),
                 Box::new(e),

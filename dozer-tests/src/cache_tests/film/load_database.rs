@@ -10,20 +10,15 @@ use super::{film_schema, Film};
 
 pub async fn load_database(
     secondary_indexes: Vec<IndexDefinition>,
-) -> (Box<dyn RoCache>, &'static str, Collection<Film>) {
+) -> (Box<dyn RoCache>, Collection<Film>) {
     // Initialize tracing and data.
     init();
 
     // Create cache and insert schema.
     let schema = film_schema();
-    let schema_name = "film";
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let cache = cache_manager
-        .create_cache(vec![(
-            schema_name.to_string(),
-            schema.clone(),
-            secondary_indexes,
-        )])
+        .create_cache(schema.clone(), secondary_indexes)
         .unwrap();
 
     // Connect to mongodb and clear collection.
@@ -68,7 +63,6 @@ pub async fn load_database(
     drop(cache);
     (
         cache_manager.open_ro_cache(&cache_name).unwrap().unwrap(),
-        schema_name,
         mongo_collection,
     )
 }

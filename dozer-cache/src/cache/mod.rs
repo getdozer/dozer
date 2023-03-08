@@ -6,7 +6,7 @@ use crate::errors::CacheError;
 use dozer_types::{
     node::SourceStates,
     serde::{Deserialize, Serialize},
-    types::{IndexDefinition, Record, Schema, SchemaIdentifier},
+    types::{IndexDefinition, Record, Schema},
 };
 pub use lmdb::cache_manager::{CacheManagerOptions, LmdbCacheManager};
 pub mod expression;
@@ -45,7 +45,8 @@ pub trait CacheManager: Send + Sync + Debug {
     /// The cache's name is unique.
     fn create_cache(
         &self,
-        schemas: Vec<(String, Schema, Vec<IndexDefinition>)>,
+        schema: Schema,
+        indexes: Vec<IndexDefinition>,
     ) -> Result<Box<dyn RwCache>, CacheError>;
 
     /// Creates an alias `alias` for a cache with name `name`.
@@ -59,20 +60,12 @@ pub trait RoCache: Send + Sync + Debug {
     fn name(&self) -> &str;
 
     // Schema Operations
-    fn get_schema(&self, schema_identifier: SchemaIdentifier) -> Result<&Schema, CacheError>;
-    fn get_schema_and_indexes_by_name(
-        &self,
-        name: &str,
-    ) -> Result<&(Schema, Vec<IndexDefinition>), CacheError>;
+    fn get_schema(&self) -> Result<&(Schema, Vec<IndexDefinition>), CacheError>;
 
     // Record Operations
     fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError>;
-    fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError>;
-    fn query(
-        &self,
-        schema_name: &str,
-        query: &QueryExpression,
-    ) -> Result<(&Schema, Vec<RecordWithId>), CacheError>;
+    fn count(&self, query: &QueryExpression) -> Result<usize, CacheError>;
+    fn query(&self, query: &QueryExpression) -> Result<Vec<RecordWithId>, CacheError>;
 }
 
 pub trait RwCache: RoCache {
@@ -85,6 +78,6 @@ pub trait RwCache: RoCache {
     fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError>;
     /// Commits the current transaction.
     fn commit(&self, checkpoint: &SourceStates) -> Result<(), CacheError>;
-    /// Get the current checkpoint.
+    /// Gets the current checkpoint.
     fn get_checkpoint(&self) -> Result<SourceStates, CacheError>;
 }
