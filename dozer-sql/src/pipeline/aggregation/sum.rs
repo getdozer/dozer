@@ -118,11 +118,9 @@ fn get_sum(
             }
             Ok(Field::Decimal(current_state.decimal_state))
         }
-        Some(not_supported_return_type) => {
-            Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                "Not supported return type {not_supported_return_type} for {Sum}"
-            ))))
-        }
+        Some(not_supported_return_type) => Err(PipelineError::InternalExecutionError(InvalidType(
+            format!("Not supported return type {not_supported_return_type} for {Sum}"),
+        ))),
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Sum}"
         )))),
