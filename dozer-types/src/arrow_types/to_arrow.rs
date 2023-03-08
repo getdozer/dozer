@@ -118,7 +118,7 @@ pub fn map_record_to_arrow(
         };
         rows.push(r);
     }
-    RecordBatch::try_new(Arc::new(map_to_arrow_schema(&schema).unwrap()), rows)
+    RecordBatch::try_new(Arc::new(map_to_arrow_schema(schema).unwrap()), rows)
 }
 
 // Maps the dozer field type to the arrow data type
