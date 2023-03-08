@@ -1,6 +1,6 @@
 use crate::pipeline::errors::PipelineError;
+use bloom::{CountingBloomFilter, ASMS};
 use dozer_types::types::Record;
-use hashbrown::HashMap;
 use sqlparser::ast::{SetOperator, SetQuantifier};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -28,7 +28,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_map: &mut HashMap<Record, usize>,
+        record_map: &mut CountingBloomFilter,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record.clone())]),
@@ -43,7 +43,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_map: &mut HashMap<Record, usize>,
+        record_map: &mut CountingBloomFilter,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match action {
             SetAction::Insert => self.union_insert(action, record, record_map),
@@ -55,9 +55,9 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_map: &mut HashMap<Record, usize>,
+        record_map: &mut CountingBloomFilter,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_map(record, 1, false, record_map);
+        let _count = self.update_map(record, false, record_map);
         if _count == 1 {
             Ok(vec![(action, record.to_owned())])
         } else {
@@ -69,9 +69,9 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        record_map: &mut HashMap<Record, usize>,
+        record_map: &mut CountingBloomFilter,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_map(record, 1, true, record_map);
+        let _count = self.update_map(record, true, record_map);
         if _count == 0 {
             Ok(vec![(action, record.to_owned())])
         } else {
@@ -79,29 +79,13 @@ impl SetOperation {
         }
     }
 
-    fn update_map(
-        &self,
-        record: &Record,
-        val_delta: usize,
-        decr: bool,
-        record_map: &mut HashMap<Record, usize>,
-    ) -> usize {
-        let get_prev_count = record_map.get(record);
-        let prev_count = match get_prev_count {
-            Some(v) => *v,
-            None => 0_usize,
-        };
-        let mut new_count = prev_count;
+    fn update_map(&self, record: &Record, decr: bool, record_map: &mut CountingBloomFilter) -> u32 {
         if decr {
-            new_count = new_count.wrapping_sub(val_delta);
+            record_map.remove(&record);
         } else {
-            new_count = new_count.wrapping_add(val_delta);
+            record_map.insert(&record);
         }
-        if new_count < 1 {
-            record_map.remove(record);
-        } else {
-            record_map.insert(record.clone(), new_count);
-        }
-        new_count
+
+        record_map.estimate_count(&record)
     }
 }
