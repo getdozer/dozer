@@ -15,15 +15,9 @@ mod dag_base_run;
 #[cfg(test)]
 mod dag_ports;
 #[cfg(test)]
-mod dag_recordreader;
-#[cfg(test)]
-mod dag_recordreader_update;
-#[cfg(test)]
 mod dag_schemas;
 #[cfg(test)]
 pub mod processors;
-#[cfg(test)]
-mod record_store;
 #[cfg(test)]
 pub mod sinks;
 #[cfg(test)]

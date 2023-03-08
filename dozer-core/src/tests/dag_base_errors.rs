@@ -6,7 +6,6 @@ use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
     Source, SourceFactory,
 };
-use crate::record_store::RecordReader;
 use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
@@ -89,7 +88,6 @@ impl Processor for ErrorProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         _tx: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.count += 1;
         if self.count == self.err_on {
@@ -479,7 +477,6 @@ impl Sink for ErrSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;
         if self.current == self.err_at {

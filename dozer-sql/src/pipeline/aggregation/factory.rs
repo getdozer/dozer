@@ -64,7 +64,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        txn: &mut LmdbExclusiveTransaction,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -86,7 +86,6 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                     planner.projection_output,
                     input_schema.clone(),
                     planner.post_aggregation_schema,
-                    txn,
                 )
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
             )

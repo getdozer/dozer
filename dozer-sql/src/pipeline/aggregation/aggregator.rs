@@ -4,16 +4,29 @@ use crate::pipeline::aggregation::max::MaxAggregator;
 use crate::pipeline::aggregation::min::MinAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
+use std::collections::BTreeMap;
 
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
-use dozer_core::storage::common::Database;
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
-use dozer_types::types::{Field, FieldType, Schema};
-use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
-pub enum Aggregator {
+use dozer_types::types::{Field, FieldType, Schema};
+use std::fmt::{Debug, Display, Formatter};
+
+pub trait Aggregator: Send + Sync {
+    fn init(&mut self, return_type: FieldType);
+    fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError>;
+    fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError>;
+    fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError>;
+}
+
+impl Debug for dyn Aggregator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Aggregator")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
+pub enum AggregatorType {
     Avg,
     Count,
     Max,
@@ -21,195 +34,129 @@ pub enum Aggregator {
     Sum,
 }
 
-pub fn get_aggregator_from_aggregation_expression(
+impl Display for AggregatorType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AggregatorType::Avg => f.write_str("avg"),
+            AggregatorType::Count => f.write_str("count"),
+            AggregatorType::Max => f.write_str("max"),
+            AggregatorType::Min => f.write_str("min"),
+            AggregatorType::Sum => f.write_str("sum"),
+        }
+    }
+}
+
+pub fn get_aggregator_from_aggregator_type(typ: AggregatorType) -> Box<dyn Aggregator> {
+    match typ {
+        AggregatorType::Avg => Box::new(AvgAggregator::new()),
+        AggregatorType::Count => Box::new(CountAggregator::new()),
+        AggregatorType::Max => Box::new(MaxAggregator::new()),
+        AggregatorType::Min => Box::new(MinAggregator::new()),
+        AggregatorType::Sum => Box::new(SumAggregator::new()),
+    }
+}
+
+pub fn get_aggregator_type_from_aggregation_expression(
     e: &Expression,
     schema: &Schema,
-) -> Result<(Expression, Aggregator), PipelineError> {
+) -> Result<(Vec<Expression>, AggregatorType), PipelineError> {
     match e {
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Sum,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Sum.to_string())
                 })?
-                .clone(),
-            Aggregator::Sum,
+                .clone()],
+            AggregatorType::Sum,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Min,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Min.to_string())
                 })?
-                .clone(),
-            Aggregator::Min,
+                .clone()],
+            AggregatorType::Min,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Max,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
                 })?
-                .clone(),
-            Aggregator::Max,
+                .clone()],
+            AggregatorType::Max,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Avg,
             args,
         } => Ok((
-            args.get(0)
+            vec![args
+                .get(0)
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Avg.to_string())
                 })?
-                .clone(),
-            Aggregator::Avg,
+                .clone()],
+            AggregatorType::Avg,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Count,
-            args: _,
-        } => Ok((Expression::Literal(Field::Int(0)), Aggregator::Count)),
+            args,
+        } => Ok((
+            vec![args
+                .get(0)
+                .ok_or_else(|| {
+                    PipelineError::NotEnoughArguments(AggregateFunctionType::Count.to_string())
+                })?
+                .clone()],
+            AggregatorType::Count,
+        )),
         _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
     }
 }
 
-impl Display for Aggregator {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Aggregator::Avg => f.write_str("avg"),
-            Aggregator::Count => f.write_str("count"),
-            Aggregator::Max => f.write_str("max"),
-            Aggregator::Min => f.write_str("min"),
-            Aggregator::Sum => f.write_str("sum"),
+pub fn update_map(
+    fields: &[Field],
+    val_delta: u64,
+    decr: bool,
+    field_map: &mut BTreeMap<Field, u64>,
+) {
+    for field in fields {
+        if field == &Field::Null {
+            continue;
         }
-    }
-}
 
-pub(crate) struct AggregationResult {
-    pub value: Field,
-    pub state: Option<Vec<u8>>,
-}
-
-impl AggregationResult {
-    pub fn new(value: Field, state: Option<Vec<u8>>) -> Self {
-        Self { value, state }
-    }
-}
-
-impl Aggregator {
-    pub(crate) fn _get_type(&self) -> u32 {
-        match &self {
-            Aggregator::Avg => AvgAggregator::_get_type(),
-            Aggregator::Count => CountAggregator::_get_type(),
-            Aggregator::Max => MaxAggregator::_get_type(),
-            Aggregator::Min => MinAggregator::_get_type(),
-            Aggregator::Sum => SumAggregator::_get_type(),
-        }
-    }
-
-    pub(crate) fn insert(
-        &self,
-        cur_state: Option<&[u8]>,
-        new: &Field,
-        return_type: FieldType,
-        txn: &mut PrefixTransaction,
-        agg_db: Database,
-    ) -> Result<AggregationResult, PipelineError> {
-        match &self {
-            Aggregator::Avg => AvgAggregator::insert(cur_state, new, return_type, txn, agg_db),
-            Aggregator::Count => CountAggregator::insert(cur_state, new, return_type, txn),
-            Aggregator::Max => MaxAggregator::insert(cur_state, new, return_type, txn, agg_db),
-            Aggregator::Min => MinAggregator::insert(cur_state, new, return_type, txn, agg_db),
-            Aggregator::Sum => SumAggregator::insert(cur_state, new, return_type, txn),
-        }
-    }
-
-    pub(crate) fn update(
-        &self,
-        cur_state: Option<&[u8]>,
-        old: &Field,
-        new: &Field,
-        return_type: FieldType,
-        txn: &mut PrefixTransaction,
-        agg_db: Database,
-    ) -> Result<AggregationResult, PipelineError> {
-        match &self {
-            Aggregator::Avg => AvgAggregator::update(cur_state, old, new, return_type, txn, agg_db),
-            Aggregator::Count => CountAggregator::update(cur_state, old, new, return_type, txn),
-            Aggregator::Max => MaxAggregator::update(cur_state, old, new, return_type, txn, agg_db),
-            Aggregator::Min => MinAggregator::update(cur_state, old, new, return_type, txn, agg_db),
-            Aggregator::Sum => SumAggregator::update(cur_state, old, new, return_type, txn),
-        }
-    }
-
-    pub(crate) fn delete(
-        &self,
-        cur_state: Option<&[u8]>,
-        old: &Field,
-        return_type: FieldType,
-        txn: &mut PrefixTransaction,
-        agg_db: Database,
-    ) -> Result<AggregationResult, PipelineError> {
-        match &self {
-            Aggregator::Avg => AvgAggregator::delete(cur_state, old, return_type, txn, agg_db),
-            Aggregator::Count => CountAggregator::delete(cur_state, old, return_type, txn),
-            Aggregator::Max => MaxAggregator::delete(cur_state, old, return_type, txn, agg_db),
-            Aggregator::Min => MinAggregator::delete(cur_state, old, return_type, txn, agg_db),
-            Aggregator::Sum => SumAggregator::delete(cur_state, old, return_type, txn),
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! deserialize {
-    ($stmt:expr) => {
-        $stmt.try_into().unwrap()
-    };
-}
-
-#[macro_export]
-macro_rules! deserialize_f64 {
-    ($stmt:expr) => {
-        match $stmt {
-            Some(v) => f64::from_be_bytes(deserialize!(v)),
-            None => 0_f64,
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! deserialize_i64 {
-    ($stmt:expr) => {
-        match $stmt {
-            Some(v) => i64::from_be_bytes(deserialize!(v)),
-            None => 0_i64,
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! deserialize_u64 {
-    ($stmt:expr) => {
-        match $stmt {
-            Some(v) => u64::from_be_bytes(deserialize!(v)),
+        let get_prev_count = field_map.get(field);
+        let prev_count = match get_prev_count {
+            Some(v) => *v,
             None => 0_u64,
+        };
+        let mut new_count = prev_count;
+        if decr {
+            new_count = new_count.wrapping_sub(val_delta);
+        } else {
+            new_count = new_count.wrapping_add(val_delta);
         }
-    };
-}
-
-#[macro_export]
-macro_rules! deserialize_decimal {
-    ($stmt:expr) => {
-        match $stmt {
-            Some(v) => Decimal::deserialize(deserialize!(v)),
-            None => Decimal::from(0),
+        if new_count < 1 {
+            field_map.remove(field);
+        } else if field_map.contains_key(field) {
+            if let Some(val) = field_map.get_mut(field) {
+                *val = new_count;
+            }
+        } else {
+            field_map.insert(field.clone(), new_count);
         }
-    };
+    }
 }
 
 #[macro_export]
@@ -252,8 +199,31 @@ macro_rules! try_unwrap {
 }
 
 #[macro_export]
-macro_rules! to_bytes {
-    ($stmt:expr) => {
-        $stmt.to_be_bytes().as_slice()
+macro_rules! calculate_err {
+    ($stmt:expr, $aggr:expr) => {
+        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!(
+            "Failed to calculate {}",
+            $aggr
+        ))))?
+    };
+}
+
+#[macro_export]
+macro_rules! calculate_err_field {
+    ($stmt:expr, $aggr:expr, $field:expr) => {
+        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!(
+            "Failed to calculate {} while parsing {}",
+            $aggr, $field
+        ))))?
+    };
+}
+
+#[macro_export]
+macro_rules! calculate_err_type {
+    ($stmt:expr, $aggr:expr, $return_type:expr) => {
+        $stmt.ok_or(PipelineError::InternalExecutionError(InvalidType(format!(
+            "Failed to calculate {} while casting {}",
+            $aggr, $return_type
+        ))))?
     };
 }

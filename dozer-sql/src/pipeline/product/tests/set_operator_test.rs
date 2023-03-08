@@ -8,7 +8,6 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::NaiveDate;
@@ -194,20 +193,8 @@ impl TestSourceFactory {
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![
-            OutputPortDef::new(
-                SUPPLIERS_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates: true,
-                    retr_old_records_for_deletes: true,
-                },
-            ),
-            OutputPortDef::new(
-                ORDERS_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates: true,
-                    retr_old_records_for_deletes: true,
-                },
-            ),
+            OutputPortDef::new(SUPPLIERS_PORT, OutputPortType::StatefulWithPrimaryKeyLookup),
+            OutputPortDef::new(ORDERS_PORT, OutputPortType::StatefulWithPrimaryKeyLookup),
         ]
     }
 
@@ -471,7 +458,6 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         match _op {
             Operation::Delete { old } => debug!("o0:-> - {:?}", old.values),

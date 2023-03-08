@@ -57,7 +57,7 @@ pub(crate) fn run_geo_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field
     };
 
     processor
-        .process(DEFAULT_PORT_HANDLE, op, &mut fw, &tx, &HashMap::new())
+        .process(DEFAULT_PORT_HANDLE, op, &mut fw, &tx)
         .unwrap();
 
     match &fw.operations[0] {

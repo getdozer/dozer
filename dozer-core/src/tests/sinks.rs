@@ -1,7 +1,6 @@
 use crate::epoch::Epoch;
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, Sink, SinkFactory};
-use crate::record_store::RecordReader;
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::node::SourceStates;
@@ -83,7 +82,6 @@ impl Sink for CountingSink {
         _from_port: PortHandle,
         _op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;
         if self.current == self.expected {

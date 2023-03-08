@@ -154,7 +154,7 @@ mod tests {
         {
             let txn = txn.read();
             // No of index dbs
-            let indexes = lmdb_utils::get_indexes(txn.txn(), &secondary_index_databases);
+            let indexes = lmdb_utils::get_indexes(txn.txn(), secondary_index_databases);
 
             let index_count = indexes.iter().flatten().count();
             let expected_count = secondary_indexes.len();

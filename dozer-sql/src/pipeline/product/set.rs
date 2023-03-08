@@ -1,9 +1,6 @@
 use crate::pipeline::errors::PipelineError;
-use crate::{deserialize, try_unwrap};
-use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
-use dozer_types::parking_lot::RwLockWriteGuard;
 use dozer_types::types::Record;
-use lmdb::Database;
+use hashbrown::HashMap;
 use sqlparser::ast::{SetOperator, SetQuantifier};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -16,7 +13,6 @@ pub enum SetAction {
 #[derive(Clone, Debug)]
 pub struct SetOperation {
     pub op: SetOperator,
-
     pub quantifier: SetQuantifier,
 }
 
@@ -32,13 +28,12 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        database: &Database,
-        txn: &SharedTransaction,
+        record_map: &mut HashMap<Record, usize>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record.clone())]),
             (SetOperator::Union, SetQuantifier::None) => {
-                self.execute_union(action, record, database, txn)
+                self.execute_union(action, record, record_map)
             }
             _ => Err(PipelineError::InvalidOperandType(self.op.to_string())),
         }
@@ -48,18 +43,11 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        database: &Database,
-        txn: &SharedTransaction,
+        record_map: &mut HashMap<Record, usize>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let lookup_key = record.get_values_hash().to_be_bytes();
-        let write_txn = &mut txn.write();
         match action {
-            SetAction::Insert => {
-                self.union_insert(action, record, &lookup_key, write_txn, *database)
-            }
-            SetAction::Delete => {
-                self.union_delete(action, record, &lookup_key, write_txn, *database)
-            }
+            SetAction::Insert => self.union_insert(action, record, record_map),
+            SetAction::Delete => self.union_delete(action, record, record_map),
         }
     }
 
@@ -67,11 +55,9 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        key: &[u8],
-        write_txn: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
-        set_db: Database,
+        record_map: &mut HashMap<Record, usize>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_set_db(key, 1, false, write_txn, set_db);
+        let _count = self.update_map(record, 1, false, record_map);
         if _count == 1 {
             Ok(vec![(action, record.to_owned())])
         } else {
@@ -83,11 +69,9 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: &Record,
-        key: &[u8],
-        write_txn: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
-        set_db: Database,
+        record_map: &mut HashMap<Record, usize>,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_set_db(key, 1, true, write_txn, set_db);
+        let _count = self.update_map(record, 1, true, record_map);
         if _count == 0 {
             Ok(vec![(action, record.to_owned())])
         } else {
@@ -95,18 +79,17 @@ impl SetOperation {
         }
     }
 
-    fn update_set_db(
+    fn update_map(
         &self,
-        key: &[u8],
-        val_delta: u8,
+        record: &Record,
+        val_delta: usize,
         decr: bool,
-        ptx: &mut RwLockWriteGuard<LmdbExclusiveTransaction>,
-        set_db: Database,
-    ) -> u8 {
-        let get_prev_count = try_unwrap!(ptx.get(set_db, key));
+        record_map: &mut HashMap<Record, usize>,
+    ) -> usize {
+        let get_prev_count = record_map.get(record);
         let prev_count = match get_prev_count {
-            Some(v) => u8::from_be_bytes(deserialize!(v)),
-            None => 0_u8,
+            Some(v) => *v,
+            None => 0_usize,
         };
         let mut new_count = prev_count;
         if decr {
@@ -115,13 +98,9 @@ impl SetOperation {
             new_count = new_count.wrapping_add(val_delta);
         }
         if new_count < 1 {
-            try_unwrap!(ptx.del(
-                set_db,
-                key,
-                Option::from(prev_count.to_be_bytes().as_slice())
-            ));
+            record_map.remove(record);
         } else {
-            try_unwrap!(ptx.put(set_db, key, new_count.to_be_bytes().as_slice()));
+            record_map.insert(record.clone(), new_count);
         }
         new_count
     }

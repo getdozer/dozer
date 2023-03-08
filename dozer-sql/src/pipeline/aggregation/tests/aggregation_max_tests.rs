@@ -2,20 +2,18 @@ use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_date_field, get_decimal_field, get_ts_field, init_input_schema,
     init_processor, insert_exp, insert_field, update_exp, update_field, DATE16, DATE4, DATE8,
-    FIELD_0_FLOAT, FIELD_0_INT, FIELD_100_FLOAT, FIELD_100_INT, FIELD_100_UINT, FIELD_200_FLOAT,
-    FIELD_200_INT, FIELD_200_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_NULL, ITALY,
-    SINGAPORE,
+    FIELD_100_FLOAT, FIELD_100_INT, FIELD_100_UINT, FIELD_200_FLOAT, FIELD_200_INT, FIELD_200_UINT,
+    FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_NULL, ITALY, SINGAPORE,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::chrono::{TimeZone, Utc};
-use dozer_types::types::Field;
+
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp, UInt};
 use std::collections::HashMap;
 
 #[test]
 fn test_max_aggregation_float() {
     let schema = init_input_schema(Float, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -30,7 +28,7 @@ fn test_max_aggregation_float() {
         MAX = 100.0
     */
     let mut inp = insert_field(ITALY, FIELD_100_FLOAT);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
@@ -42,7 +40,7 @@ fn test_max_aggregation_float() {
         MAX = 100.0
     */
     inp = insert_field(ITALY, FIELD_100_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
@@ -58,7 +56,7 @@ fn test_max_aggregation_float() {
         MAX = 50.0
     */
     inp = insert_field(SINGAPORE, FIELD_50_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, FIELD_50_FLOAT)];
     assert_eq!(out, exp);
 
@@ -71,7 +69,7 @@ fn test_max_aggregation_float() {
         MAX = 100.0
     */
     inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, FIELD_50_FLOAT),
         update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_100_FLOAT),
@@ -87,7 +85,7 @@ fn test_max_aggregation_float() {
         MAX = 200.0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_200_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_200_FLOAT)];
     assert_eq!(out, exp);
 
@@ -99,7 +97,7 @@ fn test_max_aggregation_float() {
         MAX = 100.0
     */
     inp = delete_field(ITALY, FIELD_200_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_200_FLOAT, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
@@ -110,7 +108,7 @@ fn test_max_aggregation_float() {
         MAX = 100.0
     */
     inp = delete_field(ITALY, FIELD_50_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
@@ -120,7 +118,7 @@ fn test_max_aggregation_float() {
         MAX = Null
     */
     inp = delete_field(ITALY, FIELD_100_FLOAT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 }
@@ -128,7 +126,7 @@ fn test_max_aggregation_float() {
 #[test]
 fn test_max_aggregation_int() {
     let schema = init_input_schema(Int, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -143,7 +141,7 @@ fn test_max_aggregation_int() {
         MAX = 100.0
     */
     let mut inp = insert_field(ITALY, FIELD_100_INT);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, FIELD_100_INT)];
     assert_eq!(out, exp);
 
@@ -155,7 +153,7 @@ fn test_max_aggregation_int() {
         MAX = 100.0
     */
     inp = insert_field(ITALY, FIELD_100_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_100_INT)];
     assert_eq!(out, exp);
 
@@ -171,7 +169,7 @@ fn test_max_aggregation_int() {
         MAX = 50.0
     */
     inp = insert_field(SINGAPORE, FIELD_50_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, FIELD_50_INT)];
     assert_eq!(out, exp);
 
@@ -184,7 +182,7 @@ fn test_max_aggregation_int() {
         MAX = 100.0
     */
     inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, FIELD_50_INT),
         update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_100_INT),
@@ -200,7 +198,7 @@ fn test_max_aggregation_int() {
         MAX = 200.0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_200_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_200_INT)];
     assert_eq!(out, exp);
 
@@ -212,7 +210,7 @@ fn test_max_aggregation_int() {
         MAX = 50.0
     */
     inp = delete_field(ITALY, FIELD_200_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_200_INT, FIELD_100_INT)];
     assert_eq!(out, exp);
 
@@ -223,7 +221,7 @@ fn test_max_aggregation_int() {
         MAX = 100.0
     */
     inp = delete_field(ITALY, FIELD_50_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_100_INT)];
     assert_eq!(out, exp);
 
@@ -233,7 +231,7 @@ fn test_max_aggregation_int() {
         MAX = Null
     */
     inp = delete_field(ITALY, FIELD_100_INT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, FIELD_100_INT)];
     assert_eq!(out, exp);
 }
@@ -241,7 +239,7 @@ fn test_max_aggregation_int() {
 #[test]
 fn test_max_aggregation_uint() {
     let schema = init_input_schema(UInt, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -256,7 +254,7 @@ fn test_max_aggregation_uint() {
         MAX = 100.0
     */
     let mut inp = insert_field(ITALY, FIELD_100_UINT);
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, FIELD_100_UINT)];
     assert_eq!(out, exp);
 
@@ -268,7 +266,7 @@ fn test_max_aggregation_uint() {
         MAX = 100.0
     */
     inp = insert_field(ITALY, FIELD_100_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_100_UINT)];
     assert_eq!(out, exp);
 
@@ -284,7 +282,7 @@ fn test_max_aggregation_uint() {
         MAX = 50.0
     */
     inp = insert_field(SINGAPORE, FIELD_50_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, FIELD_50_UINT)];
     assert_eq!(out, exp);
 
@@ -297,7 +295,7 @@ fn test_max_aggregation_uint() {
         MAX = 100.0
     */
     inp = update_field(SINGAPORE, ITALY, FIELD_50_UINT, FIELD_50_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, FIELD_50_UINT),
         update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_100_UINT),
@@ -313,7 +311,7 @@ fn test_max_aggregation_uint() {
         MAX = 200.0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_UINT, FIELD_200_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_200_UINT)];
     assert_eq!(out, exp);
 
@@ -325,7 +323,7 @@ fn test_max_aggregation_uint() {
         MAX = 50.0
     */
     inp = delete_field(ITALY, FIELD_200_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_200_UINT, FIELD_100_UINT)];
     assert_eq!(out, exp);
 
@@ -336,7 +334,7 @@ fn test_max_aggregation_uint() {
         MAX = 100.0
     */
     inp = delete_field(ITALY, FIELD_50_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_100_UINT)];
     assert_eq!(out, exp);
 
@@ -346,7 +344,7 @@ fn test_max_aggregation_uint() {
         MAX = Null
     */
     inp = delete_field(ITALY, FIELD_100_UINT);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, FIELD_100_UINT)];
     assert_eq!(out, exp);
 }
@@ -354,7 +352,7 @@ fn test_max_aggregation_uint() {
 #[test]
 fn test_max_aggregation_decimal() {
     let schema = init_input_schema(Decimal, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -369,7 +367,7 @@ fn test_max_aggregation_decimal() {
         MAX = 100.0
     */
     let mut inp = insert_field(ITALY, &get_decimal_field(100));
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, &get_decimal_field(100))];
     assert_eq!(out, exp);
 
@@ -381,7 +379,7 @@ fn test_max_aggregation_decimal() {
         MAX = 100.0
     */
     inp = insert_field(ITALY, &get_decimal_field(100));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -402,7 +400,7 @@ fn test_max_aggregation_decimal() {
         MAX = 50.0
     */
     inp = insert_field(SINGAPORE, &get_decimal_field(50));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, &get_decimal_field(50))];
     assert_eq!(out, exp);
 
@@ -420,7 +418,7 @@ fn test_max_aggregation_decimal() {
         &get_decimal_field(50),
         &get_decimal_field(50),
     );
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, &get_decimal_field(50)),
         update_exp(
@@ -446,7 +444,7 @@ fn test_max_aggregation_decimal() {
         &get_decimal_field(100),
         &get_decimal_field(200),
     );
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -463,7 +461,7 @@ fn test_max_aggregation_decimal() {
         MAX = 100.0
     */
     inp = delete_field(ITALY, &get_decimal_field(200));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -479,7 +477,7 @@ fn test_max_aggregation_decimal() {
         MAX = 100.0
     */
     inp = delete_field(ITALY, &get_decimal_field(50));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -494,7 +492,7 @@ fn test_max_aggregation_decimal() {
         MAX = 0.0
     */
     inp = delete_field(ITALY, &get_decimal_field(100));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, &get_decimal_field(100))];
     assert_eq!(out, exp);
 }
@@ -502,7 +500,7 @@ fn test_max_aggregation_decimal() {
 #[test]
 fn test_max_aggregation_timestamp() {
     let schema = init_input_schema(Timestamp, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -517,7 +515,7 @@ fn test_max_aggregation_timestamp() {
         MAX = 100
     */
     let mut inp = insert_field(ITALY, &get_ts_field(100));
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, &get_ts_field(100))];
     assert_eq!(out, exp);
 
@@ -529,7 +527,7 @@ fn test_max_aggregation_timestamp() {
         MAX = 100
     */
     inp = insert_field(ITALY, &get_ts_field(100));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -550,7 +548,7 @@ fn test_max_aggregation_timestamp() {
         MAX = 50
     */
     inp = insert_field(SINGAPORE, &get_ts_field(50));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, &get_ts_field(50))];
     assert_eq!(out, exp);
 
@@ -563,7 +561,7 @@ fn test_max_aggregation_timestamp() {
         MAX = 100
     */
     inp = update_field(SINGAPORE, ITALY, &get_ts_field(50), &get_ts_field(50));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, &get_ts_field(50)),
         update_exp(ITALY, ITALY, &get_ts_field(100), &get_ts_field(100)),
@@ -579,7 +577,7 @@ fn test_max_aggregation_timestamp() {
         MAX = 200
     */
     inp = update_field(ITALY, ITALY, &get_ts_field(100), &get_ts_field(200));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -596,7 +594,7 @@ fn test_max_aggregation_timestamp() {
         MAX = 100
     */
     inp = delete_field(ITALY, &get_ts_field(200));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -612,7 +610,7 @@ fn test_max_aggregation_timestamp() {
         MAX = 100
     */
     inp = delete_field(ITALY, &get_ts_field(50));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -627,7 +625,7 @@ fn test_max_aggregation_timestamp() {
         MAX = 0
     */
     inp = delete_field(ITALY, &get_ts_field(100));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, &get_ts_field(100))];
     assert_eq!(out, exp);
 }
@@ -635,7 +633,7 @@ fn test_max_aggregation_timestamp() {
 #[test]
 fn test_max_aggregation_date() {
     let schema = init_input_schema(Date, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -650,7 +648,7 @@ fn test_max_aggregation_date() {
         MAX = 2015-10-08
     */
     let mut inp = insert_field(ITALY, &get_date_field(DATE8));
-    let mut out = output!(processor, inp, tx);
+    let mut out = output!(processor, inp);
     let mut exp = vec![insert_exp(ITALY, &get_date_field(DATE8))];
     assert_eq!(out, exp);
 
@@ -662,7 +660,7 @@ fn test_max_aggregation_date() {
         MAX = 2015-10-08
     */
     inp = insert_field(ITALY, &get_date_field(DATE8));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -683,7 +681,7 @@ fn test_max_aggregation_date() {
         MAX = 2015-10-04
     */
     inp = insert_field(SINGAPORE, &get_date_field(DATE4));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![insert_exp(SINGAPORE, &get_date_field(DATE4))];
     assert_eq!(out, exp);
 
@@ -701,7 +699,7 @@ fn test_max_aggregation_date() {
         &get_date_field(DATE4),
         &get_date_field(DATE4),
     );
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![
         delete_exp(SINGAPORE, &get_date_field(DATE4)),
         update_exp(ITALY, ITALY, &get_date_field(DATE8), &get_date_field(DATE8)),
@@ -722,7 +720,7 @@ fn test_max_aggregation_date() {
         &get_date_field(DATE8),
         &get_date_field(DATE16),
     );
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -739,7 +737,7 @@ fn test_max_aggregation_date() {
         MAX = 2015-10-08
     */
     inp = delete_field(ITALY, &get_date_field(DATE16));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -755,7 +753,7 @@ fn test_max_aggregation_date() {
         MAX = 2015-10-08
     */
     inp = delete_field(ITALY, &get_date_field(DATE4));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
@@ -770,7 +768,7 @@ fn test_max_aggregation_date() {
         MAX = 0
     */
     inp = delete_field(ITALY, &get_date_field(DATE8));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![delete_exp(ITALY, &get_date_field(DATE8))];
     assert_eq!(out, exp);
 }
@@ -778,7 +776,7 @@ fn test_max_aggregation_date() {
 #[test]
 fn test_max_aggregation_int_null() {
     let schema = init_input_schema(Int, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -790,11 +788,11 @@ fn test_max_aggregation_int_null() {
     /*
         Italy, NULL
         -------------
-        MAX = 0
+        MAX = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_0_INT)];
+    let mut out = output!(processor, inp);
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -805,8 +803,8 @@ fn test_max_aggregation_int_null() {
         MAX = 100
     */
     inp = insert_field(ITALY, FIELD_100_INT);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_100_INT)];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_100_INT)];
     assert_eq!(out, exp);
 
     // Update 100 for segment Italy to NULL
@@ -817,8 +815,8 @@ fn test_max_aggregation_int_null() {
         MAX = 0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_0_INT)];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -828,8 +826,8 @@ fn test_max_aggregation_int_null() {
         MAX = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -838,15 +836,15 @@ fn test_max_aggregation_int_null() {
         MAX = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, FIELD_0_INT)];
+    out = output!(processor, inp);
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
 #[test]
 fn test_max_aggregation_float_null() {
     let schema = init_input_schema(Float, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -858,11 +856,11 @@ fn test_max_aggregation_float_null() {
     /*
         Italy, NULL
         -------------
-        MAX = 0.0
+        MAX = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_0_FLOAT)];
+    let mut out = output!(processor, inp);
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -873,8 +871,8 @@ fn test_max_aggregation_float_null() {
         MAX = 100.0
     */
     inp = insert_field(ITALY, FIELD_100_FLOAT);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_100_FLOAT)];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
     // Update 100 for segment Italy to NULL
@@ -885,8 +883,8 @@ fn test_max_aggregation_float_null() {
         MAX = 0.0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_0_FLOAT)];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -896,8 +894,8 @@ fn test_max_aggregation_float_null() {
         MAX = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -906,15 +904,15 @@ fn test_max_aggregation_float_null() {
         MAX = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, FIELD_0_FLOAT)];
+    out = output!(processor, inp);
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
 #[test]
 fn test_max_aggregation_decimal_null() {
     let schema = init_input_schema(Decimal, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -926,11 +924,11 @@ fn test_max_aggregation_decimal_null() {
     /*
         Italy, NULL
         -------------
-        MAX = 0.0
+        MAX = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, &get_decimal_field(0))];
+    let mut out = output!(processor, inp);
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -941,11 +939,11 @@ fn test_max_aggregation_decimal_null() {
         MAX = 100.0
     */
     inp = insert_field(ITALY, &get_decimal_field(100));
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        &get_decimal_field(0),
+        FIELD_NULL,
         &get_decimal_field(100),
     )];
     assert_eq!(out, exp);
@@ -958,12 +956,12 @@ fn test_max_aggregation_decimal_null() {
         MAX = 0.0
     */
     inp = update_field(ITALY, ITALY, &get_decimal_field(100), FIELD_NULL);
-    out = output!(processor, inp, tx);
+    out = output!(processor, inp);
     exp = vec![update_exp(
         ITALY,
         ITALY,
         &get_decimal_field(100),
-        &get_decimal_field(0),
+        FIELD_NULL,
     )];
     assert_eq!(out, exp);
 
@@ -974,13 +972,8 @@ fn test_max_aggregation_decimal_null() {
         MAX = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(
-        ITALY,
-        ITALY,
-        &get_decimal_field(0),
-        &get_decimal_field(0),
-    )];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -989,15 +982,15 @@ fn test_max_aggregation_decimal_null() {
         MAX = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, &get_decimal_field(0))];
+    out = output!(processor, inp);
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
 #[test]
 fn test_max_aggregation_timestamp_null() {
     let schema = init_input_schema(Timestamp, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -1009,11 +1002,11 @@ fn test_max_aggregation_timestamp_null() {
     /*
         Italy, NULL
         -------------
-        MAX = 0
+        MAX = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, &get_ts_field(0))];
+    let mut out = output!(processor, inp);
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -1024,13 +1017,8 @@ fn test_max_aggregation_timestamp_null() {
         MAX = 100
     */
     inp = insert_field(ITALY, &get_ts_field(100));
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(
-        ITALY,
-        ITALY,
-        &get_ts_field(0),
-        &get_ts_field(100),
-    )];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, &get_ts_field(100))];
     assert_eq!(out, exp);
 
     // Update 100 for segment Italy to NULL
@@ -1041,13 +1029,8 @@ fn test_max_aggregation_timestamp_null() {
         MAX = 0
     */
     inp = update_field(ITALY, ITALY, &get_ts_field(100), FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(
-        ITALY,
-        ITALY,
-        &get_ts_field(100),
-        &get_ts_field(0),
-    )];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(100), FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -1057,8 +1040,8 @@ fn test_max_aggregation_timestamp_null() {
         MAX = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(0), &get_ts_field(0))];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -1067,15 +1050,15 @@ fn test_max_aggregation_timestamp_null() {
         MAX = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, &get_ts_field(0))];
+    out = output!(processor, inp);
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
 #[test]
 fn test_max_aggregation_date_null() {
     let schema = init_input_schema(Date, "MAX");
-    let (processor, tx) = init_processor(
+    let mut processor = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -1083,17 +1066,15 @@ fn test_max_aggregation_date_null() {
     )
     .unwrap();
 
-    let date_null: &Field = &Field::Date(Utc.timestamp_millis_opt(0).unwrap().naive_utc().date());
-
     // Insert NULL for segment Italy
     /*
         Italy, NULL
         -------------
-        MAX = 0
+        MAX = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, date_null)];
+    let mut out = output!(processor, inp);
+    let mut exp = vec![insert_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Insert 2015-10-08 for segment Italy
@@ -1104,8 +1085,8 @@ fn test_max_aggregation_date_null() {
         MAX = 2015-10-08
     */
     inp = insert_field(ITALY, &get_date_field(DATE8));
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, date_null, &get_date_field(DATE8))];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, &get_date_field(DATE8))];
     assert_eq!(out, exp);
 
     // Update 2015-10-08 for segment Italy to NULL
@@ -1116,8 +1097,8 @@ fn test_max_aggregation_date_null() {
         MAX = 0
     */
     inp = update_field(ITALY, ITALY, &get_date_field(DATE8), FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, &get_date_field(DATE8), date_null)];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, &get_date_field(DATE8), FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -1127,8 +1108,8 @@ fn test_max_aggregation_date_null() {
         MAX = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, date_null, date_null)];
+    out = output!(processor, inp);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -1137,7 +1118,7 @@ fn test_max_aggregation_date_null() {
         MAX = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
-    out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, date_null)];
+    out = output!(processor, inp);
+    exp = vec![delete_exp(ITALY, FIELD_NULL)];
     assert_eq!(out, exp);
 }

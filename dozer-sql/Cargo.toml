@@ -13,10 +13,14 @@ dyn-clone = "1.0.10"
 like = "0.3.1"
 lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
+multimap = "0.8.3"
 uuid = {version = "1.3.0", features = ["v1", "v4", "fast-rng"]}
 dozer-types = {path = "../dozer-types"}
 dozer-core = {path = "../dozer-core"}
 dozer-tracing = {path = "../dozer-tracing"}
+hashbrown = "0.13"
+ahash = "0.8.3"
+bloom = "0.3.2"
 
 [dev-dependencies]
 tempdir = "0.3.7"

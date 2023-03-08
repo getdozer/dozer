@@ -95,7 +95,6 @@ pub fn decode_event(
             .events
             .values()
             .flatten()
-            .into_iter()
             .find(|evt| evt.signature().to_string() == name);
 
         if let Some(event) = opt_event {

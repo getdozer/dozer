@@ -11,7 +11,6 @@ use dozer_core::petgraph::Direction;
 use dozer_core::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
@@ -96,13 +95,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             .iter()
             .enumerate()
             .map(|(idx, _)| {
-                OutputPortDef::new(
-                    idx as u16,
-                    OutputPortType::StatefulWithPrimaryKeyLookup {
-                        retr_old_records_for_deletes: true,
-                        retr_old_records_for_updates: true,
-                    },
-                )
+                OutputPortDef::new(idx as u16, OutputPortType::StatefulWithPrimaryKeyLookup)
             })
             .collect()
     }
@@ -219,7 +212,6 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         op: Operation,
         _state: &SharedTransaction,
-        _reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError> {
         let sql = self
             .mapper
