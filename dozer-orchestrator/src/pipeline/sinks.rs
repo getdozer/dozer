@@ -191,7 +191,7 @@ impl SinkFactory<SchemaSQLContext> for CacheSinkFactory {
             &self.settings.api_security,
             &self.settings.flags,
         )
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
         Ok(())
     }
@@ -580,7 +580,7 @@ mod tests {
             ),
             &txn,
         )
-            .unwrap();
+        .unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
