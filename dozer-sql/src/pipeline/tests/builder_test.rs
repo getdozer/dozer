@@ -9,6 +9,7 @@ use dozer_core::node::{
 use dozer_core::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::node::SourceStates;
 use dozer_types::ordered_float::OrderedFloat;
@@ -109,19 +110,21 @@ impl Source for TestSource {
     ) -> Result<(), ExecutionError> {
         for n in 0..10000 {
             fw.send(
-                n,
-                0,
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(0),
-                            Field::String("Italy".to_string()),
-                            Field::Float(OrderedFloat(5.5)),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    n,
+                    0,
+                    Operation::Insert {
+                        new: Record::new(
+                            None,
+                            vec![
+                                Field::Int(0),
+                                Field::String("Italy".to_string()),
+                                Field::Float(OrderedFloat(5.5)),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 DEFAULT_PORT_HANDLE,
             )
             .unwrap();
@@ -177,6 +180,10 @@ impl Sink for TestSink {
     }
 
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -235,7 +242,7 @@ fn test_pipeline_builder() {
 
     let tmp_dir = TempDir::new("test").unwrap();
     DagExecutor::new(
-        &dag,
+        dag,
         tmp_dir.path().to_path_buf(),
         ExecutorOptions::default(),
     )

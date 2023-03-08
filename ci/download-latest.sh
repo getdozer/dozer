@@ -10,7 +10,37 @@ DEFAULT='\033[0m'
 # Project name
 PNAME='dozer'
 
+# GitHub API address
+GITHUB_API='https://api.github.com/repos/getdozer/dozer/releases'
+# GitHub Release address
+GITHUB_REL='https://github.com/getdozer/dozer/releases/latest/download/'
+
 # FUNCTIONS
+
+# Gets the version of the latest stable version of Dozer by setting the $latest variable.
+# Returns 0 in case of success, 1 otherwise.
+get_latest() {
+    # temp_file is needed because the grep would start before the download is over
+    temp_file=$(mktemp -q /tmp/$PNAME.XXXXXXXXX)
+    latest_release="$GITHUB_API/latest"
+
+    if [ $? -ne 0 ]; then
+        echo "$0: Can't create temp file."
+        fetch_release_failure_usage
+        exit 1
+    fi
+
+    if [ -z "$GITHUB_PAT" ]; then
+        curl -s "$latest_release" > "$temp_file" || return 1
+    else
+        curl -H "Authorization: token $GITHUB_PAT" -s "$latest_release" > "$temp_file" || return 1
+    fi
+
+    latest="$(cat "$temp_file" | grep '"tag_name":' | cut -d ':' -f2 | tr -d '"' | tr -d ',' | tr -d ' ')"
+
+    rm -f "$temp_file"
+    return 0
+}
 
 # Gets the OS by setting the $os variable
 # Returns 0 in case of success, 1 otherwise
@@ -29,17 +59,39 @@ get_os() {
     return 0
 }
 
+# Gets the architecture by setting the $archi variable.
+# Returns 0 in case of success, 1 otherwise.
+get_archi() {
+    architecture=$(uname -m)
+    case "$architecture" in
+    'x86_64' | 'amd64' )
+        archi='amd64'
+        ;;
+    'arm64')
+        # macOS M1/M2
+        if [ $os = 'macos' ]; then
+            archi='arm64'
+        else
+            archi='amd64'
+        fi
+        ;;
+    *)
+        return 1
+    esac
+    return 0
+}
+
 success_download() {
-    printf "$GREEN%s\n$DEFAULT" "Dozer $latest binary successfully downloaded as '$binary_name' file."
+    printf "$GREEN%s\n$DEFAULT" "Dozer $latest binary successfully downloaded as '$release_file' file."
 }
 
 success_unzip_remove() {
-    printf "$GREEN%s\n$DEFAULT" "Dozer $latest binary successfully extracted as 'dozer' folder."
+    printf "$GREEN%s\n$DEFAULT" "Dozer $latest binary successfully extracted as 'dozer'."
     echo ''
     echo 'Run it:'
-    echo "    $ .dozer/$PNAME"
+    echo "    $ $PNAME"
     echo 'Usage:'
-    echo "    $ .dozer/$PNAME --help"
+    echo "    $ $PNAME --help"
 }
 
 not_available_failure_usage() {
@@ -58,51 +110,61 @@ fetch_release_failure_usage() {
 }
 
 fill_release_variables() {
-    # Fill $latest variable
-    latest='latest'
-
-     # Fill $os variable
+    # Fill $latest variable.
+    if ! get_latest; then
+        fetch_release_failure_usage
+        exit 1
+    fi
+    if [ "$latest" = '' ]; then
+        fetch_release_failure_usage
+        exit 1
+     fi
+     # Fill $os variable.
      if ! get_os; then
         not_available_failure_usage
         exit 1
      fi
+     # Fill $archi variable.
+     if ! get_archi; then
+        not_available_failure_usage
+        exit 1
+     fi
+}
 
-     # Fill $archi variable
-     archi='amd64'
+unzip_file() {
+  chmod 744 "$release_file"
+  export LANG=en_US.UTF-8
+  export LC_ALL=$LANG
+  tar -xvzf "$release_file" -C "./"
+  rm -f "$release_file"
 }
 
 download_binary() {
-  fill_release_variables
+    fill_release_variables
+    binary_name="$PNAME"
+    case "$os" in
+    'macos')
+        release_file="$PNAME-$os-$archi-$latest.tar.gz"
+        ;;
+    'linux')
+        release_file="$PNAME-$os-$archi-$latest.tar.gz"
+        ;;
+    *)
+        return 1
+    esac
 
-  echo "Downloading Dozer binary $latest for $os, architecture $archi..."
-  case "$os" in
-      'macos')
-          base_url="https://drive.google.com/uc?export=download&id=1SWlt8tpXAtF5O0ZL5qnAnLfp-boja7IE"
-          release_file="$PNAME-$os-$archi-$latest.tar.gz"
-          binary_name="$PNAME.tar.gz"
-          ;;
-      'linux')
-          release_file="$PNAME-$os-$archi-$latest.tar.gz"
-          base_url="https://dozer-releases.s3.ap-southeast-1.amazonaws.com/latest/$release_file"
-          binary_name="$PNAME.tar.gz"
-          ;;
-      *)
-          return 1
-  esac
-  # Fetch the Dozer binary
-  curl --fail -L "$base_url" -o $binary_name
-  if [ $? -ne 0 ]; then
-      fetch_release_failure_usage
-      exit 1
-  fi
-  mv "$release_file" "$binary_name"
-  chmod 744 "$binary_name"
-  success_download  
-  tar -xvf $binary_name
-  rm -f $binary_name
-  mv $PNAME-$os-$archi-$latest/ $PNAME
-  success_unzip_remove
- 
+    echo "Downloading Dozer binary $latest for $os, architecture $archi -- $release_file..."
+
+    # Fetch the Dozer binary.
+    curl --fail -OL "$GITHUB_REL/$release_file"
+    if [ $? -ne 0 ]; then
+        fetch_release_failure_usage
+        exit 1
+    fi
+    success_download
+
+    unzip_file
+    success_unzip_remove
 }
 
 # MAIN

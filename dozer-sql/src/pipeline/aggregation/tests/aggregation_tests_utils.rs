@@ -16,7 +16,6 @@ use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
-use std::path::Path;
 
 pub(crate) fn init_processor(
     sql: &str,
@@ -31,9 +30,12 @@ pub(crate) fn init_processor(
 
     projection_planner.plan(*statement).unwrap();
 
-    let storage =
-        LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test", Default::default())
-            .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    let storage = LmdbEnvironmentManager::create(
+        tempdir::TempDir::new("test").unwrap().path(),
+        "aggregation_test",
+        Default::default(),
+    )
+    .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     let tx = storage.create_txn().unwrap();
 

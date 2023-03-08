@@ -14,7 +14,7 @@ use dozer_types::{
 use crate::{console_helper::get_colored_text, errors::OrchestrationError};
 
 pub fn validate_grouped_connections(
-    grouped_connections: &HashMap<String, Vec<Source>>,
+    grouped_connections: &HashMap<&str, Vec<&Source>>,
 ) -> Result<(), OrchestrationError> {
     for sources_group in grouped_connections.values() {
         let first_source = sources_group.get(0).unwrap();

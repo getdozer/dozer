@@ -1,7 +1,7 @@
 use crate::connectors::postgres::helper;
 use crate::connectors::ColumnInfo;
 use crate::errors::{PostgresConnectorError, PostgresSchemaError};
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::node::OpIdentifier;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SourceDefinition};
 use helper::postgres_type_to_dozer_type;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
@@ -55,6 +55,13 @@ impl Hash for MessageBody<'_> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum MappedReplicationMessage {
+    Begin,
+    Commit(OpIdentifier),
+    Operation(Operation),
+}
+
 pub struct XlogMapper {
     relations_map: HashMap<u32, Table>,
     tables_columns: HashMap<u32, Vec<ColumnInfo>>,
@@ -77,7 +84,7 @@ impl XlogMapper {
     pub fn handle_message(
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
-    ) -> Result<Option<IngestionMessage>, PostgresConnectorError> {
+    ) -> Result<Option<MappedReplicationMessage>, PostgresConnectorError> {
         match &message.data() {
             Relation(relation) => {
                 let body = MessageBody::new(relation);
@@ -98,13 +105,13 @@ impl XlogMapper {
                 }
             }
             Commit(commit) => {
-                return Ok(Some(IngestionMessage::Commit(dozer_types::types::Commit {
-                    seq_no: 0,
-                    lsn: commit.end_lsn(),
-                })));
+                return Ok(Some(MappedReplicationMessage::Commit(OpIdentifier::new(
+                    commit.end_lsn(),
+                    0,
+                ))));
             }
             Begin(_begin) => {
-                return Ok(Some(IngestionMessage::Begin()));
+                return Ok(Some(MappedReplicationMessage::Begin));
             }
             Insert(insert) => {
                 let table = self.relations_map.get(&insert.rel_id()).unwrap();
@@ -123,7 +130,7 @@ impl XlogMapper {
                     ),
                 };
 
-                return Ok(Some(IngestionMessage::OperationEvent(event)));
+                return Ok(Some(MappedReplicationMessage::Operation(event)));
             }
             Update(update) => {
                 let table = self.relations_map.get(&update.rel_id()).unwrap();
@@ -151,7 +158,7 @@ impl XlogMapper {
                     ),
                 };
 
-                return Ok(Some(IngestionMessage::OperationEvent(event)));
+                return Ok(Some(MappedReplicationMessage::Operation(event)));
             }
             Delete(delete) => {
                 // TODO: Use only columns with .flags() = 0
@@ -171,7 +178,7 @@ impl XlogMapper {
                     ),
                 };
 
-                return Ok(Some(IngestionMessage::OperationEvent(event)));
+                return Ok(Some(MappedReplicationMessage::Operation(event)));
             }
             _ => {}
         }

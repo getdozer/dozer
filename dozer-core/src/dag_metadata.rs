@@ -40,7 +40,7 @@ pub struct NodeType<T> {
     pub handle: NodeHandle,
     /// Checkpoint read from the storage, or empty if the storage isn't created yet.
     pub commits: SourceStates,
-    /// The node's storage.
+    /// The node's storage, if it was created in last dozer run.
     pub storage: Option<NodeStorage>,
     /// The node kind.
     pub kind: NodeKind<T>,
@@ -52,39 +52,38 @@ pub struct NodeType<T> {
 pub struct DagMetadata<T> {
     /// Base path of all node storages.
     path: PathBuf,
-    graph: daggy::Dag<NodeType<T>, EdgeType<T>>,
+    graph: daggy::Dag<NodeType<T>, EdgeType>,
 }
 
-impl<T: Clone> DagHaveSchemas for DagMetadata<T> {
+impl<T> DagHaveSchemas for DagMetadata<T> {
     type NodeType = NodeType<T>;
-    type EdgeType = EdgeType<T>;
+    type EdgeType = EdgeType;
 
     fn graph(&self) -> &daggy::Dag<Self::NodeType, Self::EdgeType> {
         &self.graph
     }
 }
 
-impl<T: Clone> DagMetadata<T> {
+impl<T> DagMetadata<T> {
+    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
+        self.graph
+    }
+
     /// Returns `Ok` if validation passes, `Err` otherwise.
-    pub fn new(dag_schemas: &DagSchemas<T>, path: PathBuf) -> Result<Self, ExecutionError> {
-        // Create nodes.
-        let mut nodes = vec![];
+    pub fn new(dag_schemas: DagSchemas<T>, path: PathBuf) -> Result<Self, ExecutionError> {
+        // Load node metadata.
+        let mut metadata = vec![];
         for (node_index, node) in dag_schemas.graph().node_references() {
             let env_name = node_environment_name(&node.handle);
 
-            // Create new env if it doesn't exist.
+            // Return empty metadata if env doesn't exist.
             if !LmdbEnvironmentManager::exists(&path, &env_name) {
                 debug!(
                     "[checkpoint] Node [{}] is at checkpoint {:?}",
                     node.handle,
                     SourceStates::new()
                 );
-                nodes.push(Some(NodeType {
-                    handle: node.handle.clone(),
-                    storage: None,
-                    commits: SourceStates::new(),
-                    kind: node.kind.clone(),
-                }));
+                metadata.push(Some((None, SourceStates::new())));
                 continue;
             }
 
@@ -154,29 +153,33 @@ impl<T: Clone> DagMetadata<T> {
                 &input_schemas,
             )?;
 
-            // Create node.
+            // Push metadata to vec.
             debug!(
                 "[checkpoint] Node [{}] is at checkpoint {:?}",
                 node.handle, commits
             );
-            nodes.push(Some(NodeType {
-                handle: node.handle.clone(),
-                storage: Some(NodeStorage {
+            metadata.push(Some((
+                Some(NodeStorage {
                     master_txn,
                     meta_db,
                 }),
                 commits,
-                kind: node.kind.clone(),
-            }));
+            )));
         }
 
-        let graph = dag_schemas.graph().map(
-            |node_index, _| {
-                nodes[node_index.index()]
+        let graph = dag_schemas.into_graph().map_owned(
+            |node_index, node| {
+                let (storage, commits) = metadata[node_index.index()]
                     .take()
-                    .expect("We created all nodes")
+                    .expect("We loaded all metadata");
+                NodeType {
+                    handle: node.handle,
+                    commits,
+                    storage,
+                    kind: node.kind,
+                }
             },
-            |_, edge| edge.clone(),
+            |_, edge| edge,
         );
         Ok(Self { path, graph })
     }
@@ -338,10 +341,10 @@ fn deserialize_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, OpIdent
     (source, op_id)
 }
 
-fn validate_schemas<T>(
+fn validate_schemas(
     node_handle: &NodeHandle,
     typ: SchemaType,
-    current: &HashMap<PortHandle, (Schema, T)>,
+    current: &HashMap<PortHandle, Schema>,
     existing: &HashMap<PortHandle, Schema>,
 ) -> Result<(), ExecutionError> {
     if existing.len() != current.len() {
@@ -354,7 +357,7 @@ fn validate_schemas<T>(
             },
         });
     }
-    for (port, (current_schema, _)) in current {
+    for (port, current_schema) in current {
         let existing_schema =
             existing
                 .get(port)

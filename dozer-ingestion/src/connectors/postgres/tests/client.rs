@@ -21,6 +21,15 @@ impl TestPostgresClient {
         }
     }
 
+    pub fn new_with_postgres_config(postgres_config: tokio_postgres::Config) -> Self {
+        let client = connect(postgres_config.clone()).unwrap();
+
+        Self {
+            client,
+            postgres_config,
+        }
+    }
+
     pub fn execute_query(&mut self, query: &str) {
         self.client.query(query, &[]).unwrap();
     }

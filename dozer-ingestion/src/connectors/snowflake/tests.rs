@@ -6,6 +6,7 @@ use dozer_types::types::FieldType::{
     Binary, Boolean, Date, Decimal, Float, Int, String, Timestamp,
 };
 
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::models::connection::ConnectionConfig;
 use odbc::create_environment_v3;
 use rand::Rng;
@@ -17,9 +18,9 @@ use crate::test_util::run_connector_test;
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
-#[ignore]
 #[test]
-fn test_connector_and_read_from_stream() {
+#[ignore]
+fn test_disabled_connector_and_read_from_stream() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
         let source = config.sources.get(0).unwrap().clone();
@@ -70,9 +71,9 @@ fn test_connector_and_read_from_stream() {
             let op = iterator.next();
             match op {
                 None => {}
-                Some(((lsn, seq_no), _operation)) => {
-                    assert_eq!(lsn, 0);
-                    assert_eq!(seq_no, i);
+                Some(IngestionMessage { identifier, .. }) => {
+                    assert_eq!(identifier.txid, 0);
+                    assert_eq!(identifier.seq_in_tx, i);
                 }
             }
             i += 1;
@@ -87,9 +88,9 @@ fn test_connector_and_read_from_stream() {
             let op = iterator.next();
             match op {
                 None => {}
-                Some(((lsn, seq_no), _operation)) => {
-                    assert_eq!(lsn, 1);
-                    assert_eq!(seq_no, i);
+                Some(IngestionMessage { identifier, .. }) => {
+                    assert_eq!(identifier.txid, 1);
+                    assert_eq!(identifier.seq_in_tx, i);
                 }
             }
             i += 1;
@@ -99,9 +100,9 @@ fn test_connector_and_read_from_stream() {
     });
 }
 
-#[ignore]
 #[test]
-fn test_connector_get_schemas_test() {
+#[ignore]
+fn test_disabled_connector_get_schemas_test() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
         let connector = get_connector(connection.clone()).unwrap();
@@ -174,9 +175,9 @@ fn test_connector_get_schemas_test() {
     });
 }
 
-#[ignore]
 #[test]
-fn test_connector_missing_table_validator() {
+#[ignore]
+fn test_disabled_connector_missing_table_validator() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
         let connector = get_connector(connection.clone()).unwrap();
@@ -211,9 +212,9 @@ fn test_connector_missing_table_validator() {
     });
 }
 
-#[ignore]
 #[test]
-fn test_connector_is_stream_created() {
+#[ignore]
+fn test_disabled_connector_is_stream_created() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
         let snowflake_config = match connection.config.as_ref().unwrap() {

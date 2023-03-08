@@ -163,10 +163,10 @@ impl SchemaHelper {
                 }
             });
             let table_names: Vec<String> = tables.iter().map(|t| t.table_name.clone()).collect();
-            let sql = str::replace(SQL, ":tables_condition", "= ANY($1) AND table_schema = $2");
-            client.query(&sql, &[&table_names, &schema])
+            let sql = str::replace(SQL, ":tables_name_condition", "t.table_name = ANY($2)");
+            client.query(&sql, &[&schema, &table_names])
         } else {
-            let sql = str::replace(SQL, ":tables_condition", TABLES_CONDITION);
+            let sql = str::replace(SQL, ":tables_name_condition", "t.table_type = 'BASE TABLE'");
             client.query(&sql, &[&schema])
         };
 
@@ -375,57 +375,33 @@ impl SchemaHelper {
     }
 }
 
-const TABLES_CONDITION: &str = "IN (SELECT table_name
-                           FROM information_schema.tables
-                           WHERE table_schema = $1 AND table_type = 'BASE TABLE'
-                           ORDER BY table_name)";
-
 const SQL: &str = "
 SELECT table_info.table_name,
        table_info.column_name,
        CASE WHEN table_info.is_nullable = 'NO' THEN false ELSE true END AS is_nullable,
        CASE
-           WHEN pc.relreplident = 'd' THEN constraint_info.constraint_type IS NOT NULL
-           WHEN pc.relreplident = 'i' THEN pa.attname IS NOT NULL
+           WHEN pc.relreplident = 'd' OR pc.relreplident = 'i'
+               THEN pa.attrelid IS NOT NULL
            WHEN pc.relreplident = 'n' THEN false
            WHEN pc.relreplident = 'f' THEN true
            ELSE false
            END                                                          AS is_column_used_in_index,
-       st_user_table.relid,
+       pc.oid,
        pc.relreplident,
        pt.oid                                                           AS type_oid,
        t.table_type
-FROM (SELECT table_schema,
-             table_catalog,
-             table_name,
-             column_name,
-             is_nullable,
-             data_type,
-             numeric_precision,
-             udt_name,
-             character_maximum_length,
-             ordinal_position
-      FROM information_schema.columns
-      WHERE table_name :tables_condition
-      ORDER BY table_name) table_info
+FROM information_schema.columns table_info
          LEFT JOIN information_schema.tables t ON t.table_name = table_info.table_name
-         LEFT JOIN pg_catalog.pg_statio_user_tables st_user_table ON st_user_table.relname = table_info.table_name
-         LEFT JOIN (SELECT constraintUsage.table_name,
-                           constraintUsage.column_name,
-                           table_constraints.constraint_name,
-                           table_constraints.constraint_type
-                    FROM information_schema.constraint_column_usage constraintUsage
-                             JOIN information_schema.table_constraints table_constraints
-                                  ON constraintUsage.table_name = table_constraints.table_name
-                                      AND constraintUsage.constraint_name = table_constraints.constraint_name
-                                      AND table_constraints.constraint_type = 'PRIMARY KEY') constraint_info
-                   ON table_info.table_name = constraint_info.table_name
-                       AND table_info.column_name = constraint_info.column_name
-         LEFT JOIN pg_class pc ON st_user_table.relid = pc.oid
+         LEFT JOIN pg_class pc ON t.table_name = pc.relname
          LEFT JOIN pg_type pt ON table_info.udt_name = pt.typname
-         LEFT JOIN pg_index pi ON st_user_table.relid = pi.indrelid AND pi.indisreplident = true
-         LEFT JOIN pg_attribute pa ON pa.attrelid = pi.indrelid AND pa.attnum = ANY (pi.indkey) AND pa.attnum > 0 AND
-                                      pa.attname = table_info.column_name
+         LEFT JOIN pg_index pi ON pc.oid = pi.indrelid AND
+                                  ((pi.indisreplident = true AND pc.relreplident = 'i') OR (pi.indisprimary AND pc.relreplident = 'd'))
+         LEFT JOIN pg_attribute pa ON
+             pa.attrelid = pi.indrelid
+                 AND pa.attnum = ANY (pi.indkey)
+                 AND pa.attnum > 0
+                 AND pa.attname = table_info.column_name
+WHERE t.table_schema = $1 AND :tables_name_condition
 ORDER BY table_info.table_schema,
          table_info.table_catalog,
          table_info.table_name,

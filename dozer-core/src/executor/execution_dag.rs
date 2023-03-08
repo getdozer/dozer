@@ -43,61 +43,45 @@ pub struct EdgeType {
 
 #[derive(Debug)]
 pub struct ExecutionDag {
-    graph: daggy::Dag<NodeType, EdgeType>,
+    /// Nodes will be moved into execution threads.
+    graph: daggy::Dag<Option<NodeType>, EdgeType>,
     epoch_manager: Arc<EpochManager>,
 }
 
 impl ExecutionDag {
-    pub fn new(
-        mut builder_dag: BuilderDag,
-        channel_buffer_sz: usize,
-    ) -> Result<Self, ExecutionError> {
-        // Create new nodes.
-        let mut nodes = vec![];
-        let mut num_sources = 0;
-        let node_indexes = builder_dag.graph().node_identifiers().collect::<Vec<_>>();
-        for node_index in node_indexes {
-            let node = builder_dag
-                .node_weight_mut(node_index)
-                .take()
-                .expect("Builder dag should have created all nodes");
-            if matches!(
-                node.kind
-                    .as_ref()
-                    .expect("Builder dag should have created all nodes"),
-                NodeKind::Source(_, _)
-            ) {
-                num_sources += 1;
-            }
-
-            nodes.push(Some(node));
-        }
+    pub fn new(builder_dag: BuilderDag, channel_buffer_sz: usize) -> Result<Self, ExecutionError> {
+        // Count number of sources.
+        let num_sources = builder_dag
+            .graph()
+            .node_identifiers()
+            .filter(|node_index| {
+                matches!(
+                    builder_dag.graph()[*node_index].kind,
+                    NodeKind::Source(_, _)
+                )
+            })
+            .count();
 
         // We only create record stored once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record store created.
-        let dag = builder_dag.graph();
         let mut all_record_stores =
             vec![
                 HashMap::<PortHandle, (SharedRecordWriter, Option<Box<dyn RecordReader>>)>::new();
-                dag.node_count()
+                builder_dag.graph().node_count()
             ];
 
         // Create new edges.
         let mut edges = vec![];
-        for builder_dag_edge in dag.raw_edges().iter() {
-            let source_node_index = builder_dag_edge.source().index();
+        for builder_dag_edge in builder_dag.graph().raw_edges().iter() {
+            let source_node_index = builder_dag_edge.source();
             let edge = &builder_dag_edge.weight;
             let output_port = builder_dag_edge.weight.output_port;
 
             // Create or get record store.
             let (record_writer, record_reader) =
-                match all_record_stores[source_node_index].entry(output_port) {
+                match all_record_stores[source_node_index.index()].entry(output_port) {
                     Entry::Vacant(entry) => {
                         let record_store = create_record_store(
-                            &nodes[source_node_index]
-                                .as_ref()
-                                .expect("We created all nodes")
-                                .storage
-                                .master_txn,
+                            &builder_dag.graph()[source_node_index].storage.master_txn,
                             output_port,
                             edge.output_port_type,
                             edge.schema.clone(),
@@ -133,12 +117,8 @@ impl ExecutionDag {
         }
 
         // Create new graph.
-        let graph = dag.map(
-            |node_index, _| {
-                nodes[node_index.index()]
-                    .take()
-                    .expect("Builder dag should have all nodes")
-            },
+        let graph = builder_dag.into_graph().map_owned(
+            |_, node| Some(node),
             |edge_index, _| {
                 edges[edge_index.index()]
                     .take()
@@ -151,11 +131,11 @@ impl ExecutionDag {
         })
     }
 
-    pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
+    pub fn graph(&self) -> &daggy::Dag<Option<NodeType>, EdgeType> {
         &self.graph
     }
 
-    pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut NodeType {
+    pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut Option<NodeType> {
         &mut self.graph[node_index]
     }
 

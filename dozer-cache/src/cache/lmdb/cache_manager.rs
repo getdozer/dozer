@@ -91,6 +91,8 @@ impl LmdbCacheManager {
 impl CacheManager for LmdbCacheManager {
     fn open_rw_cache(&self, name: &str) -> Result<Option<Box<dyn RwCache>>, CacheError> {
         let mut txn = self.txn.write();
+        // Open a new transaction to make sure we get the latest changes.
+        txn.commit_and_renew()?;
         let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
         let cache: Option<Box<dyn RwCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
@@ -102,12 +104,13 @@ impl CacheManager for LmdbCacheManager {
             } else {
                 None
             };
-        txn.commit_and_renew()?;
         Ok(cache)
     }
 
     fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError> {
         let mut txn = self.txn.write();
+        // Open a new transaction to make sure we get the latest changes.
+        txn.commit_and_renew()?;
         let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
         let cache: Option<Box<dyn RoCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
@@ -116,7 +119,6 @@ impl CacheManager for LmdbCacheManager {
             } else {
                 None
             };
-        txn.commit_and_renew()?;
         Ok(cache)
     }
 

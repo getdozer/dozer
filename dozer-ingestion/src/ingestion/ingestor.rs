@@ -1,7 +1,6 @@
 use crossbeam::channel::{bounded, Receiver};
 use dozer_types::ingestion_types::{IngestionMessage, IngestorError, IngestorForwarder};
 use dozer_types::log::warn;
-use dozer_types::types::Operation;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,26 +8,24 @@ use super::IngestionConfig;
 
 #[derive(Debug)]
 pub struct ChannelForwarder {
-    pub sender: crossbeam::channel::Sender<((u64, u64), Operation)>,
+    pub sender: crossbeam::channel::Sender<IngestionMessage>,
 }
 
 impl IngestorForwarder for ChannelForwarder {
-    fn forward(&self, event: ((u64, u64), Operation)) -> Result<(), IngestorError> {
-        let send_res = self.sender.send(event);
-        match send_res {
-            Ok(_) => Ok(()),
-            Err(e) => Err(IngestorError::ChannelError(Box::new(e))),
-        }
+    fn forward(&self, msg: IngestionMessage) -> Result<(), IngestorError> {
+        self.sender
+            .send(msg)
+            .map_err(|e| IngestorError::ChannelError(Box::new(e)))
     }
 }
 #[derive(Debug)]
 /// `IngestionIterator` is the receiver side of a spsc channel. The sender side is `Ingestor`.
 pub struct IngestionIterator {
-    pub rx: Receiver<((u64, u64), Operation)>,
+    pub rx: Receiver<IngestionMessage>,
 }
 
 impl Iterator for IngestionIterator {
-    type Item = ((u64, u64), Operation);
+    type Item = IngestionMessage;
     fn next(&mut self) -> Option<Self::Item> {
         let msg = self.rx.recv();
         match msg {
@@ -41,7 +38,7 @@ impl Iterator for IngestionIterator {
     }
 }
 impl IngestionIterator {
-    pub fn next_timeout(&mut self, timeout: Duration) -> Option<((u64, u64), Operation)> {
+    pub fn next_timeout(&mut self, timeout: Duration) -> Option<IngestionMessage> {
         let msg = self.rx.recv_timeout(timeout);
         match msg {
             Ok(msg) => Some(msg),
@@ -70,29 +67,16 @@ impl Ingestor {
         (ingestor, iterator)
     }
 
-    pub fn handle_message(
-        &self,
-        ((lsn, seq_no), message): ((u64, u64), IngestionMessage),
-    ) -> Result<(), IngestorError> {
-        match message {
-            IngestionMessage::OperationEvent(op) => {
-                self.sender.forward(((lsn, seq_no), op))?;
-            }
-            IngestionMessage::Commit(_event) => {}
-            IngestionMessage::Begin() => {}
-            IngestionMessage::SnapshottingDone => self
-                .sender
-                .forward(((lsn, seq_no), Operation::SnapshottingDone {}))?,
-        }
-        Ok(())
+    pub fn handle_message(&self, message: IngestionMessage) -> Result<(), IngestorError> {
+        self.sender.forward(message)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::IngestionMessage::{Begin, Commit, OperationEvent};
     use super::{ChannelForwarder, Ingestor, IngestorForwarder};
     use crossbeam::channel::unbounded;
+    use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
     use dozer_types::types::{Operation, Record};
     use std::sync::Arc;
 
@@ -113,28 +97,21 @@ mod tests {
             new: Record::new(None, vec![], None),
         };
 
-        // Expected seq no - 4
-        let commit_message = dozer_types::types::Commit {
-            seq_no: 0,
-            lsn: 412142432,
-        };
-
-        ingestor.handle_message(((1, 1), Begin())).unwrap();
         ingestor
-            .handle_message(((1, 2), OperationEvent(operation.clone())))
+            .handle_message(IngestionMessage::new_op(1, 2, operation.clone()))
             .unwrap();
         ingestor
-            .handle_message(((1, 3), OperationEvent(operation2.clone())))
+            .handle_message(IngestionMessage::new_op(1, 3, operation2.clone()))
             .unwrap();
         ingestor
-            .handle_message(((1, 4), Commit(commit_message)))
+            .handle_message(IngestionMessage::new_snapshotting_done(1, 4))
             .unwrap();
 
         let expected_op_event_message = vec![operation, operation2].into_iter();
 
         for x in expected_op_event_message {
             let msg = rx.recv().unwrap();
-            assert_eq!(x, msg.1);
+            assert_eq!(IngestionMessageKind::OperationEvent(x), msg.kind);
         }
     }
 }

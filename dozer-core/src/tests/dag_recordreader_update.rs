@@ -11,6 +11,7 @@ use crate::tests::app::NoneContext;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::{Dag, Endpoint};
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -116,18 +117,20 @@ impl Source for GeneratorSource {
 
         for n in 0..self.count {
             fw.send(
-                txid,
-                0,
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    txid,
+                    0,
+                    Operation::Insert {
+                        new: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
             txid += 1;
@@ -135,26 +138,28 @@ impl Source for GeneratorSource {
 
         for n in 0..self.count {
             fw.send(
-                txid,
-                0,
-                Operation::Update {
-                    old: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    txid,
+                    0,
+                    Operation::Update {
+                        old: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                        new: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
             txid += 1;
@@ -162,18 +167,20 @@ impl Source for GeneratorSource {
 
         for n in 0..self.count {
             fw.send(
-                txid,
-                0,
-                Operation::Delete {
-                    old: Record::new(
-                        None,
-                        vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ],
-                        None,
-                    ),
-                },
+                IngestionMessage::new_op(
+                    txid,
+                    0,
+                    Operation::Delete {
+                        old: Record::new(
+                            None,
+                            vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ],
+                            None,
+                        ),
+                    },
+                ),
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
             txid += 1;
@@ -314,7 +321,7 @@ fn test_run_dag_record_reader_from_src() {
 
     let tmp_dir = TempDir::new("test").unwrap();
     let options = ExecutorOptions::default();
-    DagExecutor::new(&dag, tmp_dir.path().to_path_buf(), options)
+    DagExecutor::new(dag, tmp_dir.path().to_path_buf(), options)
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)))
         .unwrap()

@@ -1,21 +1,17 @@
 use crate::errors::{CacheError, IndexError};
 use dozer_storage::lmdb::RwTransaction;
-use dozer_types::{
-    parking_lot::RwLock,
-    types::{Field, IndexDefinition, Record, Schema},
-};
+use dozer_types::types::{Field, IndexDefinition, Record, Schema};
 use itertools::Itertools;
-use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cache::index::{self, get_full_text_secondary_index};
 
 use super::cache::SecondaryIndexDatabases;
 
-pub struct Indexer {
-    pub secondary_indexes: Arc<RwLock<SecondaryIndexDatabases>>,
+pub struct Indexer<'a> {
+    pub secondary_indexes: &'a SecondaryIndexDatabases,
 }
-impl Indexer {
+impl<'a> Indexer<'a> {
     pub fn build_indexes(
         &self,
         txn: &mut RwTransaction,
@@ -32,7 +28,6 @@ impl Indexer {
         for (idx, index) in secondary_indexes.iter().enumerate() {
             let db = *self
                 .secondary_indexes
-                .read()
                 .get(&(schema_id, idx))
                 .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
 
@@ -65,7 +60,6 @@ impl Indexer {
         for (idx, index) in secondary_indexes.iter().enumerate() {
             let db = *self
                 .secondary_indexes
-                .read()
                 .get(&(schema_id, idx))
                 .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
 

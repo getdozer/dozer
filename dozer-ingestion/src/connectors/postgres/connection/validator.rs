@@ -307,6 +307,7 @@ mod tests {
                 .dbname(&connection.database)
                 .user(&connection.user)
                 .host(&connection.host)
+                .password(&connection.password)
                 .port(connection.port as u16)
                 .deref()
                 .clone()

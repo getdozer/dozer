@@ -95,6 +95,10 @@ impl Sink for CountingSink {
         }
         Ok(())
     }
+
+    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]

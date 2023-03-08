@@ -1,3 +1,4 @@
+use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::executor::ExecutorOptions;
 use dozer_types::models::{
     api_config::{ApiConfig, GrpcApiOptions, RestApiOptions},
@@ -22,19 +23,19 @@ pub fn get_cache_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("cache")
 }
 
-pub fn get_cache_max_map_size(config: &Config) -> u64 {
+fn get_cache_max_map_size(config: &Config) -> u64 {
     config
         .cache_max_map_size
         .unwrap_or(default_cache_max_map_size())
 }
 
-pub fn get_app_max_map_size(config: &Config) -> u64 {
+fn get_app_max_map_size(config: &Config) -> u64 {
     config
         .app_max_map_size
         .unwrap_or(default_app_max_map_size())
 }
 
-pub fn get_commit_time_threshold(config: &Config) -> Duration {
+fn get_commit_time_threshold(config: &Config) -> Duration {
     if let Some(commit_time_threshold) = config.commit_timeout {
         Duration::from_millis(commit_time_threshold)
     } else {
@@ -42,11 +43,11 @@ pub fn get_commit_time_threshold(config: &Config) -> Duration {
     }
 }
 
-pub fn get_buffer_size(config: &Config) -> u32 {
+fn get_buffer_size(config: &Config) -> u32 {
     config.app_buffer_size.unwrap_or(default_app_buffer_size())
 }
 
-pub fn get_commit_size(config: &Config) -> u32 {
+fn get_commit_size(config: &Config) -> u32 {
     config.commit_size.unwrap_or(default_commit_size())
 }
 
@@ -83,5 +84,13 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
         channel_buffer_sz: get_buffer_size(config) as usize,
         commit_time_threshold: get_commit_time_threshold(config),
         max_map_size: get_app_max_map_size(config) as usize,
+    }
+}
+
+pub fn get_cache_manager_options(config: &Config) -> CacheManagerOptions {
+    CacheManagerOptions {
+        path: Some(get_cache_dir(config)),
+        max_size: get_cache_max_map_size(config) as usize,
+        ..CacheManagerOptions::default()
     }
 }

@@ -2,7 +2,7 @@ use std::{ops::Deref, sync::Arc};
 
 use arc_swap::ArcSwap;
 use dozer_cache::{cache::CacheManager, CacheReader};
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::{log::info, models::api_endpoint::ApiEndpoint};
 mod api_helper;
 
 #[derive(Debug)]
@@ -43,6 +43,7 @@ fn open_cache_reader(
         .open_ro_cache(name)
         .map_err(ApiError::OpenCache)?;
     let cache = cache.ok_or_else(|| ApiError::CacheNotFound(name.to_string()))?;
+    info!("[api] Serving {} using cache {}", name, cache.name());
     Ok(CacheReader::new(cache))
 }
 

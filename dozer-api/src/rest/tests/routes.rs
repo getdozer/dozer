@@ -17,7 +17,7 @@ fn test_generate_oapi() {
         endpoint,
         vec![format!("http://localhost:{}", "8080")],
     );
-    let generated = oapi_generator.generate_oas3().unwrap();
+    let generated = oapi_generator.generate_oas3();
 
     assert_eq!(generated.paths.paths.len(), 4, " paths must be generated");
 }

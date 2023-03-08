@@ -36,7 +36,3 @@ impl Serialize for ApiEndpoint {
         state.end()
     }
 }
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub enum Value {
-    Ref(String),
-}

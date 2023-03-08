@@ -10,7 +10,11 @@ use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
-use kafka::consumer::Consumer;
+use rdkafka::consumer::DefaultConsumerContext;
+
+use rdkafka::consumer::stream_consumer::StreamConsumer as RdkafkaStreamConsumer;
+use rdkafka::Message;
+use tokio::runtime::Runtime;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
@@ -78,153 +82,126 @@ pub struct DebeziumStreamConsumer {}
 impl DebeziumStreamConsumer {}
 
 impl StreamConsumer for DebeziumStreamConsumer {
-    fn run(&self, mut con: Consumer, ingestor: &Ingestor) -> Result<(), ConnectorError> {
-        loop {
-            let mss = con.poll().map_err(|e| {
-                DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
-            })?;
-            if !mss.is_empty() {
-                for ms in mss.iter() {
-                    for m in ms.messages() {
-                        if m.value.is_empty() {
-                            continue;
-                        }
+    fn run(
+        &self,
+        con: RdkafkaStreamConsumer<DefaultConsumerContext>,
+        ingestor: &Ingestor,
+    ) -> Result<(), ConnectorError> {
+        Runtime::new().unwrap().block_on(async {
+            loop {
+                let m = con.recv().await.map_err(|e| {
+                    DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
+                })?;
 
-                        let mut value_struct: DebeziumMessage = serde_json::from_str(
-                            std::str::from_utf8(m.value).map_err(BytesConvertError)?,
-                        )
-                        .map_err(JsonDecodeError)?;
-                        let key_struct: DebeziumMessage = serde_json::from_str(
-                            std::str::from_utf8(m.key).map_err(BytesConvertError)?,
-                        )
-                        .map_err(JsonDecodeError)?;
+                if let (Some(message), Some(key)) = (m.payload(), m.key()) {
+                    let mut value_struct: DebeziumMessage = serde_json::from_str(
+                        std::str::from_utf8(message).map_err(BytesConvertError)?,
+                    )
+                    .map_err(JsonDecodeError)?;
+                    let key_struct: DebeziumMessage =
+                        serde_json::from_str(std::str::from_utf8(key).map_err(BytesConvertError)?)
+                            .map_err(JsonDecodeError)?;
 
-                        let (schema, fields_map) =
-                            map_schema(&value_struct.schema, &key_struct.schema).map_err(|e| {
+                    let (schema, fields_map) = map_schema(&value_struct.schema, &key_struct.schema)
+                        .map_err(|e| {
+                            ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                        })?;
+
+                    // When update happens before is null.
+                    // If PK value changes, then debezium creates two events - delete and insert
+                    if value_struct.payload.before.is_none()
+                        && value_struct.payload.op == Some("u".to_string())
+                    {
+                        value_struct.payload.before = value_struct.payload.after.clone();
+                    }
+
+                    match (value_struct.payload.after, value_struct.payload.before) {
+                        (Some(new_payload), Some(old_payload)) => {
+                            let new = convert_value_to_schema(
+                                new_payload,
+                                schema.clone(),
+                                fields_map.clone(),
+                            )
+                            .map_err(|e| {
                                 ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
                             })?;
-
-                        // When update happens before is null.
-                        // If PK value changes, then debezium creates two events - delete and insert
-                        if value_struct.payload.before.is_none()
-                            && value_struct.payload.op == Some("u".to_string())
-                        {
-                            value_struct.payload.before = value_struct.payload.after.clone();
-                        }
-
-                        match (value_struct.payload.after, value_struct.payload.before) {
-                            (Some(new_payload), Some(old_payload)) => {
-                                let new = convert_value_to_schema(
-                                    new_payload,
-                                    schema.clone(),
-                                    fields_map.clone(),
-                                )
-                                .map_err(|e| {
-                                    ConnectorError::DebeziumError(
-                                        DebeziumError::DebeziumSchemaError(e),
-                                    )
-                                })?;
-                                let old = convert_value_to_schema(
-                                    old_payload,
-                                    schema.clone(),
-                                    fields_map,
-                                )
-                                .map_err(|e| {
-                                    ConnectorError::DebeziumError(
-                                        DebeziumError::DebeziumSchemaError(e),
-                                    )
-                                })?;
-
-                                ingestor
-                                    .handle_message((
-                                        (0, 0),
-                                        IngestionMessage::OperationEvent(Operation::Update {
-                                            old: Record {
-                                                schema_id: Some(SchemaIdentifier {
-                                                    id: 1,
-                                                    version: 1,
-                                                }),
-                                                values: old,
-                                                version: None,
-                                            },
-                                            new: Record {
-                                                schema_id: Some(SchemaIdentifier {
-                                                    id: 1,
-                                                    version: 1,
-                                                }),
-                                                values: new,
-                                                version: None,
-                                            },
-                                        }),
-                                    ))
-                                    .map_err(ConnectorError::IngestorError)?;
-                            }
-                            (None, Some(old_payload)) => {
-                                let old = convert_value_to_schema(old_payload, schema, fields_map)
+                            let old =
+                                convert_value_to_schema(old_payload, schema.clone(), fields_map)
                                     .map_err(|e| {
                                         ConnectorError::DebeziumError(
                                             DebeziumError::DebeziumSchemaError(e),
                                         )
                                     })?;
 
-                                ingestor
-                                    .handle_message((
-                                        (0, 0),
-                                        IngestionMessage::OperationEvent(Operation::Delete {
-                                            old: Record {
-                                                schema_id: Some(SchemaIdentifier {
-                                                    id: 1,
-                                                    version: 1,
-                                                }),
-                                                values: old,
-                                                version: None,
-                                            },
-                                        }),
-                                    ))
-                                    .map_err(ConnectorError::IngestorError)?;
-                            }
-                            (Some(new_payload), None) => {
-                                let new = convert_value_to_schema(
-                                    new_payload,
-                                    schema.clone(),
-                                    fields_map.clone(),
-                                )
+                            ingestor
+                                .handle_message(IngestionMessage::new_op(
+                                    0,
+                                    0,
+                                    Operation::Update {
+                                        old: Record {
+                                            schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
+                                            values: old,
+                                            version: None,
+                                        },
+                                        new: Record {
+                                            schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
+                                            values: new,
+                                            version: None,
+                                        },
+                                    },
+                                ))
+                                .map_err(ConnectorError::IngestorError)?;
+                        }
+                        (None, Some(old_payload)) => {
+                            let old = convert_value_to_schema(old_payload, schema, fields_map)
                                 .map_err(|e| {
                                     ConnectorError::DebeziumError(
                                         DebeziumError::DebeziumSchemaError(e),
                                     )
                                 })?;
 
-                                ingestor
-                                    .handle_message((
-                                        (0, 0),
-                                        IngestionMessage::OperationEvent(Operation::Insert {
-                                            new: Record {
-                                                schema_id: Some(SchemaIdentifier {
-                                                    id: 1,
-                                                    version: 1,
-                                                }),
-                                                values: new,
-                                                version: None,
-                                            },
-                                        }),
-                                    ))
-                                    .map_err(ConnectorError::IngestorError)?;
-                            }
-                            (None, None) => {}
+                            ingestor
+                                .handle_message(IngestionMessage::new_op(
+                                    0,
+                                    0,
+                                    Operation::Delete {
+                                        old: Record {
+                                            schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
+                                            values: old,
+                                            version: None,
+                                        },
+                                    },
+                                ))
+                                .map_err(ConnectorError::IngestorError)?;
                         }
-                    }
+                        (Some(new_payload), None) => {
+                            let new = convert_value_to_schema(
+                                new_payload,
+                                schema.clone(),
+                                fields_map.clone(),
+                            )
+                            .map_err(|e| {
+                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                            })?;
 
-                    con.consume_messageset(ms).map_err(|e| {
-                        DebeziumError::DebeziumStreamError(
-                            DebeziumStreamError::MessageConsumeError(e),
-                        )
-                    })?;
+                            ingestor
+                                .handle_message(IngestionMessage::new_op(
+                                    0,
+                                    0,
+                                    Operation::Insert {
+                                        new: Record {
+                                            schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
+                                            values: new,
+                                            version: None,
+                                        },
+                                    },
+                                ))
+                                .map_err(ConnectorError::IngestorError)?;
+                        }
+                        (None, None) => {}
+                    }
                 }
-                con.commit_consumed().map_err(|e| {
-                    DebeziumError::DebeziumStreamError(DebeziumStreamError::ConsumeCommitError(e))
-                })?;
             }
-        }
+        })
     }
 }

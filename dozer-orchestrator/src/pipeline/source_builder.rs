@@ -8,19 +8,19 @@ use dozer_types::models::source::Source;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub struct SourceBuilder {
-    used_sources: Vec<String>,
-    grouped_connections: HashMap<String, Vec<Source>>,
-    progress: Option<MultiProgress>,
+pub struct SourceBuilder<'a> {
+    used_sources: &'a [String],
+    grouped_connections: HashMap<&'a str, Vec<&'a Source>>,
+    progress: Option<&'a MultiProgress>,
 }
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
-impl SourceBuilder {
+impl<'a> SourceBuilder<'a> {
     pub fn new(
-        used_sources: Vec<String>,
-        grouped_connections: HashMap<String, Vec<Source>>,
-        progress: Option<MultiProgress>,
+        used_sources: &'a [String],
+        grouped_connections: HashMap<&'a str, Vec<&'a Source>>,
+        progress: Option<&'a MultiProgress>,
     ) -> Self {
         Self {
             used_sources,
@@ -29,14 +29,14 @@ impl SourceBuilder {
         }
     }
 
-    pub fn get_ports(&self) -> HashMap<(String, String), u16> {
+    pub fn get_ports(&self) -> HashMap<(&str, &str), u16> {
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
 
         let mut ports = HashMap::new();
-        for (conn, sources_group) in self.grouped_connections.clone() {
-            for source in &sources_group {
+        for (conn, sources_group) in &self.grouped_connections {
+            for source in sources_group {
                 if self.used_sources.contains(&source.name) {
-                    ports.insert((conn.clone(), source.name.clone()), port);
+                    ports.insert((*conn, source.name.as_str()), port);
                     port += 1;
                 }
             }
@@ -85,11 +85,11 @@ impl SourceBuilder {
                     ports.clone(),
                     tables,
                     connection.clone(),
-                    self.progress.clone(),
+                    self.progress.cloned(),
                 )?;
 
                 asm.add(AppSource::new(
-                    conn.clone(),
+                    conn.to_string(),
                     Arc::new(source_factory),
                     ports,
                 ))?;
@@ -99,12 +99,12 @@ impl SourceBuilder {
         Ok(asm)
     }
 
-    pub fn group_connections(sources: Vec<Source>) -> HashMap<String, Vec<Source>> {
+    pub fn group_connections(sources: &[Source]) -> HashMap<&str, Vec<&Source>> {
         sources
-            .into_iter()
-            .fold(HashMap::<String, Vec<Source>>::new(), |mut acc, a| {
-                if let Some(conn) = a.connection.clone() {
-                    acc.entry(conn.name).or_default().push(a);
+            .iter()
+            .fold(HashMap::<&str, Vec<&Source>>::new(), |mut acc, a| {
+                if let Some(conn) = a.connection.as_ref() {
+                    acc.entry(&conn.name).or_default().push(a);
                 }
 
                 acc
@@ -176,11 +176,11 @@ mod tests {
             .sources
             .iter()
             .map(|s| s.table_name.clone())
-            .collect();
+            .collect::<Vec<_>>();
 
         let source_builder = SourceBuilder::new(
-            tables,
-            SourceBuilder::group_connections(config.sources.clone()),
+            &tables,
+            SourceBuilder::group_connections(&config.sources),
             None,
         );
         let asm = source_builder.build_source_manager().unwrap();

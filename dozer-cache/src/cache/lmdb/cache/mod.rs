@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use dozer_storage::lmdb::{RoTransaction, RwTransaction, Transaction};
 use dozer_storage::lmdb_storage::{
@@ -9,7 +8,7 @@ use dozer_storage::lmdb_storage::{
 };
 
 use dozer_types::node::SourceStates;
-use dozer_types::parking_lot::{RwLock, RwLockReadGuard};
+use dozer_types::parking_lot::RwLockReadGuard;
 
 use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
@@ -252,7 +251,7 @@ impl LmdbRwCache {
         self.common.db.delete(txn, id)?;
 
         let indexer = Indexer {
-            secondary_indexes: self.common.secondary_indexes.clone(),
+            secondary_indexes: &self.common.secondary_indexes,
         };
         indexer.delete_indexes(txn, &record, schema, secondary_indexes, id)?;
         let version = record
@@ -279,7 +278,7 @@ impl LmdbRwCache {
         self.common.db.insert(txn, id, record)?;
 
         let indexer = Indexer {
-            secondary_indexes: self.common.secondary_indexes.clone(),
+            secondary_indexes: &self.common.secondary_indexes,
         };
 
         indexer.build_indexes(txn, record, schema, secondary_indexes, id)?;
@@ -408,7 +407,7 @@ const INITIAL_RECORD_VERSION: u32 = 1_u32;
 pub struct LmdbCacheCommon {
     db: RecordDatabase,
     id: IdDatabase,
-    secondary_indexes: Arc<RwLock<SecondaryIndexDatabases>>,
+    secondary_indexes: SecondaryIndexDatabases,
     schema_db: SchemaDatabase,
     cache_options: CacheCommonOptions,
     /// File name of the database.
@@ -440,7 +439,7 @@ impl LmdbCacheCommon {
         Ok(Self {
             db,
             id,
-            secondary_indexes: Arc::new(RwLock::new(secondary_indexe_databases)),
+            secondary_indexes: secondary_indexe_databases,
             schema_db,
             cache_options: options,
             name,
@@ -458,9 +457,7 @@ impl LmdbCacheCommon {
         for (index, index_definition) in secondary_indexes.iter().enumerate() {
             let db =
                 SecondaryIndexDatabase::create(txn, &schema_id, index, index_definition, true)?;
-            self.secondary_indexes
-                .write()
-                .insert((schema_id, index), db);
+            self.secondary_indexes.insert((schema_id, index), db);
         }
 
         self.schema_db
@@ -477,7 +474,7 @@ mod tests {
     impl LmdbRwCache {
         pub fn get_txn_and_secondary_indexes(
             &self,
-        ) -> (&SharedTransaction, &RwLock<SecondaryIndexDatabases>) {
+        ) -> (&SharedTransaction, &SecondaryIndexDatabases) {
             (&self.txn, &self.common.secondary_indexes)
         }
     }

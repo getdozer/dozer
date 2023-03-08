@@ -2,6 +2,7 @@ use crate::connectors::postgres::tests::client::TestPostgresClient;
 use postgres::Client;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
+use std::error::Error;
 use std::thread;
 
 use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
@@ -9,8 +10,10 @@ use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_types::models::app_config::Config;
 use dozer_types::models::connection::Connection;
+use postgres::error::DbError;
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio_postgres::{Error as PostgresError, SimpleQueryMessage};
 
 pub fn get_client(app_config: Config) -> TestPostgresClient {
     let config = app_config
@@ -54,4 +57,28 @@ pub fn create_slot(client_ref: Arc<RefCell<Client>>, slot_name: &str) -> PgLsn {
     client_ref.borrow_mut().simple_query("COMMIT;").unwrap();
 
     PgLsn::from_str(&created_lsn).unwrap()
+}
+
+pub fn retry_drop_active_slot(
+    e: PostgresError,
+    client_ref: Arc<RefCell<Client>>,
+    slot_name: &str,
+) -> Result<Vec<SimpleQueryMessage>, PostgresError> {
+    match e.source() {
+        None => Err(e),
+        Some(err) => match err.downcast_ref::<DbError>() {
+            Some(db_error) if db_error.code().code().eq("55006") => {
+                let err = db_error.to_string();
+                let parts = err.rsplit_once(' ').unwrap();
+
+                client_ref
+                    .borrow_mut()
+                    .simple_query(format!("select pg_terminate_backend('{}');", parts.1).as_ref())
+                    .unwrap();
+
+                ReplicationSlotHelper::drop_replication_slot(client_ref, slot_name)
+            }
+            _ => Err(e),
+        },
+    }
 }

@@ -11,9 +11,9 @@ use dozer_sql::pipeline::builder::{OutputNodeInfo, SchemaSQLContext};
 use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::app_config::Config;
+use dozer_types::models::source::Source;
 use dozer_types::{indicatif::MultiProgress, log::debug};
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 
@@ -33,16 +33,23 @@ pub struct OriginalTableInfo {
     pub connection_name: String,
 }
 
-pub struct PipelineBuilder {
-    config: Config,
-    api_endpoints: Vec<ApiEndpoint>,
-    pipeline_dir: PathBuf,
+pub struct PipelineBuilder<'a> {
+    sources: &'a [Source],
+    sql: Option<&'a str>,
+    api_endpoints: &'a [ApiEndpoint],
+    pipeline_dir: &'a Path,
     progress: MultiProgress,
 }
-impl PipelineBuilder {
-    pub fn new(config: Config, api_endpoints: Vec<ApiEndpoint>, pipeline_dir: PathBuf) -> Self {
+impl<'a> PipelineBuilder<'a> {
+    pub fn new(
+        sources: &'a [Source],
+        sql: Option<&'a str>,
+        api_endpoints: &'a [ApiEndpoint],
+        pipeline_dir: &'a Path,
+    ) -> Self {
         Self {
-            config,
+            sources,
+            sql,
             api_endpoints,
             pipeline_dir,
             progress: MultiProgress::new(),
@@ -56,9 +63,7 @@ impl PipelineBuilder {
         cache_manager_options: CacheManagerOptions,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let sources = self.config.sources.clone();
-
-        let grouped_connections = SourceBuilder::group_connections(sources);
+        let grouped_connections = SourceBuilder::group_connections(self.sources);
 
         validate_grouped_connections(&grouped_connections)?;
 
@@ -70,20 +75,20 @@ impl PipelineBuilder {
         let mut available_output_tables: HashMap<String, OutputTableInfo> = HashMap::new();
 
         // Add all source tables to available output tables
-        for (connection_name, sources) in grouped_connections.clone() {
+        for (connection_name, sources) in &grouped_connections {
             for source in sources {
                 available_output_tables.insert(
                     source.name.clone(),
                     OutputTableInfo::Original(OriginalTableInfo {
-                        connection_name: connection_name.clone(),
+                        connection_name: connection_name.to_string(),
                         table_name: source.name.clone(),
                     }),
                 );
             }
         }
 
-        if let Some(sql) = self.config.sql.clone() {
-            let query_context = statement_to_pipeline(&sql, &mut pipeline, None)
+        if let Some(sql) = &self.sql {
+            let query_context = statement_to_pipeline(sql, &mut pipeline, None)
                 .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {
@@ -96,11 +101,11 @@ impl PipelineBuilder {
 
             for name in query_context.used_sources {
                 // Add all source tables to input tables
-                used_sources.push(name.clone());
+                used_sources.push(name);
             }
         }
         // Add Used Souces if direct from source
-        for api_endpoint in &self.api_endpoints {
+        for api_endpoint in self.api_endpoints {
             let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
@@ -112,11 +117,8 @@ impl PipelineBuilder {
             }
         }
 
-        let source_builder = SourceBuilder::new(
-            used_sources,
-            grouped_connections,
-            Some(self.progress.clone()),
-        );
+        let source_builder =
+            SourceBuilder::new(&used_sources, grouped_connections, Some(&self.progress));
 
         let conn_ports = source_builder.get_ports();
 
@@ -124,7 +126,7 @@ impl PipelineBuilder {
             LmdbCacheManager::new(cache_manager_options)
                 .map_err(OrchestrationError::CacheInitFailed)?,
         );
-        for api_endpoint in &self.api_endpoints {
+        for api_endpoint in self.api_endpoints {
             let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
@@ -158,8 +160,8 @@ impl PipelineBuilder {
 
                     let conn_port = conn_ports
                         .get(&(
-                            table_info.connection_name.clone(),
-                            table_info.table_name.clone(),
+                            table_info.connection_name.as_str(),
+                            table_info.table_name.as_str(),
                         ))
                         .expect("port should be present based on source mapping");
 
@@ -189,7 +191,7 @@ impl PipelineBuilder {
 
         debug!("{}", dag);
 
-        DagExecutor::validate(&dag, self.pipeline_dir.clone())
+        DagExecutor::validate(dag.clone(), self.pipeline_dir.to_path_buf())
             .map(|_| {
                 info!("[pipeline] Validation completed");
             })

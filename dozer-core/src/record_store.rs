@@ -290,7 +290,6 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                 new.version = Some(curr_version + 1);
                 Ok(Operation::Update { old, new })
             }
-            Operation::SnapshottingDone { .. } => Ok(op),
         }
     }
 }
@@ -427,7 +426,6 @@ impl RecordWriter for AutogenRowKeyLookupRecordWriter {
             Operation::Delete { .. } => Err(UnsupportedDeleteOperation(
                 "AutogenRowsIdLookupRecordWriter does not support delete operations".to_string(),
             )),
-            Operation::SnapshottingDone { .. } => Ok(op),
         }
     }
 }

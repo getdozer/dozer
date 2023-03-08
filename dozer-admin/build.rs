@@ -48,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .build_client(false)
         .file_descriptor_set_path(out_dir.join("dozer_admin_grpc_descriptor.bin"))
-        .compile(&["protos/admin.proto"], &["proto"])
+        .compile(&["protos/admin.proto"], &["protos"])
         .unwrap();
 
     Ok(())

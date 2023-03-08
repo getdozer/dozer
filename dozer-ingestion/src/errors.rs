@@ -18,6 +18,7 @@ use std::string::FromUtf8Error;
 use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
+use rdkafka::error::KafkaError;
 use schema_registry_converter::error::SRCError;
 use tokio_postgres::Error;
 
@@ -287,7 +288,7 @@ pub enum DebeziumError {
     DebeziumSchemaError(#[from] DebeziumSchemaError),
 
     #[error("Connection error")]
-    DebeziumConnectionError(#[source] kafka::Error),
+    DebeziumConnectionError(#[source] KafkaError),
 
     #[error("JSON decode error")]
     JsonDecodeError(#[source] serde_json::Error),
@@ -308,13 +309,13 @@ pub enum DebeziumError {
 #[derive(Error, Debug)]
 pub enum DebeziumStreamError {
     #[error("Consume commit error")]
-    ConsumeCommitError(#[source] kafka::Error),
+    ConsumeCommitError(#[source] KafkaError),
 
     #[error("Message consume error")]
-    MessageConsumeError(#[source] kafka::Error),
+    MessageConsumeError(#[source] KafkaError),
 
     #[error("Polling error")]
-    PollingError(#[source] kafka::Error),
+    PollingError(#[source] KafkaError),
 }
 
 #[derive(Error, Debug, PartialEq)]

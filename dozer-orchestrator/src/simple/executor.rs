@@ -3,10 +3,9 @@ use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::app_config::Config;
 use dozer_types::types::{Operation, SourceSchema};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -26,29 +25,28 @@ use OrchestrationError::ExecutionError;
 use crate::errors::OrchestrationError;
 use crate::pipeline::source_builder::SourceBuilder;
 
-pub struct Executor {
-    config: Config,
-    api_endpoints: Vec<ApiEndpoint>,
-    pipeline_dir: PathBuf,
+pub struct Executor<'a> {
+    sources: &'a [Source],
+    sql: Option<&'a str>,
+    api_endpoints: &'a [ApiEndpoint],
+    pipeline_dir: &'a Path,
     running: Arc<AtomicBool>,
 }
-impl Executor {
+impl<'a> Executor<'a> {
     pub fn new(
-        config: Config,
-        api_endpoints: Vec<ApiEndpoint>,
+        sources: &'a [Source],
+        sql: Option<&'a str>,
+        api_endpoints: &'a [ApiEndpoint],
+        pipeline_dir: &'a Path,
         running: Arc<AtomicBool>,
-        pipeline_dir: PathBuf,
     ) -> Self {
         Self {
-            config,
+            sources,
+            sql,
             api_endpoints,
             pipeline_dir,
             running,
         }
-    }
-
-    pub fn get_connection_groups(&self) -> HashMap<String, Vec<Source>> {
-        SourceBuilder::group_connections(self.config.sources.clone())
     }
 
     // This function is used to run a query using a temporary pipeline
@@ -57,7 +55,7 @@ impl Executor {
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let grouped_connections = self.get_connection_groups();
+        let grouped_connections = SourceBuilder::group_connections(self.sources);
 
         let mut pipeline = AppPipeline::new();
         let transform_response = statement_to_pipeline(&sql, &mut pipeline, None)
@@ -82,16 +80,20 @@ impl Executor {
             )
             .map_err(OrchestrationError::ExecutionError)?;
 
-        let used_sources: Vec<String> = pipeline.get_entry_points_sources_names();
+        let used_sources = pipeline.get_entry_points_sources_names();
 
-        let source_builder = SourceBuilder::new(used_sources, grouped_connections, None);
+        let source_builder = SourceBuilder::new(&used_sources, grouped_connections, None);
         let asm = source_builder.build_source_manager()?;
 
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 
         let dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
-        let exec = DagExecutor::new(&dag, self.pipeline_dir.clone(), ExecutorOptions::default())?;
+        let exec = DagExecutor::new(
+            dag.clone(),
+            self.pipeline_dir.to_path_buf(),
+            ExecutorOptions::default(),
+        )?;
 
         exec.start(self.running.clone())?;
         Ok(dag)
@@ -120,9 +122,10 @@ impl Executor {
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
-            self.config.clone(),
-            self.api_endpoints.clone(),
-            self.pipeline_dir.clone(),
+            self.sources,
+            self.sql,
+            self.api_endpoints,
+            self.pipeline_dir,
         );
 
         let dag = builder.build(notifier, cache_manager_options, settings)?;
@@ -134,7 +137,7 @@ impl Executor {
             ));
         }
 
-        let exec = DagExecutor::new(&dag, path.to_path_buf(), executor_options)?;
+        let exec = DagExecutor::new(dag, path.to_path_buf(), executor_options)?;
 
         Ok(exec)
     }

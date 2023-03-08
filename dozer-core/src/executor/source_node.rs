@@ -7,7 +7,7 @@ use std::{
 };
 
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
-use dozer_types::types::Operation;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::{
     log::debug,
     node::{NodeHandle, OpIdentifier},
@@ -24,14 +24,8 @@ use crate::{
 use super::{execution_dag::ExecutionDag, node::Node, ExecutorOptions};
 
 impl SourceChannelForwarder for InternalChannelSourceForwarder {
-    fn send(
-        &mut self,
-        txid: u64,
-        seq_in_tx: u64,
-        op: Operation,
-        port: PortHandle,
-    ) -> Result<(), ExecutionError> {
-        Ok(self.sender.send((port, txid, seq_in_tx, op))?)
+    fn send(&mut self, message: IngestionMessage, port: PortHandle) -> Result<(), ExecutionError> {
+        Ok(self.sender.send((port, message))?)
     }
 }
 
@@ -72,7 +66,7 @@ pub struct SourceListenerNode {
     /// Node handle in description DAG.
     node_handle: NodeHandle,
     /// Output from corresponding source sender.
-    receiver: Receiver<(PortHandle, u64, u64, Operation)>,
+    receiver: Receiver<(PortHandle, IngestionMessage)>,
     /// Receiving timeout.
     timeout: Duration,
     /// If the execution DAG should be running. Used for determining if a `terminate` message should be sent.
@@ -83,7 +77,7 @@ pub struct SourceListenerNode {
 
 #[derive(Debug, Clone, PartialEq)]
 enum DataKind {
-    Data((PortHandle, u64, u64, Operation)),
+    Data((PortHandle, IngestionMessage)),
     NoDataBecauseOfTimeout,
     NoDataBecauseOfChannelDisconnection,
 }
@@ -99,9 +93,9 @@ impl SourceListenerNode {
             || !self.running.load(Ordering::SeqCst);
         // If this commit was not requested with termination at the start, we shouldn't terminate either.
         let terminating = match data {
-            DataKind::Data((port, txid, seq_in_tx, op)) => self
+            DataKind::Data((port, message)) => self
                 .channel_manager
-                .send_and_trigger_commit_if_needed(txid, seq_in_tx, op, port, terminating)?,
+                .send_and_trigger_commit_if_needed(message, port, terminating)?,
             DataKind::NoDataBecauseOfTimeout | DataKind::NoDataBecauseOfChannelDisconnection => {
                 self.channel_manager.trigger_commit_if_needed(terminating)?
             }
@@ -135,11 +129,11 @@ impl Node for SourceListenerNode {
 
 #[derive(Debug)]
 struct InternalChannelSourceForwarder {
-    sender: Sender<(PortHandle, u64, u64, Operation)>,
+    sender: Sender<(PortHandle, IngestionMessage)>,
 }
 
 impl InternalChannelSourceForwarder {
-    pub fn new(sender: Sender<(PortHandle, u64, u64, Operation)>) -> Self {
+    pub fn new(sender: Sender<(PortHandle, IngestionMessage)>) -> Self {
         Self { sender }
     }
 }
@@ -151,10 +145,12 @@ pub fn create_source_nodes(
     running: Arc<AtomicBool>,
 ) -> (SourceSenderNode, SourceListenerNode) {
     // Get the source node.
-    let node = dag.node_weight_mut(node_index);
-    let node_handle = node.handle.clone();
-    let node_storage = node.storage.clone();
-    let Some(NodeKind::Source(source, last_checkpoint)) = node.kind.take() else {
+    let Some(node) = dag.node_weight_mut(node_index).take() else {
+        panic!("Must pass in a node")
+    };
+    let node_handle = node.handle;
+    let node_storage = node.storage;
+    let NodeKind::Source(source, last_checkpoint) = node.kind else {
         panic!("Must pass in a source node");
     };
 
