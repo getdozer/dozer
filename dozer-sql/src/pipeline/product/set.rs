@@ -91,7 +91,7 @@ impl SetOperation {
         } else {
             record_map.remove(record);
         }
-        
+
         record_map.estimate_count(record)
     }
 }
