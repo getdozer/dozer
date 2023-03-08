@@ -12,7 +12,7 @@ use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::node::{NodeHandle, SourceStates};
+use dozer_types::node::NodeHandle;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -451,7 +451,6 @@ impl SinkFactory<NoneContext> for ErrSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(ErrSink {
             err_at: self.err_at,
@@ -468,7 +467,7 @@ pub(crate) struct ErrSink {
     panic: bool,
 }
 impl Sink for ErrSink {
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 

@@ -1,9 +1,7 @@
-use crate::epoch::Epoch;
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_storage::lmdb_storage::SharedTransaction;
-use dozer_types::node::SourceStates;
 use dozer_types::types::{Operation, Schema};
 
 use dozer_types::log::debug;
@@ -45,7 +43,6 @@ impl SinkFactory<NoneContext> for CountingSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(CountingSink {
             expected: self.expected,
@@ -62,11 +59,7 @@ pub(crate) struct CountingSink {
     running: Arc<AtomicBool>,
 }
 impl Sink for CountingSink {
-    fn commit(
-        &mut self,
-        _epoch_details: &Epoch,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         // if self.current == self.expected {
         //     info!(
         //         "Received {} messages. Notifying sender to exit!",
@@ -117,7 +110,6 @@ impl SinkFactory<NoneContext> for ConnectivityTestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
@@ -141,7 +133,6 @@ impl SinkFactory<NoneContext> for NoInputPortSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _source_states: &SourceStates,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
