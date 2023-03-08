@@ -9,6 +9,14 @@ use crate::{
 #[derive(Debug)]
 pub struct LmdbSet<K>(LmdbMap<K, Vec<u8>>);
 
+impl<K> Clone for LmdbSet<K> {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl<K> Copy for LmdbSet<K> {}
+
 impl<K: LmdbKey> LmdbSet<K> {
     pub fn new_from_env(
         env: &mut LmdbEnvironmentManager,

@@ -48,7 +48,8 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             Plan::SeqScan(_) => Ok(match self.query.skip {
                 Skip::Skip(skip) => self
                     .common
-                    .record_id_to_record
+                    .main_environment
+                    .present_operation_ids()
                     .count(self.txn)?
                     .saturating_sub(skip)
                     .min(self.query.limit.unwrap_or(usize::MAX)),
@@ -75,8 +76,9 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
     ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + '_, CacheError> {
         let all_ids = self
             .common
-            .record_id_to_record
-            .keys(self.txn)?
+            .main_environment
+            .present_operation_ids()
+            .iter(self.txn)?
             .map(|result| {
                 result
                     .map(|id| id.into_owned())
@@ -157,14 +159,9 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         ids.filter_map(|id| match id {
             Ok(id) => self
                 .common
-                .record_id_to_record
-                .get(self.txn, &id)
-                .transpose()
-                .map(|record| {
-                    record
-                        .map(|record| RecordWithId::new(id, record.into_owned()))
-                        .map_err(CacheError::Storage)
-                }),
+                .main_environment
+                .get_by_operation_id(self.txn, id)
+                .transpose(),
             Err(err) => Some(Err(err)),
         })
         .collect()

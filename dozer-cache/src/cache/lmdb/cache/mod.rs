@@ -5,14 +5,13 @@ use dozer_storage::lmdb::{RoTransaction, RwTransaction, Transaction};
 use dozer_storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
-use dozer_storage::{LmdbMap, LmdbMultimap};
+use dozer_storage::LmdbMultimap;
 
 use dozer_types::parking_lot::RwLockReadGuard;
 
 use dozer_types::types::Schema;
 use dozer_types::types::{IndexDefinition, Record};
 
-use self::id_database::get_or_generate_id;
 use self::secondary_index_database::{
     new_secondary_index_database_from_env, new_secondary_index_database_from_txn,
 };
@@ -22,17 +21,17 @@ use super::indexer::Indexer;
 use super::utils::{self, CacheReadOptions};
 use super::utils::{CacheOptions, CacheOptionsKind};
 use crate::cache::expression::QueryExpression;
-use crate::cache::index::get_primary_key;
 use crate::cache::RecordWithId;
 use crate::errors::CacheError;
 use query::LmdbQueryHandler;
 
 mod helper;
-mod id_database;
+mod main_environment;
 mod query;
 mod schema_database;
 mod secondary_index_database;
 
+use main_environment::MainEnvironment;
 use schema_database::SchemaDatabase;
 
 #[derive(Clone, Debug)]
@@ -139,19 +138,7 @@ impl<C: LmdbCache> RoCache for C {
     fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
         let txn = self.begin_txn()?;
         let txn = txn.as_txn();
-        let id = self
-            .common()
-            .primary_key_to_record_id
-            .get(txn, key)?
-            .ok_or(CacheError::PrimaryKeyNotFound)?
-            .into_owned();
-        let record = self
-            .common()
-            .record_id_to_record
-            .get(txn, &id)?
-            .ok_or(CacheError::PrimaryKeyNotFound)?
-            .into_owned();
-        Ok(RecordWithId::new(id, record))
+        self.common().main_environment.get(txn, key)
     }
 
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError> {
@@ -174,7 +161,6 @@ impl<C: LmdbCache> RoCache for C {
 impl RwCache for LmdbRwCache {
     fn insert(&self, record: &mut Record) -> Result<u64, CacheError> {
         let (schema, secondary_indexes) = self.get_schema()?;
-        record.version = Some(INITIAL_RECORD_VERSION);
         self.insert_impl(record, schema, secondary_indexes)
     }
 
@@ -185,7 +171,6 @@ impl RwCache for LmdbRwCache {
 
     fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError> {
         let (schema, secondary_indexes, old_version) = self.delete_impl(key)?;
-        record.version = Some(old_version + 1);
         self.insert_impl(record, schema, secondary_indexes)?;
         Ok(old_version)
     }
@@ -205,51 +190,34 @@ impl LmdbRwCache {
         let mut txn = self.txn.write();
         let txn = txn.txn_mut();
 
-        if !self.common.record_id_to_record.remove(txn, &record.id)? {
-            panic!("We just got this key from the map");
-        }
+        let (version, operation_id) = self.common.main_environment.delete(txn, key)?;
 
         let indexer = Indexer {
             secondary_indexes: &self.common.secondary_indexes,
         };
-        indexer.delete_indexes(txn, &record.record, secondary_indexes, record.id)?;
-        let version = record
-            .record
-            .version
-            .expect("All records in cache should have a version");
+        indexer.delete_indexes(txn, &record.record, secondary_indexes, operation_id)?;
         Ok((schema, secondary_indexes, version))
     }
 
+    /// Inserts the record, sets the record version, builds the secondary index, and returns the record id.
     fn insert_impl(
         &self,
-        record: &Record,
+        record: &mut Record,
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<u64, CacheError> {
         let mut txn = self.txn.write();
         let txn = txn.txn_mut();
 
-        let id = if schema.primary_index.is_empty() {
-            get_or_generate_id(self.common.primary_key_to_record_id, txn, None)?
-        } else {
-            let primary_key = get_primary_key(&schema.primary_index, &record.values);
-            get_or_generate_id(
-                self.common.primary_key_to_record_id,
-                txn,
-                Some(&primary_key),
-            )?
-        };
-        if !self.common.record_id_to_record.insert(txn, &id, record)? {
-            return Err(CacheError::PrimaryKeyExists);
-        }
+        let (record_id, operation_id) = self.common.main_environment.insert(txn, record, schema)?;
 
         let indexer = Indexer {
             secondary_indexes: &self.common.secondary_indexes,
         };
 
-        indexer.build_indexes(txn, record, secondary_indexes, id)?;
+        indexer.build_indexes(txn, record, secondary_indexes, operation_id)?;
 
-        Ok(id)
+        Ok(record_id)
     }
 }
 
@@ -334,12 +302,9 @@ impl LmdbCache for LmdbRwCache {
     }
 }
 
-const INITIAL_RECORD_VERSION: u32 = 1_u32;
-
 #[derive(Debug)]
 pub struct LmdbCacheCommon {
-    record_id_to_record: LmdbMap<u64, Record>,
-    primary_key_to_record_id: LmdbMap<Vec<u8>, u64>,
+    main_environment: MainEnvironment,
     secondary_indexes: Vec<LmdbMultimap<Vec<u8>, u64>>,
     schema_db: SchemaDatabase,
     cache_options: CacheCommonOptions,
@@ -355,10 +320,7 @@ impl LmdbCacheCommon {
         create_db_if_not_exist: bool,
     ) -> Result<Self, CacheError> {
         // Create or open must have databases.
-        let record_id_to_record =
-            LmdbMap::new_from_env(env, Some("records"), create_db_if_not_exist)?;
-        let primary_key_to_record_id =
-            LmdbMap::new_from_env(env, Some("primary_index"), create_db_if_not_exist)?;
+        let main_environment = MainEnvironment::new(env, create_db_if_not_exist)?;
         let schema_db = SchemaDatabase::new(env, create_db_if_not_exist)?;
 
         // Open existing secondary index databases.
@@ -372,8 +334,7 @@ impl LmdbCacheCommon {
         }
 
         Ok(Self {
-            record_id_to_record,
-            primary_key_to_record_id,
+            main_environment,
             secondary_indexes: secondary_indexe_databases,
             schema_db,
             cache_options: options,

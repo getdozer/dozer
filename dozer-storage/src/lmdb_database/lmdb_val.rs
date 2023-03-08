@@ -10,6 +10,7 @@ pub enum Encoded<'a> {
     U8x4([u8; 4]),
     U8x8([u8; 8]),
     U8x16([u8; 16]),
+    U8x21([u8; 21]),
     Vec(Vec<u8>),
     Borrowed(&'a [u8]),
 }
@@ -21,6 +22,7 @@ impl<'a> AsRef<[u8]> for Encoded<'a> {
             Self::U8x4(v) => v.as_slice(),
             Self::U8x8(v) => v.as_slice(),
             Self::U8x16(v) => v.as_slice(),
+            Self::U8x21(v) => v.as_slice(),
             Self::Vec(v) => v.as_slice(),
             Self::Borrowed(v) => v,
         }
@@ -52,7 +54,8 @@ pub enum LmdbValType {
 ///
 /// # Safety
 ///
-/// This trait is `unsafe` because `TYPE` must match the implementation of `encode`.
+/// - `TYPE` must match the implementation of `encode`.
+/// - `decode` must match the implementation of `encode`.
 ///
 /// # Note
 ///
@@ -61,9 +64,12 @@ pub unsafe trait LmdbKey: BorrowEncode + Decode {
     const TYPE: LmdbValType;
 }
 
-pub trait LmdbValue: BorrowEncode + Decode {}
-
-impl<T: BorrowEncode + Decode> LmdbValue for T {}
+/// A trait for types that can be used as values in LMDB.
+///
+/// # Safety
+///
+/// - `decode` must match the implementation of `encode`.
+pub unsafe trait LmdbValue: BorrowEncode + Decode {}
 
 pub trait LmdbDupValue: LmdbKey + LmdbValue {}
 
@@ -89,6 +95,8 @@ unsafe impl LmdbKey for u8 {
     const TYPE: LmdbValType = LmdbValType::FixedSizeOtherThanU32OrUsize;
 }
 
+unsafe impl LmdbValue for u8 {}
+
 impl<'a> Encode<'a> for &'a u32 {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
         Ok(Encoded::U8x4(self.to_be_bytes()))
@@ -108,6 +116,8 @@ impl Decode for u32 {
 unsafe impl LmdbKey for u32 {
     const TYPE: LmdbValType = LmdbValType::U32;
 }
+
+unsafe impl LmdbValue for u32 {}
 
 impl<'a> Encode<'a> for &'a u64 {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
@@ -132,6 +142,8 @@ unsafe impl LmdbKey for u64 {
     const TYPE: LmdbValType = LmdbValType::FixedSizeOtherThanU32OrUsize;
 }
 
+unsafe impl LmdbValue for u64 {}
+
 impl<'a> Encode<'a> for &'a [u8] {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
         Ok(Encoded::Borrowed(self))
@@ -151,6 +163,8 @@ impl Decode for Vec<u8> {
 unsafe impl LmdbKey for Vec<u8> {
     const TYPE: LmdbValType = LmdbValType::VariableSize;
 }
+
+unsafe impl LmdbValue for Vec<u8> {}
 
 impl<'a> Encode<'a> for &'a str {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
@@ -202,6 +216,8 @@ unsafe impl LmdbKey for Record {
     const TYPE: LmdbValType = LmdbValType::VariableSize;
 }
 
+unsafe impl LmdbValue for Record {}
+
 impl<'a> Encode<'a> for &'a (Schema, Vec<IndexDefinition>) {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
         dozer_types::bincode::serialize(self)
@@ -227,6 +243,8 @@ impl Decode for (Schema, Vec<IndexDefinition>) {
             })
     }
 }
+
+unsafe impl LmdbValue for (Schema, Vec<IndexDefinition>) {}
 
 #[cfg(test)]
 mod tests {

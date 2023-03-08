@@ -113,11 +113,11 @@ impl<K: LmdbKey, V: LmdbValue> LmdbMap<K, V> {
     pub fn insert_overwrite(
         &self,
         txn: &mut RwTransaction,
-        key: &K,
-        value: &V,
+        key: K::Encode<'_>,
+        value: V::Encode<'_>,
     ) -> Result<(), StorageError> {
-        let key = key.borrow().encode()?;
-        let value = value.borrow().encode()?;
+        let key = key.encode()?;
+        let value = value.encode()?;
         txn.put(self.db, &key, &value, WriteFlags::empty())?;
         Ok(())
     }

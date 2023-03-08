@@ -50,6 +50,7 @@ impl<T: Clone> Borrow for Vec<T> {
     }
 }
 
+#[macro_export]
 macro_rules! impl_borrow_for_clone_type {
     ($($t:ty),*) => {
         $(
@@ -89,7 +90,7 @@ impl<'a, B: Borrow + 'a> Cow<'a, B> {
         }
     }
 
-    pub fn borrow<'b>(&'b self) -> B::Borrowed<'b> {
+    pub fn borrow(&self) -> B::Borrowed<'_> {
         match self {
             Cow::Borrowed(borrowed) => B::upcast(*borrowed),
             Cow::Owned(owned) => owned.borrow(),
