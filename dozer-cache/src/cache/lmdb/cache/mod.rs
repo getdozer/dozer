@@ -339,8 +339,8 @@ const INITIAL_RECORD_VERSION: u32 = 1_u32;
 #[derive(Debug)]
 pub struct LmdbCacheCommon {
     record_id_to_record: LmdbMap<u64, Record>,
-    primary_key_to_record_id: LmdbMap<[u8], u64>,
-    secondary_indexes: Vec<LmdbMultimap<[u8], u64>>,
+    primary_key_to_record_id: LmdbMap<Vec<u8>, u64>,
+    secondary_indexes: Vec<LmdbMultimap<Vec<u8>, u64>>,
     schema_db: SchemaDatabase,
     cache_options: CacheCommonOptions,
     /// File name of the database.
@@ -406,7 +406,7 @@ mod tests {
     impl LmdbRwCache {
         pub fn get_txn_and_secondary_indexes(
             &self,
-        ) -> (&SharedTransaction, &[LmdbMultimap<[u8], u64>]) {
+        ) -> (&SharedTransaction, &[LmdbMultimap<Vec<u8>, u64>]) {
             (&self.txn, &self.common.secondary_indexes)
         }
     }

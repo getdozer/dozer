@@ -1,7 +1,7 @@
 use dozer_storage::{errors::StorageError, lmdb::RwTransaction, LmdbMap};
 
 pub fn get_or_generate_id(
-    map: LmdbMap<[u8], u64>,
+    map: LmdbMap<Vec<u8>, u64>,
     txn: &mut RwTransaction,
     key: Option<&[u8]>,
 ) -> Result<u64, StorageError> {
@@ -16,7 +16,7 @@ pub fn get_or_generate_id(
 }
 
 fn generate_id(
-    map: LmdbMap<[u8], u64>,
+    map: LmdbMap<Vec<u8>, u64>,
     txn: &mut RwTransaction,
     key: Option<&[u8]>,
 ) -> Result<u64, StorageError> {
@@ -43,7 +43,7 @@ mod tests {
         let mut env = init_env(&CacheOptions::default()).unwrap().0;
         let name = Some("primary_index");
         let writer = LmdbMap::new_from_env(&mut env, name, true).unwrap();
-        let reader = LmdbMap::<[u8], u64>::new_from_env(&mut env, name, false).unwrap();
+        let reader = LmdbMap::<Vec<u8>, u64>::new_from_env(&mut env, name, false).unwrap();
 
         let key = b"key";
 

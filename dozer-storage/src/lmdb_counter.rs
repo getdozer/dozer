@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-
+use dozer_types::borrow::Cow;
 use lmdb::{RwTransaction, Transaction};
 
 use crate::{

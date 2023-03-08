@@ -7,7 +7,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::cache::index::{self, get_full_text_secondary_index};
 
 pub struct Indexer<'a> {
-    pub secondary_indexes: &'a [LmdbMultimap<[u8], u64>],
+    pub secondary_indexes: &'a [LmdbMultimap<Vec<u8>, u64>],
 }
 impl<'a> Indexer<'a> {
     pub fn build_indexes(

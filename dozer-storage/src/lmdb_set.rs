@@ -7,9 +7,9 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct LmdbSet<K: ?Sized>(LmdbMap<K, [u8]>);
+pub struct LmdbSet<K>(LmdbMap<K, Vec<u8>>);
 
-impl<K: LmdbKey + ?Sized> LmdbSet<K> {
+impl<K: LmdbKey> LmdbSet<K> {
     pub fn new_from_env(
         env: &mut LmdbEnvironmentManager,
         name: Option<&str>,
@@ -30,17 +30,29 @@ impl<K: LmdbKey + ?Sized> LmdbSet<K> {
         self.0.count(txn)
     }
 
-    pub fn contains<T: Transaction>(&self, txn: &T, key: &K) -> Result<bool, StorageError> {
+    pub fn contains<T: Transaction>(
+        &self,
+        txn: &T,
+        key: K::Encode<'_>,
+    ) -> Result<bool, StorageError> {
         self.0.get(txn, key).map(|value| value.is_some())
     }
 
     /// Returns if the key was actually inserted.
-    pub fn insert(&self, txn: &mut RwTransaction, key: &K) -> Result<bool, StorageError> {
+    pub fn insert(
+        &self,
+        txn: &mut RwTransaction,
+        key: K::Encode<'_>,
+    ) -> Result<bool, StorageError> {
         self.0.insert(txn, key, &[])
     }
 
     /// Returns if the key was actually removed.
-    pub fn remove(&self, txn: &mut RwTransaction, key: &K) -> Result<bool, StorageError> {
+    pub fn remove(
+        &self,
+        txn: &mut RwTransaction,
+        key: K::Encode<'_>,
+    ) -> Result<bool, StorageError> {
         self.0.remove(txn, key)
     }
 
@@ -56,14 +68,14 @@ impl<K: LmdbKey + ?Sized> LmdbSet<K> {
     }
 }
 
-impl<'a, K: LmdbKey + 'a + ?Sized> LmdbSet<K> {
+impl<'a, K: LmdbKey + 'a> LmdbSet<K> {
     /// Extend the set with the contents of an iterator.
     ///
     /// Keys that exist in the map before insertion are ignored.
     pub fn extend(
         &self,
         txn: &mut RwTransaction,
-        iter: impl IntoIterator<Item = &'a K>,
+        iter: impl IntoIterator<Item = K::Encode<'a>>,
     ) -> Result<(), StorageError> {
         self.0
             .extend(txn, iter.into_iter().map(|k| (k, [].as_slice())))
@@ -72,8 +84,7 @@ impl<'a, K: LmdbKey + 'a + ?Sized> LmdbSet<K> {
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-
+    use dozer_types::borrow::Cow;
     use tempdir::TempDir;
 
     use crate::lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions};

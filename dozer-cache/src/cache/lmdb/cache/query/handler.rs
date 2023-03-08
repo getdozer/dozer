@@ -132,7 +132,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             .take_while(move |result| match result {
                 Ok((key, _)) => {
                     if let Some(end_key) = &end {
-                        match lmdb_cmp(self.txn, index_db.database(), key, end_key.key()) {
+                        match lmdb_cmp(self.txn, index_db.database(), key.borrow(), end_key.key()) {
                             Ordering::Less => matches!(direction, SortDirection::Ascending),
                             Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
                             Ordering::Greater => matches!(direction, SortDirection::Descending),
