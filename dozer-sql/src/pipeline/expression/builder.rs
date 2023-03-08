@@ -430,9 +430,7 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         let right = self.parse_sql_expression(parse_aggregations, expr, schema)?;
         Ok(Expression::DateTimeFunction {
-            fun: DateTimeFunctionType::Extract {
-                field: field.clone(),
-            },
+            fun: DateTimeFunctionType::Extract { field: *field },
             arg: Box::new(right),
         })
     }

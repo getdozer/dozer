@@ -22,7 +22,7 @@ impl Display for DateTimeFunctionType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             DateTimeFunctionType::Extract { field } => {
-                f.write_str(format!("EXTRACT {}", field).as_str())
+                f.write_str(format!("EXTRACT {field}").as_str())
             }
         }
     }

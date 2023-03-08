@@ -31,7 +31,7 @@ fn test_extract_date() {
         let mut results = vec![];
         for i in inputs.clone() {
             let f = run_scalar_fct(
-                &format!("select extract({} from date) from users", part),
+                &format!("select extract({part} from date) from users"),
                 Schema::empty()
                     .field(
                         FieldDefinition::new(

@@ -75,13 +75,11 @@ fn get_max(
             }
             Some(not_supported_return_type) => {
                 Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                    "Not supported return type {} for {}",
-                    not_supported_return_type, Max
+                    "Not supported return type {not_supported_return_type} for {Max}"
                 ))))
             }
             None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                "Not supported None return type for {}",
-                Max
+                "Not supported None return type for {Max}"
             )))),
         }
     }
