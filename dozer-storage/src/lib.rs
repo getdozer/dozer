@@ -12,6 +12,10 @@ mod lmdb_map;
 pub use lmdb_map::LmdbMap;
 mod lmdb_multimap;
 pub use lmdb_multimap::LmdbMultimap;
+mod lmdb_set;
+pub use lmdb_set::LmdbSet;
+mod lmdb_counter;
+pub use lmdb_counter::LmdbCounter;
 
 #[cfg(test)]
 mod tests;

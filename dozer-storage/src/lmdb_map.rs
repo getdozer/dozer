@@ -109,6 +109,18 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
         }
     }
 
+    pub fn insert_overwrite(
+        &self,
+        txn: &mut RwTransaction,
+        key: &K,
+        value: &V,
+    ) -> Result<(), StorageError> {
+        let key = key.encode()?;
+        let value = value.encode()?;
+        txn.put(self.db, &key, &value, WriteFlags::empty())?;
+        Ok(())
+    }
+
     /// Returns if the key was actually removed.
     pub fn remove(&self, txn: &mut RwTransaction, key: &K) -> Result<bool, StorageError> {
         let key = key.encode()?;
