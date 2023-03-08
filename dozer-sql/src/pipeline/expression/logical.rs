@@ -13,11 +13,17 @@ pub fn evaluate_and(
             Field::Boolean(true) => Ok(Field::Boolean(true)),
             Field::Boolean(false) => Ok(Field::Boolean(false)),
             Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidOperandType("AND".to_string())),
+            not_supported_field => Err(PipelineError::InvalidType(
+                not_supported_field,
+                "AND".to_string(),
+            )),
         },
         Field::Boolean(false) => Ok(Field::Boolean(false)),
         Field::Null => Ok(Field::Boolean(false)),
-        _ => Err(PipelineError::InvalidOperandType("AND".to_string())),
+        not_supported_field => Err(PipelineError::InvalidType(
+            not_supported_field,
+            "AND".to_string(),
+        )),
     }
 }
 
@@ -33,9 +39,15 @@ pub fn evaluate_or(
             Field::Boolean(false) => Ok(Field::Boolean(false)),
             Field::Null => Ok(Field::Boolean(false)),
             Field::Boolean(true) => Ok(Field::Boolean(true)),
-            _ => Err(PipelineError::InvalidOperandType("OR".to_string())),
+            not_supported_field => Err(PipelineError::InvalidType(
+                not_supported_field,
+                "OR".to_string(),
+            )),
         },
-        _ => Err(PipelineError::InvalidOperandType("OR".to_string())),
+        not_supported_field => Err(PipelineError::InvalidType(
+            not_supported_field,
+            "OR".to_string(),
+        )),
     }
 }
 
@@ -49,7 +61,10 @@ pub fn evaluate_not(
     match value_p {
         Field::Boolean(value_v) => Ok(Field::Boolean(!value_v)),
         Field::Null => Ok(Field::Null),
-        _ => Err(PipelineError::InvalidOperandType("NOT".to_string())),
+        not_supported_field => Err(PipelineError::InvalidType(
+            not_supported_field,
+            "NOT".to_string(),
+        )),
     }
 }
 

@@ -72,17 +72,12 @@ pub struct Schema {
     pub primary_index: Vec<usize>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
 pub enum ReplicationChangesTrackingType {
     FullChanges,
     OnlyPK,
+    #[default]
     Nothing,
-}
-
-impl Default for ReplicationChangesTrackingType {
-    fn default() -> Self {
-        ReplicationChangesTrackingType::Nothing
-    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
