@@ -69,7 +69,7 @@ impl SetProcessor {
 }
 
 impl Processor for SetProcessor {
-    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -78,7 +78,6 @@ impl Processor for SetProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _transaction: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {

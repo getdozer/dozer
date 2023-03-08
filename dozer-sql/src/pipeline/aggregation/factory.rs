@@ -64,7 +64,6 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)

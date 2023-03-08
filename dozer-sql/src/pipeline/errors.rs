@@ -29,7 +29,7 @@ impl Display for FieldTypes {
 
 #[derive(Error, Debug)]
 pub enum PipelineError {
-    #[error("Invalid operand type for function: {0}()")]
+    #[error("Invalid operand type for function or operator: {0}")]
     InvalidOperandType(String),
     #[error("Invalid input type. Reason: {0}")]
     InvalidInputType(String),

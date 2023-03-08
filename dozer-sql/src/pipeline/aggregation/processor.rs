@@ -384,7 +384,7 @@ fn get_key(
 }
 
 impl Processor for AggregationProcessor {
-    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -393,7 +393,6 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _txn: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         let ops = self.aggregate(op).map_err(|e| InternalError(Box::new(e)))?;
         for fop in ops {

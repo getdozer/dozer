@@ -36,7 +36,7 @@ impl SelectionProcessor {
 }
 
 impl Processor for SelectionProcessor {
-    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -45,7 +45,6 @@ impl Processor for SelectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {

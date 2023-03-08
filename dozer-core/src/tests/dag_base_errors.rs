@@ -60,7 +60,6 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(ErrorProcessor {
             err_on: self.err_on,
@@ -78,7 +77,7 @@ struct ErrorProcessor {
 }
 
 impl Processor for ErrorProcessor {
-    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -87,7 +86,6 @@ impl Processor for ErrorProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         self.count += 1;
         if self.count == self.err_on {
@@ -468,16 +466,11 @@ pub(crate) struct ErrSink {
     panic: bool,
 }
 impl Sink for ErrSink {
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
         self.current += 1;
         if self.current == self.err_at {
             if self.panic {

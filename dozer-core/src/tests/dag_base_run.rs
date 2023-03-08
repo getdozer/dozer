@@ -53,7 +53,6 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoopProcessor {}))
     }
@@ -63,11 +62,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
-    fn commit(
-        &self,
-        _epoch_details: &Epoch,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -76,7 +71,6 @@ impl Processor for NoopProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
     }
@@ -209,7 +203,6 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
@@ -219,11 +212,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
-    fn commit(
-        &self,
-        _epoch_details: &Epoch,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -232,7 +221,6 @@ impl Processor for NoopJoinProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
     }

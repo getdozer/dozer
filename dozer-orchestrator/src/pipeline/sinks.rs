@@ -337,7 +337,7 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn commit(&mut self, epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         let endpoint_name = self.api_endpoint.name.clone();
         // Update Counter on commit
         self.pb.set_position(self.counter as u64);
@@ -359,12 +359,7 @@ impl Sink for CacheSink {
         Ok(())
     }
 
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        op: Operation,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
         self.counter += 1;
 
         let endpoint_name = &self.api_endpoint.name;
@@ -569,17 +564,13 @@ mod tests {
             },
         };
 
-        sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn)
-            .unwrap();
-        sink.commit(
-            &dozer_core::epoch::Epoch::from(
-                0,
-                NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
-                0,
-                0,
-            ),
-            &txn,
-        )
+        sink.process(DEFAULT_PORT_HANDLE, insert_operation).unwrap();
+        sink.commit(&dozer_core::epoch::Epoch::from(
+            0,
+            NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+            0,
+            0,
+        ))
         .unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
@@ -587,15 +578,14 @@ mod tests {
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn)
-            .unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, update_operation).unwrap();
         let epoch1 = dozer_core::epoch::Epoch::from(
             0,
             NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
             0,
             1,
         );
-        sink.commit(&epoch1, &txn).unwrap();
+        sink.commit(&epoch1).unwrap();
 
         // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);

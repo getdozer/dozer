@@ -91,7 +91,7 @@ impl FromProcessor {
 }
 
 impl Processor for FromProcessor {
-    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -100,7 +100,6 @@ impl Processor for FromProcessor {
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _transaction: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         // match op.clone() {
         //     Operation::Delete { old } => info!("p{from_port}: - {:?}", old.values),

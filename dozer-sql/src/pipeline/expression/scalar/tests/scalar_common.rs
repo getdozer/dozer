@@ -48,7 +48,6 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
         .build(
             HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
             HashMap::new(),
-            &mut tx.write(),
         )
         .unwrap();
 
@@ -58,9 +57,7 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
         new: Record::new(None, input, None),
     };
 
-    processor
-        .process(DEFAULT_PORT_HANDLE, op, &mut fw, &tx)
-        .unwrap();
+    processor.process(DEFAULT_PORT_HANDLE, op, &mut fw).unwrap();
 
     match &fw.operations[0] {
         Operation::Insert { new } => new.values[0].clone(),

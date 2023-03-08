@@ -52,7 +52,6 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)

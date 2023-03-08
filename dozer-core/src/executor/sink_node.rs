@@ -89,13 +89,12 @@ impl ReceiverLoop for SinkNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        self.sink
-            .process(self.port_handles[index], op, &self.master_tx)
+        self.sink.process(self.port_handles[index], op)
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
-        self.sink.commit(epoch, &self.master_tx)?;
+        self.sink.commit(epoch)?;
         self.state_writer.store_commit_info(epoch)
     }
 

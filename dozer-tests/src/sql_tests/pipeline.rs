@@ -207,12 +207,7 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
         let sql = self
             .mapper
             .lock()
@@ -230,7 +225,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 

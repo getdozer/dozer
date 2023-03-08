@@ -472,12 +472,7 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
         match _op {
             Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
             Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
@@ -497,7 +492,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 

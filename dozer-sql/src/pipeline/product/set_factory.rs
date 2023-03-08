@@ -70,7 +70,6 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(
             SetProcessor::new(SetOperation {

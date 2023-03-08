@@ -62,11 +62,7 @@ pub(crate) struct CountingSink {
     running: Arc<AtomicBool>,
 }
 impl Sink for CountingSink {
-    fn commit(
-        &mut self,
-        _epoch_details: &Epoch,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
         // if self.current == self.expected {
         //     info!(
         //         "Received {} messages. Notifying sender to exit!",
@@ -77,12 +73,7 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
         self.current += 1;
         if self.current == self.expected {
             debug!(

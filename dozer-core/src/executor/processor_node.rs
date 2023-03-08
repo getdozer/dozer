@@ -93,16 +93,12 @@ impl ReceiverLoop for ProcessorNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        self.processor.process(
-            self.port_handles[index],
-            op,
-            &mut self.channel_manager,
-            &self.master_tx,
-        )
+        self.processor
+            .process(self.port_handles[index], op, &mut self.channel_manager)
     }
 
     fn on_commit(&mut self, epoch: &crate::epoch::Epoch) -> Result<(), ExecutionError> {
-        self.processor.commit(epoch, &self.master_tx)?;
+        self.processor.commit(epoch)?;
         self.channel_manager.store_and_send_commit(epoch)
     }
 
