@@ -41,8 +41,10 @@ pub enum PipelineError {
     InvalidExpression(String),
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
-    #[error("Invalid comparison types on {0} and {1} for {2} comparison")]
+    #[error("Invalid types on {0} and {1} for {2} operand")]
     InvalidTypeComparison(Field, Field, String),
+    #[error("Invalid types on {0} for {1} operand")]
+    InvalidType(Field, String),
     #[error("Invalid value: {0}")]
     InvalidValue(String),
     #[error("Invalid query: {0}")]

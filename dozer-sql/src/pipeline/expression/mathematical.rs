@@ -27,48 +27,52 @@ macro_rules! define_math_operator {
                             let duration = left_v - right_v;
                             Ok(Field::Int(duration.num_milliseconds()))
                         }
-                        _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                        _ => Err(PipelineError::InvalidTypeComparison(
+                            left_p,
+                            right_p,
+                            $op.to_string(),
+                        )),
                     },
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
                 Field::Float(left_v) => match right_p {
                     // left: Float, right: Int
                     Field::Int(right_v) => Ok(Field::Float($fct(
                         left_v,
                         OrderedFloat::<f64>::from_i64(right_v).ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to float",
-                                right_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", right_v), "f64".to_string()),
                         )?,
                     ))),
                     // left: Float, right: UInt
                     Field::UInt(right_v) => Ok(Field::Float($fct(
                         left_v,
                         OrderedFloat::<f64>::from_u64(right_v).ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to float",
-                                right_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", right_v), "f64".to_string()),
                         )?,
                     ))),
                     // left: Float, right: Float
                     Field::Float(right_v) => Ok(Field::Float($fct(left_v, right_v))),
                     // left: Float, right: Decimal
                     Field::Decimal(right_v) => Ok(Field::Decimal($fct(
-                        Decimal::from_f64(left_v.to_f64().ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to f64",
-                                left_v
-                            )),
-                        )?)
-                        .ok_or(PipelineError::InvalidOperandType(format!(
-                            "Unable to cast {} to decimal",
-                            left_v
-                        )))?,
+                        Decimal::from_f64(left_v.to_f64().ok_or(PipelineError::UnableToCast(
+                            format!("{}", left_v),
+                            "f64".to_string(),
+                        ))?)
+                        .ok_or(PipelineError::UnableToCast(
+                            format!("{}", left_v),
+                            "Decimal".to_string(),
+                        ))?,
                         right_v,
                     ))),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
                 Field::Int(left_v) => match right_p {
                     // left: Int, right: Int
@@ -77,16 +81,16 @@ macro_rules! define_math_operator {
                             // When Int / Int division happens
                             1 => Ok(Field::Float($fct(
                                 OrderedFloat::<f64>::from_i64(left_v).ok_or(
-                                    PipelineError::InvalidOperandType(format!(
-                                        "Unable to cast {} to float",
-                                        left_v
-                                    )),
+                                    PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "f64".to_string(),
+                                    ),
                                 )?,
                                 OrderedFloat::<f64>::from_i64(right_v).ok_or(
-                                    PipelineError::InvalidOperandType(format!(
-                                        "Unable to cast {} to float",
-                                        right_v
-                                    )),
+                                    PipelineError::UnableToCast(
+                                        format!("{}", right_v),
+                                        "f64".to_string(),
+                                    ),
                                 )?,
                             ))),
                             // When it's not division operation
@@ -99,23 +103,24 @@ macro_rules! define_math_operator {
                             // When Int / UInt division happens
                             1 => Ok(Field::Float($fct(
                                 OrderedFloat::<f64>::from_i64(left_v).ok_or(
-                                    PipelineError::InvalidOperandType(format!(
-                                        "Unable to cast {} to float",
-                                        left_v
-                                    )),
+                                    PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "f64".to_string(),
+                                    ),
                                 )?,
                                 OrderedFloat::<f64>::from_u64(right_v).ok_or(
-                                    PipelineError::InvalidOperandType(format!(
-                                        "Unable to cast {} to float",
-                                        right_v
-                                    )),
+                                    PipelineError::UnableToCast(
+                                        format!("{}", right_v),
+                                        "f64".to_string(),
+                                    ),
                                 )?,
                             ))),
                             // When it's not division operation
                             _ => Ok(Field::Int($fct(
                                 left_v,
-                                right_v.to_i64().ok_or(PipelineError::InvalidOperandType(
-                                    format!("Unable to cast {} to i64", right_v),
+                                right_v.to_i64().ok_or(PipelineError::UnableToCast(
+                                    format!("{}", right_v),
+                                    "i64".to_string(),
                                 ))?,
                             ))),
                         };
@@ -123,21 +128,23 @@ macro_rules! define_math_operator {
                     // left: Int, right: Float
                     Field::Float(right_v) => Ok(Field::Float($fct(
                         OrderedFloat::<f64>::from_i64(left_v).ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to float",
-                                left_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", left_v), "f64".to_string()),
                         )?,
                         right_v,
                     ))),
                     // left: Int, right: Decimal
                     Field::Decimal(right_v) => Ok(Field::Decimal($fct(
-                        Decimal::from_i64(left_v).ok_or(PipelineError::InvalidOperandType(
-                            format!("Unable to cast {} to decimal", left_v),
+                        Decimal::from_i64(left_v).ok_or(PipelineError::UnableToCast(
+                            format!("{}", left_v),
+                            "Decimal".to_string(),
                         ))?,
                         right_v,
                     ))),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
                 Field::UInt(left_v) => match right_p {
                     // left: UInt, right: Int
@@ -146,22 +153,23 @@ macro_rules! define_math_operator {
                             // When UInt / Int division happens
                             1 => Ok(Field::Float($fct(
                                 OrderedFloat::<f64>::from_u64(left_v).ok_or(
-                                    PipelineError::InvalidOperandType(format!(
-                                        "Unable to cast {} to float",
-                                        left_v
-                                    )),
+                                    PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "f64".to_string(),
+                                    ),
                                 )?,
                                 OrderedFloat::<f64>::from_i64(right_v).ok_or(
-                                    PipelineError::InvalidOperandType(format!(
-                                        "Unable to cast {} to float",
-                                        right_v
-                                    )),
+                                    PipelineError::UnableToCast(
+                                        format!("{}", right_v),
+                                        "f64".to_string(),
+                                    ),
                                 )?,
                             ))),
                             // When it's not division operation
                             _ => Ok(Field::Int($fct(
-                                left_v.to_i64().ok_or(PipelineError::InvalidOperandType(
-                                    format!("Unable to cast {} to i64", left_v),
+                                left_v.to_i64().ok_or(PipelineError::UnableToCast(
+                                    format!("{}", left_v),
+                                    "i64".to_string(),
                                 ))?,
                                 right_v,
                             ))),
@@ -173,16 +181,16 @@ macro_rules! define_math_operator {
                             // When UInt / UInt division happens
                             1 => Ok(Field::Float($fct(
                                 OrderedFloat::<f64>::from_u64(left_v).ok_or(
-                                    PipelineError::InvalidOperandType(format!(
-                                        "Unable to cast {} to float",
-                                        left_v
-                                    )),
+                                    PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "f64".to_string(),
+                                    ),
                                 )?,
                                 OrderedFloat::<f64>::from_u64(right_v).ok_or(
-                                    PipelineError::InvalidOperandType(format!(
-                                        "Unable to cast {} to float",
-                                        right_v
-                                    )),
+                                    PipelineError::UnableToCast(
+                                        format!("{}", right_v),
+                                        "f64".to_string(),
+                                    ),
                                 )?,
                             ))),
                             // When it's not division operation
@@ -192,70 +200,80 @@ macro_rules! define_math_operator {
                     // left: UInt, right: Float
                     Field::Float(right_v) => Ok(Field::Float($fct(
                         OrderedFloat::<f64>::from_u64(left_v).ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to float",
-                                left_v
-                            )),
+                            PipelineError::UnableToCast(format!("{}", left_v), "f64".to_string()),
                         )?,
                         right_v,
                     ))),
                     // left: UInt, right: Decimal
                     Field::Decimal(right_v) => Ok(Field::Decimal($fct(
-                        Decimal::from_i64(left_v.to_i64().ok_or(
-                            PipelineError::InvalidOperandType(format!(
-                                "Unable to cast {} to i64",
-                                left_v
-                            )),
-                        )?)
-                        .ok_or(PipelineError::InvalidOperandType(format!(
-                            "Unable to cast {} to decimal",
-                            left_v
-                        )))?,
+                        Decimal::from_i64(left_v.to_i64().ok_or(PipelineError::UnableToCast(
+                            format!("{}", left_v),
+                            "i64".to_string(),
+                        ))?)
+                        .ok_or(PipelineError::UnableToCast(
+                            format!("{}", left_v),
+                            "Decimal".to_string(),
+                        ))?,
                         right_v,
                     ))),
-                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
                 },
                 Field::Decimal(left_v) => {
                     match right_p {
                         // left: Decimal, right: Int
                         Field::Int(right_v) => Ok(Field::Decimal($fct(
                             left_v,
-                            Decimal::from_i64(right_v).ok_or(PipelineError::InvalidOperandType(
-                                format!("Unable to cast {} to decimal", left_v),
+                            Decimal::from_i64(right_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Decimal".to_string(),
                             ))?,
                         ))),
                         // left: Decimal, right: UInt
                         Field::UInt(right_v) => Ok(Field::Decimal($fct(
                             left_v,
                             Decimal::from_i64(right_v.to_i64().ok_or(
-                                PipelineError::InvalidOperandType(format!(
-                                    "Unable to cast {} to i64",
-                                    right_v
-                                )),
+                                PipelineError::UnableToCast(
+                                    format!("{}", right_v),
+                                    "i64".to_string(),
+                                ),
                             )?)
-                            .ok_or(PipelineError::InvalidOperandType(
-                                format!("Unable to cast {} to decimal", left_v),
+                            .ok_or(PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
                             ))?,
                         ))),
                         // left: Decimal, right: Float
                         Field::Float(right_v) => Ok(Field::Decimal($fct(
                             left_v,
                             Decimal::from_f64(right_v.to_f64().ok_or(
-                                PipelineError::InvalidOperandType(format!(
-                                    "Unable to cast {} to f64",
-                                    right_v
-                                )),
+                                PipelineError::UnableToCast(
+                                    format!("{}", right_v),
+                                    "f64".to_string(),
+                                ),
                             )?)
-                            .ok_or(PipelineError::InvalidOperandType(
-                                format!("Unable to cast {} to decimal", right_v),
+                            .ok_or(PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
                             ))?,
                         ))),
                         // left: Decimal, right: Decimal
                         Field::Decimal(right_v) => Ok(Field::Decimal($fct(left_v, right_v))),
-                        _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                        _ => Err(PipelineError::InvalidTypeComparison(
+                            left_p,
+                            right_p,
+                            $op.to_string(),
+                        )),
                     }
                 }
-                _ => Err(PipelineError::InvalidOperandType($op.to_string())),
+                _ => Err(PipelineError::InvalidTypeComparison(
+                    left_p,
+                    right_p,
+                    $op.to_string(),
+                )),
             }
         }
     };
@@ -278,7 +296,10 @@ pub fn evaluate_plus(
         Field::Int(v) => Ok(Field::Int(v)),
         Field::Float(v) => Ok(Field::Float(v)),
         Field::Decimal(v) => Ok(Field::Decimal(v)),
-        _ => Err(PipelineError::InvalidOperandType("+".to_string())),
+        not_supported_field => Err(PipelineError::InvalidType(
+            not_supported_field,
+            "+".to_string(),
+        )),
     }
 }
 
@@ -293,6 +314,9 @@ pub fn evaluate_minus(
         Field::Int(v) => Ok(Field::Int(-v)),
         Field::Float(v) => Ok(Field::Float(-v)),
         Field::Decimal(v) => Ok(Field::Decimal(v.neg())),
-        _ => Err(PipelineError::InvalidOperandType("-".to_string())),
+        not_supported_field => Err(PipelineError::InvalidType(
+            not_supported_field,
+            "-".to_string(),
+        )),
     }
 }
