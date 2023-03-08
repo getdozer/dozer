@@ -41,6 +41,8 @@ pub enum PipelineError {
     InvalidExpression(String),
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("Invalid comparison types on {0} and {1} for {2} comparison")]
+    InvalidTypeComparison(Field, Field, String),
     #[error("Invalid value: {0}")]
     InvalidValue(String),
     #[error("Invalid query: {0}")]
@@ -71,6 +73,8 @@ pub enum PipelineError {
     AmbiguousFieldIdentifier(String),
     #[error("The field identifier {0} is invalid. Correct format is: [[connection.]source.]field")]
     IllegalFieldIdentifier(String),
+    #[error("Unable to cast {0} to {1}")]
+    UnableToCast(String, String),
 
     #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
