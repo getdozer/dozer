@@ -3,21 +3,27 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 
+use crate::pipeline::expression::datetime::PipelineError::InvalidValue;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
-use dozer_types::chrono::Datelike;
+use dozer_types::chrono::{DateTime, Datelike, Offset, Timelike, Utc};
 use dozer_types::types::{Field, FieldType, Record, Schema};
 use num_traits::ToPrimitive;
+use sqlparser::ast::DateTimeField;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum DateTimeFunctionType {
-    DayOfWeek,
+    Extract {
+        field: sqlparser::ast::DateTimeField,
+    },
 }
 
 impl Display for DateTimeFunctionType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            DateTimeFunctionType::DayOfWeek => f.write_str("DAY_OF_WEEK"),
+            DateTimeFunctionType::Extract { field } => {
+                f.write_str(format!("EXTRACT {}", field).as_str())
+            }
         }
     }
 }
@@ -27,36 +33,26 @@ pub(crate) fn get_datetime_function_type(
     arg: &Expression,
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
+    let return_type = arg.get_type(schema)?.return_type;
+    if return_type != FieldType::Date && return_type != FieldType::Timestamp {
+        return Err(InvalidFunctionArgumentType(
+            function.to_string(),
+            return_type,
+            FieldTypes::new(vec![FieldType::Date, FieldType::Timestamp]),
+            0,
+        ));
+    }
     match function {
-        DateTimeFunctionType::DayOfWeek => {
-            let return_type = arg.get_type(schema)?.return_type;
-            if return_type != FieldType::Date && return_type != FieldType::Timestamp {
-                return Err(InvalidFunctionArgumentType(
-                    DateTimeFunctionType::DayOfWeek.to_string(),
-                    return_type,
-                    FieldTypes::new(vec![FieldType::Date, FieldType::Timestamp]),
-                    0,
-                ));
-            }
-
-            Ok(ExpressionType::new(
-                FieldType::Int,
-                false,
-                dozer_types::types::SourceDefinition::Dynamic,
-                false,
-            ))
-        }
+        DateTimeFunctionType::Extract { field: _ } => Ok(ExpressionType::new(
+            FieldType::Int,
+            false,
+            dozer_types::types::SourceDefinition::Dynamic,
+            false,
+        )),
     }
 }
 
 impl DateTimeFunctionType {
-    pub fn new(name: &str) -> Result<DateTimeFunctionType, PipelineError> {
-        match name {
-            "day_of_week" => Ok(DateTimeFunctionType::DayOfWeek),
-            _ => Err(PipelineError::InvalidFunction(name.to_string())),
-        }
-    }
-
     pub(crate) fn evaluate(
         &self,
         schema: &Schema,
@@ -64,55 +60,92 @@ impl DateTimeFunctionType {
         record: &Record,
     ) -> Result<Field, PipelineError> {
         match self {
-            DateTimeFunctionType::DayOfWeek => evaluate_day_of_week(schema, arg, record),
+            DateTimeFunctionType::Extract { field } => {
+                evaluate_date_part(schema, field, arg, record)
+            }
         }
     }
 }
 
-pub(crate) fn evaluate_day_of_week(
+pub(crate) fn evaluate_date_part(
     schema: &Schema,
+    field: &sqlparser::ast::DateTimeField,
     arg: &Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record, schema)?;
-    match value {
-        Field::Date(d) => Ok(Field::Int(
-            d.weekday().num_days_from_monday().to_i64().ok_or(
-                PipelineError::InvalidOperandType(format!("Unable to cast date {d} to i64")),
-            )?,
-        )),
-        Field::Timestamp(ts) => Ok(Field::Int(
-            ts.weekday().num_days_from_monday().to_i64().ok_or(
-                PipelineError::InvalidOperandType(format!("Unable to cast timestamp {ts} to i64")),
-            )?,
-        )),
-        _ => Err(InvalidFunctionArgument(
-            DateTimeFunctionType::DayOfWeek.to_string(),
-            value,
-            0,
-        )),
+
+    let ts = match value {
+        Field::Timestamp(ts) => Ok(ts),
+        Field::Date(d) => d
+            .and_hms_milli_opt(0, 0, 0, 0)
+            .map(|ts| DateTime::from_utc(ts, Utc.fix()))
+            .ok_or(InvalidValue(format!(
+                "Unable to cast date {d} to timestamp"
+            ))),
+        _ => {
+            return Err(InvalidFunctionArgument(
+                DateTimeFunctionType::Extract { field: *field }.to_string(),
+                value,
+                0,
+            ))
+        }
+    }?;
+
+    match field {
+        DateTimeField::Dow => ts.weekday().num_days_from_monday().to_i64(),
+        DateTimeField::Day => ts.day().to_i64(),
+        DateTimeField::Month => ts.month().to_i64(),
+        DateTimeField::Year => ts.year().to_i64(),
+        DateTimeField::Hour => ts.hour().to_i64(),
+        DateTimeField::Minute => ts.minute().to_i64(),
+        DateTimeField::Second => ts.second().to_i64(),
+        DateTimeField::Millisecond | DateTimeField::Milliseconds => ts.timestamp_millis().to_i64(),
+        DateTimeField::Microsecond | DateTimeField::Microseconds => ts.timestamp_micros().to_i64(),
+        DateTimeField::Nanoseconds | DateTimeField::Nanosecond => ts.timestamp_nanos().to_i64(),
+        DateTimeField::Quarter => ts.month0().to_i64().map(|m| m / 3 + 1),
+        DateTimeField::Epoch => ts.timestamp().to_i64(),
+        DateTimeField::Week => ts.iso_week().week().to_i64(),
+        DateTimeField::Century => ts.year().to_i64().map(|y| (y as f64 / 100.0).ceil() as i64),
+        DateTimeField::Decade => ts.year().to_i64().map(|y| (y as f64 / 10.0).ceil() as i64),
+        DateTimeField::Doy => ts.ordinal().to_i64(),
+        DateTimeField::Timezone => ts.offset().fix().local_minus_utc().to_i64(),
+        DateTimeField::Isodow
+        | DateTimeField::Isoyear
+        | DateTimeField::Julian
+        | DateTimeField::Millenium
+        | DateTimeField::Millennium
+        | DateTimeField::TimezoneHour
+        | DateTimeField::TimezoneMinute
+        | DateTimeField::Date
+        | DateTimeField::NoDateTime => None,
     }
+    .ok_or(PipelineError::InvalidOperandType(format!(
+        "Unable to extract date part {field} from {value}"
+    )))
+    .map(Field::Int)
 }
 
 #[test]
-fn test_day_of_week() {
+fn test_date_parts() {
     let row = Record::new(None, vec![], None);
 
+    let date_parts = vec![
+        (DateTimeField::Dow, 6),
+        (DateTimeField::Year, 2023),
+        (DateTimeField::Month, 1),
+        (DateTimeField::Hour, 0),
+        (DateTimeField::Second, 0),
+        (DateTimeField::Quarter, 1),
+    ];
     let v = Expression::Literal(Field::Date(
         dozer_types::chrono::NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
     ));
-    assert_eq!(
-        evaluate_day_of_week(&Schema::empty(), &v, &row)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(6)
-    );
 
-    let v = Expression::Literal(Field::Date(
-        dozer_types::chrono::NaiveDate::from_ymd_opt(2023, 1, 2).unwrap(),
-    ));
-    assert_eq!(
-        evaluate_day_of_week(&Schema::empty(), &v, &row)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(0)
-    );
+    for (part, value) in date_parts {
+        assert_eq!(
+            evaluate_date_part(&Schema::empty(), &part, &v, &row).unwrap(),
+            Field::Int(value)
+        );
+    }
 }

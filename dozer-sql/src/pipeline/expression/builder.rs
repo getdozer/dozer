@@ -16,9 +16,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::datetime::DateTimeFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::expression::execution::Expression::{
-    DateTimeFunction, GeoFunction, ScalarFunction,
-};
+use crate::pipeline::expression::execution::Expression::{GeoFunction, ScalarFunction};
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
@@ -107,6 +105,9 @@ impl ExpressionBuilder {
             ),
             SqlExpr::Cast { expr, data_type } => {
                 self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema)
+            }
+            SqlExpr::Extract { field, expr } => {
+                self.parse_sql_extract_operator(parse_aggregations, field, expr, schema)
             }
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
@@ -293,19 +294,7 @@ impl ExpressionBuilder {
                             fun: gft,
                             args: function_args.clone(),
                         }),
-                        Err(_e) => match DateTimeFunctionType::new(function_name.as_str()) {
-                            Ok(dft) => {
-                                let arg = function_args
-                                    .first()
-                                    .ok_or(InvalidArgument(function_name))
-                                    .unwrap();
-                                Ok(DateTimeFunction {
-                                    fun: dft,
-                                    arg: Box::new(arg.clone()),
-                                })
-                            }
-                            Err(_err) => Err(InvalidNestedAggregationFunction(function_name)),
-                        },
+                        Err(_err) => Err(InvalidNestedAggregationFunction(function_name)),
                     },
                 }
             }
@@ -430,6 +419,22 @@ impl ExpressionBuilder {
         } else {
             Ok(like_expression)
         }
+    }
+
+    fn parse_sql_extract_operator(
+        &mut self,
+        parse_aggregations: bool,
+        field: &sqlparser::ast::DateTimeField,
+        expr: &Expr,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let right = self.parse_sql_expression(parse_aggregations, expr, schema)?;
+        Ok(Expression::DateTimeFunction {
+            fun: DateTimeFunctionType::Extract {
+                field: field.clone(),
+            },
+            arg: Box::new(right),
+        })
     }
 
     fn parse_sql_cast_operator(
