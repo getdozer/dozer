@@ -125,7 +125,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints_value: Vec<serde_yaml::Value> = vec![];
-                let mut instrumentation: Option<TelemetryConfig> = None;
+                let mut telemetry: Option<TelemetryConfig> = None;
 
                 let mut app_name = "".to_owned();
                 let mut sql = None;
@@ -178,8 +178,8 @@ impl<'de> Deserialize<'de> for Config {
                         "commit_timeout" => {
                             commit_timeout = access.next_value::<Option<u64>>()?;
                         }
-                        "instrumentation" => {
-                            instrumentation = access.next_value::<Option<TelemetryConfig>>()?;
+                        "telemetry" => {
+                            telemetry = access.next_value::<Option<TelemetryConfig>>()?;
                         }
                         _ => {
                             access.next_value::<IgnoredAny>()?;
@@ -251,7 +251,7 @@ impl<'de> Deserialize<'de> for Config {
                     app_buffer_size,
                     commit_size,
                     commit_timeout,
-                    telemetry: instrumentation,
+                    telemetry,
                 })
             }
         }
