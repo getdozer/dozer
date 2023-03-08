@@ -27,6 +27,7 @@ use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
 const TRIPS_PORT: u16 = 0 as PortHandle;
 const ZONES_PORT: u16 = 1 as PortHandle;
+const EXPECTED_SINK_OP_COUNT: u64 = 12;
 const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 #[test]
@@ -62,7 +63,10 @@ fn test_pipeline_builder() {
     ))
     .unwrap();
 
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
+    pipeline.add_sink(
+        Arc::new(TestSinkFactory::new(EXPECTED_SINK_OP_COUNT, latch)),
+        "sink",
+    );
     pipeline
         .connect_nodes(
             &table_info.node,
