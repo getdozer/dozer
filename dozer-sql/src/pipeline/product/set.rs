@@ -79,19 +79,14 @@ impl SetOperation {
         }
     }
 
-    fn update_map(
-        &self,
-        record: &Record,
-        decr: bool,
-        record_map: &mut CountingBloomFilter,
-    ) -> u32 {
+    fn update_map(&self, record: &Record, decr: bool, record_map: &mut CountingBloomFilter) -> u32 {
         if decr {
             record_map.remove(&record);
         } else {
             record_map.insert(&record);
         }
 
-        let count = record_map.estimate_count(&record);
-        count
+        
+        record_map.estimate_count(&record)
     }
 }
