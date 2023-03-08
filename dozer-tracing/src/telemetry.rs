@@ -1,16 +1,19 @@
-use crate::layer::DozerLayer;
+use dozer_types::log::debug;
 use dozer_types::models::telemetry::{DozerTelemetryConfig, OpenTelemetryConfig, TelemetryConfig};
+use opentelemetry::sdk;
+use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
 
+use crate::exporter::DozerExporter;
 // Init telemetry by setting a global handler
 pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<TelemetryConfig>) {
     let app_name = app_name.unwrap_or("dozer");
 
-    println!("Initializing telemetry for {:?}", telemetry_config);
+    debug!("Initializing telemetry for {:?}", telemetry_config);
 
     let fmt_layer = fmt::layer().with_target(false);
     let fmt_filter = EnvFilter::try_from_default_env()
@@ -23,7 +26,7 @@ pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<Telemetry
             .unwrap();
         match c {
             TelemetryConfig::Dozer(config) => (
-                Some(get_dozer_layer(config).with_filter(trace_filter)),
+                Some(get_dozer_tracer(config).with_filter(trace_filter)),
                 None,
             ),
             TelemetryConfig::OpenTelemetry(config) => (
@@ -59,7 +62,7 @@ pub fn init_telemetry_closure<T>(
             .unwrap();
         match c {
             TelemetryConfig::Dozer(config) => (
-                Some(get_dozer_layer(config).with_filter(trace_filter)),
+                Some(get_dozer_tracer(config).with_filter(trace_filter)),
                 None,
             ),
             TelemetryConfig::OpenTelemetry(config) => (
@@ -94,6 +97,23 @@ where
     tracing_opentelemetry::layer().with_tracer(tracer)
 }
 
-pub fn get_dozer_layer(config: DozerTelemetryConfig) -> DozerLayer {
-    DozerLayer::new(config)
+pub fn get_dozer_tracer<S>(
+    config: DozerTelemetryConfig,
+) -> OpenTelemetryLayer<S, opentelemetry::sdk::trace::Tracer>
+where
+    S: for<'span> tracing_subscriber::registry::LookupSpan<'span>
+        + dozer_types::tracing::Subscriber,
+{
+    let builder = sdk::trace::TracerProvider::builder();
+    let tracer_provider = builder
+        .with_simple_exporter(DozerExporter::new(config))
+        .build();
+
+    let tracer = tracer_provider.versioned_tracer(
+        "opentelemetry-dozer",
+        Some(env!("CARGO_PKG_VERSION")),
+        None,
+    );
+    let _ = global::set_tracer_provider(tracer_provider);
+    tracing_opentelemetry::layer().with_tracer(tracer)
 }
