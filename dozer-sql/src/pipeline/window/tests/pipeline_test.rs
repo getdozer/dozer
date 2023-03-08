@@ -36,14 +36,6 @@ fn test_pipeline_builder() {
 
     let mut pipeline = AppPipeline::new();
 
-    // let context = statement_to_pipeline(
-    //     "SELECT taxi_id, completed_at, window_start, window_end \
-    //     FROM TUMBLE(taxi_trips, completed_at, '2 MINUTES')",
-    //     &mut pipeline,
-    //     Some("results".to_string()),
-    // )
-    // .unwrap();
-
     let context = statement_to_pipeline(
         "SELECT trips.taxi_id, puz.zone, trips.completed_at, trips.window_start, trips.window_end \
         FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips \
@@ -449,7 +441,6 @@ impl Sink for TestSink {
             Operation::Update { old, new } => {
                 info!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
-            _ => (),
         }
 
         self.current += 1;

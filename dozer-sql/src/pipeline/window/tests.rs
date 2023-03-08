@@ -1,2 +1,5 @@
 #[cfg(test)]
-mod window_pipeline_test;
+mod operator_test;
+
+#[cfg(test)]
+mod pipeline_test;
