@@ -22,13 +22,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tempdir::TempDir;
 
-#[test]
 fn setup() {
     dozer_tracing::init_telemetry(false).unwrap();
 }
 
 #[test]
 fn test_set_union_pipeline_builder() {
+    setup();
     let sql = "WITH supplier_id_union AS (
                         SELECT supplier_id
                         FROM suppliers
