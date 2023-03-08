@@ -5,29 +5,17 @@ use dozer_types::{
     arrow_types::{self, from_arrow::map_record_batch_to_dozer_records},
     bytes::{Buf, Bytes},
     grpc_types::ingest::IngestArrowRequest,
-    ingestion_types::IngestionMessage,
+    ingestion_types::{GrpcArrowSchema, IngestionMessage},
     serde_json,
-    types::{
-        Operation, Record, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceSchema,
-    },
+    types::{Operation, Record, Schema, SchemaIdentifier, SourceSchema},
 };
 
 use crate::{errors::ConnectorError, ingestion::Ingestor};
-use dozer_types::serde::{self, Deserialize, Serialize};
 
 use super::{GrpcIngestMessage, IngestAdapter};
 
 // Input is a JSON string or a path to a JSON file
 // Takes name, arrow schema, and optionally replication type
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(crate = "self::serde")]
-pub struct GrpcArrowSchema {
-    pub name: String,
-    pub schema: dozer_types::arrow::datatypes::Schema,
-    #[serde(default)]
-    pub replication_type: ReplicationChangesTrackingType,
-}
 
 #[derive(Debug)]
 pub struct ArrowAdapter {}

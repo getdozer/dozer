@@ -11,11 +11,11 @@ use arrow::{
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
-    schema: crate::types::Schema,
+    schema: &crate::types::Schema,
 ) -> Result<arrow_types::Schema, arrow::error::ArrowError> {
     let mut fields = vec![];
-    for fd in schema.fields {
-        let field = arrow_types::Field::from(fd);
+    for fd in &schema.fields {
+        let field = arrow_types::Field::from(fd.clone());
         fields.push(field);
     }
     Ok(arrow_types::Schema {
@@ -29,7 +29,7 @@ pub fn map_to_arrow_schema(
 // In a micro batch we can send a record batch that is of size > 1
 pub fn map_record_to_arrow(
     rec: Record,
-    schema: Schema,
+    schema: &Schema,
 ) -> Result<RecordBatch, arrow::error::ArrowError> {
     let mut rows = vec![];
 
@@ -118,7 +118,7 @@ pub fn map_record_to_arrow(
         };
         rows.push(r);
     }
-    RecordBatch::try_new(Arc::new(map_to_arrow_schema(schema).unwrap()), rows)
+    RecordBatch::try_new(Arc::new(map_to_arrow_schema(&schema).unwrap()), rows)
 }
 
 // Maps the dozer field type to the arrow data type
