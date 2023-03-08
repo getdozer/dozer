@@ -231,11 +231,6 @@ fn select_to_pipeline(
 
     let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
 
-    // let product = FromProcessorFactory::new(input_tables.clone());
-
-    // let input_endpoints =
-    //     get_entry_points(&input_tables, &mut query_ctx.pipeline_map, pipeline_idx)?;
-
     let (input_nodes, output_node) = add_from_to_pipeline(
         pipeline,
         &input_tables,
@@ -243,11 +238,9 @@ fn select_to_pipeline(
         pipeline_idx,
     )?;
 
-    //let gen_product_name = format!("product_{}", uuid::Uuid::new_v4());
     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
     let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
     let (gen_product_name, product_output_port) = output_node;
-    //pipeline.add_processor(Arc::new(product), &gen_product_name, input_endpoints);
 
     for (source_name, processor_name, processor_port) in input_nodes.iter() {
         if let Some(table_info) = query_ctx
