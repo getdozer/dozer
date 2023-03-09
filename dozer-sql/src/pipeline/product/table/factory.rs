@@ -15,17 +15,17 @@ use crate::pipeline::{builder::SchemaSQLContext, expression::builder::extend_sch
 use super::processor::TableProcessor;
 
 #[derive(Debug)]
-pub struct RelationProcessorFactory {
+pub struct TableProcessorFactory {
     input_tables: IndexedTableWithJoins,
 }
 
-impl RelationProcessorFactory {
+impl TableProcessorFactory {
     pub fn new(input_tables: IndexedTableWithJoins) -> Self {
         Self { input_tables }
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for RelationProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
