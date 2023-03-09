@@ -13,6 +13,7 @@ use crate::cache::{
 };
 use crate::errors::{CacheError, IndexError};
 use dozer_storage::lmdb::Transaction;
+use dozer_types::borrow::{Borrow, IntoOwned};
 use dozer_types::types::{Field, IndexDefinition, Schema};
 use itertools::Either;
 

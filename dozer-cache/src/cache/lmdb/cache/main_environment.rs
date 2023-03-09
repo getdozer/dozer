@@ -5,7 +5,7 @@ use dozer_storage::{
     BorrowEncode, Decode, Encode, Encoded, KeyIterator, LmdbCounter, LmdbMap, LmdbSet, LmdbVal,
 };
 use dozer_types::{
-    borrow::{Borrow, Cow, ToOwned},
+    borrow::{Borrow, Cow, IntoOwned},
     impl_borrow_for_clone_type,
     serde::{Deserialize, Serialize},
     types::{Field, FieldType, Record, Schema},
@@ -309,8 +309,8 @@ enum OperationBorrow<'a> {
     },
 }
 
-impl<'a> ToOwned<Operation> for OperationBorrow<'a> {
-    fn to_owned(self) -> Operation {
+impl<'a> IntoOwned<Operation> for OperationBorrow<'a> {
+    fn into_owned(self) -> Operation {
         match self {
             Self::Delete { operation_id } => Operation::Delete { operation_id },
             Self::Insert { record_id, record } => Operation::Insert {

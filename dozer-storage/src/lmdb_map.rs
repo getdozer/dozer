@@ -215,6 +215,7 @@ mod tests {
 
     use super::*;
 
+    use dozer_types::borrow::IntoOwned;
     use tempdir::TempDir;
 
     #[test]
