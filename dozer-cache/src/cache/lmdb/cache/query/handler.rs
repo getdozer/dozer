@@ -49,8 +49,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
                 Skip::Skip(skip) => self
                     .common
                     .main_environment
-                    .present_operation_ids()
-                    .count(self.txn)?
+                    .count(self.txn, self.schema.is_append_only())?
                     .saturating_sub(skip)
                     .min(self.query.limit.unwrap_or(usize::MAX)),
                 Skip::After(_) => self.all_ids()?.count(),
@@ -77,8 +76,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         let all_ids = self
             .common
             .main_environment
-            .present_operation_ids()
-            .iter(self.txn)?
+            .present_operation_ids(self.txn, self.schema.is_append_only())?
             .map(|result| {
                 result
                     .map(|id| id.into_owned())
@@ -160,7 +158,7 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
             Ok(id) => self
                 .common
                 .main_environment
-                .get_by_operation_id(self.txn, id)
+                .get_by_operation_id(self.txn, id, self.schema.is_append_only())
                 .transpose(),
             Err(err) => Some(Err(err)),
         })
@@ -199,7 +197,7 @@ fn get_range_spec(
             eq_filters,
             range_query,
         } => {
-            let comparison_key = build_sorted_inverted_comparision_key(
+            let comparison_key = build_sorted_inverted_comparison_key(
                 eq_filters,
                 range_query.as_ref(),
                 is_single_field_sorted_inverted,
@@ -213,7 +211,7 @@ fn get_range_spec(
                     Some((operator, _)) => {
                         // Here we respond to case 1, examples are `a = 1 && b > 2` or `b < 2`.
                         let comparison_key = comparison_key.expect("here's at least a range query");
-                        let null_key = build_sorted_inverted_comparision_key(
+                        let null_key = build_sorted_inverted_comparison_key(
                             eq_filters,
                             Some(&SortedInvertedRangeQuery {
                                 field_index: range_query.field_index,
@@ -235,7 +233,7 @@ fn get_range_spec(
                         if let Some(comparison_key) = comparison_key {
                             // This is the case like `a = 1 && b asc`. The comparison key is only built from `a = 1`.
                             // We use `a = 1 && b = null` as a sentinel, using the invariant that `null` is greater than anything.
-                            let null_key = build_sorted_inverted_comparision_key(
+                            let null_key = build_sorted_inverted_comparison_key(
                                 eq_filters,
                                 Some(&SortedInvertedRangeQuery {
                                     field_index: range_query.field_index,
@@ -300,7 +298,7 @@ fn get_range_spec(
     }
 }
 
-fn build_sorted_inverted_comparision_key(
+fn build_sorted_inverted_comparison_key(
     eq_filters: &[(usize, Field)],
     range_query: Option<&SortedInvertedRangeQuery>,
     is_single_field_index: bool,

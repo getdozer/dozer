@@ -1,8 +1,8 @@
 use dozer_storage::{
     errors::StorageError,
-    lmdb::{RwTransaction, Transaction},
+    lmdb::{RoCursor, RwTransaction, Transaction},
     lmdb_storage::LmdbEnvironmentManager,
-    BorrowEncode, Decode, Encode, Encoded, LmdbCounter, LmdbMap, LmdbSet, LmdbValue,
+    BorrowEncode, Decode, Encode, Encoded, KeyIterator, LmdbCounter, LmdbMap, LmdbSet, LmdbValue,
 };
 use dozer_types::{
     borrow::{Borrow, Cow, ToOwned},
@@ -46,12 +46,12 @@ pub struct MainEnvironment {
     /// Record primary key -> RecordMetadata, empty if schema has no primary key.
     /// Length always increases.
     primary_key_to_metadata: LmdbMap<Vec<u8>, RecordMetadata>,
+    /// Operation ids of latest `Insert`s. Used to filter out deleted records in query. Empty if schema has no primary key.
+    present_operation_ids: LmdbSet<u64>,
     /// The next operation id. Monotonically increasing.
     next_operation_id: LmdbCounter,
     /// Operation_id -> operation.
     operation_id_to_operation: LmdbMap<u64, Operation>,
-    /// Operation ids of latest `Insert`s. Used to filter out deleted records in query.
-    present_operation_ids: LmdbSet<u64>,
 }
 
 impl MainEnvironment {
@@ -61,22 +61,44 @@ impl MainEnvironment {
     ) -> Result<Self, CacheError> {
         let primary_key_to_metadata =
             LmdbMap::new_from_env(env, Some("primary_key_to_metadata"), create_if_not_exist)?;
+        let present_operation_ids =
+            LmdbSet::new_from_env(env, Some("present_operation_ids"), create_if_not_exist)?;
         let next_operation_id =
             LmdbCounter::new_from_env(env, Some("next_operation_id"), create_if_not_exist)?;
         let operation_id_to_operation =
             LmdbMap::new_from_env(env, Some("operation_id_to_operation"), create_if_not_exist)?;
-        let present_operation_ids =
-            LmdbSet::new_from_env(env, Some("present_operation_ids"), create_if_not_exist)?;
         Ok(Self {
             primary_key_to_metadata,
+            present_operation_ids,
             next_operation_id,
             operation_id_to_operation,
-            present_operation_ids,
         })
     }
 
-    pub fn present_operation_ids(&self) -> LmdbSet<u64> {
-        self.present_operation_ids
+    pub fn count<T: Transaction>(
+        &self,
+        txn: &T,
+        schema_is_append_only: bool,
+    ) -> Result<usize, CacheError> {
+        if schema_is_append_only {
+            self.operation_id_to_operation.count(txn)
+        } else {
+            self.present_operation_ids.count(txn)
+        }
+        .map_err(Into::into)
+    }
+
+    pub fn present_operation_ids<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+        schema_is_append_only: bool,
+    ) -> Result<KeyIterator<'txn, RoCursor<'txn>, u64>, CacheError> {
+        if schema_is_append_only {
+            self.operation_id_to_operation.keys(txn)
+        } else {
+            self.present_operation_ids.iter(txn)
+        }
+        .map_err(Into::into)
     }
 
     pub fn get<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<RecordWithId, CacheError> {
@@ -87,25 +109,38 @@ impl MainEnvironment {
         let Some(insert_operation_id) = metadata.borrow().insert_operation_id else {
             return Err(CacheError::PrimaryKeyNotFound);
         };
-        let Some(Cow::Owned(Operation::Insert { record_id, record })) = self.operation_id_to_operation.get(txn, &insert_operation_id)? else {
-            panic!("Inconsistent state: metadata insert_operation_id is not an Insert operation");
-        };
-        Ok(RecordWithId::new(record_id, record))
+        self.get_by_operation_id_unchecked(txn, insert_operation_id)
     }
 
     pub fn get_by_operation_id<T: Transaction>(
         &self,
         txn: &T,
         operation_id: u64,
+        schema_is_append_only: bool,
     ) -> Result<Option<RecordWithId>, CacheError> {
-        if !self.present_operation_ids.contains(txn, &operation_id)? {
+        // IF schema has no primary key, then all operation ids are latest `Insert`s.
+        if !schema_is_append_only && !self.present_operation_ids.contains(txn, &operation_id)? {
             Ok(None)
         } else {
-            let Some(Cow::Owned(Operation::Insert { record_id, record })) = self.operation_id_to_operation.get(txn, &operation_id)? else {
-                panic!("Inconsistent state: present_operation_ids contains an operation id that is not an Insert operation");
-            };
-            Ok(Some(RecordWithId::new(record_id, record)))
+            self.get_by_operation_id_unchecked(txn, operation_id)
+                .map(Some)
         }
+    }
+
+    fn get_by_operation_id_unchecked<T: Transaction>(
+        &self,
+        txn: &T,
+        operation_id: u64,
+    ) -> Result<RecordWithId, CacheError> {
+        let Some(Cow::Owned(Operation::Insert {
+            record_id,
+            record,
+        })) = self.operation_id_to_operation.get(txn, &operation_id)? else {
+            panic!(
+                "Inconsistent state: primary_key_to_metadata or present_operation_ids contains an insert operation id that is not an Insert operation"
+            );
+        };
+        Ok(RecordWithId::new(record_id, record))
     }
 
     /// Inserts the record into the cache and sets the record version. Returns the record id and the operation id.
@@ -121,7 +156,7 @@ impl MainEnvironment {
         // Generation operation id.
         let operation_id = self.next_operation_id.fetch_add(txn, 1)?;
         // Calculate record id.
-        let record_id = if schema.primary_index.is_empty() {
+        let record_id = if schema.is_append_only() {
             record.version = Some(INITIAL_RECORD_VERSION);
             // If the record has no primary key, record id is operation id.
             operation_id
@@ -146,7 +181,7 @@ impl MainEnvironment {
                         }
                     }
                 };
-            // Update `primary_key_to_metadata`.
+            // Update `primary_key_to_metadata` and `present_operation_ids`.
             self.primary_key_to_metadata.insert_overwrite(
                 txn,
                 &primary_key,
@@ -156,13 +191,14 @@ impl MainEnvironment {
                     insert_operation_id: Some(operation_id),
                 },
             )?;
+            if !self.present_operation_ids.insert(txn, &operation_id)? {
+                panic!("Inconsistent state: operation id already exists");
+            }
+            // Update record version.
             record.version = Some(record_version);
             record_id
         };
         // Record operation. The operation id must not exist.
-        if !self.present_operation_ids.insert(txn, &operation_id)? {
-            panic!("Inconsistent state: operation id already exists");
-        }
         if !self.operation_id_to_operation.insert(
             txn,
             &operation_id,
@@ -197,7 +233,7 @@ impl MainEnvironment {
                 insert_operation_id: None,
             },
         )?;
-        // The operation id be present.
+        // The operation id must be present.
         if !self
             .present_operation_ids
             .remove(txn, &insert_operation_id)?
