@@ -12,9 +12,8 @@ use std::process;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-#[tokio::main]
-async fn main() {
-    if let Err(e) = run().await {
+fn main() {
+    if let Err(e) = run() {
         error!("{}", e);
         process::exit(1);
     }
@@ -28,7 +27,7 @@ fn render_logo() {
     info!("\nDozer Version: {VERSION}\n");
 }
 
-async fn run() -> Result<(), OrchestrationError> {
+fn run() -> Result<(), OrchestrationError> {
     set_panic_hook();
 
     // Reloading trace layer seems impossible, so we are running Cli::parse in a closure
