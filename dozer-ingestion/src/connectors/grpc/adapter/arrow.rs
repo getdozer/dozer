@@ -66,8 +66,7 @@ impl IngestAdapter for ArrowAdapter {
 
     fn get_schemas(&self) -> Vec<SourceSchema> {
         self.schema_map
-            .values()
-            .map(|v| v.clone())
+            .values().cloned()
             .collect::<Vec<SourceSchema>>()
     }
 
