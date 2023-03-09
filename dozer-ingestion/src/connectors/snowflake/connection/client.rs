@@ -210,7 +210,7 @@ impl Client {
         conn_hashmap.insert("Role".to_string(), "ACCOUNTADMIN".to_string());
 
         let mut parts = vec![];
-        conn_hashmap.keys().into_iter().for_each(|k| {
+        conn_hashmap.keys().for_each(|k| {
             parts.push(format!("{}={}", k, conn_hashmap.get(k).unwrap()));
         });
 
