@@ -2,7 +2,7 @@ use dozer_storage::{
     errors::StorageError,
     lmdb::{RoCursor, RwTransaction, Transaction},
     lmdb_storage::LmdbEnvironmentManager,
-    BorrowEncode, Decode, Encode, Encoded, KeyIterator, LmdbCounter, LmdbMap, LmdbSet, LmdbValue,
+    BorrowEncode, Decode, Encode, Encoded, KeyIterator, LmdbCounter, LmdbMap, LmdbSet, LmdbVal,
 };
 use dozer_types::{
     borrow::{Borrow, Cow, ToOwned},
@@ -294,7 +294,7 @@ impl Decode for RecordMetadata {
     }
 }
 
-unsafe impl LmdbValue for RecordMetadata {}
+unsafe impl LmdbVal for RecordMetadata {}
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(crate = "dozer_types::serde")]
@@ -372,7 +372,7 @@ impl Decode for Operation {
     }
 }
 
-unsafe impl LmdbValue for Operation {}
+unsafe impl LmdbVal for Operation {}
 
 fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
     debug_assert_eq!(schema.identifier, record.schema_id);
