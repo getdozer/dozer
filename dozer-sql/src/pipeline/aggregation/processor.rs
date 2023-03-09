@@ -433,23 +433,64 @@ impl AggregationProcessor {
             &self.input_schema,
         )?;
 
-        let res = Operation::Update {
-            new: Self::build_projection(
-                new,
-                out_rec_insert,
-                &self.projections,
-                &self.aggregation_schema,
-            )?,
-            old: Self::build_projection(
-                old,
-                out_rec_delete,
-                &self.projections,
-                &self.aggregation_schema,
-            )?,
+        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) = match &self.having
+        {
+            None => (true, true),
+            Some(having) => (
+                Self::having_is_satisfied(
+                    &self.having_eval_schema,
+                    old,
+                    having,
+                    &mut out_rec_delete,
+                )?,
+                Self::having_is_satisfied(
+                    &self.having_eval_schema,
+                    new,
+                    having,
+                    &mut out_rec_insert,
+                )?,
+            ),
+        };
+
+        let res = match (
+            out_rec_delete_having_satisfied,
+            out_rec_insert_having_satisfied,
+        ) {
+            (false, true) => vec![Operation::Insert {
+                new: Self::build_projection(
+                    new,
+                    out_rec_insert,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+            }],
+            (true, false) => vec![Operation::Delete {
+                old: Self::build_projection(
+                    old,
+                    out_rec_delete,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+            }],
+            (true, true) => vec![Operation::Update {
+                new: Self::build_projection(
+                    new,
+                    out_rec_insert,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+                old: Self::build_projection(
+                    old,
+                    out_rec_delete,
+                    &self.projections,
+                    &self.aggregation_schema,
+                )?,
+            }],
+            (false, false) => vec![],
         };
 
         curr_state.values = Some(new_values);
-        Ok(vec![res])
+        Ok(res)
     }
 
     pub fn build_projection(

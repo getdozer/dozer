@@ -236,6 +236,9 @@ pub const FIELD_250_INT: &Field = &Field::Int(250);
 pub const FIELD_300_INT: &Field = &Field::Int(300);
 pub const FIELD_350_INT: &Field = &Field::Int(350);
 pub const FIELD_400_INT: &Field = &Field::Int(400);
+pub const FIELD_500_INT: &Field = &Field::Int(500);
+pub const FIELD_600_INT: &Field = &Field::Int(600);
+pub const FIELD_700_INT: &Field = &Field::Int(700);
 pub const FIELD_50_INT: &Field = &Field::Int(50);
 
 pub const FIELD_100_UINT: &Field = &Field::UInt(100);
