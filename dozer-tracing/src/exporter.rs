@@ -1,6 +1,6 @@
 use dozer_types::grpc_types::ingest::ingest_service_client::IngestServiceClient;
+use dozer_types::log::debug;
 use dozer_types::tonic::transport::Channel;
-use dozer_types::tracing::error;
 use dozer_types::types::{Record, Schema};
 use opentelemetry::sdk::export::trace::SpanExporter;
 
@@ -17,7 +17,6 @@ use dozer_types::models::telemetry::DozerTelemetryConfig;
 use dozer_types::tonic;
 use opentelemetry::sdk::export::trace::SpanData;
 use std::sync::atomic::Ordering;
-use tokio::runtime::Runtime;
 
 #[derive(Debug)]
 pub struct DozerExporter {
@@ -32,6 +31,9 @@ impl DozerExporter {
         }
     }
 }
+
+// build_batch<R>(mut self, runtime: R) -> Result<TracerProvider, TraceError>
+
 impl SpanExporter for DozerExporter {
     fn export(
         &mut self,
@@ -43,12 +45,10 @@ impl SpanExporter for DozerExporter {
         let endpoint = self.config.endpoint.clone();
         let seq_no = self.seq_no.clone();
         Box::pin(async move {
-            Runtime::new().unwrap().block_on(async {
-                let res = ingest_span(batch, endpoint, seq_no).await;
-                if let Err(e) = res {
-                    error!("{}", e);
-                }
-            });
+            let res = ingest_span(batch, endpoint, seq_no).await;
+            if let Err(e) = res {
+                debug!("Failed to send traces: {}", e);
+            }
 
             Ok(())
         })
@@ -81,6 +81,7 @@ async fn ingest_span(
     let mut client = get_grpc_client(endpoint)
         .await
         .map_err(|e| tonic::Status::internal(e.to_string()))?;
+
     let span_schema = spans_schema();
     let event_schema = events_schema();
     for span_data in batch {

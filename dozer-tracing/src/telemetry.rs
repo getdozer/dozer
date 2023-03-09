@@ -1,6 +1,7 @@
 use dozer_types::log::debug;
 use dozer_types::models::telemetry::{DozerTelemetryConfig, OpenTelemetryConfig, TelemetryConfig};
 use opentelemetry::sdk;
+use opentelemetry::sdk::trace::{BatchConfig, BatchSpanProcessor, Sampler};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
 use tracing_opentelemetry::OpenTelemetryLayer;
@@ -12,6 +13,9 @@ use crate::exporter::DozerExporter;
 // Init telemetry by setting a global handler
 pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<TelemetryConfig>) {
     let app_name = app_name.unwrap_or("dozer");
+
+    // disable errors from open telemetry
+    opentelemetry::global::set_error_handler(|_| {}).unwrap();
 
     debug!("Initializing telemetry for {:?}", telemetry_config);
 
@@ -41,6 +45,11 @@ pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<Telemetry
         .with(layers.0)
         .with(layers.1)
         .init();
+}
+
+// Cleanly shutdown telemetry
+pub fn shutdown_telemetry() {
+    opentelemetry::global::shutdown_tracer_provider();
 }
 
 // Init telemetry with a closure without setting a global subscriber
@@ -91,9 +100,9 @@ where
     global::set_text_map_propagator(TraceContextPropagator::new());
     let tracer = opentelemetry_jaeger::new_agent_pipeline()
         .with_service_name(app_name)
-        // .install_batch(opentelemetry::runtime::TokioCurrentThread)
-        .install_simple()
+        .install_batch(opentelemetry::runtime::TokioCurrentThread)
         .expect("Failed to install OpenTelemetry tracer.");
+
     tracing_opentelemetry::layer().with_tracer(tracer)
 }
 
@@ -105,8 +114,23 @@ where
         + dozer_types::tracing::Subscriber,
 {
     let builder = sdk::trace::TracerProvider::builder();
+    let sample_percent = config.sample_percent as f64 / 100.0;
+    let exporter = DozerExporter::new(config);
+    let batch_config = BatchConfig::default()
+        .with_max_concurrent_exports(100000)
+        .with_max_concurrent_exports(5);
+    let sampler = Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(sample_percent)));
+    let batch_processor =
+        BatchSpanProcessor::builder(exporter, opentelemetry::runtime::TokioCurrentThread)
+            .with_batch_config(batch_config)
+            .build();
+
     let tracer_provider = builder
-        .with_simple_exporter(DozerExporter::new(config))
+        .with_config(opentelemetry::sdk::trace::Config {
+            sampler: Box::new(sampler),
+            ..Default::default()
+        })
+        .with_span_processor(batch_processor)
         .build();
 
     let tracer = tracer_provider.versioned_tracer(

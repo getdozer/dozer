@@ -5,7 +5,6 @@ use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::{CliError, OrchestrationError};
 use dozer_orchestrator::simple::SimpleOrchestrator;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, Orchestrator};
-
 use dozer_types::log::{error, info};
 
 use std::process;
@@ -52,13 +51,33 @@ fn run() -> Result<(), OrchestrationError> {
         }
     };
 
+    let running = Arc::new(AtomicBool::new(true));
+    set_ctrl_handler(running.clone());
+
+    let tel_running = running.clone();
+
     // Now we have acces to telemetry configuration
     let telemetry_config = dozer.config.telemetry.clone();
 
-    dozer_tracing::init_telemetry(None, telemetry_config);
+    // start tracing in a different thread as it needs a tokio runtime.
 
-    let running = Arc::new(AtomicBool::new(true));
-    set_ctrl_handler(running.clone());
+    let _tracing_thread = std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("cannot start runtime");
+        runtime.block_on(async {
+            dozer_tracing::init_telemetry(None, telemetry_config);
+
+            // Keep thread running until the main thread is running
+            while tel_running.load(std::sync::atomic::Ordering::Relaxed) {
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            }
+
+            dozer_tracing::shutdown_telemetry();
+        });
+    });
+
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {

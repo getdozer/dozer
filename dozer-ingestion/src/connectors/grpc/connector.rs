@@ -164,9 +164,9 @@ where
         let mut results = HashMap::new();
         let schemas_str = Self::parse_config(&self.config)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
-        let schema_map = adapter.schema_map;
+        let schemas = adapter.get_schemas()?;
         for table in tables {
-            let r = schema_map.get(&table.name).map_or(
+            let r = schemas.iter().find(|s| s.name == table.name).map_or(
                 Err(ConnectorError::InitializationError(format!(
                     "Schema not found for table {}",
                     table.name

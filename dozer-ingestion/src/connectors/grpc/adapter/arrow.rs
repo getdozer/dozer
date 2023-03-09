@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_types::{
+    arrow::datatypes::Schema as ArrowSchema,
     arrow::ipc::reader::StreamReader,
     arrow_types::{self, from_arrow::map_record_batch_to_dozer_records},
     bytes::{Buf, Bytes},
@@ -18,19 +19,20 @@ use super::{GrpcIngestMessage, IngestAdapter};
 // Takes name, arrow schema, and optionally replication type
 
 #[derive(Debug)]
-pub struct ArrowAdapter {}
+pub struct ArrowAdapter {
+    schema_map: HashMap<String, SourceSchema>,
+    _arrow_schemas: HashMap<u32, ArrowSchema>,
+}
 
-impl ArrowAdapter {}
-
-impl IngestAdapter for ArrowAdapter {
-    fn new() -> Self {
-        Self {}
-    }
-
-    fn get_schemas(&self, schemas_str: &str) -> Result<Vec<SourceSchema>, ConnectorError> {
+impl ArrowAdapter {
+    fn parse_schemas(
+        schemas_str: &String,
+    ) -> Result<(Vec<SourceSchema>, HashMap<u32, ArrowSchema>), ConnectorError> {
         let grpc_schemas: Vec<GrpcArrowSchema> =
             serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
         let mut schemas = vec![];
+
+        let mut arrow_schemas = HashMap::new();
 
         for (id, grpc_schema) in grpc_schemas.into_iter().enumerate() {
             let mut schema = arrow_types::from_arrow::map_schema_to_dozer(&grpc_schema.schema)
@@ -40,37 +42,60 @@ impl IngestAdapter for ArrowAdapter {
                 version: 1,
             });
 
+            arrow_schemas.insert(id as u32, grpc_schema.schema);
+
             schemas.push(SourceSchema {
                 name: grpc_schema.name,
                 schema,
                 replication_type: grpc_schema.replication_type.clone(),
             });
         }
-        Ok(schemas)
+        Ok((schemas, arrow_schemas))
     }
+}
+
+impl IngestAdapter for ArrowAdapter {
+    fn new(schemas_str: String) -> Result<Self, ConnectorError> {
+        let (schemas, arrow_schemas) = Self::parse_schemas(&schemas_str)?;
+        let schema_map = schemas.into_iter().map(|v| (v.name.clone(), v)).collect();
+        Ok(Self {
+            schema_map,
+            _arrow_schemas: arrow_schemas,
+        })
+    }
+
+    fn get_schemas(&self) -> Vec<SourceSchema> {
+        self.schema_map
+            .values()
+            .map(|v| v.clone())
+            .collect::<Vec<SourceSchema>>()
+    }
+
     fn handle_message(
         &self,
         msg: GrpcIngestMessage,
-        schema_map: &'static HashMap<String, Schema>,
         ingestor: &'static Ingestor,
     ) -> Result<(), ConnectorError> {
         match msg {
             GrpcIngestMessage::Default(_) => Err(ConnectorError::InitializationError(
                 "Wrong message format!".to_string(),
             )),
-            GrpcIngestMessage::Arrow(msg) => handle_message(msg, schema_map, ingestor),
+            GrpcIngestMessage::Arrow(msg) => handle_message(msg, &self.schema_map, ingestor),
         }
     }
 }
 
 pub fn handle_message(
     req: IngestArrowRequest,
-    schema_map: &'static HashMap<String, Schema>,
+    schema_map: &HashMap<String, SourceSchema>,
     ingestor: &'static Ingestor,
 ) -> Result<(), ConnectorError> {
-    let schema = schema_map.get(&req.schema_name).ok_or_else(|| {
-        ConnectorError::InitializationError(format!("schema not found: {}", req.schema_name))
-    })?;
+    let schema = &schema_map
+        .get(&req.schema_name)
+        .ok_or_else(|| {
+            ConnectorError::InitializationError(format!("schema not found: {}", req.schema_name))
+        })?
+        .schema;
 
     let mut seq_no = req.seq_no;
     let records = map_record_batch(req, schema)?;
