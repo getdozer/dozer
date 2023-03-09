@@ -8,7 +8,7 @@ use dozer_types::{
     borrow::{Borrow, Cow, ToOwned},
     impl_borrow_for_clone_type,
     serde::{Deserialize, Serialize},
-    types::{Record, Schema},
+    types::{Field, FieldType, Record, Schema},
 };
 
 use crate::{
@@ -117,6 +117,7 @@ impl MainEnvironment {
         record: &mut Record,
         schema: &Schema,
     ) -> Result<(u64, u64), CacheError> {
+        debug_check_schema_record_consistency(schema, record);
         // Generation operation id.
         let operation_id = self.next_operation_id.fetch_add(txn, 1)?;
         // Calculate record id.
@@ -336,3 +337,33 @@ impl Decode for Operation {
 }
 
 unsafe impl LmdbValue for Operation {}
+
+fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
+    debug_assert_eq!(schema.identifier, record.schema_id);
+    debug_assert_eq!(schema.fields.len(), record.values.len());
+    for (field, value) in schema.fields.iter().zip(record.values.iter()) {
+        if field.nullable && value == &Field::Null {
+            continue;
+        }
+        match field.typ {
+            FieldType::UInt => {
+                debug_assert!(value.as_uint().is_some())
+            }
+            FieldType::Int => {
+                debug_assert!(value.as_int().is_some())
+            }
+            FieldType::Float => {
+                debug_assert!(value.as_float().is_some())
+            }
+            FieldType::Boolean => debug_assert!(value.as_boolean().is_some()),
+            FieldType::String => debug_assert!(value.as_string().is_some()),
+            FieldType::Text => debug_assert!(value.as_text().is_some()),
+            FieldType::Binary => debug_assert!(value.as_binary().is_some()),
+            FieldType::Decimal => debug_assert!(value.as_decimal().is_some()),
+            FieldType::Timestamp => debug_assert!(value.as_timestamp().is_some()),
+            FieldType::Date => debug_assert!(value.as_date().is_some()),
+            FieldType::Bson => debug_assert!(value.as_bson().is_some()),
+            FieldType::Point => debug_assert!(value.as_point().is_some()),
+        }
+    }
+}
