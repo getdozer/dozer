@@ -4,8 +4,8 @@ pub mod lmdb_storage;
 
 mod lmdb_database;
 pub use lmdb_database::{
-    BorrowEncode, Decode, Encode, Encoded, Iterator, KeyIterator, LmdbDupValue, LmdbKey,
-    LmdbValType, LmdbValue, ValueIterator,
+    BorrowEncode, Decode, Encode, Encoded, Iterator, KeyIterator, LmdbKey, LmdbKeyType, LmdbVal,
+    ValueIterator,
 };
 mod lmdb_map;
 pub use lmdb_map::LmdbMap;

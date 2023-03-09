@@ -245,7 +245,7 @@ fn open_or_create_cache(
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
 ) -> Result<(Box<dyn RwCache>, Option<usize>), ExecutionError> {
-    let append_only = schema.primary_index.is_empty();
+    let append_only = schema.is_append_only();
 
     let create_cache = || {
         cache_manager

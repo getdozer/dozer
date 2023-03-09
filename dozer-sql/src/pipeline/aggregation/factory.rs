@@ -84,6 +84,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                     planner.groupby,
                     planner.aggregation_output,
                     planner.projection_output,
+                    planner.having,
                     input_schema.clone(),
                     planner.post_aggregation_schema,
                 )

@@ -50,8 +50,8 @@ pub fn insert_full_text(
     cache.insert(&mut record).unwrap();
 }
 
-pub fn get_index_counts<'txn, T: Transaction>(
-    txn: &'txn T,
+pub fn get_index_counts<T: Transaction>(
+    txn: &T,
     secondary_index_databases: &[LmdbMultimap<Vec<u8>, u64>],
 ) -> Vec<usize> {
     let mut items = Vec::new();

@@ -26,7 +26,7 @@ pub struct ArrowAdapter {
 
 impl ArrowAdapter {
     fn parse_schemas(
-        schemas_str: &String,
+        schemas_str: &str,
     ) -> Result<(Vec<SourceSchema>, HashMap<u32, ArrowSchema>), ConnectorError> {
         let grpc_schemas: Vec<GrpcArrowSchema> =
             serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
@@ -66,7 +66,8 @@ impl IngestAdapter for ArrowAdapter {
 
     fn get_schemas(&self) -> Vec<SourceSchema> {
         self.schema_map
-            .values().cloned()
+            .values()
+            .cloned()
             .collect::<Vec<SourceSchema>>()
     }
 

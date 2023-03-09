@@ -6,7 +6,7 @@ use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteF
 use crate::{
     errors::StorageError,
     lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    Encode, Iterator, KeyIterator, LmdbKey, LmdbValType, LmdbValue, ValueIterator,
+    Encode, Iterator, KeyIterator, LmdbKey, LmdbKeyType, LmdbVal, ValueIterator,
 };
 
 #[derive(Debug)]
@@ -32,7 +32,7 @@ impl<K, V> Copy for LmdbMap<K, V> {}
 unsafe impl<K, V> Send for LmdbMap<K, V> {}
 unsafe impl<K, V> Sync for LmdbMap<K, V> {}
 
-impl<K: LmdbKey, V: LmdbValue> LmdbMap<K, V> {
+impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
     pub fn new_from_env(
         env: &mut LmdbEnvironmentManager,
         name: Option<&str>,
@@ -165,7 +165,7 @@ impl<K: LmdbKey, V: LmdbValue> LmdbMap<K, V> {
     }
 }
 
-impl<'a, K: LmdbKey + 'a, V: LmdbValue + 'a> LmdbMap<K, V> {
+impl<'a, K: LmdbKey + 'a, V: LmdbVal + 'a> LmdbMap<K, V> {
     /// Extend the map with the contents of an iterator.
     ///
     /// Keys that exist in the map before insertion are ignored.
@@ -183,10 +183,10 @@ impl<'a, K: LmdbKey + 'a, V: LmdbValue + 'a> LmdbMap<K, V> {
 
 pub fn database_key_flag<K: LmdbKey>() -> DatabaseFlags {
     match K::TYPE {
-        LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
+        LmdbKeyType::U32 => DatabaseFlags::INTEGER_KEY,
         #[cfg(target_pointer_width = "64")]
-        LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
-        LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
+        LmdbKeyType::U64 => DatabaseFlags::INTEGER_KEY,
+        LmdbKeyType::FixedSizeOtherThanU32OrUsize | LmdbKeyType::VariableSize => {
             DatabaseFlags::empty()
         }
     }
@@ -215,6 +215,7 @@ mod tests {
 
     use super::*;
 
+    use dozer_types::borrow::IntoOwned;
     use tempdir::TempDir;
 
     #[test]

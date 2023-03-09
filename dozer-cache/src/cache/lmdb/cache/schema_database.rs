@@ -1,6 +1,6 @@
 use dozer_storage::{lmdb::RwTransaction, lmdb_storage::LmdbEnvironmentManager, LmdbMap};
 use dozer_types::{
-    borrow::Cow,
+    borrow::IntoOwned,
     types::{IndexDefinition, Schema},
 };
 
@@ -22,7 +22,7 @@ impl SchemaDatabase {
         // Collect existing schemas.
         let txn = env.begin_ro_txn()?;
         assert!(database.count(&txn)? <= 1, "More than one schema found");
-        let schema = database.get(&txn, &SCHEMA_KEY)?.map(Cow::into_owned);
+        let schema = database.get(&txn, &SCHEMA_KEY)?.map(IntoOwned::into_owned);
 
         Ok(Self { database, schema })
     }
