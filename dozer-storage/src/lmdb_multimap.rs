@@ -4,7 +4,7 @@ use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteF
 
 use crate::{
     errors::StorageError,
-    lmdb_map::database_key_flag,
+    lmdb_map::{database_key_flag, lmdb_stat},
     lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
     Encode, Iterator, LmdbDupValue, LmdbKey, LmdbValType,
 };
@@ -75,6 +75,12 @@ impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
 
     pub fn database(&self) -> Database {
         self.db
+    }
+
+    pub fn count_data<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
+        lmdb_stat(txn, self.db)
+            .map(|stat| stat.ms_entries)
+            .map_err(Into::into)
     }
 
     /// Returns if the key-value pair was actually inserted.

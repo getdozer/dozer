@@ -137,13 +137,13 @@ mod tests {
         {
             let txn = txn.read();
             // No of index dbs
-            let indexes = lmdb_utils::get_indexes(txn.txn(), secondary_index_databases);
+            let index_counts = lmdb_utils::get_index_counts(txn.txn(), secondary_index_databases);
 
-            let index_count = indexes.iter().flatten().count();
+            let index_count: usize = index_counts.iter().sum();
             let expected_count = secondary_indexes.len();
             // 3 columns, 1 compound, 1 descending
             assert_eq!(
-                indexes.len(),
+                index_counts.len(),
                 expected_count,
                 "Must create db for each index"
             );
@@ -161,10 +161,9 @@ mod tests {
 
         let txn = txn.read();
         assert_eq!(
-            lmdb_utils::get_indexes(txn.txn(), secondary_index_databases)
+            lmdb_utils::get_index_counts(txn.txn(), secondary_index_databases)
                 .into_iter()
-                .flatten()
-                .count(),
+                .sum::<usize>(),
             0,
             "Must delete every index"
         );
@@ -217,10 +216,9 @@ mod tests {
         let (txn, secondary_index_databases) = cache.get_txn_and_secondary_indexes();
         let txn = txn.read();
         assert_eq!(
-            lmdb_utils::get_indexes(txn.txn(), secondary_index_databases)
+            lmdb_utils::get_index_counts(txn.txn(), secondary_index_databases)
                 .into_iter()
-                .flatten()
-                .count(),
+                .sum::<usize>(),
             0,
             "Must delete every index"
         );

@@ -192,7 +192,7 @@ pub fn database_key_flag<K: LmdbKey>() -> DatabaseFlags {
     }
 }
 
-fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<lmdb_sys::MDB_stat, lmdb::Error> {
+pub fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<lmdb_sys::MDB_stat, lmdb::Error> {
     let mut stat = lmdb_sys::MDB_stat {
         ms_psize: 0,
         ms_depth: 0,
