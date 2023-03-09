@@ -420,8 +420,8 @@ pub enum ObjectStoreObjectError {
     #[error("Table definition not found")]
     TableDefinitionNotFound,
 
-    #[error("Listing path parsing error: {0}")]
-    ListingPathParsingError(#[source] DataFusionError),
+    #[error("Listing path {0} parsing error: {1}")]
+    ListingPathParsingError(String, #[source] DataFusionError),
 
     #[error("File format unsupported: {0}")]
     FileFormatUnsupportedError(String),

@@ -82,9 +82,9 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
 
                 let params = self.config.table_params(&table_name)?;
 
-                let table_path = ListingTableUrl::parse(params.table_path).map_err(|e| {
+                let table_path = ListingTableUrl::parse(&params.table_path).map_err(|e| {
                     ObjectStoreConnectorError::DataFusionStorageObjectError(
-                        ListingPathParsingError(e),
+                        ListingPathParsingError(params.table_path.clone(), e),
                     )
                 })?;
 
