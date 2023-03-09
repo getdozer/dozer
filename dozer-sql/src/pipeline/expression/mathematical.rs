@@ -320,3 +320,96 @@ pub fn evaluate_minus(
         )),
     }
 }
+
+#[test]
+fn test_division_operation() {
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::UInt(10)),
+        &Expression::Literal(Field::UInt(4)),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::Int(10)),
+        &Expression::Literal(Field::Int(4)),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::Int(10)),
+        &Expression::Literal(Field::UInt(4)),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::UInt(10)),
+        &Expression::Literal(Field::Int(4)),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::Int(10)),
+        &Expression::Literal(Field::Float(OrderedFloat(4.0))),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::Float(OrderedFloat(10.0))),
+        &Expression::Literal(Field::Int(4)),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::Float(OrderedFloat(10.0))),
+        &Expression::Literal(Field::UInt(4)),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::UInt(10)),
+        &Expression::Literal(Field::Float(OrderedFloat(4.0))),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+
+    let result = evaluate_div(
+        &Schema::empty(),
+        &Expression::Literal(Field::Float(OrderedFloat(10.0))),
+        &Expression::Literal(Field::Float(OrderedFloat(4.0))),
+        &Record::new(None, vec![], None),
+    )
+    .unwrap();
+
+    assert_eq!(result, Field::Float(OrderedFloat(2.5)));
+}
