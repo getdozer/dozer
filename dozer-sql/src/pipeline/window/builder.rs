@@ -16,13 +16,7 @@ pub(crate) fn window_from_relation(
     schema: &Schema,
 ) -> Result<Option<WindowType>, WindowError> {
     match relation {
-        TableFactor::Table {
-            name,
-            alias: _,
-            args,
-            with_hints: _,
-            columns_definition: _,
-        } => {
+        TableFactor::Table { name, args, .. } => {
             let function_name = string_from_sql_object_name(name);
 
             if let Some(args) = args {
@@ -84,13 +78,7 @@ pub(crate) fn window_from_relation(
 
 pub(crate) fn window_source_name(relation: &TableFactor) -> Result<String, WindowError> {
     match relation {
-        TableFactor::Table {
-            name,
-            alias: _,
-            args,
-            with_hints: _,
-            columns_definition: _,
-        } => {
+        TableFactor::Table { name, args, .. } => {
             let function_name = string_from_sql_object_name(name);
 
             if let Some(args) = args {
@@ -329,13 +317,7 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>
 
 pub(crate) fn relation_is_a_window(relation: &TableFactor) -> Result<bool, WindowError> {
     match relation {
-        TableFactor::Table {
-            name,
-            alias: _,
-            args,
-            with_hints: _,
-            columns_definition: _,
-        } => {
+        TableFactor::Table { name, args, .. } => {
             let function_name = string_from_sql_object_name(name);
 
             if args.is_some() {
