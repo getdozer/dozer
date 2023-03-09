@@ -1,11 +1,11 @@
 use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
-    delete_exp, delete_field, init_input_schema,
-    init_processor, insert_exp, insert_field, update_exp, update_field, FIELD_100_INT, FIELD_150_INT, FIELD_200_INT, FIELD_300_INT, FIELD_400_INT, FIELD_500_INT,
-    FIELD_50_INT, FIELD_600_INT, ITALY, SINGAPORE,
+    delete_exp, delete_field, init_input_schema, init_processor, insert_exp, insert_field,
+    update_exp, update_field, FIELD_100_INT, FIELD_150_INT, FIELD_200_INT, FIELD_300_INT,
+    FIELD_400_INT, FIELD_500_INT, FIELD_50_INT, FIELD_600_INT, ITALY, SINGAPORE,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::types::FieldType::{Int};
+use dozer_types::types::FieldType::Int;
 use std::collections::HashMap;
 
 #[test]
