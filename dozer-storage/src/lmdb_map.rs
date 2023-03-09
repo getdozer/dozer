@@ -1,21 +1,22 @@
-use std::{borrow::Cow, ops::Bound};
+use std::ops::Bound;
 
+use dozer_types::borrow::Cow;
 use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
     errors::StorageError,
     lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    Iterator, KeyIterator, LmdbKey, LmdbValType, LmdbValue, ValueIterator,
+    Encode, Iterator, KeyIterator, LmdbKey, LmdbValType, LmdbValue, ValueIterator,
 };
 
 #[derive(Debug)]
-pub struct LmdbMap<K: ?Sized, V: ?Sized> {
+pub struct LmdbMap<K, V> {
     db: Database,
-    _key: std::marker::PhantomData<*const K>,
-    _value: std::marker::PhantomData<*const V>,
+    _key: std::marker::PhantomData<K>,
+    _value: std::marker::PhantomData<V>,
 }
 
-impl<K: ?Sized, V: ?Sized> Clone for LmdbMap<K, V> {
+impl<K, V> Clone for LmdbMap<K, V> {
     fn clone(&self) -> Self {
         Self {
             db: self.db,
@@ -25,13 +26,13 @@ impl<K: ?Sized, V: ?Sized> Clone for LmdbMap<K, V> {
     }
 }
 
-impl<K: ?Sized, V: ?Sized> Copy for LmdbMap<K, V> {}
+impl<K, V> Copy for LmdbMap<K, V> {}
 
 // Safety: `Database` is `Send` and `Sync`.
-unsafe impl<K: ?Sized, V: ?Sized> Send for LmdbMap<K, V> {}
-unsafe impl<K: ?Sized, V: ?Sized> Sync for LmdbMap<K, V> {}
+unsafe impl<K, V> Send for LmdbMap<K, V> {}
+unsafe impl<K, V> Sync for LmdbMap<K, V> {}
 
-impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
+impl<K: LmdbKey, V: LmdbValue> LmdbMap<K, V> {
     pub fn new_from_env(
         env: &mut LmdbEnvironmentManager,
         name: Option<&str>,
@@ -83,7 +84,7 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
     pub fn get<'a, T: Transaction>(
         &self,
         txn: &'a T,
-        key: &K,
+        key: K::Encode<'_>,
     ) -> Result<Option<Cow<'a, V>>, StorageError> {
         let key = key.encode()?;
         match txn.get(self.db, &key) {
@@ -97,8 +98,8 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
     pub fn insert(
         &self,
         txn: &mut RwTransaction,
-        key: &K,
-        value: &V,
+        key: K::Encode<'_>,
+        value: V::Encode<'_>,
     ) -> Result<bool, StorageError> {
         let key = key.encode()?;
         let value = value.encode()?;
@@ -109,8 +110,24 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
         }
     }
 
+    pub fn insert_overwrite(
+        &self,
+        txn: &mut RwTransaction,
+        key: K::Encode<'_>,
+        value: V::Encode<'_>,
+    ) -> Result<(), StorageError> {
+        let key = key.encode()?;
+        let value = value.encode()?;
+        txn.put(self.db, &key, &value, WriteFlags::empty())?;
+        Ok(())
+    }
+
     /// Returns if the key was actually removed.
-    pub fn remove(&self, txn: &mut RwTransaction, key: &K) -> Result<bool, StorageError> {
+    pub fn remove(
+        &self,
+        txn: &mut RwTransaction,
+        key: K::Encode<'_>,
+    ) -> Result<bool, StorageError> {
         let key = key.encode()?;
         match txn.del(self.db, &key, None) {
             Ok(()) => Ok(true),
@@ -148,14 +165,14 @@ impl<K: LmdbKey + ?Sized, V: LmdbValue + ?Sized> LmdbMap<K, V> {
     }
 }
 
-impl<'a, K: LmdbKey + 'a + ?Sized, V: LmdbValue + 'a + ?Sized> LmdbMap<K, V> {
+impl<'a, K: LmdbKey + 'a, V: LmdbValue + 'a> LmdbMap<K, V> {
     /// Extend the map with the contents of an iterator.
     ///
     /// Keys that exist in the map before insertion are ignored.
     pub fn extend(
         &self,
         txn: &mut RwTransaction,
-        iter: impl IntoIterator<Item = (&'a K, &'a V)>,
+        iter: impl IntoIterator<Item = (K::Encode<'a>, V::Encode<'a>)>,
     ) -> Result<(), StorageError> {
         for (key, value) in iter {
             self.insert(txn, key, value)?;
@@ -164,7 +181,7 @@ impl<'a, K: LmdbKey + 'a + ?Sized, V: LmdbValue + 'a + ?Sized> LmdbMap<K, V> {
     }
 }
 
-pub fn database_key_flag<K: LmdbKey + ?Sized>() -> DatabaseFlags {
+pub fn database_key_flag<K: LmdbKey>() -> DatabaseFlags {
     match K::TYPE {
         LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
         #[cfg(target_pointer_width = "64")]
@@ -212,7 +229,7 @@ mod tests {
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
 
-        let map = LmdbMap::new_from_txn(&mut txn, None, true).unwrap();
+        let map = LmdbMap::<Vec<u8>, Vec<u8>>::new_from_txn(&mut txn, None, true).unwrap();
         assert_eq!(map.count(txn.txn()).unwrap(), 0);
 
         assert!(map
@@ -229,7 +246,7 @@ mod tests {
             map.get(txn.txn(), [1u8].as_slice())
                 .unwrap()
                 .unwrap()
-                .to_owned(),
+                .into_owned(),
             vec![2]
         );
         assert!(map.get(txn.txn(), [2u8].as_slice()).unwrap().is_none());

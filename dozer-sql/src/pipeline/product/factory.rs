@@ -9,14 +9,11 @@ use dozer_core::{
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{BinaryOperator, Ident, JoinConstraint};
 
-use crate::pipeline::expression::builder::ExpressionBuilder;
+use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
+use crate::pipeline::{builder::IndexedTableWithJoins, errors::PipelineError};
 use crate::pipeline::{
     builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
     product::join::JoinBranch,
-};
-use crate::pipeline::{
-    builder::{get_input_names, IndexedTableWithJoins},
-    errors::PipelineError,
 };
 use sqlparser::ast::Expr as SqlExpr;
 
@@ -361,4 +358,14 @@ fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {
     }
 
     output_schema
+}
+
+pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias> {
+    let mut input_names = vec![];
+    input_names.push(input_tables.relation.0.clone());
+
+    for join in &input_tables.joins {
+        input_names.push(join.0.clone());
+    }
+    input_names
 }
