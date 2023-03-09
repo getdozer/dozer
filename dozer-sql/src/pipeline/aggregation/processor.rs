@@ -53,10 +53,12 @@ pub struct AggregationProcessor {
     measures_types: Vec<AggregatorType>,
     measures_return_types: Vec<FieldType>,
     projections: Vec<Expression>,
+    having: Option<Expression>,
     input_schema: Schema,
     aggregation_schema: Schema,
     states: HashMap<u64, AggregationState>,
     default_segment_key: u64,
+    having_eval_schema: Schema,
 }
 
 enum AggregatorOperation {
@@ -70,6 +72,7 @@ impl AggregationProcessor {
         dimensions: Vec<Expression>,
         measures: Vec<Expression>,
         projections: Vec<Expression>,
+        having: Option<Expression>,
         input_schema: Schema,
         aggregation_schema: Schema,
     ) -> Result<Self, PipelineError> {
@@ -88,6 +91,9 @@ impl AggregationProcessor {
         let mut hasher = AHasher::default();
         DEFAULT_SEGMENT_KEY.hash(&mut hasher);
 
+        let mut having_eval_schema_fields = input_schema.fields.clone();
+        having_eval_schema_fields.extend(aggregation_schema.fields.clone());
+
         Ok(Self {
             dimensions,
             projections,
@@ -95,9 +101,15 @@ impl AggregationProcessor {
             aggregation_schema,
             states: HashMap::new(),
             measures: aggr_measures,
+            having,
             measures_types: aggr_types,
             measures_return_types: aggr_measures_ret_types,
             default_segment_key: hasher.finish(),
+            having_eval_schema: Schema {
+                fields: having_eval_schema_fields,
+                primary_index: vec![],
+                identifier: None,
+            },
         })
     }
 
@@ -161,7 +173,7 @@ impl AggregationProcessor {
         Ok(new_fields)
     }
 
-    fn agg_delete(&mut self, old: &mut Record) -> Result<Operation, PipelineError> {
+    fn agg_delete(&mut self, old: &mut Record) -> Result<Vec<Operation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
@@ -189,39 +201,85 @@ impl AggregationProcessor {
             &self.input_schema,
         )?;
 
+        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) = match &self.having
+        {
+            None => (true, true),
+            Some(having) => (
+                Self::having_is_satisfied(
+                    &self.having_eval_schema,
+                    old,
+                    having,
+                    &mut out_rec_delete,
+                )?,
+                Self::having_is_satisfied(
+                    &self.having_eval_schema,
+                    old,
+                    having,
+                    &mut out_rec_insert,
+                )?,
+            ),
+        };
+
         let res = if curr_state.count == 1 {
             self.states.remove(&key);
-            Operation::Delete {
-                old: Self::build_projection(
-                    old,
-                    out_rec_delete,
-                    &self.projections,
-                    &self.aggregation_schema,
-                )?,
+            if out_rec_delete_having_satisfied {
+                vec![Operation::Delete {
+                    old: Self::build_projection(
+                        old,
+                        out_rec_delete,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                }]
+            } else {
+                vec![]
             }
         } else {
             curr_state.count -= 1;
             curr_state.values = Some(new_values);
-            Operation::Update {
-                new: Self::build_projection(
-                    old,
-                    out_rec_insert,
-                    &self.projections,
-                    &self.aggregation_schema,
-                )?,
-                old: Self::build_projection(
-                    old,
-                    out_rec_delete,
-                    &self.projections,
-                    &self.aggregation_schema,
-                )?,
+
+            match (
+                out_rec_delete_having_satisfied,
+                out_rec_insert_having_satisfied,
+            ) {
+                (false, true) => vec![Operation::Insert {
+                    new: Self::build_projection(
+                        old,
+                        out_rec_insert,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                }],
+                (true, false) => vec![Operation::Delete {
+                    old: Self::build_projection(
+                        old,
+                        out_rec_delete,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                }],
+                (true, true) => vec![Operation::Update {
+                    new: Self::build_projection(
+                        old,
+                        out_rec_insert,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                    old: Self::build_projection(
+                        old,
+                        out_rec_delete,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                }],
+                (false, false) => vec![],
             }
         };
 
         Ok(res)
     }
 
-    fn agg_insert(&mut self, new: &mut Record) -> Result<Operation, PipelineError> {
+    fn agg_insert(&mut self, new: &mut Record) -> Result<Vec<Operation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
@@ -247,29 +305,74 @@ impl AggregationProcessor {
             &self.input_schema,
         )?;
 
-        let res = if curr_state.count == 0 {
-            Operation::Insert {
-                new: Self::build_projection(
+        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) = match &self.having
+        {
+            None => (true, true),
+            Some(having) => (
+                Self::having_is_satisfied(
+                    &self.having_eval_schema,
                     new,
-                    out_rec_insert,
-                    &self.projections,
-                    &self.aggregation_schema,
+                    having,
+                    &mut out_rec_delete,
                 )?,
+                Self::having_is_satisfied(
+                    &self.having_eval_schema,
+                    new,
+                    having,
+                    &mut out_rec_insert,
+                )?,
+            ),
+        };
+
+        let res = if curr_state.count == 0 {
+            if out_rec_insert_having_satisfied {
+                vec![Operation::Insert {
+                    new: Self::build_projection(
+                        new,
+                        out_rec_insert,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                }]
+            } else {
+                vec![]
             }
         } else {
-            Operation::Update {
-                new: Self::build_projection(
-                    new,
-                    out_rec_insert,
-                    &self.projections,
-                    &self.aggregation_schema,
-                )?,
-                old: Self::build_projection(
-                    new,
-                    out_rec_delete,
-                    &self.projections,
-                    &self.aggregation_schema,
-                )?,
+            match (
+                out_rec_delete_having_satisfied,
+                out_rec_insert_having_satisfied,
+            ) {
+                (false, true) => vec![Operation::Insert {
+                    new: Self::build_projection(
+                        new,
+                        out_rec_insert,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                }],
+                (true, false) => vec![Operation::Delete {
+                    old: Self::build_projection(
+                        new,
+                        out_rec_delete,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                }],
+                (true, true) => vec![Operation::Update {
+                    new: Self::build_projection(
+                        new,
+                        out_rec_insert,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                    old: Self::build_projection(
+                        new,
+                        out_rec_delete,
+                        &self.projections,
+                        &self.aggregation_schema,
+                    )?,
+                }],
+                (false, false) => vec![],
             }
         };
 
@@ -279,12 +382,53 @@ impl AggregationProcessor {
         Ok(res)
     }
 
+    fn generate_op_for_existing_segment(
+        out_rec_delete_having_satisfied: bool,
+        out_rec_insert_having_satisfied: bool,
+        out_rec_delete: Vec<Field>,
+        out_rec_insert: Vec<Field>,
+        new: &mut Record,
+        projections: &Vec<Expression>,
+        aggregation_schema: &Schema,
+    ) -> Result<Vec<Operation>, PipelineError> {
+        Ok(vec![])
+    }
+
+    fn having_is_satisfied(
+        having_eval_schema: &Schema,
+        original_record: &mut Record,
+        having: &Expression,
+        out_rec: &mut Vec<Field>,
+    ) -> Result<bool, PipelineError> {
+        //
+        let original_record_len = original_record.values.len();
+        Ok(match out_rec.len() {
+            0 => false,
+            _ => {
+                original_record
+                    .values
+                    .extend(out_rec.drain(0..).collect::<Vec<Field>>());
+                let r = having
+                    .evaluate(original_record, having_eval_schema)?
+                    .as_boolean()
+                    .unwrap_or_else(|| false);
+                out_rec.extend(
+                    original_record
+                        .values
+                        .drain(original_record_len..)
+                        .collect::<Vec<Field>>(),
+                );
+                r
+            }
+        })
+    }
+
     fn agg_update(
         &mut self,
         old: &mut Record,
         new: &mut Record,
         key: u64,
-    ) -> Result<Operation, PipelineError> {
+    ) -> Result<Vec<Operation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
@@ -322,7 +466,7 @@ impl AggregationProcessor {
         };
 
         curr_state.values = Some(new_values);
-        Ok(res)
+        Ok(vec![res])
     }
 
     pub fn build_projection(
@@ -343,8 +487,8 @@ impl AggregationProcessor {
 
     pub fn aggregate(&mut self, mut op: Operation) -> Result<Vec<Operation>, PipelineError> {
         match op {
-            Operation::Insert { ref mut new } => Ok(vec![self.agg_insert(new)?]),
-            Operation::Delete { ref mut old } => Ok(vec![self.agg_delete(old)?]),
+            Operation::Insert { ref mut new } => Ok(self.agg_insert(new)?),
+            Operation::Delete { ref mut old } => Ok(self.agg_delete(old)?),
             Operation::Update {
                 ref mut old,
                 ref mut new,
@@ -359,9 +503,12 @@ impl AggregationProcessor {
                 };
 
                 if old_record_hash == new_record_hash {
-                    Ok(vec![self.agg_update(old, new, old_record_hash)?])
+                    Ok(self.agg_update(old, new, old_record_hash)?)
                 } else {
-                    Ok(vec![self.agg_delete(old)?, self.agg_insert(new)?])
+                    let mut r = Vec::with_capacity(2);
+                    r.extend(self.agg_delete(old)?);
+                    r.extend(self.agg_insert(new)?);
+                    Ok(r)
                 }
             }
         }

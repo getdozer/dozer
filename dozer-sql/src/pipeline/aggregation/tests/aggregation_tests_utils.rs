@@ -30,6 +30,7 @@ pub(crate) fn init_processor(
         projection_planner.groupby,
         projection_planner.aggregation_output,
         projection_planner.projection_output,
+        projection_planner.having,
         input_schema.clone(),
         projection_planner.post_aggregation_schema,
     )
@@ -232,7 +233,9 @@ pub const FIELD_100_INT: &Field = &Field::Int(100);
 pub const FIELD_150_INT: &Field = &Field::Int(150);
 pub const FIELD_200_INT: &Field = &Field::Int(200);
 pub const FIELD_250_INT: &Field = &Field::Int(250);
+pub const FIELD_300_INT: &Field = &Field::Int(300);
 pub const FIELD_350_INT: &Field = &Field::Int(350);
+pub const FIELD_400_INT: &Field = &Field::Int(400);
 pub const FIELD_50_INT: &Field = &Field::Int(50);
 
 pub const FIELD_100_UINT: &Field = &Field::UInt(100);
