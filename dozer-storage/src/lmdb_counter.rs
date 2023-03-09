@@ -1,4 +1,4 @@
-use dozer_types::borrow::Cow;
+use dozer_types::borrow::IntoOwned;
 use lmdb::{RwTransaction, Transaction};
 
 use crate::{
@@ -32,7 +32,7 @@ impl LmdbCounter {
     pub fn load(&self, txn: &impl Transaction) -> Result<u64, StorageError> {
         self.0
             .get(txn, &COUNTER_KEY)
-            .map(|value| value.map_or(0, Cow::into_owned))
+            .map(|value| value.map_or(0, IntoOwned::into_owned))
     }
 
     pub fn store(&self, txn: &mut RwTransaction, value: u64) -> Result<(), StorageError> {

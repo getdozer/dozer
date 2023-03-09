@@ -92,7 +92,7 @@ impl<'a, K: LmdbKey + 'a> LmdbSet<K> {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::borrow::Cow;
+    use dozer_types::borrow::IntoOwned;
     use tempdir::TempDir;
 
     use crate::lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions};
@@ -130,7 +130,7 @@ mod tests {
         assert_eq!(
             set.iter(txn.txn())
                 .unwrap()
-                .map(|result| result.map(Cow::into_owned))
+                .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap(),
             vec![3, 4, 5]
@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(
             set.iter(txn.txn())
                 .unwrap()
-                .map(|result| result.map(Cow::into_owned))
+                .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap(),
             Vec::<u32>::new()

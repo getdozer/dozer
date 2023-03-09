@@ -141,12 +141,11 @@ impl Schema {
         table
     }
 
-    pub fn set_identifier(
-        &mut self,
-        identifier: Option<SchemaIdentifier>,
-    ) -> Result<(), TypeError> {
-        self.identifier = identifier;
-        Ok(())
+    /// Returns if this schema is append only.
+    ///
+    /// Currently schema is append only if it does not have a primary key. We'll support append only schema with primary key in the future.
+    pub fn is_append_only(&self) -> bool {
+        self.primary_index.is_empty()
     }
 }
 
