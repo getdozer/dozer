@@ -1,4 +1,4 @@
-use crate::types::{IndexDefinition, Record, Schema};
+use crate::types::{IndexDefinition, Record, SchemaWithIndex};
 
 pub trait IntoOwned<Owned> {
     fn into_owned(self) -> Owned;
@@ -75,7 +75,7 @@ macro_rules! impl_borrow_for_clone_type {
     };
 }
 
-impl_borrow_for_clone_type!(u8, u32, u64, Record, (Schema, Vec<IndexDefinition>));
+impl_borrow_for_clone_type!(u8, u32, u64, Record, IndexDefinition, SchemaWithIndex);
 
 pub enum Cow<'a, B: Borrow + 'a> {
     Borrowed(B::Borrowed<'a>),

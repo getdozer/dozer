@@ -166,7 +166,6 @@ impl ExecutionDag {
         (senders, record_writers)
     }
 
-    #[allow(clippy::type_complexity)]
     pub fn collect_receivers(
         &mut self,
         node_index: daggy::NodeIndex,

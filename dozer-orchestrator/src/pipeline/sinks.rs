@@ -16,9 +16,8 @@ use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
-
 use dozer_types::tracing::span;
-use dozer_types::types::FieldType;
+use dozer_types::types::{FieldType, SchemaWithIndex};
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -88,7 +87,7 @@ impl CacheSinkFactory {
     fn get_output_schema(
         &self,
         mut input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<(Schema, Vec<IndexDefinition>), ExecutionError> {
+    ) -> Result<SchemaWithIndex, ExecutionError> {
         debug_assert!(input_schemas.len() == 1);
         let mut schema = input_schemas
             .remove(&DEFAULT_PORT_HANDLE)
@@ -359,11 +358,7 @@ impl Sink for CacheSink {
         let _enter = span.enter();
 
         let endpoint_name = &self.api_endpoint.name;
-        let schema = &self
-            .cache
-            .get_schema()
-            .map_err(|_| ExecutionError::SchemaNotInitialized)?
-            .0;
+        let schema = &self.cache.get_schema().0;
 
         match op {
             Operation::Delete { mut old } => {

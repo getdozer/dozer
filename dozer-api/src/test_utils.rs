@@ -1,5 +1,5 @@
 use dozer_types::serde_json::{json, Value};
-use dozer_types::types::{Field, Record, SourceDefinition};
+use dozer_types::types::{Field, Record, SchemaWithIndex, SourceDefinition};
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
@@ -7,7 +7,7 @@ use dozer_types::{
 
 use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId};
 
-pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
+pub fn get_schema() -> SchemaWithIndex {
     let fields = vec![
         FieldDefinition {
             name: "film_id".to_string(),
@@ -101,7 +101,7 @@ fn get_films() -> Vec<Value> {
 
 pub fn initialize_cache(
     schema_name: &str,
-    schema: Option<(Schema, Vec<IndexDefinition>)>,
+    schema: Option<SchemaWithIndex>,
 ) -> Box<dyn CacheManager> {
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);

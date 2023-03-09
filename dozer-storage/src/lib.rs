@@ -15,6 +15,10 @@ mod lmdb_set;
 pub use lmdb_set::LmdbSet;
 mod lmdb_counter;
 pub use lmdb_counter::LmdbCounter;
+mod lmdb_transaction;
+pub use lmdb_transaction::{BeginTransaction, ReadTransaction};
+mod lmdb_option;
+pub use lmdb_option::LmdbOption;
 
 #[cfg(test)]
 mod tests;

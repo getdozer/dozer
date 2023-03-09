@@ -1,10 +1,10 @@
 use dozer_types::types::{
-    FieldDefinition, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
+    FieldDefinition, IndexDefinition, Schema, SchemaIdentifier, SchemaWithIndex, SourceDefinition,
 };
 
 use super::expression::{FilterExpression, QueryExpression, Skip};
 
-pub fn schema_0() -> (Schema, Vec<IndexDefinition>) {
+pub fn schema_0() -> SchemaWithIndex {
     (
         Schema {
             identifier: Some(SchemaIdentifier { id: 0, version: 1 }),
@@ -20,7 +20,7 @@ pub fn schema_0() -> (Schema, Vec<IndexDefinition>) {
     )
 }
 
-pub fn schema_1() -> (Schema, Vec<IndexDefinition>) {
+pub fn schema_1() -> SchemaWithIndex {
     (
         Schema {
             identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
@@ -56,7 +56,7 @@ pub fn schema_1() -> (Schema, Vec<IndexDefinition>) {
     )
 }
 
-pub fn schema_full_text() -> (Schema, Vec<IndexDefinition>) {
+pub fn schema_full_text() -> SchemaWithIndex {
     (
         Schema {
             identifier: Some(SchemaIdentifier { id: 2, version: 1 }),
@@ -81,7 +81,7 @@ pub fn schema_full_text() -> (Schema, Vec<IndexDefinition>) {
 }
 
 // This is for testing appending only schema, which doesn't need a primary index, for example, eth logs.
-pub fn schema_empty_primary_index() -> (Schema, Vec<IndexDefinition>) {
+pub fn schema_empty_primary_index() -> SchemaWithIndex {
     (
         Schema {
             identifier: Some(SchemaIdentifier { id: 3, version: 1 }),
@@ -97,7 +97,7 @@ pub fn schema_empty_primary_index() -> (Schema, Vec<IndexDefinition>) {
     )
 }
 
-pub fn schema_multi_indices() -> (Schema, Vec<IndexDefinition>) {
+pub fn schema_multi_indices() -> SchemaWithIndex {
     (
         Schema {
             identifier: Some(SchemaIdentifier { id: 4, version: 1 }),

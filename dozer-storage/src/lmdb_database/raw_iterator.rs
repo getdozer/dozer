@@ -155,7 +155,9 @@ mod tests {
     use lmdb::{Database, DatabaseFlags, Transaction, WriteFlags};
     use tempdir::TempDir;
 
-    use crate::lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions, SharedTransaction};
+    use crate::lmdb_storage::{
+        CreateDatabase, LmdbEnvironmentManager, LmdbEnvironmentOptions, SharedTransaction,
+    };
 
     use super::*;
 

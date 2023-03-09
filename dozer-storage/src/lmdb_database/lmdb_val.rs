@@ -1,6 +1,6 @@
 use dozer_types::{
     borrow::{Borrow, Cow},
-    types::{IndexDefinition, Record, Schema},
+    types::{IndexDefinition, Record, SchemaWithIndex},
 };
 
 use crate::errors::StorageError;
@@ -215,33 +215,61 @@ unsafe impl LmdbKey for Record {
 
 unsafe impl LmdbVal for Record {}
 
-impl<'a> Encode<'a> for &'a (Schema, Vec<IndexDefinition>) {
+impl<'a> Encode<'a> for &'a IndexDefinition {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
         dozer_types::bincode::serialize(self)
             .map(Encoded::Vec)
             .map_err(|e| StorageError::SerializationError {
-                typ: "(Schema, Vec<IndexDefinition>)",
+                typ: "IndexDefinition",
                 reason: Box::new(e),
             })
     }
 }
 
-impl BorrowEncode for (Schema, Vec<IndexDefinition>) {
-    type Encode<'a> = &'a (Schema, Vec<IndexDefinition>);
+impl BorrowEncode for IndexDefinition {
+    type Encode<'a> = &'a IndexDefinition;
 }
 
-impl Decode for (Schema, Vec<IndexDefinition>) {
+impl Decode for IndexDefinition {
     fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
         dozer_types::bincode::deserialize(bytes)
             .map(Cow::Owned)
             .map_err(|e| StorageError::DeserializationError {
-                typ: "(Schema, Vec<IndexDefinition>)",
+                typ: "IndexDefinition",
                 reason: Box::new(e),
             })
     }
 }
 
-unsafe impl LmdbVal for (Schema, Vec<IndexDefinition>) {}
+unsafe impl LmdbVal for IndexDefinition {}
+
+impl<'a> Encode<'a> for &'a SchemaWithIndex {
+    fn encode(self) -> Result<Encoded<'a>, StorageError> {
+        dozer_types::bincode::serialize(self)
+            .map(Encoded::Vec)
+            .map_err(|e| StorageError::SerializationError {
+                typ: "SchemaWithIndex",
+                reason: Box::new(e),
+            })
+    }
+}
+
+impl BorrowEncode for SchemaWithIndex {
+    type Encode<'a> = &'a SchemaWithIndex;
+}
+
+impl Decode for SchemaWithIndex {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        dozer_types::bincode::deserialize(bytes)
+            .map(Cow::Owned)
+            .map_err(|e| StorageError::DeserializationError {
+                typ: "SchemaWithIndex",
+                reason: Box::new(e),
+            })
+    }
+}
+
+unsafe impl LmdbVal for SchemaWithIndex {}
 
 #[cfg(test)]
 mod tests {

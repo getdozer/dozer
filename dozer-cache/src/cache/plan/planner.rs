@@ -1,4 +1,4 @@
-use crate::cache::expression::{FilterExpression, Operator, QueryExpression, SortDirection};
+use crate::cache::expression::{FilterExpression, Operator, SortDirection, SortOptions};
 use crate::errors::PlanError;
 use dozer_types::json_value_to_field;
 use dozer_types::types::{Field, FieldDefinition, Schema};
@@ -11,18 +11,21 @@ use super::{IndexFilter, IndexScanKind};
 pub struct QueryPlanner<'a> {
     schema: &'a Schema,
     secondary_indexes: &'a [IndexDefinition],
-    query: &'a QueryExpression,
+    filter: Option<&'a FilterExpression>,
+    order_by: &'a SortOptions,
 }
 impl<'a> QueryPlanner<'a> {
     pub fn new(
         schema: &'a Schema,
         secondary_indexes: &'a [IndexDefinition],
-        query: &'a QueryExpression,
+        filter: Option<&'a FilterExpression>,
+        order_by: &'a SortOptions,
     ) -> Self {
         Self {
             schema,
             secondary_indexes,
-            query,
+            filter,
+            order_by,
         }
     }
 
@@ -30,14 +33,14 @@ impl<'a> QueryPlanner<'a> {
         // Collect all the filters.
         // TODO: Handle filters like And([a > 0, a < 10]).
         let mut filters = vec![];
-        if let Some(expression) = &self.query.filter {
+        if let Some(expression) = &self.filter {
             collect_filters(self.schema, expression, &mut filters)?;
         }
 
         // Filter the sort options.
         // TODO: Handle duplicate fields.
         let mut order_by = vec![];
-        for order in &self.query.order_by.0 {
+        for order in &self.order_by.0 {
             // Find the field index.
             let (field_index, _, _) =
                 get_field_index_and_type(&order.field_name, &self.schema.fields)
@@ -235,21 +238,12 @@ fn all_indexes_are_present(
                 scans.push(IndexScan {
                     index_id: idx,
                     kind: index_scan_kind,
-                    is_single_field_sorted_inverted: is_single_field_sorted_inverted(&indexes[idx]),
                 });
             }
             None => return None,
         }
     }
     Some(scans)
-}
-
-fn is_single_field_sorted_inverted(index: &IndexDefinition) -> bool {
-    match index {
-        // `fields.len() == 1` criteria must be kept the same with `comparator.rs`.
-        IndexDefinition::SortedInverted(fields) => fields.len() == 1,
-        _ => false,
-    }
 }
 
 #[cfg(test)]

@@ -4,9 +4,8 @@ use dozer_types::borrow::Cow;
 use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
-    errors::StorageError,
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    Encode, Iterator, KeyIterator, LmdbKey, LmdbKeyType, LmdbVal, ValueIterator,
+    errors::StorageError, lmdb_storage::CreateDatabase, Encode, Iterator, KeyIterator, LmdbKey,
+    LmdbKeyType, LmdbVal, ValueIterator,
 };
 
 #[derive(Debug)]
@@ -33,8 +32,8 @@ unsafe impl<K, V> Send for LmdbMap<K, V> {}
 unsafe impl<K, V> Sync for LmdbMap<K, V> {}
 
 impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
-    pub fn new_from_env(
-        env: &mut LmdbEnvironmentManager,
+    pub fn new<C: CreateDatabase>(
+        c: &mut C,
         name: Option<&str>,
         create_if_not_exist: bool,
     ) -> Result<Self, StorageError> {
@@ -44,27 +43,7 @@ impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
             None
         };
 
-        let db = env.create_database(name, create_flags)?;
-
-        Ok(Self {
-            db,
-            _key: std::marker::PhantomData,
-            _value: std::marker::PhantomData,
-        })
-    }
-
-    pub fn new_from_txn(
-        txn: &mut LmdbExclusiveTransaction,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        let create_flags = if create_if_not_exist {
-            Some(database_key_flag::<K>())
-        } else {
-            None
-        };
-
-        let db = txn.create_database(name, create_flags)?;
+        let db = c.create_database(name, create_flags)?;
 
         Ok(Self {
             db,
@@ -221,16 +200,17 @@ mod tests {
     #[test]
     fn test_lmdb_map() {
         let temp_dir = TempDir::new("test_lmdb_map").unwrap();
-        let env = LmdbEnvironmentManager::create(
+        let mut env = LmdbEnvironmentManager::create(
             temp_dir.path(),
             "env",
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
+        let map = LmdbMap::<Vec<u8>, Vec<u8>>::new(&mut env, None, true).unwrap();
+
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
 
-        let map = LmdbMap::<Vec<u8>, Vec<u8>>::new_from_txn(&mut txn, None, true).unwrap();
         assert_eq!(map.count(txn.txn()).unwrap(), 0);
 
         assert!(map
