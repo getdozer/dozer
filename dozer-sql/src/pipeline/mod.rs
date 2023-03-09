@@ -6,6 +6,7 @@ mod planner;
 mod product;
 mod projection;
 mod selection;
+mod window;
 
 #[cfg(test)]
 mod tests;

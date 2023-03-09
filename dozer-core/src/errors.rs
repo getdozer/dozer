@@ -101,6 +101,12 @@ pub enum ExecutionError {
 
     #[error("Failed to execute product processor: {0}")]
     ProductProcessorError(#[source] BoxedError),
+
+    #[error("Failed to create Window processor: {0}")]
+    WindowProcessorFactoryError(#[source] BoxedError),
+
+    #[error("Failed to execute the Window processor: {0}")]
+    WindowProcessorError(#[source] BoxedError),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {
