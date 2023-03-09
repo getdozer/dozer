@@ -206,7 +206,7 @@ impl LmdbRwCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<u64, CacheError> {
-        let span = dozer_types::tracing::span!(dozer_types::tracing::Level::DEBUG, "insert_cache");
+        let span = dozer_types::tracing::span!(dozer_types::tracing::Level::TRACE, "insert_cache");
         let _enter = span.enter();
         let mut txn = self.txn.write();
         let txn = txn.txn_mut();
@@ -218,7 +218,7 @@ impl LmdbRwCache {
         };
 
         let span = dozer_types::tracing::span!(
-            dozer_types::tracing::Level::DEBUG,
+            dozer_types::tracing::Level::TRACE,
             "build_indexes",
             record_id = record_id,
             operation_id = operation_id

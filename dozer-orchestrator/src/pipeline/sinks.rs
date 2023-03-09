@@ -351,7 +351,7 @@ impl Sink for CacheSink {
         self.counter += 1;
 
         let span = span!(
-            dozer_types::tracing::Level::DEBUG,
+            dozer_types::tracing::Level::TRACE,
             "sink_process",
             self.api_endpoint.name,
             self.counter
