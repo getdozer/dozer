@@ -1,8 +1,5 @@
 use dozer_storage::{lmdb::Transaction, LmdbMultimap};
-use dozer_types::{
-    borrow::Cow,
-    types::{Field, IndexDefinition, Record, Schema},
-};
+use dozer_types::types::{Field, IndexDefinition, Record, Schema};
 
 use crate::cache::{lmdb::cache::LmdbRwCache, RwCache};
 
@@ -53,18 +50,13 @@ pub fn insert_full_text(
     cache.insert(&mut record).unwrap();
 }
 
-pub fn get_indexes<'txn, T: Transaction>(
+pub fn get_index_counts<'txn, T: Transaction>(
     txn: &'txn T,
     secondary_index_databases: &[LmdbMultimap<Vec<u8>, u64>],
-) -> Vec<Vec<(Cow<'txn, Vec<u8>>, Cow<'txn, u64>)>> {
+) -> Vec<usize> {
     let mut items = Vec::new();
     for db in secondary_index_databases {
-        items.push(
-            db.iter(txn)
-                .unwrap()
-                .map(|result| result.unwrap())
-                .collect(),
-        );
+        items.push(db.count_data(txn).unwrap());
     }
     items
 }

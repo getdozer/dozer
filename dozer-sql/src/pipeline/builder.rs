@@ -231,12 +231,14 @@ fn select_to_pipeline(
 
     let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
 
-    let (input_nodes, output_node) = add_from_to_pipeline(
+    let (input_nodes, output_node, mut used_sources) = add_from_to_pipeline(
         pipeline,
         &input_tables,
         &mut query_ctx.pipeline_map,
         pipeline_idx,
     )?;
+
+    query_ctx.used_sources.append(&mut used_sources);
 
     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
     let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
@@ -329,8 +331,17 @@ fn add_from_to_pipeline(
     input_tables: &IndexedTableWithJoins,
     pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
     pipeline_idx: usize,
-) -> Result<(Vec<(String, String, PortHandle)>, (String, PortHandle)), PipelineError> {
-    let mut pipeline_entry_points = vec![];
+) -> Result<
+    (
+        Vec<(String, String, PortHandle)>,
+        (String, PortHandle),
+        Vec<String>,
+    ),
+    PipelineError,
+> {
+    // the sources names that are used in this pipeline
+    let mut used_sources = vec![];
+
     let mut product_entry_points = vec![];
     let mut input_nodes = vec![];
 
@@ -347,12 +358,12 @@ fn add_from_to_pipeline(
 
         if is_an_entry_point(&window_source_name, pipeline_map, pipeline_idx) {
             let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(window_source_name, None),
+                AppSourceId::new(window_source_name.clone(), None),
                 DEFAULT_PORT_HANDLE as PortHandle,
             );
 
-            window_entry_points.push(entry_point.clone());
-            pipeline_entry_points.push(entry_point);
+            window_entry_points.push(entry_point);
+            used_sources.push(window_source_name);
         } else {
             input_nodes.push((
                 window_source_name,
@@ -379,12 +390,12 @@ fn add_from_to_pipeline(
 
         if is_an_entry_point(&product_input_name, pipeline_map, pipeline_idx) {
             let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(product_input_name, None),
+                AppSourceId::new(product_input_name.clone(), None),
                 0 as PortHandle,
             );
 
-            product_entry_points.push(entry_point.clone());
-            pipeline_entry_points.push(entry_point);
+            product_entry_points.push(entry_point);
+            used_sources.push(product_input_name);
         } else {
             input_nodes.push((
                 product_input_name,
@@ -406,12 +417,12 @@ fn add_from_to_pipeline(
 
             if is_an_entry_point(&window_input_name, pipeline_map, pipeline_idx) {
                 let entry_point = PipelineEntryPoint::new(
-                    AppSourceId::new(window_input_name, None),
+                    AppSourceId::new(window_input_name.clone(), None),
                     DEFAULT_PORT_HANDLE as PortHandle,
                 );
 
                 window_entry_points.push(entry_point.clone());
-                pipeline_entry_points.push(entry_point);
+                used_sources.push(window_input_name);
             } else {
                 input_nodes.push((
                     window_input_name,
@@ -438,12 +449,12 @@ fn add_from_to_pipeline(
 
             if is_an_entry_point(&product_input_name, pipeline_map, pipeline_idx) {
                 let entry_point = PipelineEntryPoint::new(
-                    AppSourceId::new(product_input_name, None),
+                    AppSourceId::new(product_input_name.clone(), None),
                     (index + 1) as PortHandle,
                 );
 
                 product_entry_points.push(entry_point.clone());
-                pipeline_entry_points.push(entry_point);
+                used_sources.push(product_input_name);
             } else {
                 input_nodes.push((
                     product_input_name,
@@ -463,6 +474,7 @@ fn add_from_to_pipeline(
     Ok((
         input_nodes,
         (product_processor_name, DEFAULT_PORT_HANDLE as PortHandle),
+        used_sources,
     ))
 }
 
