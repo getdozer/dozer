@@ -4,19 +4,19 @@ use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteF
 
 use crate::{
     errors::StorageError,
-    lmdb_map::database_key_flag,
+    lmdb_map::{database_key_flag, lmdb_stat},
     lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    Encode, Iterator, LmdbDupValue, LmdbKey, LmdbValType,
+    Encode, Iterator, LmdbKey, LmdbKeyType,
 };
 
 #[derive(Debug)]
-pub struct LmdbMultimap<K: ?Sized, V: ?Sized> {
+pub struct LmdbMultimap<K, V> {
     db: Database,
     _key: std::marker::PhantomData<*const K>,
     _value: std::marker::PhantomData<*const V>,
 }
 
-impl<K: ?Sized, V: ?Sized> Clone for LmdbMultimap<K, V> {
+impl<K, V> Clone for LmdbMultimap<K, V> {
     fn clone(&self) -> Self {
         Self {
             db: self.db,
@@ -26,13 +26,13 @@ impl<K: ?Sized, V: ?Sized> Clone for LmdbMultimap<K, V> {
     }
 }
 
-impl<K: ?Sized, V: ?Sized> Copy for LmdbMultimap<K, V> {}
+impl<K, V> Copy for LmdbMultimap<K, V> {}
 
 // Safety: `Database` is `Send` and `Sync`.
-unsafe impl<K: ?Sized, V: ?Sized> Send for LmdbMultimap<K, V> {}
-unsafe impl<K: ?Sized, V: ?Sized> Sync for LmdbMultimap<K, V> {}
+unsafe impl<K, V> Send for LmdbMultimap<K, V> {}
+unsafe impl<K, V> Sync for LmdbMultimap<K, V> {}
 
-impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
+impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
     pub fn new_from_env(
         env: &mut LmdbEnvironmentManager,
         name: Option<&str>,
@@ -75,6 +75,12 @@ impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
 
     pub fn database(&self) -> Database {
         self.db
+    }
+
+    pub fn count_data<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
+        lmdb_stat(txn, self.db)
+            .map(|stat| stat.ms_entries)
+            .map_err(Into::into)
     }
 
     /// Returns if the key-value pair was actually inserted.
@@ -128,15 +134,15 @@ impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
     }
 }
 
-fn database_flag<K: LmdbKey + ?Sized, V: LmdbKey + ?Sized>() -> DatabaseFlags {
+fn database_flag<K: LmdbKey, V: LmdbKey>() -> DatabaseFlags {
     let mut flags = database_key_flag::<K>();
     flags |= DatabaseFlags::DUP_SORT;
     match V::TYPE {
-        LmdbValType::U32 => flags |= DatabaseFlags::DUP_FIXED | DatabaseFlags::INTEGER_DUP,
+        LmdbKeyType::U32 => flags |= DatabaseFlags::DUP_FIXED | DatabaseFlags::INTEGER_DUP,
         #[cfg(target_pointer_width = "64")]
-        LmdbValType::U64 => flags |= DatabaseFlags::DUP_FIXED | DatabaseFlags::INTEGER_DUP,
-        LmdbValType::FixedSizeOtherThanU32OrUsize => flags |= DatabaseFlags::DUP_FIXED,
-        LmdbValType::VariableSize => (),
+        LmdbKeyType::U64 => flags |= DatabaseFlags::DUP_FIXED | DatabaseFlags::INTEGER_DUP,
+        LmdbKeyType::FixedSizeOtherThanU32OrUsize => flags |= DatabaseFlags::DUP_FIXED,
+        LmdbKeyType::VariableSize => (),
     };
     flags
 }
