@@ -2,7 +2,6 @@ use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
-use crate::pipeline::product::set_factory::SetProcessorFactory;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use crate::pipeline::window::builder::relation_is_a_window;
 use dozer_core::app::AppPipeline;
@@ -22,6 +21,7 @@ use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
 use super::product::factory::FromProcessorFactory;
+use super::product::set_factory::SetProcessorFactory;
 use super::window::factory::WindowProcessorFactory;
 
 #[derive(Debug, Clone, Default)]

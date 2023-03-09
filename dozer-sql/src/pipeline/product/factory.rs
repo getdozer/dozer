@@ -13,12 +13,12 @@ use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::{builder::IndexedTableWithJoins, errors::PipelineError};
 use crate::pipeline::{
     builder::SchemaSQLContext, errors::JoinError, expression::builder::extend_schema_source_def,
-    product::join::JoinBranch,
+    product::join_operator::JoinBranch,
 };
 use sqlparser::ast::Expr as SqlExpr;
 
 use super::{
-    join::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},
+    join_operator::{JoinOperator, JoinOperatorType, JoinSource, JoinTable},
     processor::FromProcessor,
 };
 

@@ -9,7 +9,7 @@ use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Field, Operation, Record};
 use std::collections::HashMap;
 
-use super::join::{JoinAction, JoinSource};
+use super::join_operator::{JoinAction, JoinSource};
 
 /// Cartesian Product Processor
 #[derive(Debug)]
