@@ -50,7 +50,7 @@ impl Processor for WindowProcessor {
                     .execute(new)
                     .map_err(|e| ExecutionError::WindowProcessorError(Box::new(e)))?;
                 for record in records {
-                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
                 }
             }
             Operation::Update { ref old, ref new } => {
