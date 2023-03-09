@@ -148,6 +148,7 @@ impl CommonPlanner {
 
     fn add_groupby_items(&mut self, expr_items: Vec<Expr>) -> Result<(), PipelineError> {
         let mut indexes = vec![];
+        let mut set_pk = true;
         for expr in expr_items {
             let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
@@ -162,11 +163,16 @@ impl CommonPlanner {
                 .find(|e| e.1 == &groupby_expression)
             {
                 indexes.push(e.0);
+            } else {
+                set_pk = false
             }
         }
 
-        indexes.sort();
-        self.post_projection_schema.primary_index = indexes;
+        if set_pk {
+            indexes.sort();
+            self.post_projection_schema.primary_index = indexes;
+        }
+
         Ok(())
     }
 
