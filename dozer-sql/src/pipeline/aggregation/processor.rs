@@ -394,7 +394,7 @@ impl AggregationProcessor {
                 let r = having
                     .evaluate(original_record, having_eval_schema)?
                     .as_boolean()
-                    .unwrap_or_else(|| false);
+                    .unwrap_or(false);
                 out_rec.extend(
                     original_record
                         .values
