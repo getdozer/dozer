@@ -25,7 +25,7 @@ macro_rules! define_math_operator {
                     Field::Timestamp(right_v) => match $op {
                         "-" => {
                             let duration = left_v - right_v;
-                            Ok(Field::Int(duration.num_milliseconds()))
+                            Ok(Field::Int(duration.num_nanoseconds().unwrap()))
                         }
                         _ => Err(PipelineError::InvalidTypeComparison(
                             left_p,

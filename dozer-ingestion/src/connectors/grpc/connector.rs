@@ -112,8 +112,8 @@ where
             Server::builder()
                 .layer(
                     TraceLayer::new_for_http()
-                        .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
-                        .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+                        .make_span_with(trace::DefaultMakeSpan::new().level(Level::DEBUG))
+                        .on_response(trace::DefaultOnResponse::new().level(Level::DEBUG)),
                 )
                 .accept_http1(true)
                 .add_service(ingest_service)

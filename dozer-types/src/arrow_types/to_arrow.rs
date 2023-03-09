@@ -80,12 +80,12 @@ pub fn map_record_to_arrow(
                 None as Option<i256>,
             ])) as ArrayRef,
             (Field::Timestamp(v), FieldType::Timestamp) => {
-                Arc::new(arrow_array::TimestampMillisecondArray::from_iter_values([
-                    v.timestamp_millis(),
+                Arc::new(arrow_array::TimestampNanosecondArray::from_iter_values([
+                    v.timestamp_nanos()
                 ])) as ArrayRef
             }
             (Field::Null, FieldType::Timestamp) => {
-                Arc::new(arrow_array::TimestampMillisecondArray::from(vec![
+                Arc::new(arrow_array::TimestampNanosecondArray::from(vec![
                     None as Option<i64>,
                 ])) as ArrayRef
             }
@@ -134,7 +134,7 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
         FieldType::Text => DataType::LargeUtf8,
         // TODO: Map thsi correctly
         FieldType::Decimal => DataType::Decimal256(10, 5),
-        FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Millisecond, None),
+        FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Nanosecond, None),
         FieldType::Date => DataType::Date64,
         FieldType::Binary => {
             metadata.map(|m| m.insert("logical_type".to_string(), "Binary".to_string()));

@@ -1,5 +1,6 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::rust_decimal::prelude::ToPrimitive;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 use prost_reflect::prost_types::Timestamp;
@@ -90,7 +91,7 @@ fn field_to_prost_value(f: Field) -> Value {
             value: Some(value::Value::IntValue(n)),
         },
         Field::Float(n) => Value {
-            value: Some(value::Value::FloatValue(n.0)),
+            value: Some(value::Value::FloatValue(n.to_f64().unwrap())),
         },
 
         Field::Boolean(n) => Value {
