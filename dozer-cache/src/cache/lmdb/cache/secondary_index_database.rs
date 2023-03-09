@@ -13,7 +13,7 @@ pub fn new_secondary_index_database_from_env(
     index: usize,
     index_definition: &IndexDefinition,
     create_if_not_exist: bool,
-) -> Result<LmdbMultimap<[u8], u64>, CacheError> {
+) -> Result<LmdbMultimap<Vec<u8>, u64>, CacheError> {
     let name = database_name(index);
 
     let result = LmdbMultimap::new_from_env(env, Some(&name), create_if_not_exist)?;
@@ -34,7 +34,7 @@ pub fn new_secondary_index_database_from_txn(
     index: usize,
     index_definition: &IndexDefinition,
     create_if_not_exist: bool,
-) -> Result<LmdbMultimap<[u8], u64>, CacheError> {
+) -> Result<LmdbMultimap<Vec<u8>, u64>, CacheError> {
     let name = database_name(index);
     let result = LmdbMultimap::new_from_txn(txn, Some(&name), create_if_not_exist)?;
 

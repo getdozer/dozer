@@ -1,7 +1,8 @@
-use std::borrow::Cow;
-
 use dozer_storage::{lmdb::RwTransaction, lmdb_storage::LmdbEnvironmentManager, LmdbMap};
-use dozer_types::types::{IndexDefinition, Schema};
+use dozer_types::{
+    borrow::Cow,
+    types::{IndexDefinition, Schema},
+};
 
 use crate::errors::CacheError;
 

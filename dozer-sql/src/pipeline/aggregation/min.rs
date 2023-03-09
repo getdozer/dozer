@@ -74,13 +74,11 @@ fn get_min(
             }
             Some(not_supported_return_type) => {
                 Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                    "Not supported return type {} for {}",
-                    not_supported_return_type, Min
+                    "Not supported return type {not_supported_return_type} for {Min}"
                 ))))
             }
             None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                "Not supported None return type for {}",
-                Min
+                "Not supported None return type for {Min}"
             )))),
         }
     }

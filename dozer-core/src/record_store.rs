@@ -37,11 +37,15 @@ pub fn create_record_store(
 #[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
     schema: Schema,
-    index: HashMap<u64, Record>,
+    index: HashMap<Vec<u8>, Record>,
 }
 
 impl PrimaryKeyLookupRecordWriter {
     pub(crate) fn new(schema: Schema) -> Self {
+        debug_assert!(
+            !schema.primary_index.is_empty(),
+            "PrimaryKeyLookupRecordWriter can only be used with a schema that has a primary key."
+        );
         Self {
             schema,
             index: HashMap::new(),
@@ -53,12 +57,12 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
     fn write(&mut self, op: Operation) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { new } => {
-                let new_key = new.get_hashed_primary_key(&self.schema);
+                let new_key = new.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
                 Ok(Operation::Insert { new })
             }
             Operation::Delete { mut old } => {
-                let old_key = old.get_hashed_primary_key(&self.schema);
+                let old_key = old.get_key(&self.schema.primary_index);
                 old = self
                     .index
                     .remove_entry(&old_key)
@@ -67,13 +71,13 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                 Ok(Operation::Delete { old })
             }
             Operation::Update { mut old, new } => {
-                let old_key = old.get_hashed_primary_key(&self.schema);
+                let old_key = old.get_key(&self.schema.primary_index);
                 old = self
                     .index
                     .remove_entry(&old_key)
                     .ok_or_else(RecordNotFound)?
                     .1;
-                let new_key = new.get_hashed_primary_key(&self.schema);
+                let new_key = new.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
                 Ok(Operation::Update { old, new })
             }

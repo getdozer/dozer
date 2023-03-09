@@ -1,11 +1,9 @@
-use ahash::AHasher;
 use geo::{point, GeodesicDistance, Point};
 use ordered_float::OrderedFloat;
 use std::array::TryFromSliceError;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::hash::Hasher;
 use std::str::FromStr;
 
 use crate::errors::types::TypeError;
@@ -237,20 +235,6 @@ impl Record {
             fields.push(self.values[*i].clone());
         }
         fields
-    }
-
-    pub fn get_hashed_primary_key(&self, schema: &Schema) -> u64 {
-        let mut hasher = AHasher::default();
-        if schema.primary_index.is_empty() {
-            self.values.hash(&mut hasher);
-        } else {
-            let mut fields = Vec::with_capacity(schema.primary_index.len());
-            for idx in &schema.primary_index {
-                fields.push(&self.values[*idx]);
-            }
-            fields.hash(&mut hasher);
-        }
-        hasher.finish()
     }
 
     pub fn get_key(&self, indexes: &Vec<usize>) -> Vec<u8> {

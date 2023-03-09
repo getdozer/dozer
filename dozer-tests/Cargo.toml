@@ -27,7 +27,7 @@ clap = { version = "4.1.6", features = ["derive"] }
 dozer-orchestrator = { path = "../dozer-orchestrator" }
 
 [dev-dependencies]
-sqlparser = "0.31.0"
+sqlparser = "0.32.0"
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }

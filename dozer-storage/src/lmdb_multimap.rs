@@ -6,7 +6,7 @@ use crate::{
     errors::StorageError,
     lmdb_map::database_key_flag,
     lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    Iterator, LmdbDupValue, LmdbKey, LmdbValType,
+    Encode, Iterator, LmdbDupValue, LmdbKey, LmdbValType,
 };
 
 #[derive(Debug)]
@@ -81,8 +81,8 @@ impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
     pub fn insert(
         &self,
         txn: &mut RwTransaction,
-        key: &K,
-        value: &V,
+        key: K::Encode<'_>,
+        value: V::Encode<'_>,
     ) -> Result<bool, StorageError> {
         let key = key.encode()?;
         let value = value.encode()?;
@@ -97,8 +97,8 @@ impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
     pub fn remove(
         &self,
         txn: &mut RwTransaction,
-        key: &K,
-        value: &V,
+        key: K::Encode<'_>,
+        value: V::Encode<'_>,
     ) -> Result<bool, StorageError> {
         let key = key.encode()?;
         let value = value.encode()?;
@@ -120,7 +120,7 @@ impl<K: LmdbKey + ?Sized, V: LmdbDupValue + ?Sized> LmdbMultimap<K, V> {
     pub fn range<'txn, T: Transaction>(
         &self,
         txn: &'txn T,
-        starting_key: Bound<&K>,
+        starting_key: Bound<K::Encode<'_>>,
         ascending: bool,
     ) -> Result<Iterator<'txn, RoCursor<'txn>, K, V>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
@@ -161,7 +161,7 @@ mod tests {
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
 
-        let map = LmdbMultimap::new_from_txn(&mut txn, None, true).unwrap();
+        let map = LmdbMultimap::<u64, u64>::new_from_txn(&mut txn, None, true).unwrap();
         assert!(map.insert(txn.txn_mut(), &1u64, &2u64).unwrap());
         assert!(!map.insert(txn.txn_mut(), &1u64, &2u64).unwrap());
         assert!(map.insert(txn.txn_mut(), &1u64, &3u64).unwrap());
