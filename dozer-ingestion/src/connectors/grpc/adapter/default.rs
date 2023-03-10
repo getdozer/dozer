@@ -54,7 +54,8 @@ impl IngestAdapter for DefaultAdapter {
     }
     fn get_schemas(&self) -> Vec<SourceSchema> {
         self.schema_map
-            .values().cloned()
+            .values()
+            .cloned()
             .collect::<Vec<SourceSchema>>()
     }
     fn handle_message(

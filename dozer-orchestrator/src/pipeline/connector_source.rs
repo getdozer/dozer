@@ -11,7 +11,7 @@ use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, Inges
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
-use dozer_types::tracing::{self, span, Level};
+use dozer_types::tracing::{span, Level};
 use dozer_types::types::{
     Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
 };
@@ -192,6 +192,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             schema_port_map,
             tables,
             connector,
+            connection_name: self.connection_name.clone(),
             bars,
         }))
     }
@@ -204,6 +205,7 @@ pub struct ConnectorSource {
     schema_port_map: HashMap<u32, PortHandle>,
     tables: Vec<TableInfo>,
     connector: Box<dyn Connector>,
+    connection_name: String,
     bars: HashMap<PortHandle, ProgressBar>,
 }
 
@@ -239,8 +241,9 @@ impl Source for ConnectorSource {
 
             for IngestionMessage { identifier, kind } in iterator.by_ref() {
                 let span = span!(
-                    Level::DEBUG,
-                    "ingest_message",
+                    Level::TRACE,
+                    "pipeline_source_start",
+                    self.connection_name,
                     identifier.txid,
                     identifier.seq_in_tx
                 );
@@ -248,15 +251,12 @@ impl Source for ConnectorSource {
 
                 let schema_id = match &kind {
                     IngestionMessageKind::OperationEvent(Operation::Delete { old }) => {
-                        tracing::debug!("Ingesting delete: {:?}", old);
                         Some(get_schema_id(old.schema_id)?)
                     }
                     IngestionMessageKind::OperationEvent(Operation::Insert { new }) => {
-                        tracing::debug!("Ingesting insert: {:?}", new);
                         Some(get_schema_id(new.schema_id)?)
                     }
                     IngestionMessageKind::OperationEvent(Operation::Update { old: _, new }) => {
-                        tracing::debug!("Ingesting update: {:?}", new);
                         Some(get_schema_id(new.schema_id)?)
                     }
                     IngestionMessageKind::SnapshottingDone => None,
