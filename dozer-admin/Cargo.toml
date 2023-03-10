@@ -1,6 +1,6 @@
 [package]
 name = "dozer-admin"
-version = "0.1.10"
+version = "0.1.11"
 authors = ["getdozer/dozer-dev"]
 edition = "2021"
 build = "build.rs"
