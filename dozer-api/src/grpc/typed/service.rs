@@ -347,20 +347,13 @@ fn on_event(
         .transpose()?;
 
     let endpoint_to_be_streamed = endpoint_name.to_string();
-    shared_impl::on_event(
-        reader,
-        endpoint_name,
-        filter,
-        event_notifier,
-        access.cloned(),
-        move |op| {
-            if endpoint_to_be_streamed == op.endpoint_name {
-                Some(Ok(on_event_to_typed_response(op, event_desc.clone())))
-            } else {
-                None
-            }
-        },
-    )
+    shared_impl::on_event(reader, filter, event_notifier, access.cloned(), move |op| {
+        if endpoint_to_be_streamed == op.endpoint_name {
+            Some(Ok(on_event_to_typed_response(op, event_desc.clone())))
+        } else {
+            None
+        }
+    })
 }
 
 fn token(

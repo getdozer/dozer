@@ -1,20 +1,16 @@
-use dozer_storage::{lmdb::Transaction, LmdbMultimap};
-use dozer_types::types::{Field, IndexDefinition, Record, Schema};
+use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaWithIndex};
 
-use crate::cache::{lmdb::cache::LmdbRwCache, RwCache};
+use crate::cache::{
+    lmdb::cache::{LmdbCache, LmdbRwCache, SecondaryEnvironment},
+    RoCache, RwCache,
+};
 
 pub fn create_cache(
-    schema_gen: impl FnOnce() -> (Schema, Vec<IndexDefinition>),
+    schema_gen: impl FnOnce() -> SchemaWithIndex,
 ) -> (LmdbRwCache, Schema, Vec<IndexDefinition>) {
-    let (schema, secondary_indexes) = schema_gen();
-    let cache = LmdbRwCache::create(
-        schema.clone(),
-        secondary_indexes.clone(),
-        Default::default(),
-        Default::default(),
-    )
-    .unwrap();
-    (cache, schema, secondary_indexes)
+    let schema = schema_gen();
+    let cache = LmdbRwCache::create(&schema, &Default::default(), Default::default()).unwrap();
+    (cache, schema.0, schema.1)
 }
 
 pub fn insert_rec_1(
@@ -50,13 +46,8 @@ pub fn insert_full_text(
     cache.insert(&mut record).unwrap();
 }
 
-pub fn get_index_counts<T: Transaction>(
-    txn: &T,
-    secondary_index_databases: &[LmdbMultimap<Vec<u8>, u64>],
-) -> Vec<usize> {
-    let mut items = Vec::new();
-    for db in secondary_index_databases {
-        items.push(db.count_data(txn).unwrap());
-    }
-    items
+pub fn get_index_counts<C: LmdbCache>(cache: &C) -> Vec<usize> {
+    (0..cache.get_schema().1.len())
+        .map(|index| cache.secondary_env(index).count_data().unwrap())
+        .collect()
 }

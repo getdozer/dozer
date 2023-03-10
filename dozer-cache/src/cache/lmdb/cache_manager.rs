@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use dozer_storage::{
     errors::StorageError,
     lmdb::{Database, DatabaseFlags},
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction},
+    lmdb_storage::{
+        CreateDatabase, LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
+    },
 };
 use dozer_types::types::{IndexDefinition, Schema};
 use tempdir::TempDir;
@@ -60,7 +62,7 @@ impl LmdbCacheManager {
     pub fn new(options: CacheManagerOptions) -> Result<Self, CacheError> {
         let (temp_dir, base_path) = match &options.path {
             Some(path) => {
-                std::fs::create_dir_all(path)?;
+                std::fs::create_dir_all(path).map_err(|e| CacheError::Io(path.clone(), e))?;
                 (None, path.clone())
             }
             None => {
@@ -97,7 +99,7 @@ impl CacheManager for LmdbCacheManager {
         let cache: Option<Box<dyn RwCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
                 let cache = LmdbRwCache::open(
-                    self.cache_common_options(real_name.to_string()),
+                    &self.cache_common_options(real_name.to_string()),
                     self.cache_write_options(),
                 )?;
                 Some(Box::new(cache))
@@ -114,7 +116,7 @@ impl CacheManager for LmdbCacheManager {
         let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
         let cache: Option<Box<dyn RoCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
-                let cache = LmdbRoCache::new(self.cache_common_options(real_name.to_string()))?;
+                let cache = LmdbRoCache::new(&self.cache_common_options(real_name.to_string()))?;
                 Some(Box::new(cache))
             } else {
                 None
@@ -129,9 +131,8 @@ impl CacheManager for LmdbCacheManager {
     ) -> Result<Box<dyn RwCache>, CacheError> {
         let name = self.generate_unique_name();
         let cache = LmdbRwCache::create(
-            schema,
-            indexes,
-            self.cache_common_options(name),
+            &(schema, indexes),
+            &self.cache_common_options(name),
             self.cache_write_options(),
         )?;
         Ok(Box::new(cache))

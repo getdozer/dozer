@@ -17,7 +17,6 @@ pub enum Plan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexScan {
     pub index_id: usize,
-    pub is_single_field_sorted_inverted: bool,
     pub kind: IndexScanKind,
 }
 

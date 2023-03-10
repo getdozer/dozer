@@ -31,7 +31,7 @@ fn query_and_test(cache: &dyn RwCache, inserted_record: &Record, exp: &QueryExpr
 fn get_schema() {
     let (cache, schema) = _setup();
 
-    let get_schema = &cache.get_schema().unwrap().0;
+    let get_schema = &cache.get_schema().0;
     assert_eq!(get_schema, &schema, "must be equal");
 }
 

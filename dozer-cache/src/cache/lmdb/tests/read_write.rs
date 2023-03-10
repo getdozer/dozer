@@ -11,11 +11,10 @@ fn read_and_write() {
 
     // write and read from cache from two different threads.
 
-    let (schema, secondary_indexes) = test_utils::schema_1();
+    let schema = test_utils::schema_1();
     let cache_writer = LmdbRwCache::create(
-        schema.clone(),
-        secondary_indexes,
-        CacheCommonOptions {
+        &schema,
+        &CacheCommonOptions {
             max_readers: 1,
             max_db_size: 100,
             path: Some(path.clone()),
@@ -35,7 +34,7 @@ fn read_and_write() {
     ];
 
     for val in items.clone() {
-        lmdb_utils::insert_rec_1(&cache_writer, &schema, val.clone());
+        lmdb_utils::insert_rec_1(&cache_writer, &schema.0, val.clone());
     }
     cache_writer.commit().unwrap();
 
@@ -43,7 +42,7 @@ fn read_and_write() {
         path: Some(path),
         ..Default::default()
     };
-    let cache_reader = LmdbRoCache::new(read_options).unwrap();
+    let cache_reader = LmdbRoCache::new(&read_options).unwrap();
     for (a, b, c) in items {
         let rec = cache_reader.get(&Field::Int(a).encode()).unwrap();
         let values = vec![

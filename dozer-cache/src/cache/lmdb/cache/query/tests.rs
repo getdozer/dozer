@@ -1,9 +1,6 @@
 use crate::cache::{
     expression::{FilterExpression, Operator, QueryExpression},
-    lmdb::{
-        cache::LmdbRwCache,
-        tests::utils::{create_cache, insert_rec_1},
-    },
+    lmdb::tests::utils::{create_cache, insert_rec_1},
     test_utils::{query_from_filter, schema_1, schema_full_text, schema_multi_indices},
     RecordWithId, RoCache, RwCache,
 };
@@ -14,14 +11,7 @@ use dozer_types::{
 
 #[test]
 fn query_secondary_sorted_inverted() {
-    let (schema, secondary_indexes) = schema_1();
-    let cache = LmdbRwCache::create(
-        schema.clone(),
-        secondary_indexes,
-        Default::default(),
-        Default::default(),
-    )
-    .unwrap();
+    let (cache, schema, _) = create_cache(schema_1);
 
     let mut record = Record::new(
         schema.identifier,
@@ -56,14 +46,7 @@ fn query_secondary_sorted_inverted() {
 
 #[test]
 fn query_secondary_full_text() {
-    let (schema, secondary_indexes) = schema_full_text();
-    let cache = LmdbRwCache::create(
-        schema.clone(),
-        secondary_indexes,
-        Default::default(),
-        Default::default(),
-    )
-    .unwrap();
+    let (cache, schema, _) = create_cache(schema_full_text);
 
     let mut record = Record::new(
         schema.identifier,

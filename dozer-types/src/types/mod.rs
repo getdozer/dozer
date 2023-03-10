@@ -164,6 +164,8 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
+pub type SchemaWithIndex = (Schema, Vec<IndexDefinition>);
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Record {
     /// Schema implemented by this Record

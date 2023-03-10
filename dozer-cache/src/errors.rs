@@ -1,13 +1,15 @@
+use std::path::PathBuf;
+
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
-use dozer_types::types::SchemaIdentifier;
+use dozer_types::types::{IndexDefinition, SchemaWithIndex};
 
 #[derive(Error, Debug)]
 pub enum CacheError {
-    #[error("Io error: {0}")]
-    Io(#[from] std::io::Error),
+    #[error("Io error on {0:?}: {1}")]
+    Io(PathBuf, #[source] std::io::Error),
     #[error("Query error: {0}")]
     Query(#[from] QueryError),
     #[error("Index error: {0}")]
@@ -18,14 +20,24 @@ pub enum CacheError {
     Type(#[from] TypeError),
     #[error("Storage error: {0}")]
     Storage(#[from] dozer_storage::errors::StorageError),
-    #[error("Schema is not present")]
+    #[error("Schema is not found")]
     SchemaNotFound,
-    #[error("Schema Identifier is duplicated: {0:?}")]
-    DuplicateSchemaIdentifier(SchemaIdentifier),
+    #[error("Schema for {name} mismatch: given {given:?}, stored {stored:?}")]
+    SchemaMismatch {
+        name: String,
+        given: Box<SchemaWithIndex>,
+        stored: Box<SchemaWithIndex>,
+    },
+    #[error("Index definition {0} is not found")]
+    IndexDefinitionNotFound(String),
+    #[error("Index definition {name} mismatch: given {given:?}, stored {stored:?}")]
+    IndexDefinitionMismatch {
+        name: String,
+        given: IndexDefinition,
+        stored: IndexDefinition,
+    },
     #[error("Path not initialized for Cache Reader")]
     PathNotInitialized,
-    #[error("Secondary index database is not found")]
-    SecondaryIndexDatabaseNotFound,
     #[error("Primary key is not found")]
     PrimaryKeyNotFound,
     #[error("Primary key already exists")]

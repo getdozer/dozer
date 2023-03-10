@@ -5,7 +5,7 @@ use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteF
 use crate::{
     errors::StorageError,
     lmdb_map::{database_key_flag, lmdb_stat},
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
+    lmdb_storage::CreateDatabase,
     Encode, Iterator, LmdbKey, LmdbKeyType,
 };
 
@@ -33,8 +33,8 @@ unsafe impl<K, V> Send for LmdbMultimap<K, V> {}
 unsafe impl<K, V> Sync for LmdbMultimap<K, V> {}
 
 impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
-    pub fn new_from_env(
-        env: &mut LmdbEnvironmentManager,
+    pub fn new<C: CreateDatabase>(
+        c: &mut C,
         name: Option<&str>,
         create_if_not_exist: bool,
     ) -> Result<Self, StorageError> {
@@ -44,27 +44,7 @@ impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
             None
         };
 
-        let db = env.create_database(name, create_flags)?;
-
-        Ok(Self {
-            db,
-            _key: std::marker::PhantomData,
-            _value: std::marker::PhantomData,
-        })
-    }
-
-    pub fn new_from_txn(
-        txn: &mut LmdbExclusiveTransaction,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        let create_flags = if create_if_not_exist {
-            Some(database_flag::<K, V>())
-        } else {
-            None
-        };
-
-        let db = txn.create_database(name, create_flags)?;
+        let db = c.create_database(name, create_flags)?;
 
         Ok(Self {
             db,
@@ -158,16 +138,17 @@ mod tests {
     #[test]
     fn test_lmdb_multimap() {
         let temp_dir = TempDir::new("test_lmdb_map").unwrap();
-        let env = LmdbEnvironmentManager::create(
+        let mut env = LmdbEnvironmentManager::create(
             temp_dir.path(),
             "env",
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
+        let map = LmdbMultimap::<u64, u64>::new(&mut env, None, true).unwrap();
+
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
 
-        let map = LmdbMultimap::<u64, u64>::new_from_txn(&mut txn, None, true).unwrap();
         assert!(map.insert(txn.txn_mut(), &1u64, &2u64).unwrap());
         assert!(!map.insert(txn.txn_mut(), &1u64, &2u64).unwrap());
         assert!(map.insert(txn.txn_mut(), &1u64, &3u64).unwrap());
