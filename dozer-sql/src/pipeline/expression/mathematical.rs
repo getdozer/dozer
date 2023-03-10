@@ -25,7 +25,13 @@ macro_rules! define_math_operator {
                     Field::Timestamp(right_v) => match $op {
                         "-" => {
                             let duration = left_v - right_v;
-                            Ok(Field::Int(duration.num_milliseconds()))
+                            duration
+                                .num_nanoseconds()
+                                .ok_or(PipelineError::UnableToCast(
+                                    format!("{}", duration),
+                                    "i64".to_string(),
+                                ))
+                                .map(Field::Int)
                         }
                         _ => Err(PipelineError::InvalidTypeComparison(
                             left_p,

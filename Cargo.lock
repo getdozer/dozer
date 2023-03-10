@@ -2287,6 +2287,7 @@ dependencies = [
  "dozer-types",
  "opentelemetry",
  "opentelemetry-jaeger",
+ "tokio",
  "tracing-opentelemetry",
  "tracing-subscriber",
 ]

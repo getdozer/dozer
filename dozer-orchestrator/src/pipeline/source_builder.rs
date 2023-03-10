@@ -165,6 +165,7 @@ mod tests {
             app_buffer_size: Some(default_app_buffer_size()),
             commit_size: Some(default_commit_size()),
             commit_timeout: Some(default_commit_timeout()),
+            ..Default::default()
         }
     }
 

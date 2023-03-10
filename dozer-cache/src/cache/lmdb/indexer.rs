@@ -1,6 +1,13 @@
 use crate::errors::{CacheError, IndexError};
-use dozer_storage::{lmdb::RwTransaction, LmdbMultimap};
-use dozer_types::types::{Field, IndexDefinition, Record};
+
+use dozer_storage::lmdb::RwTransaction;
+use dozer_types::{
+    tracing,
+    types::{Field, IndexDefinition, Record},
+};
+
+use dozer_storage::LmdbMultimap;
+
 use itertools::Itertools;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -17,7 +24,11 @@ impl<'a> Indexer<'a> {
         secondary_indexes: &[IndexDefinition],
         id: u64,
     ) -> Result<(), CacheError> {
+        let span = tracing::span!(tracing::Level::TRACE, "building indexes", "{}", id);
+        let _enter = span.enter();
+
         debug_assert!(secondary_indexes.len() == self.secondary_indexes.len());
+
         if secondary_indexes.is_empty() {
             return Err(CacheError::Index(IndexError::MissingSecondaryIndexes));
         }

@@ -16,6 +16,8 @@ use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
+
+use dozer_types::tracing::span;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::HashMap;
@@ -347,6 +349,14 @@ impl Sink for CacheSink {
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
+
+        let span = span!(
+            dozer_types::tracing::Level::TRACE,
+            "pipeline_sink_process",
+            self.api_endpoint.name,
+            self.counter
+        );
+        let _enter = span.enter();
 
         let endpoint_name = &self.api_endpoint.name;
         let schema = &self

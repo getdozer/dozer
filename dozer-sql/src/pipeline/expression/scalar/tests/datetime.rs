@@ -81,7 +81,7 @@ fn test_timestamp_diff() {
             Field::Timestamp(DateTime::parse_from_rfc3339("2023-01-02T00:12:10Z").unwrap()),
         ],
     );
-    assert_eq!(f, Field::Int(1000));
+    assert_eq!(f, Field::Int(1000 * 1000 * 1000));
 }
 
 // #[test]
