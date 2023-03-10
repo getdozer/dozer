@@ -6,9 +6,10 @@ use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
-
+use std::collections::HashMap;
 use crate::types::DozerPoint;
 use std::fmt::{Display, Formatter};
+use serde_json::Value;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
@@ -25,7 +26,7 @@ pub enum Field {
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
-    Json(serde_json::Value),
+    Json(Value),
     Point(DozerPoint),
     Null,
 }
@@ -60,9 +61,10 @@ impl Field {
             Field::Decimal(_) => 16,
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
-            Field::Json(b) => b.len(),
+            Field::Json(b) => b.as_str().unwrap().len(),
             Field::Point(_p) => 16,
             Field::Null => 0,
+            _ => todo!(),
         }
     }
 
@@ -78,9 +80,10 @@ impl Field {
             Field::Decimal(d) => Cow::Owned(d.serialize().into()),
             Field::Timestamp(t) => Cow::Owned(t.timestamp_millis().to_be_bytes().into()),
             Field::Date(t) => Cow::Owned(t.to_string().into()),
-            Field::Json(b) => Cow::Borrowed(b),
+            Field::Json(b) => Cow::Borrowed(b.as_str().unwrap().as_bytes()),
             Field::Null => Cow::Owned([].into()),
             Field::Point(p) => Cow::Owned(p.to_bytes().into()),
+            _ => todo!(),
         }
     }
 
@@ -113,9 +116,10 @@ impl Field {
             Field::Decimal(d) => FieldBorrow::Decimal(*d),
             Field::Timestamp(t) => FieldBorrow::Timestamp(*t),
             Field::Date(t) => FieldBorrow::Date(*t),
-            Field::Json(b) => FieldBorrow::Json(b),
+            Field::Json(b) => FieldBorrow::Json(b.as_str().unwrap().as_bytes()),
             Field::Point(p) => FieldBorrow::Point(*p),
             Field::Null => FieldBorrow::Null,
+            _ => todo!(),
         }
     }
 
@@ -191,6 +195,7 @@ impl Field {
             Field::Json(_) => 10,
             Field::Point(_) => 11,
             Field::Null => 12,
+            _ => todo!(),
         }
     }
 
@@ -264,9 +269,9 @@ impl Field {
         }
     }
 
-    pub fn as_json(&self) -> Option<&[u8]> {
+    pub fn as_json(&self) -> Option<Value> {
         match self {
-            Field::Json(b) => Some(b),
+            Field::Json(b) => Some(b.to_owned()),
             _ => None,
         }
     }
@@ -416,7 +421,7 @@ impl Field {
         }
     }
 
-    pub fn to_json(&self) -> Option<&[u8]> {
+    pub fn to_json(&self) -> Option<&Value> {
         match self {
             Field::Json(b) => Some(b),
             _ => None,
@@ -454,6 +459,7 @@ impl Display for Field {
             Field::Json(v) => f.write_str(&format!("{v:x?}")),
             Field::Null => f.write_str("NULL"),
             Field::Point(v) => f.write_str(&format!("{v} (Point)")),
+            _ => todo!(),
         }
     }
 }
@@ -471,7 +477,7 @@ impl<'a> FieldBorrow<'a> {
             FieldBorrow::Decimal(d) => Field::Decimal(d),
             FieldBorrow::Timestamp(t) => Field::Timestamp(t),
             FieldBorrow::Date(d) => Field::Date(d),
-            FieldBorrow::Json(b) => Field::Json(b.to_owned()),
+            FieldBorrow::Json(b) => Field::Json(Value::from(b)),
             FieldBorrow::Point(p) => Field::Point(p),
             FieldBorrow::Null => Field::Null,
         }
@@ -500,8 +506,8 @@ pub enum FieldType {
     Text,
     Binary,
     Decimal,
-    Timestamp { unit: Option<TimeUnit> },
-    Date { offset: Option<FixedOffset> },
+    Timestamp,
+    Date,
     Duration { unit: Option<TimeUnit> },
     Json,
     Point,
@@ -545,6 +551,7 @@ impl Display for FieldType {
             FieldType::Date => f.write_str("date"),
             FieldType::Json => f.write_str("json"),
             FieldType::Point => f.write_str("point"),
+            _ => todo!(),
         }
     }
 }
@@ -573,10 +580,10 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
-        Field::Json(vec![
+        Field::Json(Value::from(vec![
             // Json representation of `{"abc":"foo"}`
             123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125,
-        ]),
+        ])),
         Field::Null,
     ]
     .into_iter()
@@ -600,9 +607,35 @@ impl pyo3::ToPyObject for Field {
                     .unwrap()
                     .to_object(py)
             }
-            Field::Json(val) => val.to_object(py),
+            Field::Json(val) => value_to_object(val, py),
             Field::Null => unreachable!(),
             Field::Point(_val) => todo!(),
+            _ => todo!(),
         }
+    }
+}
+
+#[cfg(feature = "python")]
+use pyo3::ToPyObject;
+fn value_to_object(val: &Value, py: pyo3::Python<'_>) -> pyo3::PyObject {
+    match val {
+        Value::Null => py.None(),
+        Value::Bool(b) => b.to_object(py),
+        Value::Number(n) => {
+            let oi64 = n.as_i64().map(|i| i.to_object(py));
+            let ou64 = n.as_u64().map(|i| i.to_object(py));
+            let of64 = n.as_f64().map(|i| i.to_object(py));
+            oi64.or(ou64).or(of64).expect("number too large")
+        },
+        Value::String(s) => s.to_object(py),
+        Value::Array(v) => {
+            let inner: Vec<_> = v.iter().map(|x| value_to_object(x, py)).collect();
+            inner.to_object(py)
+        },
+        Value::Object(m) => {
+            let inner: HashMap<_, _> =
+                m.iter().map(|(k, v)| (k, value_to_object(v, py))).collect();
+            inner.to_object(py)
+        },
     }
 }

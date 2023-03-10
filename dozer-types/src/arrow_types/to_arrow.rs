@@ -8,6 +8,12 @@ use arrow::{
     datatypes::i256,
     record_batch::RecordBatch,
 };
+use arrow::array::{ArrayData, as_map_array, MapArray};
+use arrow::ipc::Map;
+use arrow_array::BinaryArray;
+use serde::Serialize;
+use serde_json::Value;
+use crate::arrow_types::from_arrow::map_arrow_to_dozer_type;
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
@@ -99,16 +105,25 @@ pub fn map_record_to_arrow(
                 Arc::new(arrow_array::Date64Array::from(vec![None as Option<i64>])) as ArrayRef
             }
             (Field::Binary(v), FieldType::Binary) => {
-                Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
+                Arc::new(BinaryArray::from_iter_values([v])) as ArrayRef
             }
             (Field::Json(v), FieldType::Json) => {
-                Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
+                Arc::new(arrow_array::MapArray::from(ArrayData::from(
+                    MapArray::new_from_strings(
+                        v.as_object().unwrap().keys().map(|f| f.as_str()),
+                        ,
+                        &[]
+                    ).unwrap()
+                ))) as ArrayRef
+                // Arc::new(as_map_array(serde_json::Map::from(v.as_object().unwrap()))) as ArrayRef
+                // Arc::new(arrow_types::Field::from(Field::Json(v.to_owned()))) as ArrayRef
+                // Arc::new(DataType::Map(Box::from(Field::Json(v.to_owned())), false)) as ArrayRef
             }
             (Field::Point(v), FieldType::Point) => {
-                Arc::new(arrow_array::BinaryArray::from_iter_values([v.to_bytes()])) as ArrayRef
+                Arc::new(BinaryArray::from_iter_values([v.to_bytes()])) as ArrayRef
             }
             (Field::Null, FieldType::Point) => {
-                Arc::new(arrow_array::BinaryArray::from_opt_vec(vec![
+                Arc::new(BinaryArray::from_opt_vec(vec![
                     None as Option<&[u8]>,
                 ])) as ArrayRef
             }
@@ -132,7 +147,7 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
         FieldType::Boolean => DataType::Boolean,
         FieldType::String => DataType::Utf8,
         FieldType::Text => DataType::LargeUtf8,
-        // TODO: Map thsi correctly
+        // TODO: Map this correctly
         FieldType::Decimal => DataType::Decimal256(10, 5),
         FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Millisecond, None),
         FieldType::Date => DataType::Date64,
@@ -142,12 +157,13 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
         }
         FieldType::Json => {
             metadata.map(|m| m.insert("logical_type".to_string(), "Json".to_string()));
-            DataType::Binary
+            DataType::Map(/* std::boxed::Box<arrow::datatypes::Field> */, /* bool */)
         }
         FieldType::Point => {
             metadata.map(|m| m.insert("logical_type".to_string(), "Point".to_string()));
             DataType::Binary
         }
+        _ => todo!(),
     }
 }
 
