@@ -150,7 +150,7 @@ pub fn map_sqlite_to_record(
                 Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
             },
             FieldType::Date =>  convert_type!(Field::String, f, row, idx),
-            FieldType::Bson | FieldType::Point => {
+            FieldType::Json | FieldType::Point => {
                 panic!("type not supported : {:?}", f.typ.to_owned())
             }
         };
