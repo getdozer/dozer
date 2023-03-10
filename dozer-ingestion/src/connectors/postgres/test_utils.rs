@@ -36,7 +36,7 @@ pub fn get_iterator(config: Connection, table_name: String) -> IngestionIterator
             columns: None,
         }];
 
-        let connector = get_connector(config).unwrap();
+        let connector = get_connector(config, Some(tables.clone())).unwrap();
         connector.start(None, &ingestor, tables).unwrap();
     });
 

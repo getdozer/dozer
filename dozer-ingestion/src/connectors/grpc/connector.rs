@@ -131,7 +131,7 @@ where
 {
     fn get_schemas(
         &self,
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let schemas_str = Self::parse_config(&self.config)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
@@ -156,7 +156,7 @@ where
     }
 
     fn validate(&self, table_names: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let schemas = self.get_schemas(table_names);
+        let schemas = self.get_schemas(table_names.as_ref());
         schemas.map(|_| ())
     }
 

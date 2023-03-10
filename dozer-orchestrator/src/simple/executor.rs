@@ -106,7 +106,7 @@ impl<'a> Executor<'a> {
         for connection in connections {
             validate(connection.to_owned(), None)?;
 
-            let connector = get_connector(connection.to_owned())?;
+            let connector = get_connector(connection.to_owned(), None)?;
             let schema_tuples = connector.get_schemas(None)?;
             schema_map.insert(connection.name.to_owned(), schema_tuples);
         }

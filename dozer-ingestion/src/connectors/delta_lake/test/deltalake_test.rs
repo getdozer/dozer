@@ -25,7 +25,7 @@ fn get_schema_from_deltalake() {
         name: table_name.to_string(),
         columns: None,
     };
-    let field = connector.get_schemas(Some(vec![table_info])).unwrap()[0]
+    let field = connector.get_schemas(Some(&vec![table_info])).unwrap()[0]
         .schema
         .fields[0]
         .clone();

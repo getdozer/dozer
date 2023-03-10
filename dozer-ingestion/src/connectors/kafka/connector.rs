@@ -28,10 +28,10 @@ impl KafkaConnector {
 impl Connector for KafkaConnector {
     fn get_schemas(
         &self,
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         self.config.schema_registry_url.clone().map_or(
-            NoSchemaRegistry::get_schema(table_names.clone(), self.config.clone()),
+            NoSchemaRegistry::get_schema(table_names, self.config.clone()),
             |_| SchemaRegistry::get_schema(table_names, self.config.clone()),
         )
     }

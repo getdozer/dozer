@@ -124,7 +124,7 @@ impl EthLogConnector {
 impl Connector for EthLogConnector {
     fn get_schemas(
         &self,
-        tables: Option<Vec<TableInfo>>,
+        tables: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let mut schemas = vec![SourceSchema::new(
             ETH_LOGS_TABLE.to_string(),

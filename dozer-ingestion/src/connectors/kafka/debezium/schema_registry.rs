@@ -80,7 +80,7 @@ impl SchemaRegistry {
     }
 
     pub fn get_schema(
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
         config: KafkaConfig,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let sr_settings = SrSettings::new(config.schema_registry_url.unwrap());

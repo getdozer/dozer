@@ -21,7 +21,7 @@ impl SchemaHelper {
     pub fn get_schemas(
         &self,
         id: u64,
-        tables: Option<Vec<TableInfo>>,
+        tables: Option<&Vec<TableInfo>>,
     ) -> ConnectorResult<Vec<SourceSchema>> {
         if tables.is_none() {
             return Ok(vec![]);
