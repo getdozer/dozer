@@ -14,7 +14,9 @@ pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub enum Field {
     UInt(u64),
+    UInt128(u128),
     Int(i64),
+    Int128(i128),
     Float(OrderedFloat<f64>),
     Boolean(bool),
     String(String),
@@ -23,7 +25,7 @@ pub enum Field {
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
-    Bson(Vec<u8>),
+    Bson(serde_json::Value),
     Point(DozerPoint),
     Null,
 }
@@ -476,18 +478,31 @@ impl<'a> FieldBorrow<'a> {
     }
 }
 
+// Helpful in interacting with external systems during ingestion and querying
+// For example, nanoseconds can overflow.
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum TimeUnit {
+    Seconds,
+    Milliseconds,
+    Microseconds,
+    Nanoseconds,
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FieldType {
     UInt,
+    UInt128,
     Int,
+    Int128,
     Float,
     Boolean,
     String,
     Text,
     Binary,
     Decimal,
-    Timestamp,
-    Date,
+    Timestamp { unit: Option<TimeUnit> },
+    Date { offset: Option<FixedOffset> },
+    Duration { unit: Option<TimeUnit> },
     Bson,
     Point,
 }
