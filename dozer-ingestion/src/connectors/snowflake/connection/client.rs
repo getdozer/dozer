@@ -210,7 +210,7 @@ impl Client {
         conn_hashmap.insert("Role".to_string(), "ACCOUNTADMIN".to_string());
 
         let mut parts = vec![];
-        conn_hashmap.keys().into_iter().for_each(|k| {
+        conn_hashmap.keys().for_each(|k| {
             parts.push(format!("{}={}", k, conn_hashmap.get(k).unwrap()));
         });
 
@@ -387,7 +387,7 @@ impl Client {
 
     pub fn fetch_tables(
         &self,
-        tables: Option<Vec<TableInfo>>,
+        tables: Option<&Vec<TableInfo>>,
         tables_indexes: HashMap<String, usize>,
         keys: HashMap<String, Vec<String>>,
         conn: &Connection<AutocommitOn>,

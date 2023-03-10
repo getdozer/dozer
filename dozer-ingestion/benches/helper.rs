@@ -40,7 +40,8 @@ pub fn get_progress() -> ProgressBar {
 pub async fn get_connection_iterator(config: TestConfig) -> IngestionIterator {
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
     std::thread::spawn(move || {
-        let grpc_connector = dozer_ingestion::connectors::get_connector(config.connection).unwrap();
+        let grpc_connector =
+            dozer_ingestion::connectors::get_connector(config.connection, None).unwrap();
 
         let mut tables = grpc_connector.get_tables().unwrap();
         if let Some(tables_filter) = config.tables_filter {

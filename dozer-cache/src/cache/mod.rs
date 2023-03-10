@@ -5,7 +5,7 @@ use self::expression::QueryExpression;
 use crate::errors::CacheError;
 use dozer_types::{
     serde::{Deserialize, Serialize},
-    types::{IndexDefinition, Record, Schema},
+    types::{IndexDefinition, Record, Schema, SchemaWithIndex},
 };
 pub use lmdb::cache_manager::{CacheManagerOptions, LmdbCacheManager};
 pub mod expression;
@@ -59,7 +59,7 @@ pub trait RoCache: Send + Sync + Debug {
     fn name(&self) -> &str;
 
     // Schema Operations
-    fn get_schema(&self) -> Result<&(Schema, Vec<IndexDefinition>), CacheError>;
+    fn get_schema(&self) -> &SchemaWithIndex;
 
     // Record Operations
     fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError>;

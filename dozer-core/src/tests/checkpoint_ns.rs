@@ -12,8 +12,6 @@ use tempdir::TempDir;
 
 #[test]
 fn test_checkpoint_consistency_ns() {
-    // dozer_tracing::init_telemetry(false).unwrap();
-
     const MESSAGES_COUNT: u64 = 25_000;
 
     let mut dag = Dag::new();

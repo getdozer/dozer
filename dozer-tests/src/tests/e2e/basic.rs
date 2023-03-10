@@ -14,7 +14,7 @@ use dozer_types::{models::app_config::Config, serde_yaml};
 use tempdir::TempDir;
 fn get_config() -> Config {
     let path = TempDir::new("tests").unwrap();
-    let mut cfg = serde_yaml::from_str::<Config>(include_str!("./test.yaml")).unwrap();
+    let mut cfg = serde_yaml::from_str::<Config>(include_str!("./fixtures/basic.yaml")).unwrap();
     cfg.home_dir = path.path().to_str().unwrap().to_string();
     cfg
 }

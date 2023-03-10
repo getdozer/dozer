@@ -23,7 +23,7 @@ use dozer_types::serde_json;
 use dozer_types::serde_json::{json, Map, Value};
 
 fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {
-    let (schema, secondary_indexes) = reader.get_schema().map_err(ApiError::SchemaNotFound)?;
+    let (schema, secondary_indexes) = reader.get_schema();
 
     let oapi_generator = OpenApiGenerator::new(
         schema,
@@ -53,10 +53,7 @@ pub async fn get(
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
     let cache_reader = &cache_endpoint.cache_reader();
-    let schema = &cache_reader
-        .get_schema()
-        .map_err(ApiError::SchemaNotFound)?
-        .0;
+    let schema = &cache_reader.get_schema().0;
 
     let key = path.as_str();
     let key = if schema.primary_index.is_empty() {
@@ -151,10 +148,7 @@ fn get_records_map(
     let mut maps = vec![];
     let cache_reader = &cache_endpoint.cache_reader();
     let records = get_records(cache_reader, exp, access.map(|a| a.into_inner()))?;
-    let schema = &cache_reader
-        .get_schema()
-        .map_err(ApiError::SchemaNotFound)?
-        .0;
+    let schema = &cache_reader.get_schema().0;
     for record in records.into_iter() {
         let map = record_to_map(record, schema)?;
         maps.push(map);

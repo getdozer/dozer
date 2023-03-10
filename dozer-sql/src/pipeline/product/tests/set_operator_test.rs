@@ -21,7 +21,7 @@ use std::sync::Arc;
 use tempdir::TempDir;
 
 fn setup() {
-    dozer_tracing::init_telemetry(false).unwrap();
+    dozer_tracing::init_telemetry(None, None);
 }
 
 #[test]

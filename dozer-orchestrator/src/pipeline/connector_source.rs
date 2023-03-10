@@ -11,6 +11,7 @@ use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, Inges
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
+use dozer_types::tracing::{span, Level};
 use dozer_types::types::{
     Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
 };
@@ -74,14 +75,14 @@ impl ConnectorSourceFactory {
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
 
-        let connector = get_connector(connection).map_err(|e| InternalError(Box::new(e)))?;
+        let tables_list: Vec<TableInfo> = table_and_ports
+            .iter()
+            .map(|(table, _)| table.clone())
+            .collect();
+        let connector = get_connector(connection, Some(tables_list.clone()))
+            .map_err(|e| InternalError(Box::new(e)))?;
         let source_schemas = connector
-            .get_schemas(Some(
-                table_and_ports
-                    .iter()
-                    .map(|(table, _)| table.clone())
-                    .collect(),
-            ))
+            .get_schemas(Some(&tables_list))
             .map_err(|e| InternalError(Box::new(e)))?;
 
         let mut tables = vec![];
@@ -191,6 +192,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             schema_port_map,
             tables,
             connector,
+            connection_name: self.connection_name.clone(),
             bars,
         }))
     }
@@ -203,6 +205,7 @@ pub struct ConnectorSource {
     schema_port_map: HashMap<u32, PortHandle>,
     tables: Vec<TableInfo>,
     connector: Box<dyn Connector>,
+    connection_name: String,
     bars: HashMap<PortHandle, ProgressBar>,
 }
 
@@ -237,6 +240,15 @@ impl Source for ConnectorSource {
             let mut iterator = self.iterator.lock();
 
             for IngestionMessage { identifier, kind } in iterator.by_ref() {
+                let span = span!(
+                    Level::TRACE,
+                    "pipeline_source_start",
+                    self.connection_name,
+                    identifier.txid,
+                    identifier.seq_in_tx
+                );
+                let _enter = span.enter();
+
                 let schema_id = match &kind {
                     IngestionMessageKind::OperationEvent(Operation::Delete { old }) => {
                         Some(get_schema_id(old.schema_id)?)

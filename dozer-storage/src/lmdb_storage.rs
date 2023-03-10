@@ -47,12 +47,35 @@ impl Default for LmdbEnvironmentOptions {
     }
 }
 
+pub trait CreateDatabase {
+    fn create_database(
+        &mut self,
+        name: Option<&str>,
+        create_flags: Option<DatabaseFlags>,
+    ) -> Result<Database, StorageError>;
+}
+
 #[derive(Debug)]
 /// This is a safe wrapper around `lmdb::Environment` that is opened with `NO_TLS` and `NO_LOCK`.
 ///
 /// All write related methods that use `Environment` take `&mut self` to avoid race between transactions.
 pub struct LmdbEnvironmentManager {
     inner: Environment,
+}
+
+impl CreateDatabase for LmdbEnvironmentManager {
+    /// Opens a database, creating it if it doesn't exist and `create_flags` is `Some`.
+    fn create_database(
+        &mut self,
+        name: Option<&str>,
+        create_flags: Option<DatabaseFlags>,
+    ) -> Result<Database, StorageError> {
+        if let Some(flags) = create_flags {
+            Ok(self.inner.create_db(name, flags)?)
+        } else {
+            Ok(self.inner.open_db(name)?)
+        }
+    }
 }
 
 impl LmdbEnvironmentManager {
@@ -92,18 +115,6 @@ impl LmdbEnvironmentManager {
         Ok(SharedTransaction(Arc::new(RwLock::new(
             LmdbExclusiveTransaction::new(self.inner)?,
         ))))
-    }
-
-    pub fn create_database(
-        &mut self,
-        name: Option<&str>,
-        create_flags: Option<DatabaseFlags>,
-    ) -> Result<Database, StorageError> {
-        if let Some(flags) = create_flags {
-            Ok(self.inner.create_db(name, flags)?)
-        } else {
-            Ok(self.inner.open_db(name)?)
-        }
     }
 
     pub fn begin_ro_txn(&self) -> Result<RoTransaction, StorageError> {
@@ -149,6 +160,26 @@ pub struct LmdbExclusiveTransaction {
 const PANIC_MESSAGE: &str =
     "LmdbExclusiveTransaction cannot be used after `commit_and_renew` fails.";
 
+impl CreateDatabase for LmdbExclusiveTransaction {
+    /// If this method fails, following calls to `self` will panic.
+    fn create_database(
+        &mut self,
+        name: Option<&str>,
+        create_flags: Option<DatabaseFlags>,
+    ) -> Result<Database, StorageError> {
+        // SAFETY: This transaction is exclusive and commits immediately.
+        let db = unsafe {
+            if let Some(flags) = create_flags {
+                self.txn_mut().create_db(name, flags)?
+            } else {
+                self.txn_mut().open_db(name)?
+            }
+        };
+        self.commit_and_renew()?;
+        Ok(db)
+    }
+}
+
 impl LmdbExclusiveTransaction {
     pub fn new(env: Environment) -> Result<Self, StorageError> {
         let inner = env.begin_rw_txn()?;
@@ -173,25 +204,6 @@ impl LmdbExclusiveTransaction {
             unsafe { std::mem::transmute::<RwTransaction<'_>, RwTransaction<'static>>(inner) };
         self.inner = Some(inner);
         Ok(())
-    }
-
-    /// Opens a database, creating it if it doesn't exist and `create_flags` is `Some`.
-    /// If this method fails, following calls to `self` will panic.
-    pub fn create_database(
-        &mut self,
-        name: Option<&str>,
-        create_flags: Option<DatabaseFlags>,
-    ) -> Result<Database, StorageError> {
-        // SAFETY: This transaction is exclusive and commits immediately.
-        let db = unsafe {
-            if let Some(flags) = create_flags {
-                self.txn_mut().create_db(name, flags)?
-            } else {
-                self.txn_mut().open_db(name)?
-            }
-        };
-        self.commit_and_renew()?;
-        Ok(db)
     }
 
     pub fn txn(&self) -> &RwTransaction {

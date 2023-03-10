@@ -4,9 +4,8 @@ use dozer_types::borrow::Cow;
 use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
-    errors::StorageError,
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    Encode, Iterator, KeyIterator, LmdbKey, LmdbValType, LmdbValue, ValueIterator,
+    errors::StorageError, lmdb_storage::CreateDatabase, Encode, Iterator, KeyIterator, LmdbKey,
+    LmdbKeyType, LmdbVal, ValueIterator,
 };
 
 #[derive(Debug)]
@@ -32,9 +31,9 @@ impl<K, V> Copy for LmdbMap<K, V> {}
 unsafe impl<K, V> Send for LmdbMap<K, V> {}
 unsafe impl<K, V> Sync for LmdbMap<K, V> {}
 
-impl<K: LmdbKey, V: LmdbValue> LmdbMap<K, V> {
-    pub fn new_from_env(
-        env: &mut LmdbEnvironmentManager,
+impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
+    pub fn new<C: CreateDatabase>(
+        c: &mut C,
         name: Option<&str>,
         create_if_not_exist: bool,
     ) -> Result<Self, StorageError> {
@@ -44,27 +43,7 @@ impl<K: LmdbKey, V: LmdbValue> LmdbMap<K, V> {
             None
         };
 
-        let db = env.create_database(name, create_flags)?;
-
-        Ok(Self {
-            db,
-            _key: std::marker::PhantomData,
-            _value: std::marker::PhantomData,
-        })
-    }
-
-    pub fn new_from_txn(
-        txn: &mut LmdbExclusiveTransaction,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        let create_flags = if create_if_not_exist {
-            Some(database_key_flag::<K>())
-        } else {
-            None
-        };
-
-        let db = txn.create_database(name, create_flags)?;
+        let db = c.create_database(name, create_flags)?;
 
         Ok(Self {
             db,
@@ -165,7 +144,7 @@ impl<K: LmdbKey, V: LmdbValue> LmdbMap<K, V> {
     }
 }
 
-impl<'a, K: LmdbKey + 'a, V: LmdbValue + 'a> LmdbMap<K, V> {
+impl<'a, K: LmdbKey + 'a, V: LmdbVal + 'a> LmdbMap<K, V> {
     /// Extend the map with the contents of an iterator.
     ///
     /// Keys that exist in the map before insertion are ignored.
@@ -183,16 +162,16 @@ impl<'a, K: LmdbKey + 'a, V: LmdbValue + 'a> LmdbMap<K, V> {
 
 pub fn database_key_flag<K: LmdbKey>() -> DatabaseFlags {
     match K::TYPE {
-        LmdbValType::U32 => DatabaseFlags::INTEGER_KEY,
+        LmdbKeyType::U32 => DatabaseFlags::INTEGER_KEY,
         #[cfg(target_pointer_width = "64")]
-        LmdbValType::U64 => DatabaseFlags::INTEGER_KEY,
-        LmdbValType::FixedSizeOtherThanU32OrUsize | LmdbValType::VariableSize => {
+        LmdbKeyType::U64 => DatabaseFlags::INTEGER_KEY,
+        LmdbKeyType::FixedSizeOtherThanU32OrUsize | LmdbKeyType::VariableSize => {
             DatabaseFlags::empty()
         }
     }
 }
 
-fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<lmdb_sys::MDB_stat, lmdb::Error> {
+pub fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<lmdb_sys::MDB_stat, lmdb::Error> {
     let mut stat = lmdb_sys::MDB_stat {
         ms_psize: 0,
         ms_depth: 0,
@@ -215,21 +194,23 @@ mod tests {
 
     use super::*;
 
+    use dozer_types::borrow::IntoOwned;
     use tempdir::TempDir;
 
     #[test]
     fn test_lmdb_map() {
         let temp_dir = TempDir::new("test_lmdb_map").unwrap();
-        let env = LmdbEnvironmentManager::create(
+        let mut env = LmdbEnvironmentManager::create(
             temp_dir.path(),
             "env",
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
+        let map = LmdbMap::<Vec<u8>, Vec<u8>>::new(&mut env, None, true).unwrap();
+
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
 
-        let map = LmdbMap::<Vec<u8>, Vec<u8>>::new_from_txn(&mut txn, None, true).unwrap();
         assert_eq!(map.count(txn.txn()).unwrap(), 0);
 
         assert!(map

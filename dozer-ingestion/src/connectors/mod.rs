@@ -40,7 +40,7 @@ pub trait Connector: Send + Sync + Debug {
 
     fn get_schemas(
         &self,
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError>;
 
     fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError>;
@@ -95,7 +95,10 @@ impl ColumnInfo {
     }
 }
 
-pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
+pub fn get_connector(
+    connection: Connection,
+    tables: Option<Vec<TableInfo>>,
+) -> Result<Box<dyn Connector>, ConnectorError> {
     let config = connection
         .config
         .ok_or_else(|| ConnectorError::MissingConfiguration(connection.name.clone()))?;
@@ -104,7 +107,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             let config = map_connection_config(&config)?;
             let postgres_config = PostgresConfig {
                 name: connection.name,
-                tables: None,
+                tables,
                 config,
             };
 

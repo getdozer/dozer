@@ -1,10 +1,6 @@
 use lmdb::{RoCursor, RwTransaction, Transaction};
 
-use crate::{
-    errors::StorageError,
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    KeyIterator, LmdbKey, LmdbMap,
-};
+use crate::{errors::StorageError, lmdb_storage::CreateDatabase, KeyIterator, LmdbKey, LmdbMap};
 
 #[derive(Debug)]
 pub struct LmdbSet<K>(LmdbMap<K, Vec<u8>>);
@@ -18,20 +14,12 @@ impl<K> Clone for LmdbSet<K> {
 impl<K> Copy for LmdbSet<K> {}
 
 impl<K: LmdbKey> LmdbSet<K> {
-    pub fn new_from_env(
-        env: &mut LmdbEnvironmentManager,
+    pub fn new<C: CreateDatabase>(
+        c: &mut C,
         name: Option<&str>,
         create_if_not_exist: bool,
     ) -> Result<Self, StorageError> {
-        LmdbMap::new_from_env(env, name, create_if_not_exist).map(Self)
-    }
-
-    pub fn new_from_txn(
-        txn: &mut LmdbExclusiveTransaction,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        LmdbMap::new_from_txn(txn, name, create_if_not_exist).map(Self)
+        LmdbMap::new(c, name, create_if_not_exist).map(Self)
     }
 
     pub fn count<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
@@ -92,7 +80,7 @@ impl<'a, K: LmdbKey + 'a> LmdbSet<K> {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::borrow::Cow;
+    use dozer_types::borrow::IntoOwned;
     use tempdir::TempDir;
 
     use crate::lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions};
@@ -108,7 +96,7 @@ mod tests {
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
-        let set = LmdbSet::<u32>::new_from_env(&mut env, Some("test"), true).unwrap();
+        let set = LmdbSet::<u32>::new(&mut env, Some("test"), true).unwrap();
 
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();
@@ -130,7 +118,7 @@ mod tests {
         assert_eq!(
             set.iter(txn.txn())
                 .unwrap()
-                .map(|result| result.map(Cow::into_owned))
+                .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap(),
             vec![3, 4, 5]
@@ -140,7 +128,7 @@ mod tests {
         assert_eq!(
             set.iter(txn.txn())
                 .unwrap()
-                .map(|result| result.map(Cow::into_owned))
+                .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap(),
             Vec::<u32>::new()

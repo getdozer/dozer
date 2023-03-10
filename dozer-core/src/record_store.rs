@@ -18,7 +18,6 @@ impl Debug for dyn RecordWriter {
     }
 }
 
-#[allow(clippy::type_complexity)]
 pub fn create_record_store(
     _output_port: PortHandle,
     output_port_type: OutputPortType,

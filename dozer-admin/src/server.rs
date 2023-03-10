@@ -206,7 +206,7 @@ impl DozerAdmin for GrpcService {
 }
 
 pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::transport::Error> {
-    dozer_tracing::init_telemetry(false).unwrap();
+    dozer_tracing::init_telemetry(None, None);
 
     let host = config.host;
     let port = config.port;

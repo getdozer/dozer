@@ -58,7 +58,6 @@ pub fn query(
 
 pub fn on_event<T: Send + 'static>(
     reader: &CacheReader,
-    endpoint_name: &str,
     filter: Option<&str>,
     mut broadcast_receiver: Option<Receiver<Operation>>,
     _access: Option<Access>,
@@ -82,11 +81,7 @@ pub fn on_event<T: Send + 'static>(
         }
         None => None,
     };
-    let schema = reader
-        .get_schema()
-        .map_err(|_| Status::invalid_argument(endpoint_name))?
-        .0
-        .clone();
+    let schema = reader.get_schema().0.clone();
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 

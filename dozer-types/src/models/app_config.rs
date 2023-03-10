@@ -1,6 +1,6 @@
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, flags::Flags,
-    source::Source,
+    source::Source, telemetry::TelemetryConfig,
 };
 use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
 use serde::{
@@ -71,6 +71,11 @@ pub struct Config {
     #[prost(uint64, optional, tag = "14")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_timeout: Option<u64>,
+
+    #[prost(oneof = "TelemetryConfig", tags = "15,16,17")]
+    /// Instrument using Dozer
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub telemetry: Option<TelemetryConfig>,
 }
 
 pub fn default_home_dir() -> String {
@@ -120,6 +125,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints_value: Vec<serde_yaml::Value> = vec![];
+                let mut telemetry: Option<TelemetryConfig> = None;
 
                 let mut app_name = "".to_owned();
                 let mut sql = None;
@@ -171,6 +177,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "commit_timeout" => {
                             commit_timeout = access.next_value::<Option<u64>>()?;
+                        }
+                        "telemetry" => {
+                            telemetry = access.next_value::<Option<TelemetryConfig>>()?;
                         }
                         _ => {
                             access.next_value::<IgnoredAny>()?;
@@ -242,6 +251,7 @@ impl<'de> Deserialize<'de> for Config {
                     app_buffer_size,
                     commit_size,
                     commit_timeout,
+                    telemetry,
                 })
             }
         }

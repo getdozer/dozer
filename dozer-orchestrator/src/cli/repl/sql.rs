@@ -122,11 +122,7 @@ pub fn query(
             let instant = Instant::now();
             let mut last_shown = Duration::from_millis(0);
             let mut prev_len = 0;
-            let pkey_index = if schema.primary_index.is_empty() {
-                vec![]
-            } else {
-                schema.primary_index.clone()
-            };
+            let pkey_index = &schema.primary_index;
 
             let mut updates_map = HashMap::new();
 
@@ -140,7 +136,7 @@ pub fn query(
                                 let pkey = if pkey_index.is_empty() {
                                     idx.to_le_bytes().to_vec()
                                 } else {
-                                    get_primary_key(&pkey_index, &old.values)
+                                    get_primary_key(pkey_index, &old.values)
                                 };
                                 record_map.remove(&pkey);
                                 updates_map.insert(pkey, (0, instant.elapsed()));
@@ -149,7 +145,7 @@ pub fn query(
                                 let pkey = if pkey_index.is_empty() {
                                     idx.to_le_bytes().to_vec()
                                 } else {
-                                    get_primary_key(&pkey_index, &new.values)
+                                    get_primary_key(pkey_index, &new.values)
                                 };
                                 record_map.insert(pkey.clone(), new.values);
                                 updates_map.insert(pkey, (1, instant.elapsed()));
@@ -158,12 +154,12 @@ pub fn query(
                                 let pkey = if pkey_index.is_empty() {
                                     idx.to_le_bytes().to_vec()
                                 } else {
-                                    get_primary_key(&pkey_index, &old.values)
+                                    get_primary_key(pkey_index, &old.values)
                                 };
                                 let pkey2 = if pkey_index.is_empty() {
                                     idx.to_le_bytes().to_vec()
                                 } else {
-                                    get_primary_key(&pkey_index, &new.values)
+                                    get_primary_key(pkey_index, &new.values)
                                 };
                                 record_map.remove(&pkey);
 

@@ -1,42 +1,28 @@
-use dozer_types::borrow::Cow;
+use dozer_types::borrow::IntoOwned;
 use lmdb::{RwTransaction, Transaction};
 
-use crate::{
-    errors::StorageError,
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    LmdbMap,
-};
+use crate::{errors::StorageError, lmdb_storage::CreateDatabase, LmdbOption};
 
-const COUNTER_KEY: u8 = 0;
-
-#[derive(Debug)]
-pub struct LmdbCounter(LmdbMap<u8, u64>);
+#[derive(Debug, Clone, Copy)]
+pub struct LmdbCounter(LmdbOption<u64>);
 
 impl LmdbCounter {
-    pub fn new_from_env(
-        env: &mut LmdbEnvironmentManager,
+    pub fn new<C: CreateDatabase>(
+        c: &mut C,
         name: Option<&str>,
         create_if_not_exist: bool,
     ) -> Result<Self, StorageError> {
-        LmdbMap::new_from_env(env, name, create_if_not_exist).map(Self)
-    }
-
-    pub fn new_from_txn(
-        txn: &mut LmdbExclusiveTransaction,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        LmdbMap::new_from_txn(txn, name, create_if_not_exist).map(Self)
+        LmdbOption::new(c, name, create_if_not_exist).map(Self)
     }
 
     pub fn load(&self, txn: &impl Transaction) -> Result<u64, StorageError> {
         self.0
-            .get(txn, &COUNTER_KEY)
-            .map(|value| value.map_or(0, Cow::into_owned))
+            .load(txn)
+            .map(|value| value.map_or(0, IntoOwned::into_owned))
     }
 
     pub fn store(&self, txn: &mut RwTransaction, value: u64) -> Result<(), StorageError> {
-        self.0.insert_overwrite(txn, &COUNTER_KEY, &value)
+        self.0.store(txn, &value)
     }
 
     pub fn fetch_add(&self, txn: &mut RwTransaction, value: u64) -> Result<u64, StorageError> {
@@ -64,7 +50,7 @@ mod tests {
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
-        let counter = LmdbCounter::new_from_env(&mut env, None, true).unwrap();
+        let counter = LmdbCounter::new(&mut env, None, true).unwrap();
 
         let txn = env.create_txn().unwrap();
         let mut txn = txn.write();

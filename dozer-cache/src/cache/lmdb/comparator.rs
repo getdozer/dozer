@@ -48,7 +48,9 @@ mod tests {
     use std::cmp::Ordering::{self, Equal, Greater, Less};
 
     use dozer_storage::{
-        lmdb::DatabaseFlags, lmdb_storage::LmdbEnvironmentManager, lmdb_sys::mdb_cmp,
+        lmdb::DatabaseFlags,
+        lmdb_storage::{CreateDatabase, LmdbEnvironmentManager},
+        lmdb_sys::mdb_cmp,
     };
     use dozer_types::{
         chrono::{DateTime, NaiveDate, TimeZone, Utc},
@@ -57,10 +59,7 @@ mod tests {
         types::Field,
     };
 
-    use crate::cache::{
-        index::get_secondary_index,
-        lmdb::utils::{self, CacheOptions},
-    };
+    use crate::cache::{index::get_secondary_index, lmdb::utils};
 
     use super::*;
 
@@ -142,8 +141,9 @@ mod tests {
     }
 
     fn setup(num_fields: usize) -> (LmdbEnvironmentManager, Database) {
-        let options = CacheOptions::default();
-        let mut env = utils::init_env(&options).unwrap().0;
+        let mut env = utils::init_env(&Default::default(), Some(Default::default()))
+            .unwrap()
+            .0;
         let db = env
             .create_database(Some("test"), Some(DatabaseFlags::DUP_SORT))
             .unwrap();
