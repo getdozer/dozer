@@ -14,7 +14,7 @@ pub struct SchemaHelper {}
 impl SchemaHelper {
     pub fn get_schema(
         config: &SnowflakeConfig,
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let client = Client::new(config);
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
@@ -26,7 +26,7 @@ impl SchemaHelper {
             .fetch_keys(&conn)
             .map_err(ConnectorError::SnowflakeError)?;
 
-        let tables_indexes = table_names.clone().map_or(HashMap::new(), |tables| {
+        let tables_indexes = table_names.map_or(HashMap::new(), |tables| {
             let mut result = HashMap::new();
             for (idx, table) in tables.iter().enumerate() {
                 result.insert(table.name.clone(), idx);
@@ -68,7 +68,7 @@ impl SchemaHelper {
         config: &SnowflakeConfig,
         tables: &[TableInfo],
     ) -> Result<ValidationResults, ConnectorError> {
-        let schemas = Self::get_schema(config, Some(tables.to_vec()))?;
+        let schemas = Self::get_schema(config, Some(&tables.to_vec()))?;
         let mut validation_result = ValidationResults::new();
 
         let existing_schemas_names: Vec<String> = schemas.iter().map(|s| s.name.clone()).collect();

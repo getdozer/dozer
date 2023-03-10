@@ -82,10 +82,10 @@ impl PostgresConnector {
 impl Connector for PostgresConnector {
     fn get_schemas(
         &self,
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         self.schema_helper
-            .get_schemas(table_names.as_deref())
+            .get_schemas(table_names.map(|t| &t[..]))
             .map_err(PostgresConnectorError)
     }
 

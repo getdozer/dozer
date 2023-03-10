@@ -32,15 +32,18 @@ async fn ingest_grpc(
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     std::thread::spawn(move || {
-        let grpc_connector = crate::connectors::get_connector(Connection {
-            config: Some(ConnectionConfig::Grpc(GrpcConfig {
-                schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
-                adapter,
-                port,
-                ..Default::default()
-            })),
-            name: "grpc".to_string(),
-        })
+        let grpc_connector = crate::connectors::get_connector(
+            Connection {
+                config: Some(ConnectionConfig::Grpc(GrpcConfig {
+                    schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
+                    adapter,
+                    port,
+                    ..Default::default()
+                })),
+                name: "grpc".to_string(),
+            },
+            None,
+        )
         .unwrap();
 
         let tables = grpc_connector.get_tables().unwrap();

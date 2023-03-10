@@ -36,7 +36,7 @@ impl EthTraceConnector {
 impl Connector for EthTraceConnector {
     fn get_schemas(
         &self,
-        _table_names: Option<Vec<TableInfo>>,
+        _table_names: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         Ok(vec![SourceSchema::new(
             ETH_TRACE_TABLE.to_string(),

@@ -34,7 +34,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
     fn get_schemas(
         &self,
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
     ) -> ConnectorResult<Vec<SourceSchema>> {
         let mapper = SchemaMapper::new(self.config.clone());
         mapper.get_schema(table_names)

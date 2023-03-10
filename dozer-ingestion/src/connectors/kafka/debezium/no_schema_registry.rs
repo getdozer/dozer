@@ -14,7 +14,7 @@ pub struct NoSchemaRegistry {}
 
 impl NoSchemaRegistry {
     pub fn get_schema(
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
         config: KafkaConfig,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         table_names.map_or(Ok(vec![]), |tables| {

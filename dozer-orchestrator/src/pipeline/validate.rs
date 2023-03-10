@@ -112,12 +112,12 @@ pub fn validate_grouped_connections(
 }
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-    get_connector(input)?.validate(tables)
+    get_connector(input, tables.clone())?.validate(tables)
 }
 
 pub fn validate_schema(
     input: Connection,
     tables: &[TableInfo],
 ) -> Result<ValidationResults, ConnectorError> {
-    get_connector(input)?.validate_schemas(tables)
+    get_connector(input, Some(tables.to_vec()))?.validate_schemas(tables)
 }

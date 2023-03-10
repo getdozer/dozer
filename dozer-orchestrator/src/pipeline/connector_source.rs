@@ -75,14 +75,14 @@ impl ConnectorSourceFactory {
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
 
-        let connector = get_connector(connection).map_err(|e| InternalError(Box::new(e)))?;
+        let tables_list: Vec<TableInfo> = table_and_ports
+            .iter()
+            .map(|(table, _)| table.clone())
+            .collect();
+        let connector = get_connector(connection, Some(tables_list.clone()))
+            .map_err(|e| InternalError(Box::new(e)))?;
         let source_schemas = connector
-            .get_schemas(Some(
-                table_and_ports
-                    .iter()
-                    .map(|(table, _)| table.clone())
-                    .collect(),
-            ))
+            .get_schemas(Some(&tables_list))
             .map_err(|e| InternalError(Box::new(e)))?;
 
         let mut tables = vec![];
