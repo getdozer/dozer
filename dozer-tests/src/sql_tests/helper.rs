@@ -222,7 +222,7 @@ pub fn map_field_to_string(f: &Field) -> String {
         Field::Timestamp(i) => i.to_string(),
         Field::Date(i) => i.to_string(),
         Field::Binary(i) => str::from_utf8(i).unwrap().to_string(),
-        Field::Bson(_) => panic!("not supported {f:?}"),
+        Field::Json(_) => panic!("not supported {f:?}"),
         Field::Decimal(i) => i.to_string(),
         Field::Null => "null".to_string(),
         Field::Point(p) => format!("'{:?}'", p.0.x_y()),

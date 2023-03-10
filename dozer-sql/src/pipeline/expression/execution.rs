@@ -316,7 +316,7 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::Binary(_) => Some(FieldType::Binary),
         Field::Decimal(_) => Some(FieldType::Decimal),
         Field::Timestamp(_) => Some(FieldType::Timestamp),
-        Field::Bson(_) => Some(FieldType::Bson),
+        Field::Json(_) => Some(FieldType::Json),
         Field::Null => None,
         Field::UInt(_) => Some(FieldType::UInt),
         Field::Text(_) => Some(FieldType::Text),

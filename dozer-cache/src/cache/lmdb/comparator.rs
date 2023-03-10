@@ -236,7 +236,7 @@ mod tests {
             Field::Decimal(Decimal::new(i64::MAX, 0)),
             Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(1).unwrap())),
             Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap()),
-            Field::Bson(vec![255]),
+            Field::Json(vec![255]),
         ];
         for a in test_cases.iter() {
             check(a);

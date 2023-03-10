@@ -136,7 +136,7 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
                 ..Default::default()
             })
         }
-        FieldType::Binary | FieldType::Bson => Type::Array(ArrayType {
+        FieldType::Binary | FieldType::Json => Type::Array(ArrayType {
             items: Some(ReferenceOr::Item(Box::new(u8_schema()))),
             min_items: None,
             max_items: None,

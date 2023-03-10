@@ -25,7 +25,7 @@ pub enum Field {
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
-    Bson(serde_json::Value),
+    Json(serde_json::Value),
     Point(DozerPoint),
     Null,
 }
@@ -42,7 +42,7 @@ pub enum FieldBorrow<'a> {
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
-    Bson(&'a [u8]),
+    Json(&'a [u8]),
     Point(DozerPoint),
     Null,
 }
@@ -60,7 +60,7 @@ impl Field {
             Field::Decimal(_) => 16,
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
-            Field::Bson(b) => b.len(),
+            Field::Json(b) => b.len(),
             Field::Point(_p) => 16,
             Field::Null => 0,
         }
@@ -78,7 +78,7 @@ impl Field {
             Field::Decimal(d) => Cow::Owned(d.serialize().into()),
             Field::Timestamp(t) => Cow::Owned(t.timestamp_millis().to_be_bytes().into()),
             Field::Date(t) => Cow::Owned(t.to_string().into()),
-            Field::Bson(b) => Cow::Borrowed(b),
+            Field::Json(b) => Cow::Borrowed(b),
             Field::Null => Cow::Owned([].into()),
             Field::Point(p) => Cow::Owned(p.to_bytes().into()),
         }
@@ -113,7 +113,7 @@ impl Field {
             Field::Decimal(d) => FieldBorrow::Decimal(*d),
             Field::Timestamp(t) => FieldBorrow::Timestamp(*t),
             Field::Date(t) => FieldBorrow::Date(*t),
-            Field::Bson(b) => FieldBorrow::Bson(b),
+            Field::Json(b) => FieldBorrow::Json(b),
             Field::Point(p) => FieldBorrow::Point(*p),
             Field::Null => FieldBorrow::Null,
         }
@@ -167,7 +167,7 @@ impl Field {
                 std::str::from_utf8(val)?,
                 DATE_FORMAT,
             )?)),
-            10 => Ok(FieldBorrow::Bson(val)),
+            10 => Ok(FieldBorrow::Json(val)),
             11 => Ok(FieldBorrow::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
@@ -188,7 +188,7 @@ impl Field {
             Field::Decimal(_) => 7,
             Field::Timestamp(_) => 8,
             Field::Date(_) => 9,
-            Field::Bson(_) => 10,
+            Field::Json(_) => 10,
             Field::Point(_) => 11,
             Field::Null => 12,
         }
@@ -264,9 +264,9 @@ impl Field {
         }
     }
 
-    pub fn as_bson(&self) -> Option<&[u8]> {
+    pub fn as_json(&self) -> Option<&[u8]> {
         match self {
-            Field::Bson(b) => Some(b),
+            Field::Json(b) => Some(b),
             _ => None,
         }
     }
@@ -416,9 +416,9 @@ impl Field {
         }
     }
 
-    pub fn to_bson(&self) -> Option<&[u8]> {
+    pub fn to_json(&self) -> Option<&[u8]> {
         match self {
-            Field::Bson(b) => Some(b),
+            Field::Json(b) => Some(b),
             _ => None,
         }
     }
@@ -451,7 +451,7 @@ impl Display for Field {
             Field::Decimal(v) => f.write_str(&format!("{v} (Decimal)")),
             Field::Timestamp(v) => f.write_str(&format!("{v}")),
             Field::Date(v) => f.write_str(&format!("{v}")),
-            Field::Bson(v) => f.write_str(&format!("{v:x?}")),
+            Field::Json(v) => f.write_str(&format!("{v:x?}")),
             Field::Null => f.write_str("NULL"),
             Field::Point(v) => f.write_str(&format!("{v} (Point)")),
         }
@@ -471,7 +471,7 @@ impl<'a> FieldBorrow<'a> {
             FieldBorrow::Decimal(d) => Field::Decimal(d),
             FieldBorrow::Timestamp(t) => Field::Timestamp(t),
             FieldBorrow::Date(d) => Field::Date(d),
-            FieldBorrow::Bson(b) => Field::Bson(b.to_owned()),
+            FieldBorrow::Json(b) => Field::Json(b.to_owned()),
             FieldBorrow::Point(p) => Field::Point(p),
             FieldBorrow::Null => Field::Null,
         }
@@ -503,7 +503,7 @@ pub enum FieldType {
     Timestamp { unit: Option<TimeUnit> },
     Date { offset: Option<FixedOffset> },
     Duration { unit: Option<TimeUnit> },
-    Bson,
+    Json,
     Point,
 }
 
@@ -522,7 +522,7 @@ impl TryFrom<&str> for FieldType {
             "decimal" => FieldType::Decimal,
             "timestamp" => FieldType::Timestamp,
             "date" => FieldType::Date,
-            "bson" => FieldType::Bson,
+            "json" => FieldType::Json,
             _ => return Err(format!("Unsupported '{value}' type")),
         };
 
@@ -543,7 +543,7 @@ impl Display for FieldType {
             FieldType::Decimal => f.write_str("decimal"),
             FieldType::Timestamp => f.write_str("timestamp"),
             FieldType::Date => f.write_str("date"),
-            FieldType::Bson => f.write_str("bson"),
+            FieldType::Json => f.write_str("json"),
             FieldType::Point => f.write_str("point"),
         }
     }
@@ -573,8 +573,8 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
-        Field::Bson(vec![
-            // BSON representation of `{"abc":"foo"}`
+        Field::Json(vec![
+            // Json representation of `{"abc":"foo"}`
             123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125,
         ]),
         Field::Null,
@@ -600,7 +600,7 @@ impl pyo3::ToPyObject for Field {
                     .unwrap()
                     .to_object(py)
             }
-            Field::Bson(val) => val.to_object(py),
+            Field::Json(val) => val.to_object(py),
             Field::Null => unreachable!(),
             Field::Point(_val) => todo!(),
         }

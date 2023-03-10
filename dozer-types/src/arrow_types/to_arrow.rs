@@ -101,7 +101,7 @@ pub fn map_record_to_arrow(
             (Field::Binary(v), FieldType::Binary) => {
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
             }
-            (Field::Bson(v), FieldType::Bson) => {
+            (Field::Json(v), FieldType::Json) => {
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
             }
             (Field::Point(v), FieldType::Point) => {
@@ -140,8 +140,8 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
             metadata.map(|m| m.insert("logical_type".to_string(), "Binary".to_string()));
             DataType::Binary
         }
-        FieldType::Bson => {
-            metadata.map(|m| m.insert("logical_type".to_string(), "Bson".to_string()));
+        FieldType::Json => {
+            metadata.map(|m| m.insert("logical_type".to_string(), "Json".to_string()));
             DataType::Binary
         }
         FieldType::Point => {

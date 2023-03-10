@@ -458,7 +458,7 @@ impl ExpressionBuilder {
             DataType::String => CastOperatorType::String,
             DataType::Custom(name, ..) => {
                 if name.to_string().to_lowercase() == "bson" {
-                    CastOperatorType::Bson
+                    CastOperatorType::Json
                 } else {
                     Err(PipelineError::InvalidFunction(format!(
                         "Unsupported Cast type {name}"

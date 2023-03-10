@@ -44,9 +44,9 @@ pub fn json_value_to_field(
         (FieldType::Decimal, Value::String(str)) => return Field::from_str(str, typ, nullable),
         (FieldType::Timestamp, Value::String(str)) => return Field::from_str(str, typ, nullable),
         (FieldType::Date, Value::String(str)) => return Field::from_str(str, typ, nullable),
-        (FieldType::Bson, _) => serde_json::from_value(value)
+        (FieldType::Json, _) => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
-            .map(Field::Bson),
+            .map(Field::Json),
         (FieldType::Point, _) => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),
@@ -168,7 +168,7 @@ impl Field {
                         })
                 }
             }
-            FieldType::Bson => {
+            FieldType::Json => {
                 if nullable && (value.is_empty() || value == "null") {
                     Ok(Field::Null)
                 } else {
@@ -266,7 +266,7 @@ mod tests {
             ("null", FieldType::Decimal, true, Field::Null),
             ("null", FieldType::Timestamp, true, Field::Null),
             ("null", FieldType::Date, true, Field::Null),
-            ("null", FieldType::Bson, true, Field::Null),
+            ("null", FieldType::Json, true, Field::Null),
             ("null", FieldType::Point, true, Field::Null),
             ("", FieldType::UInt, true, Field::Null),
             ("", FieldType::Int, true, Field::Null),
@@ -278,7 +278,7 @@ mod tests {
             ("", FieldType::Decimal, true, Field::Null),
             ("", FieldType::Timestamp, true, Field::Null),
             ("", FieldType::Date, true, Field::Null),
-            ("", FieldType::Bson, true, Field::Null),
+            ("", FieldType::Json, true, Field::Null),
             ("", FieldType::Point, true, Field::Null),
         ];
 
@@ -295,7 +295,7 @@ mod tests {
             ("null", FieldType::Decimal, false),
             ("null", FieldType::Timestamp, false),
             ("null", FieldType::Date, false),
-            ("null", FieldType::Bson, false),
+            ("null", FieldType::Json, false),
             ("null", FieldType::Point, false),
             ("", FieldType::UInt, false),
             ("", FieldType::Int, false),
@@ -305,7 +305,7 @@ mod tests {
             ("", FieldType::Decimal, false),
             ("", FieldType::Timestamp, false),
             ("", FieldType::Date, false),
-            ("", FieldType::Bson, false),
+            ("", FieldType::Json, false),
             ("", FieldType::Point, false),
         ];
         for err_case in err_cases {

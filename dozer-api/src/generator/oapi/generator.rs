@@ -38,7 +38,7 @@ impl<'a> OpenApiGenerator<'a> {
                     FieldType::Binary
                     | FieldType::Decimal
                     | FieldType::Timestamp
-                    | FieldType::Bson => Value::Null,
+                    | FieldType::Json => Value::Null,
 
                     FieldType::Text => Value::from("lorem ipsum".to_string()),
                     FieldType::Date => Value::from("2022-11-24"),

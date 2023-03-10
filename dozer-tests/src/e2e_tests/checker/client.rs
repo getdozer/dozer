@@ -327,7 +327,7 @@ fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
         FieldType::Decimal => grpc_type == Type::Decimal as i32,
         FieldType::Timestamp => grpc_type == Type::Timestamp as i32,
         FieldType::Date => grpc_type == Type::Date as i32,
-        FieldType::Bson => grpc_type == Type::Bson as i32,
+        FieldType::Json => grpc_type == Type::Bson as i32,
         FieldType::Point => grpc_type == Type::Point as i32,
     }
 }
@@ -357,7 +357,7 @@ fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldTy
                 true
             }
         }
-        (Array(array_type), FieldType::Binary | FieldType::Bson) => {
+        (Array(array_type), FieldType::Binary | FieldType::Json) => {
             let Some(ReferenceOr::Item(schema)) = array_type.items.as_ref() else {
                 return false;
             };

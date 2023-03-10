@@ -54,5 +54,5 @@ enum Type {
   Decimal = 7;   // Decimal number.
   Timestamp = 8; // ISO 8601 combined date and time with time zone.
   Date = 9;      // ISO 8601 calendar date without timezone.
-  Bson = 10;     // BSON data.
+  Json = 10;     // Json data.
 }

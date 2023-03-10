@@ -113,7 +113,7 @@ fn field_to_prost_value(f: Field) -> Value {
                 nanos: ts.timestamp_subsec_nanos() as i32,
             })),
         },
-        Field::Bson(b) => Value {
+        Field::Json(b) => Value {
             value: Some(value::Value::BytesValue(b)),
         },
         Field::Null => Value { value: None },
@@ -150,7 +150,7 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Binary => Type::Binary,
         FieldType::Decimal => Type::Decimal,
         FieldType::Timestamp => Type::Timestamp,
-        FieldType::Bson => Type::Bson,
+        FieldType::Json => Type::Bson,
         FieldType::Date => Type::String,
         FieldType::Point => Type::Point,
     }

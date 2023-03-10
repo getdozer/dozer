@@ -134,8 +134,8 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
             ) => Ok(dozer_types::types::Field::Text(a.clone())),
             (
                 grpc_types::types::value::Value::BytesValue(a),
-                dozer_types::types::FieldType::Bson,
-            ) => Ok(dozer_types::types::Field::Bson(a.clone())),
+                dozer_types::types::FieldType::Json,
+            ) => Ok(dozer_types::types::Field::Json(a.clone())),
             (
                 grpc_types::types::value::Value::TimestampValue(a),
                 dozer_types::types::FieldType::Timestamp,

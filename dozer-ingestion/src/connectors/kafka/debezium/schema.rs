@@ -31,7 +31,7 @@ pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSche
             "org.apache.kafka.connect.data.Decimal" | "io.debezium.data.VariableScaleDecimal" => {
                 Ok(FieldType::Decimal)
             }
-            "io.debezium.data.Json" => Ok(FieldType::Bson),
+            "io.debezium.data.Json" => Ok(FieldType::Json),
             _ => Err(TypeNotSupported(name)),
         },
     }
@@ -300,7 +300,7 @@ mod tests {
         test_map_type!(
             "string",
             Some("io.debezium.data.Json".to_string()),
-            Ok(FieldType::Bson)
+            Ok(FieldType::Json)
         );
         test_map_type!(
             "string",

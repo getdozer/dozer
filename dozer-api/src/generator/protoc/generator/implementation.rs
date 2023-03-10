@@ -369,7 +369,7 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::Decimal => Ok(DECIMAL_TYPE_CLASS.to_owned()),
         FieldType::Timestamp => Ok(TIMESTAMP_TYPE_CLASS.to_owned()),
         FieldType::Date => Ok("string".to_owned()),
-        FieldType::Bson => Ok("bytes".to_owned()),
+        FieldType::Json => Ok("bytes".to_owned()),
         FieldType::Point => Ok(POINT_TYPE_CLASS.to_owned()),
     }
 }

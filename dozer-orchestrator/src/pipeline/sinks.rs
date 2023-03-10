@@ -150,7 +150,7 @@ impl CacheSinkFactory {
                 FieldType::Text => vec![],
 
                 // Skip creating indexes
-                FieldType::Binary | FieldType::Bson => vec![],
+                FieldType::Binary | FieldType::Json => vec![],
             })
             .collect();
         Ok((schema, secondary_indexes))

@@ -23,7 +23,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -38,7 +38,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -53,7 +53,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -68,7 +68,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -83,7 +83,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -98,7 +98,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -113,7 +113,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -128,7 +128,7 @@ pub mod tests {
         assert!(field.as_decimal().is_some());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -143,7 +143,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_some());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -158,11 +158,11 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_some());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
-        let field = Field::Bson(vec![]);
+        let field = Field::Json(vec![]);
         assert!(field.as_uint().is_none());
         assert!(field.as_int().is_none());
         assert!(field.as_float().is_none());
@@ -173,7 +173,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_some());
+        assert!(field.as_json().is_some());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_none());
 
@@ -188,7 +188,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_some());
         assert!(field.as_null().is_none());
 
@@ -203,7 +203,7 @@ pub mod tests {
         assert!(field.as_decimal().is_none());
         assert!(field.as_timestamp().is_none());
         assert!(field.as_date().is_none());
-        assert!(field.as_bson().is_none());
+        assert!(field.as_json().is_none());
         assert!(field.as_point().is_none());
         assert!(field.as_null().is_some());
     }
@@ -221,7 +221,7 @@ pub mod tests {
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -236,7 +236,7 @@ pub mod tests {
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -251,7 +251,7 @@ pub mod tests {
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -266,7 +266,7 @@ pub mod tests {
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -281,7 +281,7 @@ pub mod tests {
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -296,7 +296,7 @@ pub mod tests {
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -311,7 +311,7 @@ pub mod tests {
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -326,7 +326,7 @@ pub mod tests {
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -341,7 +341,7 @@ pub mod tests {
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().unwrap().is_some());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -356,11 +356,11 @@ pub mod tests {
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_some());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
-        let field = Field::Bson(vec![]);
+        let field = Field::Json(vec![]);
         assert!(field.to_uint().is_none());
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_none());
@@ -371,7 +371,7 @@ pub mod tests {
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_some());
+        assert!(field.to_json().is_some());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_none());
 
@@ -386,7 +386,7 @@ pub mod tests {
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().unwrap().is_none());
         assert!(field.to_date().unwrap().is_none());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_some());
         assert!(field.to_null().is_none());
 
@@ -401,7 +401,7 @@ pub mod tests {
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().unwrap().is_some());
         assert!(field.to_date().unwrap().is_some());
-        assert!(field.to_bson().is_none());
+        assert!(field.to_json().is_none());
         assert!(field.to_point().is_none());
         assert!(field.to_null().is_some());
     }
