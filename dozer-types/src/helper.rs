@@ -50,6 +50,9 @@ pub fn json_value_to_field(
         (FieldType::Point, _) => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),
+        (FieldType::Array(..), _) => serde_json::from_value(value)
+            .map_err(DeserializationError::Json)
+            .map(Field::Point),
         _ => Err(DeserializationError::Custom(
             "Json value type does not match field type"
                 .to_string()
@@ -186,6 +189,14 @@ impl Field {
                     value.parse::<DozerPoint>().map(Field::Point)
                 }
             }
+            // FieldType::Array(_) => {  // to be confirmed
+            //     if nullable && (value.is_empty() || value == "null") {
+            //         Ok(Field::Null)
+            //     } else {
+            //         value.parse::<Vec<Field>>().map(Field::Array())
+            //     }
+            // }
+            _ => Ok(Field::Null),  // to be removed
         }
     }
 }

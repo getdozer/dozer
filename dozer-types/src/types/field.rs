@@ -24,11 +24,12 @@ pub enum Field {
     Date(NaiveDate),
     Bson(Vec<u8>),
     Point(DozerPoint),
+    // Array(DozerArray),
     Array(Vec<Field>),
     Null,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum FieldBorrow<'a> {
     UInt(u64),
     Int(i64),
@@ -42,7 +43,8 @@ pub enum FieldBorrow<'a> {
     Date(NaiveDate),
     Bson(&'a [u8]),
     Point(DozerPoint),
-    Array(Vec<Field>),
+    // Array(&DozerArray),
+    Array(&'a [Field]),
     Null,
 }
 
@@ -117,7 +119,8 @@ impl Field {
             Field::Date(t) => FieldBorrow::Date(*t),
             Field::Bson(b) => FieldBorrow::Bson(b),
             Field::Point(p) => FieldBorrow::Point(*p),
-            Field::Array(a) => FieldBorrow::Array(a.clone()),
+            // Field::Array(a) => FieldBorrow::Array(a),
+            Field::Array(a) => FieldBorrow::Array(&*a),
             Field::Null => FieldBorrow::Null,
         }
     }
@@ -174,7 +177,7 @@ impl Field {
             11 => Ok(FieldBorrow::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
-            // 12 => Ok(FieldBorrow::Array(val)),  // todo: to be confirmed
+            12 => Ok(FieldBorrow::Array(&*Vec::<Field>::from(val))),  // todo: to be confirmed
             13 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
@@ -493,7 +496,7 @@ impl<'a> FieldBorrow<'a> {
             FieldBorrow::Date(d) => Field::Date(d),
             FieldBorrow::Bson(b) => Field::Bson(b.to_owned()),
             FieldBorrow::Point(p) => Field::Point(p),
-            FieldBorrow::Array(a) => Field::Array(a),
+            FieldBorrow::Array(a) => Field::Array(a.to_vec()),
             FieldBorrow::Null => Field::Null,
         }
     }
@@ -513,7 +516,7 @@ pub enum FieldType {
     Date,
     Bson,
     Point,
-    Array(Box<FieldType>),
+    Array(Option<Box<FieldType>>),
 }
 
 impl TryFrom<&str> for FieldType {
@@ -533,7 +536,7 @@ impl TryFrom<&str> for FieldType {
             "date" => FieldType::Date,
             "bson" => FieldType::Bson,
             "point" => FieldType::Point,
-            // "array" => FieldType::Array(..),  // to be confirmed
+            "array" => FieldType::Array(None),  // todo: to be confirmed
             _ => return Err(format!("Unsupported '{value}' type")),
         };
 
@@ -615,7 +618,7 @@ impl pyo3::ToPyObject for Field {
             Field::Bson(val) => val.to_object(py),
             Field::Null => unreachable!(),
             Field::Point(_val) => todo!(),
-            Field::Array(_val) => todo!(),
+            Field::Array(val) => val.to_object(py),
         }
     }
 }
