@@ -7,25 +7,25 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::Schema;
-use sqlparser::ast::TableFactor;
 
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::{PipelineError, WindowError},
+    pipeline_builder::from::TableOperator,
 };
 
 use super::{
-    builder::{window_from_relation, window_source_name},
+    builder::{window_from_table_operator, window_source_name},
     processor::WindowProcessor,
 };
 
 #[derive(Debug)]
 pub struct WindowProcessorFactory {
-    table: TableFactor,
+    table: TableOperator,
 }
 
 impl WindowProcessorFactory {
-    pub fn new(table: TableFactor) -> Self {
+    pub fn new(table: TableOperator) -> Self {
         Self { table }
     }
 
@@ -58,7 +58,7 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
             ))?
             .clone();
 
-        let output_schema = match window_from_relation(&self.table, &input_schema.0)
+        let output_schema = match window_from_table_operator(self.table, &input_schema.0)
             .map_err(|e| ExecutionError::WindowProcessorFactoryError(Box::new(e)))?
         {
             Some(window) => window
@@ -87,7 +87,7 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
             ))?
             .clone();
 
-        match window_from_relation(&self.table, &input_schema)
+        match window_from_table_operator(self.table, &input_schema)
             .map_err(|e| ExecutionError::WindowProcessorFactoryError(Box::new(e)))?
         {
             Some(window) => Ok(Box::new(WindowProcessor::new(window))),

@@ -107,6 +107,15 @@ pub enum PipelineError {
 
     #[error(transparent)]
     WindowError(#[from] WindowError),
+
+    #[error("Table Function is not supported")]
+    UnsupportedTableFunction,
+
+    #[error("UNNEST not supported")]
+    UnsupportedUnnest,
+
+    #[error("Nested Join is not supported")]
+    UnsupportedNestedJoin,
 }
 
 #[cfg(feature = "python")]
