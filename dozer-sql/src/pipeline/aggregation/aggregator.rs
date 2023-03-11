@@ -1,3 +1,5 @@
+#![allow(clippy::enum_variant_names)]
+
 use crate::pipeline::aggregation::avg::AvgAggregator;
 use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::aggregation::max::MaxAggregator;

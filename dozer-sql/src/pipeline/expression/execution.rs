@@ -1,4 +1,3 @@
-use crate::argv;
 use crate::pipeline::aggregation::avg::validate_avg;
 use crate::pipeline::aggregation::count::validate_count;
 use crate::pipeline::aggregation::max::validate_max;

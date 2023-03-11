@@ -10,8 +10,8 @@ use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use num_traits::FromPrimitive;
 
 pub fn validate_count(
-    args: &[Expression],
-    schema: &Schema,
+    _args: &[Expression],
+    _schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
     Ok(ExpressionType::new(
         FieldType::Int,
