@@ -11,6 +11,7 @@ pub mod mathematical;
 pub mod operator;
 pub mod scalar;
 
+mod expr_ret_types;
 #[cfg(feature = "python")]
 pub mod python_udf;
 #[cfg(test)]

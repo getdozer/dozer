@@ -10,34 +10,6 @@ use dozer_types::types::{Field, FieldType, SourceDefinition};
 use num_traits::FromPrimitive;
 use std::collections::BTreeMap;
 
-pub fn get_avg_return_type(arg: &ExpressionType) -> Result<ExpressionType, PipelineError> {
-    let ret_type = match arg.return_type {
-        FieldType::Decimal => FieldType::Decimal,
-        FieldType::Int => FieldType::Decimal,
-        FieldType::UInt => FieldType::Decimal,
-        FieldType::Float => FieldType::Float,
-        r => {
-            return Err(PipelineError::InvalidFunctionArgumentType(
-                "AVG".to_string(),
-                r,
-                FieldTypes::new(vec![
-                    FieldType::Decimal,
-                    FieldType::UInt,
-                    FieldType::Int,
-                    FieldType::Float,
-                ]),
-                0,
-            ));
-        }
-    };
-    Ok(ExpressionType::new(
-        ret_type,
-        false,
-        SourceDefinition::Dynamic,
-        false,
-    ))
-}
-
 #[derive(Debug)]
 pub struct AvgAggregator {
     current_state: BTreeMap<Field, u64>,

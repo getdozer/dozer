@@ -9,15 +9,6 @@ use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, SourceDefinition};
 use num_traits::FromPrimitive;
 
-pub fn get_count_return_type(arg: &ExpressionType) -> Result<ExpressionType, PipelineError> {
-    Ok(ExpressionType::new(
-        FieldType::Int,
-        false,
-        SourceDefinition::Dynamic,
-        false,
-    ))
-}
-
 #[derive(Debug)]
 pub struct CountAggregator {
     current_state: u64,

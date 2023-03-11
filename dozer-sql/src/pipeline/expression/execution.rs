@@ -1,15 +1,16 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
-
-use uuid::Uuid;
-
-use crate::pipeline::aggregation::avg::get_avg_return_type;
 use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
+use crate::pipeline::expression::expr_ret_types::{
+    get_aggr_avg_return_type, get_aggr_count_return_type, get_aggr_max_return_type,
+    get_aggr_min_return_type, get_aggr_sum_return_type,
+};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
+use uuid::Uuid;
 
 use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
@@ -448,32 +449,10 @@ fn get_aggregate_function_type(
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => {
-            get_avg_return_type(&argv!(args, 0, AggregateFunctionType::Avg)?.get_type(schema)?)
-        }
-        AggregateFunctionType::Count => Ok(ExpressionType::new(
-            FieldType::Int,
-            false,
-            SourceDefinition::Dynamic,
-            false,
-        )),
-        AggregateFunctionType::Max => argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema),
-        AggregateFunctionType::Median => {
-            argv!(args, 0, AggregateFunctionType::Median)?.get_type(schema)
-        }
-        AggregateFunctionType::Min => argv!(args, 0, AggregateFunctionType::Min)?.get_type(schema),
-        AggregateFunctionType::Sum => argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema),
-        AggregateFunctionType::Stddev => Ok(ExpressionType::new(
-            FieldType::Float,
-            false,
-            SourceDefinition::Dynamic,
-            false,
-        )),
-        AggregateFunctionType::Variance => Ok(ExpressionType::new(
-            FieldType::Float,
-            false,
-            SourceDefinition::Dynamic,
-            false,
-        )),
+        AggregateFunctionType::Avg => get_aggr_avg_return_type(args, schema),
+        AggregateFunctionType::Count => get_aggr_count_return_type(args, schema),
+        AggregateFunctionType::Max => get_aggr_max_return_type(args, schema),
+        AggregateFunctionType::Min => get_aggr_min_return_type(args, schema),
+        AggregateFunctionType::Sum => get_aggr_sum_return_type(args, schema),
     }
 }
