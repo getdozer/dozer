@@ -6,19 +6,15 @@ use dozer_storage::{
 };
 use dozer_types::{borrow::IntoOwned, types::IndexDefinition};
 
-use crate::{
-    cache::lmdb::{
-        comparator,
-        indexer::{build_index, delete_index},
-        utils::init_env,
-    },
-    errors::CacheError,
-};
+use crate::{cache::lmdb::utils::init_env, errors::CacheError};
 
 use super::{
     main_environment::{Operation, OperationLog},
     CacheCommonOptions, CacheWriteOptions,
 };
+
+mod comparator;
+mod indexer;
 
 pub type SecondaryIndexDatabase = LmdbMultimap<Vec<u8>, u64>;
 
@@ -59,49 +55,40 @@ impl SecondaryEnvironment for RwSecondaryEnvironment {
 }
 
 impl RwSecondaryEnvironment {
-    pub fn open(
-        name: String,
-        common_options: &CacheCommonOptions,
-        write_options: CacheWriteOptions,
-    ) -> Result<Self, CacheError> {
-        let (env, database, next_operation_id, index_definition) =
-            open_env_with_index_definition(name, common_options, Some(write_options))?;
-
-        Ok(Self {
-            index_definition,
-            txn: env.create_txn()?,
-            database,
-            next_operation_id,
-        })
-    }
-
-    pub fn create(
-        index_definition: &IndexDefinition,
+    pub fn new(
+        index_definition: Option<&IndexDefinition>,
         name: String,
         common_options: &CacheCommonOptions,
         write_options: CacheWriteOptions,
     ) -> Result<Self, CacheError> {
         let (env, database, next_operation_id, index_definition_option, old_index_definition) =
             open_env(name.clone(), common_options, Some(write_options))?;
-
-        set_comparator(&env, index_definition, database)?;
-
         let txn = env.create_txn()?;
-        let index_definition = if let Some(old_index_definition) = old_index_definition {
-            if index_definition != &old_index_definition {
-                return Err(CacheError::IndexDefinitionMismatch {
-                    name,
-                    given: index_definition.clone(),
-                    stored: old_index_definition,
-                });
+
+        let index_definition = match (index_definition, old_index_definition) {
+            (Some(index_definition), None) => {
+                let mut txn = txn.write();
+                index_definition_option.store(txn.txn_mut(), index_definition)?;
+                txn.commit_and_renew()?;
+                index_definition.clone()
             }
-            old_index_definition
-        } else {
-            let mut txn = txn.write();
-            index_definition_option.store(txn.txn_mut(), index_definition)?;
-            txn.commit_and_renew()?;
-            index_definition.clone()
+            (None, Some(index_definition)) => index_definition,
+            (Some(index_definition), Some(old_index_definition)) => {
+                if index_definition != &old_index_definition {
+                    return Err(CacheError::IndexDefinitionMismatch {
+                        name,
+                        given: index_definition.clone(),
+                        stored: old_index_definition,
+                    });
+                }
+                old_index_definition
+            }
+            (None, None) => {
+                return Err(CacheError::IndexDefinitionNotFound(name));
+            }
         };
+
+        set_comparator(&txn, &index_definition, database)?;
 
         Ok(Self {
             index_definition,
@@ -131,7 +118,7 @@ impl RwSecondaryEnvironment {
             match operation {
                 Operation::Insert { record, .. } => {
                     // Build secondary index.
-                    build_index(
+                    indexer::build_index(
                         txn,
                         self.database,
                         &record,
@@ -145,7 +132,7 @@ impl RwSecondaryEnvironment {
                         panic!("Insert operation {} not found", operation_id);
                     };
                     // Delete secondary index.
-                    delete_index(
+                    indexer::delete_index(
                         txn,
                         self.database,
                         &record,
@@ -190,8 +177,9 @@ impl SecondaryEnvironment for RoSecondaryEnvironment {
 
 impl RoSecondaryEnvironment {
     pub fn new(name: String, common_options: &CacheCommonOptions) -> Result<Self, CacheError> {
-        let (env, database, _, index_definition) =
-            open_env_with_index_definition(name, common_options, None)?;
+        let (env, database, _, _, index_definition) = open_env(name.clone(), common_options, None)?;
+        let index_definition = index_definition.ok_or(CacheError::IndexDefinitionNotFound(name))?;
+        set_comparator(&env, &index_definition, database)?;
         Ok(Self {
             env,
             database,
@@ -246,33 +234,13 @@ fn open_env(
     ))
 }
 
-fn open_env_with_index_definition(
-    name: String,
-    common_options: &CacheCommonOptions,
-    write_options: Option<CacheWriteOptions>,
-) -> Result<
-    (
-        LmdbEnvironmentManager,
-        SecondaryIndexDatabase,
-        LmdbCounter,
-        IndexDefinition,
-    ),
-    CacheError,
-> {
-    let (env, database, next_operation_id, _, index_definition) =
-        open_env(name.clone(), common_options, write_options)?;
-    let index_definition = index_definition.ok_or(CacheError::IndexDefinitionNotFound(name))?;
-    set_comparator(&env, &index_definition, database)?;
-    Ok((env, database, next_operation_id, index_definition))
-}
-
-fn set_comparator(
-    env: &LmdbEnvironmentManager,
+fn set_comparator<B: BeginTransaction>(
+    b: &B,
     index_definition: &IndexDefinition,
     database: SecondaryIndexDatabase,
 ) -> Result<(), CacheError> {
     if let IndexDefinition::SortedInverted(fields) = index_definition {
-        comparator::set_sorted_inverted_comparator(&env.begin_txn()?, database.database(), fields)?;
+        comparator::set_sorted_inverted_comparator(&b.begin_txn()?, database.database(), fields)?;
     }
     Ok(())
 }

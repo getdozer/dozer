@@ -35,7 +35,7 @@ impl Default for ExecutorOptions {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
-            max_map_size: 1024 * 1024 * 1024 * 1024,
+            max_map_size: 1024 * 1024 * 1024,
         }
     }
 }

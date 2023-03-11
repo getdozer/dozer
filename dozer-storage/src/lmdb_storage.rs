@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 const DEFAULT_MAX_DBS: u32 = 256;
 const DEFAULT_MAX_READERS: u32 = 256;
-const DEFAULT_MAX_MAP_SZ: usize = 1024 * 1024 * 1024 * 1024;
+const DEFAULT_MAX_MAP_SZ: usize = 1024 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy)]
 pub struct LmdbEnvironmentOptions {

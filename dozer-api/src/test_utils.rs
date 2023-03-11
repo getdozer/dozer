@@ -113,6 +113,7 @@ pub fn initialize_cache(
         cache.insert(&mut record.record).unwrap();
     }
     cache.commit().unwrap();
+    cache_manager.wait_until_indexing_catchup();
 
     cache_manager
         .create_alias(cache.name(), schema_name)

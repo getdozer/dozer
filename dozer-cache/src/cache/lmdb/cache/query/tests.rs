@@ -11,7 +11,7 @@ use dozer_types::{
 
 #[test]
 fn query_secondary_sorted_inverted() {
-    let (cache, schema, _) = create_cache(schema_1);
+    let (cache, mut indexing_thread_pool, schema, _) = create_cache(schema_1);
 
     let mut record = Record::new(
         schema.identifier,
@@ -25,6 +25,8 @@ fn query_secondary_sorted_inverted() {
 
     cache.insert(&mut record).unwrap();
     assert!(record.version.is_some());
+    cache.commit().unwrap();
+    indexing_thread_pool.wait_until_catchup();
 
     let filter = FilterExpression::And(vec![
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(1)),
@@ -46,7 +48,7 @@ fn query_secondary_sorted_inverted() {
 
 #[test]
 fn query_secondary_full_text() {
-    let (cache, schema, _) = create_cache(schema_full_text);
+    let (cache, mut indexing_thread_pool, schema, _) = create_cache(schema_full_text);
 
     let mut record = Record::new(
         schema.identifier,
@@ -59,6 +61,8 @@ fn query_secondary_full_text() {
 
     cache.insert(&mut record).unwrap();
     assert!(record.version.is_some());
+    cache.commit().unwrap();
+    indexing_thread_pool.wait_until_catchup();
 
     let filter = FilterExpression::Simple("foo".into(), Operator::Contains, "good".into());
 
@@ -79,7 +83,7 @@ fn query_secondary_full_text() {
 
 #[test]
 fn query_secondary_vars() {
-    let (cache, schema, _) = create_cache(schema_1);
+    let (cache, mut indexing_thread_pool, schema, _) = create_cache(schema_1);
 
     let items = vec![
         (1, Some("yuri".to_string()), Some(521)),
@@ -95,6 +99,8 @@ fn query_secondary_vars() {
     for val in items {
         insert_rec_1(&cache, &schema, val);
     }
+    cache.commit().unwrap();
+    indexing_thread_pool.wait_until_catchup();
 
     test_query(json!({}), 8, &cache);
 
@@ -188,7 +194,7 @@ fn query_secondary_vars() {
 
 #[test]
 fn query_secondary_multi_indices() {
-    let (cache, schema, _) = create_cache(schema_multi_indices);
+    let (cache, mut indexing_thread_pool, schema, _) = create_cache(schema_multi_indices);
 
     for (id, text) in [
         (1, "apple ball cake dance"),
@@ -207,6 +213,8 @@ fn query_secondary_multi_indices() {
         cache.insert(&mut record).unwrap();
         assert!(record.version.is_some());
     }
+    cache.commit().unwrap();
+    indexing_thread_pool.wait_until_catchup();
 
     let query = query_from_filter(FilterExpression::And(vec![
         FilterExpression::Simple("id".into(), Operator::GT, Value::from(2)),

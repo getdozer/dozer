@@ -1,5 +1,6 @@
 use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use crate::cache::lmdb::cache::{CacheCommonOptions, CacheWriteOptions, LmdbRoCache, LmdbRwCache};
+use crate::cache::lmdb::indexing::IndexingThreadPool;
 use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, RoCache, RwCache};
 use dozer_types::serde_json::Value;
 use dozer_types::types::Field;
@@ -12,8 +13,9 @@ fn read_and_write() {
     // write and read from cache from two different threads.
 
     let schema = test_utils::schema_1();
-    let cache_writer = LmdbRwCache::create(
-        &schema,
+    let mut indexing_thread_pool = IndexingThreadPool::new(1);
+    let cache_writer = LmdbRwCache::new(
+        Some(&schema),
         &CacheCommonOptions {
             max_readers: 1,
             max_db_size: 100,
@@ -23,6 +25,7 @@ fn read_and_write() {
         CacheWriteOptions {
             max_size: 1024 * 1024,
         },
+        &mut indexing_thread_pool,
     )
     .unwrap();
 
@@ -37,6 +40,8 @@ fn read_and_write() {
         lmdb_utils::insert_rec_1(&cache_writer, &schema.0, val.clone());
     }
     cache_writer.commit().unwrap();
+
+    indexing_thread_pool.wait_until_catchup();
 
     let read_options = CacheCommonOptions {
         path: Some(path),

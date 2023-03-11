@@ -2136,6 +2136,7 @@ dependencies = [
  "futures",
  "itertools",
  "rand 0.8.5",
+ "rayon",
  "roaring",
  "tempdir",
  "tokio",
