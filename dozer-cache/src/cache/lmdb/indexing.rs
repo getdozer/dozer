@@ -122,7 +122,6 @@ fn index_and_log_error(
         // Run `index` for at least once before quitting.
         if let Err(e) = index(&main_env, &secondary_env) {
             error!("Error while indexing {}: {e}", main_env.name());
-            std::process::abort();
         }
 
         if !running.load(Ordering::SeqCst) {
