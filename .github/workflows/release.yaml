@@ -109,7 +109,7 @@ jobs:
             ${{ runner.os }}-cargo-release-
 
       - name: Build package
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --features=snowflake --release --target ${{ matrix.target }}
 
       - name: Prepare release assets
         shell: bash
