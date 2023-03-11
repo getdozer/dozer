@@ -1,11 +1,12 @@
 use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Max;
 use crate::{calculate_err, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
 
+use crate::pipeline::expression::execution::ExpressionType;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, SourceDefinition};
 use std::collections::BTreeMap;
 
 #[derive(Debug)]

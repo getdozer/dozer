@@ -2,11 +2,21 @@ use crate::calculate_err_type;
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Count;
+use crate::pipeline::expression::execution::ExpressionType;
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, SourceDefinition};
 use num_traits::FromPrimitive;
+
+pub fn get_count_return_type(arg: &ExpressionType) -> Result<ExpressionType, PipelineError> {
+    Ok(ExpressionType::new(
+        FieldType::Int,
+        false,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
 
 #[derive(Debug)]
 pub struct CountAggregator {
