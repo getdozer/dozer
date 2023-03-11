@@ -1,5 +1,5 @@
 pub mod aggregator;
-mod avg;
+pub mod avg;
 mod count;
 pub mod factory;
 mod max;

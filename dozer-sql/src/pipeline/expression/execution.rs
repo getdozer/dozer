@@ -3,6 +3,7 @@ use crate::pipeline::errors::PipelineError;
 
 use uuid::Uuid;
 
+use crate::pipeline::aggregation::avg::get_avg_return_type;
 use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -447,7 +448,9 @@ fn get_aggregate_function_type(
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => argv!(args, 0, AggregateFunctionType::Avg)?.get_type(schema),
+        AggregateFunctionType::Avg => {
+            get_avg_return_type(&argv!(args, 0, AggregateFunctionType::Avg)?.get_type(schema)?)
+        }
         AggregateFunctionType::Count => Ok(ExpressionType::new(
             FieldType::Int,
             false,
