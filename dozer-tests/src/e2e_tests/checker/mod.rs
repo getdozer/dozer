@@ -56,8 +56,10 @@ fn assert_command_fails(mut command: Command, expected_string_in_stdout: Option<
     if output.status.success() {
         panic!("Command {command:?} is expected to fail, but it succeeded");
     }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    error!("{}", stdout);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    error!("stdout: {}", stdout);
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    error!("stderr: {}", stderr);
     if let Some(expected_string_in_stdout) = expected_string_in_stdout {
         if !stdout.contains(expected_string_in_stdout) {
             panic!(
