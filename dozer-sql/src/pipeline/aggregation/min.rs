@@ -1,11 +1,47 @@
 use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{FieldTypes, PipelineError};
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Min;
-use crate::{calculate_err, calculate_err_field};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::{argv, calculate_err, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use std::collections::BTreeMap;
+
+pub fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionType, PipelineError> {
+    let arg = &argv!(args, 0, AggregateFunctionType::Min)?.get_type(schema)?;
+
+    let ret_type = match arg.return_type {
+        FieldType::Decimal => FieldType::Decimal,
+        FieldType::Int => FieldType::Int,
+        FieldType::UInt => FieldType::UInt,
+        FieldType::Float => FieldType::Float,
+        FieldType::Timestamp => FieldType::Timestamp,
+        FieldType::Date => FieldType::Date,
+        r => {
+            return Err(PipelineError::InvalidFunctionArgumentType(
+                "MIN".to_string(),
+                r,
+                FieldTypes::new(vec![
+                    FieldType::Decimal,
+                    FieldType::UInt,
+                    FieldType::Int,
+                    FieldType::Float,
+                    FieldType::Timestamp,
+                    FieldType::Date,
+                ]),
+                0,
+            ));
+        }
+    };
+    Ok(ExpressionType::new(
+        ret_type,
+        true,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
 
 #[derive(Debug)]
 pub struct MinAggregator {

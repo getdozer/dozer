@@ -1,14 +1,16 @@
-use crate::argv;
+use crate::pipeline::aggregation::avg::validate_avg;
+use crate::pipeline::aggregation::count::validate_count;
+use crate::pipeline::aggregation::max::validate_max;
+use crate::pipeline::aggregation::min::validate_min;
+use crate::pipeline::aggregation::sum::validate_sum;
 use crate::pipeline::errors::PipelineError;
-
-use uuid::Uuid;
-
 use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
+use uuid::Uuid;
 
 use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
@@ -447,30 +449,10 @@ fn get_aggregate_function_type(
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => argv!(args, 0, AggregateFunctionType::Avg)?.get_type(schema),
-        AggregateFunctionType::Count => Ok(ExpressionType::new(
-            FieldType::Int,
-            false,
-            SourceDefinition::Dynamic,
-            false,
-        )),
-        AggregateFunctionType::Max => argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema),
-        AggregateFunctionType::Median => {
-            argv!(args, 0, AggregateFunctionType::Median)?.get_type(schema)
-        }
-        AggregateFunctionType::Min => argv!(args, 0, AggregateFunctionType::Min)?.get_type(schema),
-        AggregateFunctionType::Sum => argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema),
-        AggregateFunctionType::Stddev => Ok(ExpressionType::new(
-            FieldType::Float,
-            false,
-            SourceDefinition::Dynamic,
-            false,
-        )),
-        AggregateFunctionType::Variance => Ok(ExpressionType::new(
-            FieldType::Float,
-            false,
-            SourceDefinition::Dynamic,
-            false,
-        )),
+        AggregateFunctionType::Avg => validate_avg(args, schema),
+        AggregateFunctionType::Count => validate_count(args, schema),
+        AggregateFunctionType::Max => validate_max(args, schema),
+        AggregateFunctionType::Min => validate_min(args, schema),
+        AggregateFunctionType::Sum => validate_sum(args, schema),
     }
 }
