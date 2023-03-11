@@ -17,11 +17,11 @@ use crate::{
     errors::CacheError,
 };
 
-use super::{CacheCommonOptions, CacheWriteOptions};
-
 mod operation_log;
 
 pub use operation_log::{Operation, OperationLog};
+
+use super::CacheOptions;
 
 pub trait MainEnvironment: BeginTransaction {
     fn common(&self) -> &MainEnvironmentCommon;
@@ -99,11 +99,9 @@ impl MainEnvironment for RwMainEnvironment {
 impl RwMainEnvironment {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
-        common_options: &CacheCommonOptions,
-        write_options: CacheWriteOptions,
+        options: &CacheOptions,
     ) -> Result<Self, CacheError> {
-        let (env, common, schema_option, old_schema, temp_dir) =
-            open_env(common_options, Some(write_options))?;
+        let (env, common, schema_option, old_schema, temp_dir) = open_env(options, true)?;
         let txn = env.create_txn()?;
 
         let schema = match (schema, old_schema) {
@@ -199,8 +197,8 @@ impl MainEnvironment for RoMainEnvironment {
 }
 
 impl RoMainEnvironment {
-    pub fn new(common_options: &CacheCommonOptions) -> Result<Self, CacheError> {
-        let (env, common, _, schema, _) = open_env(common_options, None)?;
+    pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
+        let (env, common, _, schema, _) = open_env(options, false)?;
         let schema = schema.ok_or(CacheError::SchemaNotFound)?;
         Ok(Self {
             env,
@@ -212,8 +210,8 @@ impl RoMainEnvironment {
 
 #[allow(clippy::type_complexity)]
 fn open_env(
-    common_options: &CacheCommonOptions,
-    write_options: Option<CacheWriteOptions>,
+    options: &CacheOptions,
+    create_if_not_exist: bool,
 ) -> Result<
     (
         LmdbEnvironmentManager,
@@ -224,9 +222,8 @@ fn open_env(
     ),
     CacheError,
 > {
-    let (mut env, (base_path, name), temp_dir) = init_env(common_options, write_options)?;
+    let (mut env, (base_path, name), temp_dir) = init_env(options, create_if_not_exist)?;
 
-    let create_if_not_exist = write_options.is_some();
     let operation_log = OperationLog::new(&mut env, create_if_not_exist)?;
     let schema_option = LmdbOption::new(&mut env, Some("schema"), create_if_not_exist)?;
 
@@ -240,7 +237,7 @@ fn open_env(
             base_path,
             name,
             operation_log,
-            intersection_chunk_size: common_options.intersection_chunk_size,
+            intersection_chunk_size: options.intersection_chunk_size,
         },
         schema_option,
         schema,

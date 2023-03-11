@@ -10,7 +10,7 @@ use crate::{cache::lmdb::utils::init_env, errors::CacheError};
 
 use super::{
     main_environment::{Operation, OperationLog},
-    CacheCommonOptions, CacheWriteOptions,
+    CacheOptions,
 };
 
 mod comparator;
@@ -58,11 +58,10 @@ impl RwSecondaryEnvironment {
     pub fn new(
         index_definition: Option<&IndexDefinition>,
         name: String,
-        common_options: &CacheCommonOptions,
-        write_options: CacheWriteOptions,
+        options: &CacheOptions,
     ) -> Result<Self, CacheError> {
         let (env, database, next_operation_id, index_definition_option, old_index_definition) =
-            open_env(name.clone(), common_options, Some(write_options))?;
+            open_env(name.clone(), options, true)?;
         let txn = env.create_txn()?;
 
         let index_definition = match (index_definition, old_index_definition) {
@@ -176,8 +175,8 @@ impl SecondaryEnvironment for RoSecondaryEnvironment {
 }
 
 impl RoSecondaryEnvironment {
-    pub fn new(name: String, common_options: &CacheCommonOptions) -> Result<Self, CacheError> {
-        let (env, database, _, _, index_definition) = open_env(name.clone(), common_options, None)?;
+    pub fn new(name: String, options: &CacheOptions) -> Result<Self, CacheError> {
+        let (env, database, _, _, index_definition) = open_env(name.clone(), options, false)?;
         let index_definition = index_definition.ok_or(CacheError::IndexDefinitionNotFound(name))?;
         set_comparator(&env, &index_definition, database)?;
         Ok(Self {
@@ -191,8 +190,8 @@ impl RoSecondaryEnvironment {
 #[allow(clippy::type_complexity)]
 fn open_env(
     name: String,
-    common_options: &CacheCommonOptions,
-    write_options: Option<CacheWriteOptions>,
+    options: &CacheOptions,
+    create_if_not_exist: bool,
 ) -> Result<
     (
         LmdbEnvironmentManager,
@@ -203,18 +202,14 @@ fn open_env(
     ),
     CacheError,
 > {
-    let path = common_options
+    let path = options
         .path
         .as_ref()
         .map(|(base_path, main_name)| (base_path.join(format!("{main_name}_index")), name));
-    let common_options = CacheCommonOptions {
-        path,
-        ..*common_options
-    };
+    let options = CacheOptions { path, ..*options };
 
-    let mut env = init_env(&common_options, write_options)?.0;
+    let mut env = init_env(&options, create_if_not_exist)?.0;
 
-    let create_if_not_exist = write_options.is_some();
     let database = LmdbMultimap::new(&mut env, Some("database"), create_if_not_exist)?;
     let next_operation_id =
         LmdbCounter::new(&mut env, Some("next_operation_id"), create_if_not_exist)?;
