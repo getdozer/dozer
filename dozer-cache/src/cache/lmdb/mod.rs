@@ -1,7 +1,6 @@
 mod cache;
 pub mod cache_manager;
-mod comparator;
-pub mod indexer;
+mod indexing;
 mod utils;
 
 #[cfg(test)]

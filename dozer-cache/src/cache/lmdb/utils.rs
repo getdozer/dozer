@@ -1,4 +1,8 @@
-use std::{fs, ops::Deref};
+use std::{
+    fs,
+    ops::Deref,
+    path::{Path, PathBuf},
+};
 
 use crate::errors::CacheError;
 use dozer_storage::{
@@ -9,23 +13,25 @@ use tempdir::TempDir;
 
 use super::cache::{CacheCommonOptions, CacheWriteOptions};
 
+#[allow(clippy::type_complexity)]
 pub fn init_env(
     common_options: &CacheCommonOptions,
     write_options: Option<CacheWriteOptions>,
-) -> Result<(LmdbEnvironmentManager, String), CacheError> {
+) -> Result<(LmdbEnvironmentManager, (PathBuf, String), Option<TempDir>), CacheError> {
     if let Some(write_options) = write_options {
         create_env(common_options, write_options)
     } else {
-        let (env, name) = open_env(common_options)?;
-        Ok((env, name.to_string()))
+        let (env, (base_path, name), temp_dir) = open_env(common_options)?;
+        Ok((env, (base_path.to_path_buf(), name.to_string()), temp_dir))
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn create_env(
     common_options: &CacheCommonOptions,
     write_options: CacheWriteOptions,
-) -> Result<(LmdbEnvironmentManager, String), CacheError> {
-    let (base_path, name, _temp_dir) = match &common_options.path {
+) -> Result<(LmdbEnvironmentManager, (PathBuf, String), Option<TempDir>), CacheError> {
+    let (base_path, name, temp_dir) = match &common_options.path {
         None => {
             let base_path =
                 TempDir::new("dozer").map_err(|e| CacheError::Io("tempdir".into(), e))?;
@@ -50,11 +56,15 @@ fn create_env(
 
     Ok((
         LmdbEnvironmentManager::create(&base_path, name, options)?,
-        name.to_string(),
+        (base_path, name.to_string()),
+        temp_dir,
     ))
 }
 
-fn open_env(options: &CacheCommonOptions) -> Result<(LmdbEnvironmentManager, &str), CacheError> {
+#[allow(clippy::type_complexity)]
+fn open_env(
+    options: &CacheCommonOptions,
+) -> Result<(LmdbEnvironmentManager, (&Path, &str), Option<TempDir>), CacheError> {
     let (base_path, name) = options
         .path
         .as_ref()
@@ -69,7 +79,8 @@ fn open_env(options: &CacheCommonOptions) -> Result<(LmdbEnvironmentManager, &st
 
     Ok((
         LmdbEnvironmentManager::create(base_path, name, env_options)?,
-        name,
+        (base_path, name),
+        None,
     ))
 }
 
