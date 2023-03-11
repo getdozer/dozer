@@ -1,10 +1,11 @@
 use crate::argv;
+use crate::pipeline::aggregation::avg::validate_avg;
+use crate::pipeline::aggregation::count::validate_count;
+use crate::pipeline::aggregation::max::validate_max;
+use crate::pipeline::aggregation::min::validate_min;
+use crate::pipeline::aggregation::sum::validate_sum;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
-use crate::pipeline::expression::expr_ret_types::{
-    get_aggr_avg_return_type, get_aggr_count_return_type, get_aggr_max_return_type,
-    get_aggr_min_return_type, get_aggr_sum_return_type,
-};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
@@ -449,10 +450,10 @@ fn get_aggregate_function_type(
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => get_aggr_avg_return_type(args, schema),
-        AggregateFunctionType::Count => get_aggr_count_return_type(args, schema),
-        AggregateFunctionType::Max => get_aggr_max_return_type(args, schema),
-        AggregateFunctionType::Min => get_aggr_min_return_type(args, schema),
-        AggregateFunctionType::Sum => get_aggr_sum_return_type(args, schema),
+        AggregateFunctionType::Avg => validate_avg(args, schema),
+        AggregateFunctionType::Count => validate_count(args, schema),
+        AggregateFunctionType::Max => validate_max(args, schema),
+        AggregateFunctionType::Min => validate_min(args, schema),
+        AggregateFunctionType::Sum => validate_sum(args, schema),
     }
 }

@@ -2,12 +2,24 @@ use crate::calculate_err_type;
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Count;
-use crate::pipeline::expression::execution::ExpressionType;
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType, SourceDefinition};
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use num_traits::FromPrimitive;
+
+pub fn validate_count(
+    args: &[Expression],
+    schema: &Schema,
+) -> Result<ExpressionType, PipelineError> {
+    Ok(ExpressionType::new(
+        FieldType::Int,
+        false,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
 
 #[derive(Debug)]
 pub struct CountAggregator {
