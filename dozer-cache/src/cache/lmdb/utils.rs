@@ -11,27 +11,26 @@ use dozer_storage::{
 };
 use tempdir::TempDir;
 
-use super::cache::{CacheCommonOptions, CacheWriteOptions};
+use super::cache::CacheOptions;
 
 #[allow(clippy::type_complexity)]
 pub fn init_env(
-    common_options: &CacheCommonOptions,
-    write_options: Option<CacheWriteOptions>,
+    options: &CacheOptions,
+    create_if_not_exist: bool,
 ) -> Result<(LmdbEnvironmentManager, (PathBuf, String), Option<TempDir>), CacheError> {
-    if let Some(write_options) = write_options {
-        create_env(common_options, write_options)
+    if create_if_not_exist {
+        create_env(options)
     } else {
-        let (env, (base_path, name), temp_dir) = open_env(common_options)?;
+        let (env, (base_path, name), temp_dir) = open_env(options)?;
         Ok((env, (base_path.to_path_buf(), name.to_string()), temp_dir))
     }
 }
 
 #[allow(clippy::type_complexity)]
 fn create_env(
-    common_options: &CacheCommonOptions,
-    write_options: CacheWriteOptions,
+    options: &CacheOptions,
 ) -> Result<(LmdbEnvironmentManager, (PathBuf, String), Option<TempDir>), CacheError> {
-    let (base_path, name, temp_dir) = match &common_options.path {
+    let (base_path, name, temp_dir) = match &options.path {
         None => {
             let base_path =
                 TempDir::new("dozer").map_err(|e| CacheError::Io("tempdir".into(), e))?;
@@ -48,9 +47,9 @@ fn create_env(
     };
 
     let options = LmdbEnvironmentOptions::new(
-        common_options.max_db_size,
-        common_options.max_readers,
-        write_options.max_size,
+        options.max_db_size,
+        options.max_readers,
+        options.max_size,
         EnvironmentFlags::empty(),
     );
 
@@ -63,19 +62,19 @@ fn create_env(
 
 #[allow(clippy::type_complexity)]
 fn open_env(
-    options: &CacheCommonOptions,
+    options: &CacheOptions,
 ) -> Result<(LmdbEnvironmentManager, (&Path, &str), Option<TempDir>), CacheError> {
     let (base_path, name) = options
         .path
         .as_ref()
         .ok_or(CacheError::PathNotInitialized)?;
 
-    let env_options = LmdbEnvironmentOptions {
-        max_dbs: options.max_db_size,
-        max_readers: options.max_readers,
-        flags: EnvironmentFlags::READ_ONLY,
-        ..Default::default()
-    };
+    let env_options = LmdbEnvironmentOptions::new(
+        options.max_db_size,
+        options.max_readers,
+        options.max_size,
+        EnvironmentFlags::READ_ONLY,
+    );
 
     Ok((
         LmdbEnvironmentManager::create(base_path, name, env_options)?,
@@ -104,9 +103,7 @@ mod tests {
 
     #[test]
     fn duplicate_test_nested() {
-        let mut env = create_env(&Default::default(), Default::default())
-            .unwrap()
-            .0;
+        let mut env = create_env(&Default::default()).unwrap().0;
 
         let db = env
             .create_database(
