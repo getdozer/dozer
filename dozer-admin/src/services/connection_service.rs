@@ -33,7 +33,7 @@ impl ConnectionService {
         connection: Connection,
     ) -> Result<Vec<dozer_orchestrator::TableInfo>, ErrorResponse> {
         let res = thread::spawn(|| {
-            let connector = get_connector(connection).map_err(|err| err.to_string())?;
+            let connector = get_connector(connection, None).map_err(|err| err.to_string())?;
             connector.get_tables().map_err(|err| err.to_string())
         })
         .join()
@@ -185,7 +185,7 @@ impl ConnectionService {
     ) -> Result<ValidateConnectionResponse, ErrorResponse> {
         let c = input.connection.unwrap();
         let validate_result = thread::spawn(|| {
-            let connector = get_connector(c).map_err(|err| err.to_string())?;
+            let connector = get_connector(c, None).map_err(|err| err.to_string())?;
             connector.validate(None).map_err(|err| err.to_string())
         });
         validate_result

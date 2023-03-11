@@ -10,11 +10,13 @@ use crate::{
     cache::{
         expression::{Operator, SortDirection},
         index,
-        lmdb::cache::{helper::lmdb_cmp, secondary_environment::SecondaryEnvironment},
+        lmdb::cache::secondary_environment::SecondaryEnvironment,
         plan::{IndexScanKind, SortedInvertedRangeQuery},
     },
     errors::{CacheError, IndexError},
 };
+
+use super::lmdb_cmp::lmdb_cmp;
 
 pub fn build_index_scan<'txn, T: Transaction, S: SecondaryEnvironment>(
     secondary_txn: &'txn T,

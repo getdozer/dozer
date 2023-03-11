@@ -126,7 +126,9 @@ impl ExpressionBuilder {
                 return Err(PipelineError::SqlError(SqlError::InvalidColumn(
                     ident
                         .iter()
-                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                        .map(|e| e.value.as_str())
+                        .collect::<Vec<&str>>()
+                        .join("."),
                 )));
             }
         };
@@ -146,7 +148,9 @@ impl ExpressionBuilder {
                 None => Err(PipelineError::SqlError(SqlError::InvalidColumn(
                     ident
                         .iter()
-                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                        .map(|e| e.value.as_str())
+                        .collect::<Vec<&str>>()
+                        .join("."),
                 ))),
                 Some(src_table_or_alias) => {
                     let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> =
@@ -192,7 +196,9 @@ impl ExpressionBuilder {
                                     _ => Err(PipelineError::SqlError(SqlError::InvalidColumn(
                                         ident
                                             .iter()
-                                            .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                                            .map(|e| e.value.as_str())
+                                            .collect::<Vec<&str>>()
+                                            .join("."),
                                     ))),
                                 }
                             }

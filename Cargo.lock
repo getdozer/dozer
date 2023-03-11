@@ -2065,7 +2065,7 @@ checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
 
 [[package]]
 name = "dozer-admin"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "clap 4.1.8",
  "diesel",
@@ -2093,7 +2093,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-api"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "Inflector",
  "actix-cors",
@@ -2128,7 +2128,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "criterion",
  "dozer-storage",
@@ -2136,6 +2136,7 @@ dependencies = [
  "futures",
  "itertools",
  "rand 0.8.5",
+ "rayon",
  "roaring",
  "tempdir",
  "tokio",
@@ -2145,7 +2146,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "crossbeam",
  "daggy",
@@ -2160,7 +2161,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "base64 0.21.0",
  "bson",
@@ -2197,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-orchestrator"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "clap 4.1.8",
  "crossterm",
@@ -2227,7 +2228,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "ahash 0.8.3",
  "bloom",
@@ -2235,6 +2236,7 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",
+ "enum_dispatch",
  "hashbrown 0.13.2",
  "like",
  "lmdb-rkv",
@@ -2248,7 +2250,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
@@ -2258,7 +2260,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "bson",
  "clap 4.1.8",
@@ -2282,7 +2284,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "dozer-types",
  "opentelemetry",
@@ -2294,7 +2296,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "ahash 0.8.3",
  "arrow 33.0.0",
@@ -2370,6 +2372,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21cdad81446a7f7dc43f6a77409efeb9733d2fa65553efef6018ef257c959b73"
 dependencies = [
  "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "enum_dispatch"
+version = "0.3.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11f36e95862220b211a6e2aa5eca09b4fa391b13cd52ceb8035a24bf65a79de2"
+dependencies = [
+ "once_cell",
  "proc-macro2",
  "quote",
  "syn",

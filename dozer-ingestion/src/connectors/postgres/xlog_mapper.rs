@@ -2,7 +2,7 @@ use crate::connectors::postgres::helper;
 use crate::connectors::ColumnInfo;
 use crate::errors::{PostgresConnectorError, PostgresSchemaError};
 use dozer_types::node::OpIdentifier;
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SourceDefinition};
+use dozer_types::types::{Field, FieldDefinition, Operation, Record, SourceDefinition};
 use helper::postgres_type_to_dozer_type;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
@@ -123,7 +123,7 @@ impl XlogMapper {
                     new: Record::new(
                         Some(dozer_types::types::SchemaIdentifier {
                             id: table.rel_id,
-                            version: table.rel_id as u16,
+                            version: 0,
                         }),
                         values,
                         None,
@@ -143,7 +143,7 @@ impl XlogMapper {
                     old: Record::new(
                         Some(dozer_types::types::SchemaIdentifier {
                             id: table.rel_id,
-                            version: table.rel_id as u16,
+                            version: 0,
                         }),
                         old_values,
                         None,
@@ -151,7 +151,7 @@ impl XlogMapper {
                     new: Record::new(
                         Some(dozer_types::types::SchemaIdentifier {
                             id: table.rel_id,
-                            version: table.rel_id as u16,
+                            version: 0,
                         }),
                         values,
                         None,
@@ -171,7 +171,7 @@ impl XlogMapper {
                     old: Record::new(
                         Some(dozer_types::types::SchemaIdentifier {
                             id: table.rel_id,
-                            version: table.rel_id as u16,
+                            version: 0,
                         }),
                         values,
                         None,
@@ -247,15 +247,6 @@ impl XlogMapper {
                 source: SourceDefinition::Dynamic,
             });
         }
-
-        let _schema = Schema {
-            identifier: Some(dozer_types::types::SchemaIdentifier {
-                id: table.rel_id,
-                version: table.rel_id as u16,
-            }),
-            fields,
-            primary_index: vec![0],
-        };
 
         self.relations_map.insert(rel_id, table);
 

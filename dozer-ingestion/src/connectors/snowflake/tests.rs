@@ -60,7 +60,7 @@ fn test_disabled_connector_and_read_from_stream() {
         thread::spawn(move || {
             let tables: Vec<TableInfo> = vec![table];
 
-            let connector = get_connector(connection_config).unwrap();
+            let connector = get_connector(connection_config, None).unwrap();
             let _ = connector.start(None, &ingestor, tables);
         });
 
@@ -103,7 +103,7 @@ fn test_disabled_connector_and_read_from_stream() {
 fn test_disabled_connector_get_schemas_test() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
-        let connector = get_connector(connection.clone()).unwrap();
+        let connector = get_connector(connection.clone(), None).unwrap();
         let client = get_client(connection);
 
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
@@ -138,7 +138,7 @@ fn test_disabled_connector_get_schemas_test() {
 
         let schemas = connector
             .as_ref()
-            .get_schemas(Some(vec![TableInfo {
+            .get_schemas(Some(&vec![TableInfo {
                 name: table_name.clone(),
                 columns: None,
             }]))
@@ -176,7 +176,7 @@ fn test_disabled_connector_get_schemas_test() {
 fn test_disabled_connector_missing_table_validator() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
-        let connector = get_connector(connection.clone()).unwrap();
+        let connector = get_connector(connection.clone(), None).unwrap();
 
         let not_existing_table = "not_existing_table".to_string();
         let result = connector

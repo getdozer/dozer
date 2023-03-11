@@ -64,7 +64,6 @@ jobs:
   release:
     name: Release
     runs-on: 
-      group: Default Larger Runners
       labels: ${{ matrix.os }}
     needs: prepare
     timeout-minutes: 60
@@ -74,10 +73,12 @@ jobs:
         include:
           - os: ubuntu-20-16-cores
             file_name: dozer
+            target: x86_64-unknown-linux-gnu
             asset_name: dozer-linux-amd64
-          # - os: macos-12
-          #   file_name: dozer
-          #   asset_name: dozer-macos-amd64
+          - os: macos-12
+            file_name: dozer
+            target: x86_64-apple-darwin
+            asset_name: dozer-macos-amd64
     steps:
       - uses: actions/checkout@v3
       - name: Install minimal stable with clippy and rustfmt
@@ -85,6 +86,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          target: ${{ matrix.target }}
           components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
@@ -106,15 +108,15 @@ jobs:
             ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
             ${{ runner.os }}-cargo-release-
 
-      - name: Prepare build package
-        run: cargo build --features=snowflake --release
+      - name: Build package
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare release assets
         shell: bash
         run: |
           mkdir -p release
           cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
-          cp target/release/${{matrix.file_name}} release/
+          cp target/${{ matrix.target }}/release/${{matrix.file_name}} release/
 
           mv release/ ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
 
@@ -141,7 +143,7 @@ jobs:
           echo "RELEASE_NAME=${{env.RELEASE_NAME}}" >> $GITHUB_ENV
           echo "VERSION=${{env.VERSION}}" >> $GITHUB_ENV
           echo "ARTIFACT_URL=https://${{ env.BUCKET_NAME }}.s3.ap-southeast-1.amazonaws.com/${{ env.VERSION }}/${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
-          
+
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -165,7 +167,7 @@ jobs:
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
           docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_GITHUB_SHA .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
-
+          
       - name: Update latest image if releasing
         if: (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
         env:
@@ -173,11 +175,6 @@ jobs:
         run: |
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-#      - name: Clean up Amazon ECR untagged images
-#        run: |
-#          IMAGES_TO_DELETE=$( aws ecr list-images --region us-east-1 --repository-name $ECR_REPOSITORY --filter "tagStatus=UNTAGGED" --query 'imageIds[*]' --output json )
-#          aws ecr batch-delete-image --region us-east-1 --repository-name $ECR_REPOSITORY --image-ids "$IMAGES_TO_DELETE" || true
 
       - name: Trigger BuildKite integration tests
         run: |
@@ -195,7 +192,6 @@ jobs:
           "fields": [
             { "name": "Repository", "value": "[getdozer/dozer](https://github.com/getdozer/dozer)", "inline": true },
             { "name": "Binary", "value": "[${{ env.RELEASE_NAME }}](${{ env.ARTIFACT_URL }})", "inline": true },
-            { "name": "Using Docker", "value": "`docker run ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY}}:${{ env.VERSION }} dozer -h`"},
             { "name": "Using Binary", "value": "`dozer -h`"},
             { "name": "Release Notes", "value": "Release notes can be found [here](https://github.com/getdozer/dozer/releases/tag/${{env.VERSION}})"}
           ],

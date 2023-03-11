@@ -42,7 +42,7 @@ impl Connector for DeltaLakeConnector {
     }
 
     fn validate_schemas(&self, tables: &[TableInfo]) -> ConnectorResult<ValidationResults> {
-        let schemas = self.get_schemas(Some(tables.to_vec()))?;
+        let schemas = self.get_schemas(Some(&tables.to_vec()))?;
         let mut validation_result = ValidationResults::new();
         let existing_schemas_names: Vec<String> = schemas.iter().map(|s| s.name.clone()).collect();
         for table in tables {
@@ -59,7 +59,7 @@ impl Connector for DeltaLakeConnector {
 
     fn get_schemas(
         &self,
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
     ) -> ConnectorResult<Vec<SourceSchema>> {
         let schema_helper = SchemaHelper::new(self.config.clone());
         schema_helper.get_schemas(self.id, table_names)

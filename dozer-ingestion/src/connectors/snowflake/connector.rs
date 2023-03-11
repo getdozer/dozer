@@ -55,7 +55,7 @@ impl Connector for SnowflakeConnector {
     #[cfg(feature = "snowflake")]
     fn get_schemas(
         &self,
-        table_names: Option<Vec<TableInfo>>,
+        table_names: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         SchemaHelper::get_schema(&self.config, table_names)
     }
@@ -63,7 +63,7 @@ impl Connector for SnowflakeConnector {
     #[cfg(not(feature = "snowflake"))]
     fn get_schemas(
         &self,
-        _table_names: Option<Vec<TableInfo>>,
+        _table_names: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         todo!()
     }

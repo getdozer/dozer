@@ -103,7 +103,8 @@ mod tests {
 
     #[test]
     fn test_secondary_indexes() {
-        let (cache, schema, secondary_indexes) = create_cache(test_utils::schema_1);
+        let (cache, mut indexing_thread_pool, schema, secondary_indexes) =
+            create_cache(test_utils::schema_1);
 
         let items = vec![
             (1, Some("a".to_string()), Some(521)),
@@ -115,6 +116,8 @@ mod tests {
         for val in items.clone() {
             lmdb_utils::insert_rec_1(&cache, &schema, val);
         }
+        cache.commit().unwrap();
+        indexing_thread_pool.wait_until_catchup();
 
         // No of index dbs
         let index_counts = lmdb_utils::get_index_counts(&cache);
@@ -130,6 +133,8 @@ mod tests {
         for a in [1i64, 2, 3, 4] {
             cache.delete(&Field::Int(a).encode()).unwrap();
         }
+        cache.commit().unwrap();
+        indexing_thread_pool.wait_until_catchup();
 
         assert_eq!(
             lmdb_utils::get_index_counts(&cache)
@@ -158,7 +163,8 @@ mod tests {
 
     #[test]
     fn test_full_text_secondary_index_with_duplicated_words() {
-        let (cache, schema, _) = create_cache(test_utils::schema_full_text);
+        let (cache, mut indexing_thread_pool, schema, _) =
+            create_cache(test_utils::schema_full_text);
 
         let items = vec![(
             Some("another test".to_string()),
@@ -173,6 +179,9 @@ mod tests {
             let a = "another test".to_string();
             cache.delete(&Field::String(a).encode()).unwrap();
         }
+
+        cache.commit().unwrap();
+        indexing_thread_pool.wait_until_catchup();
 
         assert_eq!(
             lmdb_utils::get_index_counts(&cache)

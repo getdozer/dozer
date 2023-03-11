@@ -1,9 +1,12 @@
+#![allow(clippy::enum_variant_names)]
+
 use crate::pipeline::aggregation::avg::AvgAggregator;
 use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::aggregation::max::MaxAggregator;
 use crate::pipeline::aggregation::min::MinAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
+use enum_dispatch::enum_dispatch;
 use std::collections::BTreeMap;
 
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
@@ -12,11 +15,22 @@ use crate::pipeline::expression::execution::Expression;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter};
 
+#[enum_dispatch]
 pub trait Aggregator: Send + Sync {
     fn init(&mut self, return_type: FieldType);
     fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError>;
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError>;
     fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError>;
+}
+
+#[enum_dispatch(Aggregator)]
+#[derive(Debug)]
+pub enum AggregatorEnum {
+    AvgAggregator,
+    MinAggregator,
+    MaxAggregator,
+    SumAggregator,
+    CountAggregator,
 }
 
 impl Debug for dyn Aggregator {
@@ -46,13 +60,13 @@ impl Display for AggregatorType {
     }
 }
 
-pub fn get_aggregator_from_aggregator_type(typ: AggregatorType) -> Box<dyn Aggregator> {
+pub fn get_aggregator_from_aggregator_type(typ: AggregatorType) -> AggregatorEnum {
     match typ {
-        AggregatorType::Avg => Box::new(AvgAggregator::new()),
-        AggregatorType::Count => Box::new(CountAggregator::new()),
-        AggregatorType::Max => Box::new(MaxAggregator::new()),
-        AggregatorType::Min => Box::new(MinAggregator::new()),
-        AggregatorType::Sum => Box::new(SumAggregator::new()),
+        AggregatorType::Avg => AvgAggregator::new().into(),
+        AggregatorType::Count => CountAggregator::new().into(),
+        AggregatorType::Max => MaxAggregator::new().into(),
+        AggregatorType::Min => MinAggregator::new().into(),
+        AggregatorType::Sum => SumAggregator::new().into(),
     }
 }
 

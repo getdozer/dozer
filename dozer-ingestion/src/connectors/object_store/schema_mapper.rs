@@ -51,18 +51,18 @@ impl<T: Clone + Send + Sync> SchemaMapper<T> {
 pub trait Mapper<T> {
     fn get_schema(
         &self,
-        tables: Option<Vec<TableInfo>>,
+        tables: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError>;
 }
 
 impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
     fn get_schema(
         &self,
-        tables: Option<Vec<TableInfo>>,
+        tables: Option<&Vec<TableInfo>>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 
-        let tables_list = tables.unwrap_or_else(|| {
+        let tables_list = tables.cloned().unwrap_or_else(|| {
             self.config
                 .tables()
                 .iter()
