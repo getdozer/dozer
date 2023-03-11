@@ -111,6 +111,10 @@ jobs:
       - name: Build package
         run: cargo build --features=snowflake --release --target ${{ matrix.target }}
 
+      - name: Build dozer bin
+        if: matrix.os == 'ubuntu-20-16-cores'
+        run: cargo build --features=snowflake --release
+
       - name: Prepare release assets
         shell: bash
         run: |
