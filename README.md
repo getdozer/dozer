@@ -57,8 +57,6 @@ cargo install --path dozer-orchestrator --locked
 
 #### Download sample configuration and data
 
-Download a sample configuration file
-
 ```bash
 curl https://raw.githubusercontent.com/getdozer/dozer-samples/main/local-storage/dozer-config.yaml
 curl --create-dirs -o data/trips/fhvhv_tripdata_2022-01.parquet https://d37ci6vzurychx.cloudfront.net/trip-data/fhvhv_tripdata_2022-01.parquet
@@ -72,7 +70,7 @@ dozer -c dozer-config.yaml
 
 Dozer will start processing the data and populating the cache. You can see a progress of the execution from teh console.
 
-### Query the APIs
+#### Query the APIs
 
 The easiest way to query Dozer cache is using gRPC APIs is to use [Postman](https://www.postman.com/). Point your Postman gRPC address to `localhost:50051` and start querying the Dozer cache.
 
