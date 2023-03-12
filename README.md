@@ -33,29 +33,29 @@ Dozer makes it easy to build low-latency data APIs (gRPC and REST) from any data
 
 Follow the instruction below to install Dozer on your machine and run a quick sample using the [NY Taxi Dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
 
-#### Installation
+### Installation
 
-##### MacOS Monterey (12) and above
+#### MacOS Monterey (12) and above
 
 ```bash
 brew tap getdozer/dozer && brew install dozer
 ```
 
-##### Ubuntu 20.04
+#### Ubuntu 20.04
 
 ```bash
 curl -sLO https://github.com/getdozer/dozer/releases/download/latest/dozer_linux_x86_64.deb && sudo dpkg -i dozer_linux_x86_64.deb 
 ```
 
-##### Build from source
+#### Build from source
 
 ```bash
 cargo install --path dozer-orchestrator --locked
 ```
 
-#### Run it
+### Run it
 
-##### Download sample configuration and data
+#### Download sample configuration and data
 
 Download a sample configuration file
 
@@ -69,7 +69,7 @@ Download some sample data
 curl --create-dirs -o data/trips/fhvhv_tripdata_2022-01.parquet https://d37ci6vzurychx.cloudfront.net/trip-data/fhvhv_tripdata_2022-01.parquet
 ```
 
-##### Run Dozer binary
+#### Run Dozer binary
 
 ```bash
 dozer -c dozer-config.yaml
@@ -77,7 +77,7 @@ dozer -c dozer-config.yaml
 
 Dozer will start processing the data and populating the cache. You can see a progress of the execution from teh console.
 
-##### Query the APIs
+#### Query the APIs
 
 The easiest way to query Dozer cache is using gRPC APIs is to use [Postman](https://www.postman.com/). Point your Postman gRPC address to `localhost:50051` and start querying the Dozer cache.
 
