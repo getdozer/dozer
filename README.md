@@ -6,10 +6,11 @@
 <p align="center">
     <br />
     <b>
-    Connect any data source, combine them in real-time and instantly get low-latency APIs.<br>
+    Connect any data source, combine them in real-time and instantly get low-latency data APIs.<br>
     ⚡ All with just a simple configuration! ⚡️
     </b>
 </p>
+
 
 <br />
 
@@ -57,7 +58,7 @@ cargo install --path dozer-orchestrator --locked
 
 **Download sample configuration and data**
 
-Create a new empty directory and run the command below
+Create a new empty directory and run the commands below. This will download a [sample configuration file](https://github.com/getdozer/dozer-samples/blob/main/local-storage/dozer-config.yaml) and a sample [NY Taxi Dataset file](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
 
 ```bash
 curl -o dozer-config.yaml https://raw.githubusercontent.com/getdozer/dozer-samples/main/local-storage/dozer-config.yaml
@@ -70,33 +71,25 @@ curl --create-dirs -o data/trips/fhvhv_tripdata_2022-01.parquet https://d37ci6vz
 dozer -c dozer-config.yaml
 ```
 
-Dozer will start processing the data and populating the cache. You can see a progress of the execution from teh console.
+Dozer will start processing the data and populating the cache. You can see a progress of the execution from the console.
 
 **Query the APIs**
 
-The easiest way to query Dozer cache is using gRPC APIs is to use [Postman](https://www.postman.com/). Point your Postman gRPC address to `localhost:50051` and start querying the Dozer cache.
+When some data is loaded, you can query the cache using gRPC or REST
+
+```bash
+# gRPC
+grpcurl -d '{"query": "{\"$limit\": 1}"}' -plaintext localhost:50051 dozer.generated.trips_cache.TripsCaches/query
+
+# REST
+curl -X POST  http://localhost:8080/trips/query --header 'Content-Type: application/json' --data-raw '{"$limit":3}'
+```
+
+Alternatively, you can use [Postman](https://www.postman.com/) to discover gRPC endpoints through gRPC reflection
 
 ![postman query](images/postman.png)
 
-<div align="center">
-    <b>Please star ⭐️ our repo to support us! 💡</b>
-</div>
-
-
-
-## What can you do with Dozer
-
-- Create **blazing fast** end to end APIs in minutes with a simple configuration.
-- Build and rapidly iterate on customer facing data apps.
-- Transform your data in real-time using standard SQL.
-- Cache your data and get search and filter functionality out of the box.
-- Extend Dozer with **custom connectors, operators and Api transformations** using **WASM**.
-- Built with **Rust** with performance and extensibility in mind.
-- OpenAPI documentation and protobuf-based data contracts are auto-generated.
-
-Read more about [Dozer here](https://getdozer.io/docs/dozer)
-
-Detailed [Architecture can be found here](https:///getdozer.io/docs/dozer/architecture).
+Read more about Dozer [here](https://getdozer.io/docs/dozer). And remember to star 🌟 our repo to support us!
 
 ## Features
 
