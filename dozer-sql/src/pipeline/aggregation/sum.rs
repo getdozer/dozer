@@ -1,12 +1,44 @@
-use crate::calculate_err_field;
 use crate::pipeline::aggregation::aggregator::Aggregator;
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{FieldTypes, PipelineError};
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Sum;
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::{argv, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use num_traits::FromPrimitive;
+
+pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionType, PipelineError> {
+    let arg = &argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema)?;
+
+    let ret_type = match arg.return_type {
+        FieldType::Decimal => FieldType::Decimal,
+        FieldType::Int => FieldType::Int,
+        FieldType::UInt => FieldType::UInt,
+        FieldType::Float => FieldType::Float,
+        r => {
+            return Err(PipelineError::InvalidFunctionArgumentType(
+                "MAX".to_string(),
+                r,
+                FieldTypes::new(vec![
+                    FieldType::Decimal,
+                    FieldType::UInt,
+                    FieldType::Int,
+                    FieldType::Float,
+                ]),
+                0,
+            ));
+        }
+    };
+    Ok(ExpressionType::new(
+        ret_type,
+        true,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
 
 #[derive(Debug)]
 pub struct SumAggregator {

@@ -297,9 +297,7 @@ mod tests {
 
     #[test]
     fn test_operation_log_append_only() {
-        let mut env = init_env(&Default::default(), Some(Default::default()))
-            .unwrap()
-            .0;
+        let mut env = init_env(&Default::default(), true).unwrap().0;
         let log = OperationLog::new(&mut env, true).unwrap();
         let mut txn = env.begin_rw_txn().unwrap();
         let append_only = true;
@@ -344,9 +342,7 @@ mod tests {
 
     #[test]
     fn test_operation_log_with_primary_key() {
-        let mut env = init_env(&Default::default(), Some(Default::default()))
-            .unwrap()
-            .0;
+        let mut env = init_env(&Default::default(), true).unwrap().0;
         let log = OperationLog::new(&mut env, true).unwrap();
         let mut txn = env.begin_rw_txn().unwrap();
         let append_only = false;

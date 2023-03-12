@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use dozer_storage::{
     errors::StorageError,
     lmdb::RoTransaction,
@@ -8,22 +10,27 @@ use dozer_types::{
     borrow::IntoOwned,
     types::{Field, FieldType, Record, Schema, SchemaWithIndex},
 };
+use tempdir::TempDir;
 
 use crate::{
     cache::{index, lmdb::utils::init_env, RecordWithId},
     errors::CacheError,
 };
 
-use super::{CacheCommonOptions, CacheWriteOptions};
-
 mod operation_log;
 
 pub use operation_log::{Operation, OperationLog};
+
+use super::CacheOptions;
 
 pub trait MainEnvironment: BeginTransaction {
     fn common(&self) -> &MainEnvironmentCommon;
 
     fn schema(&self) -> &SchemaWithIndex;
+
+    fn base_path(&self) -> &Path {
+        &self.common().base_path
+    }
 
     fn name(&self) -> &str {
         &self.common().name
@@ -54,6 +61,8 @@ pub trait MainEnvironment: BeginTransaction {
 
 #[derive(Debug)]
 pub struct MainEnvironmentCommon {
+    /// The environment base path.
+    base_path: PathBuf,
     /// The environment name.
     name: String,
     /// The operation log.
@@ -65,6 +74,7 @@ pub struct MainEnvironmentCommon {
 pub struct RwMainEnvironment {
     txn: SharedTransaction,
     common: MainEnvironmentCommon,
+    _temp_dir: Option<TempDir>,
     schema: SchemaWithIndex,
 }
 
@@ -87,48 +97,39 @@ impl MainEnvironment for RwMainEnvironment {
 }
 
 impl RwMainEnvironment {
-    pub fn open(
-        common_options: &CacheCommonOptions,
-        write_options: CacheWriteOptions,
+    pub fn new(
+        schema: Option<&SchemaWithIndex>,
+        options: &CacheOptions,
     ) -> Result<Self, CacheError> {
-        let (env, common, schema) = open_env_with_schema(common_options, Some(write_options))?;
-
-        Ok(Self {
-            txn: env.create_txn()?,
-            common,
-            schema,
-        })
-    }
-
-    pub fn create(
-        schema: &SchemaWithIndex,
-        common_options: &CacheCommonOptions,
-        write_options: CacheWriteOptions,
-    ) -> Result<Self, CacheError> {
-        let (env, common, schema_option, old_schema) =
-            open_env(common_options, Some(write_options))?;
+        let (env, common, schema_option, old_schema, temp_dir) = open_env(options, true)?;
         let txn = env.create_txn()?;
 
-        let schema = if let Some(old_schema) = old_schema {
-            if &old_schema != schema {
-                return Err(CacheError::SchemaMismatch {
-                    name: common.name,
-                    given: Box::new(schema.clone()),
-                    stored: Box::new(old_schema),
-                });
+        let schema = match (schema, old_schema) {
+            (Some(schema), Some(old_schema)) => {
+                if &old_schema != schema {
+                    return Err(CacheError::SchemaMismatch {
+                        name: common.name,
+                        given: Box::new(schema.clone()),
+                        stored: Box::new(old_schema),
+                    });
+                }
+                old_schema
             }
-            old_schema
-        } else {
-            let mut txn = txn.write();
-            schema_option.store(txn.txn_mut(), schema)?;
-            txn.commit_and_renew()?;
-            schema.clone()
+            (Some(schema), None) => {
+                let mut txn = txn.write();
+                schema_option.store(txn.txn_mut(), schema)?;
+                txn.commit_and_renew()?;
+                schema.clone()
+            }
+            (None, Some(schema)) => schema,
+            (None, None) => return Err(CacheError::SchemaNotFound),
         };
 
         Ok(Self {
             txn,
             common,
             schema,
+            _temp_dir: temp_dir,
         })
     }
 
@@ -196,8 +197,9 @@ impl MainEnvironment for RoMainEnvironment {
 }
 
 impl RoMainEnvironment {
-    pub fn new(common_options: &CacheCommonOptions) -> Result<Self, CacheError> {
-        let (env, common, schema) = open_env_with_schema(common_options, None)?;
+    pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
+        let (env, common, _, schema, _) = open_env(options, false)?;
+        let schema = schema.ok_or(CacheError::SchemaNotFound)?;
         Ok(Self {
             env,
             common,
@@ -206,21 +208,22 @@ impl RoMainEnvironment {
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn open_env(
-    common_options: &CacheCommonOptions,
-    write_options: Option<CacheWriteOptions>,
+    options: &CacheOptions,
+    create_if_not_exist: bool,
 ) -> Result<
     (
         LmdbEnvironmentManager,
         MainEnvironmentCommon,
         LmdbOption<SchemaWithIndex>,
         Option<SchemaWithIndex>,
+        Option<TempDir>,
     ),
     CacheError,
 > {
-    let (mut env, name) = init_env(common_options, write_options)?;
+    let (mut env, (base_path, name), temp_dir) = init_env(options, create_if_not_exist)?;
 
-    let create_if_not_exist = write_options.is_some();
     let operation_log = OperationLog::new(&mut env, create_if_not_exist)?;
     let schema_option = LmdbOption::new(&mut env, Some("schema"), create_if_not_exist)?;
 
@@ -231,29 +234,15 @@ fn open_env(
     Ok((
         env,
         MainEnvironmentCommon {
+            base_path,
             name,
             operation_log,
-            intersection_chunk_size: common_options.intersection_chunk_size,
+            intersection_chunk_size: options.intersection_chunk_size,
         },
         schema_option,
         schema,
+        temp_dir,
     ))
-}
-
-fn open_env_with_schema(
-    common_options: &CacheCommonOptions,
-    write_options: Option<CacheWriteOptions>,
-) -> Result<
-    (
-        LmdbEnvironmentManager,
-        MainEnvironmentCommon,
-        SchemaWithIndex,
-    ),
-    CacheError,
-> {
-    let (env, common, _, schema) = open_env(common_options, write_options)?;
-    let schema = schema.ok_or(CacheError::SchemaNotFound)?;
-    Ok((env, common, schema))
 }
 
 fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {

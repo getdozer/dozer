@@ -141,9 +141,7 @@ mod tests {
     }
 
     fn setup(num_fields: usize) -> (LmdbEnvironmentManager, Database) {
-        let mut env = utils::init_env(&Default::default(), Some(Default::default()))
-            .unwrap()
-            .0;
+        let mut env = utils::init_env(&Default::default(), true).unwrap().0;
         let db = env
             .create_database(Some("test"), Some(DatabaseFlags::DUP_SORT))
             .unwrap();

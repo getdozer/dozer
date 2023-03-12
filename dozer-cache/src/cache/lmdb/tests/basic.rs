@@ -1,7 +1,7 @@
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression, Skip},
     index,
-    lmdb::cache::LmdbRwCache,
+    lmdb::{cache::LmdbRwCache, indexing::IndexingThreadPool},
     test_utils::{self, query_from_filter},
     RoCache, RwCache,
 };
@@ -12,14 +12,15 @@ use dozer_types::{
 
 use super::utils::create_cache;
 
-fn _setup() -> (LmdbRwCache, Schema) {
-    let (cache, schema, _) = create_cache(test_utils::schema_0);
-    (cache, schema)
+fn _setup() -> (LmdbRwCache, IndexingThreadPool, Schema) {
+    let (cache, indexing_thread_pool, schema, _) = create_cache(test_utils::schema_0);
+    (cache, indexing_thread_pool, schema)
 }
 
-fn _setup_empty_primary_index() -> (LmdbRwCache, Schema) {
-    let (cache, schema, _) = create_cache(test_utils::schema_empty_primary_index);
-    (cache, schema)
+fn _setup_empty_primary_index() -> (LmdbRwCache, IndexingThreadPool, Schema) {
+    let (cache, indexing_thread_pool, schema, _) =
+        create_cache(test_utils::schema_empty_primary_index);
+    (cache, indexing_thread_pool, schema)
 }
 
 fn query_and_test(cache: &dyn RwCache, inserted_record: &Record, exp: &QueryExpression) {
@@ -29,7 +30,7 @@ fn query_and_test(cache: &dyn RwCache, inserted_record: &Record, exp: &QueryExpr
 
 #[test]
 fn get_schema() {
-    let (cache, schema) = _setup();
+    let (cache, _, schema) = _setup();
 
     let get_schema = &cache.get_schema().0;
     assert_eq!(get_schema, &schema, "must be equal");
@@ -38,12 +39,14 @@ fn get_schema() {
 #[test]
 fn insert_get_and_delete_record() {
     let val = "bar".to_string();
-    let (cache, schema) = _setup();
+    let (cache, mut indexing_thread_pool, schema) = _setup();
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
     let mut record = Record::new(schema.identifier, vec![Field::String(val.clone())], None);
     cache.insert(&mut record).unwrap();
+    cache.commit().unwrap();
+    indexing_thread_pool.wait_until_catchup();
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 1);
 
@@ -55,6 +58,9 @@ fn insert_get_and_delete_record() {
     assert_eq!(get_record, record, "must be equal");
 
     assert_eq!(cache.delete(&key).unwrap(), version);
+    cache.commit().unwrap();
+    indexing_thread_pool.wait_until_catchup();
+
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
     cache.get(&key).expect_err("Must not find a record");
@@ -64,7 +70,7 @@ fn insert_get_and_delete_record() {
 
 #[test]
 fn insert_and_update_record() {
-    let (cache, schema) = _setup();
+    let (cache, _, schema) = _setup();
     let mut foo = Record::new(
         schema.identifier,
         vec![Field::String("foo".to_string())],
@@ -85,11 +91,17 @@ fn insert_and_update_record() {
     assert_eq!(foo.version.unwrap(), old_version + 1);
 }
 
-fn insert_and_query_record_impl(cache: LmdbRwCache, schema: Schema) {
+fn insert_and_query_record_impl(
+    cache: LmdbRwCache,
+    mut indexing_thread_pool: IndexingThreadPool,
+    schema: Schema,
+) {
     let val = "bar".to_string();
     let mut record = Record::new(schema.identifier, vec![Field::String(val)], None);
 
     cache.insert(&mut record).unwrap();
+    cache.commit().unwrap();
+    indexing_thread_pool.wait_until_catchup();
 
     // Query with an expression
     let exp = query_from_filter(FilterExpression::Simple(
@@ -110,8 +122,8 @@ fn insert_and_query_record_impl(cache: LmdbRwCache, schema: Schema) {
 
 #[test]
 fn insert_and_query_record() {
-    let (cache, schema) = _setup();
-    insert_and_query_record_impl(cache, schema);
-    let (cache, schema) = _setup_empty_primary_index();
-    insert_and_query_record_impl(cache, schema);
+    let (cache, indexing_thread_pool, schema) = _setup();
+    insert_and_query_record_impl(cache, indexing_thread_pool, schema);
+    let (cache, indexing_thread_pool, schema) = _setup_empty_primary_index();
+    insert_and_query_record_impl(cache, indexing_thread_pool, schema);
 }

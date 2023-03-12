@@ -1,31 +1,35 @@
-use std::fmt::Debug;
 use std::path::PathBuf;
-
-use dozer_storage::BeginTransaction;
+use std::{fmt::Debug, sync::Arc};
 
 use dozer_types::types::{Record, SchemaWithIndex};
 
-use super::super::{RoCache, RwCache};
+use super::{
+    super::{RoCache, RwCache},
+    indexing::IndexingThreadPool,
+};
 use crate::cache::expression::QueryExpression;
 use crate::cache::RecordWithId;
 use crate::errors::CacheError;
 
-mod helper;
 mod main_environment;
 mod query;
 mod secondary_environment;
 
-use main_environment::{MainEnvironment, RoMainEnvironment, RwMainEnvironment};
+pub use main_environment::{MainEnvironment, RoMainEnvironment, RwMainEnvironment};
 use query::LmdbQueryHandler;
-pub use secondary_environment::SecondaryEnvironment;
-use secondary_environment::{RoSecondaryEnvironment, RwSecondaryEnvironment};
+pub use secondary_environment::{
+    RoSecondaryEnvironment, RwSecondaryEnvironment, SecondaryEnvironment,
+};
 
 #[derive(Clone, Debug)]
-pub struct CacheCommonOptions {
+pub struct CacheOptions {
     // Total number of readers allowed
     pub max_readers: u32,
     // Max no of dbs
     pub max_db_size: u32,
+    // Total size allocated for data in a memory mapped file.
+    // This size is allocated at initialization.
+    pub max_size: usize,
 
     /// The chunk size when calculating intersection of index queries.
     pub intersection_chunk_size: usize,
@@ -35,11 +39,12 @@ pub struct CacheCommonOptions {
     pub path: Option<(PathBuf, String)>,
 }
 
-impl Default for CacheCommonOptions {
+impl Default for CacheOptions {
     fn default() -> Self {
         Self {
             max_readers: 1000,
             max_db_size: 1000,
+            max_size: 1024 * 1024 * 1024,
             intersection_chunk_size: 100,
             path: None,
         }
@@ -53,7 +58,7 @@ pub struct LmdbRoCache {
 }
 
 impl LmdbRoCache {
-    pub fn new(options: &CacheCommonOptions) -> Result<Self, CacheError> {
+    pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
         let main_env = RoMainEnvironment::new(options)?;
         let secondary_envs = (0..main_env.schema().1.len())
             .map(|index| RoSecondaryEnvironment::new(secondary_environment_name(index), options))
@@ -65,71 +70,43 @@ impl LmdbRoCache {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct CacheWriteOptions {
-    // Total size allocated for data in a memory mapped file.
-    // This size is allocated at initialization.
-    pub max_size: usize,
-}
-
-impl Default for CacheWriteOptions {
-    fn default() -> Self {
-        Self {
-            max_size: 1024 * 1024 * 1024 * 1024,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct LmdbRwCache {
     main_env: RwMainEnvironment,
-    secondary_envs: Vec<RwSecondaryEnvironment>,
+    secondary_envs: Vec<RoSecondaryEnvironment>,
 }
 
 impl LmdbRwCache {
-    pub fn open(
-        common_options: &CacheCommonOptions,
-        write_options: CacheWriteOptions,
+    pub fn new(
+        schema: Option<&SchemaWithIndex>,
+        options: &CacheOptions,
+        indexing_thread_pool: &mut IndexingThreadPool,
     ) -> Result<Self, CacheError> {
-        let main_env = RwMainEnvironment::open(common_options, write_options)?;
-        let secondary_envs = (0..main_env.schema().1.len())
-            .map(|index| {
-                RwSecondaryEnvironment::open(
-                    secondary_environment_name(index),
-                    common_options,
-                    write_options,
-                )
-            })
-            .collect::<Result<_, _>>()?;
-        Ok(Self {
-            main_env,
-            secondary_envs,
-        })
-    }
+        let rw_main_env = RwMainEnvironment::new(schema, options)?;
 
-    pub fn create(
-        schema: &SchemaWithIndex,
-        common_options: &CacheCommonOptions,
-        write_options: CacheWriteOptions,
-    ) -> Result<Self, CacheError> {
-        let main_env = RwMainEnvironment::create(schema, common_options, write_options)?;
-        let secondary_envs = main_env
-            .schema()
-            .1
-            .iter()
-            .enumerate()
-            .map(|(index, index_definition)| {
-                RwSecondaryEnvironment::create(
-                    index_definition,
-                    secondary_environment_name(index),
-                    common_options,
-                    write_options,
-                )
-            })
-            .collect::<Result<_, _>>()?;
+        let options = CacheOptions {
+            path: Some((
+                rw_main_env.base_path().to_path_buf(),
+                rw_main_env.name().to_string(),
+            )),
+            ..*options
+        };
+        let ro_main_env = Arc::new(RoMainEnvironment::new(&options)?);
+
+        let mut ro_secondary_envs = vec![];
+        for (index, index_definition) in ro_main_env.schema().1.iter().enumerate() {
+            let name = secondary_environment_name(index);
+            let rw_secondary_env =
+                RwSecondaryEnvironment::new(Some(index_definition), name.clone(), &options)?;
+            indexing_thread_pool.add_indexing_task(ro_main_env.clone(), Arc::new(rw_secondary_env));
+
+            let ro_secondary_env = RoSecondaryEnvironment::new(name, &options)?;
+            ro_secondary_envs.push(ro_secondary_env);
+        }
+
         Ok(Self {
-            main_env,
-            secondary_envs,
+            main_env: rw_main_env,
+            secondary_envs: ro_secondary_envs,
         })
     }
 }
@@ -161,46 +138,22 @@ impl RwCache for LmdbRwCache {
         let span = dozer_types::tracing::span!(dozer_types::tracing::Level::TRACE, "insert_cache");
         let _enter = span.enter();
         let record_id = self.main_env.insert(record)?;
-
-        let span = dozer_types::tracing::span!(
-            dozer_types::tracing::Level::TRACE,
-            "build_indexes",
-            record_id = record_id,
-        );
-        let _enter = span.enter();
-        self.index()?;
-
         Ok(record_id)
     }
 
     fn delete(&self, key: &[u8]) -> Result<u32, CacheError> {
         let version = self.main_env.delete(key)?;
-        self.index()?;
         Ok(version)
     }
 
     fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError> {
         let version = self.delete(key)?;
         self.insert(record)?;
-        self.index()?;
         Ok(version)
     }
 
     fn commit(&self) -> Result<(), CacheError> {
         self.main_env.commit()?;
-        for secondary_env in &self.secondary_envs {
-            secondary_env.commit()?;
-        }
-        Ok(())
-    }
-}
-
-impl LmdbRwCache {
-    fn index(&self) -> Result<(), CacheError> {
-        let main_txn = self.main_env.begin_txn()?;
-        for secondary_env in &self.secondary_envs {
-            secondary_env.index(&main_txn, self.main_env.operation_log())?;
-        }
         Ok(())
     }
 }
@@ -233,7 +186,7 @@ impl LmdbCache for LmdbRwCache {
         &self.main_env
     }
 
-    type SecondaryEnvironment = RwSecondaryEnvironment;
+    type SecondaryEnvironment = RoSecondaryEnvironment;
     fn secondary_env(&self, index: usize) -> &Self::SecondaryEnvironment {
         &self.secondary_envs[index]
     }

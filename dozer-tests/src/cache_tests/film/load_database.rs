@@ -58,6 +58,7 @@ pub async fn load_database(
             .unwrap();
     }
     cache.commit().unwrap();
+    cache_manager.wait_until_indexing_catchup();
 
     let cache_name = cache.name().to_string();
     drop(cache);

@@ -1,13 +1,45 @@
 use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{FieldTypes, PipelineError};
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
-use crate::{calculate_err_field, calculate_err_type};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::{argv, calculate_err_field, calculate_err_type};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use num_traits::FromPrimitive;
 use std::collections::BTreeMap;
+
+pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionType, PipelineError> {
+    let arg = &argv!(args, 0, AggregateFunctionType::Avg)?.get_type(schema)?;
+
+    let ret_type = match arg.return_type {
+        FieldType::Decimal => FieldType::Decimal,
+        FieldType::Int => FieldType::Decimal,
+        FieldType::UInt => FieldType::Decimal,
+        FieldType::Float => FieldType::Float,
+        r => {
+            return Err(PipelineError::InvalidFunctionArgumentType(
+                "AVG".to_string(),
+                r,
+                FieldTypes::new(vec![
+                    FieldType::Decimal,
+                    FieldType::UInt,
+                    FieldType::Int,
+                    FieldType::Float,
+                ]),
+                0,
+            ));
+        }
+    };
+    Ok(ExpressionType::new(
+        ret_type,
+        true,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
 
 #[derive(Debug)]
 pub struct AvgAggregator {

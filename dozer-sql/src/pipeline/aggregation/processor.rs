@@ -14,7 +14,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::pipeline::aggregation::aggregator::{
     get_aggregator_from_aggregator_type, get_aggregator_type_from_aggregation_expression,
-    AggregatorType,
+    AggregatorEnum, AggregatorType,
 };
 use ahash::AHasher;
 use dozer_core::epoch::Epoch;
@@ -25,13 +25,13 @@ const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 #[derive(Debug)]
 struct AggregationState {
     count: usize,
-    states: Vec<Box<dyn Aggregator>>,
+    states: Vec<AggregatorEnum>,
     values: Option<Vec<Field>>,
 }
 
 impl AggregationState {
     pub fn new(types: &[AggregatorType], ret_types: &[FieldType]) -> Self {
-        let mut states: Vec<Box<dyn Aggregator>> = Vec::new();
+        let mut states: Vec<AggregatorEnum> = Vec::new();
         for (idx, typ) in types.iter().enumerate() {
             let mut aggr = get_aggregator_from_aggregator_type(*typ);
             aggr.init(ret_types[idx]);

@@ -7,7 +7,10 @@ use dozer_storage::{
         CreateDatabase, LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
     },
 };
-use dozer_types::types::{IndexDefinition, Schema};
+use dozer_types::{
+    parking_lot::Mutex,
+    types::{IndexDefinition, Schema},
+};
 use tempdir::TempDir;
 
 use crate::{
@@ -15,7 +18,10 @@ use crate::{
     errors::CacheError,
 };
 
-use super::cache::{CacheCommonOptions, CacheWriteOptions, LmdbRoCache, LmdbRwCache};
+use super::{
+    cache::{CacheOptions, LmdbRoCache, LmdbRwCache},
+    indexing::IndexingThreadPool,
+};
 
 #[derive(Debug, Clone)]
 pub struct CacheManagerOptions {
@@ -24,27 +30,30 @@ pub struct CacheManagerOptions {
     // Max no of dbs
     pub max_db_size: u32,
 
-    /// The chunk size when calculating intersection of index queries.
-    pub intersection_chunk_size: usize,
-
     // Total size allocated for data in a memory mapped file.
     // This size is allocated at initialization.
     pub max_size: usize,
 
+    /// The chunk size when calculating intersection of index queries.
+    pub intersection_chunk_size: usize,
+
     /// Provide a path where db will be created. If nothing is provided, will default to a temp directory.
     pub path: Option<PathBuf>,
+
+    /// Number of threads in the indexing thread pool.
+    pub num_indexing_threads: usize,
 }
 
 impl Default for CacheManagerOptions {
     fn default() -> Self {
-        let cache_common_options = CacheCommonOptions::default();
-        let cache_write_options = CacheWriteOptions::default();
+        let cache_options = CacheOptions::default();
         Self {
-            max_readers: cache_common_options.max_readers,
-            max_db_size: cache_common_options.max_db_size,
-            intersection_chunk_size: cache_common_options.intersection_chunk_size,
-            max_size: cache_write_options.max_size,
+            max_readers: cache_options.max_readers,
+            max_db_size: cache_options.max_db_size,
+            intersection_chunk_size: cache_options.intersection_chunk_size,
+            max_size: cache_options.max_size,
             path: None,
+            num_indexing_threads: 4,
         }
     }
 }
@@ -55,6 +64,7 @@ pub struct LmdbCacheManager {
     base_path: PathBuf,
     alias_db: Database,
     txn: SharedTransaction,
+    indexing_thread_pool: Mutex<IndexingThreadPool>,
     _temp_dir: Option<TempDir>,
 }
 
@@ -80,13 +90,24 @@ impl LmdbCacheManager {
         let alias_db = env.create_database(None, Some(DatabaseFlags::empty()))?;
         let txn = env.create_txn()?;
 
+        let indexing_thread_pool =
+            Mutex::new(IndexingThreadPool::new(options.num_indexing_threads));
+
         Ok(Self {
             options,
             base_path,
             alias_db,
             txn,
+            indexing_thread_pool,
             _temp_dir: temp_dir,
         })
+    }
+
+    /// Blocks current thread until all secondary indexes are up to date with the last cache commit.
+    ///
+    /// If any cache commits during this call in another thread, those commits may or may not be indexed when this function returns.
+    pub fn wait_until_indexing_catchup(&self) {
+        self.indexing_thread_pool.lock().wait_until_catchup();
     }
 }
 
@@ -98,9 +119,10 @@ impl CacheManager for LmdbCacheManager {
         let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
         let cache: Option<Box<dyn RwCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
-                let cache = LmdbRwCache::open(
-                    &self.cache_common_options(real_name.to_string()),
-                    self.cache_write_options(),
+                let cache = LmdbRwCache::new(
+                    None,
+                    &self.cache_options(real_name.to_string()),
+                    &mut self.indexing_thread_pool.lock(),
                 )?;
                 Some(Box::new(cache))
             } else {
@@ -116,7 +138,7 @@ impl CacheManager for LmdbCacheManager {
         let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
         let cache: Option<Box<dyn RoCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
-                let cache = LmdbRoCache::new(&self.cache_common_options(real_name.to_string()))?;
+                let cache = LmdbRoCache::new(&self.cache_options(real_name.to_string()))?;
                 Some(Box::new(cache))
             } else {
                 None
@@ -130,10 +152,10 @@ impl CacheManager for LmdbCacheManager {
         indexes: Vec<IndexDefinition>,
     ) -> Result<Box<dyn RwCache>, CacheError> {
         let name = self.generate_unique_name();
-        let cache = LmdbRwCache::create(
-            &(schema, indexes),
-            &self.cache_common_options(name),
-            self.cache_write_options(),
+        let cache = LmdbRwCache::new(
+            Some(&(schema, indexes)),
+            &self.cache_options(name),
+            &mut self.indexing_thread_pool.lock(),
         )?;
         Ok(Box::new(cache))
     }
@@ -149,18 +171,13 @@ impl CacheManager for LmdbCacheManager {
 const LMDB_CACHE_MANAGER_ALIAS_ENV_NAME: &str = "__DOZER_CACHE_MANAGER_ALIAS__";
 
 impl LmdbCacheManager {
-    fn cache_common_options(&self, name: String) -> CacheCommonOptions {
-        CacheCommonOptions {
+    fn cache_options(&self, name: String) -> CacheOptions {
+        CacheOptions {
             max_db_size: self.options.max_db_size,
             max_readers: self.options.max_readers,
+            max_size: self.options.max_size,
             intersection_chunk_size: self.options.intersection_chunk_size,
             path: Some((self.base_path.clone(), name)),
-        }
-    }
-
-    fn cache_write_options(&self) -> CacheWriteOptions {
-        CacheWriteOptions {
-            max_size: self.options.max_size,
         }
     }
 

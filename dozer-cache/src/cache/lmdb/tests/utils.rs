@@ -1,16 +1,30 @@
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaWithIndex};
 
 use crate::cache::{
-    lmdb::cache::{LmdbCache, LmdbRwCache, SecondaryEnvironment},
+    lmdb::{
+        cache::{LmdbCache, LmdbRwCache, SecondaryEnvironment},
+        indexing::IndexingThreadPool,
+    },
     RoCache, RwCache,
 };
 
 pub fn create_cache(
     schema_gen: impl FnOnce() -> SchemaWithIndex,
-) -> (LmdbRwCache, Schema, Vec<IndexDefinition>) {
+) -> (
+    LmdbRwCache,
+    IndexingThreadPool,
+    Schema,
+    Vec<IndexDefinition>,
+) {
     let schema = schema_gen();
-    let cache = LmdbRwCache::create(&schema, &Default::default(), Default::default()).unwrap();
-    (cache, schema.0, schema.1)
+    let mut indexing_thread_pool = IndexingThreadPool::new(1);
+    let cache = LmdbRwCache::new(
+        Some(&schema),
+        &Default::default(),
+        &mut indexing_thread_pool,
+    )
+    .unwrap();
+    (cache, indexing_thread_pool, schema.0, schema.1)
 }
 
 pub fn insert_rec_1(

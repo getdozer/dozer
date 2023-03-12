@@ -1,9 +1,9 @@
 pub mod aggregator;
-mod avg;
-mod count;
+pub mod avg;
+pub mod count;
 pub mod factory;
-mod max;
-mod min;
+pub mod max;
+pub mod min;
 pub mod processor;
-mod sum;
+pub mod sum;
 mod tests;
