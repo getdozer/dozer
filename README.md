@@ -35,19 +35,19 @@ Follow the instruction below to install Dozer on your machine and run a quick sa
 
 ### Installation
 
-#### MacOS Monterey (12) and above
+**MacOS Monterey (12) and above**
 
 ```bash
 brew tap getdozer/dozer && brew install dozer
 ```
 
-#### Ubuntu 20.04
+**Ubuntu 20.04**
 
 ```bash
 curl -sLO https://github.com/getdozer/dozer/releases/download/latest/dozer_linux_x86_64.deb && sudo dpkg -i dozer_linux_x86_64.deb 
 ```
 
-#### Build from source
+**Build from source**
 
 ```bash
 cargo install --path dozer-orchestrator --locked
@@ -55,14 +55,16 @@ cargo install --path dozer-orchestrator --locked
 
 ### Run it
 
-#### Download sample configuration and data
+**Download sample configuration and data**
+
+Create a new empty directory and run the command below
 
 ```bash
-curl https://raw.githubusercontent.com/getdozer/dozer-samples/main/local-storage/dozer-config.yaml
+curl -o dozer-config.yaml https://raw.githubusercontent.com/getdozer/dozer-samples/main/local-storage/dozer-config.yaml
 curl --create-dirs -o data/trips/fhvhv_tripdata_2022-01.parquet https://d37ci6vzurychx.cloudfront.net/trip-data/fhvhv_tripdata_2022-01.parquet
 ```
 
-#### Run Dozer binary
+**Run Dozer binary**
 
 ```bash
 dozer -c dozer-config.yaml
@@ -70,15 +72,16 @@ dozer -c dozer-config.yaml
 
 Dozer will start processing the data and populating the cache. You can see a progress of the execution from teh console.
 
-#### Query the APIs
+**Query the APIs**
 
 The easiest way to query Dozer cache is using gRPC APIs is to use [Postman](https://www.postman.com/). Point your Postman gRPC address to `localhost:50051` and start querying the Dozer cache.
 
 ![postman query](images/postman.png)
 
 <div align="center">
-    <b>Please star ⭐️ the repo if you want us to continue developing and improving Dozer! 💡</b>
+    <b>Please star ⭐️ our repo to support us! 💡</b>
 </div>
+
 
 
 ## What can you do with Dozer
