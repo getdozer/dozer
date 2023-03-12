@@ -44,7 +44,7 @@ impl PostgresConnector {
         let mut replication_conn_config = config.config.clone();
         replication_conn_config.replication_mode(ReplicationMode::Logical);
 
-        let helper = SchemaHelper::new(config.config.clone(), None);
+        let helper = SchemaHelper::new(config.config.clone());
 
         // conn_str - replication_conn_config
         // conn_str_plain- conn_config
@@ -101,6 +101,7 @@ impl Connector for PostgresConnector {
 
         let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), from_seq);
 
+        info!("TABLES iN STRT {:?}", tables);
         let iterator = PostgresIterator::new(
             self.id,
             self.name.clone(),
@@ -137,6 +138,7 @@ impl Connector for PostgresConnector {
             .map(|table_info| TableInfo {
                 name: table_info.name,
                 columns: Some(table_info.columns),
+                schema: Some(table_info.schema),
             })
             .collect())
     }
@@ -169,7 +171,18 @@ impl PostgresConnector {
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
             Some(arr) => {
-                let table_names: Vec<String> = arr.iter().map(|t| t.name.clone()).collect();
+                let table_names: Vec<String> = arr
+                    .iter()
+                    .map(|t| {
+                        format!(
+                            "{}.{}",
+                            t.schema
+                                .as_ref()
+                                .map_or("public".to_string(), |s| s.clone()),
+                            t.name.clone()
+                        )
+                    })
+                    .collect();
                 format!("TABLE {}", table_names.join(" , "))
             }
         };

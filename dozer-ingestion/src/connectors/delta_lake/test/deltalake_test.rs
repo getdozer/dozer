@@ -23,6 +23,7 @@ fn get_schema_from_deltalake() {
     let connector = DeltaLakeConnector::new(1, config);
     let table_info = TableInfo {
         name: table_name.to_string(),
+        schema: Some("public".to_string()),
         columns: None,
     };
     let field = connector.get_schemas(Some(&vec![table_info])).unwrap()[0]
@@ -53,6 +54,7 @@ fn read_deltalake() {
     let (ingestor, iterator) = Ingestor::initialize_channel(config);
     let table = TableInfo {
         name: "test_table".to_string(),
+        schema: Some("public".to_string()),
         columns: None,
     };
     thread::spawn(move || {

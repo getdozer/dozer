@@ -53,6 +53,7 @@ impl NoSchemaRegistry {
 
                             schemas.push(SourceSchema::new(
                                 table.name.clone(),
+                                None,
                                 mapped_schema,
                                 ReplicationChangesTrackingType::FullChanges,
                             ));

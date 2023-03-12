@@ -64,6 +64,7 @@ impl<'a> SourceBuilder<'a> {
                         table_and_ports.push((
                             TableInfo {
                                 name: source.table_name.clone(),
+                                schema: source.schema.clone(),
                                 columns: Some(
                                     source
                                         .columns
@@ -147,6 +148,7 @@ mod tests {
                     table_name: "users".to_string(),
                     columns: vec!["id".to_string(), "name".to_string()],
                     connection: Some(grpc_conn.clone()),
+                    schema: Some("public".to_string()),
                     refresh_config: None,
                 },
                 Source {
@@ -154,6 +156,7 @@ mod tests {
                     table_name: "customers".to_string(),
                     columns: vec!["id".to_string(), "name".to_string()],
                     connection: Some(grpc_conn),
+                    schema: Some("public_customers".to_string()),
                     refresh_config: None,
                 },
             ],

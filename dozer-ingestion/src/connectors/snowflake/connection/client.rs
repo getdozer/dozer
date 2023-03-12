@@ -514,7 +514,7 @@ impl Client {
 
                         schema.primary_index = indexes;
 
-                        SourceSchema::new(name, schema, replication_type)
+                        SourceSchema::new(name, None, schema, replication_type)
                     })
                     .collect())
             }

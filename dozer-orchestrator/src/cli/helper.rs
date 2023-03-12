@@ -22,7 +22,10 @@ pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {
         for s in tables {
             let schema_table = s.schema.print();
 
-            table_parent.add_row(row![c, s.name, schema_table]);
+            let name = s.schema_name.map_or(s.name.clone(), |schema_name| {
+                format!("{schema_name}.{}", s.name)
+            });
+            table_parent.add_row(row![c, name, schema_table]);
         }
         table_parent.add_empty_row();
     }

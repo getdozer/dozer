@@ -141,6 +141,7 @@ impl SchemaRegistry {
 
                                 schema_data = Some(Ok(vec![SourceSchema::new(
                                     table.name.clone(),
+                                    None,
                                     schema,
                                     ReplicationChangesTrackingType::FullChanges,
                                 )]));

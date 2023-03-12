@@ -40,6 +40,7 @@ impl Connector for EthTraceConnector {
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         Ok(vec![SourceSchema::new(
             ETH_TRACE_TABLE.to_string(),
+            None,
             helper::get_trace_schema(),
             ReplicationChangesTrackingType::Nothing,
         )])

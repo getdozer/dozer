@@ -128,6 +128,7 @@ impl Connector for EthLogConnector {
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let mut schemas = vec![SourceSchema::new(
             ETH_LOGS_TABLE.to_string(),
+            None,
             helper::get_eth_schema(),
             ReplicationChangesTrackingType::Nothing,
         )];
