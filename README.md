@@ -89,10 +89,7 @@ Alternatively, you can use [Postman](https://www.postman.com/) to discover gRPC 
 
 ![postman query](images/postman.png)
 
-<div align="center">
-    <b>Please star ⭐️ our repo to support us! 💡</b>
-</div>
-Read more about Dozer [here](https://getdozer.io/docs/dozer)
+Read more about Dozer [here](https://getdozer.io/docs/dozer). And remember to star 🌟 our repo to support us!
 
 ## Features
 
