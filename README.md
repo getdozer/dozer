@@ -3,14 +3,14 @@
         <br><img src="https://dozer-assets.s3.ap-southeast-1.amazonaws.com/logo-blue.svg" width=40%><br>
     </a>
 </div>
-
 <p align="center">
     <br />
     <b>
-    Connect any data source, combine them in real-time and instantly get low-latency gRPC and REST APIs.<br>
+    Connect any data source, combine them in real-time and instantly get low-latency APIs.<br>
     ⚡ All with just a simple configuration! ⚡️
     </b>
 </p>
+
 <br />
 
 <p align="center">
@@ -19,88 +19,70 @@
   <a href="https://getdozer.io/docs/dozer" target="_blank"><img src="https://img.shields.io/badge/doc-reference-green" alt="Docs"></a>
   <a href="https://discord.com/invite/3eWXBgJaEQ" target="_blank"><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a>
   <a href="https://github.com/getdozer/dozer/blob/main/LICENSE.txt" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
-
 </p>
-<br>
 
 ## Overview
 
-Dozer implements a Real-Time SQL Engine that connects to any of your data sources, transforms and stores the data in an embedded cache powered by LMDB, automatically creates secondary indexes and instantly generates REST and gRPC APIs. Protobuf and Open API documentation are available out of the box.
-
-Dozer is implemented fully in Rust for fast processing of data and is less resource intensive.
+Dozer makes it easy to build low-latency data APIs (gRPC and REST) from any data source. Data is transformed on the fly using Dozer's reactive SQL engine  and stored in a high-performance cache to offer the best possible experience. Dozer is useful for quickly building data products.
 
 ![Architecture](./images/dozer.png)
 
-<div align="center">
-    <b>Please star ⭐️ the repo if you want us to continue developing and improving Dozer! 💡</b>
-</div>
-<br /><br />
 
-Dozer takes an end-to-end approach, aiming to drastically lower the cost, complexity and effort involved in putting together the infrastructure necessary to build data applications. Today developers have to integrate and maintain a variety of tools to achieve the same result.
 
-Check out our website and sign up for [Early Access](https:///getdozer.io) to our hosted service.
+## Quick Start
 
-## Installation
+Follow the instruction below to install Dozer on your machine and run a quick sample using the [NY Taxi Dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
 
-### Ubuntu 20.04
+### Installation
+
+**MacOS Monterey (12) and above**
 
 ```bash
-curl -sLO https://github.com/getdozer/dozer/releases/download/latest/dozer_linux_x86_64.deb && sudo dpkg -i dozer_linux_x86_64.deb
+brew tap getdozer/dozer && brew install dozer
 ```
 
-### MacOS Monterey (12) and above
+**Ubuntu 20.04**
 
 ```bash
-brew tap getdozer/dozer
-brew install dozer
+curl -sLO https://github.com/getdozer/dozer/releases/download/latest/dozer_linux_x86_64.deb && sudo dpkg -i dozer_linux_x86_64.deb 
 ```
 
-### Build from Source
-
-For other platforms, you can build from source. You will need to have [Rust](https://www.rust-lang.org/tools/install) installed.
+**Build from source**
 
 ```bash
 cargo install --path dozer-orchestrator --locked
 ```
 
-## Quick Start
+### Run it
 
-Refer to our [getting started](https://getdozer.io/docs/category/getting-started) and [examples section](https://getdozer.io/docs/category/what-can-you-build-with-dozer) for more details.
+**Download sample configuration and data**
 
-### 1) End-to-end hypercharge postgres example
-
-```bash
-# Start the postgres database
-docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up
-# Run dozer
-dozer -c examples/1_hypercharge_postgres/dozer-config.yaml
-```
-
-### 2) Real time Ethereum stats example
-
-Get a websocket url from one of the hosted eth node providers such as [Infura](https://www.infura.io/product/ethereum) and initialize the env variable `ETH_WSS_URL`.
+Create a new empty directory and run the command below
 
 ```bash
-# Intialize ETH Web Socker Url
-export ETH_WSS_URL=<WSS_URL>
-
-dozer -c examples/2_eth_stats_sample/dozer-config.yaml
+curl -o dozer-config.yaml https://raw.githubusercontent.com/getdozer/dozer-samples/main/local-storage/dozer-config.yaml
+curl --create-dirs -o data/trips/fhvhv_tripdata_2022-01.parquet https://d37ci6vzurychx.cloudfront.net/trip-data/fhvhv_tripdata_2022-01.parquet
 ```
 
-## Running Dozer CLI
-
-To view list of commands
+**Run Dozer binary**
 
 ```bash
-dozer -h
+dozer -c dozer-config.yaml
 ```
 
-Run dozer as a single process with a local `dozer-config.yaml`
+Dozer will start processing the data and populating the cache. You can see a progress of the execution from teh console.
 
-```bash
-# `dozer-config.yaml` should be in your current directory.
-dozer
-```
+**Query the APIs**
+
+The easiest way to query Dozer cache is using gRPC APIs is to use [Postman](https://www.postman.com/). Point your Postman gRPC address to `localhost:50051` and start querying the Dozer cache.
+
+![postman query](images/postman.png)
+
+<div align="center">
+    <b>Please star ⭐️ our repo to support us! 💡</b>
+</div>
+
+
 
 ## What can you do with Dozer
 
