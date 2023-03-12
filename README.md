@@ -77,7 +77,7 @@ dozer -c dozer-config.yaml
 
 Dozer will start processing the data and populating the cache. You can see a progress of the execution from teh console.
 
-#### Query the APIs
+### Query the APIs
 
 The easiest way to query Dozer cache is using gRPC APIs is to use [Postman](https://www.postman.com/). Point your Postman gRPC address to `localhost:50051` and start querying the Dozer cache.
 
