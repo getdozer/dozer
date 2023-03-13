@@ -171,6 +171,7 @@ impl<'a> PostgresIteratorHandler<'a> {
                 .map(|table_info| TableInfo {
                     name: table_info.name.clone(),
                     columns: Some(table_info.columns.clone()),
+                    schema: Some(table_info.schema.clone()),
                 })
                 .collect::<Vec<_>>();
             snapshotter.sync_tables(&tables)?;

@@ -35,7 +35,7 @@ fn test_connector_get_tables() {
         client.create_schema(&schema);
         client.create_simple_table(&schema, &table_name);
 
-        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone());
         let result = schema_helper.get_tables(None).unwrap();
 
         let table = result.get(0).unwrap();
@@ -69,9 +69,10 @@ fn test_connector_get_schema_with_selected_columns() {
         client.create_schema(&schema);
         client.create_simple_table(&schema, &table_name);
 
-        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone());
         let table_info = TableInfo {
             name: table_name.clone(),
+            schema: Some(schema.clone()),
             columns: Some(vec![
                 ColumnInfo::new("name".to_string(), None),
                 ColumnInfo::new("id".to_string(), None),
@@ -108,9 +109,10 @@ fn test_connector_get_schema_without_selected_columns() {
         client.create_schema(&schema);
         client.create_simple_table(&schema, &table_name);
 
-        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone());
         let table_info = TableInfo {
             name: table_name.clone(),
+            schema: Some(schema.clone()),
             columns: Some(vec![]),
         };
         let result = schema_helper.get_tables(Some(&[table_info])).unwrap();
@@ -148,9 +150,10 @@ fn test_connector_view_cannot_be_used() {
         client.create_simple_table(&schema, &table_name);
         client.create_view(&schema, &table_name, &view_name);
 
-        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone());
         let table_info = TableInfo {
             name: view_name,
+            schema: Some(schema.clone()),
             columns: Some(vec![]),
         };
 
@@ -163,6 +166,7 @@ fn test_connector_view_cannot_be_used() {
 
         let table_info = TableInfo {
             name: table_name,
+            schema: Some(schema.clone()),
             columns: Some(vec![]),
         };
         let result = schema_helper.get_schemas(Some(&[table_info]));

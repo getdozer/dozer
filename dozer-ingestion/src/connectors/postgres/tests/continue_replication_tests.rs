@@ -89,6 +89,7 @@ mod tests {
 
             let tables = vec![TableInfo {
                 name: table_name.clone(),
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 

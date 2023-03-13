@@ -69,6 +69,7 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
                 .map(|t| TableInfo {
                     name: t.name.clone(),
                     columns: None,
+                    schema: None,
                 })
                 .collect()
         });
@@ -107,7 +108,7 @@ impl<T: DozerObjectStore> Mapper<T> for SchemaMapper<T> {
 
                 let schema = self.map_schema(id as u32, resolved_schema, table)?;
 
-                Ok(SourceSchema::new(table_name, schema, Nothing))
+                Ok(SourceSchema::new(table_name, None, schema, Nothing))
             })
             .collect()
     }

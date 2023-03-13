@@ -77,6 +77,7 @@ pub fn get_eth_producer(
     let schemas = eth_connector.get_schemas(None)?;
     for SourceSchema {
         name,
+        schema_name: _,
         schema,
         replication_type: _,
     } in schemas

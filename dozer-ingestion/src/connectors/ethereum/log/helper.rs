@@ -51,6 +51,7 @@ pub fn get_contract_event_schemas(
 
             schemas.push(SourceSchema::new(
                 get_table_name(&contract_tuple, &event.name),
+                None,
                 Schema {
                     identifier: Some(SchemaIdentifier {
                         id: schema_id as u32,
