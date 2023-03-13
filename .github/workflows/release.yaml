@@ -168,10 +168,8 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
-          SHORT_GITHUB_SHA=$(echo ${GITHUB_SHA} | cut -c1-8)
-          echo "SHORT_GITHUB_SHA=$SHORT_GITHUB_SHA" >> $GITHUB_OUTPUT
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_GITHUB_SHA .
+          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
           
       - name: Update latest image if releasing
@@ -187,7 +185,7 @@ jobs:
         run: |
           curl -X POST "https://api.buildkite.com/v2/organizations/dozer-data-pte-ltd/pipelines/integration-tests/builds" \
             --header 'Authorization: Bearer ${{ secrets.BUILDKITE_API_ACCESS_TOKEN_WRITE_BUILDS }}' \
-            -d '{ "commit": "${{ github.sha }}", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ steps.build_push_ecr.outputs.SHORT_GITHUB_SHA }}" }, "ignore_pipeline_branch_filters": true }'
+            -d '{ "commit": "${{ github.sha }}", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ github.sha }}" }, "ignore_pipeline_branch_filters": true }'
 
       - name: Release notification
         if: ${{ env.VERSION != 'dev' && matrix.os == 'ubuntu-20-16-cores'}}
