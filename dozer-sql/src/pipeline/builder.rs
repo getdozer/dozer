@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
+use super::pipeline_builder::from::TableOperator;
 use super::product::factory::FromProcessorFactory;
 use super::product::set_factory::SetProcessorFactory;
 use super::window::factory::WindowProcessorFactory;
@@ -351,7 +352,8 @@ fn add_from_to_pipeline(
     let product_processor = FromProcessorFactory::new(input_tables.clone());
 
     if relation_is_a_window(&relation).map_err(PipelineError::WindowError)? {
-        let window_processor = WindowProcessorFactory::new(relation);
+        let table_operator = TableOperator::try_from(relation)?;
+        let window_processor = WindowProcessorFactory::new(table_operator);
         let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
         let window_source_name = window_processor.get_source_name()?;
         let mut window_entry_points = vec![];
@@ -410,7 +412,9 @@ fn add_from_to_pipeline(
             (join_relation_alias.clone(), join.relation.clone());
 
         if relation_is_a_window(&relation).map_err(PipelineError::WindowError)? {
-            let window_processor = WindowProcessorFactory::new(relation.clone());
+            let table_operator = TableOperator::try_from(relation)?;
+
+            let window_processor = WindowProcessorFactory::new(table_operator);
             let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
             let window_input_name = window_processor.get_source_name()?;
             let mut window_entry_points = vec![];

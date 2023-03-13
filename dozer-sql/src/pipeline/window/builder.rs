@@ -13,7 +13,7 @@ use crate::pipeline::{
 use super::operator::WindowType;
 
 pub(crate) fn window_from_table_operator(
-    operator: TableOperator,
+    operator: &TableOperator,
     schema: &Schema,
 ) -> Result<Option<WindowType>, WindowError> {
     let function_name = string_from_sql_object_name(&operator.name);
@@ -50,71 +50,6 @@ pub(crate) fn window_from_table_operator(
         }));
     } else {
         return Err(WindowError::UnsupportedRelationFunction(function_name));
-    }
-}
-
-pub(crate) fn window_from_relation(
-    relation: &TableFactor,
-    schema: &Schema,
-) -> Result<Option<WindowType>, WindowError> {
-    match relation {
-        TableFactor::Table { name, args, .. } => {
-            let function_name = string_from_sql_object_name(name);
-
-            if let Some(args) = args {
-                if function_name.to_uppercase() == "TUMBLE" {
-                    let column_index = get_window_column_index(args, schema)?;
-                    let interval_arg = args
-                        .get(2)
-                        .ok_or(WindowError::WindowMissingIntervalArgument)?;
-                    let interval = get_window_interval(interval_arg)?;
-
-                    Ok(Some(WindowType::Tumble {
-                        column_index,
-                        interval,
-                    }))
-                } else if function_name.to_uppercase() == "HOP" {
-                    let column_index = get_window_column_index(args, schema)?;
-                    let hop_arg = args
-                        .get(2)
-                        .ok_or(WindowError::WindowMissingHopSizeArgument)?;
-                    let hop_size = get_window_hop(hop_arg)?;
-                    let interval_arg = args
-                        .get(3)
-                        .ok_or(WindowError::WindowMissingIntervalArgument)?;
-                    let interval = get_window_interval(interval_arg)?;
-
-                    return Ok(Some(WindowType::Hop {
-                        column_index,
-                        hop_size,
-                        interval,
-                    }));
-                } else {
-                    return Err(WindowError::UnsupportedRelationFunction(function_name));
-                }
-            } else {
-                // not a function, most probably just a relation name
-                Ok(None)
-            }
-        }
-        TableFactor::Derived {
-            lateral: _,
-            subquery: _,
-            alias: _,
-        } => Ok(None),
-        TableFactor::TableFunction { expr: _, alias: _ } => {
-            Err(WindowError::UnsupportedTableFunction)
-        }
-        TableFactor::UNNEST {
-            alias: _,
-            array_expr: _,
-            with_offset: _,
-            with_offset_alias: _,
-        } => Err(WindowError::UnsupportedUnnest),
-        TableFactor::NestedJoin {
-            table_with_joins: _,
-            alias: _,
-        } => Err(WindowError::UnsupportedNestedJoin),
     }
 }
 

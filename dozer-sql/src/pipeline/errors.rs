@@ -116,6 +116,9 @@ pub enum PipelineError {
 
     #[error("Nested Join is not supported")]
     UnsupportedNestedJoin,
+
+    #[error("Table Operator: {0} is not supported")]
+    UnsupportedTableOperator(String),
 }
 
 #[cfg(feature = "python")]

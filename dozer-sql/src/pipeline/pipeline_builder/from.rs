@@ -1,8 +1,18 @@
-use dozer_core::node::PortHandle;
+use std::{collections::HashMap, sync::Arc};
+
+use dozer_core::{
+    app::{AppPipeline, PipelineEntryPoint},
+    appsource::AppSourceId,
+    node::PortHandle,
+    DEFAULT_PORT_HANDLE,
+};
 use sqlparser::ast::{FunctionArg, ObjectName, TableFactor, TableWithJoins};
 
 use crate::pipeline::{
-    builder::QueryContext, errors::PipelineError, window::builder::string_from_sql_object_name,
+    builder::{OutputNodeInfo, QueryContext, SchemaSQLContext},
+    errors::PipelineError,
+    product::table::factory::{get_name_or_alias, TableProcessorFactory},
+    window::{builder::string_from_sql_object_name, factory::WindowProcessorFactory},
 };
 
 struct ConnectionInfo {
@@ -11,26 +21,48 @@ struct ConnectionInfo {
     pub used_sources: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TableOperator {
     pub name: ObjectName,
     pub args: Vec<FunctionArg>,
 }
 
+impl TableOperator {
+    pub fn try_from(table_factor: TableFactor) -> Result<Self, PipelineError> {
+        match table_factor {
+            TableFactor::Table { name, args, .. } => {
+                if let Some(table_args) = args {
+                    Ok(Self {
+                        name,
+                        args: table_args,
+                    })
+                } else {
+                    Err(PipelineError::UnsupportedTableOperator(name.to_string()))
+                }
+            }
+            _ => Err(PipelineError::UnsupportedTableOperator(
+                table_factor.to_string(),
+            )),
+        }
+    }
+}
+
 fn insert_from_to_pipeline(
     from: &TableWithJoins,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
     if from.joins.is_empty() {
-        insert_table_processor_to_pipeline(from.relation, pipeline_idx, query_context)
+        insert_table_processor_to_pipeline(&from.relation, pipeline, pipeline_idx, query_context)
     } else {
-        insert_join_to_pipeline(from, pipeline_idx, query_context)
+        insert_join_to_pipeline(from, pipeline, pipeline_idx, query_context)
     }
 }
 
 fn insert_join_to_pipeline(
     from: &TableWithJoins,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
@@ -38,51 +70,137 @@ fn insert_join_to_pipeline(
 }
 
 fn insert_table_processor_to_pipeline(
-    relation: TableFactor,
+    relation: &TableFactor,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    if let Some(table_operator) = table_is_an_operator(&relation)? {
-        insert_function_processor_to_pipeline(table_operator, pipeline_idx, query_context)
+    if let Some(operator) = table_is_an_operator(&relation)? {
+        insert_function_processor_to_pipeline(
+            &relation,
+            &operator,
+            pipeline,
+            pipeline_idx,
+            query_context,
+        )
     } else {
-        insert_table_to_pipeline(relation, pipeline_idx, query_context)
+        insert_table_to_pipeline(relation, pipeline, pipeline_idx, query_context)
     }
 }
 
-fn insert_function_processor_to_pipeline(
-    operator: TableOperator,
+fn insert_table_to_pipeline(
+    relation: &TableFactor,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    let function_name = string_from_sql_object_name(operator.name);
+    let relation_name_or_alias = get_name_or_alias(&relation)?;
 
-    if function_name.to_uppercase() == "TUMBLE" {
-        let column_index = get_window_column_index(args, schema)?;
-        let interval_arg = args
-            .get(2)
-            .ok_or(WindowError::WindowMissingIntervalArgument)?;
-        let interval = get_window_interval(interval_arg)?;
+    let product_processor_factory = TableProcessorFactory::new(relation.to_owned());
+    let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
+    let product_input_name = relation_name_or_alias.0;
 
-        Ok(Some(WindowType::Tumble {
-            column_index,
-            interval,
-        }))
-    } else if function_name.to_uppercase() == "HOP" {
-        let column_index = get_window_column_index(args, schema)?;
-        let hop_arg = args
-            .get(2)
-            .ok_or(WindowError::WindowMissingHopSizeArgument)?;
-        let hop_size = get_window_hop(hop_arg)?;
-        let interval_arg = args
-            .get(3)
-            .ok_or(WindowError::WindowMissingIntervalArgument)?;
-        let interval = get_window_interval(interval_arg)?;
+    let mut input_nodes = vec![];
+    let mut product_entry_points = vec![];
+    let mut product_used_sources = vec![];
 
-        return Ok(Some(WindowType::Hop {
-            column_index,
-            hop_size,
-            interval,
-        }));
+    // is a node that is an entry point to the pipeline
+    if is_an_entry_point(
+        &product_input_name,
+        &mut query_context.pipeline_map,
+        pipeline_idx,
+    ) {
+        let entry_point = PipelineEntryPoint::new(
+            AppSourceId::new(product_input_name.clone(), None),
+            DEFAULT_PORT_HANDLE,
+        );
+
+        product_entry_points.push(entry_point.clone());
+        product_used_sources.push(product_input_name);
+    }
+    // is a node that is connected to another pipeline
+    else {
+        input_nodes.push((
+            product_input_name,
+            product_processor_name.clone(),
+            DEFAULT_PORT_HANDLE,
+        ));
+    }
+
+    pipeline.add_processor(
+        Arc::new(product_processor_factory),
+        &product_processor_name,
+        product_entry_points,
+    );
+
+    Ok(ConnectionInfo {
+        input_nodes,
+        used_sources: product_used_sources,
+        output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
+    })
+}
+
+fn insert_function_processor_to_pipeline(
+    relation: &TableFactor,
+    operator: &TableOperator,
+    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline_idx: usize,
+    query_context: &mut QueryContext,
+) -> Result<ConnectionInfo, PipelineError> {
+    // the sources names that are used in this pipeline
+    let mut used_sources = vec![];
+    let mut input_nodes = vec![];
+
+    let product_processor = TableProcessorFactory::new(relation.clone());
+    let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
+
+    let function_name = string_from_sql_object_name(&operator.name.clone());
+
+    if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP" {
+        let window_processor = WindowProcessorFactory::new(operator.clone());
+        let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
+        let window_source_name = window_processor.get_source_name()?;
+        let mut window_entry_points = vec![];
+
+        if is_an_entry_point(
+            &window_source_name,
+            &mut query_context.pipeline_map,
+            pipeline_idx,
+        ) {
+            let entry_point = PipelineEntryPoint::new(
+                AppSourceId::new(window_source_name.clone(), None),
+                DEFAULT_PORT_HANDLE as PortHandle,
+            );
+
+            window_entry_points.push(entry_point);
+            used_sources.push(window_source_name);
+        } else {
+            input_nodes.push((
+                window_source_name,
+                window_processor_name.clone(),
+                DEFAULT_PORT_HANDLE as PortHandle,
+            ));
+        }
+
+        pipeline.add_processor(
+            Arc::new(window_processor),
+            &window_processor_name,
+            window_entry_points,
+        );
+
+        pipeline.connect_nodes(
+            &window_processor_name,
+            Some(DEFAULT_PORT_HANDLE),
+            &product_processor_name,
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        )?;
+
+        Ok(ConnectionInfo {
+            input_nodes,
+            used_sources,
+            output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
+        })
     } else {
         return Err(PipelineError::UnsupportedTableOperator(function_name));
     }
@@ -107,4 +225,15 @@ pub fn table_is_an_operator(
         TableFactor::UNNEST { .. } => Err(PipelineError::UnsupportedUnnest),
         TableFactor::NestedJoin { .. } => Err(PipelineError::UnsupportedNestedJoin),
     }
+}
+
+pub fn is_an_entry_point(
+    name: &str,
+    pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
+    pipeline_idx: usize,
+) -> bool {
+    if !pipeline_map.contains_key(&(pipeline_idx, name.to_owned())) {
+        return true;
+    }
+    false
 }

@@ -5,5 +5,5 @@ mod processor;
 mod set;
 pub(crate) mod set_factory;
 mod set_processor;
-mod table;
+pub(crate) mod table;
 mod tests;

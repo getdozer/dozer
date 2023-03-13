@@ -58,7 +58,7 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
             ))?
             .clone();
 
-        let output_schema = match window_from_table_operator(self.table, &input_schema.0)
+        let output_schema = match window_from_table_operator(&self.table, &input_schema.0)
             .map_err(|e| ExecutionError::WindowProcessorFactoryError(Box::new(e)))?
         {
             Some(window) => window
@@ -87,7 +87,7 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
             ))?
             .clone();
 
-        match window_from_table_operator(self.table, &input_schema)
+        match window_from_table_operator(&self.table, &input_schema)
             .map_err(|e| ExecutionError::WindowProcessorFactoryError(Box::new(e)))?
         {
             Some(window) => Ok(Box::new(WindowProcessor::new(window))),
