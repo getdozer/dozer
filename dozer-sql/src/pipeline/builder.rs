@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
-use super::pipeline_builder::from::TableOperator;
+use super::pipeline_builder::from::{insert_from_to_pipeline, TableOperator};
 use super::product::factory::FromProcessorFactory;
 use super::product::set_factory::SetProcessorFactory;
 use super::window::factory::WindowProcessorFactory;
@@ -230,14 +230,21 @@ fn select_to_pipeline(
         ));
     }
 
-    let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
+    // let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
+    //
+    // let (input_nodes, output_node, mut used_sources) = add_from_to_pipeline(
+    //     pipeline,
+    //     &input_tables,
+    //     &mut query_ctx.pipeline_map,
+    //     pipeline_idx,
+    // )?;
 
-    let (input_nodes, output_node, mut used_sources) = add_from_to_pipeline(
-        pipeline,
-        &input_tables,
-        &mut query_ctx.pipeline_map,
-        pipeline_idx,
-    )?;
+    let connection_info =
+        insert_from_to_pipeline(&select.from[0], pipeline, pipeline_idx, query_ctx)?;
+
+    let input_nodes = connection_info.input_nodes;
+    let output_node = connection_info.output_node;
+    let mut used_sources = connection_info.used_sources;
 
     query_ctx.used_sources.append(&mut used_sources);
 

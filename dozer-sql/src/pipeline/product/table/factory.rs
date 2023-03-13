@@ -9,7 +9,6 @@ use dozer_core::{
 use dozer_types::types::Schema;
 use sqlparser::ast::TableFactor;
 
-use crate::pipeline::builder::IndexedTableWithJoins;
 use crate::pipeline::{builder::SchemaSQLContext, expression::builder::extend_schema_source_def};
 use crate::pipeline::{
     expression::builder::NameOrAlias, window::builder::string_from_sql_object_name,
@@ -70,20 +69,10 @@ pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, Executio
             let table_name = string_from_sql_object_name(name);
             if let Some(table_alias) = alias {
                 let alias = table_alias.name.value.clone();
-                return Ok(NameOrAlias(table_name, Some(alias.clone())));
+                return Ok(NameOrAlias(table_name, Some(alias)));
             }
-            Ok(NameOrAlias(table_name.clone(), None))
+            Ok(NameOrAlias(table_name, None))
         }
         _ => todo!(),
     }
-}
-
-pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias> {
-    let mut input_names = vec![];
-    input_names.push(input_tables.relation.0.clone());
-
-    for join in &input_tables.joins {
-        input_names.push(join.0.clone());
-    }
-    input_names
 }

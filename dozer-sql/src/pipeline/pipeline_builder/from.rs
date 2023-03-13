@@ -15,7 +15,9 @@ use crate::pipeline::{
     window::{builder::string_from_sql_object_name, factory::WindowProcessorFactory},
 };
 
-struct ConnectionInfo {
+use super::join::insert_join_to_pipeline;
+
+pub struct ConnectionInfo {
     pub input_nodes: Vec<(String, String, PortHandle)>,
     pub output_node: (String, PortHandle),
     pub used_sources: Vec<String>,
@@ -47,7 +49,7 @@ impl TableOperator {
     }
 }
 
-fn insert_from_to_pipeline(
+pub fn insert_from_to_pipeline(
     from: &TableWithJoins,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
@@ -60,24 +62,15 @@ fn insert_from_to_pipeline(
     }
 }
 
-fn insert_join_to_pipeline(
-    from: &TableWithJoins,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
-    pipeline_idx: usize,
-    query_context: &mut QueryContext,
-) -> Result<ConnectionInfo, PipelineError> {
-    todo!()
-}
-
 fn insert_table_processor_to_pipeline(
     relation: &TableFactor,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    if let Some(operator) = table_is_an_operator(&relation)? {
+    if let Some(operator) = table_is_an_operator(relation)? {
         insert_function_processor_to_pipeline(
-            &relation,
+            relation,
             &operator,
             pipeline,
             pipeline_idx,
@@ -94,7 +87,7 @@ fn insert_table_to_pipeline(
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    let relation_name_or_alias = get_name_or_alias(&relation)?;
+    let relation_name_or_alias = get_name_or_alias(relation)?;
 
     let product_processor_factory = TableProcessorFactory::new(relation.to_owned());
     let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
@@ -115,7 +108,7 @@ fn insert_table_to_pipeline(
             DEFAULT_PORT_HANDLE,
         );
 
-        product_entry_points.push(entry_point.clone());
+        product_entry_points.push(entry_point);
         product_used_sources.push(product_input_name);
     }
     // is a node that is connected to another pipeline
@@ -153,6 +146,8 @@ fn insert_function_processor_to_pipeline(
 
     let product_processor = TableProcessorFactory::new(relation.clone());
     let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
+
+    pipeline.add_processor(Arc::new(product_processor), &product_processor_name, vec![]);
 
     let function_name = string_from_sql_object_name(&operator.name.clone());
 
@@ -202,7 +197,7 @@ fn insert_function_processor_to_pipeline(
             output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
         })
     } else {
-        return Err(PipelineError::UnsupportedTableOperator(function_name));
+        Err(PipelineError::UnsupportedTableOperator(function_name))
     }
 }
 

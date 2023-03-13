@@ -16,12 +16,33 @@ use super::processor::ProductProcessor;
 
 #[derive(Debug)]
 pub struct ProductProcessorFactory {
-    input_tables: IndexedTableWithJoins,
+    left: NameOrAlias,
+    right: NameOrAlias,
+    constraint: ProductConstraint,
+}
+
+#[derive(Debug)]
+pub enum ProductType {
+    Inner,
+    Left,
+    Right,
+    Full,
+}
+
+#[derive(Debug)]
+pub struct ProductConstraint {
+    join_type: ProductType,
+    left: NameOrAlias,
+    right: NameOrAlias,
 }
 
 impl ProductProcessorFactory {
-    pub fn new(input_tables: IndexedTableWithJoins) -> Self {
-        Self { input_tables }
+    pub fn new(left: NameOrAlias, right: NameOrAlias, constraint: ProductConstraint) -> Self {
+        Self {
+            left,
+            right,
+            constraint,
+        }
     }
 }
 
@@ -42,20 +63,27 @@ impl ProcessorFactory<SchemaSQLContext> for ProductProcessorFactory {
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        if let Some((input_schema, query_context)) = input_schemas.get(&DEFAULT_PORT_HANDLE) {
-            let input_names = get_input_names(&self.input_tables);
-            if input_names.len() != 1 {
-                return Err(ExecutionError::InternalError(
-                    "Invalid Input".to_string().into(),
-                ));
-            }
-            let table = input_names[0].clone();
+        let left_schema = input_schemas
+            .get(&(0 as PortHandle))
+            .ok_or(ExecutionError::InternalError(
+                "Invalid Product".to_string().into(),
+            ))?
+            .clone();
 
-            let extended_input_schema = extend_schema_source_def(input_schema, &table);
-            Ok((extended_input_schema, query_context.clone()))
-        } else {
-            Err(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))
-        }
+        let left_extended_schema = extend_schema_source_def(&left_schema.0, &self.left);
+
+        let right_schema = input_schemas
+            .get(&(1 as PortHandle))
+            .ok_or(ExecutionError::InternalError(
+                "Invalid Product".to_string().into(),
+            ))?
+            .clone();
+
+        let right_extended_schema = extend_schema_source_def(&right_schema.0, &self.left);
+
+        let output_schema = append_schema(&left_extended_schema, &right_extended_schema);
+
+        Ok((output_schema, SchemaSQLContext::default()))
     }
 
     fn build(
@@ -76,4 +104,28 @@ pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias>
         input_names.push(join.0.clone());
     }
     input_names
+}
+
+fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {
+    let mut output_schema = Schema::empty();
+
+    let left_len = left_schema.fields.len();
+
+    for field in left_schema.fields.iter() {
+        output_schema.fields.push(field.clone());
+    }
+
+    for field in right_schema.fields.iter() {
+        output_schema.fields.push(field.clone());
+    }
+
+    for primary_key in left_schema.clone().primary_index.into_iter() {
+        output_schema.primary_index.push(primary_key);
+    }
+
+    for primary_key in right_schema.clone().primary_index.into_iter() {
+        output_schema.primary_index.push(primary_key + left_len);
+    }
+
+    output_schema
 }
