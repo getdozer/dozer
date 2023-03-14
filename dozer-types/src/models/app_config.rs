@@ -83,11 +83,11 @@ pub fn default_home_dir() -> String {
 }
 
 pub fn default_cache_max_map_size() -> u64 {
-    1024 * 1024 * 1024 * 1024
+    1024 * 1024 * 1024
 }
 
 pub fn default_app_max_map_size() -> u64 {
-    1024 * 1024 * 1024 * 1024
+    1024 * 1024 * 1024
 }
 
 pub fn default_app_buffer_size() -> u32 {
