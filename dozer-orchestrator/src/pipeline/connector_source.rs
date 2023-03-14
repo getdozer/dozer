@@ -228,7 +228,6 @@ impl Source for ConnectorSource {
         thread::scope(|scope| {
             let mut counter = HashMap::new();
             let t = scope.spawn(|| {
-                info!("CONNECTOR {:?}", self.tables);
                 match self
                     .connector
                     .start(last_checkpoint, &self.ingestor, self.tables.clone())

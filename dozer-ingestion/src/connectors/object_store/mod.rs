@@ -1,4 +1,5 @@
 mod adapters;
+mod connection;
 pub mod connector;
 mod helper;
 mod schema_helper;
