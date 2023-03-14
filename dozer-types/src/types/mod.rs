@@ -84,6 +84,7 @@ pub enum ReplicationChangesTrackingType {
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct SourceSchema {
     pub name: String,
+    pub schema_name: Option<String>,
     pub schema: Schema,
     #[serde(default)]
     pub replication_type: ReplicationChangesTrackingType,
@@ -92,11 +93,13 @@ pub struct SourceSchema {
 impl SourceSchema {
     pub fn new(
         name: String,
+        schema_name: Option<String>,
         schema: Schema,
         replication_type: ReplicationChangesTrackingType,
     ) -> Self {
         Self {
             name,
+            schema_name,
             schema,
             replication_type,
         }

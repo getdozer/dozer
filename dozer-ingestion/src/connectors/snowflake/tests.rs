@@ -55,6 +55,7 @@ fn test_disabled_connector_and_read_from_stream() {
         let connection_config = connection.clone();
         let table = TableInfo {
             name: table_name.clone(),
+            schema: None,
             columns: None,
         };
         thread::spawn(move || {
@@ -140,6 +141,7 @@ fn test_disabled_connector_get_schemas_test() {
             .as_ref()
             .get_schemas(Some(&vec![TableInfo {
                 name: table_name.clone(),
+                schema: None,
                 columns: None,
             }]))
             .unwrap();
@@ -182,6 +184,7 @@ fn test_disabled_connector_missing_table_validator() {
         let result = connector
             .validate_schemas(&[TableInfo {
                 name: not_existing_table,
+                schema: None,
                 columns: None,
             }])
             .unwrap();
@@ -195,6 +198,7 @@ fn test_disabled_connector_missing_table_validator() {
         let result = connector
             .validate_schemas(&[TableInfo {
                 name: existing_table.clone(),
+                schema: None,
                 columns: None,
             }])
             .unwrap();

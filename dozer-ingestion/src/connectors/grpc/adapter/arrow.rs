@@ -44,11 +44,12 @@ impl ArrowAdapter {
 
             arrow_schemas.insert(id as u32, grpc_schema.schema);
 
-            schemas.push(SourceSchema {
-                name: grpc_schema.name,
+            schemas.push(SourceSchema::new(
+                grpc_schema.name,
+                None,
                 schema,
-                replication_type: grpc_schema.replication_type.clone(),
-            });
+                grpc_schema.replication_type.clone(),
+            ));
         }
         Ok((schemas, arrow_schemas))
     }

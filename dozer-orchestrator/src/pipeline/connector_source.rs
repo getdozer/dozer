@@ -42,6 +42,7 @@ fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
 #[derive(Debug)]
 struct Table {
     name: String,
+    schema_name: String,
     columns: Option<Vec<ColumnInfo>>,
     schema: Schema,
     replication_type: ReplicationChangesTrackingType,
@@ -96,6 +97,7 @@ impl ConnectorSourceFactory {
 
             let table = Table {
                 name,
+                schema_name: table.schema.map_or("public".to_string(), |s| s),
                 columns,
                 schema,
                 replication_type,
@@ -169,6 +171,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             .iter()
             .map(|table| TableInfo {
                 name: table.name.clone(),
+                schema: Some(table.schema_name.clone()),
                 columns: table.columns.clone(),
             })
             .collect();
@@ -225,6 +228,7 @@ impl Source for ConnectorSource {
         thread::scope(|scope| {
             let mut counter = HashMap::new();
             let t = scope.spawn(|| {
+                info!("CONNECTOR {:?}", self.tables);
                 match self
                     .connector
                     .start(last_checkpoint, &self.ingestor, self.tables.clone())

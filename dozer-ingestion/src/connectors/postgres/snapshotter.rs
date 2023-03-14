@@ -27,7 +27,7 @@ pub struct PostgresSnapshotter<'a> {
 
 impl<'a> PostgresSnapshotter<'a> {
     pub fn get_tables(&self, tables: &[TableInfo]) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let helper = SchemaHelper::new(self.conn_config.clone(), None);
+        let helper = SchemaHelper::new(self.conn_config.clone());
         helper
             .get_schemas(Some(tables))
             .map_err(PostgresConnectorError)
@@ -35,6 +35,7 @@ impl<'a> PostgresSnapshotter<'a> {
 
     pub fn sync_table(
         schema: Schema,
+        schema_name: String,
         name: String,
         conn_config: tokio_postgres::Config,
         sender: Sender<Result<Option<Operation>, ConnectorError>>,
@@ -49,7 +50,7 @@ impl<'a> PostgresSnapshotter<'a> {
             .collect();
 
         let column_str = column_str.join(",");
-        let query = format!("select {column_str} from {name}");
+        let query = format!("select {column_str} from {schema_name}.{name}");
         let stmt = client_plain
             .prepare(&query)
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
@@ -94,10 +95,16 @@ impl<'a> PostgresSnapshotter<'a> {
         for t in tables.iter() {
             let schema = t.schema.clone();
             let name = t.name.clone();
+            let schema_name = t
+                .schema_name
+                .as_ref()
+                .map_or("public".to_string(), |s| s.clone());
             let conn_config = self.conn_config.clone();
             let sender = tx.clone();
             thread::spawn(move || {
-                if let Err(e) = Self::sync_table(schema, name, conn_config, sender.clone()) {
+                if let Err(e) =
+                    Self::sync_table(schema, schema_name, name, conn_config, sender.clone())
+                {
                     sender.send(Err(e)).unwrap();
                 }
             });
@@ -174,6 +181,7 @@ mod tests {
 
             let tables = vec![TableInfo {
                 name: table_name.clone(),
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 
@@ -189,6 +197,7 @@ mod tests {
 
             let input_tables = vec![TableInfo {
                 name: table_name,
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 
@@ -245,6 +254,7 @@ mod tests {
 
             let tables = vec![TableInfo {
                 name: table_name,
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 
@@ -261,6 +271,7 @@ mod tests {
             let input_table_name = String::from("not_existing_table");
             let input_tables = vec![TableInfo {
                 name: input_table_name,
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 
@@ -305,6 +316,7 @@ mod tests {
 
             let tables = vec![TableInfo {
                 name: table_name.clone(),
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 
@@ -320,6 +332,7 @@ mod tests {
 
             let input_tables = vec![TableInfo {
                 name: table_name,
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 

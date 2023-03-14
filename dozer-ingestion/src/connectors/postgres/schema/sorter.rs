@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::connectors::postgres::schema::helper::PostgresTable;
+use crate::connectors::postgres::schema::helper::{PostgresTable, SchemaTableIdentifier};
 use crate::connectors::{ColumnInfo, TableInfo};
 use crate::errors::PostgresSchemaError;
 use crate::errors::PostgresSchemaError::ColumnNotFound;
@@ -8,8 +8,8 @@ use dozer_types::types::FieldDefinition;
 
 pub fn sort_schemas(
     expected_tables_order: Option<&[TableInfo]>,
-    mapped_tables: &HashMap<String, PostgresTable>,
-) -> Result<Vec<(String, PostgresTable)>, PostgresSchemaError> {
+    mapped_tables: &HashMap<SchemaTableIdentifier, PostgresTable>,
+) -> Result<Vec<(SchemaTableIdentifier, PostgresTable)>, PostgresSchemaError> {
     expected_tables_order.as_ref().map_or(
         Ok(mapped_tables
             .clone()
@@ -17,9 +17,12 @@ pub fn sort_schemas(
             .map(|(key, table)| (key, table))
             .collect()),
         |tables| {
-            let mut sorted_tables: Vec<(String, PostgresTable)> = Vec::new();
+            let mut sorted_tables: Vec<((String, String), PostgresTable)> = Vec::new();
             for table in tables.iter() {
-                let postgres_table = mapped_tables.get(&table.name).ok_or(ColumnNotFound)?;
+                let schema = table.schema.clone().map_or("public".to_string(), |s| s);
+                let postgres_table = mapped_tables
+                    .get(&(schema.clone(), table.name.clone()))
+                    .ok_or(ColumnNotFound)?;
 
                 let sorted_table = table.columns.as_ref().map_or_else(
                     || Ok(postgres_table.clone()),
@@ -40,7 +43,7 @@ pub fn sort_schemas(
                     },
                 )?;
 
-                sorted_tables.push((table.name.clone(), sorted_table));
+                sorted_tables.push(((schema, table.name.clone()), sorted_table));
             }
 
             Ok(sorted_tables)
@@ -148,10 +151,14 @@ mod tests {
     fn test_tables_sort_without_columns() {
         let postgres_table = generate_postgres_table();
         let mut mapped_tables = HashMap::new();
-        mapped_tables.insert("sort_test".to_string(), postgres_table.clone());
+        mapped_tables.insert(
+            ("public".to_string(), "sort_test".to_string()),
+            postgres_table.clone(),
+        );
 
         let expected_table_order = &[TableInfo {
             name: "sort_test".to_string(),
+            schema: Some("public".to_string()),
             columns: None,
         }];
 
@@ -187,7 +194,10 @@ mod tests {
     fn test_tables_sort_with_single_column() {
         let postgres_table = generate_postgres_table();
         let mut mapped_tables = HashMap::new();
-        mapped_tables.insert("sort_test".to_string(), postgres_table);
+        mapped_tables.insert(
+            ("public".to_string(), "sort_test".to_string()),
+            postgres_table,
+        );
 
         let columns_order = vec![ColumnInfo {
             name: "third field".to_string(),
@@ -195,6 +205,7 @@ mod tests {
         }];
         let expected_table_order = &[TableInfo {
             name: "sort_test".to_string(),
+            schema: Some("public".to_string()),
             columns: Some(columns_order.clone()),
         }];
 
@@ -210,7 +221,10 @@ mod tests {
     fn test_tables_sort_with_multi_columns() {
         let postgres_table = generate_postgres_table();
         let mut mapped_tables = HashMap::new();
-        mapped_tables.insert("sort_test".to_string(), postgres_table);
+        mapped_tables.insert(
+            ("public".to_string(), "sort_test".to_string()),
+            postgres_table,
+        );
 
         let columns_order = vec![
             ColumnInfo {
@@ -228,6 +242,7 @@ mod tests {
         ];
         let expected_table_order = &[TableInfo {
             name: "sort_test".to_string(),
+            schema: Some("public".to_string()),
             columns: Some(columns_order.clone()),
         }];
 
@@ -252,8 +267,14 @@ mod tests {
         let postgres_table_1 = generate_postgres_table();
         let postgres_table_2 = generate_postgres_table();
         let mut mapped_tables = HashMap::new();
-        mapped_tables.insert("sort_test_second".to_string(), postgres_table_1);
-        mapped_tables.insert("sort_test_first".to_string(), postgres_table_2);
+        mapped_tables.insert(
+            ("public".to_string(), "sort_test_second".to_string()),
+            postgres_table_1,
+        );
+        mapped_tables.insert(
+            ("public".to_string(), "sort_test_first".to_string()),
+            postgres_table_2,
+        );
 
         let columns_order_1 = vec![
             ColumnInfo {
@@ -286,10 +307,12 @@ mod tests {
         let expected_table_order = &[
             TableInfo {
                 name: "sort_test_first".to_string(),
+                schema: Some("public".to_string()),
                 columns: Some(columns_order_1.clone()),
             },
             TableInfo {
                 name: "sort_test_second".to_string(),
+                schema: Some("public".to_string()),
                 columns: Some(columns_order_2.clone()),
             },
         ];
@@ -299,11 +322,11 @@ mod tests {
         let second_table_after_sort = result.get(1).unwrap();
 
         assert_eq!(
-            first_table_after_sort.0,
+            first_table_after_sort.0 .1,
             expected_table_order.get(0).unwrap().name
         );
         assert_eq!(
-            second_table_after_sort.0,
+            second_table_after_sort.0 .1,
             expected_table_order.get(1).unwrap().name
         );
         assert_eq!(

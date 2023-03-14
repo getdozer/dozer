@@ -70,6 +70,7 @@ pub trait Connector: Send + Sync + Debug {
                         })
                         .collect(),
                 ),
+                schema: source_schema.schema_name,
             })
             .collect::<Vec<TableInfo>>())
     }
@@ -79,6 +80,7 @@ pub trait Connector: Send + Sync + Debug {
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub name: String,
+    pub schema: Option<String>,
     pub columns: Option<Vec<ColumnInfo>>,
 }
 

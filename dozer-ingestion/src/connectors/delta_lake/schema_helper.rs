@@ -45,6 +45,6 @@ impl SchemaHelper {
             .into();
         let schema_mapper = SchemaMapper::new(self.config.clone());
         let schema = schema_mapper.map_schema(id as u32, arrow_schema, table)?;
-        Ok(SourceSchema::new(table.name.clone(), schema, Nothing))
+        Ok(SourceSchema::new(table.name.clone(), None, schema, Nothing))
     }
 }
