@@ -1,6 +1,5 @@
 use crate::connectors::object_store::connector::ObjectStoreConnector;
 use crate::connectors::Connector;
-use crate::connectors::TableInfo;
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::IngestionMessageKind;
@@ -27,7 +26,7 @@ fn test_get_schema_of_parquet() {
     let local_storage = get_local_storage_config("parquet");
 
     let connector = ObjectStoreConnector::new(1, local_storage);
-    let schemas = connector.get_schemas(None).unwrap();
+    let (_, schemas) = connector.list_all_schemas().unwrap();
     let schema = schemas.get(0).unwrap();
 
     let fields = schema.schema.fields.clone();
@@ -49,7 +48,7 @@ fn test_get_schema_of_csv() {
     let local_storage = get_local_storage_config("csv");
 
     let connector = ObjectStoreConnector::new(1, local_storage);
-    let schemas = connector.get_schemas(None).unwrap();
+    let (_, schemas) = connector.list_all_schemas().unwrap();
     let schema = schemas.get(0).unwrap();
 
     let fields = schema.schema.fields.clone();
@@ -73,15 +72,11 @@ fn test_read_parquet_file() {
     let config = IngestionConfig::default();
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
-    let table = TableInfo {
-        name: "all_types_parquet".to_string(),
-        schema: None,
-        columns: None,
-    };
+    let tables = connector
+        .list_columns(connector.list_tables().unwrap())
+        .unwrap();
     thread::spawn(move || {
-        let tables: Vec<TableInfo> = vec![table];
-
-        let _ = connector.start(None, &ingestor, tables);
+        let _ = connector.start(&ingestor, tables);
     });
 
     let mut i = 0;
@@ -124,16 +119,12 @@ fn test_csv_read() {
     let config = IngestionConfig::default();
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
-    let table = TableInfo {
-        name: "all_types_csv".to_string(),
-        schema: None,
-        columns: None,
-    };
+    let tables = connector
+        .list_columns(connector.list_tables().unwrap())
+        .unwrap();
 
     thread::spawn(move || {
-        let tables: Vec<TableInfo> = vec![table];
-
-        let _ = connector.start(None, &ingestor, tables);
+        let _ = connector.start(&ingestor, tables);
     });
 
     let mut i = 0;
@@ -191,23 +182,11 @@ fn test_missing_directory() {
     local_storage.details = Some(LocalDetails {
         path: "not_existing_path".to_string(),
     });
-    let table = local_storage.tables.get(0).unwrap().clone();
     let connector = ObjectStoreConnector::new(1, local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, _) = Ingestor::initialize_channel(config);
+    let tables = connector.list_columns(connector.list_tables().unwrap());
 
-    let result = connector.start(
-        None,
-        &ingestor,
-        vec![TableInfo {
-            name: table.name,
-            schema: None,
-            columns: None,
-        }],
-    );
+    assert!(tables.is_err());
 
-    assert!(result.is_err());
-
-    assert!(matches!(result, Err(InitializationError(_))));
+    assert!(matches!(tables, Err(InitializationError(_))));
 }

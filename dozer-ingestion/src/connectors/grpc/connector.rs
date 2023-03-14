@@ -1,10 +1,9 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::Path;
 
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
-use crate::connectors::ValidationResults;
+use crate::connectors::{table_name, SourceSchema, SourceSchemaResult, TableIdentifier};
 use crate::{
     connectors::{Connector, TableInfo},
     errors::ConnectorError,
@@ -12,9 +11,8 @@ use crate::{
 };
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
-use dozer_types::log::info;
+use dozer_types::log::{info, warn};
 use dozer_types::tracing::Level;
-use dozer_types::types::SourceSchema;
 use tonic::transport::Server;
 use tower_http::trace::{self, TraceLayer};
 
@@ -125,65 +123,116 @@ where
     }
 }
 
+impl<T: IngestAdapter> GrpcConnector<T> {
+    fn get_all_schemas(&self) -> Result<Vec<(String, SourceSchema)>, ConnectorError> {
+        let schemas_str = Self::parse_config(&self.config)?;
+        let adapter = GrpcIngestor::<T>::new(schemas_str)?;
+        adapter.get_schemas()
+    }
+}
+
 impl<T> Connector for GrpcConnector<T>
 where
     T: IngestAdapter,
 {
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn validate_connection(&self) -> Result<(), ConnectorError> {
+        self.get_all_schemas().map(|_| ())
+    }
+
+    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        Ok(self
+            .get_all_schemas()?
+            .into_iter()
+            .map(|(name, _)| TableIdentifier::from_table_name(name))
+            .collect())
+    }
+
+    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        let schemas = self.get_all_schemas()?;
+        for table in tables {
+            if !schemas
+                .iter()
+                .any(|(name, _)| name == &table.name && table.schema.is_none())
+            {
+                dbg!(&table);
+                return Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+        let schemas = self.get_all_schemas()?;
+        let mut result = vec![];
+        for table in tables {
+            if let Some((_, schema)) = schemas
+                .iter()
+                .find(|(name, _)| name == &table.name && table.schema.is_none())
+            {
+                let column_names = schema
+                    .schema
+                    .fields
+                    .iter()
+                    .map(|field| field.name.clone())
+                    .collect();
+                result.push(TableInfo {
+                    schema: table.schema,
+                    name: table.name,
+                    column_names,
+                })
+            } else {
+                return Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                )));
+            }
+        }
+        Ok(result)
+    }
+
     fn get_schemas(
         &self,
-        table_names: Option<&Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+        table_infos: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
         let schemas_str = Self::parse_config(&self.config)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
 
         let schemas = adapter.get_schemas()?;
-        let schemas = table_names.map_or(schemas.clone(), |names| {
-            schemas
-                .into_iter()
-                .filter(|s| names.iter().any(|n| n.name == s.name))
-                .collect()
-        });
-        Ok(schemas)
+
+        let mut result = vec![];
+        for table in table_infos {
+            if let Some((_, schema)) = schemas
+                .iter()
+                .find(|(name, _)| name == &table.name && table.schema.is_none())
+            {
+                warn!("TODO: filter columns");
+                result.push(Ok(schema.clone()));
+            } else {
+                result.push(Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                ))));
+            }
+        }
+
+        Ok(result)
     }
 
     fn start(
         &self,
-        _from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
         _table_names: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         self.serve(ingestor)
-    }
-
-    fn validate(&self, table_names: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let schemas = self.get_schemas(table_names.as_ref());
-        schemas.map(|_| ())
-    }
-
-    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        let mut results = HashMap::new();
-        let schemas_str = Self::parse_config(&self.config)?;
-        let adapter = GrpcIngestor::<T>::new(schemas_str)?;
-        let schemas = adapter.get_schemas()?;
-        for table in tables {
-            let r = schemas.iter().find(|s| s.name == table.name).map_or(
-                Err(ConnectorError::InitializationError(format!(
-                    "Schema not found for table {}",
-                    table.name
-                ))),
-                |_| Ok(()),
-            );
-
-            results.insert(table.name.clone(), vec![(None, r)]);
-        }
-        Ok(results)
-    }
-
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default()
-    }
-
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
-        Ok(false)
     }
 }

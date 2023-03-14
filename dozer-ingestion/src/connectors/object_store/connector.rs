@@ -1,11 +1,9 @@
-use dozer_types::types::SourceSchema;
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 use crate::connectors::object_store::adapters::DozerObjectStore;
-use crate::connectors::object_store::schema_mapper::{Mapper, SchemaMapper};
+use crate::connectors::object_store::schema_mapper;
 use crate::connectors::object_store::table_reader::{Reader, TableReader};
-use crate::connectors::{Connector, TableInfo, ValidationResults};
+use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
@@ -26,40 +24,79 @@ impl<T: DozerObjectStore> ObjectStoreConnector<T> {
 }
 
 impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
-    fn validate(&self, tables: Option<Vec<TableInfo>>) -> ConnectorResult<()> {
-        // validate accessibility to object store
-        validate_connection("object_store", tables.as_ref(), self.config.clone())?;
-
-        Ok(())
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
     }
 
-    fn validate_schemas(&self, _tables: &[TableInfo]) -> ConnectorResult<ValidationResults> {
-        // validate type
-        Ok(HashMap::new())
+    fn validate_connection(&self) -> Result<(), ConnectorError> {
+        validate_connection("object_store", None, self.config.clone())
     }
 
-    fn get_schemas(
-        &self,
-        table_names: Option<&Vec<TableInfo>>,
-    ) -> ConnectorResult<Vec<SourceSchema>> {
-        let mapper = SchemaMapper::new(self.config.clone());
-        mapper.get_schema(table_names)
+    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        Ok(self
+            .config
+            .tables()
+            .iter()
+            .map(|table| TableIdentifier::from_table_name(table.name.clone()))
+            .collect())
     }
 
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
-        Ok(false)
+    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        validate_connection("object_store", Some(tables), self.config.clone())
     }
 
-    fn start(
-        &self,
-        _from_seq: Option<(u64, u64)>,
-        ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
-    ) -> ConnectorResult<()> {
+    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+        let schemas = get_schema_from_tables(&self.config, &tables)?;
+        let mut result = vec![];
+        for (table, schema) in tables.into_iter().zip(schemas) {
+            let schema = schema?;
+            let column_names = schema
+                .schema
+                .fields
+                .into_iter()
+                .map(|field| field.name)
+                .collect();
+            let table_info = TableInfo {
+                schema: table.schema,
+                name: table.name,
+                column_names,
+            };
+            result.push(table_info);
+        }
+        Ok(result)
+    }
+
+    fn get_schemas(&self, table_infos: &[TableInfo]) -> ConnectorResult<Vec<SourceSchemaResult>> {
+        let table_infos = table_infos
+            .iter()
+            .map(|table_info| schema_mapper::TableInfo {
+                schema: table_info.schema.clone(),
+                name: table_info.name.clone(),
+                columns: Some(table_info.column_names.clone()),
+            })
+            .collect::<Vec<_>>();
+        schema_mapper::get_schema(&self.config, &table_infos)
+    }
+
+    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
         TableReader::new(self.config.clone()).read_tables(&tables, ingestor)
     }
+}
 
-    fn get_tables(&self) -> ConnectorResult<Vec<TableInfo>> {
-        self.get_tables_default()
-    }
+fn get_schema_from_tables(
+    config: &impl DozerObjectStore,
+    tables: &[TableIdentifier],
+) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
+    let table_infos = tables
+        .iter()
+        .map(|table| super::schema_mapper::TableInfo {
+            schema: table.schema.clone(),
+            name: table.name.clone(),
+            columns: None,
+        })
+        .collect::<Vec<_>>();
+    schema_mapper::get_schema(config, &table_infos)
 }
