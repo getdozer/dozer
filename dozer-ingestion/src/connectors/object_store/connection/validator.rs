@@ -1,7 +1,8 @@
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::TableInfo;
 use crate::errors::{ConnectorError, ObjectStoreConnectorError, ObjectStoreTableReaderError};
-use datafusion::datasource::listing::ListingTableUrl;
+use deltalake::datafusion::datasource::listing::ListingTableUrl;
+
 use dozer_types::indicatif::ProgressStyle;
 
 pub enum Validations {
@@ -43,7 +44,7 @@ fn validate_permissions<T: DozerObjectStore>(
 ) -> Result<(), ConnectorError> {
     if let Some(tables) = tables {
         for table in tables.iter() {
-            let params = config.table_params(&table.table_name)?;
+            let params = config.table_params(&table.name)?;
             ListingTableUrl::parse(&params.table_path).map_err(|e| {
                 ConnectorError::ObjectStoreConnectorError(
                     ObjectStoreConnectorError::TableReaderError(
