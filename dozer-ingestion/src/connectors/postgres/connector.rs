@@ -101,7 +101,6 @@ impl Connector for PostgresConnector {
 
         let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), from_seq);
 
-        info!("TABLES iN STRT {:?}", tables);
         let iterator = PostgresIterator::new(
             self.id,
             self.name.clone(),
