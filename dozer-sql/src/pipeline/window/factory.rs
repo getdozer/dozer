@@ -11,7 +11,7 @@ use dozer_types::types::Schema;
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::{PipelineError, WindowError},
-    pipeline_builder::from::TableOperator,
+    pipeline_builder::from_builder::TableOperator,
 };
 
 use super::{

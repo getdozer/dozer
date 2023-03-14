@@ -7,7 +7,7 @@ use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, Tabl
 use crate::pipeline::{
     errors::{JoinError, PipelineError, WindowError},
     expression::builder::ExpressionBuilder,
-    pipeline_builder::from::TableOperator,
+    pipeline_builder::from_builder::TableOperator,
 };
 
 use super::operator::WindowType;

@@ -119,6 +119,9 @@ pub enum PipelineError {
 
     #[error("Table Operator: {0} is not supported")]
     UnsupportedTableOperator(String),
+
+    #[error("Invalid JOIN: {0}")]
+    InvalidJoin(String),
 }
 
 #[cfg(feature = "python")]

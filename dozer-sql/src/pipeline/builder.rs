@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
-use super::pipeline_builder::from::{insert_from_to_pipeline, TableOperator};
+use super::pipeline_builder::from_builder::{insert_from_to_pipeline, TableOperator};
 use super::product::factory::FromProcessorFactory;
 use super::product::set_factory::SetProcessorFactory;
 use super::window::factory::WindowProcessorFactory;
@@ -244,9 +244,6 @@ fn select_to_pipeline(
 
     let input_nodes = connection_info.input_nodes;
     let output_node = connection_info.output_node;
-    let mut used_sources = connection_info.used_sources;
-
-    query_ctx.used_sources.append(&mut used_sources);
 
     let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
     let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());

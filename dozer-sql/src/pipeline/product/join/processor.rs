@@ -6,12 +6,16 @@ use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::Operation;
 
+use super::operator::JoinOperator;
+
 #[derive(Debug)]
-pub struct ProductProcessor {}
+pub struct ProductProcessor {
+    join_operator: JoinOperator,
+}
 
 impl ProductProcessor {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(join_operator: JoinOperator) -> Self {
+        Self { join_operator }
     }
 }
 

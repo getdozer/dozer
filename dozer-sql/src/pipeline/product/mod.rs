@@ -1,5 +1,5 @@
 pub(crate) mod factory;
-mod join;
+pub(crate) mod join;
 mod join_operator;
 mod processor;
 mod set;

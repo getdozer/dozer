@@ -182,6 +182,34 @@ pub enum JoinError {
     UpdatePortError(PortHandle),
     #[error("Join ports are not properly initialized")]
     PortNotConnected(PortHandle),
+
+    #[error("The JOIN clause is not supported. In this version only INNER, LEFT and RIGHT OUTER JOINs are supported")]
+    UnsupportedJoinType,
+
+    #[error(
+        "Unsupported JOIN constraint, only ON is allowed as the JOIN constraint using \'=\' and \'AND\' operators"
+    )]
+    UnsupportedJoinConstraintType,
+
+    #[error("Unsupported JOIN constraint {0} only comparison of fields with \'=\' and \'AND\' operators are allowed in the JOIN ON constraint")]
+    UnsupportedJoinConstraint(String),
+
+    #[error("Invalid JOIN constraint on: {0}")]
+    InvalidJoinConstraint(String),
+
+    #[error(
+        "Unsupported JOIN constraint operator {0}, only \'=\' and \'AND\' operators are allowed in the JOIN ON constraint"
+    )]
+    UnsupportedJoinConstraintOperator(String),
+
+    #[error("Invalid Field specified in JOIN: {0}")]
+    InvalidFieldSpecified(String),
+
+    #[error("Currently JOIN supports two level of namespacing. For example, `source.field_name` is valid, but `connection.source.field_name` is not.")]
+    NameSpaceTooLong(String),
+
+    #[error("Error building the JOIN on the {0} source of the Processor")]
+    JoinBuild(String),
 }
 
 #[derive(Error, Debug)]

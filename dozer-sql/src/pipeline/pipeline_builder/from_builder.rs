@@ -15,12 +15,12 @@ use crate::pipeline::{
     window::{builder::string_from_sql_object_name, factory::WindowProcessorFactory},
 };
 
-use super::join::insert_join_to_pipeline;
+use super::join_builder::insert_join_to_pipeline;
 
+#[derive(Clone, Debug)]
 pub struct ConnectionInfo {
     pub input_nodes: Vec<(String, String, PortHandle)>,
     pub output_node: (String, PortHandle),
-    pub used_sources: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -68,7 +68,7 @@ fn insert_table_processor_to_pipeline(
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    if let Some(operator) = table_is_an_operator(relation)? {
+    if let Some(operator) = is_table_operator(relation)? {
         insert_function_processor_to_pipeline(
             relation,
             &operator,
@@ -95,7 +95,6 @@ fn insert_table_to_pipeline(
 
     let mut input_nodes = vec![];
     let mut product_entry_points = vec![];
-    let mut product_used_sources = vec![];
 
     // is a node that is an entry point to the pipeline
     if is_an_entry_point(
@@ -109,7 +108,7 @@ fn insert_table_to_pipeline(
         );
 
         product_entry_points.push(entry_point);
-        product_used_sources.push(product_input_name);
+        query_context.used_sources.push(product_input_name);
     }
     // is a node that is connected to another pipeline
     else {
@@ -128,7 +127,6 @@ fn insert_table_to_pipeline(
 
     Ok(ConnectionInfo {
         input_nodes,
-        used_sources: product_used_sources,
         output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
     })
 }
@@ -141,7 +139,6 @@ fn insert_function_processor_to_pipeline(
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
     // the sources names that are used in this pipeline
-    let mut used_sources = vec![];
     let mut input_nodes = vec![];
 
     let product_processor = TableProcessorFactory::new(relation.clone());
@@ -168,7 +165,7 @@ fn insert_function_processor_to_pipeline(
             );
 
             window_entry_points.push(entry_point);
-            used_sources.push(window_source_name);
+            query_context.used_sources.push(window_source_name);
         } else {
             input_nodes.push((
                 window_source_name,
@@ -193,7 +190,6 @@ fn insert_function_processor_to_pipeline(
 
         Ok(ConnectionInfo {
             input_nodes,
-            used_sources,
             output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
         })
     } else {
@@ -201,9 +197,7 @@ fn insert_function_processor_to_pipeline(
     }
 }
 
-pub fn table_is_an_operator(
-    relation: &TableFactor,
-) -> Result<Option<TableOperator>, PipelineError> {
+pub fn is_table_operator(relation: &TableFactor) -> Result<Option<TableOperator>, PipelineError> {
     match relation {
         TableFactor::Table { name, args, .. } => {
             if args.is_some() {

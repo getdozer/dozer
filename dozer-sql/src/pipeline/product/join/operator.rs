@@ -13,17 +13,17 @@ pub enum JoinBranch {
     Right,
 }
 
-pub trait JoinOperator: Send + Sync {
-    fn delete(&mut self, from: JoinBranch, old: &Record) -> JoinResult<Vec<Record>>;
-    fn insert(&mut self, from: JoinBranch, new: &Record) -> JoinResult<Vec<Record>>;
-    fn update(&mut self, from: JoinBranch, old: &Record, new: &Record) -> JoinResult<Vec<Record>>;
-}
+// pub trait JoinOperator: Send + Sync {
+//     fn delete(&mut self, from: JoinBranch, old: &Record) -> JoinResult<Vec<Record>>;
+//     fn insert(&mut self, from: JoinBranch, new: &Record) -> JoinResult<Vec<Record>>;
+//     fn update(&mut self, from: JoinBranch, old: &Record, new: &Record) -> JoinResult<Vec<Record>>;
+// }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinType {
     Inner,
-    // Left,
-    // Right,
+    LeftOuter,
+    RightOuter,
 }
 
 pub enum JoinAction {
@@ -32,7 +32,7 @@ pub enum JoinAction {
 }
 
 #[derive(Debug, Clone)]
-pub struct JoinOperation {
+pub struct JoinOperator {
     join_type: JoinType,
 
     left_join_key_indexes: Vec<usize>,
@@ -42,7 +42,7 @@ pub struct JoinOperation {
     right_map: MultiMap<Vec<u8>, Record>,
 }
 
-impl JoinOperation {
+impl JoinOperator {
     pub fn new(
         join_type: JoinType,
         left_join_key_indexes: Vec<usize>,
@@ -88,9 +88,7 @@ impl JoinOperation {
 
         Ok(output_records)
     }
-}
 
-impl JoinOperator for JoinOperation {
     fn delete(&mut self, from: JoinBranch, old: &Record) -> JoinResult<Vec<Record>> {
         match (&self.join_type, from) {
             (JoinType::Inner, JoinBranch::Left) => {
@@ -109,6 +107,10 @@ impl JoinOperator for JoinOperation {
                 }
                 Ok(records)
             }
+            (JoinType::LeftOuter, JoinBranch::Left) => todo!(),
+            (JoinType::LeftOuter, JoinBranch::Right) => todo!(),
+            (JoinType::RightOuter, JoinBranch::Left) => todo!(),
+            (JoinType::RightOuter, JoinBranch::Right) => todo!(),
         }
     }
 
@@ -127,10 +129,19 @@ impl JoinOperator for JoinOperation {
                 self.right_map.insert(join_key, new.to_owned());
                 Ok(records)
             }
+            (JoinType::LeftOuter, JoinBranch::Left) => todo!(),
+            (JoinType::LeftOuter, JoinBranch::Right) => todo!(),
+            (JoinType::RightOuter, JoinBranch::Left) => todo!(),
+            (JoinType::RightOuter, JoinBranch::Right) => todo!(),
         }
     }
 
-    fn update(&mut self, from: JoinBranch, old: &Record, new: &Record) -> JoinResult<Vec<Record>> {
+    fn update(
+        &mut self,
+        _from: JoinBranch,
+        _old: &Record,
+        _new: &Record,
+    ) -> JoinResult<Vec<Record>> {
         todo!()
     }
 }
