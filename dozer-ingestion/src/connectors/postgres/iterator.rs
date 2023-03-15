@@ -1,4 +1,4 @@
-use crate::connectors::TableInfo;
+use crate::connectors::object_store::schema_mapper::TableInfo;
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;

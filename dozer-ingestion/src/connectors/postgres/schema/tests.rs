@@ -1,7 +1,6 @@
+use crate::connectors::object_store::schema_mapper::TableInfo;
 use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::connectors::postgres::test_utils::get_client;
-use crate::connectors::ColumnInfo;
-use crate::connectors::TableInfo;
 use crate::errors::PostgresConnectorError::PostgresSchemaError;
 use crate::errors::PostgresSchemaError::UnsupportedTableType;
 use crate::test_util::run_connector_test;
@@ -42,10 +41,10 @@ fn test_connector_get_tables() {
         assert_eq!(table_name, table.name);
         assert!(assert_vec_eq(
             &[
-                ColumnInfo::new("name".to_string(), None),
-                ColumnInfo::new("description".to_string(), None),
-                ColumnInfo::new("weight".to_string(), None),
-                ColumnInfo::new("id".to_string(), None),
+                "name".to_string(),
+                "description".to_string(),
+                "weight".to_string(),
+                "id".to_string(),
             ],
             &table.columns
         ));
@@ -71,22 +70,16 @@ fn test_connector_get_schema_with_selected_columns() {
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone());
         let table_info = TableInfo {
-            name: table_name.clone(),
             schema: Some(schema.clone()),
-            columns: Some(vec![
-                ColumnInfo::new("name".to_string(), None),
-                ColumnInfo::new("id".to_string(), None),
-            ]),
+            name: table_name.clone(),
+            columns: Some(vec!["name".to_string(), "id".to_string()]),
         };
         let result = schema_helper.get_tables(Some(&[table_info])).unwrap();
 
         let table = result.get(0).unwrap();
         assert_eq!(table_name, table.name);
         assert!(assert_vec_eq(
-            &[
-                ColumnInfo::new("name".to_string(), None),
-                ColumnInfo::new("id".to_string(), None)
-            ],
+            &["name".to_string(), "id".to_string()],
             &table.columns
         ));
 
@@ -121,10 +114,10 @@ fn test_connector_get_schema_without_selected_columns() {
         assert_eq!(table_name, table.name.clone());
         assert!(assert_vec_eq(
             &[
-                ColumnInfo::new("id".to_string(), None),
-                ColumnInfo::new("name".to_string(), None),
-                ColumnInfo::new("description".to_string(), None),
-                ColumnInfo::new("weight".to_string(), None),
+                "id".to_string(),
+                "name".to_string(),
+                "description".to_string(),
+                "weight".to_string(),
             ],
             &table.columns
         ));
@@ -157,7 +150,7 @@ fn test_connector_view_cannot_be_used() {
             columns: Some(vec![]),
         };
 
-        let result = schema_helper.get_schemas(Some(&[table_info]));
+        let result = schema_helper.get_schemas(&[table_info]);
         assert!(result.is_err());
         assert!(matches!(
             result,
@@ -169,7 +162,7 @@ fn test_connector_view_cannot_be_used() {
             schema: Some(schema.clone()),
             columns: Some(vec![]),
         };
-        let result = schema_helper.get_schemas(Some(&[table_info]));
+        let result = schema_helper.get_schemas(&[table_info]);
         assert!(result.is_ok());
 
         client.drop_schema(&schema);

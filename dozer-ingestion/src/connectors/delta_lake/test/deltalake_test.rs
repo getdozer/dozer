@@ -1,6 +1,5 @@
 use crate::connectors::delta_lake::DeltaLakeConnector;
 use crate::connectors::Connector;
-use crate::connectors::TableInfo;
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::{DeltaLakeConfig, DeltaTable, IngestionMessageKind};
@@ -21,15 +20,8 @@ fn get_schema_from_deltalake() {
     };
 
     let connector = DeltaLakeConnector::new(1, config);
-    let table_info = TableInfo {
-        name: table_name.to_string(),
-        schema: Some("public".to_string()),
-        columns: None,
-    };
-    let field = connector.get_schemas(Some(&vec![table_info])).unwrap()[0]
-        .schema
-        .fields[0]
-        .clone();
+    let (_, schemas) = connector.list_all_schemas().unwrap();
+    let field = schemas[0].schema.fields[0].clone();
     assert_eq!(&field.name, "value");
     assert_eq!(field.typ, FieldType::Int);
     assert!(field.nullable);
@@ -52,14 +44,11 @@ fn read_deltalake() {
 
     let config = IngestionConfig::default();
     let (ingestor, iterator) = Ingestor::initialize_channel(config);
-    let table = TableInfo {
-        name: "test_table".to_string(),
-        schema: Some("public".to_string()),
-        columns: None,
-    };
+    let tables = connector
+        .list_columns(connector.list_tables().unwrap())
+        .unwrap();
     thread::spawn(move || {
-        let tables = vec![table];
-        let _ = connector.start(None, &ingestor, tables);
+        let _ = connector.start(&ingestor, tables);
     });
 
     let fields = vec![Field::Int(0), Field::Int(1), Field::Int(2), Field::Int(4)];

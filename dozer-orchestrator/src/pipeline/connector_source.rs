@@ -2,7 +2,7 @@ use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::errors::{ExecutionError, SourceError};
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
-use dozer_ingestion::connectors::{get_connector, ColumnInfo, Connector, TableInfo};
+use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -12,9 +12,7 @@ use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::tracing::{span, Level};
-use dozer_types::types::{
-    Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
-};
+use dozer_types::types::{Operation, Schema, SchemaIdentifier, SourceDefinition};
 use std::collections::HashMap;
 use std::thread;
 
@@ -41,11 +39,11 @@ fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
 
 #[derive(Debug)]
 struct Table {
+    schema_name: Option<String>,
     name: String,
-    schema_name: String,
-    columns: Option<Vec<ColumnInfo>>,
+    columns: Vec<String>,
     schema: Schema,
-    replication_type: ReplicationChangesTrackingType,
+    cdc_type: CdcType,
     port: PortHandle,
 }
 
@@ -58,13 +56,11 @@ pub struct ConnectorSourceFactory {
     progress: Option<MultiProgress>,
 }
 
-fn map_replication_type_to_output_port_type(
-    typ: &ReplicationChangesTrackingType,
-) -> OutputPortType {
+fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
     match typ {
-        ReplicationChangesTrackingType::FullChanges => OutputPortType::StatefulWithPrimaryKeyLookup,
-        ReplicationChangesTrackingType::OnlyPK => OutputPortType::StatefulWithPrimaryKeyLookup,
-        ReplicationChangesTrackingType::Nothing => OutputPortType::Stateless,
+        CdcType::FullChanges => OutputPortType::StatefulWithPrimaryKeyLookup,
+        CdcType::OnlyPK => OutputPortType::StatefulWithPrimaryKeyLookup,
+        CdcType::Nothing => OutputPortType::Stateless,
     }
 }
 
@@ -76,14 +72,14 @@ impl ConnectorSourceFactory {
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
 
-        let tables_list: Vec<TableInfo> = table_and_ports
+        let connector =
+            get_connector(connection).map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
+        let tables: Vec<TableInfo> = table_and_ports
             .iter()
             .map(|(table, _)| table.clone())
             .collect();
-        let connector = get_connector(connection, Some(tables_list.clone()))
-            .map_err(|e| InternalError(Box::new(e)))?;
         let source_schemas = connector
-            .get_schemas(Some(&tables_list))
+            .get_schemas(&tables)
             .map_err(|e| InternalError(Box::new(e)))?;
 
         let mut tables = vec![];
@@ -91,16 +87,18 @@ impl ConnectorSourceFactory {
             table_and_ports.into_iter().zip(source_schemas.into_iter())
         {
             let name = table.name;
-            let columns = table.columns;
+            let columns = table.column_names;
+            let source_schema =
+                source_schema.map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
             let schema = source_schema.schema;
-            let replication_type = source_schema.replication_type;
+            let cdc_type = source_schema.cdc_type;
 
             let table = Table {
                 name,
-                schema_name: table.schema.map_or("public".to_string(), |s| s),
+                schema_name: table.schema.clone(),
                 columns,
                 schema,
-                replication_type,
+                cdc_type,
                 port,
             };
 
@@ -148,7 +146,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         self.tables
             .iter()
             .map(|table| {
-                let typ = map_replication_type_to_output_port_type(&table.replication_type);
+                let typ = map_replication_type_to_output_port_type(&table.cdc_type);
                 OutputPortDef::new(table.port, typ)
             })
             .collect()
@@ -170,9 +168,9 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             .tables
             .iter()
             .map(|table| TableInfo {
+                schema: table.schema_name.clone(),
                 name: table.name.clone(),
-                schema: Some(table.schema_name.clone()),
-                columns: table.columns.clone(),
+                column_names: table.columns.clone(),
             })
             .collect();
 
@@ -213,25 +211,19 @@ pub struct ConnectorSource {
 }
 
 impl Source for ConnectorSource {
-    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
-        self.connector
-            .as_ref()
-            .can_start_from(last_checkpoint)
-            .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
     }
 
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        last_checkpoint: Option<(u64, u64)>,
+        _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         thread::scope(|scope| {
             let mut counter = HashMap::new();
             let t = scope.spawn(|| {
-                match self
-                    .connector
-                    .start(last_checkpoint, &self.ingestor, self.tables.clone())
-                {
+                match self.connector.start(&self.ingestor, self.tables.clone()) {
                     Ok(_) => {}
                     // If we get a channel error, it means the source sender thread has quit.
                     // Any error handling is done in that thread.

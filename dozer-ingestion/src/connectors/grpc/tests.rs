@@ -1,7 +1,6 @@
 use std::{sync::Arc, thread};
 
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
-use dozer_orchestrator::Connection;
 use dozer_types::{
     arrow::array::{Int32Array, StringArray},
     grpc_types::{
@@ -9,7 +8,7 @@ use dozer_types::{
         types,
     },
     ingestion_types::IngestionMessageKind,
-    models::connection::ConnectionConfig,
+    models::connection::{Connection, ConnectionConfig},
     serde_json::Value,
     types::Operation,
 };
@@ -32,22 +31,21 @@ async fn ingest_grpc(
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     std::thread::spawn(move || {
-        let grpc_connector = crate::connectors::get_connector(
-            Connection {
-                config: Some(ConnectionConfig::Grpc(GrpcConfig {
-                    schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
-                    adapter,
-                    port,
-                    ..Default::default()
-                })),
-                name: "grpc".to_string(),
-            },
-            None,
-        )
+        let grpc_connector = crate::connectors::get_connector(Connection {
+            config: Some(ConnectionConfig::Grpc(GrpcConfig {
+                schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
+                adapter,
+                port,
+                ..Default::default()
+            })),
+            name: "grpc".to_string(),
+        })
         .unwrap();
 
-        let tables = grpc_connector.get_tables().unwrap();
-        grpc_connector.start(None, &ingestor, tables).unwrap();
+        let tables = grpc_connector
+            .list_columns(grpc_connector.list_tables().unwrap())
+            .unwrap();
+        grpc_connector.start(&ingestor, tables).unwrap();
     });
 
     let retries = 10;
@@ -69,23 +67,24 @@ async fn ingest_grpc(
 
 #[tokio::test]
 async fn ingest_grpc_default() {
-    let schemas = json!([{
-      "name": "users",
-      "schema": {
-        "fields": [
-          {
-            "name": "id",
-            "typ": "Int",
-            "nullable": false
-          },
-          {
-            "name": "name",
-            "typ": "String",
-            "nullable": true
-          }
-        ]
-      }
-    }]);
+    let schemas = json!({
+      "users": {
+        "schema": {
+            "fields": [
+            {
+                "name": "id",
+                "typ": "Int",
+                "nullable": false
+            },
+            {
+                "name": "name",
+                "typ": "String",
+                "nullable": true
+            }
+            ]
+        }
+        }
+    });
 
     let (mut ingest_client, mut iterator) =
         ingest_grpc(schemas, "default".to_string(), 45678).await;

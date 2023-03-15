@@ -1,7 +1,7 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
 use dozer_core::appsource::{AppSource, AppSourceManager};
-use dozer_ingestion::connectors::{ColumnInfo, TableInfo};
+use dozer_ingestion::connectors::TableInfo;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::source::Source;
@@ -63,18 +63,9 @@ impl<'a> SourceBuilder<'a> {
 
                         table_and_ports.push((
                             TableInfo {
-                                name: source.table_name.clone(),
                                 schema: source.schema.clone(),
-                                columns: Some(
-                                    source
-                                        .columns
-                                        .iter()
-                                        .map(|c| ColumnInfo {
-                                            name: c.clone(),
-                                            data_type: None,
-                                        })
-                                        .collect(),
-                                ),
+                                name: source.table_name.clone(),
+                                column_names: source.columns.clone(),
                             },
                             port,
                         ));
@@ -134,7 +125,7 @@ mod tests {
                 schemas: Some(GrpcConfigSchemas::Inline(schema_str.to_string())),
                 ..Default::default()
             })),
-            name: "pg_conn".to_string(),
+            name: "grpc_conn".to_string(),
         };
 
         Config {
@@ -144,19 +135,19 @@ mod tests {
             connections: vec![grpc_conn.clone()],
             sources: vec![
                 Source {
-                    name: "pg_conn_users".to_string(),
+                    name: "grpc_conn_users".to_string(),
                     table_name: "users".to_string(),
                     columns: vec!["id".to_string(), "name".to_string()],
                     connection: Some(grpc_conn.clone()),
-                    schema: Some("public".to_string()),
+                    schema: None,
                     refresh_config: None,
                 },
                 Source {
-                    name: "pg_conn_customers".to_string(),
+                    name: "grpc_conn_customers".to_string(),
                     table_name: "customers".to_string(),
                     columns: vec!["id".to_string(), "name".to_string()],
                     connection: Some(grpc_conn),
-                    schema: Some("public_customers".to_string()),
+                    schema: None,
                     refresh_config: None,
                 },
             ],

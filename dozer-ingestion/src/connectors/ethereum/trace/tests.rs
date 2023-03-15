@@ -65,11 +65,11 @@ fn test_trace_iterator() {
             "test".to_string(),
         );
 
-        let schemas = connector.get_schemas(None).unwrap();
+        let (tables, schemas) = connector.list_all_schemas().unwrap();
         for s in schemas {
             s.schema.print().printstd();
         }
-        connector.start(None, &ingestor, vec![]).unwrap();
+        connector.start(&ingestor, tables).unwrap();
     });
 
     if let Some(IngestionMessage {

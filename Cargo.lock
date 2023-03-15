@@ -2157,7 +2157,6 @@ dependencies = [
  "criterion",
  "crossbeam",
  "deltalake",
- "dozer-orchestrator",
  "dozer-tracing",
  "dozer-types",
  "futures",

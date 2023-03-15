@@ -1,5 +1,5 @@
 use crate::connectors::object_store::adapters::DozerObjectStore;
-use crate::connectors::TableInfo;
+use crate::connectors::TableIdentifier;
 use crate::errors::{ConnectorError, ObjectStoreConnectorError, ObjectStoreTableReaderError};
 use deltalake::datafusion::datasource::listing::ListingTableUrl;
 
@@ -11,7 +11,7 @@ pub enum Validations {
 
 pub fn validate_connection<T: DozerObjectStore>(
     name: &str,
-    tables: Option<&Vec<TableInfo>>,
+    tables: Option<&[TableIdentifier]>,
     config: T,
 ) -> Result<(), ConnectorError> {
     let validations_order: Vec<Validations> = vec![Validations::Permissions];
@@ -39,7 +39,7 @@ pub fn validate_connection<T: DozerObjectStore>(
 }
 
 fn validate_permissions<T: DozerObjectStore>(
-    tables: Option<&Vec<TableInfo>>,
+    tables: Option<&[TableIdentifier]>,
     config: T,
 ) -> Result<(), ConnectorError> {
     if let Some(tables) = tables {

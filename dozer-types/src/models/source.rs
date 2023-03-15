@@ -18,7 +18,7 @@ pub struct Source {
     pub connection: Option<Connection>,
     /// name of schema source database; Type: String
     #[prost(string, optional, tag = "5")]
-    #[serde(default = "default_schema")]
+    #[serde(default)]
     pub schema: Option<String>,
     #[prost(oneof = "RefreshConfig", tags = "7")]
     #[serde(default = "default_refresh_config")]
@@ -26,9 +26,7 @@ pub struct Source {
     /// setting for how to refresh the data; Default: RealTime
     pub refresh_config: Option<RefreshConfig>,
 }
-fn default_schema() -> Option<String> {
-    Some("public".to_string())
-}
+
 fn default_refresh_config() -> Option<RefreshConfig> {
     Some(RefreshConfig::default())
 }

@@ -3,7 +3,7 @@ use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::app::{App, AppPipeline};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::types::{Operation, SourceSchema};
+use dozer_types::types::Operation;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -11,11 +11,10 @@ use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 
-use crate::pipeline::validate::validate;
 use crate::pipeline::{CacheSinkSettings, PipelineBuilder, StreamingSinkFactory};
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_ingestion::connectors::get_connector;
+use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 
 use dozer_types::crossbeam;
 
@@ -99,15 +98,14 @@ impl<'a> Executor<'a> {
         Ok(dag)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_tables(
         connections: &Vec<Connection>,
-    ) -> Result<HashMap<String, Vec<SourceSchema>>, OrchestrationError> {
+    ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
         let mut schema_map = HashMap::new();
         for connection in connections {
-            validate(connection.to_owned(), None)?;
-
-            let connector = get_connector(connection.to_owned(), None)?;
-            let schema_tuples = connector.get_schemas(None)?;
+            let connector = get_connector(connection.to_owned())?;
+            let schema_tuples = connector.list_all_schemas()?;
             schema_map.insert(connection.name.to_owned(), schema_tuples);
         }
 

@@ -1,28 +1,20 @@
-#[cfg(feature = "snowflake")]
 use std::time::Duration;
 
-#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::connection::client::Client;
-use crate::connectors::{Connector, ValidationResults};
+use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo};
+use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::SnowflakeConfig;
 
-#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
-#[cfg(feature = "snowflake")]
-use dozer_types::log::{debug, info};
+use dozer_types::log::{debug, info, warn};
 
-#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 
-use dozer_types::types::SourceSchema;
 use tokio::runtime::Runtime;
-#[cfg(feature = "snowflake")]
 use tokio::time;
 
-#[cfg(feature = "snowflake")]
 use crate::errors::{SnowflakeError, SnowflakeStreamError};
 
 #[derive(Debug)]
@@ -38,64 +30,91 @@ impl SnowflakeConnector {
 }
 
 impl Connector for SnowflakeConnector {
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn validate_connection(&self) -> Result<(), ConnectorError> {
+        SchemaHelper::get_schema(&self.config, None).map(|_| ())
+    }
+
+    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        let schemas = SchemaHelper::get_schema(&self.config, None)?;
+        let mut tables = vec![];
+        for schema in schemas {
+            tables.push(TableIdentifier::from_table_name(schema?.0));
+        }
+        Ok(tables)
+    }
+
+    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        let table_names = tables
+            .iter()
+            .map(|table| table.name.clone())
+            .collect::<Vec<_>>();
+        let schemas = SchemaHelper::get_schema(&self.config, Some(&table_names))?;
+        for schema in schemas {
+            schema?;
+        }
         Ok(())
     }
 
-    #[cfg(not(feature = "snowflake"))]
-    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        todo!()
+    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+        let table_names = tables
+            .iter()
+            .map(|table| table.name.clone())
+            .collect::<Vec<_>>();
+        let schemas = SchemaHelper::get_schema(&self.config, Some(&table_names))?;
+        let mut result = vec![];
+        for schema in schemas {
+            let (name, schema) = schema?;
+            let column_names = schema
+                .schema
+                .fields
+                .into_iter()
+                .map(|field| field.name)
+                .collect();
+            result.push(TableInfo {
+                schema: None,
+                name,
+                column_names,
+            });
+        }
+        Ok(result)
     }
 
-    #[cfg(feature = "snowflake")]
-    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        SchemaHelper::validate_schemas(&self.config, tables)
-    }
-
-    #[cfg(feature = "snowflake")]
     fn get_schemas(
         &self,
-        table_names: Option<&Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        SchemaHelper::get_schema(&self.config, table_names)
+        table_infos: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
+        warn!("TODO: respect `column_names` in `table_infos`");
+        let table_names = table_infos
+            .iter()
+            .map(|table_info| table_info.name.clone())
+            .collect::<Vec<_>>();
+        Ok(SchemaHelper::get_schema(&self.config, Some(&table_names))?
+            .into_iter()
+            .map(|schema_result| schema_result.map(|(_, schema)| schema))
+            .collect())
     }
 
-    #[cfg(not(feature = "snowflake"))]
-    fn get_schemas(
-        &self,
-        _table_names: Option<&Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        todo!()
-    }
-
-    fn start(
-        &self,
-        from_seq: Option<(u64, u64)>,
-        ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
-    ) -> Result<(), ConnectorError> {
+    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         Runtime::new().unwrap().block_on(async {
             run(
                 self.name.clone(),
                 self.config.clone(),
                 tables,
                 ingestor,
-                from_seq,
+                None,
             )
             .await
         })
     }
-
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default()
-    }
-
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
-        Ok(false)
-    }
 }
 
-#[cfg(feature = "snowflake")]
 async fn run(
     name: String,
     config: SnowflakeConfig,
@@ -105,7 +124,7 @@ async fn run(
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
-    // SNAPSHOT part - run it when stream table doesnt exist
+    // SNAPSHOT part - run it when stream table doesn't exist
     let stream_client = Client::new(&config);
     let mut interval = time::interval(Duration::from_secs(5));
 
@@ -147,15 +166,4 @@ async fn run(
 
         iteration += 1;
     }
-}
-
-#[cfg(not(feature = "snowflake"))]
-async fn run(
-    _name: String,
-    _config: SnowflakeConfig,
-    _tables: Vec<TableInfo>,
-    _ingestor: &Ingestor,
-    _from_seq: Option<(u64, u64)>,
-) -> Result<(), ConnectorError> {
-    Ok(())
 }
