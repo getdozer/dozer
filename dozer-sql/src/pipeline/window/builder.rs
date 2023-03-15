@@ -2,7 +2,7 @@ use dozer_types::{
     chrono::Duration,
     types::{FieldDefinition, Schema},
 };
-use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, TableFactor, Value};
+use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, Value};
 
 use crate::pipeline::{
     errors::{JoinError, PipelineError, WindowError},
@@ -263,42 +263,4 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>
         }
     };
     field_index.map_or(Ok(None), |(i, _fd)| Ok(Some(i)))
-}
-
-pub(crate) fn relation_is_a_window(relation: &TableFactor) -> Result<bool, WindowError> {
-    match relation {
-        TableFactor::Table { name, args, .. } => {
-            let function_name = string_from_sql_object_name(name);
-
-            if args.is_some() {
-                if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP"
-                {
-                    Ok(true)
-                } else {
-                    Err(WindowError::UnsupportedRelationFunction(function_name))
-                }
-            } else {
-                // not a function, most probably just a relation name
-                Ok(false)
-            }
-        }
-        TableFactor::Derived {
-            lateral: _,
-            subquery: _,
-            alias: _,
-        } => Ok(false),
-        TableFactor::TableFunction { expr: _, alias: _ } => {
-            Err(WindowError::UnsupportedTableFunction)
-        }
-        TableFactor::UNNEST {
-            alias: _,
-            array_expr: _,
-            with_offset: _,
-            with_offset_alias: _,
-        } => Err(WindowError::UnsupportedUnnest),
-        TableFactor::NestedJoin {
-            table_with_joins: _,
-            alias: _,
-        } => Err(WindowError::UnsupportedNestedJoin),
-    }
 }
