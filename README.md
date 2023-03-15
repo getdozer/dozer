@@ -148,6 +148,25 @@ Check out Dozer's [samples repository](https://github.com/getdozer/dozer-samples
 |                  | [Ingest Polars/Pandas Dataframes](https://github.com/getdozer/dozer-samples/tree/main/client-samples/ingest-python-sample) | Instantly ingest Polars/Pandas dataframes using Arrow format and deploy APIs |
 | Authorization    | Dozer Authorziation (Coming soon)                                                                                          | How to apply JWT Auth on Dozer                                               |
 
+# Connectors
+
+Refer to the full list of connectors and example configurations [here](https://getdozer.io/docs/configuration/connectors).
+
+| Connector                          |   Status    | Type           |  Schema Mapping   | Frequency | Implemented Via |
+| :--------------------------------- | :---------: | :------------- | :---------------: | :-------- | :-------------- |
+| Postgres                           | Available ✅ | Relational     |      Source       | Real Time | Direct          |
+| Snowflake                          | Available ✅ | Data Warehouse |      Source       | Polling   | Direct          |
+| Local Files (CSV, Parquet)         | Available ✅ | Object Storage |      Source       | Polling   | Data Fusion     |
+| Delta Lake                         |    Alpha    | Data Warehouse |      Source       | Polling   | Direct          |
+| AWS S3 (CSV, Parquet)              |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
+| Google Cloud Storage(CSV, Parquet) |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
+| Ethereum                           | Available ✅ | Blockchain     | Logs/Contract ABI | Real Time | Direct          |
+| MySQL                              | In Roadmap  | Relational     |      Source       | Real Time | Debezium        |
+| Kafka                              | In Roadmap  | Stream         |  Schema Registry  | Real Time | Debezium        |
+| Google Sheets                      | In Roadmap  | Applications   |      Source       |           |                 |
+| Excel                              | In Roadmap  | Applications   |      Source       |           |                 |
+| Airtable                           | In Roadmap  | Applications   |      Source       |           |                 |
+
 
 ## Releases
 
