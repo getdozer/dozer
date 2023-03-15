@@ -362,7 +362,7 @@ mod tests {
                     assert!(matches!(e, PostgresConnectorError::TableError(_)));
 
                     if let PostgresConnectorError::TableError(msg) = e {
-                        assert_eq!(msg, vec!["not_existing".to_string()]);
+                        assert_eq!(msg, vec!["public.not_existing".to_string()]);
                     } else {
                         panic!("Unexpected error occurred");
                     }
