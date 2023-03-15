@@ -406,7 +406,7 @@ mod tests {
                     assert!(matches!(e, PostgresConnectorError::ColumnsNotFound(_)));
 
                     if let PostgresConnectorError::ColumnsNotFound(msg) = e {
-                        assert_eq!(msg, "column_not_existing_1 in existing table, column_not_existing_2 in existing table");
+                        assert_eq!(msg, "column_not_existing_1 in public.existing table, column_not_existing_2 in public.existing table");
                     } else {
                         panic!("Unexpected error occurred");
                     }

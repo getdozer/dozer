@@ -109,14 +109,14 @@ impl<'a> TablesValidator<'a> {
 
         let missing_columns = self.find_missing_columns(tables_columns)?;
         if !missing_columns.is_empty() {
-            let error_columns = missing_columns
+            let error_columns: Vec<String> = missing_columns
                 .iter()
                 .map(|(schema, table, column)| {
-                    format!("{0} in {1}.{2} table, ", column, schema, table)
+                    format!("{0} in {1}.{2} table", column, schema, table)
                 })
                 .collect();
 
-            return Err(ColumnsNotFound(error_columns));
+            return Err(ColumnsNotFound(error_columns.join(", ")));
         }
 
         let missing_tables = self.find_missing_tables(tables)?;
