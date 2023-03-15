@@ -46,10 +46,10 @@ jobs:
             ~/.cargo/registry/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          key: clippy-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-            ${{ runner.os }}-cargo-
+            clippy-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+            clippy-${{ runner.os }}-cargo-
 
       - name: Clippy
         run: |
