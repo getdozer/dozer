@@ -623,7 +623,7 @@ mod tests {
                 &mut pg_client,
                 &vec![ListOrFilterColumns {
                     name: table_name,
-                    schema: Some("public".to_string()),
+                    schema: Some(schema.clone()),
                     columns: None,
                 }],
             );
@@ -634,7 +634,7 @@ mod tests {
                 &mut pg_client,
                 &vec![ListOrFilterColumns {
                     name: view_name,
-                    schema: Some("public".to_string()),
+                    schema: Some(schema),
                     columns: None,
                 }],
             );
