@@ -6,7 +6,7 @@ use dozer_core::{
     storage::lmdb_storage::LmdbExclusiveTransaction,
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::types::{FieldDefinition, Schema};
+use dozer_types::types::{FieldDefinition, Record, Schema};
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint as SqlJoinConstraint,
     JoinOperator as SqlJoinOperator,
@@ -63,7 +63,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
         let (mut left_schema, _) = input_schemas
-            .get(&(0 as PortHandle))
+            .get(&LEFT_JOIN_PORT)
             .ok_or(ExecutionError::InternalError(
                 "Invalid Product".to_string().into(),
             ))?
@@ -74,7 +74,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         }
 
         let (mut right_schema, _) = input_schemas
-            .get(&(1 as PortHandle))
+            .get(&RIGHT_JOIN_PORT)
             .ok_or(ExecutionError::InternalError(
                 "Invalid Product".to_string().into(),
             ))?
@@ -115,34 +115,47 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             }
         };
 
-        let left_name = self
-            .left
-            .clone()
-            .unwrap_or(NameOrAlias("Left".to_owned(), None));
-        let left_schema =
-            input_schemas
-                .get(&(0 as PortHandle))
-                .ok_or(ExecutionError::InternalError(Box::new(
-                    JoinError::JoinBuild(left_name.0),
-                )))?;
+        // let left_name = self
+        //     .left
+        //     .clone()
+        //     .unwrap_or(NameOrAlias("Left".to_owned(), None));
 
-        let right_name = self
-            .right
-            .clone()
-            .unwrap_or(NameOrAlias("Right".to_owned(), None));
-        let right_schema =
-            input_schemas
-                .get(&(1 as PortHandle))
-                .ok_or(ExecutionError::InternalError(Box::new(
-                    JoinError::JoinBuild(right_name.0),
-                )))?;
+        let mut left_schema = input_schemas
+            .get(&LEFT_JOIN_PORT)
+            .ok_or(ExecutionError::InternalError(
+                "Invalid Product".to_string().into(),
+            ))?
+            .clone();
+        if let Some(left_table_name) = &self.left {
+            left_schema = extend_schema_source_def(&left_schema, left_table_name);
+        }
+
+        // let right_name = self
+        //     .right
+        //     .clone()
+        //     .unwrap_or(NameOrAlias("Right".to_owned(), None));
+
+        let mut right_schema = input_schemas
+            .get(&RIGHT_JOIN_PORT)
+            .ok_or(ExecutionError::InternalError(
+                "Invalid Product".to_string().into(),
+            ))?
+            .clone();
+        if let Some(right_table_name) = &self.right {
+            right_schema = extend_schema_source_def(&right_schema, right_table_name);
+        }
 
         let (left_join_key_indexes, right_join_key_indexes) =
-            parse_join_constraint(expression, left_schema, right_schema)
+            parse_join_constraint(expression, &left_schema, &right_schema)
                 .map_err(|err| ExecutionError::InternalError(Box::new(err)))?;
 
-        let join_operator =
-            JoinOperator::new(join_type, left_join_key_indexes, right_join_key_indexes);
+        let join_operator = JoinOperator::new(
+            join_type,
+            left_join_key_indexes,
+            right_join_key_indexes,
+            Record::from_schema(&left_schema),
+            Record::from_schema(&right_schema),
+        );
 
         Ok(Box::new(ProductProcessor::new(join_operator)))
     }

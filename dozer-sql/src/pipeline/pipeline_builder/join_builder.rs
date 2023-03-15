@@ -35,13 +35,13 @@ pub(crate) fn insert_join_to_pipeline(
     let input_nodes = vec![];
 
     let left_table = &from.relation;
-
+    let mut left_name_or_alias = Some(get_name_or_alias(left_table)?);
     let mut left_join_source =
         insert_join_source_to_pipeline(left_table.clone(), pipeline, pipeline_idx, query_context)?;
 
     for join in &from.joins {
         let right_table = &join.relation;
-
+        let right_name_or_alias = Some(get_name_or_alias(right_table)?);
         let right_join_source = insert_join_source_to_pipeline(
             right_table.clone(),
             pipeline,
@@ -49,8 +49,11 @@ pub(crate) fn insert_join_to_pipeline(
             query_context,
         )?;
 
-        let join_processor_factory =
-            JoinProcessorFactory::new(None, None, join.join_operator.clone());
+        let join_processor_factory = JoinProcessorFactory::new(
+            left_name_or_alias.clone(),
+            right_name_or_alias,
+            join.join_operator.clone(),
+        );
         let join_processor_name = format!("join_{}", uuid::Uuid::new_v4());
 
         let mut pipeline_entry_points = vec![];
@@ -120,6 +123,8 @@ pub(crate) fn insert_join_to_pipeline(
                 .map_err(PipelineError::InternalExecutionError)?,
         }
 
+        // TODO: refactor join source name and aliasing logic
+        left_name_or_alias = None;
         left_join_source = JoinSource::Join(ConnectionInfo {
             input_nodes: input_nodes.clone(),
             output_node: (join_processor_name, DEFAULT_PORT_HANDLE),

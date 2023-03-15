@@ -29,26 +29,6 @@ pub struct TableOperator {
     pub args: Vec<FunctionArg>,
 }
 
-impl TableOperator {
-    pub fn try_from(table_factor: TableFactor) -> Result<Self, PipelineError> {
-        match table_factor {
-            TableFactor::Table { name, args, .. } => {
-                if let Some(table_args) = args {
-                    Ok(Self {
-                        name,
-                        args: table_args,
-                    })
-                } else {
-                    Err(PipelineError::UnsupportedTableOperator(name.to_string()))
-                }
-            }
-            _ => Err(PipelineError::UnsupportedTableOperator(
-                table_factor.to_string(),
-            )),
-        }
-    }
-}
-
 pub fn insert_from_to_pipeline(
     from: &TableWithJoins,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
