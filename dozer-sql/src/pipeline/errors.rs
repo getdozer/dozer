@@ -284,6 +284,12 @@ pub enum ProductError {
 
     #[error("Error updating a record from {0} cannot insert the new entry\n{1}")]
     UpdateNewError(String, #[source] BoxedError),
+
+    #[error("Error in the FROM clause, Table Function is not supported")]
+    UnsupportedTableFunction,
+
+    #[error("Error in the FROM clause, UNNEST is not supported")]
+    UnsupportedUnnest,
 }
 
 #[derive(Error, Debug)]
