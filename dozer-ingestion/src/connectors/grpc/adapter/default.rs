@@ -1,9 +1,6 @@
-use dozer_types::{
-    serde_json,
-    types::{SchemaIdentifier, SourceSchema},
-};
+use dozer_types::{serde_json, types::SchemaIdentifier};
 
-use crate::errors::ConnectorError;
+use crate::{connectors::SourceSchema, errors::ConnectorError};
 
 use super::{GrpcIngestMessage, IngestAdapter};
 use dozer_types::{
@@ -26,37 +23,33 @@ pub struct DefaultAdapter {
 }
 
 impl DefaultAdapter {
-    fn parse_schemas(schemas_str: &str) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let mut schemas: Vec<SourceSchema> =
+    fn parse_schemas(schemas_str: &str) -> Result<HashMap<String, SourceSchema>, ConnectorError> {
+        let mut schemas: HashMap<String, SourceSchema> =
             serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
 
-        schemas = schemas
-            .iter()
+        schemas
+            .iter_mut()
             .enumerate()
-            .map(|(id, schema)| {
-                let mut s = schema.clone();
-                s.schema.identifier = Some(SchemaIdentifier {
+            .for_each(|(id, (_, schema))| {
+                schema.schema.identifier = Some(SchemaIdentifier {
                     id: id as u32,
                     version: 1,
                 });
-                s
-            })
-            .collect();
+            });
 
         Ok(schemas)
     }
 }
 impl IngestAdapter for DefaultAdapter {
     fn new(schemas_str: String) -> Result<Self, ConnectorError> {
-        let schemas = Self::parse_schemas(&schemas_str)?;
-        let schema_map = schemas.into_iter().map(|v| (v.name.clone(), v)).collect();
+        let schema_map = Self::parse_schemas(&schemas_str)?;
         Ok(Self { schema_map })
     }
-    fn get_schemas(&self) -> Vec<SourceSchema> {
+    fn get_schemas(&self) -> Vec<(String, SourceSchema)> {
         self.schema_map
-            .values()
-            .cloned()
-            .collect::<Vec<SourceSchema>>()
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
     }
     fn handle_message(
         &self,

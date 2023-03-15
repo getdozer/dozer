@@ -1,9 +1,6 @@
-use dozer_types::{
-    grpc_types::ingest::{IngestArrowRequest, IngestRequest},
-    types::SourceSchema,
-};
+use dozer_types::grpc_types::ingest::{IngestArrowRequest, IngestRequest};
 
-use crate::{errors::ConnectorError, ingestion::Ingestor};
+use crate::{connectors::SourceSchema, errors::ConnectorError, ingestion::Ingestor};
 
 mod default;
 
@@ -16,7 +13,7 @@ where
     Self: Send + Sync + 'static + Sized,
 {
     fn new(schemas_str: String) -> Result<Self, ConnectorError>;
-    fn get_schemas(&self) -> Vec<SourceSchema>;
+    fn get_schemas(&self) -> Vec<(String, SourceSchema)>;
     fn handle_message(
         &self,
         msg: GrpcIngestMessage,
@@ -48,7 +45,7 @@ impl<A> GrpcIngestor<A>
 where
     A: IngestAdapter,
 {
-    pub fn get_schemas(&self) -> Result<Vec<SourceSchema>, ConnectorError> {
+    pub fn get_schemas(&self) -> Result<Vec<(String, SourceSchema)>, ConnectorError> {
         Ok(self.adapter.get_schemas())
     }
 

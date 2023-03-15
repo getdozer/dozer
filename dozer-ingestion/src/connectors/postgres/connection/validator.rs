@@ -1,6 +1,6 @@
+use crate::connectors::object_store::schema_mapper::TableInfo;
 use crate::connectors::postgres::connector::ReplicationSlotInfo;
 
-use crate::connectors::TableInfo;
 use crate::errors::PostgresConnectorError::{
     ColumnNameNotValid, ColumnsNotFound, ConnectionFailure, InvalidQueryError,
     MissingTableInReplicationSlot, NoAvailableSlotsError, ReplicationIsNotAvailableForUserError,
@@ -148,8 +148,8 @@ fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresCon
     for t in table_info {
         if let Some(columns) = &t.columns {
             for column in columns {
-                if !column_name_regex.is_match(&column.name) {
-                    return Err(ColumnNameNotValid(column.name.clone()));
+                if !column_name_regex.is_match(column) {
+                    return Err(ColumnNameNotValid(column.clone()));
                 }
             }
         }
@@ -218,9 +218,8 @@ fn validate_tables(
             let existing_cols = table_columns_map.get(&table_name).unwrap();
 
             for c in column_info.iter() {
-                if !existing_cols.contains(&c.name) {
-                    error_columns =
-                        format!("{0}{1} in {2} table, ", error_columns, c.name, table_name);
+                if !existing_cols.contains(c) {
+                    error_columns = format!("{0}{1} in {2} table, ", error_columns, c, table_name);
                 }
             }
         }
@@ -327,12 +326,10 @@ fn validate_limit_of_replications(client: &mut Client) -> Result<(), PostgresCon
 
 #[cfg(test)]
 mod tests {
-    use crate::connectors::postgres::connection::validator::{
-        validate_columns_names, validate_connection, validate_tables, validate_tables_names,
-    };
+    use super::*;
+
     use crate::connectors::postgres::connector::ReplicationSlotInfo;
     use crate::connectors::postgres::test_utils::get_client;
-    use crate::connectors::{ColumnInfo, TableInfo};
     use crate::errors::PostgresConnectorError;
     use crate::errors::PostgresSchemaError::UnsupportedTableType;
     use crate::test_util::{get_config, run_connector_test};
@@ -396,7 +393,7 @@ mod tests {
     //
     //         config.user("dozer_test_without_permission");
     //
-    //         let result = validate_connection("pg_test_conn", config, None, None);
+    //         let result = validate_connection(config, None, None);
     //
     //         assert!(result.is_err());
     //
@@ -465,14 +462,8 @@ mod tests {
                 .expect("User creation failed");
 
             let columns = vec![
-                ColumnInfo {
-                    name: String::from("column_not_existing_1"),
-                    data_type: Some(String::from("serial")),
-                },
-                ColumnInfo {
-                    name: String::from("column_not_existing_2"),
-                    data_type: Some(String::from("serial")),
-                },
+                String::from("column_not_existing_1"),
+                String::from("column_not_existing_2"),
             ];
 
             let tables = vec![TableInfo {
@@ -546,7 +537,7 @@ mod tests {
         //     name: "existing_slot".to_string(),
         //     start_lsn: PgLsn::from(0),
         // };
-        // let result = validate_connection("pg_test_conn", config, None, Some(replication_info));
+        // let result = validate_connection(config, None, Some(replication_info));
         //
         // client
         //     .query(r#"SELECT pg_drop_replication_slot('existing_slot');"#, &[])
@@ -675,12 +666,9 @@ mod tests {
 
         for (column_name, expected_result) in columns_names_with_result {
             let res = validate_columns_names(&vec![TableInfo {
-                name: "column_test_table".to_string(),
                 schema: Some("public".to_string()),
-                columns: Some(vec![ColumnInfo {
-                    name: column_name.to_string(),
-                    data_type: None,
-                }]),
+                name: "column_test_table".to_string(),
+                columns: Some(vec![column_name.to_string()]),
             }]);
 
             assert_eq!(expected_result, res.is_ok());

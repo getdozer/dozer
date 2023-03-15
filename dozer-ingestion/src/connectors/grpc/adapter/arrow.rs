@@ -2,18 +2,32 @@ use std::collections::HashMap;
 
 use dozer_types::{
     arrow::datatypes::Schema as ArrowSchema,
-    arrow::ipc::reader::StreamReader,
+    arrow::{self, ipc::reader::StreamReader},
     arrow_types::{self, from_arrow::map_record_batch_to_dozer_records},
     bytes::{Buf, Bytes},
     grpc_types::ingest::IngestArrowRequest,
-    ingestion_types::{GrpcArrowSchema, IngestionMessage},
+    ingestion_types::IngestionMessage,
+    serde::{Deserialize, Serialize},
     serde_json,
-    types::{Operation, Record, Schema, SchemaIdentifier, SourceSchema},
+    types::{Operation, Record, Schema, SchemaIdentifier},
 };
 
-use crate::{errors::ConnectorError, ingestion::Ingestor};
+use crate::{
+    connectors::{CdcType, SourceSchema},
+    errors::ConnectorError,
+    ingestion::Ingestor,
+};
 
 use super::{GrpcIngestMessage, IngestAdapter};
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(crate = "dozer_types::serde")]
+pub struct GrpcArrowSchema {
+    pub name: String,
+    pub schema: arrow::datatypes::Schema,
+    #[serde(default)]
+    pub cdc_type: CdcType,
+}
 
 // Input is a JSON string or a path to a JSON file
 // Takes name, arrow schema, and optionally replication type
@@ -25,9 +39,10 @@ pub struct ArrowAdapter {
 }
 
 impl ArrowAdapter {
+    #[allow(clippy::type_complexity)]
     fn parse_schemas(
         schemas_str: &str,
-    ) -> Result<(Vec<SourceSchema>, HashMap<u32, ArrowSchema>), ConnectorError> {
+    ) -> Result<(Vec<(String, SourceSchema)>, HashMap<u32, ArrowSchema>), ConnectorError> {
         let grpc_schemas: Vec<GrpcArrowSchema> =
             serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
         let mut schemas = vec![];
@@ -44,11 +59,9 @@ impl ArrowAdapter {
 
             arrow_schemas.insert(id as u32, grpc_schema.schema);
 
-            schemas.push(SourceSchema::new(
+            schemas.push((
                 grpc_schema.name,
-                None,
-                schema,
-                grpc_schema.replication_type.clone(),
+                SourceSchema::new(schema, grpc_schema.cdc_type),
             ));
         }
         Ok((schemas, arrow_schemas))
@@ -58,18 +71,18 @@ impl ArrowAdapter {
 impl IngestAdapter for ArrowAdapter {
     fn new(schemas_str: String) -> Result<Self, ConnectorError> {
         let (schemas, arrow_schemas) = Self::parse_schemas(&schemas_str)?;
-        let schema_map = schemas.into_iter().map(|v| (v.name.clone(), v)).collect();
+        let schema_map = schemas.into_iter().collect();
         Ok(Self {
             schema_map,
             _arrow_schemas: arrow_schemas,
         })
     }
 
-    fn get_schemas(&self) -> Vec<SourceSchema> {
+    fn get_schemas(&self) -> Vec<(String, SourceSchema)> {
         self.schema_map
-            .values()
-            .cloned()
-            .collect::<Vec<SourceSchema>>()
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
     }
 
     fn handle_message(

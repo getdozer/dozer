@@ -4,11 +4,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{
-    errors::internal::BoxedError,
-    node::OpIdentifier,
-    types::{Operation, ReplicationChangesTrackingType},
-};
+use crate::{errors::internal::BoxedError, node::OpIdentifier, types::Operation};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IngestionMessage {
@@ -327,13 +323,6 @@ impl LocalStorage {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct GrpcArrowSchema {
-    pub name: String,
-    pub schema: arrow::datatypes::Schema,
-    #[serde(default)]
-    pub replication_type: ReplicationChangesTrackingType,
-}
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct DeltaTable {
     #[prost(string, tag = "1")]

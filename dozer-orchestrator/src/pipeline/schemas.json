@@ -1,6 +1,5 @@
-[
-  {
-    "name": "users",
+{
+  "users": {
     "schema": {
       "fields": [
         {
@@ -16,8 +15,7 @@
       ]
     }
   },
-  {
-    "name": "customers",
+  "customers": {
     "schema": {
       "fields": [
         {
@@ -33,4 +31,4 @@
       ]
     }
   }
-]
+}

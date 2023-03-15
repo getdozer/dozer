@@ -1,9 +1,8 @@
-use crate::connectors::{Connector, ValidationResults};
+use crate::connectors::{Connector, SourceSchema, SourceSchemaResult, TableIdentifier};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
 
-use dozer_types::types::SourceSchema;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 use tokio::runtime::Runtime;
 
@@ -23,25 +22,82 @@ impl KafkaConnector {
     pub fn new(id: u64, config: KafkaConfig) -> Self {
         Self { id, config }
     }
+
+    fn get_schemas_impl(
+        &self,
+        table_names: Option<&[String]>,
+    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+        if let Some(schema_registry_url) = &self.config.schema_registry_url {
+            SchemaRegistry::get_schema(table_names, schema_registry_url.clone())
+        } else {
+            NoSchemaRegistry::get_schema(table_names, self.config.broker.clone())
+        }
+    }
 }
 
 impl Connector for KafkaConnector {
-    fn get_schemas(
-        &self,
-        table_names: Option<&Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        self.config.schema_registry_url.clone().map_or(
-            NoSchemaRegistry::get_schema(table_names, self.config.clone()),
-            |_| SchemaRegistry::get_schema(table_names, self.config.clone()),
-        )
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
     }
 
-    fn start(
+    fn validate_connection(&self) -> Result<(), ConnectorError> {
+        Ok(())
+    }
+
+    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        Ok(vec![])
+    }
+
+    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        let table_names = tables
+            .iter()
+            .map(|table| table.name.clone())
+            .collect::<Vec<_>>();
+        self.get_schemas_impl(Some(&table_names)).map(|_| ())
+    }
+
+    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+        let table_names = tables
+            .iter()
+            .map(|table| table.name.clone())
+            .collect::<Vec<_>>();
+        let schemas = self.get_schemas_impl(Some(&table_names))?;
+        let mut result = vec![];
+        for (table, schema) in tables.into_iter().zip(schemas) {
+            let column_names = schema
+                .schema
+                .fields
+                .into_iter()
+                .map(|field| field.name)
+                .collect();
+            result.push(TableInfo {
+                schema: table.schema,
+                name: table.name,
+                column_names,
+            });
+        }
+        Ok(result)
+    }
+
+    fn get_schemas(
         &self,
-        _from_seq: Option<(u64, u64)>,
-        ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
-    ) -> Result<(), ConnectorError> {
+        table_infos: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
+        let table_names = table_infos
+            .iter()
+            .map(|table| table.name.clone())
+            .collect::<Vec<_>>();
+        Ok(self
+            .get_schemas_impl(Some(&table_names))?
+            .into_iter()
+            .map(Ok)
+            .collect())
+    }
+
+    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         let topic = tables
             .get(0)
             .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
@@ -50,22 +106,6 @@ impl Connector for KafkaConnector {
         Runtime::new()
             .unwrap()
             .block_on(async { run(broker, topic, ingestor).await })
-    }
-
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        Ok(())
-    }
-
-    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        todo!()
-    }
-
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default()
-    }
-
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
-        Ok(false)
     }
 }
 

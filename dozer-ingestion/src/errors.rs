@@ -36,9 +36,6 @@ pub enum ConnectorError {
     #[error("Table not found: {0}")]
     TableNotFound(String),
 
-    #[error("Columns are expected in table_info")]
-    ColumnsNotFound,
-
     #[error("Failed to initialize connector {0}")]
     InitializationError(String),
 
@@ -429,12 +426,12 @@ pub enum ObjectStoreObjectError {
 
 #[derive(Error, Debug)]
 pub enum ObjectStoreTableReaderError {
-    #[error("Table read failed")]
+    #[error("Table read failed: {0}")]
     TableReadFailed(DataFusionError),
 
-    #[error("Columns select failed")]
+    #[error("Columns select failed: {0}")]
     ColumnsSelectFailed(DataFusionError),
 
-    #[error("Stream execution failed")]
+    #[error("Stream execution failed: {0}")]
     StreamExecutionError(DataFusionError),
 }

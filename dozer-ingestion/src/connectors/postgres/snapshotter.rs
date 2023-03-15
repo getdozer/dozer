@@ -1,3 +1,5 @@
+use crate::connectors::object_store::schema_mapper::TableInfo;
+use crate::connectors::SourceSchemaResult;
 use crate::ingestion::Ingestor;
 
 use super::helper;
@@ -8,9 +10,8 @@ use crate::errors::PostgresConnectorError::{SnapshotReadError, SyncWithSnapshotE
 use crossbeam::channel::{unbounded, Sender};
 
 use crate::connectors::postgres::schema::helper::SchemaHelper;
-use crate::connectors::TableInfo;
 use crate::errors::ConnectorError::PostgresConnectorError;
-use dozer_types::types::{Schema, SourceSchema};
+use dozer_types::types::Schema;
 use postgres::fallible_iterator::FallibleIterator;
 
 use std::thread;
@@ -26,11 +27,12 @@ pub struct PostgresSnapshotter<'a> {
 }
 
 impl<'a> PostgresSnapshotter<'a> {
-    pub fn get_tables(&self, tables: &[TableInfo]) -> Result<Vec<SourceSchema>, ConnectorError> {
+    pub fn get_tables(
+        &self,
+        tables: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
         let helper = SchemaHelper::new(self.conn_config.clone());
-        helper
-            .get_schemas(Some(tables))
-            .map_err(PostgresConnectorError)
+        helper.get_schemas(tables).map_err(PostgresConnectorError)
     }
 
     pub fn sync_table(
@@ -86,19 +88,17 @@ impl<'a> PostgresSnapshotter<'a> {
     }
 
     pub fn sync_tables(&self, tables: &[TableInfo]) -> Result<(), ConnectorError> {
-        let tables = self.get_tables(tables)?;
+        let schemas = self.get_tables(tables)?;
 
         let mut left_tables_count = tables.len();
 
         let (tx, rx) = unbounded();
 
-        for t in tables.iter() {
-            let schema = t.schema.clone();
-            let name = t.name.clone();
-            let schema_name = t
-                .schema_name
-                .as_ref()
-                .map_or("public".to_string(), |s| s.clone());
+        for (schema, table) in schemas.into_iter().zip(tables) {
+            let schema = schema?;
+            let schema = schema.schema;
+            let schema_name = table.schema.clone().unwrap_or("public".to_string());
+            let name = table.name.clone();
             let conn_config = self.conn_config.clone();
             let sender = tx.clone();
             thread::spawn(move || {
@@ -143,12 +143,12 @@ mod tests {
 
     use crate::{
         connectors::{
+            object_store::schema_mapper,
             postgres::{
                 connection::helper::map_connection_config,
                 connector::{PostgresConfig, PostgresConnector},
                 tests::client::TestPostgresClient,
             },
-            TableInfo,
         },
         errors::ConnectorError,
         ingestion::{IngestionConfig, Ingestor},
@@ -179,23 +179,16 @@ mod tests {
             test_client.create_simple_table("public", &table_name);
             test_client.insert_rows(&table_name, 2, None);
 
-            let tables = vec![TableInfo {
-                name: table_name.clone(),
-                schema: Some("public".to_string()),
-                columns: None,
-            }];
-
             let conn_config = map_connection_config(config).unwrap();
 
             let postgres_config = PostgresConfig {
                 name: connector_name,
-                tables: Some(tables),
                 config: conn_config.clone(),
             };
 
             let connector = PostgresConnector::new(1, postgres_config);
 
-            let input_tables = vec![TableInfo {
+            let input_tables = vec![schema_mapper::TableInfo {
                 name: table_name,
                 schema: Some("public".to_string()),
                 columns: None,
@@ -252,24 +245,17 @@ mod tests {
             test_client.create_simple_table("public", &table_name);
             test_client.insert_rows(&table_name, 2, None);
 
-            let tables = vec![TableInfo {
-                name: table_name,
-                schema: Some("public".to_string()),
-                columns: None,
-            }];
-
             let conn_config = map_connection_config(config).unwrap();
 
             let postgres_config = PostgresConfig {
                 name: connector_name,
-                tables: Some(tables),
                 config: conn_config.clone(),
             };
 
             let connector = PostgresConnector::new(1, postgres_config);
 
             let input_table_name = String::from("not_existing_table");
-            let input_tables = vec![TableInfo {
+            let input_tables = vec![schema_mapper::TableInfo {
                 name: input_table_name,
                 schema: Some("public".to_string()),
                 columns: None,
@@ -314,23 +300,16 @@ mod tests {
             let table_name = format!("test_table_{}", rng.gen::<u32>());
             let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
 
-            let tables = vec![TableInfo {
-                name: table_name.clone(),
-                schema: Some("public".to_string()),
-                columns: None,
-            }];
-
             let conn_config = map_connection_config(config).unwrap();
 
             let postgres_config = PostgresConfig {
                 name: connector_name,
-                tables: Some(tables),
                 config: conn_config.clone(),
             };
 
             let connector = PostgresConnector::new(1, postgres_config);
 
-            let input_tables = vec![TableInfo {
+            let input_tables = vec![schema_mapper::TableInfo {
                 name: table_name,
                 schema: Some("public".to_string()),
                 columns: None,
