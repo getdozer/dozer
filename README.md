@@ -58,10 +58,10 @@ cargo install --path dozer-orchestrator --locked
 
 **Download sample configuration and data**
 
-Create a new empty directory and run the commands below. This will download a [sample configuration file](https://github.com/getdozer/dozer-samples/blob/main/local-storage/dozer-config.yaml) and a sample [NY Taxi Dataset file](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
+Create a new empty directory and run the commands below. This will download a [sample configuration file](https://github.com/getdozer/dozer-samples/tree/main/blob/main/local-storage/dozer-config.yaml) and a sample [NY Taxi Dataset file](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
 
 ```bash
-curl -o dozer-config.yaml https://raw.githubusercontent.com/getdozer/dozer-samples/main/local-storage/dozer-config.yaml
+curl -o dozer-config.yaml https://raw.githubusercontent.com/getdozer/dozer-samples/tree/main/main/local-storage/dozer-config.yaml
 curl --create-dirs -o data/trips/fhvhv_tripdata_2022-01.parquet https://d37ci6vzurychx.cloudfront.net/trip-data/fhvhv_tripdata_2022-01.parquet
 ```
 
@@ -91,6 +91,71 @@ Alternatively, you can use [Postman](https://www.postman.com/) to discover gRPC 
 
 Read more about Dozer [here](https://getdozer.io/docs/dozer). And remember to star 🌟 our repo to support us!
 
-### More Samples
+
+## Client Libraries
+
+| Library                                                  | Language                                              | License |
+| -------------------------------------------------------- | ----------------------------------------------------- | ------- |
+| [dozer-python](https://github.com/getdozer/dozer-python) | Dozer Client library for Python                       | MIT     |
+| [dozer-js](https://github.com/getdozer/dozer-js)         | Dozer Client library for Javascript                   | MIT     |
+| [dozer-react](https://github.com/getdozer/dozer-react)   | Dozer Client library for React with easy to use hooks | MIT     |
+
+<br>
+
+
+[**Python**](https://github.com/getdozer/dozer-python)
+```python
+from dozer.api import ApiClient
+api_client = ApiClient('trips')
+api_client.query()
+```
+
+[**Javascript**](https://github.com/getdozer/dozer-js)
+```js
+import { ApiClient } from "@getdozer/dozer-js";
+
+const flightsClient = new ApiClient('flights');
+flightsClient.count().then(count => {
+    console.log(count);
+});
+```
+
+[**React**](https://github.com/getdozer/dozer-react)
+```js
+import { useCount } from "@getdozer/dozer-react";
+const AirportComponent = () => {
+    const [count] = useCount('trips');
+    <div> Trips: {count} </div>
+}
+```
+
+## Samples
 
 Check out Dozer's [samples repository](https://github.com/getdozer/dozer-samples) for more comprehensive examples and use case scenarios. 
+
+| Type             | Sample                                                                                                                     | Notes                                                                        |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Connectors       | [Postgres](https://github.com/getdozer/dozer-samples/tree/main/connectors/postgres)                                        | Load data using Postgres CDC                                                 |
+|                  | [Local Storage](https://github.com/getdozer/dozer-samples/tree/main/connectors/local-storage)                              | Load data from local files                                                   |
+|                  | Snowflake (Coming soon)                                                                                                    | Load data using Snowflake table streams                                      |
+| SQL              | [Using JOINs](https://github.com/getdozer/dozer-samples/tree/main/sql/join)                                                | Dozer APIs over multiple sources using JOIN                                  |
+|                  | [Using Aggregations](https://github.com/getdozer/dozer-samples/tree/main/sql/aggregations)                                 | How to aggregate using Dozer                                                 |
+|                  | [Using Window Functions](https://github.com/getdozer/dozer-samples/tree/main/sql/window-functions)                         | Use `Hop` and `Tumble` Windows                                               |
+| Use Cases        | [Flight Microservices](https://github.com/getdozer/dozer-samples/tree/main/usecases/pg-flights)                            | Build APIs over multiple microservices.                                      |
+|                  | Use Dozer to Instrument (Coming soon)                                                                                      | Combine Log data to get real time insights                                   |
+|                  | Real Time Model Scoring (Coming soon)                                                                                      | Deploy trained models to get real time insights as APIs                      |
+| Client Libraries | Dozer React Starter (Coming soon)                                                                                          | Instantly start building real time views using Dozer and React               |
+|                  | [Ingest Polars/Pandas Dataframes](https://github.com/getdozer/dozer-samples/tree/main/client-samples/ingest-python-sample) | Instantly ingest Polars/Pandas dataframes using Arrow format and deploy APIs |
+| Authorization    | Dozer Authorziation (Coming soon)                                                                                          | How to apply JWT Auth on Dozer                                               |
+
+
+## Releases
+
+We release Dozer typically every 2 weeks and is available on our [releases page](https://github.com/getdozer/dozer/releases/latest). Currently, we publish binaries for Ubuntu 20.04, Apple(Intel) and Apple(Silicon).
+
+
+Please visit our [issues section](https://github.com/getdozer/dozer/issues) if you are having any trouble running the project.
+
+## Contributing
+
+Please refer to [Contributing](https://getdozer.io/docs/contributing/overview) for more details.
