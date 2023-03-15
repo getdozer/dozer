@@ -349,7 +349,15 @@ impl SchemaHelper {
         for table in tables {
             if let Some(columns) = &table.columns {
                 let mut existing_columns = HashMap::new();
-                if let Some(res) = validation_result.get(&table.name) {
+                let key = format!(
+                    "{}.{}",
+                    table
+                        .schema
+                        .as_ref()
+                        .map_or("public".to_string(), |s| s.clone()),
+                    table.name
+                );
+                if let Some(res) = validation_result.get(&key) {
                     for (col_name, _) in res {
                         if let Some(name) = col_name {
                             existing_columns.insert(name.clone(), ());
@@ -360,7 +368,7 @@ impl SchemaHelper {
                 for ColumnInfo { name, .. } in columns {
                     if existing_columns.get(name).is_none() {
                         validation_result
-                            .entry(table.name.clone())
+                            .entry(key.clone())
                             .and_modify(|r| {
                                 r.push((
                                     None,
