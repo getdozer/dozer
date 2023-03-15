@@ -4,7 +4,7 @@ use dozer_types::log::debug;
 use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
-use crate::connectors::TableInfo;
+use crate::connectors::{CdcType, SourceSchema};
 use crate::errors::SnowflakeError::{QueryError, SnowflakeStreamError};
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use crate::errors::SnowflakeSchemaError::{
@@ -385,21 +385,21 @@ impl Client {
         Ok(())
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn fetch_tables(
         &self,
-        tables: Option<&Vec<TableInfo>>,
-        tables_indexes: HashMap<String, usize>,
+        tables_indexes: Option<HashMap<String, usize>>,
         keys: HashMap<String, Vec<String>>,
         conn: &Connection<AutocommitOn>,
-    ) -> Result<Vec<SourceSchema>, SnowflakeError> {
-        let tables_condition = tables.map_or("".to_string(), |tables| {
+    ) -> Result<Vec<Result<(String, SourceSchema), ConnectorError>>, SnowflakeError> {
+        let tables_condition = tables_indexes.as_ref().map_or("".to_string(), |tables| {
             let mut buf = String::new();
             buf.write_str(" AND TABLE_NAME IN(").unwrap();
-            for (idx, table_info) in tables.iter().enumerate() {
+            for (idx, table_name) in tables.keys().enumerate() {
                 if idx > 0 {
                     buf.write_char(',').unwrap();
                 }
-                buf.write_str(&format!("\'{}\'", table_info.name)).unwrap();
+                buf.write_str(&format!("\'{}\'", table_name)).unwrap();
             }
             buf.write_char(')').unwrap();
             buf
@@ -438,7 +438,8 @@ impl Client {
 
                 let schema = schema_result?;
 
-                let mut schemas: HashMap<String, Schema> = HashMap::new();
+                let mut schemas: HashMap<String, Result<Schema, SnowflakeSchemaError>> =
+                    HashMap::new();
                 let iterator = ResultIterator {
                     cols,
                     stmt: Some(data),
@@ -473,48 +474,62 @@ impl Client {
                         None
                     };
 
-                    let schema_id = *tables_indexes.get(&table_name.clone()).unwrap();
+                    let schema_id = *tables_indexes.as_ref().unwrap().get(table_name).unwrap();
 
-                    schemas
-                        .entry(table_name.clone())
-                        .or_insert(Schema {
-                            identifier: Some(SchemaIdentifier {
-                                id: schema_id as u32,
-                                version: 0,
-                            }),
-                            fields: vec![],
-                            primary_index: vec![],
-                        })
-                        .fields
-                        .push(FieldDefinition {
-                            name: field_name.clone(),
-                            typ: SchemaHelper::map_schema_type(type_name, scale)?,
-                            nullable: *nullable,
-                            source: SourceDefinition::Dynamic,
-                        })
+                    match SchemaHelper::map_schema_type(type_name, scale) {
+                        Ok(typ) => {
+                            if let Ok(schema) = schemas
+                                .entry(table_name.clone())
+                                .or_insert(Ok(Schema {
+                                    identifier: Some(SchemaIdentifier {
+                                        id: schema_id as u32,
+                                        version: 0,
+                                    }),
+                                    fields: vec![],
+                                    primary_index: vec![],
+                                }))
+                                .as_mut()
+                            {
+                                schema.fields.push(FieldDefinition {
+                                    name: field_name.clone(),
+                                    typ,
+                                    nullable: *nullable,
+                                    source: SourceDefinition::Dynamic,
+                                });
+                            }
+                        }
+                        Err(e) => {
+                            schemas.insert(table_name.clone(), Err(e));
+                        }
+                    }
                 }
 
                 Ok(schemas
                     .into_iter()
-                    .map(|(name, mut schema)| {
-                        let mut indexes = vec![];
-                        keys.get(&name).map_or((), |columns| {
-                            schema.fields.iter().enumerate().for_each(|(idx, f)| {
-                                if columns.contains(&f.name) {
-                                    indexes.push(idx);
-                                }
+                    .map(|(name, schema)| match schema {
+                        Ok(mut schema) => {
+                            let mut indexes = vec![];
+                            keys.get(&name).map_or((), |columns| {
+                                schema.fields.iter().enumerate().for_each(|(idx, f)| {
+                                    if columns.contains(&f.name) {
+                                        indexes.push(idx);
+                                    }
+                                });
                             });
-                        });
 
-                        let replication_type = if indexes.is_empty() {
-                            ReplicationChangesTrackingType::Nothing
-                        } else {
-                            ReplicationChangesTrackingType::FullChanges
-                        };
+                            let cdc_type = if indexes.is_empty() {
+                                CdcType::Nothing
+                            } else {
+                                CdcType::FullChanges
+                            };
 
-                        schema.primary_index = indexes;
+                            schema.primary_index = indexes;
 
-                        SourceSchema::new(name, None, schema, replication_type)
+                            Ok((name, SourceSchema::new(schema, cdc_type)))
+                        }
+                        Err(e) => Err(ConnectorError::SnowflakeError(
+                            SnowflakeError::SnowflakeSchemaError(e),
+                        )),
                     })
                     .collect())
             }

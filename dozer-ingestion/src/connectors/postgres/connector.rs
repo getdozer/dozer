@@ -1,10 +1,10 @@
-use crate::connectors::postgres::connection::validator::{validate_connection, validate_slot};
+use crate::connectors::object_store::schema_mapper;
+use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
-use crate::connectors::{Connector, TableInfo, ValidationResults};
+use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::tracing::{error, info};
-use dozer_types::types::SourceSchema;
 use postgres::Client;
 use postgres_types::PgLsn;
 
@@ -19,7 +19,6 @@ use super::connection::helper;
 #[derive(Clone, Debug)]
 pub struct PostgresConfig {
     pub name: String,
-    pub tables: Option<Vec<TableInfo>>,
     pub config: Config,
 }
 
@@ -27,7 +26,6 @@ pub struct PostgresConfig {
 pub struct PostgresConnector {
     pub id: u64,
     name: String,
-    tables: Option<Vec<TableInfo>>,
     replication_conn_config: Config,
     conn_config: Config,
     schema_helper: SchemaHelper,
@@ -54,7 +52,6 @@ impl PostgresConnector {
             name: config.name,
             conn_config: config.config,
             replication_conn_config,
-            tables: config.tables,
             schema_helper: helper,
         }
     }
@@ -80,27 +77,96 @@ impl PostgresConnector {
 }
 
 impl Connector for PostgresConnector {
-    fn get_schemas(
-        &self,
-        table_names: Option<&Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        self.schema_helper
-            .get_schemas(table_names.map(|t| &t[..]))
-            .map_err(PostgresConnectorError)
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
     }
 
-    fn start(
+    fn validate_connection(&self) -> Result<(), ConnectorError> {
+        validate_connection(&self.name, self.conn_config.clone(), None, None).map_err(Into::into)
+    }
+
+    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        Ok(self
+            .schema_helper
+            .get_tables(None)?
+            .into_iter()
+            .map(|table| TableIdentifier::new(Some(table.schema), table.name))
+            .collect())
+    }
+
+    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        let tables = tables
+            .iter()
+            .map(|table| schema_mapper::TableInfo {
+                schema: table.schema.clone(),
+                name: table.name.clone(),
+                columns: None,
+            })
+            .collect::<Vec<_>>();
+        validate_connection(&self.name, self.conn_config.clone(), Some(&tables), None)
+            .map_err(Into::into)
+    }
+
+    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+        let table_infos = tables
+            .iter()
+            .map(|table| schema_mapper::TableInfo {
+                schema: table.schema.clone(),
+                name: table.name.clone(),
+                columns: None,
+            })
+            .collect::<Vec<_>>();
+        Ok(self
+            .schema_helper
+            .get_tables(Some(&table_infos))?
+            .into_iter()
+            .map(|table| TableInfo {
+                schema: Some(table.schema),
+                name: table.name,
+                column_names: table.columns,
+            })
+            .collect())
+    }
+
+    fn get_schemas(
         &self,
-        from_seq: Option<(u64, u64)>,
-        ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
-    ) -> Result<(), ConnectorError> {
+        table_infos: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
+        let table_infos = table_infos
+            .iter()
+            .map(|table| schema_mapper::TableInfo {
+                schema: table.schema.clone(),
+                name: table.name.clone(),
+                columns: Some(table.column_names.clone()),
+            })
+            .collect::<Vec<_>>();
+        self.schema_helper
+            .get_schemas(&table_infos)
+            .map_err(Into::into)
+    }
+
+    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         let client = helper::connect(self.replication_conn_config.clone())
             .map_err(PostgresConnectorError)?;
-        self.create_publication(client)?;
+        let table_identifiers = tables
+            .iter()
+            .map(|table| TableIdentifier::new(table.schema.clone(), table.name.clone()))
+            .collect::<Vec<_>>();
+        self.create_publication(client, Some(&table_identifiers))?;
 
-        let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), from_seq);
+        let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), None);
 
+        let tables = tables
+            .into_iter()
+            .map(|table| schema_mapper::TableInfo {
+                schema: table.schema,
+                name: table.name,
+                columns: Some(table.column_names),
+            })
+            .collect::<Vec<_>>();
         let iterator = PostgresIterator::new(
             self.id,
             self.name.clone(),
@@ -113,47 +179,6 @@ impl Connector for PostgresConnector {
         );
         iterator.start(lsn)
     }
-
-    fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let tables_list = tables.or_else(|| self.tables.clone());
-        validate_connection(
-            &self.name,
-            self.conn_config.clone(),
-            tables_list.as_ref(),
-            None,
-        )?;
-
-        Ok(())
-    }
-
-    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        SchemaHelper::validate(&self.schema_helper, tables).map_err(PostgresConnectorError)
-    }
-
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        let tables = self.schema_helper.get_tables(None)?;
-        Ok(tables
-            .into_iter()
-            .map(|table_info| TableInfo {
-                name: table_info.name,
-                columns: Some(table_info.columns),
-                schema: Some(table_info.schema),
-            })
-            .collect())
-    }
-
-    fn can_start_from(&self, (lsn, _): (u64, u64)) -> Result<bool, ConnectorError> {
-        let mut client =
-            helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?;
-        let slot_info = ReplicationSlotInfo {
-            name: self.get_slot_name(),
-            start_lsn: PgLsn::from(lsn),
-        };
-        match validate_slot(&mut client, &slot_info, self.tables.as_ref()) {
-            Ok(_) => Ok(true),
-            Err(_e) => Ok(false),
-        }
-    }
 }
 
 impl PostgresConnector {
@@ -165,23 +190,25 @@ impl PostgresConnector {
         format!("dozer_slot_{}", self.name)
     }
 
-    pub fn create_publication(&self, mut client: Client) -> Result<(), ConnectorError> {
+    pub fn create_publication(
+        &self,
+        mut client: Client,
+        table_identifiers: Option<&[TableIdentifier]>,
+    ) -> Result<(), ConnectorError> {
         let publication_name = self.get_publication_name();
-        let table_str: String = match self.tables.as_ref() {
+        let table_str: String = match table_identifiers {
             None => "ALL TABLES".to_string(),
-            Some(arr) => {
-                let table_names: Vec<String> = arr
+            Some(table_identifiers) => {
+                let table_names = table_identifiers
                     .iter()
-                    .map(|t| {
+                    .map(|table_identifier| {
                         format!(
                             "{}.{}",
-                            t.schema
-                                .as_ref()
-                                .map_or("public".to_string(), |s| s.clone()),
-                            t.name.clone()
+                            table_identifier.schema.as_deref().unwrap_or("public"),
+                            table_identifier.name
                         )
                     })
-                    .collect();
+                    .collect::<Vec<_>>();
                 format!("TABLE {}", table_names.join(" , "))
             }
         };

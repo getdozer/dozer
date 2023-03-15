@@ -3,13 +3,9 @@ use postgres::Client;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
 use std::error::Error;
-use std::thread;
 
 use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
-use crate::connectors::{get_connector, TableInfo};
-use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_types::models::app_config::Config;
-use dozer_types::models::connection::Connection;
 use postgres::error::DbError;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -25,23 +21,6 @@ pub fn get_client(app_config: Config) -> TestPostgresClient {
         .unwrap();
 
     TestPostgresClient::new(config)
-}
-
-pub fn get_iterator(config: Connection, table_name: String) -> IngestionIterator {
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-    thread::spawn(move || {
-        let tables: Vec<TableInfo> = vec![TableInfo {
-            name: table_name,
-            schema: Some("public".to_string()),
-            columns: None,
-        }];
-
-        let connector = get_connector(config, Some(tables.clone())).unwrap();
-        connector.start(None, &ingestor, tables).unwrap();
-    });
-
-    iterator
 }
 
 pub fn create_slot(client_ref: Arc<RefCell<Client>>, slot_name: &str) -> PgLsn {

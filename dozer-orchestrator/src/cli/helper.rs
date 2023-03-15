@@ -16,16 +16,17 @@ pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {
     let dozer = init_dozer(config_path.to_string())?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
-    for (c, tables) in connection_map {
+    for (connection_name, (tables, schemas)) in connection_map {
         table_parent.add_row(row!["Connection", "Table", "Columns"]);
 
-        for s in tables {
-            let schema_table = s.schema.print();
+        for (table, schema) in tables.into_iter().zip(schemas) {
+            let schema_table = schema.schema.print();
 
-            let name = s.schema_name.map_or(s.name.clone(), |schema_name| {
-                format!("{schema_name}.{}", s.name)
+            let name = table.schema.map_or(table.name.clone(), |schema_name| {
+                format!("{schema_name}.{}", table.name)
             });
-            table_parent.add_row(row![c, name, schema_table]);
+
+            table_parent.add_row(row![connection_name, name, schema_table]);
         }
         table_parent.add_empty_row();
     }

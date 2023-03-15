@@ -1,7 +1,7 @@
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::schema_helper::map_value_to_dozer_field;
-use crate::connectors::{ColumnInfo, TableInfo};
+use crate::connectors::TableInfo;
 use crate::errors::ObjectStoreConnectorError::TableReaderError;
 use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
 use crate::errors::ObjectStoreTableReaderError::{
@@ -53,18 +53,11 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                 .map_err(ObjectStoreConnectorError::InternalDataFusionError)?,
         );
 
-        let columns: Vec<ColumnInfo> = match &table.columns {
-            Some(columns_list) if !columns_list.is_empty() => columns_list.clone(),
-            _ => fields
-                .iter()
-                .map(|f| ColumnInfo {
-                    name: f.name().to_string(),
-                    data_type: Some(f.data_type().to_string()),
-                })
-                .collect(),
+        let cols: Vec<&str> = if table.column_names.is_empty() {
+            fields.iter().map(|f| f.name().as_str()).collect()
+        } else {
+            table.column_names.iter().map(|c| c.as_str()).collect()
         };
-
-        let cols: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
         let data = ctx
             .read_table(provider.clone())
             .map_err(|e| TableReaderError(TableReadFailed(e)))?

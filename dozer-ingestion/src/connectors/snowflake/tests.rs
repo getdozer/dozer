@@ -1,5 +1,5 @@
 use crate::connectors::snowflake::test_utils::{get_client, remove_streams};
-use crate::connectors::{get_connector, TableInfo};
+use crate::connectors::{get_connector, TableIdentifier};
 use crate::ingestion::{IngestionConfig, Ingestor};
 
 use dozer_types::types::FieldType::{
@@ -53,16 +53,13 @@ fn test_disabled_connector_and_read_from_stream() {
         let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
         let connection_config = connection.clone();
-        let table = TableInfo {
-            name: table_name.clone(),
-            schema: None,
-            columns: None,
-        };
-        thread::spawn(move || {
-            let tables: Vec<TableInfo> = vec![table];
+        let connector = get_connector(connection_config).unwrap();
+        let tables = connector
+            .list_columns(vec![TableIdentifier::from_table_name(table_name.clone())])
+            .unwrap();
 
-            let connector = get_connector(connection_config, None).unwrap();
-            let _ = connector.start(None, &ingestor, tables);
+        thread::spawn(move || {
+            let _ = connector.start(&ingestor, tables);
         });
 
         let mut i = 0;
@@ -104,7 +101,7 @@ fn test_disabled_connector_and_read_from_stream() {
 fn test_disabled_connector_get_schemas_test() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
-        let connector = get_connector(connection.clone(), None).unwrap();
+        let connector = get_connector(connection.clone()).unwrap();
         let client = get_client(connection);
 
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
@@ -137,17 +134,12 @@ fn test_disabled_connector_get_schemas_test() {
             )
             .unwrap();
 
-        let schemas = connector
-            .as_ref()
-            .get_schemas(Some(&vec![TableInfo {
-                name: table_name.clone(),
-                schema: None,
-                columns: None,
-            }]))
+        let table_infos = connector
+            .list_columns(vec![TableIdentifier::from_table_name(table_name.clone())])
             .unwrap();
+        let schemas = connector.as_ref().get_schemas(&table_infos).unwrap();
 
-        let source_schema = schemas.get(0).unwrap();
-        assert_eq!(source_schema.name, table_name);
+        let source_schema = schemas.get(0).unwrap().as_ref().unwrap();
 
         for field in &source_schema.schema.fields {
             let expected_type = match field.name.as_str() {
@@ -178,33 +170,23 @@ fn test_disabled_connector_get_schemas_test() {
 fn test_disabled_connector_missing_table_validator() {
     run_connector_test("snowflake", |config| {
         let connection = config.connections.get(0).unwrap();
-        let connector = get_connector(connection.clone(), None).unwrap();
+        let connector = get_connector(connection.clone()).unwrap();
 
         let not_existing_table = "not_existing_table".to_string();
-        let result = connector
-            .validate_schemas(&[TableInfo {
-                name: not_existing_table,
-                schema: None,
-                columns: None,
-            }])
-            .unwrap();
+        let result =
+            connector.list_columns(vec![TableIdentifier::from_table_name(not_existing_table)]);
 
-        let error = result.get("not_existing_table").unwrap().get(0).unwrap();
-        assert_eq!(error.0, None);
-        assert!(error.1.is_err());
-        assert!(matches!(error.1, Err(TableNotFound(_))));
+        assert!(matches!(result.unwrap_err(), TableNotFound(_)));
 
         let existing_table = &config.sources.get(0).unwrap().table_name;
-        let result = connector
-            .validate_schemas(&[TableInfo {
-                name: existing_table.clone(),
-                schema: None,
-                columns: None,
-            }])
+        let table_infos = connector
+            .list_columns(vec![TableIdentifier::from_table_name(
+                existing_table.clone(),
+            )])
             .unwrap();
+        let result = connector.get_schemas(&table_infos).unwrap();
 
-        let errors = result.get(existing_table).unwrap();
-        assert!(errors.is_empty());
+        assert!(result.get(0).unwrap().is_ok());
     });
 }
 

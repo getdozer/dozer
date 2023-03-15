@@ -14,7 +14,7 @@ use dozer_types::{
         EthContract, EthFilter, EthLogConfig, IngestionMessage, IngestionMessageKind,
     },
     log::info,
-    types::{Operation, SourceSchema},
+    types::Operation,
 };
 
 use tokio::runtime::Runtime;
@@ -74,18 +74,16 @@ pub fn get_eth_producer(
         "eth_test".to_string(),
     );
 
-    let schemas = eth_connector.get_schemas(None)?;
-    for SourceSchema {
-        name,
-        schema_name: _,
-        schema,
-        replication_type: _,
-    } in schemas
-    {
-        info!("Schema: {}, Id: {}", name, schema.identifier.unwrap().id);
+    let (table_infos, schemas) = eth_connector.list_all_schemas()?;
+    for (table_info, schema) in table_infos.iter().zip(schemas) {
+        info!(
+            "Schema: {}, Id: {}",
+            table_info.name,
+            schema.schema.identifier.unwrap().id
+        );
     }
 
-    eth_connector.start(None, &ingestor, vec![])
+    eth_connector.start(&ingestor, table_infos)
 }
 
 pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>, Vec<Operation>) {

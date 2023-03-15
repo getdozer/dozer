@@ -10,7 +10,7 @@ use crate::{
         UpdateConnectionRequest, ValidateConnectionResponse,
     },
 };
-use dozer_orchestrator::get_connector;
+use dozer_orchestrator::{get_connector, ConnectorError};
 use dozer_types::{log::error, models::connection::Connection};
 use std::thread;
 
@@ -27,17 +27,21 @@ impl ConnectionService {
     }
 }
 
+fn get_tables(
+    connection: Connection,
+) -> Result<Vec<dozer_orchestrator::TableInfo>, ConnectorError> {
+    let connector = get_connector(connection)?;
+    connector.list_columns(connector.list_tables()?)
+}
+
 impl ConnectionService {
     async fn _get_tables(
         &self,
         connection: Connection,
     ) -> Result<Vec<dozer_orchestrator::TableInfo>, ErrorResponse> {
-        let res = thread::spawn(|| {
-            let connector = get_connector(connection, None).map_err(|err| err.to_string())?;
-            connector.get_tables().map_err(|err| err.to_string())
-        })
-        .join()
-        .unwrap();
+        let res = thread::spawn(|| get_tables(connection).map_err(|err| err.to_string()))
+            .join()
+            .unwrap();
 
         res.map_err(|err| ErrorResponse { message: err })
     }
@@ -185,8 +189,10 @@ impl ConnectionService {
     ) -> Result<ValidateConnectionResponse, ErrorResponse> {
         let c = input.connection.unwrap();
         let validate_result = thread::spawn(|| {
-            let connector = get_connector(c, None).map_err(|err| err.to_string())?;
-            connector.validate(None).map_err(|err| err.to_string())
+            let connector = get_connector(c).map_err(|err| err.to_string())?;
+            connector
+                .validate_connection()
+                .map_err(|err| err.to_string())
         });
         validate_result
             .join()

@@ -44,7 +44,6 @@ serial_test = "1.0.0"
 rand = "0.8.5"
 hex-literal = "0.3.4"
 dozer-tracing = {path = "../dozer-tracing"}
-dozer-orchestrator = {path = "../dozer-orchestrator"}
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.

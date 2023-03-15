@@ -4,23 +4,20 @@ This module implements several connectors that can act as a source in either rea
 Each of the connectors implements a [set of methods defined](https://github.com/getdozer/dozer/blob/main/dozer-ingestion/src/connectors/mod.rs#L32) to support being a source to the data pipeline.
 
 ### Available Connectors
-| Connector                          |   Status    | Type           |  Schema Mapping   | History Support | Frequency | Implemented Via |
-| :--------------------------------- | :---------: | :------------- | :---------------: | :-------------: | :-------- | :-------------- |
-| Postgres                           | Available ✅ | Relational     |      Source       |        ✅        | Real Time | Direct          |
-| Ethereum                           | Available ✅ | Blockchain     | Logs/Contract ABI |        ✅        | Real Time | Direct          |
-| Snowflake                          | Available ✅ | Data Warehouse |      Source       |        ✅        | Polling   | Direct          |
-| Local Files(CSV, Parquet)          |    Beta     | Object Storage |      Source       |        ✅        | Polling   | Data Fusion     |
-| AWS S3(CSV, Parquet)               |    Beta     | Object Storage |      Source       |        ✅        | Polling   | Data Fusion     |
-| Google Cloud Storage(CSV, Parquet) |    Beta     | Object Storage |      Source       |        ✅        | Polling   | Data Fusion     |
-| MySQL                              | In Roadmap  | Relational     |      Source       |        ✅        | Real Time | Debezium        |
-| Mongodb                            | In Roadmap  | NoSQL          |      Source       |        ✅        | Real Time | Debezium        |
-| Google Sheets                      | In Roadmap  | Applications   |      Source       |        ✅        |           |                 |
-| Airtable                           | In Roadmap  | Applications   |      Source       |        ✅        |           |                 |
-| Delta Lake                         | In Roadmap  | Data Warehouse |      Source       |        ✅        |           |                 |
-| Solana                             | In Roadmap  | Blockchain     | Logs/Contract ABI |        ✅        |           |                 |
-| Kafka                              | In Roadmap  | Stream         |  Schema Registry  |        ✅        |           |                 |
-| Red Panda                          | In Roadmap  | Stream         |  Schema Registry  |        ✅        |           |                 |
-| Pulsar                             | In Roadmap  | Stream         |  Schema Registry  |        ✅        |           |                 |
+| Connector                          |   Status    | Type           |  Schema Mapping   | Frequency | Implemented Via |
+| :--------------------------------- | :---------: | :------------- | :---------------: | :-------- | :-------------- |
+| Postgres                           | Available ✅ | Relational     |      Source       | Real Time | Direct          |
+| Snowflake                          | Available ✅ | Data Warehouse |      Source       | Polling   | Direct          |
+| Local Files (CSV, Parquet)         | Available ✅ | Object Storage |      Source       | Polling   | Data Fusion     |
+| Delta Lake                         |    Alpha    | Data Warehouse |      Source       | Polling   | Direct          |
+| AWS S3 (CSV, Parquet)              |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
+| Google Cloud Storage(CSV, Parquet) |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
+| Ethereum                           | Available ✅ | Blockchain     | Logs/Contract ABI | Real Time | Direct          |
+| MySQL                              | In Roadmap  | Relational     |      Source       | Real Time | Debezium        |
+| Kafka                              | In Roadmap  | Stream         |  Schema Registry  | Real Time | Debezium        |
+| Google Sheets                      | In Roadmap  | Applications   |      Source       |           |                 |
+| Excel                              | In Roadmap  | Applications   |      Source       |           |                 |
+| Airtable                           | In Roadmap  | Applications   |      Source       |           |                 |
 
 # New connector implementation
 
