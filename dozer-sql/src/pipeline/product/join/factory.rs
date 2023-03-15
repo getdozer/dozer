@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    errors::{ExecutionError, JoinError},
+    errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     storage::lmdb_storage::LmdbExclusiveTransaction,
     DEFAULT_PORT_HANDLE,
@@ -12,14 +12,17 @@ use sqlparser::ast::{
     JoinOperator as SqlJoinOperator,
 };
 
-use crate::pipeline::expression::builder::NameOrAlias;
-use crate::pipeline::{builder::IndexedTableWithJoins, expression::builder::ExpressionBuilder};
+use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{builder::SchemaSQLContext, expression::builder::extend_schema_source_def};
+use crate::pipeline::{errors::JoinError, expression::builder::NameOrAlias};
 
 use super::{
     operator::{JoinOperator, JoinType},
     processor::ProductProcessor,
 };
+
+pub(crate) const LEFT_JOIN_PORT: PortHandle = 0;
+pub(crate) const RIGHT_JOIN_PORT: PortHandle = 1;
 
 #[derive(Debug)]
 pub struct JoinProcessorFactory {
@@ -44,7 +47,7 @@ impl JoinProcessorFactory {
 
 impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
+        vec![LEFT_JOIN_PORT, RIGHT_JOIN_PORT]
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
@@ -96,15 +99,19 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             SqlJoinOperator::Inner(constraint) => (JoinType::Inner, constraint),
             SqlJoinOperator::LeftOuter(constraint) => (JoinType::LeftOuter, constraint),
             SqlJoinOperator::RightOuter(constraint) => (JoinType::RightOuter, constraint),
-            _ => return Err(ExecutionError::JoinError(JoinError::UnsupportedJoinType)),
+            _ => {
+                return Err(ExecutionError::InternalError(Box::new(
+                    JoinError::UnsupportedJoinType,
+                )))
+            }
         };
 
         let expression = match join_constraint {
             SqlJoinConstraint::On(expression) => expression,
             _ => {
-                return Err(ExecutionError::JoinError(
+                return Err(ExecutionError::InternalError(Box::new(
                     JoinError::UnsupportedJoinConstraintType,
-                ))
+                )))
             }
         };
 
@@ -112,9 +119,12 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             .left
             .clone()
             .unwrap_or(NameOrAlias("Left".to_owned(), None));
-        let left_schema = input_schemas
-            .get(&(0 as PortHandle))
-            .ok_or(ExecutionError::JoinError(JoinError::JoinBuild(left_name.0)))?;
+        let left_schema =
+            input_schemas
+                .get(&(0 as PortHandle))
+                .ok_or(ExecutionError::InternalError(Box::new(
+                    JoinError::JoinBuild(left_name.0),
+                )))?;
 
         let right_name = self
             .right
@@ -123,29 +133,19 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         let right_schema =
             input_schemas
                 .get(&(1 as PortHandle))
-                .ok_or(ExecutionError::JoinError(JoinError::JoinBuild(
-                    right_name.0,
+                .ok_or(ExecutionError::InternalError(Box::new(
+                    JoinError::JoinBuild(right_name.0),
                 )))?;
 
         let (left_join_key_indexes, right_join_key_indexes) =
-            parse_join_constraint(&expression, &left_schema, &right_schema)
-                .map_err(|err| ExecutionError::JoinError(err))?;
+            parse_join_constraint(expression, left_schema, right_schema)
+                .map_err(|err| ExecutionError::InternalError(Box::new(err)))?;
 
         let join_operator =
             JoinOperator::new(join_type, left_join_key_indexes, right_join_key_indexes);
 
         Ok(Box::new(ProductProcessor::new(join_operator)))
     }
-}
-
-pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias> {
-    let mut input_names = vec![];
-    input_names.push(input_tables.relation.0.clone());
-
-    for join in &input_tables.joins {
-        input_names.push(join.0.clone());
-    }
-    input_names
 }
 
 fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {

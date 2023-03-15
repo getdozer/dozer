@@ -1,5 +1,5 @@
 use ahash::AHasher;
-use dozer_types::types::{Record, Schema};
+use dozer_types::types::Record;
 use multimap::MultiMap;
 use std::{
     fmt::Debug,
@@ -26,6 +26,7 @@ pub enum JoinType {
     RightOuter,
 }
 
+#[derive(Debug, Clone)]
 pub enum JoinAction {
     Insert,
     Delete,
@@ -59,41 +60,47 @@ impl JoinOperator {
 
     fn inner_join_from_left(
         &self,
+        action: &JoinAction,
         join_key: &[u8],
         left_record: &Record,
-    ) -> JoinResult<Vec<Record>> {
+    ) -> JoinResult<Vec<(JoinAction, Record)>> {
         let empty_vec = vec![];
         let right_records = self.right_map.get_vec(join_key).unwrap_or(&empty_vec);
 
         let output_records = right_records
             .iter()
-            .map(|right_record| join_records(left_record, right_record))
-            .collect::<Vec<Record>>();
+            .map(|right_record| (action.clone(), join_records(left_record, right_record)))
+            .collect::<Vec<(JoinAction, Record)>>();
 
         Ok(output_records)
     }
 
     fn inner_join_from_right(
         &self,
+        action: &JoinAction,
         join_key: &[u8],
         right_record: &Record,
-    ) -> JoinResult<Vec<Record>> {
+    ) -> JoinResult<Vec<(JoinAction, Record)>> {
         let empty_vec = vec![];
         let left_records = self.left_map.get_vec(join_key).unwrap_or(&empty_vec);
 
         let output_records = left_records
             .iter()
-            .map(|left_record| join_records(left_record, right_record))
-            .collect::<Vec<Record>>();
+            .map(|left_record| (action.clone(), join_records(left_record, right_record)))
+            .collect::<Vec<(JoinAction, Record)>>();
 
         Ok(output_records)
     }
 
-    fn delete(&mut self, from: JoinBranch, old: &Record) -> JoinResult<Vec<Record>> {
+    pub fn delete(
+        &mut self,
+        from: &JoinBranch,
+        old: &Record,
+    ) -> JoinResult<Vec<(JoinAction, Record)>> {
         match (&self.join_type, from) {
             (JoinType::Inner, JoinBranch::Left) => {
                 let join_key: Vec<u8> = get_join_key(old, &self.left_join_key_indexes);
-                let records = self.inner_join_from_left(&join_key, old)?;
+                let records = self.inner_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 if let Some(map_records) = self.left_map.get_vec_mut(&join_key) {
                     map_records.retain(|x| x != old);
                 }
@@ -101,7 +108,7 @@ impl JoinOperator {
             }
             (JoinType::Inner, JoinBranch::Right) => {
                 let join_key: Vec<u8> = get_join_key(old, &self.right_join_key_indexes);
-                let records = self.inner_join_from_right(&join_key, old)?;
+                let records = self.inner_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 if let Some(map_records) = self.right_map.get_vec_mut(&join_key) {
                     map_records.retain(|x| x != old);
                 }
@@ -114,18 +121,22 @@ impl JoinOperator {
         }
     }
 
-    fn insert(&mut self, from: JoinBranch, new: &Record) -> JoinResult<Vec<Record>> {
+    pub fn insert(
+        &mut self,
+        from: &JoinBranch,
+        new: &Record,
+    ) -> JoinResult<Vec<(JoinAction, Record)>> {
         match (&self.join_type, from) {
             (JoinType::Inner, JoinBranch::Left) => {
                 let join_key: Vec<u8> = get_join_key(new, &self.left_join_key_indexes);
-                let records = self.inner_join_from_left(&join_key, new)?;
+                let records = self.inner_join_from_left(&JoinAction::Insert, &join_key, new)?;
                 self.left_map.insert(join_key, new.to_owned());
 
                 Ok(records)
             }
             (JoinType::Inner, JoinBranch::Right) => {
                 let join_key: Vec<u8> = get_join_key(new, &self.right_join_key_indexes);
-                let records = self.inner_join_from_right(&join_key, new)?;
+                let records = self.inner_join_from_right(&JoinAction::Insert, &join_key, new)?;
                 self.right_map.insert(join_key, new.to_owned());
                 Ok(records)
             }
@@ -134,15 +145,6 @@ impl JoinOperator {
             (JoinType::RightOuter, JoinBranch::Left) => todo!(),
             (JoinType::RightOuter, JoinBranch::Right) => todo!(),
         }
-    }
-
-    fn update(
-        &mut self,
-        _from: JoinBranch,
-        _old: &Record,
-        _new: &Record,
-    ) -> JoinResult<Vec<Record>> {
-        todo!()
     }
 }
 
@@ -159,28 +161,4 @@ fn get_join_key(old: &Record, right_join_key_indexes: &[usize]) -> Vec<u8> {
 fn join_records(left_record: &Record, right_record: &Record) -> Record {
     let concat_values = [left_record.values.clone(), right_record.values.clone()].concat();
     Record::new(None, concat_values, None)
-}
-
-fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {
-    let mut output_schema = Schema::empty();
-
-    let left_len = left_schema.fields.len();
-
-    for field in left_schema.fields.iter() {
-        output_schema.fields.push(field.clone());
-    }
-
-    for field in right_schema.fields.iter() {
-        output_schema.fields.push(field.clone());
-    }
-
-    for primary_key in left_schema.clone().primary_index.into_iter() {
-        output_schema.primary_index.push(primary_key);
-    }
-
-    for primary_key in right_schema.clone().primary_index.into_iter() {
-        output_schema.primary_index.push(primary_key + left_len);
-    }
-
-    output_schema
 }

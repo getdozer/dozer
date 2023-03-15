@@ -94,9 +94,6 @@ pub enum ExecutionError {
     ProcessorReceiverError(usize, #[source] BoxedError),
 
     #[error(transparent)]
-    JoinError(JoinError),
-
-    #[error(transparent)]
     SourceError(SourceError),
 
     #[error("Failed to execute product processor: {0}")]
@@ -107,6 +104,9 @@ pub enum ExecutionError {
 
     #[error("Failed to execute the Window processor: {0}")]
     WindowProcessorError(#[source] BoxedError),
+
+    #[error("JOIN processor received a Record from a wrong input: {0}")]
+    InvalidPort(u16),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {
@@ -170,46 +170,6 @@ pub enum SinkError {
 
     #[error("Failed to count thre records during init in Cache: {0:?}, Error: {1:?}")]
     CacheCountFailed(String, #[source] BoxedError),
-}
-
-#[derive(Error, Debug)]
-pub enum JoinError {
-    #[error("Failed to find table in Join during Insert: {0}")]
-    InsertPortError(PortHandle),
-    #[error("Failed to find table in Join during Delete: {0}")]
-    DeletePortError(PortHandle),
-    #[error("Failed to find table in Join during Update: {0}")]
-    UpdatePortError(PortHandle),
-    #[error("Join ports are not properly initialized")]
-    PortNotConnected(PortHandle),
-
-    #[error("The JOIN clause is not supported. In this version only INNER, LEFT and RIGHT OUTER JOINs are supported")]
-    UnsupportedJoinType,
-
-    #[error(
-        "Unsupported JOIN constraint, only ON is allowed as the JOIN constraint using \'=\' and \'AND\' operators"
-    )]
-    UnsupportedJoinConstraintType,
-
-    #[error("Unsupported JOIN constraint {0} only comparison of fields with \'=\' and \'AND\' operators are allowed in the JOIN ON constraint")]
-    UnsupportedJoinConstraint(String),
-
-    #[error("Invalid JOIN constraint on: {0}")]
-    InvalidJoinConstraint(String),
-
-    #[error(
-        "Unsupported JOIN constraint operator {0}, only \'=\' and \'AND\' operators are allowed in the JOIN ON constraint"
-    )]
-    UnsupportedJoinConstraintOperator(String),
-
-    #[error("Invalid Field specified in JOIN: {0}")]
-    InvalidFieldSpecified(String),
-
-    #[error("Currently JOIN supports two level of namespacing. For example, `source.field_name` is valid, but `connection.source.field_name` is not.")]
-    NameSpaceTooLong(String),
-
-    #[error("Error building the JOIN on the {0} source of the Processor")]
-    JoinBuild(String),
 }
 
 #[derive(Error, Debug)]

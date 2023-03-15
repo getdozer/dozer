@@ -3,7 +3,6 @@ use std::sync::Arc;
 use dozer_core::{
     app::{AppPipeline, PipelineEntryPoint},
     appsource::AppSourceId,
-    node::PortHandle,
     DEFAULT_PORT_HANDLE,
 };
 use sqlparser::ast::TableWithJoins;
@@ -11,7 +10,10 @@ use sqlparser::ast::TableWithJoins;
 use crate::pipeline::{
     builder::{QueryContext, SchemaSQLContext},
     errors::PipelineError,
-    product::{join::factory::JoinProcessorFactory, table::factory::get_name_or_alias},
+    product::{
+        join::factory::{JoinProcessorFactory, LEFT_JOIN_PORT, RIGHT_JOIN_PORT},
+        table::factory::get_name_or_alias,
+    },
     window::factory::WindowProcessorFactory,
 };
 
@@ -55,7 +57,7 @@ pub(crate) fn insert_join_to_pipeline(
         if let JoinSource::Table(ref source_table) = left_join_source {
             pipeline_entry_points.push(PipelineEntryPoint::new(
                 AppSourceId::new(source_table.to_string(), None),
-                DEFAULT_PORT_HANDLE,
+                LEFT_JOIN_PORT,
             ));
             query_context.used_sources.push(source_table.to_string());
         }
@@ -63,7 +65,7 @@ pub(crate) fn insert_join_to_pipeline(
         if let JoinSource::Table(source_table) = right_join_source.clone() {
             pipeline_entry_points.push(PipelineEntryPoint::new(
                 AppSourceId::new(source_table.to_string(), None),
-                DEFAULT_PORT_HANDLE,
+                RIGHT_JOIN_PORT,
             ));
             query_context.used_sources.push(source_table);
         }
@@ -81,7 +83,7 @@ pub(crate) fn insert_join_to_pipeline(
                     &connection_info.output_node.0,
                     Some(connection_info.output_node.1),
                     &join_processor_name,
-                    Some(0 as PortHandle),
+                    Some(LEFT_JOIN_PORT),
                     true,
                 )
                 .map_err(PipelineError::InternalExecutionError)?,
@@ -90,7 +92,7 @@ pub(crate) fn insert_join_to_pipeline(
                     &connection_info.output_node.0,
                     Some(connection_info.output_node.1),
                     &join_processor_name,
-                    Some(0 as PortHandle),
+                    Some(LEFT_JOIN_PORT),
                     true,
                 )
                 .map_err(PipelineError::InternalExecutionError)?,
@@ -103,7 +105,7 @@ pub(crate) fn insert_join_to_pipeline(
                     &connection_info.output_node.0,
                     Some(connection_info.output_node.1),
                     &join_processor_name,
-                    Some(0 as PortHandle),
+                    Some(RIGHT_JOIN_PORT),
                     true,
                 )
                 .map_err(PipelineError::InternalExecutionError)?,
@@ -112,7 +114,7 @@ pub(crate) fn insert_join_to_pipeline(
                     &connection_info.output_node.0,
                     Some(connection_info.output_node.1),
                     &join_processor_name,
-                    Some(0 as PortHandle),
+                    Some(RIGHT_JOIN_PORT),
                     true,
                 )
                 .map_err(PipelineError::InternalExecutionError)?,
