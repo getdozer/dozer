@@ -7,28 +7,6 @@ use proptest::prelude::*;
 use std::ops::Neg;
 
 #[test]
-fn test_abs_logic() {
-    proptest!(ProptestConfig::with_cases(1000), |(i_num in 0i64..100000000i64)| {
-        let f = run_scalar_fct(
-            "SELECT ABS(c) FROM USERS",
-            Schema::empty()
-                .field(
-                    FieldDefinition::new(
-                        String::from("c"),
-                        FieldType::Int,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    false,
-                )
-                .clone(),
-            vec![Field::Int(i_num.neg())],
-        );
-        assert_eq!(f, Field::Int(i_num));
-    });
-}
-
-#[test]
 fn test_abs() {
     proptest!(ProptestConfig::with_cases(1000), |(i_num in 0i64..100000000i64, f_num in 0f64..100000000f64)| {
         let row = Record::new(None, vec![], None);
@@ -105,5 +83,27 @@ fn test_round() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Null
         );
+    });
+}
+
+#[test]
+fn test_abs_logic() {
+    proptest!(ProptestConfig::with_cases(1000), |(i_num in 0i64..100000000i64)| {
+        let f = run_scalar_fct(
+            "SELECT ABS(c) FROM USERS",
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(
+                        String::from("c"),
+                        FieldType::Int,
+                        false,
+                        SourceDefinition::Dynamic,
+                    ),
+                    false,
+                )
+                .clone(),
+            vec![Field::Int(i_num.neg())],
+        );
+        assert_eq!(f, Field::Int(i_num));
     });
 }
