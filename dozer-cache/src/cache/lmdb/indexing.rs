@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use dozer_storage::BeginTransaction;
-use dozer_types::log::error;
+use dozer_types::log::debug;
 
 use crate::errors::CacheError;
 
@@ -121,7 +121,7 @@ fn index_and_log_error(
     loop {
         // Run `index` for at least once before quitting.
         if let Err(e) = index(&main_env, &secondary_env) {
-            error!("Error while indexing {}: {e}", main_env.name());
+            debug!("Error while indexing {}: {e}", main_env.name());
         }
 
         if !running.load(Ordering::SeqCst) {
