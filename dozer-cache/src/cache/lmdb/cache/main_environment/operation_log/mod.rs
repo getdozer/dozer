@@ -152,12 +152,11 @@ impl OperationLog {
         &self,
         txn: &T,
         operation_id: u64,
-    ) -> Result<Operation, StorageError> {
+    ) -> Result<Option<Operation>, StorageError> {
         Ok(self
             .operation_id_to_operation
             .get(txn, &operation_id)?
-            .unwrap_or_else(|| panic!("Operation id {} out of range", operation_id))
-            .into_owned())
+            .map(IntoOwned::into_owned))
     }
 
     /// Inserts the record and sets the record version. Returns the record id.
@@ -331,7 +330,7 @@ mod tests {
                 RecordWithId::new(record_id, record.clone())
             );
             assert_eq!(
-                log.get_operation(&txn, index as _).unwrap(),
+                log.get_operation(&txn, index as _).unwrap().unwrap(),
                 Operation::Insert {
                     record_id,
                     record: record.clone(),
@@ -379,7 +378,7 @@ mod tests {
             RecordWithId::new(record_id, record.clone())
         );
         assert_eq!(
-            log.get_operation(&txn, 0).unwrap(),
+            log.get_operation(&txn, 0).unwrap().unwrap(),
             Operation::Insert {
                 record_id,
                 record: record.clone(),
@@ -412,7 +411,7 @@ mod tests {
             false
         );
         assert_eq!(
-            log.get_operation(&txn, 1).unwrap(),
+            log.get_operation(&txn, 1).unwrap().unwrap(),
             Operation::Delete { operation_id: 0 }
         );
 
@@ -455,7 +454,7 @@ mod tests {
             RecordWithId::new(record_id, record.clone())
         );
         assert_eq!(
-            log.get_operation(&txn, 2).unwrap(),
+            log.get_operation(&txn, 2).unwrap().unwrap(),
             Operation::Insert {
                 record_id,
                 record: record.clone(),
