@@ -28,7 +28,7 @@ fn warm_up(app_config: &Config) {
 pub fn run_connector_test<T: FnOnce(Config) + panic::UnwindSafe>(db_type: &str, test: T) {
     let dozer_config_path = PathBuf::from(format!("src/tests/cases/{db_type}/dozer-config.yaml"));
 
-    let dozer_config = std::fs::read_to_string(&dozer_config_path).unwrap();
+    let dozer_config = std::fs::read_to_string(dozer_config_path).unwrap();
     let dozer_config = dozer_types::serde_yaml::from_str::<Config>(&dozer_config).unwrap();
 
     warm_up(&dozer_config);
