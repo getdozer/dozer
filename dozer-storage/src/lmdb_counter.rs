@@ -1,18 +1,22 @@
 use dozer_types::borrow::IntoOwned;
 use lmdb::{RwTransaction, Transaction};
 
-use crate::{errors::StorageError, lmdb_storage::CreateDatabase, LmdbOption};
+use crate::{
+    errors::StorageError,
+    lmdb_storage::{LmdbEnvironment, RwLmdbEnvironment},
+    LmdbOption,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct LmdbCounter(LmdbOption<u64>);
 
 impl LmdbCounter {
-    pub fn new<C: CreateDatabase>(
-        c: &mut C,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        LmdbOption::new(c, name, create_if_not_exist).map(Self)
+    pub fn create(env: &mut RwLmdbEnvironment, name: Option<&str>) -> Result<Self, StorageError> {
+        LmdbOption::create(env, name).map(Self)
+    }
+
+    pub fn open<E: LmdbEnvironment>(env: &E, name: Option<&str>) -> Result<Self, StorageError> {
+        LmdbOption::open(env, name).map(Self)
     }
 
     pub fn load(&self, txn: &impl Transaction) -> Result<u64, StorageError> {
@@ -44,26 +48,23 @@ mod tests {
     #[test]
     fn test_lmdb_counter() {
         let temp_dir = TempDir::new("test_lmdb_counter").unwrap();
-        let mut env = LmdbEnvironmentManager::create(
+        let mut env = LmdbEnvironmentManager::create_rw(
             temp_dir.path(),
             "test",
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
-        let counter = LmdbCounter::new(&mut env, None, true).unwrap();
+        let counter = LmdbCounter::create(&mut env, None).unwrap();
 
-        let txn = env.create_txn().unwrap();
-        let mut txn = txn.write();
+        assert_eq!(counter.load(env.txn_mut().unwrap()).unwrap(), 0);
 
-        assert_eq!(counter.load(txn.txn()).unwrap(), 0);
+        counter.store(env.txn_mut().unwrap(), 0).unwrap();
+        assert_eq!(counter.load(env.txn_mut().unwrap()).unwrap(), 0);
 
-        counter.store(txn.txn_mut(), 0).unwrap();
-        assert_eq!(counter.load(txn.txn()).unwrap(), 0);
+        counter.store(env.txn_mut().unwrap(), 1).unwrap();
+        assert_eq!(counter.load(env.txn_mut().unwrap()).unwrap(), 1);
 
-        counter.store(txn.txn_mut(), 1).unwrap();
-        assert_eq!(counter.load(txn.txn()).unwrap(), 1);
-
-        assert_eq!(counter.fetch_add(txn.txn_mut(), 1).unwrap(), 1);
-        assert_eq!(counter.load(txn.txn()).unwrap(), 2);
+        assert_eq!(counter.fetch_add(env.txn_mut().unwrap(), 1).unwrap(), 1);
+        assert_eq!(counter.load(env.txn_mut().unwrap()).unwrap(), 2);
     }
 }

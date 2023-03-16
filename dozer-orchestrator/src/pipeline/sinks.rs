@@ -361,7 +361,7 @@ impl Sink for CacheSink {
         let _enter = span.enter();
 
         let endpoint_name = &self.api_endpoint.name;
-        let schema = &self.cache.get_schema().0;
+        let schema = self.cache.get_schema().0.clone();
 
         match op {
             Operation::Delete { mut old } => {
@@ -383,7 +383,7 @@ impl Sink for CacheSink {
                     Err(e) => {
                         ConflictResolver::resolve_delete_error(
                             old,
-                            schema,
+                            &schema,
                             e,
                             self.api_endpoint
                                 .conflict_resolution
@@ -421,7 +421,7 @@ impl Sink for CacheSink {
                     Err(e) => {
                         ConflictResolver::resolve_insert_error(
                             new,
-                            schema,
+                            &schema,
                             e,
                             self.api_endpoint
                                 .conflict_resolution
@@ -479,7 +479,7 @@ impl Sink for CacheSink {
                     Err(e) => {
                         ConflictResolver::resolve_update_error(
                             new,
-                            schema,
+                            &schema,
                             e,
                             self.api_endpoint
                                 .conflict_resolution

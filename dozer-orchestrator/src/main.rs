@@ -70,7 +70,7 @@ fn run() -> Result<(), OrchestrationError> {
                     render_logo();
                     let running_api = running.clone();
                     let _api_thread = thread::spawn(move || {
-                        if let Err(e) = dozer.run_api(running_api) {
+                        if let Err(e) = dozer.run_api(running_api, None) {
                             std::panic::panic_any(e);
                         }
                     });
@@ -87,7 +87,7 @@ fn run() -> Result<(), OrchestrationError> {
                 AppCommands::Run => {
                     render_logo();
 
-                    dozer.run_apps(running, None)
+                    dozer.run_apps(running, None, None)
                 }
             },
             Commands::Connector(sources) => match sources.command {

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_cache::cache::{CacheManagerOptions, LmdbCacheManager};
+use dozer_cache::cache::CacheManager;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -184,7 +184,7 @@ impl<'a> PipelineBuilder<'a> {
     pub fn build(
         &self,
         notifier: Option<PipelineEventSenders>,
-        cache_manager_options: CacheManagerOptions,
+        cache_manager: Arc<dyn CacheManager>,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
@@ -228,10 +228,6 @@ impl<'a> PipelineBuilder<'a> {
 
         let conn_ports = source_builder.get_ports();
 
-        let cache_manager = Arc::new(
-            LmdbCacheManager::new(cache_manager_options)
-                .map_err(OrchestrationError::CacheInitFailed)?,
-        );
         for api_endpoint in self.api_endpoints {
             let table_name = &api_endpoint.table_name;
 

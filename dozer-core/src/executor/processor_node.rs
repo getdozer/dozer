@@ -3,7 +3,6 @@ use std::{borrow::Cow, mem::swap};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_types::log::warn;
-
 use dozer_types::node::NodeHandle;
 
 use crate::{
