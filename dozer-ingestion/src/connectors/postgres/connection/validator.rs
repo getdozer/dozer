@@ -1,5 +1,5 @@
-use crate::connectors::object_store::schema_mapper::TableInfo;
 use crate::connectors::postgres::connector::ReplicationSlotInfo;
+use crate::connectors::ListOrFilterColumns;
 
 use crate::errors::PostgresConnectorError::{
     ColumnNameNotValid, ColumnsNotFound, ConnectionFailure, InvalidQueryError,
@@ -28,7 +28,7 @@ pub enum Validations {
 pub fn validate_connection(
     name: &str,
     config: tokio_postgres::Config,
-    tables: Option<&Vec<TableInfo>>,
+    tables: Option<&Vec<ListOrFilterColumns>>,
     replication_info: Option<ReplicationSlotInfo>,
 ) -> Result<(), PostgresConnectorError> {
     let validations_order: Vec<Validations> = vec![
@@ -132,7 +132,9 @@ fn validate_wal_level(client: &mut Client) -> Result<(), PostgresConnectorError>
     )
 }
 
-fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
+fn validate_tables_names(
+    table_info: &Vec<ListOrFilterColumns>,
+) -> Result<(), PostgresConnectorError> {
     let table_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
         if !table_regex.is_match(&t.name) {
@@ -143,7 +145,9 @@ fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConn
     Ok(())
 }
 
-fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
+fn validate_columns_names(
+    table_info: &Vec<ListOrFilterColumns>,
+) -> Result<(), PostgresConnectorError> {
     let column_name_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
         if let Some(columns) = &t.columns {
@@ -160,7 +164,7 @@ fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresCon
 
 fn validate_tables(
     client: &mut Client,
-    table_info: &Vec<TableInfo>,
+    table_info: &Vec<ListOrFilterColumns>,
 ) -> Result<(), PostgresConnectorError> {
     let mut tables_names: HashMap<String, bool> = HashMap::new();
     table_info.iter().for_each(|t| {
@@ -254,7 +258,7 @@ fn validate_tables(
 pub fn validate_slot(
     client: &mut Client,
     replication_info: &ReplicationSlotInfo,
-    tables: Option<&Vec<TableInfo>>,
+    tables: Option<&Vec<ListOrFilterColumns>>,
 ) -> Result<(), PostgresConnectorError> {
     let result = client
         .query_one(
@@ -423,7 +427,7 @@ mod tests {
                 .simple_query("DROP TABLE IF EXISTS not_existing")
                 .expect("User creation failed");
 
-            let tables = vec![TableInfo {
+            let tables = vec![ListOrFilterColumns {
                 name: "not_existing".to_string(),
                 schema: Some("public".to_string()),
                 columns: None,
@@ -466,7 +470,7 @@ mod tests {
                 String::from("column_not_existing_2"),
             ];
 
-            let tables = vec![TableInfo {
+            let tables = vec![ListOrFilterColumns {
                 name: "existing".to_string(),
                 schema: Some("public".to_string()),
                 columns: Some(columns),
@@ -645,7 +649,7 @@ mod tests {
         ];
 
         for (table_name, expected_result) in tables_with_result {
-            let res = validate_tables_names(&vec![TableInfo {
+            let res = validate_tables_names(&vec![ListOrFilterColumns {
                 name: table_name.to_string(),
                 schema: Some("public".to_string()),
                 columns: None,
@@ -665,7 +669,7 @@ mod tests {
         ];
 
         for (column_name, expected_result) in columns_names_with_result {
-            let res = validate_columns_names(&vec![TableInfo {
+            let res = validate_columns_names(&vec![ListOrFilterColumns {
                 schema: Some("public".to_string()),
                 name: "column_test_table".to_string(),
                 columns: Some(vec![column_name.to_string()]),
@@ -697,7 +701,7 @@ mod tests {
 
             let result = validate_tables(
                 &mut pg_client,
-                &vec![TableInfo {
+                &vec![ListOrFilterColumns {
                     name: table_name,
                     schema: Some("public".to_string()),
                     columns: None,
@@ -708,7 +712,7 @@ mod tests {
 
             let result = validate_tables(
                 &mut pg_client,
-                &vec![TableInfo {
+                &vec![ListOrFilterColumns {
                     name: view_name,
                     schema: Some("public".to_string()),
                     columns: None,

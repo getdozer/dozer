@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use crate::connectors::object_store::schema_mapper::TableInfo;
-use crate::connectors::{CdcType, SourceSchema, SourceSchemaResult};
+use crate::connectors::{CdcType, ListOrFilterColumns, SourceSchema, SourceSchemaResult};
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier, SourceDefinition};
 
@@ -100,7 +99,7 @@ impl SchemaHelper {
 
     pub fn get_tables(
         &self,
-        tables: Option<&[TableInfo]>,
+        tables: Option<&[ListOrFilterColumns]>,
     ) -> Result<Vec<PostgresTableInfo>, ConnectorError> {
         let (results, tables_columns_map) = self.get_columns(tables)?;
 
@@ -151,7 +150,7 @@ impl SchemaHelper {
 
     fn get_columns(
         &self,
-        tables: Option<&[TableInfo]>,
+        tables: Option<&[ListOrFilterColumns]>,
     ) -> Result<RowsWithColumnsMap, PostgresConnectorError> {
         let mut tables_columns_map: HashMap<SchemaTableIdentifier, Vec<String>> = HashMap::new();
         let mut client = helper::connect(self.conn_config.clone())?;
@@ -197,7 +196,7 @@ impl SchemaHelper {
 
     pub fn get_schemas(
         &self,
-        tables: &[TableInfo],
+        tables: &[ListOrFilterColumns],
     ) -> Result<Vec<SourceSchemaResult>, PostgresConnectorError> {
         let (results, tables_columns_map) = self.get_columns(Some(tables))?;
 
