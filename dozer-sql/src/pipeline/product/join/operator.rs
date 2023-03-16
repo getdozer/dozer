@@ -376,6 +376,10 @@ fn get_join_key(old: &Record, join_key_indexes: &[usize]) -> Vec<u8> {
 }
 
 fn join_records(left_record: &Record, right_record: &Record) -> Record {
-    let concat_values = [left_record.values.clone(), right_record.values.clone()].concat();
+    let concat_values = [
+        left_record.values.as_slice(),
+        right_record.values.as_slice(),
+    ]
+    .concat();
     Record::new(None, concat_values, None)
 }

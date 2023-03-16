@@ -9,9 +9,9 @@ use dozer_core::{
 use sqlparser::ast::{FunctionArg, ObjectName, TableFactor, TableWithJoins};
 
 use crate::pipeline::{
-    builder::{OutputNodeInfo, QueryContext, SchemaSQLContext},
+    builder::{get_from_source, OutputNodeInfo, QueryContext, SchemaSQLContext},
     errors::PipelineError,
-    product::table::factory::{get_name_or_alias, TableProcessorFactory},
+    product::table::factory::TableProcessorFactory,
     window::{builder::string_from_sql_object_name, factory::WindowProcessorFactory},
 };
 
@@ -67,7 +67,8 @@ fn insert_table_to_pipeline(
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    let relation_name_or_alias = get_name_or_alias(relation)?;
+    // let relation_name_or_alias = get_name_or_alias(relation)?;
+    let relation_name_or_alias = get_from_source(relation, pipeline, query_context, pipeline_idx)?;
 
     let product_processor_factory = TableProcessorFactory::new(relation.to_owned());
     let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
