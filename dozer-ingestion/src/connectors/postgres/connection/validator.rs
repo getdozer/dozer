@@ -8,7 +8,6 @@ use crate::errors::PostgresConnectorError::{
     WALLevelIsNotCorrect,
 };
 
-use crate::connectors::object_store::schema_mapper::TableInfo;
 use crate::connectors::postgres::connection::tables_validator::TablesValidator;
 use crate::errors::PostgresConnectorError;
 use dozer_types::indicatif::ProgressStyle;

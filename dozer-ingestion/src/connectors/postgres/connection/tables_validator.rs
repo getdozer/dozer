@@ -1,4 +1,4 @@
-use crate::connectors::object_store::schema_mapper::TableInfo;
+use crate::connectors::ListOrFilterColumns;
 use crate::errors::PostgresConnectorError::{ColumnsNotFound, InvalidQueryError, TableError};
 use crate::errors::PostgresSchemaError;
 use postgres::Client;
@@ -9,7 +9,7 @@ use crate::errors::PostgresConnectorError;
 use crate::errors::PostgresSchemaError::TableTypeNotFound;
 
 pub struct TablesValidator<'a> {
-    tables: HashMap<(String, String), &'a TableInfo>,
+    tables: HashMap<(String, String), &'a ListOrFilterColumns>,
     tables_identifiers: Vec<String>,
 }
 
@@ -18,7 +18,7 @@ type PostgresTablesColumns = HashMap<PostgresTableIdentifier, Vec<String>>;
 type PostgresTablesWithTypes = HashMap<PostgresTableIdentifier, Option<String>>;
 
 impl<'a> TablesValidator<'a> {
-    pub fn new(table_info: &'a [TableInfo]) -> Self {
+    pub fn new(table_info: &'a [ListOrFilterColumns]) -> Self {
         let mut tables = HashMap::new();
         let mut tables_identifiers = vec![];
         table_info.iter().for_each(|t| {
