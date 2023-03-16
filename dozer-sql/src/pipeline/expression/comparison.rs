@@ -105,7 +105,7 @@ macro_rules! define_comparison {
                 Field::Float(left_v) => match right_p {
                     // left: Float, right: Float
                     Field::Float(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    // left: Float, right: Int
+                    // left: Float, right: UInt
                     Field::UInt(right_v) => {
                         let right_v_f = OrderedFloat::<f64>::from_i64(right_v.to_i64().ok_or(
                             PipelineError::UnableToCast(
