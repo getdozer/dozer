@@ -4,7 +4,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, Record, Schema};
-use num_traits::{Float, Signed};
+use num_traits::Float;
 
 pub(crate) fn evaluate_abs(
     schema: &Schema,
