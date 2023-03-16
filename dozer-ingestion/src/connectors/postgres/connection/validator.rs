@@ -2,20 +2,19 @@ use crate::connectors::postgres::connector::ReplicationSlotInfo;
 use crate::connectors::ListOrFilterColumns;
 
 use crate::errors::PostgresConnectorError::{
-    ColumnNameNotValid, ColumnsNotFound, ConnectionFailure, InvalidQueryError,
-    MissingTableInReplicationSlot, NoAvailableSlotsError, ReplicationIsNotAvailableForUserError,
-    SlotIsInUseError, SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableError,
-    TableNameNotValid, WALLevelIsNotCorrect,
+    ColumnNameNotValid, ConnectionFailure, InvalidQueryError, MissingTableInReplicationSlot,
+    NoAvailableSlotsError, ReplicationIsNotAvailableForUserError, SlotIsInUseError,
+    SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableNameNotValid,
+    WALLevelIsNotCorrect,
 };
-use crate::errors::PostgresSchemaError::TableTypeNotFound;
-use crate::errors::{PostgresConnectorError, PostgresSchemaError};
+
+use crate::connectors::postgres::connection::tables_validator::TablesValidator;
+use crate::errors::PostgresConnectorError;
 use dozer_types::indicatif::ProgressStyle;
 use postgres::Client;
 use postgres_types::PgLsn;
 use regex::Regex;
 use std::borrow::BorrowMut;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 
 pub enum Validations {
     Details,
@@ -166,92 +165,12 @@ fn validate_tables(
     client: &mut Client,
     table_info: &Vec<ListOrFilterColumns>,
 ) -> Result<(), PostgresConnectorError> {
-    let mut tables_names: HashMap<String, bool> = HashMap::new();
-    table_info.iter().for_each(|t| {
-        tables_names.insert(t.name.clone(), true);
-    });
-
     validate_tables_names(table_info)?;
     validate_columns_names(table_info)?;
 
-    // validate if configurtables exist
-    let table_name_keys: Vec<String> = tables_names.keys().cloned().collect();
-    let result = client
-        .query(
-            "SELECT table_name, table_type FROM information_schema.tables WHERE table_name = ANY($1)",
-            &[&table_name_keys],
-        )
-        .map_err(InvalidQueryError)?;
+    let tables_validator = TablesValidator::new(table_info);
+    tables_validator.validate(client)?;
 
-    let existing_tables_names: Vec<String> = result.iter().map(|t| t.try_get(0).unwrap()).collect();
-
-    let tables_columns = client
-        .query(
-            "SELECT table_name, column_name FROM information_schema.columns WHERE table_name = ANY($1)",
-            &[&existing_tables_names],
-        )
-        .map_err(InvalidQueryError)?;
-
-    let mut table_columns_map: HashMap<String, Vec<String>> = HashMap::new();
-    tables_columns.iter().for_each(|r| {
-        let tbl_name: String = r.try_get(0).unwrap();
-        let col_name: String = r.try_get(1).unwrap();
-
-        if let Entry::Vacant(e) = table_columns_map.entry(tbl_name.clone()) {
-            let cols = vec![col_name];
-            e.insert(cols);
-        } else {
-            let cols = table_columns_map.get_mut(&tbl_name).unwrap();
-            cols.push(col_name);
-        }
-    });
-
-    let mut error_columns = String::new();
-
-    for r in result.iter() {
-        let table_name: String = r.try_get(0).map_err(InvalidQueryError)?;
-
-        let columns = table_info
-            .iter()
-            .find(|x| x.name == table_name)
-            .unwrap()
-            .clone()
-            .columns;
-
-        if let Some(column_info) = columns {
-            let existing_cols = table_columns_map.get(&table_name).unwrap();
-
-            for c in column_info.iter() {
-                if !existing_cols.contains(c) {
-                    error_columns = format!("{0}{1} in {2} table, ", error_columns, c, table_name);
-                }
-            }
-        }
-
-        tables_names.remove(&table_name);
-
-        let table_type: Option<String> = r.try_get(1).map_err(InvalidQueryError)?;
-        table_type
-            .map_or(Err(TableTypeNotFound), |typ| {
-                if typ != *"BASE TABLE" {
-                    Err(PostgresSchemaError::UnsupportedTableType(typ, table_name))
-                } else {
-                    Ok(())
-                }
-            })
-            .map_err(PostgresConnectorError::PostgresSchemaError)?;
-    }
-
-    if !tables_names.is_empty() {
-        let table_name_keys = tables_names.keys().cloned().collect();
-        return Err(TableError(table_name_keys));
-    }
-
-    if !error_columns.trim().is_empty() {
-        error_columns = error_columns[0..error_columns.len() - 2].to_string();
-
-        return Err(ColumnsNotFound(error_columns));
-    }
     Ok(())
 }
 
@@ -442,7 +361,7 @@ mod tests {
                     assert!(matches!(e, PostgresConnectorError::TableError(_)));
 
                     if let PostgresConnectorError::TableError(msg) = e {
-                        assert_eq!(msg, vec!["not_existing".to_string()]);
+                        assert_eq!(msg, vec!["public.not_existing".to_string()]);
                     } else {
                         panic!("Unexpected error occurred");
                     }
@@ -486,7 +405,7 @@ mod tests {
                     assert!(matches!(e, PostgresConnectorError::ColumnsNotFound(_)));
 
                     if let PostgresConnectorError::ColumnsNotFound(msg) = e {
-                        assert_eq!(msg, "column_not_existing_1 in existing table, column_not_existing_2 in existing table");
+                        assert_eq!(msg, "column_not_existing_1 in public.existing table, column_not_existing_2 in public.existing table");
                     } else {
                         panic!("Unexpected error occurred");
                     }
@@ -703,7 +622,7 @@ mod tests {
                 &mut pg_client,
                 &vec![ListOrFilterColumns {
                     name: table_name,
-                    schema: Some("public".to_string()),
+                    schema: Some(schema.clone()),
                     columns: None,
                 }],
             );
@@ -714,7 +633,7 @@ mod tests {
                 &mut pg_client,
                 &vec![ListOrFilterColumns {
                     name: view_name,
-                    schema: Some("public".to_string()),
+                    schema: Some(schema),
                     columns: None,
                 }],
             );
