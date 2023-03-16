@@ -1,4 +1,4 @@
-use crate::connectors::object_store::schema_mapper::TableInfo;
+use crate::connectors::ListOrFilterColumns;
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -168,7 +168,7 @@ impl<'a> PostgresIteratorHandler<'a> {
             let tables = details
                 .tables
                 .iter()
-                .map(|table_info| TableInfo {
+                .map(|table_info| ListOrFilterColumns {
                     name: table_info.name.clone(),
                     columns: Some(table_info.columns.clone()),
                     schema: Some(table_info.schema.clone()),

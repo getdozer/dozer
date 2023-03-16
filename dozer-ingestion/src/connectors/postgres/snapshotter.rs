@@ -1,5 +1,4 @@
-use crate::connectors::object_store::schema_mapper::TableInfo;
-use crate::connectors::SourceSchemaResult;
+use crate::connectors::{ListOrFilterColumns, SourceSchemaResult};
 use crate::ingestion::Ingestor;
 
 use super::helper;
@@ -29,7 +28,7 @@ pub struct PostgresSnapshotter<'a> {
 impl<'a> PostgresSnapshotter<'a> {
     pub fn get_tables(
         &self,
-        tables: &[TableInfo],
+        tables: &[ListOrFilterColumns],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
         let helper = SchemaHelper::new(self.conn_config.clone());
         helper.get_schemas(tables).map_err(PostgresConnectorError)
@@ -87,7 +86,7 @@ impl<'a> PostgresSnapshotter<'a> {
         Ok(())
     }
 
-    pub fn sync_tables(&self, tables: &[TableInfo]) -> Result<(), ConnectorError> {
+    pub fn sync_tables(&self, tables: &[ListOrFilterColumns]) -> Result<(), ConnectorError> {
         let schemas = self.get_tables(tables)?;
 
         let mut left_tables_count = tables.len();
@@ -143,12 +142,12 @@ mod tests {
 
     use crate::{
         connectors::{
-            object_store::schema_mapper,
             postgres::{
                 connection::helper::map_connection_config,
                 connector::{PostgresConfig, PostgresConnector},
                 tests::client::TestPostgresClient,
             },
+            ListOrFilterColumns,
         },
         errors::ConnectorError,
         ingestion::{IngestionConfig, Ingestor},
@@ -188,7 +187,7 @@ mod tests {
 
             let connector = PostgresConnector::new(1, postgres_config);
 
-            let input_tables = vec![schema_mapper::TableInfo {
+            let input_tables = vec![ListOrFilterColumns {
                 name: table_name,
                 schema: Some("public".to_string()),
                 columns: None,
@@ -255,7 +254,7 @@ mod tests {
             let connector = PostgresConnector::new(1, postgres_config);
 
             let input_table_name = String::from("not_existing_table");
-            let input_tables = vec![schema_mapper::TableInfo {
+            let input_tables = vec![ListOrFilterColumns {
                 name: input_table_name,
                 schema: Some("public".to_string()),
                 columns: None,
@@ -309,7 +308,7 @@ mod tests {
 
             let connector = PostgresConnector::new(1, postgres_config);
 
-            let input_tables = vec![schema_mapper::TableInfo {
+            let input_tables = vec![ListOrFilterColumns {
                 name: table_name,
                 schema: Some("public".to_string()),
                 columns: None,

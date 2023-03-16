@@ -1,7 +1,8 @@
-use crate::connectors::object_store::schema_mapper;
 use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
-use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo};
+use crate::connectors::{
+    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
+};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::tracing::{error, info};
@@ -100,7 +101,7 @@ impl Connector for PostgresConnector {
     fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
         let tables = tables
             .iter()
-            .map(|table| schema_mapper::TableInfo {
+            .map(|table| ListOrFilterColumns {
                 schema: table.schema.clone(),
                 name: table.name.clone(),
                 columns: None,
@@ -113,7 +114,7 @@ impl Connector for PostgresConnector {
     fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
         let table_infos = tables
             .iter()
-            .map(|table| schema_mapper::TableInfo {
+            .map(|table| ListOrFilterColumns {
                 schema: table.schema.clone(),
                 name: table.name.clone(),
                 columns: None,
@@ -137,7 +138,7 @@ impl Connector for PostgresConnector {
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
         let table_infos = table_infos
             .iter()
-            .map(|table| schema_mapper::TableInfo {
+            .map(|table| ListOrFilterColumns {
                 schema: table.schema.clone(),
                 name: table.name.clone(),
                 columns: Some(table.column_names.clone()),
@@ -161,7 +162,7 @@ impl Connector for PostgresConnector {
 
         let tables = tables
             .into_iter()
-            .map(|table| schema_mapper::TableInfo {
+            .map(|table| ListOrFilterColumns {
                 schema: table.schema,
                 name: table.name,
                 columns: Some(table.column_names),
