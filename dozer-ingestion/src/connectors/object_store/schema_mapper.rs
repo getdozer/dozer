@@ -1,7 +1,7 @@
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::schema_helper::map_schema_to_dozer;
-use crate::connectors::{CdcType, SourceSchema, SourceSchemaResult};
+use crate::connectors::{CdcType, ListOrFilterColumns, SourceSchema, SourceSchemaResult};
 use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use deltalake::arrow::datatypes::SchemaRef;
@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 pub fn map_schema(
     id: u32,
     resolved_schema: SchemaRef,
-    table: &TableInfo,
+    table: &ListOrFilterColumns,
 ) -> Result<Schema, ConnectorError> {
     let fields_list = resolved_schema.fields().iter();
 
@@ -35,16 +35,9 @@ pub fn map_schema(
     })
 }
 
-#[derive(Debug, Clone)]
-pub struct TableInfo {
-    pub schema: Option<String>,
-    pub name: String,
-    pub columns: Option<Vec<String>>,
-}
-
 pub fn get_schema(
     config: &impl DozerObjectStore,
-    tables: &[TableInfo],
+    tables: &[ListOrFilterColumns],
 ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
     let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
 

@@ -209,3 +209,10 @@ fn table_name(schema: Option<&str>, name: &str) -> String {
         name.to_string()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct ListOrFilterColumns {
+    pub schema: Option<String>,
+    pub name: String,
+    pub columns: Option<Vec<String>>,
+}

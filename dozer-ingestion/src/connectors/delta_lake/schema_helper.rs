@@ -1,7 +1,7 @@
 use crate::connectors::delta_lake::reader::table_path;
 use crate::connectors::delta_lake::ConnectorResult;
-use crate::connectors::object_store::schema_mapper::{map_schema, TableInfo};
-use crate::connectors::{CdcType, SourceSchema, SourceSchemaResult};
+use crate::connectors::object_store::schema_mapper::map_schema;
+use crate::connectors::{CdcType, ListOrFilterColumns, SourceSchema, SourceSchemaResult};
 use deltalake::arrow::datatypes::SchemaRef;
 use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::ingestion_types::DeltaLakeConfig;
@@ -20,7 +20,7 @@ impl SchemaHelper {
     pub fn get_schemas(
         &self,
         id: u64,
-        tables: &[TableInfo],
+        tables: &[ListOrFilterColumns],
     ) -> ConnectorResult<Vec<SourceSchemaResult>> {
         let mut schemas = vec![];
         let runtime = Runtime::new()?;
@@ -30,7 +30,11 @@ impl SchemaHelper {
         Ok(schemas)
     }
 
-    async fn get_schemas_impl(&self, id: u64, table: &TableInfo) -> ConnectorResult<SourceSchema> {
+    async fn get_schemas_impl(
+        &self,
+        id: u64,
+        table: &ListOrFilterColumns,
+    ) -> ConnectorResult<SourceSchema> {
         let table_path = table_path(&self.config, &table.name)?;
         let ctx = SessionContext::new();
         let delta_table = deltalake::open_table(table_path).await?;
