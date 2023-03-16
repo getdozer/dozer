@@ -7,6 +7,11 @@ use dozer_types::thiserror::Error;
 pub enum StorageError {
     #[error("Bad map size: {map_size}, must be a multiple of system page size, which is currently {page_size}")]
     BadPageSize { map_size: usize, page_size: usize },
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+    #[error("Transaction does not exist")]
+    TransactionDoesNotExist,
+
     #[error("Unable to deserialize type: {} - Reason: {}", typ, reason.to_string())]
     DeserializationError {
         typ: &'static str,

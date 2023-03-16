@@ -1,5 +1,4 @@
 use crate::errors::StorageError;
-use dozer_types::parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use lmdb::{
     Database, DatabaseFlags, Environment, EnvironmentFlags, RoCursor, RoTransaction, RwCursor,
     RwTransaction, Transaction, WriteFlags,
@@ -47,36 +46,20 @@ impl Default for LmdbEnvironmentOptions {
     }
 }
 
-pub trait CreateDatabase {
-    fn create_database(
-        &mut self,
-        name: Option<&str>,
-        create_flags: Option<DatabaseFlags>,
-    ) -> Result<Database, StorageError>;
+pub trait LmdbEnvironment {
+    fn env(&self) -> &Environment;
+
+    fn open_database(&self, name: Option<&str>) -> Result<Database, StorageError> {
+        self.env().open_db(name).map_err(Into::into)
+    }
+
+    fn begin_txn(&self) -> Result<RoTransaction<'_>, StorageError> {
+        self.env().begin_ro_txn().map_err(Into::into)
+    }
 }
 
 #[derive(Debug)]
-/// This is a safe wrapper around `lmdb::Environment` that is opened with `NO_TLS` and `NO_LOCK`.
-///
-/// All write related methods that use `Environment` take `&mut self` to avoid race between transactions.
-pub struct LmdbEnvironmentManager {
-    inner: Environment,
-}
-
-impl CreateDatabase for LmdbEnvironmentManager {
-    /// Opens a database, creating it if it doesn't exist and `create_flags` is `Some`.
-    fn create_database(
-        &mut self,
-        name: Option<&str>,
-        create_flags: Option<DatabaseFlags>,
-    ) -> Result<Database, StorageError> {
-        if let Some(flags) = create_flags {
-            Ok(self.inner.create_db(name, flags)?)
-        } else {
-            Ok(self.inner.open_db(name)?)
-        }
-    }
-}
+pub struct LmdbEnvironmentManager;
 
 impl LmdbEnvironmentManager {
     pub fn exists(path: &Path, name: &str) -> bool {
@@ -89,17 +72,46 @@ impl LmdbEnvironmentManager {
         let _ = fs::remove_file(full_path);
     }
 
-    pub fn create(
+    pub fn create_rw(
         base_path: &Path,
         name: &str,
         options: LmdbEnvironmentOptions,
-    ) -> Result<Self, StorageError> {
+    ) -> Result<RwLmdbEnvironment, StorageError> {
         let page_size = page_size::get();
         if options.max_map_sz == 0 || options.max_map_sz % page_size != 0 {
             return Err(StorageError::BadPageSize {
                 map_size: options.max_map_sz,
                 page_size,
             });
+        }
+        if options.flags.contains(EnvironmentFlags::READ_ONLY) {
+            return Err(StorageError::InvalidArgument(
+                "Cannot create a read-write environment with READ_ONLY flag.".to_string(),
+            ));
+        }
+        let env = Self::open_env(base_path, name, options)?;
+        RwLmdbEnvironment::new(env)
+    }
+
+    pub fn create_ro(
+        base_path: &Path,
+        name: &str,
+        mut options: LmdbEnvironmentOptions,
+    ) -> Result<RoLmdbEnvironment, StorageError> {
+        options.flags |= EnvironmentFlags::READ_ONLY;
+        let env = Self::open_env(base_path, name, options)?;
+        Ok(RoLmdbEnvironment::new(Arc::new(env)))
+    }
+
+    fn open_env(
+        base_path: &Path,
+        name: &str,
+        options: LmdbEnvironmentOptions,
+    ) -> Result<Environment, StorageError> {
+        if options.flags.contains(EnvironmentFlags::NO_LOCK) {
+            return Err(StorageError::InvalidArgument(
+                "Cannot create an environment with NO_LOCK flag.".to_string(),
+            ));
         }
 
         let full_path = base_path.join(Path::new(name));
@@ -108,88 +120,26 @@ impl LmdbEnvironmentManager {
         builder.set_max_dbs(options.max_dbs);
         builder.set_map_size(options.max_map_sz);
         builder.set_max_readers(options.max_readers);
-        builder.set_flags(
-            options.flags
-                | EnvironmentFlags::NO_SUB_DIR
-                | EnvironmentFlags::NO_TLS
-                | EnvironmentFlags::NO_LOCK,
-        );
+        builder.set_flags(options.flags | EnvironmentFlags::NO_SUB_DIR);
 
-        let env = builder.open(&full_path)?;
-        Ok(LmdbEnvironmentManager { inner: env })
-    }
-
-    pub fn create_txn(self) -> Result<SharedTransaction, StorageError> {
-        Ok(SharedTransaction(Arc::new(RwLock::new(
-            LmdbExclusiveTransaction::new(self.inner)?,
-        ))))
-    }
-
-    pub fn begin_ro_txn(&self) -> Result<RoTransaction, StorageError> {
-        Ok(self.inner.begin_ro_txn()?)
-    }
-
-    pub fn begin_rw_txn(&mut self) -> Result<RwTransaction, StorageError> {
-        Ok(self.inner.begin_rw_txn()?)
+        builder.open(&full_path).map_err(Into::into)
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct SharedTransaction(Arc<RwLock<LmdbExclusiveTransaction>>);
-
-impl SharedTransaction {
-    pub fn try_unwrap(this: SharedTransaction) -> Result<LmdbExclusiveTransaction, Self> {
-        Arc::try_unwrap(this.0)
-            .map(|lock| lock.into_inner())
-            .map_err(Self)
-    }
-
-    pub fn write(&self) -> RwLockWriteGuard<LmdbExclusiveTransaction> {
-        self.0.write()
-    }
-
-    pub fn read(&self) -> RwLockReadGuard<LmdbExclusiveTransaction> {
-        self.0.read()
-    }
-}
-
-// SAFETY:
-// - `SharedTransaction` can only be created from `LmdbEnvironmentManager::create_txn`.
-// - `LmdbEnvironmentManager` is opened with `NO_TLS` and `NO_LOCK`.
-// - Inner `lmdb::RwTransaction` is protected by `RwLock`.
-unsafe impl Send for SharedTransaction {}
-unsafe impl Sync for SharedTransaction {}
 #[derive(Debug)]
-pub struct LmdbExclusiveTransaction {
+pub struct RwLmdbEnvironment {
     inner: Option<RwTransaction<'static>>,
-    env: Environment,
+    env: Arc<Environment>,
 }
 
-const PANIC_MESSAGE: &str =
-    "LmdbExclusiveTransaction cannot be used after `commit_and_renew` fails.";
-
-impl CreateDatabase for LmdbExclusiveTransaction {
-    /// If this method fails, following calls to `self` will panic.
-    fn create_database(
-        &mut self,
-        name: Option<&str>,
-        create_flags: Option<DatabaseFlags>,
-    ) -> Result<Database, StorageError> {
-        // SAFETY: This transaction is exclusive and commits immediately.
-        let db = unsafe {
-            if let Some(flags) = create_flags {
-                self.txn_mut().create_db(name, flags)?
-            } else {
-                self.txn_mut().open_db(name)?
-            }
-        };
-        self.commit_and_renew()?;
-        Ok(db)
+impl LmdbEnvironment for RwLmdbEnvironment {
+    fn env(&self) -> &Environment {
+        &self.env
     }
 }
 
-impl LmdbExclusiveTransaction {
-    pub fn new(env: Environment) -> Result<Self, StorageError> {
+impl RwLmdbEnvironment {
+    fn new(env: Environment) -> Result<Self, StorageError> {
         let inner = env.begin_rw_txn()?;
         // SAFETY:
         // - `inner` does not reference data in `env`, it only has to be outlived by `env`.
@@ -199,13 +149,33 @@ impl LmdbExclusiveTransaction {
             unsafe { std::mem::transmute::<RwTransaction<'_>, RwTransaction<'static>>(inner) };
         Ok(Self {
             inner: Some(inner),
-            env,
+            env: Arc::new(env),
         })
+    }
+
+    /// Shares this read-write environment with a read-only environment.
+    pub fn share(&self) -> RoLmdbEnvironment {
+        RoLmdbEnvironment::new(self.env.clone())
+    }
+
+    pub fn create_database(
+        &mut self,
+        name: Option<&str>,
+        flags: DatabaseFlags,
+    ) -> Result<Database, StorageError> {
+        // SAFETY:
+        // - `RwLmdbEnvironment` can only be constructed from an whole environment and can only share as a `RoLmdbEnvironment`.
+        // - `RoLmdbEnvironment` cannot be used to open `RwTransaction`.
+        // - `Environment` is never exposed directly.
+        // so the transaction is unique.
+        let database = unsafe { self.txn_mut()?.create_db(name, flags)? };
+        self.commit_and_renew()?;
+        Ok(database)
     }
 
     /// If this method fails, following calls to `self` will panic.
     pub fn commit_and_renew(&mut self) -> Result<(), StorageError> {
-        self.inner.take().expect(PANIC_MESSAGE).commit()?;
+        self.take_txn()?.commit()?;
         let inner = self.env.begin_rw_txn()?;
         // SAFETY: Same as `new`.
         let inner =
@@ -214,26 +184,25 @@ impl LmdbExclusiveTransaction {
         Ok(())
     }
 
-    pub fn txn(&self) -> &RwTransaction {
-        self.inner.as_ref().expect(PANIC_MESSAGE)
+    pub fn txn(&self) -> Result<&RwTransaction, StorageError> {
+        self.inner
+            .as_ref()
+            .ok_or(StorageError::TransactionDoesNotExist)
     }
 
-    pub fn txn_mut<'a>(&'a mut self) -> &mut RwTransaction {
-        // SAFETY:
-        // - Only lifetime is transmuted.
-        // - `RwTransaction`'s actual lifetime is `'a`, which is the lifetime of the environment.
+    pub fn txn_mut(&mut self) -> Result<&mut RwTransaction, StorageError> {
         unsafe {
-            std::mem::transmute::<&'a mut RwTransaction<'static>, &'a mut RwTransaction<'a>>(
-                self.inner.as_mut().expect(PANIC_MESSAGE),
+            std::mem::transmute(
+                self.inner
+                    .as_mut()
+                    .ok_or(StorageError::TransactionDoesNotExist),
             )
         }
     }
 
     #[inline]
     pub fn put(&mut self, db: Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
-        self.inner
-            .as_mut()
-            .expect(PANIC_MESSAGE)
+        self.txn_mut()?
             .put(db, &key, &value, WriteFlags::default())
             .map_err(Into::into)
     }
@@ -245,12 +214,7 @@ impl LmdbExclusiveTransaction {
         key: &[u8],
         value: Option<&[u8]>,
     ) -> Result<bool, StorageError> {
-        match self
-            .inner
-            .as_mut()
-            .expect(PANIC_MESSAGE)
-            .del(db, &key, value)
-        {
+        match self.txn_mut()?.del(db, &key, value) {
             Ok(()) => Ok(true),
             Err(lmdb::Error::NotFound) => Ok(false),
             Err(err) => Err(err.into()),
@@ -259,17 +223,13 @@ impl LmdbExclusiveTransaction {
 
     #[inline]
     pub fn open_cursor(&mut self, db: Database) -> Result<RwCursor, StorageError> {
-        let cursor = self
-            .inner
-            .as_mut()
-            .expect(PANIC_MESSAGE)
-            .open_rw_cursor(db)?;
+        let cursor = self.txn_mut()?.open_rw_cursor(db)?;
         Ok(cursor)
     }
 
     #[inline]
     pub fn get(&self, db: Database, key: &[u8]) -> Result<Option<&[u8]>, StorageError> {
-        match self.inner.as_ref().expect(PANIC_MESSAGE).get(db, &key) {
+        match self.txn()?.get(db, &key) {
             Ok(value) => Ok(Some(value)),
             Err(lmdb::Error::NotFound) => Ok(None),
             Err(err) => Err(err.into()),
@@ -278,11 +238,64 @@ impl LmdbExclusiveTransaction {
 
     #[inline]
     pub fn open_ro_cursor(&self, db: Database) -> Result<RoCursor, StorageError> {
-        let cursor = self
-            .inner
-            .as_ref()
-            .expect(PANIC_MESSAGE)
-            .open_ro_cursor(db)?;
+        let cursor = self.txn()?.open_ro_cursor(db)?;
         Ok(cursor)
+    }
+
+    fn take_txn(&mut self) -> Result<RwTransaction, StorageError> {
+        self.inner
+            .take()
+            .ok_or(StorageError::TransactionDoesNotExist)
+    }
+}
+
+// Safety:
+unsafe impl Send for RwLmdbEnvironment {}
+unsafe impl Sync for RwLmdbEnvironment {}
+
+#[derive(Debug, Clone)]
+pub struct RoLmdbEnvironment(Arc<Environment>);
+
+impl LmdbEnvironment for RoLmdbEnvironment {
+    fn env(&self) -> &Environment {
+        &self.0
+    }
+}
+
+impl RoLmdbEnvironment {
+    pub fn new(env: Arc<Environment>) -> Self {
+        Self(env)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempdir::TempDir;
+
+    use super::*;
+
+    #[test]
+    fn test_create_then_open_database() {
+        let temp_dir = TempDir::new("test").unwrap();
+        let name = "test";
+        let mut rw_env = LmdbEnvironmentManager::create_rw(
+            temp_dir.path(),
+            name,
+            LmdbEnvironmentOptions::default(),
+        )
+        .unwrap();
+
+        let db_name = Some("db");
+        rw_env
+            .create_database(db_name, DatabaseFlags::empty())
+            .unwrap();
+
+        let ro_env = LmdbEnvironmentManager::create_ro(
+            temp_dir.path(),
+            name,
+            LmdbEnvironmentOptions::default(),
+        )
+        .unwrap();
+        ro_env.open_database(db_name).unwrap();
     }
 }

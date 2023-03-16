@@ -39,7 +39,7 @@ fn get_schema() {
 #[test]
 fn insert_get_and_delete_record() {
     let val = "bar".to_string();
-    let (cache, mut indexing_thread_pool, schema) = _setup();
+    let (mut cache, mut indexing_thread_pool, schema) = _setup();
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
@@ -70,7 +70,7 @@ fn insert_get_and_delete_record() {
 
 #[test]
 fn insert_and_update_record() {
-    let (cache, _, schema) = _setup();
+    let (mut cache, _, schema) = _setup();
     let mut foo = Record::new(
         schema.identifier,
         vec![Field::String("foo".to_string())],
@@ -92,7 +92,7 @@ fn insert_and_update_record() {
 }
 
 fn insert_and_query_record_impl(
-    cache: LmdbRwCache,
+    mut cache: LmdbRwCache,
     mut indexing_thread_pool: IndexingThreadPool,
     schema: Schema,
 ) {

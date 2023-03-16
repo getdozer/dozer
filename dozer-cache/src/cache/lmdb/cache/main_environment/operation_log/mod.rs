@@ -1,8 +1,7 @@
 use dozer_storage::{
     errors::StorageError,
     lmdb::{RoCursor, RwTransaction, Transaction},
-    lmdb_storage::CreateDatabase,
-    KeyIterator, LmdbCounter, LmdbMap, LmdbSet,
+    KeyIterator, LmdbCounter, LmdbEnvironment, LmdbMap, LmdbSet, RwLmdbEnvironment,
 };
 use dozer_types::{
     borrow::{Borrow, Cow, IntoOwned},
@@ -52,18 +51,24 @@ pub struct OperationLog {
 }
 
 impl OperationLog {
-    pub fn new<C: CreateDatabase>(
-        c: &mut C,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        let primary_key_to_metadata =
-            LmdbMap::new(c, Some("primary_key_to_metadata"), create_if_not_exist)?;
-        let present_operation_ids =
-            LmdbSet::new(c, Some("present_operation_ids"), create_if_not_exist)?;
-        let next_operation_id =
-            LmdbCounter::new(c, Some("next_operation_id"), create_if_not_exist)?;
-        let operation_id_to_operation =
-            LmdbMap::new(c, Some("operation_id_to_operation"), create_if_not_exist)?;
+    pub fn create(env: &mut RwLmdbEnvironment) -> Result<Self, StorageError> {
+        let primary_key_to_metadata = LmdbMap::create(env, Some("primary_key_to_metadata"))?;
+        let present_operation_ids = LmdbSet::create(env, Some("present_operation_ids"))?;
+        let next_operation_id = LmdbCounter::create(env, Some("next_operation_id"))?;
+        let operation_id_to_operation = LmdbMap::create(env, Some("operation_id_to_operation"))?;
+        Ok(Self {
+            primary_key_to_metadata,
+            present_operation_ids,
+            next_operation_id,
+            operation_id_to_operation,
+        })
+    }
+
+    pub fn open<E: LmdbEnvironment>(env: &E) -> Result<Self, StorageError> {
+        let primary_key_to_metadata = LmdbMap::open(env, Some("primary_key_to_metadata"))?;
+        let present_operation_ids = LmdbSet::open(env, Some("present_operation_ids"))?;
+        let next_operation_id = LmdbCounter::open(env, Some("next_operation_id"))?;
+        let operation_id_to_operation = LmdbMap::open(env, Some("operation_id_to_operation"))?;
         Ok(Self {
             primary_key_to_metadata,
             present_operation_ids,
@@ -311,29 +316,29 @@ mod lmdb_val_impl;
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::lmdb::utils::init_env;
+    use crate::cache::lmdb::utils::create_env;
 
     use super::*;
 
     #[test]
     fn test_operation_log_append_only() {
-        let mut env = init_env(&Default::default(), true).unwrap().0;
-        let log = OperationLog::new(&mut env, true).unwrap();
-        let mut txn = env.begin_rw_txn().unwrap();
+        let mut env = create_env(&Default::default()).unwrap().0;
+        let log = OperationLog::create(&mut env).unwrap();
+        let txn = env.txn_mut().unwrap();
         let append_only = true;
 
         let mut records = vec![Record::new(None, vec![], None); 10];
         for (index, record) in records.iter_mut().enumerate() {
-            let record_id = log.insert(&mut txn, record, None, false).unwrap().unwrap();
+            let record_id = log.insert(txn, record, None, false).unwrap().unwrap();
             assert_eq!(record_id, index as u64);
             assert_eq!(record.version, Some(INITIAL_RECORD_VERSION));
             assert_eq!(
-                log.count_present_records(&txn, append_only).unwrap(),
+                log.count_present_records(txn, append_only).unwrap(),
                 index + 1
             );
-            assert_eq!(log.next_operation_id(&txn).unwrap(), index as u64 + 1);
+            assert_eq!(log.next_operation_id(txn).unwrap(), index as u64 + 1);
             assert_eq!(
-                log.present_operation_ids(&txn, append_only)
+                log.present_operation_ids(txn, append_only)
                     .unwrap()
                     .map(|result| result.map(IntoOwned::into_owned))
                     .collect::<Result<Vec<_>, _>>()
@@ -341,15 +346,15 @@ mod tests {
                 (0..=index as u64).collect::<Vec<_>>()
             );
             assert!(log
-                .contains_operation_id(&txn, append_only, index as _)
+                .contains_operation_id(txn, append_only, index as _)
                 .unwrap());
             assert_eq!(
-                log.get_record_by_operation_id_unchecked(&txn, index as _)
+                log.get_record_by_operation_id_unchecked(txn, index as _)
                     .unwrap(),
                 RecordWithId::new(record_id, record.clone())
             );
             assert_eq!(
-                log.get_operation(&txn, index as _).unwrap().unwrap(),
+                log.get_operation(txn, index as _).unwrap().unwrap(),
                 Operation::Insert {
                     record_id,
                     record: record.clone(),
@@ -360,41 +365,41 @@ mod tests {
 
     #[test]
     fn test_operation_log_with_primary_key() {
-        let mut env = init_env(&Default::default(), true).unwrap().0;
-        let log = OperationLog::new(&mut env, true).unwrap();
-        let mut txn = env.begin_rw_txn().unwrap();
+        let mut env = create_env(&Default::default()).unwrap().0;
+        let log = OperationLog::create(&mut env).unwrap();
+        let txn = env.txn_mut().unwrap();
         let append_only = false;
 
         // Insert a record.
         let mut record = Record::new(None, vec![], None);
         let primary_key = b"primary_key";
         let record_id = log
-            .insert(&mut txn, &mut record, Some(primary_key), false)
+            .insert(txn, &mut record, Some(primary_key), false)
             .unwrap()
             .unwrap();
         assert_eq!(record_id, 0);
         assert_eq!(record.version, Some(INITIAL_RECORD_VERSION));
-        assert_eq!(log.count_present_records(&txn, append_only).unwrap(), 1);
+        assert_eq!(log.count_present_records(txn, append_only).unwrap(), 1);
         assert_eq!(
-            log.get_record(&txn, primary_key).unwrap().unwrap(),
+            log.get_record(txn, primary_key).unwrap().unwrap(),
             RecordWithId::new(record_id, record.clone())
         );
-        assert_eq!(log.next_operation_id(&txn).unwrap(), 1);
+        assert_eq!(log.next_operation_id(txn).unwrap(), 1);
         assert_eq!(
-            log.present_operation_ids(&txn, append_only)
+            log.present_operation_ids(txn, append_only)
                 .unwrap()
                 .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap(),
             vec![0]
         );
-        assert!(log.contains_operation_id(&txn, append_only, 0).unwrap());
+        assert!(log.contains_operation_id(txn, append_only, 0).unwrap());
         assert_eq!(
-            log.get_record_by_operation_id_unchecked(&txn, 0).unwrap(),
+            log.get_record_by_operation_id_unchecked(txn, 0).unwrap(),
             RecordWithId::new(record_id, record.clone())
         );
         assert_eq!(
-            log.get_operation(&txn, 0).unwrap().unwrap(),
+            log.get_operation(txn, 0).unwrap().unwrap(),
             Operation::Insert {
                 record_id,
                 record: record.clone(),
@@ -403,68 +408,69 @@ mod tests {
 
         // Insert again with the same primary key should fail.
         assert_eq!(
-            log.insert(&mut txn, &mut record, Some(primary_key), false)
+            log.insert(txn, &mut record, Some(primary_key), false)
                 .unwrap(),
             None
         );
 
         // Delete the record.
-        let version = log.delete(&mut txn, primary_key).unwrap().unwrap();
+        let version = log.delete(txn, primary_key).unwrap().unwrap();
         assert_eq!(version, INITIAL_RECORD_VERSION);
-        assert_eq!(log.count_present_records(&txn, append_only).unwrap(), 0);
-        assert_eq!(log.get_record(&txn, primary_key).unwrap(), None);
-        assert_eq!(log.next_operation_id(&txn).unwrap(), 2);
+        assert_eq!(log.count_present_records(txn, append_only).unwrap(), 0);
+        assert_eq!(log.get_record(txn, primary_key).unwrap(), None);
+        assert_eq!(log.next_operation_id(txn).unwrap(), 2);
         assert_eq!(
-            log.present_operation_ids(&txn, append_only)
+            log.present_operation_ids(txn, append_only)
                 .unwrap()
                 .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap(),
             Vec::<u64>::new(),
         );
-        assert!(!log.contains_operation_id(&txn, append_only, 0).unwrap());
+        assert!(!log.contains_operation_id(txn, append_only, 0).unwrap());
         assert_eq!(
-            log.get_operation(&txn, 1).unwrap().unwrap(),
+            log.contains_operation_id(txn, append_only, 0).unwrap(),
+            false
+        );
+        assert_eq!(
+            log.get_operation(txn, 1).unwrap().unwrap(),
             Operation::Delete { operation_id: 0 }
         );
 
         // Delete a non-existing record should fail.
-        assert_eq!(
-            log.delete(&mut txn, b"non_existing_primary_key").unwrap(),
-            None
-        );
+        assert_eq!(log.delete(txn, b"non_existing_primary_key").unwrap(), None);
 
         // Delete an deleted record should fail.
-        assert_eq!(log.delete(&mut txn, primary_key).unwrap(), None);
+        assert_eq!(log.delete(txn, primary_key).unwrap(), None);
 
         // Insert with that primary key again.
         let record_id = log
-            .insert(&mut txn, &mut record, Some(primary_key), false)
+            .insert(txn, &mut record, Some(primary_key), false)
             .unwrap()
             .unwrap();
         assert_eq!(record_id, 0);
         assert_eq!(record.version, Some(INITIAL_RECORD_VERSION + 1));
-        assert_eq!(log.count_present_records(&txn, append_only).unwrap(), 1);
+        assert_eq!(log.count_present_records(txn, append_only).unwrap(), 1);
         assert_eq!(
-            log.get_record(&txn, primary_key).unwrap().unwrap(),
+            log.get_record(txn, primary_key).unwrap().unwrap(),
             RecordWithId::new(record_id, record.clone())
         );
-        assert_eq!(log.next_operation_id(&txn).unwrap(), 3);
+        assert_eq!(log.next_operation_id(txn).unwrap(), 3);
         assert_eq!(
-            log.present_operation_ids(&txn, append_only)
+            log.present_operation_ids(txn, append_only)
                 .unwrap()
                 .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap(),
             vec![2]
         );
-        assert!(log.contains_operation_id(&txn, append_only, 2).unwrap());
+        assert!(log.contains_operation_id(txn, append_only, 2).unwrap());
         assert_eq!(
-            log.get_record_by_operation_id_unchecked(&txn, 2).unwrap(),
+            log.get_record_by_operation_id_unchecked(txn, 2).unwrap(),
             RecordWithId::new(record_id, record.clone())
         );
         assert_eq!(
-            log.get_operation(&txn, 2).unwrap().unwrap(),
+            log.get_operation(txn, 2).unwrap().unwrap(),
             Operation::Insert {
                 record_id,
                 record: record.clone(),

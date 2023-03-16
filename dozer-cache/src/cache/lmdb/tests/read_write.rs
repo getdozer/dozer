@@ -16,7 +16,7 @@ fn read_and_write() {
 
     let schema = test_utils::schema_1();
     let mut indexing_thread_pool = IndexingThreadPool::new(1);
-    let cache_writer = LmdbRwCache::new(
+    let mut cache_writer = LmdbRwCache::new(
         Some(&schema),
         &CacheOptions {
             max_readers: 1,
@@ -38,7 +38,7 @@ fn read_and_write() {
     ];
 
     for val in items.clone() {
-        lmdb_utils::insert_rec_1(&cache_writer, &schema.0, val.clone());
+        lmdb_utils::insert_rec_1(&mut cache_writer, &schema.0, val.clone());
     }
     cache_writer.commit().unwrap();
 

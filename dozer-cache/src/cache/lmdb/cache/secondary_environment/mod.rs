@@ -1,12 +1,14 @@
 use dozer_storage::{
-    errors::StorageError,
-    lmdb::{RoTransaction, Transaction},
-    lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
-    BeginTransaction, LmdbCounter, LmdbMultimap, LmdbOption, ReadTransaction,
+    lmdb::Transaction,
+    lmdb_storage::{RoLmdbEnvironment, RwLmdbEnvironment},
+    LmdbCounter, LmdbEnvironment, LmdbMultimap, LmdbOption,
 };
 use dozer_types::{borrow::IntoOwned, log::debug, types::IndexDefinition};
 
-use crate::{cache::lmdb::utils::init_env, errors::CacheError};
+use crate::{
+    cache::lmdb::utils::{create_env, open_env},
+    errors::CacheError,
+};
 
 use super::{
     main_environment::{Operation, OperationLog},
@@ -18,7 +20,7 @@ mod indexer;
 
 pub type SecondaryIndexDatabase = LmdbMultimap<Vec<u8>, u64>;
 
-pub trait SecondaryEnvironment: BeginTransaction {
+pub trait SecondaryEnvironment: LmdbEnvironment {
     fn index_definition(&self) -> &IndexDefinition;
     fn database(&self) -> SecondaryIndexDatabase;
 
@@ -31,16 +33,14 @@ pub trait SecondaryEnvironment: BeginTransaction {
 #[derive(Debug)]
 pub struct RwSecondaryEnvironment {
     index_definition: IndexDefinition,
-    txn: SharedTransaction,
+    env: RwLmdbEnvironment,
     database: SecondaryIndexDatabase,
     next_operation_id: LmdbCounter,
 }
 
-impl BeginTransaction for RwSecondaryEnvironment {
-    type Transaction<'a> = ReadTransaction<'a>;
-
-    fn begin_txn(&self) -> Result<Self::Transaction<'_>, StorageError> {
-        self.txn.begin_txn()
+impl LmdbEnvironment for RwSecondaryEnvironment {
+    fn env(&self) -> &dozer_storage::lmdb::Environment {
+        self.env.env()
     }
 }
 
@@ -56,56 +56,61 @@ impl SecondaryEnvironment for RwSecondaryEnvironment {
 
 impl RwSecondaryEnvironment {
     pub fn new(
-        index_definition: Option<&IndexDefinition>,
+        index_definition: &IndexDefinition,
         name: String,
         options: &CacheOptions,
     ) -> Result<Self, CacheError> {
-        let (env, database, next_operation_id, index_definition_option, old_index_definition) =
-            open_env(name.clone(), options, true)?;
-        let txn = env.create_txn()?;
+        let mut env = create_env(&get_cache_options(name.clone(), &options))?.0;
 
-        let index_definition = match (index_definition, old_index_definition) {
-            (Some(index_definition), None) => {
-                let mut txn = txn.write();
-                index_definition_option.store(txn.txn_mut(), index_definition)?;
-                txn.commit_and_renew()?;
-                index_definition.clone()
+        let database = LmdbMultimap::create(&mut env, Some("database"))?;
+        let next_operation_id = LmdbCounter::create(&mut env, Some("next_operation_id"))?;
+        let index_definition_option = LmdbOption::create(&mut env, Some("index_definition"))?;
+
+        let old_index_definition = index_definition_option
+            .load(&env.begin_txn()?)?
+            .map(IntoOwned::into_owned);
+
+        let index_definition = if let Some(old_index_definition) = old_index_definition {
+            if index_definition != &old_index_definition {
+                return Err(CacheError::IndexDefinitionMismatch {
+                    name,
+                    given: index_definition.clone(),
+                    stored: old_index_definition,
+                });
             }
-            (None, Some(index_definition)) => index_definition,
-            (Some(index_definition), Some(old_index_definition)) => {
-                if index_definition != &old_index_definition {
-                    return Err(CacheError::IndexDefinitionMismatch {
-                        name,
-                        given: index_definition.clone(),
-                        stored: old_index_definition,
-                    });
-                }
-                old_index_definition
-            }
-            (None, None) => {
-                return Err(CacheError::IndexDefinitionNotFound(name));
-            }
+            old_index_definition
+        } else {
+            index_definition_option.store(env.txn_mut()?, index_definition)?;
+            env.commit_and_renew()?;
+            index_definition.clone()
         };
 
-        set_comparator(&txn, &index_definition, database)?;
+        set_comparator(&env, &index_definition, database)?;
 
         Ok(Self {
             index_definition,
-            txn,
+            env,
             database,
             next_operation_id,
         })
     }
 
+    pub fn share(&self) -> RoSecondaryEnvironment {
+        RoSecondaryEnvironment {
+            index_definition: self.index_definition.clone(),
+            env: self.env.share(),
+            database: self.database,
+        }
+    }
+
     pub fn index<T: Transaction>(
-        &self,
+        &mut self,
         log_txn: &T,
         operation_log: OperationLog,
     ) -> Result<(), CacheError> {
         let main_env_next_operation_id = operation_log.next_operation_id(log_txn)?;
 
-        let mut txn = self.txn.write();
-        let txn = txn.txn_mut();
+        let txn = self.env.txn_mut()?;
         loop {
             // Start from `next_operation_id`.
             let operation_id = self.next_operation_id.load(txn)?;
@@ -153,23 +158,21 @@ impl RwSecondaryEnvironment {
         }
     }
 
-    pub fn commit(&self) -> Result<(), CacheError> {
-        self.txn.write().commit_and_renew().map_err(Into::into)
+    pub fn commit(&mut self) -> Result<(), CacheError> {
+        self.env.commit_and_renew().map_err(Into::into)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RoSecondaryEnvironment {
     index_definition: IndexDefinition,
-    env: LmdbEnvironmentManager,
+    env: RoLmdbEnvironment,
     database: SecondaryIndexDatabase,
 }
 
-impl BeginTransaction for RoSecondaryEnvironment {
-    type Transaction<'a> = RoTransaction<'a>;
-
-    fn begin_txn(&self) -> Result<Self::Transaction<'_>, StorageError> {
-        self.env.begin_txn()
+impl LmdbEnvironment for RoSecondaryEnvironment {
+    fn env(&self) -> &dozer_storage::lmdb::Environment {
+        self.env.env()
     }
 }
 
@@ -185,8 +188,16 @@ impl SecondaryEnvironment for RoSecondaryEnvironment {
 
 impl RoSecondaryEnvironment {
     pub fn new(name: String, options: &CacheOptions) -> Result<Self, CacheError> {
-        let (env, database, _, _, index_definition) = open_env(name.clone(), options, false)?;
-        let index_definition = index_definition.ok_or(CacheError::IndexDefinitionNotFound(name))?;
+        let mut env = open_env(&get_cache_options(name.clone(), options))?.0;
+
+        let database = LmdbMultimap::open(&mut env, Some("database"))?;
+        let index_definition_option = LmdbOption::open(&mut env, Some("index_definition"))?;
+
+        let index_definition = index_definition_option
+            .load(&env.begin_txn()?)?
+            .map(IntoOwned::into_owned)
+            .ok_or(CacheError::IndexDefinitionNotFound(name))?;
+
         set_comparator(&env, &index_definition, database)?;
         Ok(Self {
             env,
@@ -196,55 +207,21 @@ impl RoSecondaryEnvironment {
     }
 }
 
-#[allow(clippy::type_complexity)]
-fn open_env(
-    name: String,
-    options: &CacheOptions,
-    create_if_not_exist: bool,
-) -> Result<
-    (
-        LmdbEnvironmentManager,
-        SecondaryIndexDatabase,
-        LmdbCounter,
-        LmdbOption<IndexDefinition>,
-        Option<IndexDefinition>,
-    ),
-    CacheError,
-> {
+fn get_cache_options(name: String, options: &CacheOptions) -> CacheOptions {
     let path = options
         .path
         .as_ref()
         .map(|(base_path, main_name)| (base_path.join(format!("{main_name}_index")), name));
-    let options = CacheOptions { path, ..*options };
-
-    let mut env = init_env(&options, create_if_not_exist)?.0;
-
-    let database = LmdbMultimap::new(&mut env, Some("database"), create_if_not_exist)?;
-    let next_operation_id =
-        LmdbCounter::new(&mut env, Some("next_operation_id"), create_if_not_exist)?;
-    let index_definition_option =
-        LmdbOption::new(&mut env, Some("index_definition"), create_if_not_exist)?;
-
-    let index_definition = index_definition_option
-        .load(&env.begin_txn()?)?
-        .map(IntoOwned::into_owned);
-
-    Ok((
-        env,
-        database,
-        next_operation_id,
-        index_definition_option,
-        index_definition,
-    ))
+    CacheOptions { path, ..*options }
 }
 
-fn set_comparator<B: BeginTransaction>(
-    b: &B,
+fn set_comparator<E: LmdbEnvironment>(
+    env: &E,
     index_definition: &IndexDefinition,
     database: SecondaryIndexDatabase,
 ) -> Result<(), CacheError> {
     if let IndexDefinition::SortedInverted(fields) = index_definition {
-        comparator::set_sorted_inverted_comparator(&b.begin_txn()?, database.database(), fields)?;
+        comparator::set_sorted_inverted_comparator(&env.begin_txn()?, database.database(), fields)?;
     }
     Ok(())
 }

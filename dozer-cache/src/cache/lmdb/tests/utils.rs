@@ -30,7 +30,7 @@ pub fn create_cache(
 }
 
 pub fn insert_rec_1(
-    cache: &LmdbRwCache,
+    cache: &mut LmdbRwCache,
     schema: &Schema,
     (a, b, c): (i64, Option<String>, Option<i64>),
 ) {
@@ -47,7 +47,7 @@ pub fn insert_rec_1(
 }
 
 pub fn insert_full_text(
-    cache: &LmdbRwCache,
+    cache: &mut LmdbRwCache,
     schema: &Schema,
     (a, b): (Option<String>, Option<String>),
 ) {

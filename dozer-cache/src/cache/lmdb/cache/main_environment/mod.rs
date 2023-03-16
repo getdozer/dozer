@@ -1,10 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use dozer_storage::{
-    errors::StorageError,
-    lmdb::RoTransaction,
-    lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
-    BeginTransaction, LmdbOption, ReadTransaction,
+    lmdb_storage::{RoLmdbEnvironment, RwLmdbEnvironment},
+    LmdbEnvironment, LmdbOption,
 };
 use dozer_types::models::api_endpoint::{
     ConflictResolution, OnInsertResolutionTypes, OnUpdateResolutionTypes,
@@ -16,7 +14,11 @@ use dozer_types::{
 use tempdir::TempDir;
 
 use crate::{
-    cache::{index, lmdb::utils::init_env, RecordWithId},
+    cache::{
+        index,
+        lmdb::utils::{create_env, open_env},
+        RecordWithId,
+    },
     errors::CacheError,
 };
 
@@ -26,7 +28,7 @@ pub use operation_log::{Operation, OperationLog};
 
 use super::CacheOptions;
 
-pub trait MainEnvironment: BeginTransaction {
+pub trait MainEnvironment: LmdbEnvironment {
     fn common(&self) -> &MainEnvironmentCommon;
 
     fn schema(&self) -> &SchemaWithIndex;
@@ -62,7 +64,7 @@ pub trait MainEnvironment: BeginTransaction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MainEnvironmentCommon {
     /// The environment base path.
     base_path: PathBuf,
@@ -75,7 +77,7 @@ pub struct MainEnvironmentCommon {
 
 #[derive(Debug)]
 pub struct RwMainEnvironment {
-    txn: SharedTransaction,
+    env: RwLmdbEnvironment,
     common: MainEnvironmentCommon,
     _temp_dir: Option<TempDir>,
     schema: SchemaWithIndex,
@@ -83,11 +85,9 @@ pub struct RwMainEnvironment {
     update_resolution: OnUpdateResolutionTypes,
 }
 
-impl BeginTransaction for RwMainEnvironment {
-    type Transaction<'a> = ReadTransaction<'a>;
-
-    fn begin_txn(&self) -> Result<Self::Transaction<'_>, StorageError> {
-        self.txn.begin_txn()
+impl LmdbEnvironment for RwMainEnvironment {
+    fn env(&self) -> &dozer_storage::lmdb::Environment {
+        self.env.env()
     }
 }
 
@@ -107,14 +107,20 @@ impl RwMainEnvironment {
         options: &CacheOptions,
         conflict_resolution: ConflictResolution,
     ) -> Result<Self, CacheError> {
-        let (env, common, schema_option, old_schema, temp_dir) = open_env(options, true)?;
-        let txn = env.create_txn()?;
+        let (mut env, (base_path, name), temp_dir) = create_env(options)?;
+
+        let operation_log = OperationLog::create(&mut env)?;
+        let schema_option = LmdbOption::create(&mut env, Some("schema"))?;
+
+        let old_schema = schema_option
+            .load(&env.begin_txn()?)?
+            .map(IntoOwned::into_owned);
 
         let schema = match (schema, old_schema) {
             (Some(schema), Some(old_schema)) => {
                 if &old_schema != schema {
                     return Err(CacheError::SchemaMismatch {
-                        name: common.name,
+                        name,
                         given: Box::new(schema.clone()),
                         stored: Box::new(old_schema),
                     });
@@ -122,9 +128,8 @@ impl RwMainEnvironment {
                 old_schema
             }
             (Some(schema), None) => {
-                let mut txn = txn.write();
-                schema_option.store(txn.txn_mut(), schema)?;
-                txn.commit_and_renew()?;
+                schema_option.store(env.txn_mut()?, schema)?;
+                env.commit_and_renew()?;
                 schema.clone()
             }
             (None, Some(schema)) => schema,
@@ -132,8 +137,13 @@ impl RwMainEnvironment {
         };
 
         Ok(Self {
-            txn,
-            common,
+            env,
+            common: MainEnvironmentCommon {
+                base_path,
+                name,
+                operation_log,
+                intersection_chunk_size: options.intersection_chunk_size,
+            },
             schema,
             _temp_dir: temp_dir,
             insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
@@ -141,10 +151,18 @@ impl RwMainEnvironment {
         })
     }
 
+    pub fn share(&self) -> RoMainEnvironment {
+        RoMainEnvironment {
+            env: self.env.share(),
+            common: self.common.clone(),
+            schema: self.schema.clone(),
+        }
+    }
+
     /// Inserts the record into the cache and sets the record version. Returns the record id.
     ///
     /// Every time a record with the same primary key is inserted, its version number gets increased by 1.
-    pub fn insert(&self, record: &mut Record) -> Result<u64, CacheError> {
+    pub fn insert(&mut self, record: &mut Record) -> Result<u64, CacheError> {
         debug_check_schema_record_consistency(&self.schema.0, record);
 
         let upsert_on_duplicate = self.insert_resolution == OnInsertResolutionTypes::Update;
@@ -157,8 +175,7 @@ impl RwMainEnvironment {
             ))
         };
 
-        let mut txn = self.txn.write();
-        let txn = txn.txn_mut();
+        let txn = self.env.txn_mut()?;
         self.common
             .operation_log
             .insert(txn, record, primary_key.as_deref(), upsert_on_duplicate)?
@@ -166,9 +183,8 @@ impl RwMainEnvironment {
     }
 
     /// Deletes the record and returns the record version.
-    pub fn delete(&self, primary_key: &[u8]) -> Result<u32, CacheError> {
-        let mut txn = self.txn.write();
-        let txn = txn.txn_mut();
+    pub fn delete(&mut self, primary_key: &[u8]) -> Result<u32, CacheError> {
+        let txn = self.env.txn_mut()?;
         self.common
             .operation_log
             .delete(txn, primary_key)?
@@ -176,7 +192,7 @@ impl RwMainEnvironment {
     }
 
     pub fn update(
-        &self,
+        &mut self,
         primary_key: &[u8],
         record: &mut Record,
     ) -> Result<(Option<u32>, u64), CacheError> {
@@ -185,8 +201,7 @@ impl RwMainEnvironment {
         let upsert_enabled = self.update_resolution == OnUpdateResolutionTypes::Upsert;
         let pk_vec = index::get_primary_key(&self.schema.0.primary_index, &record.values);
 
-        let mut txn = self.txn.write();
-        let txn = txn.txn_mut();
+        let txn = self.env.txn_mut()?;
 
         let deleted_operation_version = self.common.operation_log.delete(txn, primary_key)?;
 
@@ -204,23 +219,21 @@ impl RwMainEnvironment {
         }
     }
 
-    pub fn commit(&self) -> Result<(), CacheError> {
-        self.txn.write().commit_and_renew().map_err(Into::into)
+    pub fn commit(&mut self) -> Result<(), CacheError> {
+        self.env.commit_and_renew().map_err(Into::into)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RoMainEnvironment {
-    env: LmdbEnvironmentManager,
+    env: RoLmdbEnvironment,
     common: MainEnvironmentCommon,
     schema: SchemaWithIndex,
 }
 
-impl BeginTransaction for RoMainEnvironment {
-    type Transaction<'a> = RoTransaction<'a>;
-
-    fn begin_txn(&self) -> Result<Self::Transaction<'_>, StorageError> {
-        self.env.begin_txn()
+impl LmdbEnvironment for RoMainEnvironment {
+    fn env(&self) -> &dozer_storage::lmdb::Environment {
+        self.env.env()
     }
 }
 
@@ -236,51 +249,27 @@ impl MainEnvironment for RoMainEnvironment {
 
 impl RoMainEnvironment {
     pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
-        let (env, common, _, schema, _) = open_env(options, false)?;
-        let schema = schema.ok_or(CacheError::SchemaNotFound)?;
+        let (mut env, (base_path, name), _temp_dir) = open_env(options)?;
+
+        let operation_log = OperationLog::open(&mut env)?;
+        let schema_option = LmdbOption::open(&mut env, Some("schema"))?;
+
+        let schema = schema_option
+            .load(&env.begin_txn()?)?
+            .map(IntoOwned::into_owned)
+            .ok_or(CacheError::SchemaNotFound)?;
+
         Ok(Self {
             env,
-            common,
+            common: MainEnvironmentCommon {
+                base_path: base_path.to_path_buf(),
+                name: name.to_string(),
+                operation_log,
+                intersection_chunk_size: options.intersection_chunk_size,
+            },
             schema,
         })
     }
-}
-
-#[allow(clippy::type_complexity)]
-fn open_env(
-    options: &CacheOptions,
-    create_if_not_exist: bool,
-) -> Result<
-    (
-        LmdbEnvironmentManager,
-        MainEnvironmentCommon,
-        LmdbOption<SchemaWithIndex>,
-        Option<SchemaWithIndex>,
-        Option<TempDir>,
-    ),
-    CacheError,
-> {
-    let (mut env, (base_path, name), temp_dir) = init_env(options, create_if_not_exist)?;
-
-    let operation_log = OperationLog::new(&mut env, create_if_not_exist)?;
-    let schema_option = LmdbOption::new(&mut env, Some("schema"), create_if_not_exist)?;
-
-    let schema = schema_option
-        .load(&env.begin_txn()?)?
-        .map(IntoOwned::into_owned);
-
-    Ok((
-        env,
-        MainEnvironmentCommon {
-            base_path,
-            name,
-            operation_log,
-            intersection_chunk_size: options.intersection_chunk_size,
-        },
-        schema_option,
-        schema,
-        temp_dir,
-    ))
 }
 
 fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
