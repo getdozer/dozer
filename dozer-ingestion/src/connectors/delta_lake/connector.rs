@@ -1,8 +1,9 @@
 use crate::connectors::delta_lake::reader::DeltaLakeReader;
 use crate::connectors::delta_lake::schema_helper::SchemaHelper;
 use crate::connectors::delta_lake::ConnectorResult;
-use crate::connectors::object_store::schema_mapper;
-use crate::connectors::{table_name, Connector, SourceSchemaResult, TableIdentifier, TableInfo};
+use crate::connectors::{
+    table_name, Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
+};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::DeltaLakeConfig;
@@ -60,7 +61,7 @@ impl Connector for DeltaLakeConnector {
     fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
         let table_infos = tables
             .into_iter()
-            .map(|table| schema_mapper::TableInfo {
+            .map(|table| ListOrFilterColumns {
                 schema: table.schema,
                 name: table.name,
                 columns: None,
@@ -89,7 +90,7 @@ impl Connector for DeltaLakeConnector {
     fn get_schemas(&self, table_infos: &[TableInfo]) -> ConnectorResult<Vec<SourceSchemaResult>> {
         let table_infos = table_infos
             .iter()
-            .map(|table_info| schema_mapper::TableInfo {
+            .map(|table_info| ListOrFilterColumns {
                 schema: None,
                 name: table_info.name.clone(),
                 columns: Some(table_info.column_names.clone()),
