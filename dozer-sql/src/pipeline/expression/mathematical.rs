@@ -6,7 +6,9 @@ use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, Record},
 };
-use num_traits::cast::*;
+use num_traits::ToPrimitive;
+use num_traits::FromPrimitive;
+use std::num::Wrapping;
 use std::ops::Neg;
 
 macro_rules! define_math_operator {
@@ -157,50 +159,49 @@ macro_rules! define_math_operator {
                     Field::Int(right_v) => {
                         return match ($t) {
                             // When UInt / Int division happens
-                            1 => Ok(Field::Float($fct(
-                                OrderedFloat::<f64>::from_u64(left_v).ok_or(
+                            1 => Ok(Field::Float(OrderedFloat($fct(
+                                f64::from_u64(left_v).ok_or(
                                     PipelineError::UnableToCast(
                                         format!("{}", left_v),
                                         "f64".to_string(),
                                     ),
                                 )?,
-                                OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                f64::from_i64(right_v).ok_or(
                                     PipelineError::UnableToCast(
                                         format!("{}", right_v),
                                         "f64".to_string(),
                                     ),
                                 )?,
-                            ))),
+                            )))),
                             // When it's not division operation
                             _ => Ok(Field::Int($fct(
-                                left_v.to_i64().ok_or(PipelineError::UnableToCast(
-                                    format!("{}", left_v),
-                                    "i64".to_string(),
-                                ))?,
-                                right_v,
-                            ))),
+                                Wrapping(left_v as i64),
+                                Wrapping(right_v),
+                            ).0)),
                         };
                     }
                     // left: UInt, right: UInt
                     Field::UInt(right_v) => {
                         return match ($t) {
                             // When UInt / UInt division happens
-                            1 => Ok(Field::Float($fct(
-                                OrderedFloat::<f64>::from_u64(left_v).ok_or(
-                                    PipelineError::UnableToCast(
+                            1 => Ok(Field::Float(
+                                OrderedFloat::<f64>::from_f64($fct(
+                                    f64::from_u64(left_v).ok_or(PipelineError::UnableToCast(
                                         format!("{}", left_v),
                                         "f64".to_string(),
-                                    ),
-                                )?,
-                                OrderedFloat::<f64>::from_u64(right_v).ok_or(
-                                    PipelineError::UnableToCast(
+                                    ))?,
+                                    f64::from_u64(right_v).ok_or(PipelineError::UnableToCast(
                                         format!("{}", right_v),
                                         "f64".to_string(),
-                                    ),
-                                )?,
-                            ))),
+                                    ))?,
+                                ))
+                                .ok_or(PipelineError::UnableToCast(
+                                    format!("{}", left_v),
+                                    "OrderedFloat".to_string(),
+                                ))?,
+                            )),
                             // When it's not division operation
-                            _ => Ok(Field::UInt($fct(left_v, right_v))),
+                            _ => Ok(Field::UInt($fct(Wrapping(left_v), Wrapping(right_v)).0)),
                         };
                     }
                     // left: UInt, right: Float
@@ -211,17 +212,15 @@ macro_rules! define_math_operator {
                         right_v,
                     ))),
                     // left: UInt, right: Decimal
-                    Field::Decimal(right_v) => Ok(Field::Decimal($fct(
-                        Decimal::from_i64(left_v.to_i64().ok_or(PipelineError::UnableToCast(
-                            format!("{}", left_v),
-                            "i64".to_string(),
-                        ))?)
-                        .ok_or(PipelineError::UnableToCast(
-                            format!("{}", left_v),
-                            "Decimal".to_string(),
-                        ))?,
-                        right_v,
-                    ))),
+                    Field::Decimal(right_v) => {
+                        Ok(Field::Decimal($fct(
+                            Decimal::from_u64(left_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Decimal".to_string(),
+                            ))?,
+                            right_v
+                        )))
+                    },
                     _ => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
