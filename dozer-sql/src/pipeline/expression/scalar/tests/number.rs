@@ -56,12 +56,13 @@ fn test_round() {
             Field::Float(OrderedFloat(format!("{:.2}", f_num).parse::<f64>().unwrap()))
         );
 
-        let v = Box::new(Literal(Field::Float(OrderedFloat(212.633))));
+        let v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
         let d = &Box::new(Literal(Field::Int(-2)));
+        let order = 10.0_f64.powi(-2);
         assert_eq!(
             evaluate_round(&Schema::empty(), &v, Some(d), &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Float(OrderedFloat(200.0))
+            Field::Float(OrderedFloat((f_num * order).round() / order))
         );
 
         let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
