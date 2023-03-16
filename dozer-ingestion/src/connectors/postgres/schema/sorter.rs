@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::connectors::object_store::schema_mapper::TableInfo;
 use crate::connectors::postgres::schema::helper::PostgresTable;
+use crate::connectors::ListOrFilterColumns;
 use crate::errors::PostgresSchemaError;
 use crate::errors::PostgresSchemaError::ColumnNotFound;
 use dozer_types::types::FieldDefinition;
@@ -9,7 +9,7 @@ use dozer_types::types::FieldDefinition;
 use super::helper::SchemaTableIdentifier;
 
 pub fn sort_schemas(
-    expected_tables_order: &[TableInfo],
+    expected_tables_order: &[ListOrFilterColumns],
     mapped_tables: &HashMap<SchemaTableIdentifier, PostgresTable>,
 ) -> Result<Vec<(SchemaTableIdentifier, PostgresTable)>, PostgresSchemaError> {
     let mut sorted_tables: Vec<(SchemaTableIdentifier, PostgresTable)> = Vec::new();
@@ -76,9 +76,9 @@ mod tests {
     use dozer_types::types::{FieldType, SourceDefinition};
     use std::collections::HashMap;
 
-    use crate::connectors::object_store::schema_mapper::TableInfo;
     use crate::connectors::postgres::schema::helper::PostgresTable;
     use crate::connectors::postgres::schema::sorter::{sort_fields, sort_schemas};
+    use crate::connectors::ListOrFilterColumns;
     use dozer_types::types::FieldDefinition;
 
     fn generate_postgres_table() -> PostgresTable {
@@ -141,7 +141,7 @@ mod tests {
             postgres_table.clone(),
         );
 
-        let expected_table_order = &[TableInfo {
+        let expected_table_order = &[ListOrFilterColumns {
             name: "sort_test".to_string(),
             schema: Some("public".to_string()),
             columns: None,
@@ -185,7 +185,7 @@ mod tests {
         );
 
         let columns_order = vec!["third field".to_string()];
-        let expected_table_order = &[TableInfo {
+        let expected_table_order = &[ListOrFilterColumns {
             name: "sort_test".to_string(),
             schema: Some("public".to_string()),
             columns: Some(columns_order.clone()),
@@ -213,7 +213,7 @@ mod tests {
             "second field".to_string(),
             "third field".to_string(),
         ];
-        let expected_table_order = &[TableInfo {
+        let expected_table_order = &[ListOrFilterColumns {
             name: "sort_test".to_string(),
             schema: Some("public".to_string()),
             columns: Some(columns_order.clone()),
@@ -260,12 +260,12 @@ mod tests {
             "first field".to_string(),
         ];
         let expected_table_order = &[
-            TableInfo {
+            ListOrFilterColumns {
                 name: "sort_test_first".to_string(),
                 schema: Some("public".to_string()),
                 columns: Some(columns_order_1.clone()),
             },
-            TableInfo {
+            ListOrFilterColumns {
                 name: "sort_test_second".to_string(),
                 schema: Some("public".to_string()),
                 columns: Some(columns_order_2.clone()),
