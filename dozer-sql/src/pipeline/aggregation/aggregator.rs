@@ -4,7 +4,7 @@ use crate::pipeline::aggregation::avg::AvgAggregator;
 use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::aggregation::max::MaxAggregator;
 use crate::pipeline::aggregation::min::MinAggregator;
-use crate::pipeline::aggregation::sum::SumAggregator;
+use crate::pipeline::aggregation::sum::{SumAggregator};
 use crate::pipeline::errors::PipelineError;
 use enum_dispatch::enum_dispatch;
 use std::collections::BTreeMap;
