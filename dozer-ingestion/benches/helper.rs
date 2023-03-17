@@ -48,7 +48,7 @@ pub async fn get_connection_iterator(config: TestConfig) -> IngestionIterator {
             .map(|table_names| {
                 table_names
                     .into_iter()
-                    .map(|table_name| TableIdentifier::from_table_name(table_name))
+                    .map(TableIdentifier::from_table_name)
                     .collect()
             })
             .unwrap_or_else(|| grpc_connector.list_tables().unwrap());
