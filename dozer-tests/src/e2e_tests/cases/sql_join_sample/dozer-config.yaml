@@ -1,7 +1,7 @@
 connections:    
   - config : !LocalStorage
       details:
-        path: ./dozer-tests/src/e2e_tests/cases/sql_join_sample/data
+        path: ./src/e2e_tests/cases/sql_join_sample/data
       tables:
         - !Table
           name: taxi_zone_lookup
