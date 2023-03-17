@@ -21,7 +21,7 @@ pub fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         FieldType::Date => FieldType::Date,
         r => {
             return Err(PipelineError::InvalidFunctionArgumentType(
-                "MIN".to_string(),
+                Min.to_string(),
                 r,
                 FieldTypes::new(vec![
                     FieldType::Decimal,

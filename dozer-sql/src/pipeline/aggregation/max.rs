@@ -21,7 +21,7 @@ pub fn validate_max(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         FieldType::Date => FieldType::Date,
         r => {
             return Err(PipelineError::InvalidFunctionArgumentType(
-                "MAX".to_string(),
+                Max.to_string(),
                 r,
                 FieldTypes::new(vec![
                     FieldType::Decimal,
