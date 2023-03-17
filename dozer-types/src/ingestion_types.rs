@@ -7,8 +7,11 @@ use thiserror::Error;
 use crate::{errors::internal::BoxedError, node::OpIdentifier, types::Operation};
 
 #[derive(Debug, Clone, PartialEq)]
+/// Messages that connectors send to Dozer.
 pub struct IngestionMessage {
+    /// The message's identifier, must be unique in a connector.
     pub identifier: OpIdentifier,
+    /// The message kind.
     pub kind: IngestionMessageKind,
 }
 
@@ -29,8 +32,12 @@ impl IngestionMessage {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// All possible kinds of `IngestionMessage`.
 pub enum IngestionMessageKind {
+    /// A CDC event.
     OperationEvent(Operation),
+    /// A connector uses this message kind to notify Dozer that a initial snapshot of the source table is done,
+    /// and the data is up-to-date until next CDC event.
     SnapshottingDone,
 }
 
