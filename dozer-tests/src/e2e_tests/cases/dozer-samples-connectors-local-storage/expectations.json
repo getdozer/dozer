@@ -1,0 +1,46 @@
+[
+    "HealthyService",
+    {
+        "Endpoint": {
+            "endpoint": "trips_cache",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "pickup_location",
+                                "typ": "Int",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "dropoff_location",
+                                "typ": "Int",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "total_trips",
+                                "typ": "Int",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "min_trip_time",
+                                "typ": "Int",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "max_trip_time",
+                                "typ": "Int",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+]
