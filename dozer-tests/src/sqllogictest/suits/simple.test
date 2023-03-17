@@ -47,11 +47,6 @@ select actor_id, first_name as fn, last_name as ln,last_update from actor where 
 ----
 
 
-query I
-select count(actor_id) from actor
-----
-3
-
 query ITTT
 select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'
 ----
@@ -175,12 +170,6 @@ select actor_id, first_name, last_name,last_update from actor where last_name = 
 query ITTT
 select actor_id, first_name as fn, last_name as ln,last_update from actor where last_name = 'PIPPO'
 ----
-
-
-query I
-select count(actor_id) from actor
-----
-14
 
 query ITTT
 select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'

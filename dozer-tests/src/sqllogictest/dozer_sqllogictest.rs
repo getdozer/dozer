@@ -1,23 +1,23 @@
 mod arg;
 mod error;
-mod sql_tests;
+mod helper;
 mod validator;
 
-use crate::arg::SqlLogicTestArgs;
-use crate::error::DozerSqlLogicTestError;
-use crate::error::Result;
-use crate::sql_tests::helper::get_table_name;
-use crate::sql_tests::mapper::SqlMapper;
-use crate::sql_tests::pipeline::TestPipeline;
-use crate::validator::Validator;
+use arg::SqlLogicTestArgs;
 use clap::Parser;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser as SqlParser;
 use dozer_types::types::Operation;
+use error::DozerSqlLogicTestError;
+use error::Result;
+use helper::helper::get_table_name;
+use helper::mapper::SqlMapper;
+use helper::pipeline::TestPipeline;
 use rusqlite::types::Type;
 use sqllogictest::{default_validator, parse_file, update_test_file, AsyncDB, DBOutput, Runner};
 use std::sync::{Arc, Mutex};
+use validator::Validator;
 use walkdir::WalkDir;
 
 pub struct Dozer {
@@ -94,6 +94,8 @@ impl AsyncDB for Dozer {
     type Error = DozerSqlLogicTestError;
 
     async fn run(&mut self, sql: &str) -> Result<DBOutput> {
+        use std::println as info;
+        info!("SQL [{}] is running", sql);
         let dialect = GenericDialect {};
         let ast = SqlParser::parse_sql(&dialect, sql)?;
         let statement: &Statement = &ast[0];
@@ -137,7 +139,6 @@ fn create_dozer() -> Result<Dozer> {
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    // init();
 
     let args = SqlLogicTestArgs::parse();
     let suits = SqlLogicTestArgs::parse().suites;
