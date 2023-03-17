@@ -20,7 +20,7 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         FieldType::Float => FieldType::Float,
         r => {
             return Err(PipelineError::InvalidFunctionArgumentType(
-                "MAX".to_string(),
+                Sum.to_string(),
                 r,
                 FieldTypes::new(vec![
                     FieldType::Decimal,
@@ -42,22 +42,22 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
 
 #[derive(Debug)]
 pub struct SumAggregator {
-    current_state: SumAggregatorState,
+    current_state: SumState,
     return_type: Option<FieldType>,
 }
 
 #[derive(Debug)]
-struct SumAggregatorState {
-    int_state: i64,
-    uint_state: u64,
-    float_state: f64,
-    decimal_state: Decimal,
+pub struct SumState {
+    pub(crate) int_state: i64,
+    pub(crate) uint_state: u64,
+    pub(crate) float_state: f64,
+    pub(crate) decimal_state: Decimal,
 }
 
 impl SumAggregator {
     pub fn new() -> Self {
         Self {
-            current_state: SumAggregatorState {
+            current_state: SumState {
                 int_state: 0_i64,
                 uint_state: 0_u64,
                 float_state: 0_f64,
@@ -87,9 +87,9 @@ impl Aggregator for SumAggregator {
     }
 }
 
-fn get_sum(
+pub fn get_sum(
     fields: &[Field],
-    current_state: &mut SumAggregatorState,
+    current_state: &mut SumState,
     return_type: Option<FieldType>,
     decr: bool,
 ) -> Result<Field, PipelineError> {

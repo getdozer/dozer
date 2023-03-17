@@ -319,11 +319,9 @@ mod tests {
                     .unwrap(),
                 (0..=index as u64).collect::<Vec<_>>()
             );
-            assert_eq!(
-                log.contains_operation_id(&txn, append_only, index as _)
-                    .unwrap(),
-                true
-            );
+            assert!(log
+                .contains_operation_id(&txn, append_only, index as _)
+                .unwrap());
             assert_eq!(
                 log.get_record_by_operation_id_unchecked(&txn, index as _)
                     .unwrap(),
@@ -369,10 +367,7 @@ mod tests {
                 .unwrap(),
             vec![0]
         );
-        assert_eq!(
-            log.contains_operation_id(&txn, append_only, 0).unwrap(),
-            true
-        );
+        assert!(log.contains_operation_id(&txn, append_only, 0).unwrap());
         assert_eq!(
             log.get_record_by_operation_id_unchecked(&txn, 0).unwrap(),
             RecordWithId::new(record_id, record.clone())
@@ -406,10 +401,7 @@ mod tests {
                 .unwrap(),
             Vec::<u64>::new(),
         );
-        assert_eq!(
-            log.contains_operation_id(&txn, append_only, 0).unwrap(),
-            false
-        );
+        assert!(!log.contains_operation_id(&txn, append_only, 0).unwrap());
         assert_eq!(
             log.get_operation(&txn, 1).unwrap().unwrap(),
             Operation::Delete { operation_id: 0 }
@@ -445,10 +437,7 @@ mod tests {
                 .unwrap(),
             vec![2]
         );
-        assert_eq!(
-            log.contains_operation_id(&txn, append_only, 2).unwrap(),
-            true
-        );
+        assert!(log.contains_operation_id(&txn, append_only, 2).unwrap());
         assert_eq!(
             log.get_record_by_operation_id_unchecked(&txn, 2).unwrap(),
             RecordWithId::new(record_id, record.clone())
