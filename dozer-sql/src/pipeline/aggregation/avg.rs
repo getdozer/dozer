@@ -1,11 +1,11 @@
-use crate::pipeline::aggregation::aggregator::{Aggregator};
+use crate::argv;
+use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::aggregation::sum::{get_sum, SumState};
-use crate::pipeline::errors::PipelineError::{InvalidValue};
+use crate::pipeline::errors::PipelineError::InvalidValue;
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
-use crate::{argv};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::ordered_float::OrderedFloat;
