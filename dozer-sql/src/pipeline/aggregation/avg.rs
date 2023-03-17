@@ -1,15 +1,19 @@
-use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
+use crate::pipeline::aggregation::aggregator::{Aggregator};
+use crate::pipeline::aggregation::sum::{get_sum, SumState};
+use crate::pipeline::errors::PipelineError::{InvalidValue};
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
-use crate::{argv, calculate_err_field, calculate_err_type};
+use crate::{argv};
 use dozer_core::errors::ExecutionError::InvalidType;
+use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use num_traits::FromPrimitive;
-use std::collections::BTreeMap;
+
+use std::ops::Div;
 
 pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionType, PipelineError> {
     let arg = &argv!(args, 0, AggregateFunctionType::Avg)?.get_type(schema)?;
@@ -21,7 +25,7 @@ pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         FieldType::Float => FieldType::Float,
         r => {
             return Err(PipelineError::InvalidFunctionArgumentType(
-                "AVG".to_string(),
+                Avg.to_string(),
                 r,
                 FieldTypes::new(vec![
                     FieldType::Decimal,
@@ -43,14 +47,21 @@ pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
 
 #[derive(Debug)]
 pub struct AvgAggregator {
-    current_state: BTreeMap<Field, u64>,
+    current_state: SumState,
+    current_count: u64,
     return_type: Option<FieldType>,
 }
 
 impl AvgAggregator {
     pub fn new() -> Self {
         Self {
-            current_state: BTreeMap::new(),
+            current_state: SumState {
+                int_state: 0_i64,
+                uint_state: 0_u64,
+                float_state: 0_f64,
+                decimal_state: Decimal::from_f64(0_f64).unwrap(),
+            },
+            current_count: 0_u64,
             return_type: None,
         }
     }
@@ -67,93 +78,79 @@ impl Aggregator for AvgAggregator {
     }
 
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError> {
-        update_map(old, 1_u64, true, &mut self.current_state);
-        get_average(&self.current_state, self.return_type)
+        self.current_count -= 1;
+        get_average(
+            old,
+            &mut self.current_state,
+            &mut self.current_count,
+            self.return_type,
+            true,
+        )
     }
 
     fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
-        update_map(new, 1_u64, false, &mut self.current_state);
-        get_average(&self.current_state, self.return_type)
+        self.current_count += 1;
+        get_average(
+            new,
+            &mut self.current_state,
+            &mut self.current_count,
+            self.return_type,
+            false,
+        )
     }
 }
 
 fn get_average(
-    field_map: &BTreeMap<Field, u64>,
+    field: &[Field],
+    current_sum: &mut SumState,
+    current_count: &mut u64,
     return_type: Option<FieldType>,
+    decr: bool,
 ) -> Result<Field, PipelineError> {
+    let sum = get_sum(field, current_sum, return_type, decr)?;
+
     match return_type {
         Some(FieldType::UInt) => {
-            if field_map.is_empty() {
-                Ok(Field::Decimal(calculate_err_type!(
-                    Decimal::from_f64(0_f64),
-                    Avg,
-                    FieldType::Decimal
-                )))
-            } else {
-                let mut sum =
-                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
-                let mut count =
-                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
-                for (field, cnt) in field_map {
-                    let cnt = calculate_err_field!(Decimal::from_u64(*cnt), Avg, field);
-                    sum += calculate_err_field!(field.to_decimal(), Avg, field) * cnt;
-                    count += cnt;
-                }
-                Ok(Field::Decimal(sum / count))
+            if *current_count == 0 {
+                return Ok(Field::UInt(0));
             }
+            let u_sum = sum
+                .to_uint()
+                .ok_or(InvalidValue(sum.to_string().unwrap()))
+                .unwrap();
+            Ok(Field::UInt(u_sum.div_wrapping(*current_count)))
         }
         Some(FieldType::Int) => {
-            if field_map.is_empty() {
-                Ok(Field::Decimal(calculate_err_type!(
-                    Decimal::from_f64(0_f64),
-                    Avg,
-                    FieldType::Decimal
-                )))
-            } else {
-                let mut sum =
-                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
-                let mut count =
-                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
-                for (field, cnt) in field_map {
-                    let cnt = calculate_err_field!(Decimal::from_u64(*cnt), Avg, field);
-                    sum += calculate_err_field!(field.to_decimal(), Avg, field) * cnt;
-                    count += cnt;
-                }
-                Ok(Field::Decimal(sum / count))
+            if *current_count == 0 {
+                return Ok(Field::Int(0));
             }
+            let i_sum = sum
+                .to_int()
+                .ok_or(InvalidValue(sum.to_string().unwrap()))
+                .unwrap();
+            Ok(Field::Int(i_sum.div_wrapping(*current_count as i64)))
         }
         Some(FieldType::Float) => {
-            if field_map.is_empty() {
-                Ok(Field::Float(OrderedFloat::from(0_f64)))
-            } else {
-                let mut sum = 0_f64;
-                let mut count = 0_f64;
-                for (field, cnt) in field_map {
-                    sum += calculate_err_field!(field.to_float(), Avg, field) * (*cnt as f64);
-                    count += *cnt as f64;
-                }
-                Ok(Field::Float(OrderedFloat::from(sum / count)))
+            if *current_count == 0 {
+                return Ok(Field::Float(OrderedFloat(0.0)));
             }
+            let f_sum = sum
+                .to_float()
+                .ok_or(InvalidValue(sum.to_string().unwrap()))
+                .unwrap();
+            Ok(Field::Float(OrderedFloat(
+                f_sum.div_wrapping(*current_count as f64),
+            )))
         }
         Some(FieldType::Decimal) => {
-            if field_map.is_empty() {
-                Ok(Field::Decimal(calculate_err_type!(
-                    Decimal::from_f64(0_f64),
-                    Avg,
-                    FieldType::Decimal
-                )))
-            } else {
-                let mut sum =
-                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
-                let mut count =
-                    calculate_err_type!(Decimal::from_f64(0_f64), Avg, FieldType::Decimal);
-                for (field, cnt) in field_map {
-                    let cnt = calculate_err_field!(Decimal::from_u64(*cnt), Avg, field);
-                    sum += calculate_err_field!(field.to_decimal(), Avg, field) * cnt;
-                    count += cnt;
-                }
-                Ok(Field::Decimal(sum / count))
+            if *current_count == 0 {
+                return Ok(Field::Decimal(Decimal::new(0, 0)));
             }
+            let d_sum = sum
+                .to_decimal()
+                .ok_or(InvalidValue(sum.to_string().unwrap()))
+                .unwrap();
+            Ok(Field::Decimal(d_sum.div(Decimal::from(*current_count))))
         }
         Some(not_supported_return_type) => Err(PipelineError::InternalExecutionError(InvalidType(
             format!("Not supported return type {not_supported_return_type} for {Avg}"),

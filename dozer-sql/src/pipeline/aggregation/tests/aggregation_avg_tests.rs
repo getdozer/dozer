@@ -743,7 +743,7 @@ fn test_avg_aggregation_decimal_null() {
         ITALY,
         ITALY,
         &get_decimal_field(0),
-        &get_decimal_field(100),
+        &get_decimal_field(50),
     )];
     assert_eq!(out, exp);
 
@@ -759,7 +759,7 @@ fn test_avg_aggregation_decimal_null() {
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        &get_decimal_field(100),
+        &get_decimal_field(50),
         &get_decimal_field(0),
     )];
     assert_eq!(out, exp);
