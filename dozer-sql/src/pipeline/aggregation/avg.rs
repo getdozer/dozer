@@ -37,6 +37,7 @@ pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
             ));
         }
     };
+
     Ok(ExpressionType::new(
         ret_type,
         true,
