@@ -1,7 +1,7 @@
 connections:    
   - config : !LocalStorage
       details:
-        path: data
+        path: ./dozer-tests/src/e2e_tests/cases/sql_window_functions_sample/data
       tables:
         - !Table
           name: trips
