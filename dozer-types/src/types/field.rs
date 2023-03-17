@@ -477,18 +477,31 @@ impl<'a> FieldBorrow<'a> {
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// All field types supported in Dozer.
 pub enum FieldType {
+    /// Unsigned 64-bit integer.
     UInt,
+    /// Signed 64-bit integer.
     Int,
+    /// 64-bit floating point number.
     Float,
+    /// `true` or `false`.
     Boolean,
+    /// A string with limited length.
     String,
+    /// A long string.
     Text,
+    /// Raw bytes.
     Binary,
+    /// Decimal number.
     Decimal,
+    /// Timestamp up to nanoseconds.
     Timestamp,
+    /// Date.
     Date,
+    /// Bytes that are valid BSON.
     Bson,
+    /// A geographic point.
     Point,
 }
 
