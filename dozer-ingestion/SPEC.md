@@ -143,6 +143,31 @@ pub enum Operation {
 }
 ```
 
+### `Record`
+
+`schema_id` is how Dozer knows which table this record belongs to. It must be `Some` and the same as the returned `SchemaIdentifier` from `get_schemas` for the table it originates from.
+
+`values` must be of the same length, order, and type as the `fields` in corresponding `Schema`, expect for `old` in `Delete` and `Update` operation, see [Omitting fields](#omitting-fields-in-delete-and-update-operations).
+
+`version` is set by Dozer, and can be `None` when the connector constructs the `Record`.
+
+```rust
+pub struct Record {
+    /// Schema implemented by this Record
+    pub schema_id: Option<SchemaIdentifier>,
+    /// List of values, following the definitions of `fields` of the associated schema
+    pub values: Vec<Field>,
+    /// Records with same primary key will have increasing version.
+    pub version: Option<u32>,
+}
+```
+
+### Omitting fields in `Delete` and `Update` operations
+
+If a connector declares a table's `CdcType` to be `OnlyPK`, the connector can omit the fields which is not part of the primary key of the `old` record of `Delete` and `Update` operations.
+
+However, the `values` must still be of the same length and order as the `fields` in corresponding `Schema`, omitted fields can be filled with `Field::Null`.
+
 ## Data Structures
 
 ### `TableIdentifier`
