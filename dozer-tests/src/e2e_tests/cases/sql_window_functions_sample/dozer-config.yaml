@@ -1,0 +1,38 @@
+connections:    
+  - config : !LocalStorage
+      details:
+        path: dozer-tests/src/e2e_tests/cases/sql_window_functions_sample/data
+      tables:
+        - !Table
+          name: trips
+          prefix: /trips
+          file_type: parquet
+          extension: .parquet
+    name: ny_taxi
+
+sql: |
+  SELECT t.PULocationID as location, t.tpep_pickup_datetime as pickup_time, t.window_start as start, t.window_end AS end
+  INTO tumble
+  FROM TUMBLE(trips, tpep_pickup_datetime, '5 MINUTES') t;
+
+  SELECT t.PULocationID as location, t.tpep_pickup_datetime as pickup_time, t.window_start as start, t.window_end AS end
+  INTO hop
+  FROM HOP(trips, tpep_pickup_datetime, '1 MINUTE', '2 MINUTES') t;
+
+sources:
+  - name: trips
+    table_name: trips
+    connection: !Ref ny_taxi
+    columns:
+
+endpoints:
+  - name: tumble
+    path: /tumble
+    table_name: tumble
+    index:
+      primary_key: 
+  - name: hop
+    path: /hop
+    table_name: hop
+    index:
+      primary_key: 

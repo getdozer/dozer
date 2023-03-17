@@ -1,0 +1,2 @@
+dozer-tests/src/e2e_tests/cases/sql_join_sample/data/trips/*.parquet filter=lfs diff=lfs merge=lfs -text
+dozer-tests/src/e2e_tests/cases/sql_window_functions_sample/data/trips/*.parquet filter=lfs diff=lfs merge=lfs -text
