@@ -40,17 +40,6 @@ pub trait Connector: Send + Sync + Debug {
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError>;
 
-    /// Lists all tables and columns and gets the schema for each table.
-    fn list_all_schemas(&self) -> Result<(Vec<TableInfo>, Vec<SourceSchema>), ConnectorError> {
-        let tables = self.list_tables()?;
-        let table_infos = self.list_columns(tables)?;
-        let schemas = self
-            .get_schemas(&table_infos)?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok((table_infos, schemas))
-    }
-
     /// Starts outputting data from `tables` to `ingestor`. This method should never return unless there is an unrecoverable error.
     fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError>;
 }
