@@ -112,7 +112,7 @@ fn get_average(
     match return_type {
         Some(FieldType::UInt) => {
             if *current_count == 0 {
-                return Ok(Field::UInt(0));
+                return Ok(Field::Null);
             }
             let u_sum = sum
                 .to_uint()
@@ -122,7 +122,7 @@ fn get_average(
         }
         Some(FieldType::Int) => {
             if *current_count == 0 {
-                return Ok(Field::Int(0));
+                return Ok(Field::Null);
             }
             let i_sum = sum
                 .to_int()
@@ -132,7 +132,7 @@ fn get_average(
         }
         Some(FieldType::Float) => {
             if *current_count == 0 {
-                return Ok(Field::Float(OrderedFloat(0.0)));
+                return Ok(Field::Null);
             }
             let f_sum = sum
                 .to_float()
@@ -144,7 +144,7 @@ fn get_average(
         }
         Some(FieldType::Decimal) => {
             if *current_count == 0 {
-                return Ok(Field::Decimal(Decimal::new(0, 0)));
+                return Ok(Field::Null);
             }
             let d_sum = sum
                 .to_decimal()
