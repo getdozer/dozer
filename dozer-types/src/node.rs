@@ -60,8 +60,11 @@ impl Display for NodeHandle {
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+/// A identifier made of two `u64`s.
 pub struct OpIdentifier {
+    /// High 64 bits of the identifier.
     pub txid: u64,
+    /// Low 64 bits of the identifier.
     pub seq_in_tx: u64,
 }
 
