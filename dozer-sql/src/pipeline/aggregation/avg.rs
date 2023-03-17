@@ -78,7 +78,7 @@ impl Aggregator for AvgAggregator {
     }
 
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError> {
-        self.current_count -= 1;
+        self.current_count -= old.len() as u64;
         get_average(
             old,
             &mut self.current_state,
@@ -89,7 +89,7 @@ impl Aggregator for AvgAggregator {
     }
 
     fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
-        self.current_count += 1;
+        self.current_count += new.len() as u64;
         get_average(
             new,
             &mut self.current_state,
