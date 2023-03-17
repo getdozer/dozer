@@ -66,16 +66,13 @@ macro_rules! define_math_operator {
                     Field::Float(right_v) => Ok(Field::Float($fct(left_v, right_v))),
                     // left: Float, right: Decimal
                     Field::Decimal(right_v) => Ok(Field::Decimal($fct(
-                        Decimal::from_f64(left_v.to_f64().ok_or(PipelineError::UnableToCast(
-                            format!("{}", left_v),
-                            "f64".to_string(),
-                        ))?)
-                        .ok_or(PipelineError::UnableToCast(
+                        Decimal::from_f64(left_v).ok_or(PipelineError::UnableToCast(
                             format!("{}", left_v),
                             "Decimal".to_string(),
                         ))?,
                         right_v,
                     ))),
+                    Field::Null => Ok(Field::Null),
                     _ => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
@@ -102,7 +99,7 @@ macro_rules! define_math_operator {
                                 )?,
                             ))),
                             // When it's not division operation
-                            _ => Ok(Field::Int($fct(left_v, right_v))),
+                            _ => Ok(Field::Int($fct(Wrapping(left_v), Wrapping(right_v)).0)),
                         };
                     }
                     // left: Int, right: UInt
@@ -125,12 +122,9 @@ macro_rules! define_math_operator {
                             ))),
                             // When it's not division operation
                             _ => Ok(Field::Int($fct(
-                                left_v,
-                                right_v.to_i64().ok_or(PipelineError::UnableToCast(
-                                    format!("{}", right_v),
-                                    "i64".to_string(),
-                                ))?,
-                            ))),
+                                Wrapping(left_v),
+                                Wrapping(right_v as i64),
+                            ).0)),
                         };
                     }
                     // left: Int, right: Float
@@ -148,6 +142,8 @@ macro_rules! define_math_operator {
                         ))?,
                         right_v,
                     ))),
+                    // left: Int, right: Null
+                    Field::Null => Ok(Field::Null),
                     _ => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
@@ -221,6 +217,8 @@ macro_rules! define_math_operator {
                             right_v
                         )))
                     },
+                    // left: UInt, right: Null
+                    Field::Null => Ok(Field::Null),
                     _ => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
@@ -274,6 +272,8 @@ macro_rules! define_math_operator {
                         )),
                     }
                 }
+                // right: Null, right: *
+                Field::Null => Ok(Field::Null),
                 _ => Err(PipelineError::InvalidTypeComparison(
                     left_p,
                     right_p,
