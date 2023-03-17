@@ -1,0 +1,38 @@
+connections:    
+  - config : !LocalStorage
+      details:
+        path: dozer-tests/src/e2e_tests/cases/sql_join_sample/data
+      tables:
+        - !Table
+          name: taxi_zone_lookup
+          prefix: /zones
+          file_type: csv
+          extension: .csv
+        - !Table
+          name: trips
+          prefix: /trips
+          file_type: parquet
+          extension: .parquet
+    name: ny_taxi
+
+sql: |
+  SELECT t.tpep_pickup_datetime AS pickup_time, z.Zone AS zone
+  INTO pickup
+  FROM trips t JOIN taxi_zone_lookup z ON t.PULocationID = z.LocationID;
+
+sources:
+  - name: taxi_zone_lookup
+    table_name: taxi_zone_lookup
+    connection: !Ref ny_taxi
+    columns:
+  - name: trips
+    table_name: trips
+    connection: !Ref ny_taxi
+    columns:
+
+endpoints:
+  - name: pickup
+    path: /pickup
+    table_name: pickup
+    index:
+      primary_key: 
