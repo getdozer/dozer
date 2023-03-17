@@ -1,19 +1,24 @@
 use std::collections::HashMap;
 
 use super::helper::*;
+use crate::error::Result;
 use dozer_core::errors::ExecutionError;
+use dozer_sql::sqlparser::ast::{BinaryOperator, Expr, Statement};
+use dozer_sql::sqlparser::ast::{SetExpr, TableFactor};
+use dozer_sql::sqlparser::dialect::GenericDialect;
+use dozer_sql::sqlparser::parser::*;
 use dozer_types::types::{Field, Operation, Record, Schema};
-use sqlparser::ast::{BinaryOperator, Expr, Statement};
-use sqlparser::ast::{SetExpr, TableFactor};
-use sqlparser::dialect::GenericDialect;
-use sqlparser::parser::*;
+
 pub struct SchemaResponse {
     schema: Schema,
 }
 
 #[derive(Debug)]
 pub struct SqlMapper {
+    // Key is table name, value is schema in the table
+    // Schema is dozer inner-defined
     pub schema_map: HashMap<String, Schema>,
+    // Used by execute create table sql.
     pub conn: rusqlite::Connection,
 }
 
@@ -31,7 +36,20 @@ impl SqlMapper {
         self.schema_map.insert(name, schema);
     }
 
-    pub fn get_schema_from_conn(&self, table_name: &str) -> rusqlite::Result<Schema> {
+    pub fn execute_list(
+        &mut self,
+        list: Vec<(&'static str, String)>,
+    ) -> Result<Vec<(String, Operation)>> {
+        let mut ops = vec![];
+        for (_, sql) in list {
+            let op = self.get_operation_from_sql(&sql);
+            self.conn.execute(sql.as_str(), ())?;
+            ops.push(op);
+        }
+        Ok(ops)
+    }
+
+    pub fn get_schema_from_conn(&self, table_name: &str) -> Result<Schema> {
         let stmt = self
             .conn
             .prepare(&format!("SELECT * FROM {table_name} LIMIT 1"))?;
@@ -40,26 +58,7 @@ impl SqlMapper {
         Ok(get_schema(&columns))
     }
 
-    pub fn execute_list(
-        &mut self,
-        list: Vec<(&'static str, String)>,
-    ) -> rusqlite::Result<Vec<(&'static str, Operation)>> {
-        let mut ops = vec![];
-        for (schema_name, sql) in list {
-            let op = self.get_operation_from_sql(&sql);
-            self.conn.execute(sql.as_str(), ())?;
-            ops.push((schema_name, op));
-        }
-        Ok(ops)
-    }
-
-    pub fn get_schema(&self, name: &str) -> &Schema {
-        self.schema_map
-            .get(name)
-            .unwrap_or_else(|| panic!("Schema is missing: {name}"))
-    }
-
-    pub fn get_operation_from_sql(&mut self, sql: &str) -> Operation {
+    pub fn get_operation_from_sql(&mut self, sql: &str) -> (String, Operation) {
         let dialect = GenericDialect {};
 
         let ast = Parser::parse_sql(&dialect, sql).unwrap();
@@ -100,7 +99,7 @@ impl SqlMapper {
                 }
                 let rec = Record::new(schema.identifier, values, None);
 
-                Operation::Insert { new: rec }
+                (name, Operation::Insert { new: rec })
             }
 
             Statement::Update {
@@ -127,10 +126,13 @@ impl SqlMapper {
 
                     rec2.values[idx.0] = parse_exp_to_field(&a.value);
                 }
-                Operation::Update {
-                    old: rec,
-                    new: rec2,
-                }
+                (
+                    "".to_string(),
+                    Operation::Update {
+                        old: rec,
+                        new: rec2,
+                    },
+                )
             }
             Statement::Delete {
                 table_name,
@@ -138,26 +140,20 @@ impl SqlMapper {
                 ..
             } => {
                 let (rec, _) = self.map_selection(table_name, selection);
-                Operation::Delete { old: rec }
+                ("".to_string(), Operation::Delete { old: rec })
             }
             _ => panic!("{}", format!("{st}Not supported")),
         }
     }
 
-    pub fn create_tables(&mut self, tables: Vec<(&str, &str)>) -> rusqlite::Result<()> {
-        for (table_name, table_sql) in tables {
-            self.conn.execute(table_sql, ())?;
-            let schema = { self.get_schema_from_conn(table_name).unwrap() };
-            self.insert_schema(table_name.to_string(), schema);
-        }
+    pub fn create_table(&mut self, table_name: &str, table_sql: &str) -> Result<()> {
+        self.conn.execute(table_sql, ())?;
+        let schema = { self.get_schema_from_conn(table_name).unwrap() };
+        self.insert_schema(table_name.to_string(), schema);
         Ok(())
     }
 
-    pub fn map_operation_to_sql(
-        &self,
-        name: &String,
-        op: Operation,
-    ) -> Result<String, ExecutionError> {
+    pub fn map_operation_to_sql(&self, name: &String, op: Operation) -> Result<String> {
         let schema = self
             .schema_map
             .get(name)
@@ -200,19 +196,21 @@ impl SqlMapper {
 
                 let mut field_names = vec![];
                 for (idx, v) in new.values.iter().enumerate() {
-                    if idx != get_primary_key_index(schema) && old.values.get(idx).is_some() {
-                        //if old_value != v {
-                        field_names.push(format!(
-                            "{}={}",
-                            schema.fields.get(idx).map_or(
-                                Err(ExecutionError::InternalStringError(
-                                    "index out of bounds for schema".to_string()
-                                )),
-                                |f| Ok(f.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
-                            )?,
-                            map_field_to_string(v)
-                        ))
-                        //}
+                    if idx != get_primary_key_index(schema) {
+                        if old.values.get(idx).is_some() {
+                            field_names.push(format!(
+                                "{}={}",
+                                schema.fields.get(idx).map_or(
+                                    Err(ExecutionError::InternalStringError(
+                                        "index out of bounds for schema".to_string()
+                                    )),
+                                    |f| Ok(f
+                                        .name
+                                        .replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
+                                )?,
+                                map_field_to_string(v)
+                            ))
+                        }
                     }
                 }
                 let values_str = field_names.join(",");
@@ -278,7 +276,7 @@ impl SqlMapper {
         key_name: &str,
         val: &str,
         schema: &Schema,
-    ) -> Result<Record, rusqlite::Error> {
+    ) -> Result<Record> {
         let sql = format!("select * from {table_name} where {key_name} = {val};");
         let mut stmt = self.conn.prepare(&sql)?;
         let mut rows = stmt.query(())?;

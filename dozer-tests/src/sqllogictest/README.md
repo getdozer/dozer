@@ -2,20 +2,14 @@
 This is Dozer's [sqllogictest](https://www.sqlite.org/sqllogictest/doc/trunk/about.wiki) implementation. It uses [sqllogictest-rs](https://github.com/risinglightdb/sqllogictest-rs) to parse test files and run test cases.
 
 ### Basic usage
-Before running the following commands, you should generate **dozer-sqllogictest** binary file.
-
-```shell
-cargo build --bin dozer-sqllogictest
-```
-
 Run all tests
 ```shell
-dozer-sqllogictest
+cargo test --test sqllogictest
 ```
 
 Auto complete test file which is very convenient. It will use the validator database (currently sqlite) to produce the expected output for the test file.
 ```shell
-dozer-sqllogictest --complete
+cargo test --test sqllogictest -- --complete
 ```
 
 ### Sqllogictest

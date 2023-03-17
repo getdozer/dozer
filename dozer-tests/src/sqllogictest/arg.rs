@@ -7,7 +7,7 @@ pub struct SqlLogicTestArgs {
         short = 'u',
         long = "suites",
         help = "The tests to be run will come from under suits",
-        default_value = "dozer-tests/src/sqllogictest/suits"
+        default_value = "src/sqllogictest/suits"
     )]
     pub suites: String,
 

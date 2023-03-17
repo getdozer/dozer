@@ -24,11 +24,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::sql_tests::helper::get_table_create_sql;
+use crate::helper::helper::get_table_create_sql;
 use std::time::Duration;
 use tempdir::TempDir;
 
-use crate::SqlMapper;
+use crate::helper::mapper::SqlMapper;
 
 #[derive(Debug)]
 pub(crate) struct TestSourceFactory {

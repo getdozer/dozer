@@ -1,19 +1,14 @@
-#[cfg(test)]
-mod sql_tests;
-#[cfg(test)]
-pub use sql_tests::TestFramework;
-
 #[cfg(feature = "mongodb")]
 #[cfg(test)]
 mod cache_tests;
 
 #[cfg(test)]
-mod init;
+mod tests;
+
+pub mod e2e_tests;
 
 #[cfg(test)]
 mod read_csv;
 
 #[cfg(test)]
-mod tests;
-
-pub mod e2e_tests;
+mod init;

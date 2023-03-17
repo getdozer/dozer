@@ -1,16 +1,13 @@
-use crate::read_csv::read_csv;
-
-use super::SqlMapper;
+use crate::error::Result;
+use dozer_sql::sqlparser;
+use dozer_sql::sqlparser::ast::{Expr, ObjectName};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier, SourceDefinition,
 };
-use sqlparser::ast::{Expr, ObjectName};
-use std::error::Error;
 use std::str;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 
 #[macro_export]
 macro_rules! match_type {
@@ -30,6 +27,7 @@ macro_rules! convert_type {
         }
     };
 }
+
 pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
     let columns = schema
         .fields
@@ -53,115 +51,8 @@ pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
         })
         .collect::<Vec<String>>()
         .join(",");
-    let creation_sql = format!("CREATE TABLE {name} ({columns})");
+    let creation_sql = format!("CREATE TABLE if not exists {name} ({columns})");
     creation_sql
-}
-
-pub fn get_inserts_from_csv(
-    folder_name: &str,
-    name: &str,
-    schema: &Schema,
-) -> Result<Vec<String>, Box<dyn Error>> {
-    let mut rdr = read_csv(folder_name, name)?;
-
-    let mut sql_list = vec![];
-    for record in rdr.records() {
-        let record = record?;
-        let mut values = vec![];
-        for (idx, f) in schema.fields.iter().enumerate() {
-            let val = record.get(idx).unwrap();
-            let val = match f.typ {
-                FieldType::Int | FieldType::UInt | FieldType::Float | FieldType::Decimal => {
-                    if val.is_empty() {
-                        "0".to_string()
-                    } else {
-                        val.to_string()
-                    }
-                }
-                FieldType::String | FieldType::Text | FieldType::Timestamp => {
-                    format!("'{val}'")
-                }
-                _ => {
-                    format!("'{val}'")
-                }
-            };
-            values.push(val);
-        }
-        let columns: Vec<String> = schema
-            .fields
-            .iter()
-            .map(|f| {
-                f.name
-                    .clone()
-                    .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
-            })
-            .collect();
-        sql_list.push(format!(
-            "INSERT INTO {}({}) values ({})",
-            name,
-            columns.join(","),
-            values.join(",")
-        ));
-    }
-    Ok(sql_list)
-}
-
-pub fn query_sqlite(
-    mapper: Arc<Mutex<SqlMapper>>,
-    sql: &str,
-    schema: &Schema,
-) -> Result<Vec<Record>, rusqlite::Error> {
-    mapper
-        .lock()
-        .map(|mapper_guard| -> rusqlite::Result<Vec<Record>> {
-            let mut stmt = mapper_guard.conn.prepare(sql)?;
-            let mut rows = stmt.query(())?;
-
-            let mut records = vec![];
-
-            while let Ok(Some(row)) = rows.next() {
-                let record = map_sqlite_to_record(schema, row)?;
-                records.push(record);
-            }
-            Ok(records)
-        })
-        .unwrap()
-}
-
-pub fn map_sqlite_to_record(
-    schema: &Schema,
-    row: &rusqlite::Row,
-) -> Result<Record, rusqlite::Error> {
-    let mut values = vec![];
-
-    for (idx, f) in schema.fields.clone().into_iter().enumerate() {
-        let val = match_type! {
-            f.typ,
-            FieldType::UInt => convert_type!(Field::UInt, f, row, idx),
-            FieldType::Int => convert_type!(Field::Int, f, row, idx),
-            FieldType::Float => Field::Float(dozer_types::ordered_float::OrderedFloat(row.get(idx)?)),
-            FieldType::Boolean => convert_type!(Field::Boolean, f, row, idx),
-            FieldType::String => convert_type!(Field::String, f, row, idx),
-            FieldType::Text => convert_type!(Field::Text, f, row, idx),
-            FieldType::Binary => convert_type!(Field::Binary, f, row, idx),
-            FieldType::Timestamp => convert_type!(Field::String, f, row, idx),
-            FieldType::Decimal => {
-                let val: String = row.get(idx)?;
-                Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
-            },
-            FieldType::Date =>  convert_type!(Field::String, f, row, idx),
-            FieldType::Bson | FieldType::Point => {
-                panic!("type not supported : {:?}", f.typ.to_owned())
-            }
-        };
-        values.push(val);
-    }
-    let record = Record {
-        schema_id: schema.identifier,
-        values,
-        version: None,
-    };
-    Ok(record)
 }
 
 fn parse_sql_number(n: &str) -> Field {
@@ -205,10 +96,6 @@ pub fn get_primary_key_name(schema: &Schema) -> String {
     schema.fields[idx]
         .name
         .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
-}
-
-pub fn get_primary_key_index(schema: &Schema) -> usize {
-    schema.primary_index[0]
 }
 
 pub fn get_table_name(name: &ObjectName) -> String {
@@ -263,4 +150,41 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
             .collect(),
         primary_index: vec![0],
     }
+}
+
+pub fn map_sqlite_to_record(schema: &Schema, row: &rusqlite::Row) -> Result<Record> {
+    let mut values = vec![];
+
+    for (idx, f) in schema.fields.clone().into_iter().enumerate() {
+        let val = match_type! {
+            f.typ,
+            FieldType::UInt => convert_type!(Field::UInt, f, row, idx),
+            FieldType::Int => convert_type!(Field::Int, f, row, idx),
+            FieldType::Float => Field::Float(dozer_types::ordered_float::OrderedFloat(row.get(idx)?)),
+            FieldType::Boolean => convert_type!(Field::Boolean, f, row, idx),
+            FieldType::String => convert_type!(Field::String, f, row, idx),
+            FieldType::Text => convert_type!(Field::Text, f, row, idx),
+            FieldType::Binary => convert_type!(Field::Binary, f, row, idx),
+            FieldType::Timestamp => convert_type!(Field::String, f, row, idx),
+            FieldType::Decimal => {
+                let val: String = row.get(idx)?;
+                Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
+            },
+            FieldType::Date =>  convert_type!(Field::String, f, row, idx),
+            FieldType::Bson | FieldType::Point => {
+                panic!("type not supported : {:?}", f.typ.to_owned())
+            }
+        };
+        values.push(val);
+    }
+    let record = Record {
+        schema_id: schema.identifier,
+        values,
+        version: None,
+    };
+    Ok(record)
+}
+
+pub fn get_primary_key_index(schema: &Schema) -> usize {
+    schema.primary_index[0]
 }
