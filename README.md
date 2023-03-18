@@ -61,7 +61,7 @@ cargo install --path dozer-orchestrator --locked
 Create a new empty directory and run the commands below. This will download a [sample configuration file](https://github.com/getdozer/dozer-samples/tree/main/blob/main/local-storage/dozer-config.yaml) and a sample [NY Taxi Dataset file](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
 
 ```bash
-curl -o dozer-config.yaml https://raw.githubusercontent.com/getdozer/dozer-samples/tree/main/main/local-storage/dozer-config.yaml
+curl -o dozer-config.yaml https://raw.githubusercontent.com/getdozer/dozer-samples/main/connectors/local-storage/dozer-config.yaml
 curl --create-dirs -o data/trips/fhvhv_tripdata_2022-01.parquet https://d37ci6vzurychx.cloudfront.net/trip-data/fhvhv_tripdata_2022-01.parquet
 ```
 
