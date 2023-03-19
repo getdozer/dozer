@@ -70,7 +70,7 @@ export DOZER_VERSION=YOUR_TEST_TARGET_VERSION
 The CI tests use the dozer image instead of a locally built binary. It reads `DOZER_VERSION` environment variable to determine the image tag.
 
 ```bash
-docker compose -f ./buildkite/build_dozer_tests/docker-compose.yaml up
+docker compose -f ./.buildkite/build_dozer_tests/docker-compose.yaml up
 ```
 
 This command will build `dozer-tests` image, inside which `dozer-tests` and `dozer-test-client` can run. It also builds `dozer-test-client` binary under `target/debug/`, which will be used by test cases. After building is finished, the container runs `dozer-tests` to test all the test cases.
