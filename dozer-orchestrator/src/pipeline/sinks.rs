@@ -324,10 +324,14 @@ impl Sink for CacheSink {
         // Update Counter on commit
         self.pb.set_position(self.counter as u64);
         self.cache.commit().map_err(|e| {
-            ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(
-                endpoint_name,
-                Box::new(e),
-            ))
+            if e.is_map_full() {
+                ExecutionError::SinkError(SinkError::CacheFull(endpoint_name))
+            } else {
+                ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(
+                    endpoint_name,
+                    Box::new(e),
+                ))
+            }
         })?;
 
         if let Some(current_alias_count) = self.current_alias_count {
@@ -381,10 +385,14 @@ impl Sink for CacheSink {
             Operation::Insert { mut new } => {
                 new.schema_id = schema.identifier;
                 let id = self.cache.insert(&mut new).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheInsertFailed(
-                        endpoint_name.clone(),
-                        Box::new(e),
-                    ))
+                    if e.is_map_full() {
+                        ExecutionError::SinkError(SinkError::CacheFull(endpoint_name.clone()))
+                    } else {
+                        ExecutionError::SinkError(SinkError::CacheInsertFailed(
+                            endpoint_name.clone(),
+                            Box::new(e),
+                        ))
+                    }
                 })?;
 
                 if let Some(notifier) = &self.notifier {
@@ -398,10 +406,14 @@ impl Sink for CacheSink {
                 new.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 let old_version = self.cache.update(&key, &mut new).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheUpdateFailed(
-                        endpoint_name.clone(),
-                        Box::new(e),
-                    ))
+                    if e.is_map_full() {
+                        ExecutionError::SinkError(SinkError::CacheFull(endpoint_name.clone()))
+                    } else {
+                        ExecutionError::SinkError(SinkError::CacheUpdateFailed(
+                            endpoint_name.clone(),
+                            Box::new(e),
+                        ))
+                    }
                 })?;
                 old.version = Some(old_version);
 
