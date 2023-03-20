@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::server::dozer_admin_grpc::{
+use dozer_orchestrator::QueryContext;
+use dozer_types::grpc_types::admin::{
     ErrorResponse, QueryEdge, QueryGraph, QueryNode, QueryNodeType,
 };
-use dozer_orchestrator::QueryContext;
 use dozer_types::models::app_config::Config;
 
 pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGraph, ErrorResponse> {
@@ -68,11 +68,7 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
 
         source_map.insert(source.name.clone(), id);
 
-        edges.push(QueryEdge {
-            from: c_id,
-            to: id,
-            schema: None,
-        });
+        edges.push(QueryEdge { from: c_id, to: id });
     }
     const TRANSFORMER_ID: u32 = 10000;
     for (idx, name) in output_tables.iter().enumerate() {
@@ -104,7 +100,6 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
                 edges.push(QueryEdge {
                     from: *s_id,
                     to: e_id,
-                    schema: None,
                 });
             }
             (None, Some(o_id)) => {
@@ -112,7 +107,6 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
                 edges.push(QueryEdge {
                     from: *o_id,
                     to: e_id,
-                    schema: None,
                 });
             }
             (None, None) => {
@@ -138,7 +132,6 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
             edges.push(QueryEdge {
                 from: *s_id,
                 to: TRANSFORMER_ID,
-                schema: None,
             });
         }
 
@@ -146,7 +139,6 @@ pub fn generate(context: Option<QueryContext>, cfg: &Config) -> Result<QueryGrap
             edges.push(QueryEdge {
                 from: TRANSFORMER_ID,
                 to: *o_id,
-                schema: None,
             });
         }
     }
