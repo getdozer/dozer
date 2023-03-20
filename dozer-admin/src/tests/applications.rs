@@ -4,12 +4,12 @@ mod grpc_service {
     use dozer_orchestrator::cli::generate_connection;
     use dozer_types::models::app_config::Config;
 
-    use crate::server::dozer_admin_grpc::{
-        AppResponse, CreateAppRequest, ListAppRequest, ListAppResponse, UpdateAppRequest,
-    };
     use crate::services::application_service::AppService;
     use crate::tests::utils::database_url_for_test_env;
     use crate::tests::utils::{establish_test_connection, get_setup_ids};
+    use dozer_types::grpc_types::admin::{
+        AppResponse, CreateAppRequest, ListAppRequest, ListAppResponse, UpdateAppRequest,
+    };
     #[test]
     pub fn list_create_update() {
         let test_db_connection = database_url_for_test_env();
