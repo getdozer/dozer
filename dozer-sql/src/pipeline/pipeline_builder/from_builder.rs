@@ -71,7 +71,7 @@ fn insert_table_to_pipeline(
     let relation_name_or_alias = get_from_source(relation, pipeline, query_context, pipeline_idx)?;
 
     let product_processor_factory = TableProcessorFactory::new(relation.to_owned());
-    let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
+    let product_processor_name = format!("from_{}", uuid::Uuid::new_v4());
     let product_input_name = relation_name_or_alias.0;
 
     let mut input_nodes = vec![];
