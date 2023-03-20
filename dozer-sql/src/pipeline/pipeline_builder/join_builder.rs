@@ -178,7 +178,9 @@ fn insert_join_source_to_pipeline(
         )?;
         JoinSource::Operator(connection_info)
     } else if is_nested_join(&source) {
-        todo!()
+        return Err(PipelineError::InvalidJoin(
+            "Nested JOINs are not supported".to_string(),
+        ));
     } else {
         let name_or_alias = get_name_or_alias(&source)?;
         JoinSource::Table(name_or_alias.0)
