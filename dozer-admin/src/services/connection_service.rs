@@ -1,22 +1,20 @@
-use crate::{
-    db::{
-        connection::{DbConnection, NewConnection},
-        pool::DbPool,
-        schema::connections::dsl::*,
-    },
-    server::dozer_admin_grpc::{
-        ConnectionRequest, ConnectionResponse, ErrorResponse, GetAllConnectionRequest,
-        GetAllConnectionResponse, GetTablesRequest, GetTablesResponse, Pagination, TableInfo,
-        UpdateConnectionRequest, ValidateConnectionResponse,
-    },
+use crate::db::{
+    connection::{DbConnection, NewConnection},
+    pool::DbPool,
+    schema::connections::dsl::*,
 };
 use dozer_orchestrator::{get_connector, ConnectorError};
+use dozer_types::grpc_types::admin::{
+    ConnectionRequest, ConnectionResponse, ErrorResponse, GetAllConnectionRequest,
+    GetAllConnectionResponse, GetTablesRequest, GetTablesResponse, Pagination,
+    UpdateConnectionRequest, ValidateConnectionResponse,
+};
 use dozer_types::{log::error, models::connection::Connection};
 use std::thread;
 
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
 
-use super::constants;
+use super::{constants, converter::convert_table};
 
 pub struct ConnectionService {
     db_pool: DbPool,
@@ -104,10 +102,7 @@ impl ConnectionService {
         let tables = self._get_tables(connection).await?;
         Ok(GetTablesResponse {
             connection_id: input.connection_id,
-            tables: tables
-                .iter()
-                .map(|t| TableInfo::try_from(t.clone()).unwrap())
-                .collect(),
+            tables: tables.iter().map(|t| convert_table(t.clone())).collect(),
         })
     }
 

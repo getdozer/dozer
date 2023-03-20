@@ -3,7 +3,6 @@ name = "dozer-admin"
 version = "0.1.12"
 authors = ["getdozer/dozer-dev"]
 edition = "2021"
-build = "build.rs"
 
 [dependencies]
 dozer-orchestrator = {path = "../dozer-orchestrator"}
