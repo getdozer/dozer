@@ -48,7 +48,7 @@ impl ConflictResolver {
                 Ok(None)
             }
             (OnUpdateResolutionTypes::Upsert, CacheError::PrimaryKeyNotFound) => {
-                warn!("Record (Key: {:?}) not found, trying update", key);
+                warn!("Record (Key: {:?}) not found, trying insert", key);
                 let insert_op = Operation::Insert { new };
                 Ok(Some(insert_op))
             }
