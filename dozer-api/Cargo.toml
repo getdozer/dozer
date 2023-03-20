@@ -1,6 +1,6 @@
 [package]
 name = "dozer-api"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -22,10 +22,10 @@ prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] } 
 tonic-reflection = "0.6.0"
 Inflector = "0.11.4"
-futures-util = "0.3.26"
+futures-util = "0.3.27"
 prost-build = "0.11.6"
 tonic-web = "0.4.0"
-jsonwebtoken = "8.2.0"
+jsonwebtoken = "8.3.0"
 tokio-stream = "0.1.12"
 crossbeam = "0.8.2"
 async-trait = "0.1.66"

@@ -33,6 +33,7 @@ use crate::connectors::snowflake::connector::SnowflakeConnector;
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
 #[serde(crate = "dozer_types::serde")]
+/// A source table's CDC event type.
 pub enum CdcType {
     /// Connector gets old record on delete/update operations.
     FullChanges,
@@ -45,9 +46,12 @@ pub enum CdcType {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
+/// A source table's schema and CDC type.
 pub struct SourceSchema {
+    /// Dozer schema mapped from the source table. Columns are already filtered based on `TableInfo.column_names`.
     pub schema: Schema,
     #[serde(default)]
+    /// The source table's CDC type.
     pub cdc_type: CdcType,
 }
 
@@ -57,6 +61,7 @@ impl SourceSchema {
     }
 }
 
+/// Result of mapping one source table schema to Dozer schema.
 pub type SourceSchemaResult = Result<SourceSchema, ConnectorError>;
 
 pub trait Connector: Send + Sync + Debug {
@@ -105,8 +110,13 @@ pub trait Connector: Send + Sync + Debug {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Unique identifier of a source table. A source table must have a `name`, optionally under a `schema` scope.
 pub struct TableIdentifier {
+    /// The `schema` scope of the table.
+    ///
+    /// Connector that supports schema scope must decide on a default schema, that doesn't must assert that `schema.is_none()`.
     pub schema: Option<String>,
+    /// The table name, must be unique under the `schema` scope, or global scope if `schema` is `None`.
     pub name: String,
 }
 
@@ -122,9 +132,13 @@ impl TableIdentifier {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(crate = "self::serde")]
+/// `TableIdentifier` with column names.
 pub struct TableInfo {
+    /// The `schema` scope of the table.
     pub schema: Option<String>,
+    /// The table name, must be unique under the `schema` scope, or global scope if `schema` is `None`.
     pub name: String,
+    /// The column names to be mapped.
     pub column_names: Vec<String>,
 }
 
@@ -208,4 +222,11 @@ fn table_name(schema: Option<&str>, name: &str) -> String {
     } else {
         name.to_string()
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ListOrFilterColumns {
+    pub schema: Option<String>,
+    pub name: String,
+    pub columns: Option<Vec<String>>,
 }

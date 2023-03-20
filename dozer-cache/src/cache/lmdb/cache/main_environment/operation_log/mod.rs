@@ -152,12 +152,11 @@ impl OperationLog {
         &self,
         txn: &T,
         operation_id: u64,
-    ) -> Result<Operation, StorageError> {
+    ) -> Result<Option<Operation>, StorageError> {
         Ok(self
             .operation_id_to_operation
             .get(txn, &operation_id)?
-            .unwrap_or_else(|| panic!("Operation id {} out of range", operation_id))
-            .into_owned())
+            .map(IntoOwned::into_owned))
     }
 
     /// Inserts the record and sets the record version. Returns the record id.
@@ -320,18 +319,16 @@ mod tests {
                     .unwrap(),
                 (0..=index as u64).collect::<Vec<_>>()
             );
-            assert_eq!(
-                log.contains_operation_id(&txn, append_only, index as _)
-                    .unwrap(),
-                true
-            );
+            assert!(log
+                .contains_operation_id(&txn, append_only, index as _)
+                .unwrap());
             assert_eq!(
                 log.get_record_by_operation_id_unchecked(&txn, index as _)
                     .unwrap(),
                 RecordWithId::new(record_id, record.clone())
             );
             assert_eq!(
-                log.get_operation(&txn, index as _).unwrap(),
+                log.get_operation(&txn, index as _).unwrap().unwrap(),
                 Operation::Insert {
                     record_id,
                     record: record.clone(),
@@ -370,16 +367,13 @@ mod tests {
                 .unwrap(),
             vec![0]
         );
-        assert_eq!(
-            log.contains_operation_id(&txn, append_only, 0).unwrap(),
-            true
-        );
+        assert!(log.contains_operation_id(&txn, append_only, 0).unwrap());
         assert_eq!(
             log.get_record_by_operation_id_unchecked(&txn, 0).unwrap(),
             RecordWithId::new(record_id, record.clone())
         );
         assert_eq!(
-            log.get_operation(&txn, 0).unwrap(),
+            log.get_operation(&txn, 0).unwrap().unwrap(),
             Operation::Insert {
                 record_id,
                 record: record.clone(),
@@ -407,12 +401,9 @@ mod tests {
                 .unwrap(),
             Vec::<u64>::new(),
         );
+        assert!(!log.contains_operation_id(&txn, append_only, 0).unwrap());
         assert_eq!(
-            log.contains_operation_id(&txn, append_only, 0).unwrap(),
-            false
-        );
-        assert_eq!(
-            log.get_operation(&txn, 1).unwrap(),
+            log.get_operation(&txn, 1).unwrap().unwrap(),
             Operation::Delete { operation_id: 0 }
         );
 
@@ -446,16 +437,13 @@ mod tests {
                 .unwrap(),
             vec![2]
         );
-        assert_eq!(
-            log.contains_operation_id(&txn, append_only, 2).unwrap(),
-            true
-        );
+        assert!(log.contains_operation_id(&txn, append_only, 2).unwrap());
         assert_eq!(
             log.get_record_by_operation_id_unchecked(&txn, 2).unwrap(),
             RecordWithId::new(record_id, record.clone())
         );
         assert_eq!(
-            log.get_operation(&txn, 2).unwrap(),
+            log.get_operation(&txn, 2).unwrap().unwrap(),
             Operation::Insert {
                 record_id,
                 record: record.clone(),

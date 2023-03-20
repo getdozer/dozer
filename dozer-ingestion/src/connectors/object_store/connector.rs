@@ -1,9 +1,9 @@
-use std::fmt::Debug;
-
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::schema_mapper;
 use crate::connectors::object_store::table_reader::{Reader, TableReader};
-use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo};
+use crate::connectors::{
+    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
+};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
@@ -72,7 +72,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     fn get_schemas(&self, table_infos: &[TableInfo]) -> ConnectorResult<Vec<SourceSchemaResult>> {
         let table_infos = table_infos
             .iter()
-            .map(|table_info| schema_mapper::TableInfo {
+            .map(|table_info| ListOrFilterColumns {
                 schema: table_info.schema.clone(),
                 name: table_info.name.clone(),
                 columns: Some(table_info.column_names.clone()),
@@ -92,7 +92,7 @@ fn get_schema_from_tables(
 ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
     let table_infos = tables
         .iter()
-        .map(|table| super::schema_mapper::TableInfo {
+        .map(|table| ListOrFilterColumns {
             schema: table.schema.clone(),
             name: table.name.clone(),
             columns: None,

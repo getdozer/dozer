@@ -1,6 +1,6 @@
-use crate::connectors::object_store::schema_mapper::TableInfo;
 use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::connectors::postgres::test_utils::get_client;
+use crate::connectors::ListOrFilterColumns;
 use crate::errors::PostgresConnectorError::PostgresSchemaError;
 use crate::errors::PostgresSchemaError::UnsupportedTableType;
 use crate::test_util::run_connector_test;
@@ -69,7 +69,7 @@ fn test_connector_get_schema_with_selected_columns() {
         client.create_simple_table(&schema, &table_name);
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone());
-        let table_info = TableInfo {
+        let table_info = ListOrFilterColumns {
             schema: Some(schema.clone()),
             name: table_name.clone(),
             columns: Some(vec!["name".to_string(), "id".to_string()]),
@@ -103,7 +103,7 @@ fn test_connector_get_schema_without_selected_columns() {
         client.create_simple_table(&schema, &table_name);
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone());
-        let table_info = TableInfo {
+        let table_info = ListOrFilterColumns {
             name: table_name.clone(),
             schema: Some(schema.clone()),
             columns: Some(vec![]),
@@ -144,7 +144,7 @@ fn test_connector_view_cannot_be_used() {
         client.create_view(&schema, &table_name, &view_name);
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone());
-        let table_info = TableInfo {
+        let table_info = ListOrFilterColumns {
             name: view_name,
             schema: Some(schema.clone()),
             columns: Some(vec![]),
@@ -157,7 +157,7 @@ fn test_connector_view_cannot_be_used() {
             Err(PostgresSchemaError(UnsupportedTableType(_, _)))
         ));
 
-        let table_info = TableInfo {
+        let table_info = ListOrFilterColumns {
             name: table_name,
             schema: Some(schema.clone()),
             columns: Some(vec![]),

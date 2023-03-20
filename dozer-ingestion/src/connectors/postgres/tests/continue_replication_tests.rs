@@ -92,7 +92,7 @@ mod tests {
                 config: conn_config.clone(),
             };
 
-            let connector = PostgresConnector::new(1, postgres_config.clone());
+            let connector = PostgresConnector::new(1, postgres_config);
 
             let mut replication_conn_config = conn_config;
             replication_conn_config.replication_mode(ReplicationMode::Logical);
