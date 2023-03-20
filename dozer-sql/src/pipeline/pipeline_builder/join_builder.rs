@@ -32,7 +32,7 @@ pub(crate) fn insert_join_to_pipeline(
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    let input_nodes = vec![];
+    let mut input_nodes = vec![];
 
     let left_table = &from.relation;
     let mut left_name_or_alias = Some(get_name_or_alias(left_table)?);
@@ -58,19 +58,39 @@ pub(crate) fn insert_join_to_pipeline(
 
         let mut pipeline_entry_points = vec![];
         if let JoinSource::Table(ref source_table) = left_join_source {
-            pipeline_entry_points.push(PipelineEntryPoint::new(
-                AppSourceId::new(source_table.to_string(), None),
-                LEFT_JOIN_PORT,
-            ));
-            query_context.used_sources.push(source_table.to_string());
+            if is_an_entry_point(source_table, &mut query_context.pipeline_map, pipeline_idx) {
+                let entry_point = PipelineEntryPoint::new(
+                    AppSourceId::new(source_table.clone(), None),
+                    LEFT_JOIN_PORT,
+                );
+
+                pipeline_entry_points.push(entry_point);
+                query_context.used_sources.push(source_table.to_string());
+            } else {
+                input_nodes.push((
+                    source_table.to_string(),
+                    join_processor_name.clone(),
+                    LEFT_JOIN_PORT,
+                ));
+            }
         }
 
-        if let JoinSource::Table(source_table) = right_join_source.clone() {
-            pipeline_entry_points.push(PipelineEntryPoint::new(
-                AppSourceId::new(source_table.to_string(), None),
-                RIGHT_JOIN_PORT,
-            ));
-            query_context.used_sources.push(source_table);
+        if let JoinSource::Table(ref source_table) = right_join_source.clone() {
+            if is_an_entry_point(source_table, &mut query_context.pipeline_map, pipeline_idx) {
+                let entry_point = PipelineEntryPoint::new(
+                    AppSourceId::new(source_table.clone(), None),
+                    RIGHT_JOIN_PORT,
+                );
+
+                pipeline_entry_points.push(entry_point);
+                query_context.used_sources.push(source_table.to_string());
+            } else {
+                input_nodes.push((
+                    source_table.to_string(),
+                    join_processor_name.clone(),
+                    RIGHT_JOIN_PORT,
+                ));
+            }
         }
 
         pipeline.add_processor(
