@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use dozer_storage::errors::StorageError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 
@@ -54,6 +55,13 @@ impl CacheError {
         CacheError::Type(TypeError::DeserializationError(
             DeserializationError::Bincode(e),
         ))
+    }
+
+    pub fn is_map_full(&self) -> bool {
+        matches!(
+            self,
+            CacheError::Storage(StorageError::Lmdb(dozer_storage::lmdb::Error::MapFull))
+        )
     }
 }
 
