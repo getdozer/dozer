@@ -1,12 +1,15 @@
 use crossbeam::channel::{Receiver, Sender};
-use dozer_types::grpc_types::{
-    internal::{
-        internal_pipeline_service_server::{self, InternalPipelineService},
-        AliasEventsRequest, AliasRedirected, OperationsRequest,
-    },
-    types::Operation,
-};
 use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
+use dozer_types::{
+    grpc_types::{
+        internal::{
+            internal_pipeline_service_server::{self, InternalPipelineService},
+            AliasEventsRequest, AliasRedirected, OperationsRequest,
+        },
+        types::Operation,
+    },
+    log::debug,
+};
 use std::{fmt::Debug, net::ToSocketAddrs, pin::Pin, thread};
 use tokio::{runtime::Runtime, sync::broadcast};
 use tokio_stream::wrappers::ReceiverStream;
@@ -46,8 +49,8 @@ fn crossbeam_mpsc_receiver_to_tokio_broadcast_receiver<T: Clone + Debug + Send +
                 }
             }
             Err(err) => {
-                warn!(
-                    "Internal Pipeline server - message reveived error: {:?}",
+                debug!(
+                    "Error receiving: {:?}. Exiting crossbeam_mpsc_receiver_to_tokio_broadcast_receiver thread",
                     err
                 );
                 break;

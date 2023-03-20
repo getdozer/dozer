@@ -140,17 +140,17 @@ impl Orchestrator for SimpleOrchestrator {
             while let Some(result) = futures.next().await {
                 result?;
             }
+            let server_handle = rx
+                .recv()
+                .map_err(OrchestrationError::GrpcServerHandleError)?;
+            // Waiting for Ctrl+C
+            while running.load(Ordering::Relaxed) {}
+
+            sender_shutdown.send(()).unwrap();
+            rest::ApiServer::stop(server_handle);
+
             Ok::<(), OrchestrationError>(())
         })?;
-
-        let server_handle = rx
-            .recv()
-            .map_err(OrchestrationError::GrpcServerHandleError)?;
-
-        // Waiting for Ctrl+C
-        while running.load(Ordering::SeqCst) {}
-        sender_shutdown.send(()).unwrap();
-        rest::ApiServer::stop(server_handle);
 
         Ok(())
     }
@@ -342,6 +342,7 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         let running_api = running.clone();
+        let running_wait = running.clone();
         // TODO: remove this after checkpointing
         self.clean()?;
 
@@ -370,12 +371,15 @@ impl Orchestrator for SimpleOrchestrator {
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
 
-        thread::spawn(move || {
+        let _api_thread = thread::spawn(move || {
             if let Err(e) = dozer_api.run_api(running_api) {
                 std::panic::panic_any(e);
             }
         });
 
+        while running_wait.load(Ordering::Relaxed) {}
+
+        // wait for threads to shutdown gracefully
         pipeline_thread.join().unwrap();
         Ok(())
     }
