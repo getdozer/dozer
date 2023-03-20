@@ -13,7 +13,7 @@ use dozer_types::crossbeam::channel::Sender;
 use dozer_types::grpc_types::internal::AliasRedirected;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::{debug, info};
-use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
+use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex, ConflictResolution};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use dozer_types::tracing::span;
@@ -388,7 +388,14 @@ impl Sink for CacheSink {
                             old,
                             schema,
                             e,
-                            self.api_endpoint.conflict_resolution.clone(),
+                            self.api_endpoint
+                                .conflict_resolution
+                                .as_ref()
+                                .map_or_else(
+                                    || ConflictResolution::default().on_delete,
+                                    |r| r.on_delete,
+                                )
+                                .into(),
                         )
                         .map_err(|e| {
                             ExecutionError::SinkError(SinkError::CacheDeleteFailed(
@@ -419,7 +426,14 @@ impl Sink for CacheSink {
                             new,
                             schema,
                             e,
-                            self.api_endpoint.conflict_resolution.clone(),
+                            self.api_endpoint
+                                .conflict_resolution
+                                .as_ref()
+                                .map_or_else(
+                                    || ConflictResolution::default().on_insert,
+                                    |r| r.on_insert,
+                                )
+                                .into(),
                         )
                         .map_err(|e| {
                             if e.is_map_full() {
@@ -460,7 +474,14 @@ impl Sink for CacheSink {
                             new,
                             schema,
                             e,
-                            self.api_endpoint.conflict_resolution.clone(),
+                            self.api_endpoint
+                                .conflict_resolution
+                                .as_ref()
+                                .map_or_else(
+                                    || ConflictResolution::default().on_update,
+                                    |r| r.on_update,
+                                )
+                                .into(),
                         )
                         .map_err(|e| {
                             if e.is_map_full() {

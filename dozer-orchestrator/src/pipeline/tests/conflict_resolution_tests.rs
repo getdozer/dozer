@@ -9,7 +9,8 @@ mod tests {
     use dozer_core::DEFAULT_PORT_HANDLE;
     use dozer_storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
     use dozer_types::models::api_endpoint::{
-        ConflictResolution, OnInsertResolutionTypes, OnUpdateResolutionTypes,
+        ConflictResolution, OnDeleteResolutionTypes, OnInsertResolutionTypes,
+        OnUpdateResolutionTypes,
     };
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, Schema, SchemaIdentifier};
     use tempdir::TempDir;
@@ -43,9 +44,9 @@ mod tests {
     #[test]
     fn ignore_insert_error_when_type_nothing() {
         let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
-            on_insert: Some(OnInsertResolutionTypes::Nothing.to_string()),
-            on_update: None,
-            on_delete: None,
+            on_insert: OnInsertResolutionTypes::Nothing as i32,
+            on_update: OnUpdateResolutionTypes::default() as i32,
+            on_delete: OnDeleteResolutionTypes::default() as i32,
         }));
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
@@ -81,9 +82,9 @@ mod tests {
     #[test]
     fn update_after_insert_error_when_type_update() {
         let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
-            on_insert: Some(OnInsertResolutionTypes::Update.to_string()),
-            on_update: None,
-            on_delete: None,
+            on_insert: OnInsertResolutionTypes::Update as i32,
+            on_update: OnUpdateResolutionTypes::default() as i32,
+            on_delete: OnDeleteResolutionTypes::default() as i32,
         }));
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
@@ -131,9 +132,9 @@ mod tests {
     #[test]
     fn return_insert_error_when_type_panic() {
         let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
-            on_insert: Some(OnInsertResolutionTypes::Panic.to_string()),
-            on_update: None,
-            on_delete: None,
+            on_insert: OnInsertResolutionTypes::Panic as i32,
+            on_update: OnUpdateResolutionTypes::default() as i32,
+            on_delete: OnDeleteResolutionTypes::default() as i32,
         }));
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
@@ -168,9 +169,9 @@ mod tests {
     #[test]
     fn ignore_update_error_when_type_nothing() {
         let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
-            on_insert: None,
-            on_update: Some(OnUpdateResolutionTypes::Nothing.to_string()),
-            on_delete: None,
+            on_insert: OnInsertResolutionTypes::default() as i32,
+            on_update: OnUpdateResolutionTypes::Nothing as i32,
+            on_delete: OnDeleteResolutionTypes::default() as i32,
         }));
 
         let initial_values = vec![Field::Int(1), Field::Null];
@@ -204,9 +205,9 @@ mod tests {
     #[test]
     fn update_after_update_error_when_type_update() {
         let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
-            on_insert: None,
-            on_update: Some(OnUpdateResolutionTypes::Upsert.to_string()),
-            on_delete: None,
+            on_insert: OnInsertResolutionTypes::default() as i32,
+            on_update: OnUpdateResolutionTypes::Upsert as i32,
+            on_delete: OnDeleteResolutionTypes::default() as i32,
         }));
 
         let initial_values = vec![Field::Int(1), Field::Null];
@@ -241,9 +242,9 @@ mod tests {
     #[test]
     fn return_update_error_when_type_panic() {
         let (_cache, mut sink, txn, _schema) = init_cache_and_sink(Some(ConflictResolution {
-            on_insert: None,
-            on_update: Some(OnUpdateResolutionTypes::Panic.to_string()),
-            on_delete: None,
+            on_insert: OnInsertResolutionTypes::default() as i32,
+            on_update: OnUpdateResolutionTypes::Panic as i32,
+            on_delete: OnInsertResolutionTypes::default() as i32,
         }));
 
         let initial_values = vec![Field::Int(1), Field::Null];
@@ -279,9 +280,9 @@ mod tests {
     #[test]
     fn ignore_delete_error_when_type_nothing() {
         let (cache, mut sink, txn, _schema) = init_cache_and_sink(Some(ConflictResolution {
-            on_insert: None,
-            on_update: None,
-            on_delete: Some(OnUpdateResolutionTypes::Nothing.to_string()),
+            on_insert: OnInsertResolutionTypes::default() as i32,
+            on_update: OnUpdateResolutionTypes::default() as i32,
+            on_delete: OnUpdateResolutionTypes::Nothing as i32,
         }));
 
         let initial_values = vec![Field::Int(1), Field::Null];
@@ -305,9 +306,9 @@ mod tests {
     #[test]
     fn return_delete_error_when_type_panic() {
         let (_cache, mut sink, txn, _schema) = init_cache_and_sink(Some(ConflictResolution {
-            on_insert: None,
-            on_update: None,
-            on_delete: Some(OnUpdateResolutionTypes::Panic.to_string()),
+            on_insert: OnInsertResolutionTypes::default() as i32,
+            on_update: OnUpdateResolutionTypes::default() as i32,
+            on_delete: OnDeleteResolutionTypes::Panic as i32,
         }));
 
         let initial_values = vec![Field::Int(1), Field::Null];
