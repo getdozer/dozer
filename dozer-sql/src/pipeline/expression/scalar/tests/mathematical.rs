@@ -2,12 +2,11 @@ use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
-use dozer_types::types::{Record, SourceDefinition};
+use dozer_types::types::{Record};
 use dozer_types::{
-    chrono::{DateTime, NaiveDate, TimeZone, Utc},
     ordered_float::OrderedFloat,
     rust_decimal::Decimal,
-    types::{Field, FieldDefinition, FieldType, Schema},
+    types::{Field, Schema},
 };
 use num_traits::FromPrimitive;
 
@@ -383,8 +382,8 @@ fn test_float_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(Decimal::from(u_num1))));
-        let dec2 = Box::new(Literal(Field::Decimal(Decimal::from(u_num2))));
+        let _dec1 = Box::new(Literal(Field::Decimal(Decimal::from(u_num1))));
+        let _dec2 = Box::new(Literal(Field::Decimal(Decimal::from(u_num2))));
 
         let null = Box::new(Literal(Field::Null));
 
@@ -560,8 +559,8 @@ fn test_decimal_math() {
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
-        let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
-        let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
+        let _float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
+        let _float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
         let dec1 = Box::new(Literal(Field::Decimal(Decimal::from(u_num1))));
         let dec2 = Box::new(Literal(Field::Decimal(Decimal::from(u_num2))));
 
