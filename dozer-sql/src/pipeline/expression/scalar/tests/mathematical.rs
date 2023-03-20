@@ -2,7 +2,7 @@ use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
-use dozer_types::types::{Record};
+use dozer_types::types::Record;
 use dozer_types::{
     ordered_float::OrderedFloat,
     rust_decimal::Decimal,
