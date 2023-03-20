@@ -1,5 +1,5 @@
 syntax = "proto3";
-package dozer_admin_grpc;
+package dozer.admin;
 
 message AppConfig {
   string app_name = 2;

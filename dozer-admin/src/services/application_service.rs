@@ -1,25 +1,24 @@
 use super::constants;
 use super::graph;
-use crate::server::dozer_admin_grpc::StopRequest;
-use crate::server::dozer_admin_grpc::StopResponse;
-use crate::{
-    db::{
-        app::{Application, NewApplication},
-        pool::DbPool,
-        schema::apps::{self, dsl::*},
-    },
-    server::dozer_admin_grpc::{
-        AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
-        GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
-        Pagination, ParseRequest, ParseResponse, ParseYamlRequest, ParseYamlResponse, StartRequest,
-        StartResponse, UpdateAppRequest,
-    },
+
+use crate::db::{
+    app::{Application, NewApplication},
+    pool::DbPool,
+    schema::apps::{self, dsl::*},
 };
 use diesel::prelude::*;
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::wrapped_statement_to_pipeline;
 use dozer_orchestrator::Orchestrator;
+use dozer_types::grpc_types::admin::StopRequest;
+use dozer_types::grpc_types::admin::StopResponse;
+use dozer_types::grpc_types::admin::{
+    AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
+    GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
+    Pagination, ParseRequest, ParseResponse, ParseYamlRequest, ParseYamlResponse, StartRequest,
+    StartResponse, UpdateAppRequest,
+};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_yaml;
 use std::collections::HashMap;
