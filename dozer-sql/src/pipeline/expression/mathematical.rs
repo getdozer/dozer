@@ -7,7 +7,7 @@ use dozer_types::{
     types::{Field, Record},
 };
 use num_traits::FromPrimitive;
-use num_traits::ToPrimitive;
+
 use std::num::Wrapping;
 use std::ops::Neg;
 
