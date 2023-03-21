@@ -8,7 +8,7 @@ connections:
           prefix: /trips
           file_type: parquet
           extension: .parquet
-    name: ny_taxi
+    name: yellow_taxi
 
 sql: |
   SELECT t.PULocationID as location, t.tpep_pickup_datetime as pickup_time, t.window_start as start, t.window_end AS end
@@ -22,7 +22,7 @@ sql: |
 sources:
   - name: trips
     table_name: trips
-    connection: !Ref ny_taxi
+    connection: !Ref yellow_taxi
     columns:
 
 endpoints:
