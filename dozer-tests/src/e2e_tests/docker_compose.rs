@@ -34,6 +34,10 @@ pub struct Service {
     #[serde(skip_serializing_if = "Vec::is_empty", default = "Vec::new")]
     pub volumes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
     #[serde(skip_serializing_if = "HashMap::is_empty", default = "HashMap::new")]
     pub depends_on: HashMap<String, DependsOn>,
