@@ -159,7 +159,7 @@ impl<'de> Deserialize<'de> for OnDeleteResolutionTypes {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Copy, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct ConflictResolution {
     #[prost(enumeration = "OnInsertResolutionTypes", tag = "1")]
     pub on_insert: i32,

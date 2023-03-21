@@ -169,6 +169,7 @@ impl OperationLog {
         txn: &mut RwTransaction,
         record: &mut Record,
         primary_key: Option<&[u8]>,
+        upsert_on_collision: bool,
     ) -> Result<Option<u64>, StorageError> {
         // Calculate operation id and record id.
         let (operation_id, record_id) = if let Some(primary_key) = primary_key {
@@ -182,12 +183,12 @@ impl OperationLog {
                     ),
                     Some(metadata) => {
                         let metadata = metadata.borrow();
-                        if metadata.insert_operation_id.is_some() {
-                            // Primary key collision.
-                            return Ok(None);
-                        } else {
+                        if metadata.insert_operation_id.is_none() || upsert_on_collision {
                             // This primary key was deleted. Use the record id from its first insertion.
                             (metadata.id, metadata.version + 1)
+                        } else {
+                            // Primary key collision.
+                            return Ok(None);
                         }
                     }
                 };
@@ -303,7 +304,7 @@ mod tests {
 
         let mut records = vec![Record::new(None, vec![], None); 10];
         for (index, record) in records.iter_mut().enumerate() {
-            let record_id = log.insert(&mut txn, record, None).unwrap().unwrap();
+            let record_id = log.insert(&mut txn, record, None, false).unwrap().unwrap();
             assert_eq!(record_id, index as u64);
             assert_eq!(record.version, Some(INITIAL_RECORD_VERSION));
             assert_eq!(
@@ -348,7 +349,7 @@ mod tests {
         let mut record = Record::new(None, vec![], None);
         let primary_key = b"primary_key";
         let record_id = log
-            .insert(&mut txn, &mut record, Some(primary_key))
+            .insert(&mut txn, &mut record, Some(primary_key), false)
             .unwrap()
             .unwrap();
         assert_eq!(record_id, 0);
@@ -382,7 +383,7 @@ mod tests {
 
         // Insert again with the same primary key should fail.
         assert_eq!(
-            log.insert(&mut txn, &mut record, Some(primary_key))
+            log.insert(&mut txn, &mut record, Some(primary_key), false)
                 .unwrap(),
             None
         );
@@ -418,7 +419,7 @@ mod tests {
 
         // Insert with that primary key again.
         let record_id = log
-            .insert(&mut txn, &mut record, Some(primary_key))
+            .insert(&mut txn, &mut record, Some(primary_key), false)
             .unwrap()
             .unwrap();
         assert_eq!(record_id, 0);

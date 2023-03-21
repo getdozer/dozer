@@ -6,6 +6,7 @@ use dozer_storage::{
     lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
     BeginTransaction, LmdbOption, ReadTransaction,
 };
+use dozer_types::models::api_endpoint::{ConflictResolution, OnInsertResolutionTypes};
 use dozer_types::{
     borrow::IntoOwned,
     types::{Field, FieldType, Record, Schema, SchemaWithIndex},
@@ -76,6 +77,7 @@ pub struct RwMainEnvironment {
     common: MainEnvironmentCommon,
     _temp_dir: Option<TempDir>,
     schema: SchemaWithIndex,
+    insert_resolution: OnInsertResolutionTypes,
 }
 
 impl BeginTransaction for RwMainEnvironment {
@@ -100,6 +102,7 @@ impl RwMainEnvironment {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
         options: &CacheOptions,
+        conflict_resolution: ConflictResolution,
     ) -> Result<Self, CacheError> {
         let (env, common, schema_option, old_schema, temp_dir) = open_env(options, true)?;
         let txn = env.create_txn()?;
@@ -130,6 +133,7 @@ impl RwMainEnvironment {
             common,
             schema,
             _temp_dir: temp_dir,
+            insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
         })
     }
 
@@ -139,7 +143,8 @@ impl RwMainEnvironment {
     pub fn insert(&self, record: &mut Record) -> Result<u64, CacheError> {
         debug_check_schema_record_consistency(&self.schema.0, record);
 
-        let primary_key = if self.schema.0.is_append_only() {
+        let upsert_on_duplicate = self.insert_resolution == OnInsertResolutionTypes::Update;
+        let primary_key = if self.schema.0.is_append_only() && !upsert_on_duplicate {
             None
         } else {
             Some(index::get_primary_key(
@@ -152,7 +157,7 @@ impl RwMainEnvironment {
         let txn = txn.txn_mut();
         self.common
             .operation_log
-            .insert(txn, record, primary_key.as_deref())?
+            .insert(txn, record, primary_key.as_deref(), upsert_on_duplicate)?
             .ok_or(CacheError::PrimaryKeyExists)
     }
 

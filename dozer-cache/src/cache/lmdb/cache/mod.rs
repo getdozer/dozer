@@ -1,3 +1,4 @@
+use dozer_types::models::api_endpoint::ConflictResolution;
 use std::path::PathBuf;
 use std::{fmt::Debug, sync::Arc};
 
@@ -81,8 +82,9 @@ impl LmdbRwCache {
         schema: Option<&SchemaWithIndex>,
         options: &CacheOptions,
         indexing_thread_pool: &mut IndexingThreadPool,
+        conflict_resolution: ConflictResolution,
     ) -> Result<Self, CacheError> {
-        let rw_main_env = RwMainEnvironment::new(schema, options)?;
+        let rw_main_env = RwMainEnvironment::new(schema, options, conflict_resolution)?;
 
         let options = CacheOptions {
             path: Some((

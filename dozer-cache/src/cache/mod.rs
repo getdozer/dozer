@@ -3,6 +3,7 @@ use std::fmt::Debug;
 
 use self::expression::QueryExpression;
 use crate::errors::CacheError;
+use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::{
     serde::{Deserialize, Serialize},
     types::{IndexDefinition, Record, Schema, SchemaWithIndex},
@@ -30,7 +31,11 @@ pub trait CacheManager: Send + Sync + Debug {
     /// Opens a cache in read-write mode with given name or an alias with that name.
     ///
     /// If the name is both an alias and a real name, it's treated as an alias.
-    fn open_rw_cache(&self, name: &str) -> Result<Option<Box<dyn RwCache>>, CacheError>;
+    fn open_rw_cache(
+        &self,
+        name: &str,
+        conflict_resolution: ConflictResolution,
+    ) -> Result<Option<Box<dyn RwCache>>, CacheError>;
 
     /// Opens a cache in read-only mode with given name or an alias with that name.
     ///
@@ -46,6 +51,7 @@ pub trait CacheManager: Send + Sync + Debug {
         &self,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
+        conflict_resolution: ConflictResolution,
     ) -> Result<Box<dyn RwCache>, CacheError>;
 
     /// Creates an alias `alias` for a cache with name `name`.

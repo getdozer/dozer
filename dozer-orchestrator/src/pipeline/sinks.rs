@@ -245,12 +245,13 @@ fn open_or_create_cache(
     name: &str,
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
+    conflict_resolution: ConflictResolution,
 ) -> Result<(Box<dyn RwCache>, Option<usize>), ExecutionError> {
     let append_only = schema.is_append_only();
 
     let create_cache = || {
         cache_manager
-            .create_cache(schema, secondary_indexes)
+            .create_cache(schema, secondary_indexes, conflict_resolution)
             .map_err(|e| {
                 ExecutionError::SinkError(SinkError::CacheCreateFailed(
                     name.to_string(),
@@ -259,9 +260,11 @@ fn open_or_create_cache(
             })
     };
 
-    let cache = cache_manager.open_rw_cache(name).map_err(|e| {
-        ExecutionError::SinkError(SinkError::CacheOpenFailed(name.to_string(), Box::new(e)))
-    })?;
+    let cache = cache_manager
+        .open_rw_cache(name, conflict_resolution)
+        .map_err(|e| {
+            ExecutionError::SinkError(SinkError::CacheOpenFailed(name.to_string(), Box::new(e)))
+        })?;
     if let Some(cache) = cache {
         if append_only {
             debug!("Cache {} is append only", name);
@@ -526,6 +529,9 @@ impl CacheSink {
             &api_endpoint.name,
             schema,
             secondary_indexes,
+            api_endpoint
+                .conflict_resolution
+                .map_or(ConflictResolution::default(), |c| c),
         )?;
         let counter = cache.count(&query).map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCountFailed(

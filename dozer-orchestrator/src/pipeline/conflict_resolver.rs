@@ -23,14 +23,8 @@ impl ConflictResolver {
                 warn!("Record (Key: {:?}) already exist, ignoring insert", key);
                 Ok(None)
             }
-            (OnInsertResolutionTypes::Update, PrimaryKeyExists) => {
-                warn!("Record (Key: {:?}) already exist, trying update", key);
-                let new_op = Operation::Update {
-                    old: new.clone(),
-                    new,
-                };
-                Ok(Some(new_op))
-            }
+            // (OnInsertResolutionTypes::Update, PrimaryKeyExists) => {
+            // Update is handled in cache level with insert_overwritte operation
             (_, e) => Err(e),
         }
     }

@@ -3,6 +3,7 @@ use csv::StringRecord;
 use dozer_cache::cache::{CacheManager, LmdbCacheManager, RoCache};
 use dozer_types::{chrono::DateTime, types::IndexDefinition};
 use mongodb::{options::ClientOptions, Client, Collection, IndexModel};
+use dozer_types::models::api_endpoint::ConflictResolution;
 
 use crate::{cache_tests::string_record_to_record, init::init, read_csv::read_csv};
 
@@ -18,7 +19,7 @@ pub async fn load_database(
     let schema = film_schema();
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let cache = cache_manager
-        .create_cache(schema.clone(), secondary_indexes)
+        .create_cache(schema.clone(), secondary_indexes, ConflictResolution::default())
         .unwrap();
 
     // Connect to mongodb and clear collection.
