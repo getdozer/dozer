@@ -8,4 +8,4 @@ COPY ./download.sh .
 RUN sh download.sh
 RUN mv ./data/init.sql /docker-entrypoint-initdb.d/init.sql
 
-RUN rm -r /var/lib/postgresql/data
+RUN rm -rf /var/lib/postgresql/data
