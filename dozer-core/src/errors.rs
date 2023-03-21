@@ -94,9 +94,6 @@ pub enum ExecutionError {
     ProcessorReceiverError(usize, #[source] BoxedError),
 
     #[error(transparent)]
-    JoinError(JoinError),
-
-    #[error(transparent)]
     SourceError(SourceError),
 
     #[error("Failed to execute product processor: {0}")]
@@ -107,6 +104,9 @@ pub enum ExecutionError {
 
     #[error("Failed to execute the Window processor: {0}")]
     WindowProcessorError(#[source] BoxedError),
+
+    #[error("JOIN processor received a Record from a wrong input: {0}")]
+    InvalidPort(u16),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {
@@ -164,18 +164,6 @@ pub enum SinkError {
 
     #[error("Failed to count the records during init in Cache: {0:?}, Error: {1:?}")]
     CacheCountFailed(String, #[source] BoxedError),
-}
-
-#[derive(Error, Debug)]
-pub enum JoinError {
-    #[error("Failed to find table in Join during Insert: {0}")]
-    InsertPortError(PortHandle),
-    #[error("Failed to find table in Join during Delete: {0}")]
-    DeletePortError(PortHandle),
-    #[error("Failed to find table in Join during Update: {0}")]
-    UpdatePortError(PortHandle),
-    #[error("Join ports are not properly initialized")]
-    PortNotConnected(PortHandle),
 }
 
 #[derive(Error, Debug)]

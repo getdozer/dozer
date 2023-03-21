@@ -1,5 +1,4 @@
 use crate::pipeline::errors::{PipelineError, ProductError};
-use crate::pipeline::product::set::{SetAction, SetOperation};
 use bloom::CountingBloomFilter;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
@@ -10,6 +9,8 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Operation, Record};
 use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
+
+use super::operator::{SetAction, SetOperation};
 
 pub struct SetProcessor {
     /// Set operations
