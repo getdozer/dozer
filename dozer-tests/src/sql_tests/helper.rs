@@ -207,6 +207,10 @@ pub fn get_primary_key_name(schema: &Schema) -> String {
         .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
 }
 
+pub fn get_primary_key_index(schema: &Schema) -> usize {
+    schema.primary_index[0]
+}
+
 pub fn get_table_name(name: &ObjectName) -> String {
     name.0[0].value.clone()
 }

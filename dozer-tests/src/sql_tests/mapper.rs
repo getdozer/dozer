@@ -200,8 +200,9 @@ impl SqlMapper {
 
                 let mut field_names = vec![];
                 for (idx, v) in new.values.iter().enumerate() {
-                    if let Some(old_value) = old.values.get(idx) {
-                        if old_value != v {
+                    if idx != get_primary_key_index(schema) {
+                        if old.values.get(idx).is_some() {
+                            //if old_value != v {
                             field_names.push(format!(
                                 "{}={}",
                                 schema.fields.get(idx).map_or(
@@ -214,6 +215,7 @@ impl SqlMapper {
                                 )?,
                                 map_field_to_string(v)
                             ))
+                            //}
                         }
                     }
                 }

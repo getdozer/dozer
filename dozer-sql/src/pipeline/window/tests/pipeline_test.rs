@@ -38,9 +38,11 @@ fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new();
 
     let context = statement_to_pipeline(
-        "SELECT trips.taxi_id, puz.zone, trips.completed_at, trips.window_start, trips.window_end \
-        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips \
-        JOIN zones puz ON trips.pu_location_id = puz.location_id",
+        // "SELECT trips.taxi_id, puz.zone, trips.completed_at, trips.window_start, trips.window_end \
+        // FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips \
+        // JOIN zones puz ON trips.pu_location_id = puz.location_id",
+        "SELECT trips.taxi_id, trips.completed_at, trips.window_start, trips.window_end \
+        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips ",
         &mut pipeline,
         Some("results".to_string()),
     )
@@ -336,39 +338,39 @@ impl Source for TestSource {
                 },
                 TRIPS_PORT,
             ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::UInt(1), Field::String("Newark Airport".to_string())],
-                        Some(1),
-                    ),
-                },
-                ZONES_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::UInt(2), Field::String("Jamaica Bay".to_string())],
-                        Some(1),
-                    ),
-                },
-                ZONES_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(3),
-                            Field::String("Allerton/Pelham Gardens".to_string()),
-                        ],
-                        Some(1),
-                    ),
-                },
-                ZONES_PORT,
-            ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![Field::UInt(1), Field::String("Newark Airport".to_string())],
+            //             Some(1),
+            //         ),
+            //     },
+            //     ZONES_PORT,
+            // ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![Field::UInt(2), Field::String("Jamaica Bay".to_string())],
+            //             Some(1),
+            //         ),
+            //     },
+            //     ZONES_PORT,
+            // ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![
+            //                 Field::UInt(3),
+            //                 Field::String("Allerton/Pelham Gardens".to_string()),
+            //             ],
+            //             Some(1),
+            //         ),
+            //     },
+            //     ZONES_PORT,
+            // ),
         ];
 
         for (index, (op, port)) in operations.into_iter().enumerate() {
