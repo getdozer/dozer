@@ -68,7 +68,8 @@ pub fn statement_to_pipeline(
     let dialect = AnsiDialect {};
     let mut ctx = QueryContext::default();
 
-    let ast = Parser::parse_sql(&dialect, sql).unwrap();
+    let ast = Parser::parse_sql(&dialect, sql)
+        .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
     let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
 
     for (idx, statement) in ast.iter().enumerate() {
