@@ -16,6 +16,7 @@ pub struct Connection {
     pub directory: PathBuf,
     pub service: Option<Service>,
     pub has_docker_file: bool,
+    pub has_oneshot_file: bool,
 }
 
 pub enum CaseKind {
@@ -55,12 +56,15 @@ impl Case {
                 panic!("Connection {connection_dir:?} must have either service.yaml or Dockerfile");
             }
 
+            let oneshot_file = connection_dir.join("oneshot");
+
             connections.insert(
                 connection.name.clone(),
                 Connection {
                     directory: connection_dir,
                     service,
                     has_docker_file: docker_file.exists(),
+                    has_oneshot_file: oneshot_file.exists(),
                 },
             );
         }
