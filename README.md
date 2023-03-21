@@ -29,6 +29,9 @@ Dozer makes it easy to build low-latency data APIs (gRPC and REST) from any data
 ![Architecture](./images/dozer.png)
 
 
+## Video Tour
+
+<iframe src="https://share.descript.com/embed/bIzWSb60R5n" width="640" height="360" frameborder="0" allowfullscreen></iframe>
 
 ## Quick Start
 
