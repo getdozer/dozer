@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SetError;
-use crate::pipeline::product::set::SetOperation;
-use crate::pipeline::product::set_processor::SetProcessor;
+
 use dozer_core::storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_core::{
     errors::ExecutionError,
@@ -13,6 +12,9 @@ use dozer_core::{
 };
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
 use sqlparser::ast::{SetOperator, SetQuantifier};
+
+use super::operator::SetOperation;
+use super::set_processor::SetProcessor;
 
 #[derive(Debug)]
 pub struct SetProcessorFactory {
