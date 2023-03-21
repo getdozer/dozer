@@ -4,8 +4,8 @@ connections:
         path: data
       tables:
         - !Table
-          name: trips
-          prefix: /trips
+          name: yellow_trips
+          prefix: /yellow_trips
           file_type: parquet
           extension: .parquet
     name: yellow_taxi
@@ -13,15 +13,15 @@ connections:
 sql: |
   SELECT t.PULocationID as location, t.tpep_pickup_datetime as pickup_time, t.window_start as start, t.window_end AS end
   INTO tumble
-  FROM TUMBLE(trips, tpep_pickup_datetime, '5 MINUTES') t;
+  FROM TUMBLE(yellow_trips, tpep_pickup_datetime, '5 MINUTES') t;
 
   SELECT t.PULocationID as location, t.tpep_pickup_datetime as pickup_time, t.window_start as start, t.window_end AS end
   INTO hop
-  FROM HOP(trips, tpep_pickup_datetime, '1 MINUTE', '2 MINUTES') t;
+  FROM HOP(yellow_trips, tpep_pickup_datetime, '1 MINUTE', '2 MINUTES') t;
 
 sources:
-  - name: trips
-    table_name: trips
+  - name: yellow_trips
+    table_name: yellow_trips
     connection: !Ref yellow_taxi
     columns:
 

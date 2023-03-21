@@ -9,8 +9,8 @@ connections:
           file_type: csv
           extension: .csv
         - !Table
-          name: trips
-          prefix: /trips
+          name: yellow_trips
+          prefix: /yellow_trips
           file_type: parquet
           extension: .parquet
     name: yellow_taxi
@@ -18,15 +18,15 @@ connections:
 sql: |
   SELECT t.tpep_pickup_datetime AS pickup_time, z.Zone AS zone
   INTO pickup
-  FROM trips t JOIN taxi_zone_lookup z ON t.PULocationID = z.LocationID;
+  FROM yellow_trips t JOIN taxi_zone_lookup z ON t.PULocationID = z.LocationID;
 
 sources:
   - name: taxi_zone_lookup
     table_name: taxi_zone_lookup
     connection: !Ref yellow_taxi
     columns:
-  - name: trips
-    table_name: trips
+  - name: yellow_trips
+    table_name: yellow_trips
     connection: !Ref yellow_taxi
     columns:
 
