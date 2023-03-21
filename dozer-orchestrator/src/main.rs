@@ -121,7 +121,7 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
         if let Some(Commands::Init) = cli.cmd {
             if let Err(e) = generate_config_repl() {
                 error!("{}", e);
-                return Err(e);
+                Err(e)
             } else {
                 // We need to exit here, otherwise the orchestrator will be initialized
                 process::exit(0);
