@@ -133,9 +133,6 @@ pub enum IncompatibleSchemas {
 
 #[derive(Error, Debug)]
 pub enum SinkError {
-    #[error("Failed to initialize schema in Cache: {0:?}, Error: {1:?}.")]
-    SchemaUpdateFailed(String, #[source] BoxedError),
-
     #[error("Failed to open Cache: {0:?}, Error: {1:?}.")]
     CacheOpenFailed(String, #[source] BoxedError),
 
@@ -150,12 +147,6 @@ pub enum SinkError {
         source: BoxedError,
     },
 
-    #[error("Failed to get checkpoint in Cache: {0:?}, Error: {1:?}.")]
-    CacheGetCheckpointFailed(String, #[source] BoxedError),
-
-    #[error("Failed to begin transaction in Cache: {0:?}, Error: {1:?}.")]
-    CacheBeginTransactionFailed(String, #[source] BoxedError),
-
     #[error("Failed to insert record in Cache: {0:?}, Error: {1:?}. Usually this happens if primary key is wrongly specified.")]
     CacheInsertFailed(String, #[source] BoxedError),
 
@@ -168,7 +159,10 @@ pub enum SinkError {
     #[error("Failed to commit cache transaction: {0:?}, Error: {1:?}")]
     CacheCommitTransactionFailed(String, #[source] BoxedError),
 
-    #[error("Failed to count thre records during init in Cache: {0:?}, Error: {1:?}")]
+    #[error("Cache {0} has reached its maximum size. Try to increase `cache_max_map_size` in the config.")]
+    CacheFull(String),
+
+    #[error("Failed to count the records during init in Cache: {0:?}, Error: {1:?}")]
     CacheCountFailed(String, #[source] BoxedError),
 }
 
