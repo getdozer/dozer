@@ -5,7 +5,7 @@ pub mod simple;
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_ingestion::connectors::SourceSchema;
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
-use dozer_types::{crossbeam::channel::Sender, log::debug, types::Operation};
+use dozer_types::{crossbeam::channel::Sender, log::debug};
 use errors::OrchestrationError;
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
@@ -38,12 +38,6 @@ pub trait Orchestrator {
         &self,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError>;
     fn generate_token(&self) -> Result<String, OrchestrationError>;
-    fn query(
-        &self,
-        sql: String,
-        sender: Sender<Operation>,
-        running: Arc<AtomicBool>,
-    ) -> Result<Schema, OrchestrationError>;
 }
 
 // Re-exports

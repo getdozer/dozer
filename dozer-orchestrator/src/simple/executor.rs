@@ -48,56 +48,6 @@ impl<'a> Executor<'a> {
         }
     }
 
-    // This function is used to run a query using a temporary pipeline
-    pub fn query(
-        &self,
-        sql: String,
-        sender: crossbeam::channel::Sender<Operation>,
-    ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
-        let grouped_connections = SourceBuilder::group_connections(self.sources);
-
-        let mut pipeline = AppPipeline::new();
-        let transform_response = statement_to_pipeline(&sql, &mut pipeline, None)
-            .map_err(OrchestrationError::PipelineError)?;
-        pipeline.add_sink(
-            Arc::new(StreamingSinkFactory::new(sender)),
-            "streaming_sink",
-        );
-
-        let table_info = transform_response
-            .output_tables_map
-            .values()
-            .next()
-            .unwrap();
-        pipeline
-            .connect_nodes(
-                &table_info.node,
-                Some(table_info.port),
-                "streaming_sink",
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            )
-            .map_err(OrchestrationError::ExecutionError)?;
-
-        let used_sources = pipeline.get_entry_points_sources_names();
-
-        let source_builder = SourceBuilder::new(&used_sources, grouped_connections, None);
-        let asm = source_builder.build_source_manager()?;
-
-        let mut app = App::new(asm);
-        app.add_pipeline(pipeline);
-
-        let dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
-        let exec = DagExecutor::new(
-            dag.clone(),
-            self.pipeline_dir.to_path_buf(),
-            ExecutorOptions::default(),
-        )?;
-
-        exec.start(self.running.clone())?;
-        Ok(dag)
-    }
-
     #[allow(clippy::type_complexity)]
     pub fn get_tables(
         connections: &Vec<Connection>,

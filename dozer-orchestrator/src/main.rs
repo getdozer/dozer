@@ -102,7 +102,6 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }
-            Commands::Monitor(_) => todo!(),
         }
     } else {
         render_logo();

@@ -226,45 +226,6 @@ impl Orchestrator for SimpleOrchestrator {
         ))
     }
 
-    fn query(
-        &self,
-        sql: String,
-        sender: Sender<Operation>,
-        running: Arc<AtomicBool>,
-    ) -> Result<Schema, OrchestrationError> {
-        let pipeline_dir = tempdir::TempDir::new("query4")
-            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-        let executor = Executor::new(
-            &self.config.sources,
-            self.config.sql.as_deref(),
-            &[],
-            pipeline_dir.path(),
-            running,
-        );
-
-        let dag = executor.query(sql, sender)?;
-        let dag_schemas = DagSchemas::new(dag)?;
-
-        let sink_index = (|| {
-            for (node_index, node) in dag_schemas.graph().node_references() {
-                if matches!(node.kind, NodeKind::Sink(_)) {
-                    return node_index;
-                }
-            }
-            panic!("Sink is expected");
-        })();
-
-        let schema = dag_schemas
-            .graph()
-            .edges_directed(sink_index, Direction::Incoming)
-            .next()
-            .expect("Sink must have incoming edge")
-            .weight()
-            .schema
-            .clone();
-        Ok(schema)
-    }
-
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
         let pipeline_home_dir = get_pipeline_dir(&self.config);
         let api_dir = get_api_dir(&self.config);
