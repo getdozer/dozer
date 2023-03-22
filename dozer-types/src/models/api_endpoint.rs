@@ -225,6 +225,7 @@ pub struct ApiEndpoint {
     pub index: Option<ApiIndex>,
 
     #[prost(message, tag = "5")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub conflict_resolution: Option<ConflictResolution>,
 }
 
