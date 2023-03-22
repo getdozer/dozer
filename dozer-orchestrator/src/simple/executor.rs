@@ -1,7 +1,6 @@
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_cache::cache::CacheManagerOptions;
 
-
 use dozer_types::models::api_endpoint::ApiEndpoint;
 
 use std::collections::HashMap;
@@ -16,13 +15,10 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 
-
-
 use dozer_types::models::connection::Connection;
 use OrchestrationError::ExecutionError;
 
 use crate::errors::OrchestrationError;
-
 
 pub struct Executor<'a> {
     sources: &'a [Source],

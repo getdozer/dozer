@@ -55,7 +55,6 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 
-
 async fn flatten_join_handle(
     handle: JoinHandle<Result<(), OrchestrationError>>,
 ) -> Result<(), OrchestrationError> {
