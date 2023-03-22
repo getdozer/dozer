@@ -1,7 +1,6 @@
 syntax = "proto3";
-package dozer_admin_grpc;
-import "types.proto";
-import "query.proto";
+package dozer.admin;
+import "admin_types.proto";
 
 service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (AppResponse);
@@ -107,3 +106,27 @@ message Pagination {
 }
 
 message ErrorResponse { string message = 1; }
+
+enum QueryNodeType {
+  CONNECTION = 0;
+  SOURCE = 1;
+  TRANSFORMER = 2;
+  TABLE = 3;
+  API = 4;
+}
+message QueryNode {
+  string name = 1;
+  QueryNodeType node_type = 2;
+  uint32 idx = 3;
+  uint32 id = 4;
+}
+
+message QueryEdge {
+  uint32 from = 1;
+  uint32 to = 2;
+}
+
+message QueryGraph {
+  repeated QueryNode nodes = 1;
+  repeated QueryEdge edges = 2;
+}

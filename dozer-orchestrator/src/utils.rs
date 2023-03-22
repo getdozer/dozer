@@ -72,14 +72,6 @@ pub fn get_api_security_config(config: Config) -> Option<ApiSecurity> {
 pub fn get_flags(config: Config) -> Option<dozer_types::models::flags::Flags> {
     config.flags
 }
-
-pub fn get_repl_history_path(config: &Config) -> PathBuf {
-    AsRef::<Path>::as_ref(&config.home_dir).join("history.txt")
-}
-pub fn get_sql_history_path(config: &Config) -> PathBuf {
-    AsRef::<Path>::as_ref(&config.home_dir).join("sql_history.txt")
-}
-
 pub fn get_executor_options(config: &Config) -> ExecutorOptions {
     ExecutorOptions {
         commit_sz: get_commit_size(config),

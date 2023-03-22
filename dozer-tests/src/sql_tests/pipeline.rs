@@ -313,6 +313,8 @@ impl TestPipeline {
 
         let dag = app.get_dag().unwrap();
 
+        dag.print_dot();
+
         let dag_schemas = DagSchemas::new(dag.clone())?;
 
         let sink_index = (|| {

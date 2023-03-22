@@ -94,9 +94,6 @@ pub enum ExecutionError {
     ProcessorReceiverError(usize, #[source] BoxedError),
 
     #[error(transparent)]
-    JoinError(JoinError),
-
-    #[error(transparent)]
     SourceError(SourceError),
 
     #[error("Failed to execute product processor: {0}")]
@@ -107,6 +104,9 @@ pub enum ExecutionError {
 
     #[error("Failed to execute the Window processor: {0}")]
     WindowProcessorError(#[source] BoxedError),
+
+    #[error("JOIN processor received a Record from a wrong input: {0}")]
+    InvalidPort(u16),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {
@@ -133,9 +133,6 @@ pub enum IncompatibleSchemas {
 
 #[derive(Error, Debug)]
 pub enum SinkError {
-    #[error("Failed to initialize schema in Cache: {0:?}, Error: {1:?}.")]
-    SchemaUpdateFailed(String, #[source] BoxedError),
-
     #[error("Failed to open Cache: {0:?}, Error: {1:?}.")]
     CacheOpenFailed(String, #[source] BoxedError),
 
@@ -150,12 +147,6 @@ pub enum SinkError {
         source: BoxedError,
     },
 
-    #[error("Failed to get checkpoint in Cache: {0:?}, Error: {1:?}.")]
-    CacheGetCheckpointFailed(String, #[source] BoxedError),
-
-    #[error("Failed to begin transaction in Cache: {0:?}, Error: {1:?}.")]
-    CacheBeginTransactionFailed(String, #[source] BoxedError),
-
     #[error("Failed to insert record in Cache: {0:?}, Error: {1:?}. Usually this happens if primary key is wrongly specified.")]
     CacheInsertFailed(String, #[source] BoxedError),
 
@@ -168,20 +159,11 @@ pub enum SinkError {
     #[error("Failed to commit cache transaction: {0:?}, Error: {1:?}")]
     CacheCommitTransactionFailed(String, #[source] BoxedError),
 
-    #[error("Failed to count thre records during init in Cache: {0:?}, Error: {1:?}")]
-    CacheCountFailed(String, #[source] BoxedError),
-}
+    #[error("Cache {0} has reached its maximum size. Try to increase `cache_max_map_size` in the config.")]
+    CacheFull(String),
 
-#[derive(Error, Debug)]
-pub enum JoinError {
-    #[error("Failed to find table in Join during Insert: {0}")]
-    InsertPortError(PortHandle),
-    #[error("Failed to find table in Join during Delete: {0}")]
-    DeletePortError(PortHandle),
-    #[error("Failed to find table in Join during Update: {0}")]
-    UpdatePortError(PortHandle),
-    #[error("Join ports are not properly initialized")]
-    PortNotConnected(PortHandle),
+    #[error("Failed to count the records during init in Cache: {0:?}, Error: {1:?}")]
+    CacheCountFailed(String, #[source] BoxedError),
 }
 
 #[derive(Error, Debug)]

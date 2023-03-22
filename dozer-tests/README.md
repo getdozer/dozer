@@ -55,7 +55,17 @@ The framework traverses `dozer-config.yaml`, and for every `connection`, it trie
 
 The connection directory may have a `Dockerfile` used for building the image. The build context will be the connection directory.
 
-If there's no `Dockerfile` under the connection directory, it must contain a `service.yaml` file, whose content will be added to the connection service section of the docker commpose file. The `build` section of `service.yaml` will be overwritten, to the `Dockerfile` if it exists, removed if not. The working directory of the `docker compose` run will be the repository root, so be careful with relative paths in `service.yaml` (better don't use them).
+If there's no `Dockerfile` under the connection directory, it must contain a `service.yaml` file, whose content will be added to the connection service section of the docker compose file. The `build` section of `service.yaml` will be overwritten, to the `Dockerfile` if it exists, removed if not. The working directory of the `docker compose` run will be the repository root, so be careful with relative paths in `service.yaml` (better don't use them).
+
+### Health check the connection
+
+We support all 3 kinds of health checks that docker compose supports.
+
+If a file named`oneshot` is found under the connection directory, health check criteria will be `service_completed_successfully`.
+
+Otherwise, if `service.yaml` contains a `healthcheck` section, health check criteria will be `service_healthy`.
+
+Otherwise, health check criteria will be `service_started`.
 
 ### Troubleshoot Connections
 

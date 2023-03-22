@@ -8,23 +8,18 @@ use crate::{
 use dozer_types::{log::info, tracing::Level};
 use tonic::{transport::Server, Request, Response, Status};
 use tower_http::trace::{self, TraceLayer};
-pub mod dozer_admin_grpc {
-    #![allow(clippy::derive_partial_eq_without_eq, clippy::large_enum_variant)]
-    tonic::include_proto!("dozer_admin_grpc");
-    pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
-        tonic::include_file_descriptor_set!("dozer_admin_grpc_descriptor");
-}
-use self::dozer_admin_grpc::{
-    GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
-    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, ParseYamlRequest,
-    ParseYamlResponse, StartRequest, StartResponse, StopRequest, StopResponse, UpdateAppRequest,
-    ValidateConnectionResponse,
-};
-use dozer_admin_grpc::{
+
+use dozer_types::grpc_types::admin::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
     AppResponse, ConnectionRequest, ConnectionResponse, CreateAppRequest, GetAllConnectionRequest,
     GetAllConnectionResponse, GetAppRequest, GetTablesRequest, GetTablesResponse,
     UpdateConnectionRequest,
+};
+use dozer_types::grpc_types::admin::{
+    GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
+    ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, ParseYamlRequest,
+    ParseYamlResponse, StartRequest, StartResponse, StopRequest, StopResponse, UpdateAppRequest,
+    ValidateConnectionResponse,
 };
 
 pub struct GrpcService {
@@ -222,7 +217,7 @@ pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::tra
     let server = DozerAdminServer::new(grpc_service);
     let server = tonic_web::config().allow_all_origins().enable(server);
     let reflection_service = tonic_reflection::server::Builder::configure()
-        .register_encoded_file_descriptor_set(dozer_admin_grpc::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(dozer_types::grpc_types::admin::FILE_DESCRIPTOR_SET)
         .build()
         .unwrap();
 

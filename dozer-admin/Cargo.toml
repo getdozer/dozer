@@ -3,7 +3,6 @@ name = "dozer-admin"
 version = "0.1.12"
 authors = ["getdozer/dozer-dev"]
 edition = "2021"
-build = "build.rs"
 
 [dependencies]
 dozer-orchestrator = {path = "../dozer-orchestrator"}
@@ -28,7 +27,7 @@ tonic-reflection = "0.6.0"
 tower-http = {version = "0.3.5", features = ["full"]}
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 prost = "0.11.8"
-clap = {version = "4.1.6", features = ["derive"]}
+clap = {version = "4.1.11", features = ["derive"]}
 
 [build-dependencies]
 tonic-build = "0.8.2"

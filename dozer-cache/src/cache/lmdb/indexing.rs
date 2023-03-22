@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use dozer_storage::BeginTransaction;
-use dozer_types::log::debug;
+use dozer_types::log::{debug, error};
 
 use crate::errors::CacheError;
 
@@ -122,6 +122,12 @@ fn index_and_log_error(
         // Run `index` for at least once before quitting.
         if let Err(e) = index(&main_env, &secondary_env) {
             debug!("Error while indexing {}: {e}", main_env.name());
+            if e.is_map_full() {
+                error!(
+                    "Cache {} has reached its maximum size. Try to increase `cache_max_map_size` in the config.",
+                    main_env.name()
+                );
+            }
         }
 
         if !running.load(Ordering::SeqCst) {

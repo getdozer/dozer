@@ -4,13 +4,13 @@ mod grpc_service {
     use dozer_types::ingestion_types::GrpcConfig;
     use dozer_types::models::connection::ConnectionConfig;
 
-    use crate::server::dozer_admin_grpc::{
-        ConnectionRequest, ConnectionResponse, GetAllConnectionRequest, GetAllConnectionResponse,
-        GetTablesRequest, UpdateConnectionRequest, ValidateConnectionResponse,
-    };
     use crate::services::connection_service::ConnectionService;
     use crate::tests::utils::database_url_for_test_env;
     use crate::tests::utils::establish_test_connection;
+    use dozer_types::grpc_types::admin::{
+        ConnectionRequest, ConnectionResponse, GetAllConnectionRequest, GetAllConnectionResponse,
+        GetTablesRequest, UpdateConnectionRequest, ValidateConnectionResponse,
+    };
     #[test]
     pub fn create_list_update() {
         let test_db_connection = database_url_for_test_env();
