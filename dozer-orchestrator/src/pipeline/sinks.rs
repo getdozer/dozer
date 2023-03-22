@@ -547,7 +547,7 @@ impl CacheSink {
             secondary_indexes,
             api_endpoint
                 .conflict_resolution
-                .map_or(ConflictResolution::default(), |c| c),
+                .unwrap_or_default(),
         )?;
         let counter = cache.count(&query).map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCountFailed(
