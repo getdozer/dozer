@@ -425,7 +425,7 @@ impl Sink for CacheSink {
                         }
                     }
                     Err(e) => {
-                        let new_op = ConflictResolver::resolve_insert_error(
+                        ConflictResolver::resolve_insert_error(
                             new,
                             schema,
                             e,
@@ -450,10 +450,6 @@ impl Sink for CacheSink {
                                 ))
                             }
                         })?;
-
-                        if let Some(op) = new_op {
-                            self.process(_from_port, op, _tx)?;
-                        }
                     }
                 }
             }
@@ -487,7 +483,7 @@ impl Sink for CacheSink {
                         }
                     }
                     Err(e) => {
-                        let new_op = ConflictResolver::resolve_update_error(
+                        ConflictResolver::resolve_update_error(
                             new,
                             schema,
                             e,
@@ -512,10 +508,6 @@ impl Sink for CacheSink {
                                 ))
                             }
                         })?;
-
-                        if let Some(op) = new_op {
-                            self.process(_from_port, op, _tx)?;
-                        }
                     }
                 }
             }
@@ -545,9 +537,7 @@ impl CacheSink {
             &api_endpoint.name,
             schema,
             secondary_indexes,
-            api_endpoint
-                .conflict_resolution
-                .unwrap_or_default(),
+            api_endpoint.conflict_resolution.unwrap_or_default(),
         )?;
         let counter = cache.count(&query).map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCountFailed(

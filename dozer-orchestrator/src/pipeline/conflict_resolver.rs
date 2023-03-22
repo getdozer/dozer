@@ -1,7 +1,7 @@
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::errors::CacheError;
 use dozer_cache::errors::CacheError::PrimaryKeyExists;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Record, Schema};
 
 use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::{
@@ -16,12 +16,12 @@ impl ConflictResolver {
         schema: &Schema,
         err: CacheError,
         resolution: OnInsertResolutionTypes,
-    ) -> Result<Option<Operation>, CacheError> {
-        let key = get_primary_key(&schema.primary_index, &new.values);
+    ) -> Result<(), CacheError> {
         match (resolution, err) {
             (OnInsertResolutionTypes::Nothing, PrimaryKeyExists) => {
+                let key = get_primary_key(&schema.primary_index, &new.values);
                 warn!("Record (Key: {:?}) already exist, ignoring insert", key);
-                Ok(None)
+                Ok(())
             }
             // (OnInsertResolutionTypes::Update, PrimaryKeyExists) => {
             // Update is handled in cache level with insert_overwritte operation
@@ -34,12 +34,12 @@ impl ConflictResolver {
         schema: &Schema,
         err: CacheError,
         resolution: OnUpdateResolutionTypes,
-    ) -> Result<Option<Operation>, CacheError> {
-        let key = get_primary_key(&schema.primary_index, &new.values);
+    ) -> Result<(), CacheError> {
         match (resolution, err) {
             (OnUpdateResolutionTypes::Nothing, CacheError::PrimaryKeyNotFound) => {
+                let key = get_primary_key(&schema.primary_index, &new.values);
                 warn!("Record (Key: {:?}) not found, ignoring update", key);
-                Ok(None)
+                Ok(())
             }
             // (OnUpdateResolutionTypes::Upsert, CacheError::PrimaryKeyNotFound) => {
             // Insert is handled in cache level
