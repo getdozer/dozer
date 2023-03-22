@@ -148,9 +148,8 @@ impl RwCache for LmdbRwCache {
         Ok(version)
     }
 
-    fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError> {
-        let version = self.delete(key)?;
-        self.insert(record)?;
+    fn update(&self, key: &[u8], record: &mut Record) -> Result<(Option<u32>, u64), CacheError> {
+        let version = self.main_env.update(key, record)?;
         Ok(version)
     }
 

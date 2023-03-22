@@ -440,12 +440,16 @@ impl Sink for CacheSink {
                         )
                         .map_err(|e| {
                             if e.is_map_full() {
-                        ExecutionError::SinkError(SinkError::CacheFull(endpoint_name.clone()))
-                    } else {ExecutionError::SinkError(SinkError::CacheInsertFailed(
-                                endpoint_name.clone(),
-                                Box::new(e),
-                            ))
-                        }})?;
+                                ExecutionError::SinkError(SinkError::CacheFull(
+                                    endpoint_name.clone(),
+                                ))
+                            } else {
+                                ExecutionError::SinkError(SinkError::CacheInsertFailed(
+                                    endpoint_name.clone(),
+                                    Box::new(e),
+                                ))
+                            }
+                        })?;
 
                         if let Some(op) = new_op {
                             self.process(_from_port, op, _tx)?;
@@ -460,7 +464,7 @@ impl Sink for CacheSink {
                 let result = self.cache.update(&key, &mut new);
 
                 match result {
-                    Ok(old_version) => {
+                    Ok((Some(old_version), _)) => {
                         old.version = Some(old_version);
 
                         if let Some(notifier) = &self.notifier {
@@ -468,6 +472,16 @@ impl Sink for CacheSink {
                                 self.api_endpoint.name.clone(),
                                 old,
                                 new,
+                            );
+                            try_send(&notifier.1, op)?;
+                        }
+                    }
+                    Ok((_, record_id)) => {
+                        if let Some(notifier) = &self.notifier {
+                            let op = types_helper::map_insert_operation(
+                                self.api_endpoint.name.clone(),
+                                new,
+                                record_id,
                             );
                             try_send(&notifier.1, op)?;
                         }
@@ -488,7 +502,9 @@ impl Sink for CacheSink {
                         )
                         .map_err(|e| {
                             if e.is_map_full() {
-                                ExecutionError::SinkError(SinkError::CacheFull(endpoint_name.clone()))
+                                ExecutionError::SinkError(SinkError::CacheFull(
+                                    endpoint_name.clone(),
+                                ))
                             } else {
                                 ExecutionError::SinkError(SinkError::CacheUpdateFailed(
                                     endpoint_name.clone(),

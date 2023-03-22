@@ -6,7 +6,9 @@ use dozer_storage::{
     lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
     BeginTransaction, LmdbOption, ReadTransaction,
 };
-use dozer_types::models::api_endpoint::{ConflictResolution, OnInsertResolutionTypes};
+use dozer_types::models::api_endpoint::{
+    ConflictResolution, OnInsertResolutionTypes, OnUpdateResolutionTypes,
+};
 use dozer_types::{
     borrow::IntoOwned,
     types::{Field, FieldType, Record, Schema, SchemaWithIndex},
@@ -78,6 +80,7 @@ pub struct RwMainEnvironment {
     _temp_dir: Option<TempDir>,
     schema: SchemaWithIndex,
     insert_resolution: OnInsertResolutionTypes,
+    update_resolution: OnUpdateResolutionTypes,
 }
 
 impl BeginTransaction for RwMainEnvironment {
@@ -134,6 +137,7 @@ impl RwMainEnvironment {
             schema,
             _temp_dir: temp_dir,
             insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
+            update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
         })
     }
 
@@ -169,6 +173,35 @@ impl RwMainEnvironment {
             .operation_log
             .delete(txn, primary_key)?
             .ok_or(CacheError::PrimaryKeyNotFound)
+    }
+
+    pub fn update(
+        &self,
+        primary_key: &[u8],
+        record: &mut Record,
+    ) -> Result<(Option<u32>, u64), CacheError> {
+        debug_check_schema_record_consistency(&self.schema.0, record);
+
+        let upsert_enabled = self.update_resolution == OnUpdateResolutionTypes::Upsert;
+        let pk_vec = index::get_primary_key(&self.schema.0.primary_index, &record.values);
+
+        let mut txn = self.txn.write();
+        let txn = txn.txn_mut();
+
+        let deleted_operation_version = self.common.operation_log.delete(txn, primary_key)?;
+
+        match (deleted_operation_version, upsert_enabled) {
+            (None, false) => Err(CacheError::PrimaryKeyNotFound),
+            (_, _) => {
+                let record_id = self
+                    .common
+                    .operation_log
+                    .insert(txn, record, Some(pk_vec.as_slice()), false)?
+                    .ok_or(CacheError::PrimaryKeyExists)?;
+
+                Ok((deleted_operation_version, record_id))
+            }
+        }
     }
 
     pub fn commit(&self) -> Result<(), CacheError> {

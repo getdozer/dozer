@@ -41,11 +41,8 @@ impl ConflictResolver {
                 warn!("Record (Key: {:?}) not found, ignoring update", key);
                 Ok(None)
             }
-            (OnUpdateResolutionTypes::Upsert, CacheError::PrimaryKeyNotFound) => {
-                warn!("Record (Key: {:?}) not found, trying insert", key);
-                let insert_op = Operation::Insert { new };
-                Ok(Some(insert_op))
-            }
+            // (OnUpdateResolutionTypes::Upsert, CacheError::PrimaryKeyNotFound) => {
+            // Insert is handled in cache level
             (_, e) => Err(e),
         }
     }

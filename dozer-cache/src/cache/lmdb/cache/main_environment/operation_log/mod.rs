@@ -172,7 +172,7 @@ impl OperationLog {
         upsert_on_collision: bool,
     ) -> Result<Option<u64>, StorageError> {
         // Calculate operation id and record id.
-        let (operation_id, record_id) = if let Some(primary_key) = primary_key {
+        let (operation_id, record_id, record_version) = if let Some(primary_key) = primary_key {
             // Get or generate record id from `primary_key_to_metadata`.
             let pk_metadata = self.primary_key_to_metadata.get(txn, primary_key)?;
             let (record_id, record_version, metadata_to_delete) = match pk_metadata {
@@ -216,16 +216,15 @@ impl OperationLog {
                 panic!("Inconsistent state: operation id already exists");
             }
             // Update record version.
-            record.version = Some(record_version);
-            (operation_id, record_id)
+            (operation_id, record_id, record_version)
         } else {
-            record.version = Some(INITIAL_RECORD_VERSION);
             // Generation operation id.
             let operation_id = self.next_operation_id.fetch_add(txn, 1)?;
             // If the record has no primary key, record id is operation id.
-            (operation_id, operation_id)
+            (operation_id, operation_id, INITIAL_RECORD_VERSION)
         };
 
+        record.version = Some(record_version);
         // Record operation. The operation id must not exist.
         if !self.operation_id_to_operation.insert(
             txn,
