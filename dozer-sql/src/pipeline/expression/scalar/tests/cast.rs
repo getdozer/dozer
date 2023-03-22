@@ -19,31 +19,46 @@ use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
 //         "SELECT CAST(field AS UINT) FROM users",
 //         Schema::empty()
 //             .field(
-//                 FieldDefinition::new(String::from("field"), FieldType::Int, false),
+//                 FieldDefinition::new(
+//                     String::from("field"),
+//                     FieldType::Int,
+//                     false,
+//                     SourceDefinition::Dynamic,
+//                 ),
 //                 false,
 //             )
 //             .clone(),
 //         vec![Field::Int(42)],
 //     );
 //     assert_eq!(f, Field::UInt(42));
-
+//
 //     let f = run_scalar_fct(
 //         "SELECT CAST(field AS UINT) FROM users",
 //         Schema::empty()
 //             .field(
-//                 FieldDefinition::new(String::from("field"), FieldType::String, false),
+//                 FieldDefinition::new(
+//                     String::from("field"),
+//                     FieldType::String,
+//                     false,
+//                     SourceDefinition::Dynamic,
+//                 ),
 //                 false,
 //             )
 //             .clone(),
 //         vec![Field::String("42".to_string())],
 //     );
 //     assert_eq!(f, Field::UInt(42));
-
+//
 //     let f = run_scalar_fct(
 //         "SELECT CAST(field AS UINT) FROM users",
 //         Schema::empty()
 //             .field(
-//                 FieldDefinition::new(String::from("field"), FieldType::UInt, false),
+//                 FieldDefinition::new(
+//                     String::from("field"),
+//                     FieldType::UInt,
+//                     false,
+//                     SourceDefinition::Dynamic,
+//                 ),
 //                 false,
 //             )
 //             .clone(),
