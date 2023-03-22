@@ -1,9 +1,9 @@
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_cache::cache::CacheManagerOptions;
-use dozer_core::app::{App, AppPipeline};
-use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+
+
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::types::Operation;
+
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -11,18 +11,18 @@ use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 
-use crate::pipeline::{CacheSinkSettings, PipelineBuilder, StreamingSinkFactory};
+use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::DEFAULT_PORT_HANDLE;
+
 use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 
-use dozer_types::crossbeam;
+
 
 use dozer_types::models::connection::Connection;
 use OrchestrationError::ExecutionError;
 
 use crate::errors::OrchestrationError;
-use crate::pipeline::source_builder::SourceBuilder;
+
 
 pub struct Executor<'a> {
     sources: &'a [Source],
