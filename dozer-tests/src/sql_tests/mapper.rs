@@ -200,23 +200,19 @@ impl SqlMapper {
 
                 let mut field_names = vec![];
                 for (idx, v) in new.values.iter().enumerate() {
-                    if idx != get_primary_key_index(schema) {
-                        if old.values.get(idx).is_some() {
-                            //if old_value != v {
-                            field_names.push(format!(
-                                "{}={}",
-                                schema.fields.get(idx).map_or(
-                                    Err(ExecutionError::InternalStringError(
-                                        "index out of bounds for schema".to_string()
-                                    )),
-                                    |f| Ok(f
-                                        .name
-                                        .replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
-                                )?,
-                                map_field_to_string(v)
-                            ))
-                            //}
-                        }
+                    if idx != get_primary_key_index(schema) && old.values.get(idx).is_some() {
+                        //if old_value != v {
+                        field_names.push(format!(
+                            "{}={}",
+                            schema.fields.get(idx).map_or(
+                                Err(ExecutionError::InternalStringError(
+                                    "index out of bounds for schema".to_string()
+                                )),
+                                |f| Ok(f.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
+                            )?,
+                            map_field_to_string(v)
+                        ))
+                        //}
                     }
                 }
                 let values_str = field_names.join(",");

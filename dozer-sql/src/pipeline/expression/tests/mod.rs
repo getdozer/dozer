@@ -2,3 +2,5 @@
 mod execution;
 #[cfg(test)]
 mod expression_builder_test;
+#[cfg(test)]
+mod logical;
