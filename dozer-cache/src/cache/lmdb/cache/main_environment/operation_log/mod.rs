@@ -174,24 +174,32 @@ impl OperationLog {
         // Calculate operation id and record id.
         let (operation_id, record_id) = if let Some(primary_key) = primary_key {
             // Get or generate record id from `primary_key_to_metadata`.
-            let (record_id, record_version) =
-                match self.primary_key_to_metadata.get(txn, primary_key)? {
-                    // Primary key is never inserted before. Generate new id from `primary_key_to_metadata`.
-                    None => (
-                        self.primary_key_to_metadata.count(txn)? as u64,
-                        INITIAL_RECORD_VERSION,
-                    ),
-                    Some(metadata) => {
-                        let metadata = metadata.borrow();
-                        if metadata.insert_operation_id.is_none() || upsert_on_collision {
-                            // This primary key was deleted. Use the record id from its first insertion.
-                            (metadata.id, metadata.version + 1)
-                        } else {
-                            // Primary key collision.
-                            return Ok(None);
-                        }
+            let pk_metadata = self.primary_key_to_metadata.get(txn, primary_key)?;
+            let (record_id, record_version, metadata_to_delete) = match pk_metadata {
+                // Primary key is never inserted before. Generate new id from `primary_key_to_metadata`.
+                None => (
+                    self.primary_key_to_metadata.count(txn)? as u64,
+                    INITIAL_RECORD_VERSION,
+                    None,
+                ),
+                Some(metadata) => {
+                    let metadata = metadata.borrow();
+                    if metadata.insert_operation_id.is_none() {
+                        // This primary key was deleted. Use the record id from its first insertion.
+                        (metadata.id, metadata.version + 1, None)
+                    } else if upsert_on_collision {
+                        (metadata.id, metadata.version + 1, Some(*metadata))
+                    } else {
+                        // Primary key collision.
+                        return Ok(None);
                     }
-                };
+                }
+            };
+
+            if let Some(metadata) = metadata_to_delete {
+                self.execute_deletion(txn, primary_key, metadata)?;
+            }
+
             // Generation operation id.
             let operation_id = self.next_operation_id.fetch_add(txn, 1)?;
             // Update `primary_key_to_metadata` and `present_operation_ids`.
@@ -217,6 +225,7 @@ impl OperationLog {
             // If the record has no primary key, record id is operation id.
             (operation_id, operation_id)
         };
+
         // Record operation. The operation id must not exist.
         if !self.operation_id_to_operation.insert(
             txn,
@@ -238,10 +247,22 @@ impl OperationLog {
         let Some(metadata) = self.primary_key_to_metadata.get(txn, primary_key)? else {
             return Ok(None);
         };
+
         let metadata = metadata.into_owned();
+
+        self.execute_deletion(txn, primary_key, metadata)
+    }
+
+    fn execute_deletion(
+        &self,
+        txn: &mut RwTransaction,
+        primary_key: &[u8],
+        metadata: RecordMetadata,
+    ) -> Result<Option<u32>, StorageError> {
         let Some(insert_operation_id) = metadata.insert_operation_id else {
             return Ok(None);
         };
+
         // Remove deleted operation id.
         self.primary_key_to_metadata.insert_overwrite(
             txn,

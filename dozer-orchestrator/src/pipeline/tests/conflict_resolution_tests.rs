@@ -127,6 +127,10 @@ mod tests {
         // version should remain unchanged, because insert should be ignored
         assert_eq!(second_insert_values, record.values);
         assert_eq!(Some(2), record.version);
+
+        // Check cache size. It should have only one record
+        let current_count = cache.count(&QueryExpression::default()).unwrap();
+        assert_eq!(current_count, 1_usize);
     }
 
     #[test]

@@ -108,7 +108,11 @@ pub fn initialize_cache(
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     let cache = cache_manager
-        .create_cache(schema.clone(), secondary_indexes, ConflictResolution::default())
+        .create_cache(
+            schema.clone(),
+            secondary_indexes,
+            ConflictResolution::default(),
+        )
         .unwrap();
     let records = get_sample_records(schema);
     for mut record in records {
