@@ -2,9 +2,11 @@ use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use crate::cache::lmdb::cache::{CacheOptions, LmdbRoCache, LmdbRwCache};
 use crate::cache::lmdb::indexing::IndexingThreadPool;
 use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, RoCache, RwCache};
+use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::serde_json::Value;
 use dozer_types::types::Field;
 use tempdir::TempDir;
+
 #[test]
 fn read_and_write() {
     let path = TempDir::new("dozer").unwrap();
@@ -24,6 +26,7 @@ fn read_and_write() {
             intersection_chunk_size: 1,
         },
         &mut indexing_thread_pool,
+        ConflictResolution::default(),
     )
     .unwrap();
 

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::pipeline::CacheSink;
 use dozer_cache::cache::{CacheManager, LmdbCacheManager};
-use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
+use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex, ConflictResolution};
 use dozer_types::types::{
     FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
 };
@@ -31,11 +31,12 @@ pub fn get_schema() -> Schema {
 pub fn init_sink(
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
+    conflict_resolution: Option<ConflictResolution>,
 ) -> (Arc<dyn CacheManager>, CacheSink) {
     let cache_manager = Arc::new(LmdbCacheManager::new(Default::default()).unwrap());
     let cache = CacheSink::new(
         cache_manager.clone(),
-        init_endpoint(),
+        init_endpoint(conflict_resolution),
         schema,
         secondary_indexes,
         None,
@@ -44,7 +45,7 @@ pub fn init_sink(
     .unwrap();
     (cache_manager, cache)
 }
-pub fn init_endpoint() -> ApiEndpoint {
+pub fn init_endpoint(conflict_resolution: Option<ConflictResolution>) -> ApiEndpoint {
     ApiEndpoint {
         name: "films".to_string(),
         path: "/films".to_string(),
@@ -52,6 +53,7 @@ pub fn init_endpoint() -> ApiEndpoint {
             primary_key: vec!["film_id".to_string()],
         }),
         table_name: "films".to_string(),
+        conflict_resolution,
         // sql: Some("SELECT film_name FROM film WHERE 1=1".to_string()),
     }
 }

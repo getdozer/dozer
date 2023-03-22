@@ -13,7 +13,7 @@ use dozer_types::crossbeam::channel::Sender;
 use dozer_types::grpc_types::internal::AliasRedirected;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::{debug, info};
-use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
+use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex, ConflictResolution};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::flags::Flags;
 use dozer_types::tracing::span;
@@ -22,6 +22,8 @@ use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use crate::pipeline::conflict_resolver::ConflictResolver;
 
 fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
@@ -243,12 +245,13 @@ fn open_or_create_cache(
     name: &str,
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
+    conflict_resolution: ConflictResolution,
 ) -> Result<(Box<dyn RwCache>, Option<usize>), ExecutionError> {
     let append_only = schema.is_append_only();
 
     let create_cache = || {
         cache_manager
-            .create_cache(schema, secondary_indexes)
+            .create_cache(schema, secondary_indexes, conflict_resolution)
             .map_err(|e| {
                 ExecutionError::SinkError(SinkError::CacheCreateFailed(
                     name.to_string(),
@@ -257,9 +260,11 @@ fn open_or_create_cache(
             })
     };
 
-    let cache = cache_manager.open_rw_cache(name).map_err(|e| {
-        ExecutionError::SinkError(SinkError::CacheOpenFailed(name.to_string(), Box::new(e)))
-    })?;
+    let cache = cache_manager
+        .open_rw_cache(name, conflict_resolution)
+        .map_err(|e| {
+            ExecutionError::SinkError(SinkError::CacheOpenFailed(name.to_string(), Box::new(e)))
+        })?;
     if let Some(cache) = cache {
         if append_only {
             debug!("Cache {} is append only", name);
@@ -368,62 +373,142 @@ impl Sink for CacheSink {
             Operation::Delete { mut old } => {
                 old.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
-                let version = self.cache.delete(&key).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheDeleteFailed(
-                        endpoint_name.clone(),
-                        Box::new(e),
-                    ))
-                })?;
-                old.version = Some(version);
+                let result = self.cache.delete(&key);
+                match result {
+                    Ok(version) => {
+                        old.version = Some(version);
 
-                if let Some(notifier) = &self.notifier {
-                    let op =
-                        types_helper::map_delete_operation(self.api_endpoint.name.clone(), old);
-                    try_send(&notifier.1, op)?;
+                        if let Some(notifier) = &self.notifier {
+                            let op = types_helper::map_delete_operation(
+                                self.api_endpoint.name.clone(),
+                                old,
+                            );
+                            try_send(&notifier.1, op)?;
+                        }
+                    }
+                    Err(e) => {
+                        ConflictResolver::resolve_delete_error(
+                            old,
+                            schema,
+                            e,
+                            self.api_endpoint
+                                .conflict_resolution
+                                .as_ref()
+                                .map_or_else(
+                                    || ConflictResolution::default().on_delete,
+                                    |r| r.on_delete,
+                                )
+                                .into(),
+                        )
+                        .map_err(|e| {
+                            ExecutionError::SinkError(SinkError::CacheDeleteFailed(
+                                endpoint_name.clone(),
+                                Box::new(e),
+                            ))
+                        })?;
+                    }
                 }
             }
             Operation::Insert { mut new } => {
                 new.schema_id = schema.identifier;
-                let id = self.cache.insert(&mut new).map_err(|e| {
-                    if e.is_map_full() {
-                        ExecutionError::SinkError(SinkError::CacheFull(endpoint_name.clone()))
-                    } else {
-                        ExecutionError::SinkError(SinkError::CacheInsertFailed(
-                            endpoint_name.clone(),
-                            Box::new(e),
-                        ))
-                    }
-                })?;
+                let result = self.cache.insert(&mut new);
 
-                if let Some(notifier) = &self.notifier {
-                    let op =
-                        types_helper::map_insert_operation(self.api_endpoint.name.clone(), new, id);
-                    try_send(&notifier.1, op)?;
+                match result {
+                    Ok(id) => {
+                        if let Some(notifier) = &self.notifier {
+                            let op = types_helper::map_insert_operation(
+                                self.api_endpoint.name.clone(),
+                                new,
+                                id,
+                            );
+                            try_send(&notifier.1, op)?;
+                        }
+                    }
+                    Err(e) => {
+                        ConflictResolver::resolve_insert_error(
+                            new,
+                            schema,
+                            e,
+                            self.api_endpoint
+                                .conflict_resolution
+                                .as_ref()
+                                .map_or_else(
+                                    || ConflictResolution::default().on_insert,
+                                    |r| r.on_insert,
+                                )
+                                .into(),
+                        )
+                        .map_err(|e| {
+                            if e.is_map_full() {
+                                ExecutionError::SinkError(SinkError::CacheFull(
+                                    endpoint_name.clone(),
+                                ))
+                            } else {
+                                ExecutionError::SinkError(SinkError::CacheInsertFailed(
+                                    endpoint_name.clone(),
+                                    Box::new(e),
+                                ))
+                            }
+                        })?;
+                    }
                 }
             }
             Operation::Update { mut old, mut new } => {
                 old.schema_id = schema.identifier;
                 new.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
-                let old_version = self.cache.update(&key, &mut new).map_err(|e| {
-                    if e.is_map_full() {
-                        ExecutionError::SinkError(SinkError::CacheFull(endpoint_name.clone()))
-                    } else {
-                        ExecutionError::SinkError(SinkError::CacheUpdateFailed(
-                            endpoint_name.clone(),
-                            Box::new(e),
-                        ))
-                    }
-                })?;
-                old.version = Some(old_version);
+                let result = self.cache.update(&key, &mut new);
 
-                if let Some(notifier) = &self.notifier {
-                    let op = types_helper::map_update_operation(
-                        self.api_endpoint.name.clone(),
-                        old,
-                        new,
-                    );
-                    try_send(&notifier.1, op)?;
+                match result {
+                    Ok((Some(old_version), _)) => {
+                        old.version = Some(old_version);
+
+                        if let Some(notifier) = &self.notifier {
+                            let op = types_helper::map_update_operation(
+                                self.api_endpoint.name.clone(),
+                                old,
+                                new,
+                            );
+                            try_send(&notifier.1, op)?;
+                        }
+                    }
+                    Ok((_, record_id)) => {
+                        if let Some(notifier) = &self.notifier {
+                            let op = types_helper::map_insert_operation(
+                                self.api_endpoint.name.clone(),
+                                new,
+                                record_id,
+                            );
+                            try_send(&notifier.1, op)?;
+                        }
+                    }
+                    Err(e) => {
+                        ConflictResolver::resolve_update_error(
+                            new,
+                            schema,
+                            e,
+                            self.api_endpoint
+                                .conflict_resolution
+                                .as_ref()
+                                .map_or_else(
+                                    || ConflictResolution::default().on_update,
+                                    |r| r.on_update,
+                                )
+                                .into(),
+                        )
+                        .map_err(|e| {
+                            if e.is_map_full() {
+                                ExecutionError::SinkError(SinkError::CacheFull(
+                                    endpoint_name.clone(),
+                                ))
+                            } else {
+                                ExecutionError::SinkError(SinkError::CacheUpdateFailed(
+                                    endpoint_name.clone(),
+                                    Box::new(e),
+                                ))
+                            }
+                        })?;
+                    }
                 }
             }
         };
@@ -452,6 +537,7 @@ impl CacheSink {
             &api_endpoint.name,
             schema,
             secondary_indexes,
+            api_endpoint.conflict_resolution.unwrap_or_default(),
         )?;
         let counter = cache.count(&query).map_err(|e| {
             ExecutionError::SinkError(SinkError::CacheCountFailed(
@@ -492,6 +578,11 @@ impl CacheSink {
 
         Ok(())
     }
+
+    #[cfg(test)]
+    pub fn get_cache_name(&self) -> &str {
+        self.cache.name()
+    }
 }
 
 fn try_send<T: Send + Sync + 'static>(sender: &Sender<T>, msg: T) -> Result<(), ExecutionError> {
@@ -530,7 +621,8 @@ mod tests {
             .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![idx]))
             .collect();
 
-        let (cache_manager, mut sink) = test_utils::init_sink(schema.clone(), secondary_indexes);
+        let (cache_manager, mut sink) =
+            test_utils::init_sink(schema.clone(), secondary_indexes, None);
         let cache = cache_manager
             .open_ro_cache(sink.cache.name())
             .unwrap()
