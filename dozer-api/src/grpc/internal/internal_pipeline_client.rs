@@ -8,7 +8,7 @@ use dozer_types::{
         },
         types::Operation,
     },
-    log::warn,
+    log::debug,
     models::api_config::GrpcApiOptions,
 };
 use futures_util::{Future, StreamExt};
@@ -85,6 +85,6 @@ async fn redirect_loop<T: Debug>(
             .send(event)
             .map_err(|_| GrpcError::CannotSendToBroadcastChannel)?;
     }
-    warn!("exiting internal grpc connection on api thread");
+    debug!("exiting internal grpc connection on api thread");
     Ok(())
 }
