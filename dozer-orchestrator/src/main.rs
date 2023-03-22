@@ -1,7 +1,7 @@
 use clap::Parser;
 use dozer_orchestrator::cli::generate_config_repl;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
-use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
+use dozer_orchestrator::cli::{init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::{CliError, OrchestrationError};
 use dozer_orchestrator::simple::SimpleOrchestrator;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, Orchestrator};
@@ -99,10 +99,10 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.migrate(force)
             }
             Commands::Clean => dozer.clean(),
-            Commands::Configure => configure(cli.config_path, running),
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }
+            Commands::Monitor(_) => todo!(),
         }
     } else {
         render_logo();
