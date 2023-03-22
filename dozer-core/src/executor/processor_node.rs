@@ -3,7 +3,7 @@ use std::{borrow::Cow, mem::swap};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_storage::lmdb_storage::SharedTransaction;
-use dozer_types::log::warn;
+
 use dozer_types::node::NodeHandle;
 
 use crate::{
@@ -94,17 +94,12 @@ impl ReceiverLoop for ProcessorNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        self.processor
-            .process(
-                self.port_handles[index],
-                op,
-                &mut self.channel_manager,
-                &self.master_tx,
-            )
-            .or_else(|e| {
-                warn!("Processor error: {:?}", e);
-                Ok(())
-            })
+        self.processor.process(
+            self.port_handles[index],
+            op,
+            &mut self.channel_manager,
+            &self.master_tx,
+        )
     }
 
     fn on_commit(&mut self, epoch: &crate::epoch::Epoch) -> Result<(), ExecutionError> {
