@@ -23,22 +23,21 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(about = "Interactive REPL for configuring sources and schemas")]
-    Configure,
+    #[command(about = "Initalize an app using a template.")]
+    Init,
+    #[command(about = "Clean home directory")]
+    Clean,
     #[command(
         about = "Initialize and lock schema definitions. Once intiialized, schemas cannot be changed."
     )]
     Migrate(Migrate),
-    #[command(about = "Clean home directory")]
-    Clean,
+
     #[command(about = "Run Api Server")]
     Api(Api),
     #[command(about = "Run App Server")]
     App(App),
     #[command(about = "Show Sources")]
     Connector(Connector),
-    #[command(about = "Initalize an app using a template.")]
-    Init,
 }
 
 #[derive(Debug, Args)]
