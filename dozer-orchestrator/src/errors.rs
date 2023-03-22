@@ -52,6 +52,8 @@ pub enum OrchestrationError {
     EndpointTableNotFound(String),
     #[error("Duplicate table name found: {0:?}")]
     DuplicateTable(String),
+    #[error("Configuration Error: {0:?}")]
+    ConfigError(String),
 }
 
 #[derive(Error, Debug)]
