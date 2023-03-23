@@ -25,7 +25,6 @@ pub struct PostgresConfig {
 
 #[derive(Debug)]
 pub struct PostgresConnector {
-    pub id: u64,
     name: String,
     replication_conn_config: Config,
     conn_config: Config,
@@ -39,7 +38,7 @@ pub struct ReplicationSlotInfo {
 }
 
 impl PostgresConnector {
-    pub fn new(id: u64, config: PostgresConfig) -> PostgresConnector {
+    pub fn new(config: PostgresConfig) -> PostgresConnector {
         let mut replication_conn_config = config.config.clone();
         replication_conn_config.replication_mode(ReplicationMode::Logical);
 
@@ -49,7 +48,6 @@ impl PostgresConnector {
         // conn_str_plain- conn_config
 
         PostgresConnector {
-            id,
             name: config.name,
             conn_config: config.config,
             replication_conn_config,
@@ -169,7 +167,6 @@ impl Connector for PostgresConnector {
             })
             .collect::<Vec<_>>();
         let iterator = PostgresIterator::new(
-            self.id,
             self.name.clone(),
             self.get_publication_name(),
             self.get_slot_name(),
