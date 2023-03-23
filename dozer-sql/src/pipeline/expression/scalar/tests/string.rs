@@ -1,5 +1,7 @@
 use crate::pipeline::expression::execution::Expression::Literal;
-use crate::pipeline::expression::scalar::string::evaluate_like;
+use crate::pipeline::expression::scalar::string::{
+    evaluate_concat, evaluate_like, evaluate_trim, evaluate_ucase, TrimType,
+};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
 use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
@@ -9,14 +11,18 @@ use proptest::prelude::*;
 fn test_string() {
     proptest!(
         ProptestConfig::with_cases(1000),
-        move |(s_val in ".+", c_val: char)| {
-            test_like(&s_val, c_val)
+        move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char)| {
+            test_like(&s_val, c_val);
+            test_ucase(&s_val, c_val);
+            test_concat(&s_val1, &s_val2, c_val);
+            test_trim(&s_val, c_val);
     });
 }
 
 fn test_like(s_val: &str, c_val: char) {
     let row = Record::new(None, vec![], None);
 
+    // Field::String
     let value = Box::new(Literal(Field::String(format!("Hello{}", s_val))));
     let pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
 
@@ -59,10 +65,217 @@ fn test_like(s_val: &str, c_val: char) {
     //     evaluate_like(&Schema::empty(), &value, &pattern, escape, &row).unwrap(),
     //     Field::Boolean(true)
     // );
+
+    // Field::Text
+    let value = Box::new(Literal(Field::Text(format!("Hello{}", s_val))));
+    let pattern = Box::new(Literal(Field::Text("Hello%".to_owned())));
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        Field::Boolean(true)
+    );
+
+    let value = Box::new(Literal(Field::Text(format!("Hello, {}orld!", c_val))));
+    let pattern = Box::new(Literal(Field::Text("Hello, _orld!".to_owned())));
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        Field::Boolean(true)
+    );
+
+    let value = Box::new(Literal(Field::Text(s_val.to_string())));
+    let pattern = Box::new(Literal(Field::Text("Hello%".to_owned())));
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        Field::Boolean(false)
+    );
+
+    let c_value = &s_val[0..0];
+    let value = Box::new(Literal(Field::Text(format!("Hello, {}!", c_value))));
+    let pattern = Box::new(Literal(Field::Text("Hello, _!".to_owned())));
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        Field::Boolean(false)
+    );
+
+    // todo: should find the way to generate escape character using proptest
+    // let value = Box::new(Literal(Field::Text(format!("Hello, {}%", c_val))));
+    // let pattern = Box::new(Literal(Field::Text("Hello, %".to_owned())));
+    // let escape = Some(c_val);
+    //
+    // assert_eq!(
+    //     evaluate_like(&Schema::empty(), &value, &pattern, escape, &row).unwrap(),
+    //     Field::Boolean(true)
+    // );
+}
+
+fn test_ucase(s_val: &str, c_val: char) {
+    let row = Record::new(None, vec![], None);
+
+    // Field::String
+    let value = Box::new(Literal(Field::String(s_val.to_string())));
+    assert_eq!(
+        evaluate_ucase(&Schema::empty(), &value, &row).unwrap(),
+        Field::String(s_val.to_uppercase())
+    );
+
+    let value = Box::new(Literal(Field::String(c_val.to_string())));
+    assert_eq!(
+        evaluate_ucase(&Schema::empty(), &value, &row).unwrap(),
+        Field::String(c_val.to_uppercase().to_string())
+    );
+
+    // Field::Text
+    let value = Box::new(Literal(Field::Text(s_val.to_string())));
+    assert_eq!(
+        evaluate_ucase(&Schema::empty(), &value, &row).unwrap(),
+        Field::Text(s_val.to_uppercase())
+    );
+
+    let value = Box::new(Literal(Field::Text(c_val.to_string())));
+    assert_eq!(
+        evaluate_ucase(&Schema::empty(), &value, &row).unwrap(),
+        Field::Text(c_val.to_uppercase().to_string())
+    );
+}
+
+fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
+    let row = Record::new(None, vec![], None);
+
+    // Field::String
+    let val1 = Literal(Field::String(s_val1.to_string()));
+    let val2 = Literal(Field::String(s_val2.to_string()));
+    assert_eq!(
+        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+        Field::String(s_val1.to_string() + s_val2)
+    );
+
+    let val1 = Literal(Field::String(s_val2.to_string()));
+    let val2 = Literal(Field::String(s_val1.to_string()));
+    assert_eq!(
+        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+        Field::String(s_val2.to_string() + s_val1)
+    );
+
+    let val1 = Literal(Field::String(s_val1.to_string()));
+    let val2 = Literal(Field::String(c_val.to_string()));
+    assert_eq!(
+        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+        Field::String(s_val1.to_string() + c_val.to_string().as_str())
+    );
+
+    let val1 = Literal(Field::String(c_val.to_string()));
+    let val2 = Literal(Field::String(s_val1.to_string()));
+    assert_eq!(
+        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+        Field::String(c_val.to_string() + s_val1)
+    );
+
+    // Field::Text
+    let val1 = Literal(Field::Text(s_val1.to_string()));
+    let val2 = Literal(Field::Text(s_val2.to_string()));
+    assert_eq!(
+        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+        Field::Text(s_val1.to_string() + s_val2)
+    );
+
+    let val1 = Literal(Field::Text(s_val2.to_string()));
+    let val2 = Literal(Field::Text(s_val1.to_string()));
+    assert_eq!(
+        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+        Field::Text(s_val2.to_string() + s_val1)
+    );
+
+    let val1 = Literal(Field::Text(s_val1.to_string()));
+    let val2 = Literal(Field::Text(c_val.to_string()));
+    assert_eq!(
+        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+        Field::Text(s_val1.to_string() + c_val.to_string().as_str())
+    );
+
+    let val1 = Literal(Field::Text(c_val.to_string()));
+    let val2 = Literal(Field::Text(s_val1.to_string()));
+    assert_eq!(
+        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+        Field::Text(c_val.to_string() + s_val1)
+    );
+}
+
+fn test_trim(s_val1: &str, c_val: char) {
+    let row = Record::new(None, vec![], None);
+
+    // Field::String
+    let value = Literal(Field::String(s_val1.to_string()));
+    let what = ' ';
+    assert_eq!(
+        evaluate_trim(&Schema::empty(), &value, &None, &None, &row).unwrap(),
+        Field::String(s_val1.trim_matches(what).to_string())
+    );
+    assert_eq!(
+        evaluate_trim(
+            &Schema::empty(),
+            &value,
+            &None,
+            &Some(TrimType::Trailing),
+            &row
+        )
+        .unwrap(),
+        Field::String(s_val1.trim_end_matches(what).to_string())
+    );
+    assert_eq!(
+        evaluate_trim(
+            &Schema::empty(),
+            &value,
+            &None,
+            &Some(TrimType::Leading),
+            &row
+        )
+        .unwrap(),
+        Field::String(s_val1.trim_start_matches(what).to_string())
+    );
+    assert_eq!(
+        evaluate_trim(&Schema::empty(), &value, &None, &Some(TrimType::Both), &row).unwrap(),
+        Field::String(s_val1.trim_matches(what).to_string())
+    );
+
+    let value = Literal(Field::String(s_val1.to_string()));
+    let what = Some(Box::new(Literal(Field::String(c_val.to_string()))));
+    assert_eq!(
+        evaluate_trim(&Schema::empty(), &value, &what, &None, &row).unwrap(),
+        Field::String(s_val1.trim_matches(c_val).to_string())
+    );
+    assert_eq!(
+        evaluate_trim(
+            &Schema::empty(),
+            &value,
+            &what,
+            &Some(TrimType::Trailing),
+            &row
+        )
+        .unwrap(),
+        Field::String(s_val1.trim_end_matches(c_val).to_string())
+    );
+    assert_eq!(
+        evaluate_trim(
+            &Schema::empty(),
+            &value,
+            &what,
+            &Some(TrimType::Leading),
+            &row
+        )
+        .unwrap(),
+        Field::String(s_val1.trim_start_matches(c_val).to_string())
+    );
+    assert_eq!(
+        evaluate_trim(&Schema::empty(), &value, &what, &Some(TrimType::Both), &row).unwrap(),
+        Field::String(s_val1.trim_matches(c_val).to_string())
+    );
 }
 
 #[test]
-fn test_concat() {
+fn test_concat_string() {
     let f = run_scalar_fct(
         "SELECT CONCAT(fn, ln, fn) FROM USERS",
         Schema::empty()
@@ -188,7 +401,7 @@ fn test_concat_wrong_schema() {
 }
 
 #[test]
-fn test_ucase() {
+fn test_ucase_string() {
     let f = run_scalar_fct(
         "SELECT UCASE(fn) FROM USERS",
         Schema::empty()
@@ -248,7 +461,7 @@ fn test_length() {
 }
 
 #[test]
-fn test_trim() {
+fn test_trim_string() {
     let f = run_scalar_fct(
         "SELECT TRIM(fn) FROM USERS",
         Schema::empty()
