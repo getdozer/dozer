@@ -493,11 +493,14 @@ pub enum FieldType {
     Text,
     /// Raw bytes.
     Binary,
-    /// Decimal number.
+    /// `Decimal` represents a 128 bit representation of a fixed-precision decimal number.
+    /// The finite set of values of type `Decimal` are of the form m / 10<sup>e</sup>,
+    /// where m is an integer such that -2<sup>96</sup> < m < 2<sup>96</sup>, and e is an integer
+    /// between 0 and 28 inclusive.
     Decimal,
     /// Timestamp up to nanoseconds.
     Timestamp,
-    /// Date.
+    /// Allows for every date from Jan 1, 262145 BCE to Dec 31, 262143 CE.
     Date,
     /// Bytes that are valid BSON.
     Bson,

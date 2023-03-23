@@ -31,7 +31,7 @@ use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
 #[serde(crate = "dozer_types::serde")]
 /// A source table's CDC event type.
 pub enum CdcType {

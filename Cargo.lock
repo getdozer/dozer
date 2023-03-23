@@ -1762,7 +1762,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parking_lot",
- "parquet",
+ "parquet 31.0.0",
  "paste",
  "percent-encoding",
  "pin-project-lite",
@@ -1788,7 +1788,7 @@ dependencies = [
  "chrono",
  "num_cpus",
  "object_store",
- "parquet",
+ "parquet 31.0.0",
  "sqlparser 0.30.0",
 ]
 
@@ -1923,7 +1923,7 @@ dependencies = [
  "object_store",
  "once_cell",
  "parking_lot",
- "parquet",
+ "parquet 31.0.0",
  "percent-encoding",
  "regex",
  "serde",
@@ -2165,12 +2165,14 @@ dependencies = [
  "deltalake",
  "dozer-tracing",
  "dozer-types",
+ "env_logger",
  "futures",
  "hex-literal",
  "include_dir",
  "kafka",
  "object_store",
  "odbc",
+ "parquet 33.0.0",
  "postgres",
  "postgres-protocol",
  "postgres-types",
@@ -2181,6 +2183,7 @@ dependencies = [
  "reqwest",
  "schema_registry_converter",
  "serial_test",
+ "tempdir",
  "tokio",
  "tokio-postgres",
  "tonic",
@@ -4386,6 +4389,37 @@ dependencies = [
  "snap",
  "thrift 0.17.0",
  "tokio",
+ "twox-hash",
+ "zstd",
+]
+
+[[package]]
+name = "parquet"
+version = "33.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1b076829801167d889795cd1957989055543430fa1469cb1f6e32b789bfc764"
+dependencies = [
+ "ahash 0.8.3",
+ "arrow-array 33.0.0",
+ "arrow-buffer 33.0.0",
+ "arrow-cast 33.0.0",
+ "arrow-data 33.0.0",
+ "arrow-ipc 33.0.0",
+ "arrow-schema 33.0.0",
+ "arrow-select 33.0.0",
+ "base64 0.21.0",
+ "brotli",
+ "bytes",
+ "chrono",
+ "flate2",
+ "hashbrown 0.13.2",
+ "lz4",
+ "num",
+ "num-bigint",
+ "paste",
+ "seq-macro",
+ "snap",
+ "thrift 0.17.0",
  "twox-hash",
  "zstd",
 ]
