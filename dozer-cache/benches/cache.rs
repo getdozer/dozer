@@ -1,6 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression, Skip};
 use dozer_cache::cache::{index, test_utils, CacheManager, LmdbCacheManager, RwCache};
+use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record, Schema};
 
@@ -46,7 +47,11 @@ fn cache(c: &mut Criterion) {
     let (schema, secondary_indexes) = test_utils::schema_0();
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let cache = cache_manager
-        .create_cache(schema.clone(), secondary_indexes)
+        .create_cache(
+            schema.clone(),
+            secondary_indexes,
+            ConflictResolution::default(),
+        )
         .unwrap();
 
     let size: usize = 1000000;

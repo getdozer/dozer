@@ -17,6 +17,7 @@ use crate::{
     RoCacheEndpoint,
 };
 use dozer_cache::CacheReader;
+use dozer_types::log::error;
 use dozer_types::{grpc_types::types::Operation, models::api_security::ApiSecurity};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};
@@ -308,7 +309,10 @@ fn count(
     let (query, access) = parse_request(&mut parts)?;
 
     let count = shared_impl::count(reader, query.as_deref(), access)?;
-    let res = count_response_to_typed_response(count, response_desc);
+    let res = count_response_to_typed_response(count, response_desc).map_err(|e| {
+        error!("Count API error: {:?}", e);
+        Status::internal("Count API error")
+    })?;
     Ok(Response::new(res))
 }
 
@@ -321,7 +325,10 @@ fn query(
     let (query, access) = parse_request(&mut parts)?;
 
     let records = shared_impl::query(reader, query.as_deref(), access)?;
-    let res = query_response_to_typed_response(records, response_desc);
+    let res = query_response_to_typed_response(records, response_desc).map_err(|e| {
+        error!("Query API error: {:?}", e);
+        Status::internal("Query API error")
+    })?;
     Ok(Response::new(res))
 }
 
@@ -349,7 +356,13 @@ fn on_event(
     let endpoint_to_be_streamed = endpoint_name.to_string();
     shared_impl::on_event(reader, filter, event_notifier, access.cloned(), move |op| {
         if endpoint_to_be_streamed == op.endpoint_name {
-            Some(Ok(on_event_to_typed_response(op, event_desc.clone())))
+            match on_event_to_typed_response(op, event_desc.clone()) {
+                Ok(event) => Some(Ok(event)),
+                Err(e) => {
+                    error!("On event error: {:?}", e);
+                    None
+                }
+            }
         } else {
             None
         }

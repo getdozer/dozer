@@ -87,7 +87,7 @@ fn insert_and_update_record() {
 
     let key = index::get_primary_key(&schema.primary_index, &foo.values);
 
-    assert_eq!(cache.update(&key, &mut foo).unwrap(), old_version);
+    assert_eq!(cache.update(&key, &mut foo).unwrap().0, Some(old_version));
     assert_eq!(foo.version.unwrap(), old_version + 1);
 }
 

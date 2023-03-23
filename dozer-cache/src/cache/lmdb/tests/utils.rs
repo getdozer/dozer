@@ -1,3 +1,4 @@
+use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaWithIndex};
 
 use crate::cache::{
@@ -22,6 +23,7 @@ pub fn create_cache(
         Some(&schema),
         &Default::default(),
         &mut indexing_thread_pool,
+        ConflictResolution::default(),
     )
     .unwrap();
     (cache, indexing_thread_pool, schema.0, schema.1)

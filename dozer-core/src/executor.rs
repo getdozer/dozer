@@ -9,6 +9,7 @@ use dozer_types::node::NodeHandle;
 use dozer_types::types::Operation;
 
 use crate::epoch::Epoch;
+use dozer_types::log::warn;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -195,7 +196,7 @@ fn start_processor(processor: ProcessorNode) -> Result<JoinHandle<()>, Execution
         .name(processor.handle().to_string())
         .spawn(move || {
             if let Err(e) = processor.run() {
-                std::panic::panic_any(e);
+                warn!("Processor error: {:?}", e);
             }
         })?)
 }
