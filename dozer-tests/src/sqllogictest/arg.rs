@@ -19,4 +19,8 @@ pub struct SqlLogicTestArgs {
         help = "The arg is used to enable auto complete mode"
     )]
     pub complete: bool,
+
+    // Run specific file
+    #[arg(short = 'f', long = "file", help = "The file to be run")]
+    pub file_name: Option<String>,
 }

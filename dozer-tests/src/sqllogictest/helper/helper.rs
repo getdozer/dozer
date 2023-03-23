@@ -41,6 +41,7 @@ pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
                 FieldType::Float | FieldType::Binary => "numeric",
                 FieldType::Timestamp => "timestamp",
                 FieldType::Boolean => "bool",
+                FieldType::Decimal => "decimal",
                 typ => panic!("unsupported type {typ:?}"),
             };
             format!(
@@ -141,6 +142,7 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
                         "real" => FieldType::Float,
                         "numeric" => FieldType::Decimal,
                         "timestamp" => FieldType::Timestamp,
+                        "decimal" => FieldType::Decimal,
                         f => panic!("unknown field_type : {f}"),
                     },
                     nullable: true,

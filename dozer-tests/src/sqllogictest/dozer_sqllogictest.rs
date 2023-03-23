@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let args = SqlLogicTestArgs::parse();
-    let suits = SqlLogicTestArgs::parse().suites;
+    let suits = args.suites;
     let suits = std::fs::read_dir(suits).unwrap();
     let mut files = vec![];
     for suit in suits {
@@ -157,6 +157,20 @@ async fn main() -> Result<()> {
         }
     }
     for file in files.into_iter() {
+        let file_name = file
+            .as_ref()
+            .unwrap()
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        if let Some(specific_file) = &args.file_name {
+            if file_name.ne(specific_file) {
+                continue;
+            }
+        }
         let file_path = file.as_ref().unwrap().path();
         let mut runner = Runner::new(create_dozer()?);
         let records = parse_file(file_path).unwrap();
