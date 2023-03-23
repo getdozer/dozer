@@ -14,6 +14,7 @@ use deltalake::datafusion::datasource::listing::{
 };
 use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use std::sync::Arc;
@@ -44,7 +45,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         let mut idx = 0;
         let fields = resolved_schema.all_fields();
 
-        let config = ListingTableConfig::new(table_path)
+        let config = ListingTableConfig::new(table_path.clone())
             .with_listing_options(listing_options)
             .with_schema(resolved_schema.clone());
 
@@ -69,7 +70,15 @@ impl<T: Clone + Send + Sync> TableReader<T> {
 
         tokio::pin!(data);
 
-        while let Some(Ok(batch)) = data.next().await {
+        while let Some(batch) = data.next().await {
+            let batch = match batch {
+                Ok(batch) => batch,
+                Err(e) => {
+                    error!("Error reading record batch from {table_path:?}: {e}");
+                    continue;
+                }
+            };
+
             for row in 0..batch.num_rows() {
                 let fields = batch
                     .columns()
