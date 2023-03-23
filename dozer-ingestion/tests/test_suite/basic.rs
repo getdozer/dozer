@@ -1,24 +1,83 @@
+use std::{collections::HashMap, time::Duration};
+
 use dozer_ingestion::{
-    connectors::{CdcType, Connector, TableIdentifier},
+    connectors::{CdcType, Connector, SourceSchema, TableIdentifier},
     ingestion::Ingestor,
 };
 use dozer_types::{
     ingestion_types::IngestionMessageKind,
     log::warn,
-    types::{Field, FieldType, Operation, Record, Schema},
+    types::{Field, FieldType, Operation, Record, Schema, SchemaIdentifier},
 };
 
-use super::{data, ConnectorTest};
+use super::{data, DataReadyConnectorTest, InsertOnlyConnectorTest};
 
-pub fn run_test_suite_basic<T: ConnectorTest>() {
+pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
+    let connector_test = T::new();
+
+    // List tables.
+    let tables = connector_test.connector().list_tables().unwrap();
+    connector_test.connector().validate_tables(&tables).unwrap();
+
+    // List columns.
+    let tables = connector_test.connector().list_columns(tables).unwrap();
+
+    // Get schemas.
+    let schemas = connector_test.connector().get_schemas(&tables).unwrap();
+    let schemas = schemas
+        .into_iter()
+        .map(|schema| {
+            let schema = schema.expect("Failed to get schema");
+            let identifier = schema.schema.identifier.expect("Schema has no identifier");
+            (identifier, schema)
+        })
+        .collect::<HashMap<_, _>>();
+
+    // Run connector.
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
+    std::thread::spawn(move || {
+        connector_test.connector().start(&ingestor, tables).unwrap();
+    });
+
+    // Loop over messages until timeout.
+    let mut last_identifier = None;
+    while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
+        // Check message identifier.
+        if let Some(last_identifier) = last_identifier {
+            assert!(message.identifier > last_identifier);
+        }
+        last_identifier = Some(message.identifier);
+
+        if let IngestionMessageKind::OperationEvent(operation) = &message.kind {
+            // Check record schema consistency.
+            match operation {
+                Operation::Insert { new } => {
+                    assert_record_matches_one_schema(new, &schemas, true);
+                }
+                Operation::Update { old, new } => {
+                    assert_record_matches_one_schema(old, &schemas, false);
+                    assert_record_matches_one_schema(new, &schemas, true);
+                }
+                Operation::Delete { old } => {
+                    assert_record_matches_one_schema(old, &schemas, false);
+                }
+            }
+        }
+        break;
+    }
+
+    // There should be at least one message.
+    assert!(last_identifier.is_some());
+}
+
+pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
     let table_name = "test_table".to_string();
     for data_fn in [
-        data::append_only_operations_without_primary_key,
-        data::append_only_operations_with_primary_key,
-        data::all_kinds_of_operations,
+        data::records_with_primary_key,
+        data::records_without_primary_key,
     ] {
         // Load test data.
-        let (schema, operations) = data_fn();
+        let (schema, records) = data_fn();
 
         // Create connector.
         let schema_name = None;
@@ -26,9 +85,9 @@ pub fn run_test_suite_basic<T: ConnectorTest>() {
             schema_name.clone(),
             table_name.clone(),
             schema.clone(),
-            operations.clone(),
+            records.clone(),
         ) else {
-            warn!("Connector does not support schema {:?} or some operations.", schema_name);
+            warn!("Connector does not support schema name {schema_name:?} or primary index {:?}.", schema.primary_index);
             continue;
         };
         assert_eq!(schema.identifier, actual_schema.identifier);
@@ -74,12 +133,10 @@ pub fn run_test_suite_basic<T: ConnectorTest>() {
         let schemas = connector_test.connector().get_schemas(&tables).unwrap();
         assert_eq!(schemas.len(), 1);
         assert_eq!(schemas[0].as_ref().unwrap().schema, actual_schema);
-        let cdc_type = schemas[0].as_ref().unwrap().cdc_type;
 
         // Run the connector and check data is ingested.
         let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
         std::thread::spawn(move || {
-            connector_test.start();
             connector_test
                 .connector()
                 .start(&ingestor, tables)
@@ -87,7 +144,7 @@ pub fn run_test_suite_basic<T: ConnectorTest>() {
         });
 
         let mut last_identifier = None;
-        for operation in operations {
+        for record in &records {
             // Connector must send message.
             let message = iterator.next().unwrap();
 
@@ -97,79 +154,16 @@ pub fn run_test_suite_basic<T: ConnectorTest>() {
                 last_identifier = Some(message.identifier);
             }
 
-            // Message must be an operation event.
-            let IngestionMessageKind::OperationEvent(actual_operation) = message.kind else {
-                panic!("Expected an operation event, but got {:?}", message.kind);
+            // Message must be an insert event.
+            let IngestionMessageKind::OperationEvent(Operation::Insert { new: actual_record }) = message.kind else {
+                panic!("Expected an insert event, but got {:?}", message.kind);
             };
 
-            // Record in operation must match schema.
-            match &actual_operation {
-                Operation::Insert { new } => {
-                    assert_record_matches_schema(new, &actual_schema, false)
-                }
-                Operation::Update { new, old } => {
-                    assert_record_matches_schema(new, &actual_schema, false);
-                    match cdc_type {
-                        CdcType::FullChanges => {
-                            assert_record_matches_schema(old, &actual_schema, false)
-                        }
-                        CdcType::OnlyPK => assert_record_matches_schema(old, &actual_schema, true),
-                        CdcType::Nothing => {
-                            panic!("Connector with CdcType::Nothing should not send update events.")
-                        }
-                    }
-                }
-                Operation::Delete { old } => match cdc_type {
-                    CdcType::FullChanges => {
-                        assert_record_matches_schema(old, &actual_schema, false)
-                    }
-                    CdcType::OnlyPK => assert_record_matches_schema(old, &actual_schema, true),
-                    CdcType::Nothing => {
-                        panic!("Connector with CdcType::Nothing should not send delete events.")
-                    }
-                },
-            }
+            // Record must match schema.
+            assert_record_matches_schema(&actual_record, &actual_schema, false);
 
-            // Operation must match expected operation.
-            match (&actual_operation, &operation) {
-                (Operation::Insert { new: actual_new }, Operation::Insert { new }) => {
-                    assert_records_match(actual_new, &actual_schema, new, &schema, false);
-                }
-                (
-                    Operation::Update {
-                        new: actual_new,
-                        old: actual_old,
-                    },
-                    Operation::Update { new, old },
-                ) => {
-                    assert_records_match(actual_new, &actual_schema, new, &schema, false);
-                    match cdc_type {
-                        CdcType::FullChanges => {
-                            assert_records_match(actual_old, &actual_schema, old, &schema, false)
-                        }
-                        CdcType::OnlyPK => {
-                            assert_records_match(actual_old, &actual_schema, old, &schema, true)
-                        }
-                        CdcType::Nothing => {
-                            panic!("Connector with CdcType::Nothing should not send update events.")
-                        }
-                    }
-                }
-                (Operation::Delete { old: actual_old }, Operation::Delete { old }) => {
-                    match cdc_type {
-                        CdcType::FullChanges => {
-                            assert_records_match(actual_old, &actual_schema, old, &schema, false)
-                        }
-                        CdcType::OnlyPK => {
-                            assert_records_match(actual_old, &actual_schema, old, &schema, true)
-                        }
-                        CdcType::Nothing => {
-                            panic!("Connector with CdcType::Nothing should not send delete events.")
-                        }
-                    }
-                }
-                _ => panic!("Expected {:?}, but got {:?}", operation, actual_operation),
-            }
+            // Record must match expected record.
+            assert_records_match(&actual_record, &actual_schema, record, &schema, false);
         }
     }
 }
@@ -206,6 +200,20 @@ fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk:
             FieldType::Point => assert!(value.as_point().is_some()),
         }
     }
+}
+
+fn assert_record_matches_one_schema(
+    record: &Record,
+    schemas: &HashMap<SchemaIdentifier, SourceSchema>,
+    full_match: bool,
+) {
+    let identifier = record
+        .schema_id
+        .expect("Record must have a schema identifier.");
+    let schema = schemas.get(&identifier).expect("Schema must exist.");
+
+    let only_match_pk = !full_match && schema.cdc_type != CdcType::FullChanges;
+    assert_record_matches_schema(record, &schema.schema, only_match_pk);
 }
 
 fn assert_records_match(
