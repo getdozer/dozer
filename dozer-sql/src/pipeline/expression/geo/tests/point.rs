@@ -8,6 +8,14 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::expression::execution::Expression;
 
+// use proptest::prelude::*;
+//
+// fn point_strat() -> impl Strategy<Value = DozerPoint> {
+//     (any<f64>::(), any<f64>::()).prop_map(|(x, y)| {
+//         DozerPoint::from((x, y))
+//     })
+// }
+
 #[test]
 fn test_validate_point() {
     let schema = Schema::empty()

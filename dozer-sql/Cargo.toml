@@ -22,10 +22,10 @@ hashbrown = "0.13"
 ahash = "0.8.3"
 bloom = "0.3.2"
 enum_dispatch = "0.3.11"
-proptest = "1.1.0"
 
 [dev-dependencies]
 tempdir = "0.3.7"
+proptest = "1.1.0"
 
 [features]
 python = []

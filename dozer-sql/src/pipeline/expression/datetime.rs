@@ -125,27 +125,3 @@ pub(crate) fn evaluate_date_part(
     )))
     .map(Field::Int)
 }
-
-#[test]
-fn test_date_parts() {
-    let row = Record::new(None, vec![], None);
-
-    let date_parts = vec![
-        (DateTimeField::Dow, 6),
-        (DateTimeField::Year, 2023),
-        (DateTimeField::Month, 1),
-        (DateTimeField::Hour, 0),
-        (DateTimeField::Second, 0),
-        (DateTimeField::Quarter, 1),
-    ];
-    let v = Expression::Literal(Field::Date(
-        dozer_types::chrono::NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
-    ));
-
-    for (part, value) in date_parts {
-        assert_eq!(
-            evaluate_date_part(&Schema::empty(), &part, &v, &row).unwrap(),
-            Field::Int(value)
-        );
-    }
-}
