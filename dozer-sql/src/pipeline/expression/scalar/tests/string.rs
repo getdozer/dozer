@@ -2,8 +2,8 @@ use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::scalar::string::evaluate_like;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
-use proptest::prelude::*;
 use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
+use proptest::prelude::*;
 
 #[test]
 fn test_string() {

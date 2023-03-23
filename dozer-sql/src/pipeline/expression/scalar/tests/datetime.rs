@@ -4,11 +4,11 @@ use dozer_types::chrono::{
     DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike,
 };
 
+use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 use num_traits::ToPrimitive;
 use proptest::prelude::*;
 use sqlparser::ast::DateTimeField;
-use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
 
 #[derive(Debug)]
 struct ArbitraryDateTime(DateTime<FixedOffset>);
