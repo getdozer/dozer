@@ -127,7 +127,6 @@ pub fn map_schema_to_dozer<'a, I: Iterator<Item = &'a Field>>(
                 DataType::Time32(_)
                 | DataType::Time64(_)
                 | DataType::Duration(_)
-                | DataType::Interval(_)
                 | DataType::Int8
                 | DataType::Int16
                 | DataType::Int32
