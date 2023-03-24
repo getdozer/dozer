@@ -93,6 +93,21 @@ impl Case {
             panic!("Case {case_dir:?} must have either expectations or error expectation");
         }
     }
+
+    pub fn should_be_ignored(&self) -> bool {
+        // Check if the last component of `case_dir` starts with `ignore-`.
+        self.case_dir
+            .file_name()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Case directory must have a file name, but it's {:?}",
+                    self.case_dir
+                )
+            })
+            .to_str()
+            .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", self.case_dir))
+            .starts_with("ignore-")
+    }
 }
 
 fn find_dozer_config_path(case_dir: &Path) -> String {
