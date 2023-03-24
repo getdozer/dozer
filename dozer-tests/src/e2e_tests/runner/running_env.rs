@@ -269,7 +269,8 @@ fn add_connection_services(
             volumes: vec![],
             user: None,
             working_dir: None,
-            command: Some("echo 'All connections are healthy'".to_string()),
+            // Give the connection some time to start.
+            command: Some("sleep 10".to_string()),
             depends_on,
             healthcheck: None,
         },

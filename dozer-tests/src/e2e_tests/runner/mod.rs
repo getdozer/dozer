@@ -63,14 +63,21 @@ impl Runner for BuildkiteRunner {
     }
 }
 
-fn run_command(bin: &str, args: &[&str]) {
+fn run_command(bin: &str, args: &[&str], on_error_command: Option<(&str, &[&str])>) {
     let mut cmd = Command::new(bin);
     cmd.args(args);
     info!("Running command: {:?}", cmd);
     let output = cmd.output().expect("Failed to run command");
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        error!("{}", stderr);
+        error!("{stderr}");
+        if let Some((bin, args)) = on_error_command {
+            let mut cmd = Command::new(bin);
+            cmd.args(args);
+            let output = cmd.output().expect("Failed to run command");
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            error!("{stdout}");
+        }
         panic!(
             "Command {:?} failed with status {}, working directory {:?}",
             cmd,
@@ -87,7 +94,18 @@ pub fn run_docker_compose(docker_compose_path: &Path, service_name: &str) -> Cle
         .unwrap_or_else(|| panic!("Non-UFT8 path {docker_compose_path:?}"));
     run_command(
         "docker",
-        &["compose", "-f", docker_compose_path, "run", service_name],
+        &[
+            "compose",
+            "-f",
+            docker_compose_path,
+            "run",
+            "--build",
+            service_name,
+        ],
+        Some((
+            "docker",
+            &["compose", "-f", docker_compose_path, "logs", "--no-color"],
+        )),
     );
     Cleanup::DockerCompose(docker_compose_path.to_string())
 }
@@ -97,6 +115,7 @@ fn spawn_command(bin: &str, args: &[&str]) -> Child {
     cmd.args(args);
     info!("Spawning command: {:?}", cmd);
     let mut child = cmd.spawn().expect("Failed to run command");
+    // Give dozer some time to start.
     sleep(Duration::from_millis(30000));
     if let Some(exit_status) = child
         .try_wait()
