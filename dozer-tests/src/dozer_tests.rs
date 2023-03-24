@@ -8,6 +8,8 @@ use dozer_types::log::info;
 struct Args {
     #[arg(long, default_value = "dozer-tests/src/e2e_tests/cases")]
     cases_dir: String,
+    #[arg(long)]
+    ignored: bool,
     #[arg(long, default_value = "dozer-tests/src/e2e_tests/connections")]
     connections_dir: String,
     #[arg(short, long, default_value_t = RunnerType::Local)]
@@ -54,9 +56,13 @@ async fn main() {
                 .unwrap_or_else(|| panic!("Non-UTF8 path {case_dir:?}"))
                 .starts_with(&args.case_prefix)
         {
-            info!("Running case {:?}", case_dir);
-            let case = Case::load_from_case_dir(case_dir, connections_dir.clone());
-            runner.run_test_case(&case).await;
+            let case = Case::load_from_case_dir(case_dir.clone(), connections_dir.clone());
+            if !args.ignored && case.should_be_ignored() {
+                info!("Ignoring case {:?}", case_dir);
+            } else {
+                info!("Running case {:?}", case_dir);
+                runner.run_test_case(&case).await;
+            }
         }
     }
 }
