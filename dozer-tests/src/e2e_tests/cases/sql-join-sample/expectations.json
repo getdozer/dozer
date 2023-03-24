@@ -10,7 +10,7 @@
                             {
                                 "name": "pickup_time",
                                 "typ": "Timestamp",
-                                "nullable": false,
+                                "nullable": true,
                                 "source": "Dynamic"
                             },
                             {
