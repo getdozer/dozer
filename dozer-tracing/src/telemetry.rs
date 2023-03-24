@@ -8,10 +8,12 @@ use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
+use tracing_appender;
+use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::exporter::DozerExporter;
 // Init telemetry by setting a global handler
-pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<TelemetryConfig>) {
+pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<TelemetryConfig>) -> WorkerGuard {
     let app_name = app_name.unwrap_or("dozer");
 
     // disable errors from open telemetry
@@ -23,10 +25,13 @@ pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<Telemetry
     let fmt_filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("info"))
         .unwrap();
+    let fmt_filter_2 = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info"))
+        .unwrap();
 
     let layers = telemetry_config.map_or((None, None), |c| {
         let trace_filter = EnvFilter::try_from_env("DOZER_TRACE_FILTER")
-            .or_else(|_| EnvFilter::try_new("dozer=trace"))
+            .or_else(|_| EnvFilter::try_new("dozer=debug"))
             .unwrap();
         match c {
             TelemetryConfig::Dozer(config) => (
@@ -40,11 +45,18 @@ pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<Telemetry
         }
     });
 
+
+    let file_appender = tracing_appender::rolling::never("./log", format!("{app_name}.log"));
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
     tracing_subscriber::registry()
         .with(fmt_layer.with_filter(fmt_filter))
+        .with(fmt::Layer::default().with_writer(non_blocking).with_filter(fmt_filter_2))
         .with(layers.0)
         .with(layers.1)
         .init();
+
+    guard
 }
 
 // Cleanly shutdown telemetry
@@ -81,7 +93,11 @@ pub fn init_telemetry_closure<T>(
         }
     });
 
+    let file_appender = tracing_appender::rolling::hourly("/Users/karolis/Projects/dozer", "prefix.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
     let subscriber = tracing_subscriber::registry()
+        .with(fmt::Layer::default().with_writer(non_blocking))
         .with(fmt_layer.with_filter(fmt_filter))
         .with(layers.0)
         .with(layers.1);

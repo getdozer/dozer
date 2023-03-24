@@ -52,7 +52,7 @@ fn run() -> Result<(), OrchestrationError> {
             .build()
             .expect("cannot start runtime");
         runtime.block_on(async {
-            dozer_tracing::init_telemetry(None, telemetry_config);
+            let _guard = dozer_tracing::init_telemetry(None, telemetry_config);
 
             // Keep thread running until the main thread is running
             while tel_running.load(std::sync::atomic::Ordering::Relaxed) {
