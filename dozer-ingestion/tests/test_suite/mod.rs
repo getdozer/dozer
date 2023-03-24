@@ -39,4 +39,4 @@ mod connectors;
 mod data;
 
 pub use basic::{run_test_suite_basic_data_ready, run_test_suite_basic_insert_only};
-pub use connectors::LocalStorageObjectStoreConnectorTest;
+pub use connectors::{LocalStorageObjectStoreConnectorTest, PostgresConnectorTest};

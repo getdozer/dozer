@@ -10,18 +10,18 @@ services:
     container_name: postgres-dozer-tests-db
     image: debezium/postgres:13
     ports:
-    - target: 5432
-      published: 5434
+      - target: 5432
+        published: 5434
     environment:
-    - POSTGRES_DB=dozer_test
-    - POSTGRES_USER=postgres
-    - POSTGRES_PASSWORD=postgres
-    - ALLOW_IP_RANGE=0.0.0.0/0
+      - POSTGRES_DB=dozer_test
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - ALLOW_IP_RANGE=0.0.0.0/0
     command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
     healthcheck:
       test:
-      - CMD-SHELL
-      - pg_isready -U postgres -h 0.0.0.0 -d dozer_test
+        - CMD-SHELL
+        - pg_isready -U postgres -h 0.0.0.0 -d dozer_test
       interval: 5s
       timeout: 5s
       retries: 5
