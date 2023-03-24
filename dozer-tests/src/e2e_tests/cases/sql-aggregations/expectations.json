@@ -1,0 +1,28 @@
+[
+    "HealthyService",
+    {
+        "Endpoint": {
+            "endpoint": "total_distance",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "vendor",
+                                "typ": "Int",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "total_distance",
+                                "typ": "Float",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+]
