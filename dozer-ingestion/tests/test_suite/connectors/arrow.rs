@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+use dozer_types::arrow::array::{
+    Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
+};
 use dozer_types::{
     arrow,
     chrono::Datelike,
@@ -79,43 +82,42 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Field::new("date32_null", DataType::Date32, true),
         Field::new("date64", DataType::Date64, false),
         Field::new("date64_null", DataType::Date64, true),
-        // TODO: uncomment when `Time32` conversion is fixed.
-        // Field::new("time32_second", DataType::Time32(TimeUnit::Second), false),
-        // Field::new(
-        //     "time32_second_null",
-        //     DataType::Time32(TimeUnit::Second),
-        //     true,
-        // ),
-        // Field::new(
-        //     "time32_millisecond",
-        //     DataType::Time32(TimeUnit::Millisecond),
-        //     false,
-        // ),
-        // Field::new(
-        //     "time32_millisecond_null",
-        //     DataType::Time32(TimeUnit::Millisecond),
-        //     true,
-        // ),
-        // Field::new(
-        //     "time64_microsecond",
-        //     DataType::Time64(TimeUnit::Microsecond),
-        //     false,
-        // ),
-        // Field::new(
-        //     "time64_microsecond_null",
-        //     DataType::Time64(TimeUnit::Microsecond),
-        //     true,
-        // ),
-        // Field::new(
-        //     "time64_nanosecond",
-        //     DataType::Time64(TimeUnit::Nanosecond),
-        //     false,
-        // ),
-        // Field::new(
-        //     "time64_nanosecond_null",
-        //     DataType::Time64(TimeUnit::Nanosecond),
-        //     true,
-        // ),
+        Field::new("time32_second", DataType::Time32(TimeUnit::Second), false),
+        Field::new(
+            "time32_second_null",
+            DataType::Time32(TimeUnit::Second),
+            true,
+        ),
+        Field::new(
+            "time32_millisecond",
+            DataType::Time32(TimeUnit::Millisecond),
+            false,
+        ),
+        Field::new(
+            "time32_millisecond_null",
+            DataType::Time32(TimeUnit::Millisecond),
+            true,
+        ),
+        Field::new(
+            "time64_microsecond",
+            DataType::Time64(TimeUnit::Microsecond),
+            false,
+        ),
+        Field::new(
+            "time64_microsecond_null",
+            DataType::Time64(TimeUnit::Microsecond),
+            true,
+        ),
+        Field::new(
+            "time64_nanosecond",
+            DataType::Time64(TimeUnit::Nanosecond),
+            false,
+        ),
+        Field::new(
+            "time64_nanosecond_null",
+            DataType::Time64(TimeUnit::Nanosecond),
+            true,
+        ),
         // `Duration` not supported by parquet writer.
         // Field::new(
         //     "duration_second",
@@ -169,8 +171,7 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Field::new("large_binary_null", DataType::LargeBinary, true),
         Field::new("utf8", DataType::Utf8, false),
         Field::new("utf8_null", DataType::Utf8, true),
-        // TODO: uncomment when `LargeUtf8` conversion is fixed.
-        // Field::new("large_utf8", DataType::LargeUtf8, false),
+        Field::new("large_utf8", DataType::LargeUtf8, false),
         Field::new("large_utf8_null", DataType::LargeUtf8, true),
     ]);
 
@@ -219,14 +220,14 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Arc::new(Date32Array::from_iter([Some(0), None])),
         Arc::new(Date64Array::from_iter_values([0, 1])),
         Arc::new(Date64Array::from_iter([Some(0), None])),
-        // Arc::new(Time32SecondArray::from_iter_values([0, 1])),
-        // Arc::new(Time32SecondArray::from_iter([Some(0), None])),
-        // Arc::new(Time32MillisecondArray::from_iter_values([0, 1])),
-        // Arc::new(Time32MillisecondArray::from_iter([Some(0), None])),
-        // Arc::new(Time64MicrosecondArray::from_iter_values([0, 1])),
-        // Arc::new(Time64MicrosecondArray::from_iter([Some(0), None])),
-        // Arc::new(Time64NanosecondArray::from_iter_values([0, 1])),
-        // Arc::new(Time64NanosecondArray::from_iter([Some(0), None])),
+        Arc::new(Time32SecondArray::from_iter_values([0, 1])),
+        Arc::new(Time32SecondArray::from_iter([Some(0), None])),
+        Arc::new(Time32MillisecondArray::from_iter_values([0, 1])),
+        Arc::new(Time32MillisecondArray::from_iter([Some(0), None])),
+        Arc::new(Time64MicrosecondArray::from_iter_values([0, 1])),
+        Arc::new(Time64MicrosecondArray::from_iter([Some(0), None])),
+        Arc::new(Time64NanosecondArray::from_iter_values([0, 1])),
+        Arc::new(Time64NanosecondArray::from_iter([Some(0), None])),
         // Arc::new(DurationSecondArray::from_iter_values([0, 1])),
         // Arc::new(DurationSecondArray::from_iter([Some(0), None])),
         // Arc::new(DurationMillisecondArray::from_iter_values([0, 1])),
@@ -254,7 +255,7 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Arc::new(LargeBinaryArray::from_iter([Some([]), None])),
         Arc::new(StringArray::from_iter_values(["", "1"])),
         Arc::new(StringArray::from_iter([Some(""), None])),
-        // Arc::new(LargeStringArray::from_iter_values(["", "1"])),
+        Arc::new(LargeStringArray::from_iter_values(["", "1"])),
         Arc::new(LargeStringArray::from_iter([Some(""), None])),
     ];
 
