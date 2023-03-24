@@ -9,8 +9,8 @@
                         "fields": [
                             {
                                 "name": "pickup_time",
-                                "typ": "String",
-                                "nullable": true,
+                                "typ": "Timestamp",
+                                "nullable": false,
                                 "source": "Dynamic"
                             },
                             {
