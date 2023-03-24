@@ -237,8 +237,9 @@ impl Client {
             };
             assert!(
                 oapi_type_matches(oapi_type, field.typ),
-                "Check REST schema failed for endpoint {}, expected field type {}, got {:?}",
+                "Check REST schema failed for endpoint {}, field {}, expected field type {}, got {:?}",
                 endpoint,
+                field.name,
                 field.typ,
                 oapi_type
             );
@@ -262,7 +263,7 @@ impl Client {
         assert_eq!(
             actual_fields.len(),
             fields.len(),
-            "Check common gRPC schema failed for endpoin {}, expected {} fields, got {}",
+            "Check common gRPC schema failed for endpoint {}, expected {} fields, got {}",
             endpoint,
             fields.len(),
             actual_fields.len()
