@@ -1,6 +1,6 @@
 [package]
 name = "dozer-orchestrator"
-version = "0.1.12"
+version = "0.1.13"
 edition = "2021"
 default-run = "dozer"
 authors = ["getdozer/dozer-dev"]
