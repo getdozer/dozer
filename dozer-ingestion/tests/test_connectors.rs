@@ -13,6 +13,7 @@ fn test_postgres() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     run_test_suite_basic_data_ready::<test_suite::PostgresConnectorTest>();
+    run_test_suite_basic_insert_only::<test_suite::PostgresConnectorTest>();
 }
 
 mod test_suite;

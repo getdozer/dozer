@@ -1,37 +1,29 @@
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{Field, FieldDefinition, FieldType};
 
-pub fn records_without_primary_key() -> (Schema, Vec<Record>) {
-    let mut schema = Schema::empty();
-    schema.identifier = Some(SchemaIdentifier { id: 0, version: 0 });
-    schema.field(
+use super::FieldsAndPk;
+
+pub fn records_without_primary_key() -> (FieldsAndPk, Vec<Vec<Field>>) {
+    let fields = vec![
         FieldDefinition {
             name: "uint".to_string(),
             typ: FieldType::UInt,
             nullable: false,
             source: Default::default(),
         },
-        false,
-    );
+        FieldDefinition {
+            name: "int".to_string(),
+            typ: FieldType::Int,
+            nullable: false,
+            source: Default::default(),
+        },
+    ];
 
-    let records = vec![Record::new(schema.identifier, vec![Field::UInt(0)], None)];
+    let records = vec![vec![Field::UInt(0), Field::Int(0)]];
 
-    (schema, records)
+    ((fields, vec![]), records)
 }
 
-pub fn records_with_primary_key() -> (Schema, Vec<Record>) {
-    let mut schema = Schema::empty();
-    schema.identifier = Some(SchemaIdentifier { id: 0, version: 0 });
-    schema.field(
-        FieldDefinition {
-            name: "uint".to_string(),
-            typ: FieldType::UInt,
-            nullable: false,
-            source: Default::default(),
-        },
-        true,
-    );
-
-    let records = vec![Record::new(schema.identifier, vec![Field::UInt(0)], None)];
-
-    (schema, records)
+pub fn records_with_primary_key() -> (FieldsAndPk, Vec<Vec<Field>>) {
+    let ((fields, _), records) = records_without_primary_key();
+    ((fields, vec![0]), records)
 }

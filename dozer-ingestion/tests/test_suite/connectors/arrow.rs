@@ -6,8 +6,10 @@ use dozer_types::arrow::array::{
 use dozer_types::{
     arrow,
     chrono::Datelike,
-    types::{Field, FieldDefinition, FieldType, Record, Schema},
+    types::{Field, FieldDefinition, FieldType},
 };
+
+use crate::test_suite::FieldsAndPk;
 
 pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::RecordBatch {
     use arrow::datatypes::{DataType, Field, TimeUnit};
@@ -289,27 +291,20 @@ fn field_definition_to_arrow(field_definition: FieldDefinition) -> Option<arrow:
     })
 }
 
-pub fn schema_to_arrow(schema: Schema) -> (arrow::datatypes::Schema, Schema) {
-    let arrow_fields = schema
-        .fields
+pub fn schema_to_arrow(fields: Vec<FieldDefinition>) -> (arrow::datatypes::Schema, FieldsAndPk) {
+    let arrow_fields = fields
         .iter()
         .cloned()
         .filter_map(field_definition_to_arrow)
         .collect();
     let arrow_schema = arrow::datatypes::Schema::new(arrow_fields);
 
-    let fields = schema
-        .fields
+    let fields = fields
         .into_iter()
         .filter_map(|field| field_type_to_arrow(field.typ).map(|_| field))
         .collect();
-    let schema = Schema {
-        identifier: schema.identifier,
-        fields,
-        primary_index: vec![],
-    };
 
-    (arrow_schema, schema)
+    (arrow_schema, (fields, vec![]))
 }
 
 fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
@@ -423,17 +418,20 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
     }
 }
 
-pub fn records_to_arrow(records: &[Record], schema: Schema) -> arrow::record_batch::RecordBatch {
+pub fn records_to_arrow(
+    records: &[Vec<Field>],
+    fields: Vec<FieldDefinition>,
+) -> arrow::record_batch::RecordBatch {
     let mut columns = vec![];
-    for (index, field) in schema.fields.iter().enumerate() {
+    for (index, field) in fields.iter().enumerate() {
         if field_type_to_arrow(field.typ).is_some() {
-            let fields = records.iter().map(|record| &record.values[index]);
+            let fields = records.iter().map(|record| &record[index]);
             let column = fields_to_arrow(fields, records.len(), field.typ);
             columns.push(column);
         }
     }
 
-    let (schema, _) = schema_to_arrow(schema);
+    let (schema, _) = schema_to_arrow(fields);
 
     arrow::record_batch::RecordBatch::try_new(Arc::new(schema), columns)
         .expect("BUG in records_to_arrow")

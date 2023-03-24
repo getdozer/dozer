@@ -1,3 +1,7 @@
+use dozer_types::types::{Field, FieldDefinition, FieldType};
+
+use crate::test_suite::FieldsAndPk;
+
 pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
     format!(
         r#"
@@ -110,5 +114,124 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             null
         );
         "#,
+    )
+}
+
+pub fn create_schema(name: &str) -> String {
+    format!(
+        r#"
+        CREATE SCHEMA {name};
+        "#,
+        name = name
+    )
+}
+
+fn field_type_to_sql(field_type: FieldType) -> Option<String> {
+    match field_type {
+        FieldType::UInt => None,
+        FieldType::Int => Some("INT8".to_string()),
+        FieldType::Float => Some("FLOAT8".to_string()),
+        FieldType::Boolean => Some("BOOLEAN".to_string()),
+        FieldType::String => Some("TEXT".to_string()),
+        FieldType::Text => None,
+        FieldType::Binary => Some("BYTEA".to_string()),
+        FieldType::Decimal => Some("NUMERIC".to_string()),
+        FieldType::Timestamp => Some("TIMESTAMP".to_string()),
+        FieldType::Date => Some("DATE".to_string()),
+        FieldType::Bson => Some("JSONB".to_string()),
+        FieldType::Point => Some("POINT".to_string()),
+    }
+}
+
+fn field_definition_to_sql(field_definition: &FieldDefinition) -> Option<String> {
+    let field_type = field_type_to_sql(field_definition.typ)?;
+    let nullable = if field_definition.nullable {
+        ""
+    } else {
+        " NOT NULL"
+    };
+    Some(format!(
+        "{} {}{}",
+        field_definition.name, field_type, nullable
+    ))
+}
+
+pub fn schema_to_sql((fields, primary_index): FieldsAndPk) -> (FieldsAndPk, String) {
+    let mut actual_fields = vec![];
+    let mut actual_primary_index = vec![];
+
+    let mut fields_sql = vec![];
+    for (index, field) in fields.into_iter().enumerate() {
+        let is_primary_key = primary_index.iter().any(|i| *i == index);
+
+        let Some(mut field_sql) = field_definition_to_sql(&field) else {
+            continue;
+        };
+        if is_primary_key {
+            actual_primary_index.push(actual_fields.len());
+            field_sql.push_str(" PRIMARY KEY");
+        }
+        actual_fields.push(field);
+        fields_sql.push(field_sql);
+    }
+    ((actual_fields, actual_primary_index), fields_sql.join(", "))
+}
+
+fn full_table_name(schema_name: Option<&str>, table_name: &str) -> String {
+    match schema_name {
+        Some(schema_name) => format!("{}.{}", schema_name, table_name),
+        None => table_name.to_string(),
+    }
+}
+
+pub fn create_table(schema_name: Option<&str>, table_name: &str, schema: &FieldsAndPk) -> String {
+    format!(
+        r#"
+        CREATE TABLE {table_name} ({fields});
+        "#,
+        table_name = full_table_name(schema_name, table_name),
+        fields = schema_to_sql(schema.clone()).1
+    )
+}
+
+pub fn insert_record(
+    schema_name: Option<&str>,
+    table_name: &str,
+    record: &[Field],
+    fields: &[FieldDefinition],
+) -> String {
+    let mut values_sql = vec![];
+    for (field, value) in fields.iter().zip(record.iter()) {
+        if field_type_to_sql(field.typ).is_none() {
+            continue;
+        }
+
+        let value_sql = match value {
+            Field::UInt(i) => i.to_string(),
+            Field::Int(i) => i.to_string(),
+            Field::Float(f) => f.to_string(),
+            Field::Boolean(b) => b.to_string(),
+            Field::String(s) => s.to_string(),
+            Field::Text(s) => s.to_string(),
+            Field::Binary(b) => format!("'\\x{}'", hex::encode(b)),
+            Field::Decimal(d) => d.to_string(),
+            Field::Timestamp(t) => format!("'{}'", t),
+            Field::Date(d) => format!("'{}'", d),
+            Field::Bson(b) => {
+                let json = bson::from_slice::<dozer_types::serde_json::Value>(b).unwrap();
+                format!("'{}'::json", json)
+            }
+            Field::Point(p) => format!("'({},{})'", p.0.x(), p.0.y()),
+            Field::Null => "NULL".to_string(),
+        };
+        values_sql.push(value_sql);
+    }
+
+    format!(
+        r#"
+        INSERT INTO {table_name} VALUES ({values});
+        "#,
+        table_name = full_table_name(schema_name, table_name),
+        values = values_sql.join(", "),
     )
 }

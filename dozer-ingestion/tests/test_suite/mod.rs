@@ -1,11 +1,13 @@
 use dozer_ingestion::connectors::Connector;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, Operation};
 
 pub trait DataReadyConnectorTest: Send + Sized + 'static {
     type Connector: Connector;
 
     fn new() -> (Self, Self::Connector);
 }
+
+pub type FieldsAndPk = (Vec<FieldDefinition>, Vec<usize>);
 
 pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
     type Connector: Connector;
@@ -21,9 +23,9 @@ pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
     fn new(
         schema_name: Option<String>,
         table_name: String,
-        schema: Schema,
-        records: Vec<Record>,
-    ) -> Option<(Self, Self::Connector, Schema)>;
+        schema: FieldsAndPk,
+        records: Vec<Vec<Field>>,
+    ) -> Option<(Self, Self::Connector, FieldsAndPk)>;
 }
 
 pub trait CrudConnectorTest: InsertOnlyConnectorTest {

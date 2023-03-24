@@ -48,6 +48,7 @@ dozer-tracing = {path = "../dozer-tracing"}
 tempdir = "0.3.7"
 parquet = "33.0.0"
 env_logger = "0.10.0"
+hex = "0.4.3"
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
