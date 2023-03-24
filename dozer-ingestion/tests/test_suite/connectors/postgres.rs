@@ -7,7 +7,6 @@ use crate::test_suite::DataReadyConnectorTest;
 use super::sql::create_table_with_all_supported_data_types;
 
 pub struct PostgresConnectorTest {
-    connector: PostgresConnector,
     _cleanup: Cleanup,
     _temp_dir: TempDir,
 }
@@ -15,7 +14,7 @@ pub struct PostgresConnectorTest {
 impl DataReadyConnectorTest for PostgresConnectorTest {
     type Connector = PostgresConnector;
 
-    fn new() -> Self {
+    fn new() -> (Self, Self::Connector) {
         let host = "localhost";
         let port = 5432;
         let user = "postgres";
@@ -48,15 +47,13 @@ impl DataReadyConnectorTest for PostgresConnectorTest {
             name: "postgres_connector_test".to_string(),
             config,
         });
-        Self {
+        (
+            Self {
+                _cleanup: cleanup,
+                _temp_dir: temp_dir,
+            },
             connector,
-            _cleanup: cleanup,
-            _temp_dir: temp_dir,
-        }
-    }
-
-    fn connector(&self) -> &Self::Connector {
-        &self.connector
+        )
     }
 }
 
