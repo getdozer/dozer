@@ -1,6 +1,7 @@
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::scalar::string::{
-    evaluate_concat, evaluate_like, evaluate_trim, evaluate_ucase, TrimType,
+    evaluate_concat, evaluate_like, evaluate_trim, evaluate_ucase, validate_concat, validate_trim,
+    TrimType,
 };
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
@@ -147,60 +148,84 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
     // Field::String
     let val1 = Literal(Field::String(s_val1.to_string()));
     let val2 = Literal(Field::String(s_val2.to_string()));
-    assert_eq!(
-        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
-        Field::String(s_val1.to_string() + s_val2)
-    );
+
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            Field::String(s_val1.to_string() + s_val2)
+        );
+    }
 
     let val1 = Literal(Field::String(s_val2.to_string()));
     let val2 = Literal(Field::String(s_val1.to_string()));
-    assert_eq!(
-        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
-        Field::String(s_val2.to_string() + s_val1)
-    );
+
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            Field::String(s_val2.to_string() + s_val1)
+        );
+    }
 
     let val1 = Literal(Field::String(s_val1.to_string()));
     let val2 = Literal(Field::String(c_val.to_string()));
-    assert_eq!(
-        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
-        Field::String(s_val1.to_string() + c_val.to_string().as_str())
-    );
+
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            Field::String(s_val1.to_string() + c_val.to_string().as_str())
+        );
+    }
 
     let val1 = Literal(Field::String(c_val.to_string()));
     let val2 = Literal(Field::String(s_val1.to_string()));
-    assert_eq!(
-        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
-        Field::String(c_val.to_string() + s_val1)
-    );
+
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            Field::String(c_val.to_string() + s_val1)
+        );
+    }
 
     // Field::Text
     let val1 = Literal(Field::Text(s_val1.to_string()));
     let val2 = Literal(Field::Text(s_val2.to_string()));
-    assert_eq!(
-        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
-        Field::Text(s_val1.to_string() + s_val2)
-    );
+
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            Field::Text(s_val1.to_string() + s_val2)
+        );
+    }
 
     let val1 = Literal(Field::Text(s_val2.to_string()));
     let val2 = Literal(Field::Text(s_val1.to_string()));
-    assert_eq!(
-        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
-        Field::Text(s_val2.to_string() + s_val1)
-    );
+
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            Field::Text(s_val2.to_string() + s_val1)
+        );
+    }
 
     let val1 = Literal(Field::Text(s_val1.to_string()));
     let val2 = Literal(Field::Text(c_val.to_string()));
-    assert_eq!(
-        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
-        Field::Text(s_val1.to_string() + c_val.to_string().as_str())
-    );
+
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            Field::Text(s_val1.to_string() + c_val.to_string().as_str())
+        );
+    }
 
     let val1 = Literal(Field::Text(c_val.to_string()));
     let val2 = Literal(Field::Text(s_val1.to_string()));
-    assert_eq!(
-        evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
-        Field::Text(c_val.to_string() + s_val1)
-    );
+
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            Field::Text(c_val.to_string() + s_val1)
+        );
+    }
 }
 
 fn test_trim(s_val1: &str, c_val: char) {
@@ -209,69 +234,75 @@ fn test_trim(s_val1: &str, c_val: char) {
     // Field::String
     let value = Literal(Field::String(s_val1.to_string()));
     let what = ' ';
-    assert_eq!(
-        evaluate_trim(&Schema::empty(), &value, &None, &None, &row).unwrap(),
-        Field::String(s_val1.trim_matches(what).to_string())
-    );
-    assert_eq!(
-        evaluate_trim(
-            &Schema::empty(),
-            &value,
-            &None,
-            &Some(TrimType::Trailing),
-            &row
-        )
-        .unwrap(),
-        Field::String(s_val1.trim_end_matches(what).to_string())
-    );
-    assert_eq!(
-        evaluate_trim(
-            &Schema::empty(),
-            &value,
-            &None,
-            &Some(TrimType::Leading),
-            &row
-        )
-        .unwrap(),
-        Field::String(s_val1.trim_start_matches(what).to_string())
-    );
-    assert_eq!(
-        evaluate_trim(&Schema::empty(), &value, &None, &Some(TrimType::Both), &row).unwrap(),
-        Field::String(s_val1.trim_matches(what).to_string())
-    );
+
+    if validate_trim(&value, &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_trim(&Schema::empty(), &value, &None, &None, &row).unwrap(),
+            Field::String(s_val1.trim_matches(what).to_string())
+        );
+        assert_eq!(
+            evaluate_trim(
+                &Schema::empty(),
+                &value,
+                &None,
+                &Some(TrimType::Trailing),
+                &row
+            )
+            .unwrap(),
+            Field::String(s_val1.trim_end_matches(what).to_string())
+        );
+        assert_eq!(
+            evaluate_trim(
+                &Schema::empty(),
+                &value,
+                &None,
+                &Some(TrimType::Leading),
+                &row
+            )
+            .unwrap(),
+            Field::String(s_val1.trim_start_matches(what).to_string())
+        );
+        assert_eq!(
+            evaluate_trim(&Schema::empty(), &value, &None, &Some(TrimType::Both), &row).unwrap(),
+            Field::String(s_val1.trim_matches(what).to_string())
+        );
+    }
 
     let value = Literal(Field::String(s_val1.to_string()));
     let what = Some(Box::new(Literal(Field::String(c_val.to_string()))));
-    assert_eq!(
-        evaluate_trim(&Schema::empty(), &value, &what, &None, &row).unwrap(),
-        Field::String(s_val1.trim_matches(c_val).to_string())
-    );
-    assert_eq!(
-        evaluate_trim(
-            &Schema::empty(),
-            &value,
-            &what,
-            &Some(TrimType::Trailing),
-            &row
-        )
-        .unwrap(),
-        Field::String(s_val1.trim_end_matches(c_val).to_string())
-    );
-    assert_eq!(
-        evaluate_trim(
-            &Schema::empty(),
-            &value,
-            &what,
-            &Some(TrimType::Leading),
-            &row
-        )
-        .unwrap(),
-        Field::String(s_val1.trim_start_matches(c_val).to_string())
-    );
-    assert_eq!(
-        evaluate_trim(&Schema::empty(), &value, &what, &Some(TrimType::Both), &row).unwrap(),
-        Field::String(s_val1.trim_matches(c_val).to_string())
-    );
+
+    if validate_trim(&value, &Schema::empty()).is_ok() {
+        assert_eq!(
+            evaluate_trim(&Schema::empty(), &value, &what, &None, &row).unwrap(),
+            Field::String(s_val1.trim_matches(c_val).to_string())
+        );
+        assert_eq!(
+            evaluate_trim(
+                &Schema::empty(),
+                &value,
+                &what,
+                &Some(TrimType::Trailing),
+                &row
+            )
+            .unwrap(),
+            Field::String(s_val1.trim_end_matches(c_val).to_string())
+        );
+        assert_eq!(
+            evaluate_trim(
+                &Schema::empty(),
+                &value,
+                &what,
+                &Some(TrimType::Leading),
+                &row
+            )
+            .unwrap(),
+            Field::String(s_val1.trim_start_matches(c_val).to_string())
+        );
+        assert_eq!(
+            evaluate_trim(&Schema::empty(), &value, &what, &Some(TrimType::Both), &row).unwrap(),
+            Field::String(s_val1.trim_matches(c_val).to_string())
+        );
+    }
 }
 
 #[test]

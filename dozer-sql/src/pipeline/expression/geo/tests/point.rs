@@ -1,23 +1,26 @@
-use crate::pipeline::expression::geo::point::validate_point;
+use crate::pipeline::expression::geo::point::{evaluate_point, validate_point};
 use crate::pipeline::expression::geo::tests::geo_common::run_geo_fct;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{DozerPoint, Field, FieldDefinition, FieldType, Schema, SourceDefinition};
+use dozer_types::types::{
+    DozerPoint, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition,
+};
 
 use crate::pipeline::errors::PipelineError::{
-    InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,
+    InvalidArgument, InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,
 };
 use crate::pipeline::expression::execution::Expression;
-
-// use proptest::prelude::*;
-//
-// fn point_strat() -> impl Strategy<Value = DozerPoint> {
-//     (any<f64>::(), any<f64>::()).prop_map(|(x, y)| {
-//         DozerPoint::from((x, y))
-//     })
-// }
+use proptest::prelude::*;
 
 #[test]
-fn test_validate_point() {
+fn test_point() {
+    proptest!(
+        ProptestConfig::with_cases(1000), move |(x: i64, y: i64)| {
+            test_validate_point(x, y);
+            test_evaluate_point(x, y);
+    });
+}
+
+fn test_validate_point(x: i64, y: i64) {
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(
@@ -74,7 +77,7 @@ fn test_validate_point() {
     let result = validate_point(
         &[
             Expression::Column { index: 0 },
-            Expression::Literal(Field::Int(1)),
+            Expression::Literal(Field::Int(y)),
         ],
         &schema,
     );
@@ -93,7 +96,7 @@ fn test_validate_point() {
 
     let result = validate_point(
         &[
-            Expression::Literal(Field::Int(1)),
+            Expression::Literal(Field::Int(x)),
             Expression::Column { index: 0 },
         ],
         &schema,
@@ -111,8 +114,79 @@ fn test_validate_point() {
     ));
 }
 
+fn test_evaluate_point(x: i64, y: i64) {
+    let row = Record::new(None, vec![], None);
+
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                String::from("x"),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("y"),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .clone();
+    let _fn_type = String::from("x");
+
+    let result = evaluate_point(&schema, &[], &row);
+    assert!(result.is_err());
+    assert!(matches!(result, Err(InvalidArgument(_fn_type))));
+
+    let _fn_type = String::from("y");
+
+    let result = evaluate_point(&schema, &[Expression::Literal(Field::Int(x))], &row);
+    assert!(result.is_err());
+    assert!(matches!(result, Err(InvalidArgument(_fn_type))));
+
+    let result = evaluate_point(
+        &schema,
+        &[
+            Expression::Literal(Field::Int(x)),
+            Expression::Literal(Field::Int(y)),
+        ],
+        &row,
+    );
+
+    assert!(result.is_ok());
+
+    let result = evaluate_point(
+        &schema,
+        &[
+            Expression::Literal(Field::Int(x)),
+            Expression::Literal(Field::Null),
+        ],
+        &row,
+    );
+
+    assert!(result.is_ok());
+    assert!(matches!(result, Ok(Field::Null)));
+
+    let result = evaluate_point(
+        &schema,
+        &[
+            Expression::Literal(Field::Null),
+            Expression::Literal(Field::Int(y)),
+        ],
+        &row,
+    );
+
+    assert!(result.is_ok());
+    assert!(matches!(result, Ok(Field::Null)));
+}
+
 #[test]
-fn test_point() {
+fn test_point_logical() {
     let f = run_geo_fct(
         "SELECT POINT(x, y) FROM LOCATION",
         Schema::empty()

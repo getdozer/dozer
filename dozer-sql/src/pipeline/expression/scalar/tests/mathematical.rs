@@ -38,7 +38,7 @@ fn test_uint_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let _dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
         let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
@@ -218,7 +218,7 @@ fn test_int_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let _dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
         let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
@@ -398,7 +398,7 @@ fn test_float_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let _dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
         let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
@@ -502,7 +502,7 @@ fn test_float_math() {
         //// left: Float, right: Decimal
         let d_val1 = Decimal::from_f64(f_num1);
         let d_val2 = Decimal::from_f64(f_num2);
-        if (!d_val1.is_none() && !d_val2.is_none()) {
+        if !d_val1.is_none() && !d_val2.is_none() {
             assert_eq!(
                 // Float + Decimal = Decimal
                 evaluate_add(&Schema::empty(), &float1, &dec2, &row)
@@ -580,7 +580,7 @@ fn test_decimal_math() {
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
-        let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
+        let _float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
         let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
         let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
@@ -656,7 +656,7 @@ fn test_decimal_math() {
         // left: Decimal, right: Float
         let d_val1 = Decimal::from_f64(f_num1);
         let d_val2 = Decimal::from_f64(f_num2);
-        if (!d_val1.is_none() && !d_val2.is_none() && d_val1.unwrap() != Decimal::new(0, 0) && d_val2.unwrap() != Decimal::new(0, 0)) {
+        if !d_val1.is_none() && !d_val2.is_none() && d_val1.unwrap() != Decimal::new(0, 0) && d_val2.unwrap() != Decimal::new(0, 0) {
             assert_eq!(
                 // Decimal + Float = Decimal
                 evaluate_add(&Schema::empty(), &dec1, &float2, &row)
@@ -770,8 +770,8 @@ fn test_null_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(Decimal::from(u_num1))));
-        let dec2 = Box::new(Literal(Field::Decimal(Decimal::from(u_num2))));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
 
