@@ -4,6 +4,8 @@ use tempdir::TempDir;
 
 use crate::test_suite::DataReadyConnectorTest;
 
+use super::sql::create_table_with_all_supported_data_types;
+
 pub struct PostgresConnectorTest {
     connector: PostgresConnector,
     _cleanup: Cleanup,
@@ -34,6 +36,13 @@ impl DataReadyConnectorTest for PostgresConnectorTest {
             .user(user)
             .password(password)
             .dbname(dbname);
+
+        let mut client = postgres::Config::from(config.clone())
+            .connect(postgres::NoTls)
+            .unwrap();
+        client
+            .batch_execute(&create_table_with_all_supported_data_types("test_table"))
+            .unwrap();
 
         let connector = PostgresConnector::new(PostgresConfig {
             name: "postgres_connector_test".to_string(),

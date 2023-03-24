@@ -41,6 +41,7 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
 
     // Loop over messages until timeout.
     let mut last_identifier = None;
+    let mut num_operations = 0;
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
         // Check message identifier.
         if let Some(last_identifier) = last_identifier {
@@ -49,6 +50,7 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
         last_identifier = Some(message.identifier);
 
         if let IngestionMessageKind::OperationEvent(operation) = &message.kind {
+            num_operations += 1;
             // Check record schema consistency.
             match operation {
                 Operation::Insert { new } => {
@@ -63,11 +65,10 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
                 }
             }
         }
-        break;
     }
 
     // There should be at least one message.
-    assert!(last_identifier.is_some());
+    assert!(num_operations > 0);
 }
 
 pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
