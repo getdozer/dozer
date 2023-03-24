@@ -4,9 +4,9 @@ use dozer_types::{
     log::{error, info},
     models::app_config::Config,
 };
+use dozer_utils::Cleanup;
 
-use super::expectation::Expectation;
-use super::{cleanup::Cleanup, expectation::ErrorExpectation};
+use super::expectation::{ErrorExpectation, Expectation};
 
 mod client;
 

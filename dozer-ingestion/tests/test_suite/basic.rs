@@ -13,17 +13,17 @@ use dozer_types::{
 use super::{data, DataReadyConnectorTest, InsertOnlyConnectorTest};
 
 pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
-    let connector_test = T::new();
+    let (_connector_test, connector) = T::new();
 
     // List tables.
-    let tables = connector_test.connector().list_tables().unwrap();
-    connector_test.connector().validate_tables(&tables).unwrap();
+    let tables = connector.list_tables().unwrap();
+    connector.validate_tables(&tables).unwrap();
 
     // List columns.
-    let tables = connector_test.connector().list_columns(tables).unwrap();
+    let tables = connector.list_columns(tables).unwrap();
 
     // Get schemas.
-    let schemas = connector_test.connector().get_schemas(&tables).unwrap();
+    let schemas = connector.get_schemas(&tables).unwrap();
     let schemas = schemas
         .into_iter()
         .map(|schema| {
@@ -36,11 +36,12 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     // Run connector.
     let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
     std::thread::spawn(move || {
-        connector_test.connector().start(&ingestor, tables).unwrap();
+        connector.start(&ingestor, tables).unwrap();
     });
 
     // Loop over messages until timeout.
     let mut last_identifier = None;
+    let mut num_operations = 0;
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
         // Check message identifier.
         if let Some(last_identifier) = last_identifier {
@@ -49,6 +50,7 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
         last_identifier = Some(message.identifier);
 
         if let IngestionMessageKind::OperationEvent(operation) = &message.kind {
+            num_operations += 1;
             // Check record schema consistency.
             match operation {
                 Operation::Insert { new } => {
@@ -63,11 +65,10 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
                 }
             }
         }
-        break;
     }
 
     // There should be at least one message.
-    assert!(last_identifier.is_some());
+    assert!(num_operations > 0);
 }
 
 pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
@@ -81,7 +82,7 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
 
         // Create connector.
         let schema_name = None;
-        let Some((connector_test, actual_schema)) = T::new(
+        let Some((_connector_test, connector, actual_schema)) = T::new(
             schema_name.clone(),
             table_name.clone(),
             schema.clone(),
@@ -102,11 +103,10 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         }
 
         // Validate connection.
-        connector_test.connector().validate_connection().unwrap();
+        connector.validate_connection().unwrap();
 
         // Validate tables.
-        connector_test
-            .connector()
+        connector
             .validate_tables(&[TableIdentifier::new(
                 schema_name.clone(),
                 table_name.clone(),
@@ -114,8 +114,7 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             .unwrap();
 
         // List columns.
-        let tables = connector_test
-            .connector()
+        let tables = connector
             .list_columns(vec![TableIdentifier::new(schema_name, table_name.clone())])
             .unwrap();
         assert_eq!(tables.len(), 1);
@@ -130,15 +129,14 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         );
 
         // Validate schemas.
-        let schemas = connector_test.connector().get_schemas(&tables).unwrap();
+        let schemas = connector.get_schemas(&tables).unwrap();
         assert_eq!(schemas.len(), 1);
         assert_eq!(schemas[0].as_ref().unwrap().schema, actual_schema);
 
         // Run the connector and check data is ingested.
         let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
         std::thread::spawn(move || {
-            connector_test
-                .connector()
+            connector
                 .start(&ingestor, tables)
                 .expect("Failed to start connector.");
         });

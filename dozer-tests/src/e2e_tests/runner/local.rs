@@ -1,10 +1,14 @@
 use std::{path::Path, process::Command};
 
+use dozer_utils::{
+    process::{run_command, run_docker_compose},
+    Cleanup,
+};
+
 use crate::e2e_tests::{Case, CaseKind};
 
 use super::{
-    super::{checker::check_error_expectation, cleanup::Cleanup, run_test_client},
-    run_command, run_docker_compose,
+    super::{checker::check_error_expectation, run_test_client},
     running_env::LocalDockerCompose,
     spawn_command,
 };

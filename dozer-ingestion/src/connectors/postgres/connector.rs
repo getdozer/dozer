@@ -5,7 +5,7 @@ use crate::connectors::{
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use dozer_types::tracing::{error, info};
+use dozer_types::tracing::info;
 use postgres::Client;
 use postgres_types::PgLsn;
 
@@ -213,17 +213,12 @@ impl PostgresConnector {
 
         client
             .simple_query(format!("DROP PUBLICATION IF EXISTS {publication_name}").as_str())
-            .map_err(|e| {
-                error!("failed to drop publication {}", e.to_string());
-                DropPublicationError
-            })?;
+            .map_err(DropPublicationError)?;
 
         client
             .simple_query(format!("CREATE PUBLICATION {publication_name} FOR {table_str}").as_str())
-            .map_err(|e| {
-                error!("failed to create publication {}", e.to_string());
-                CreatePublicationError
-            })?;
+            .map_err(CreatePublicationError)?;
+
         Ok(())
     }
 }

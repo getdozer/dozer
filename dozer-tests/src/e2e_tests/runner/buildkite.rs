@@ -1,8 +1,10 @@
 use std::process::Command;
 
-use crate::e2e_tests::{checker::check_error_expectation, cleanup::Cleanup, Case, CaseKind};
+use dozer_utils::{process::run_command, Cleanup};
 
-use super::{run_command, running_env::RunningEnv};
+use crate::e2e_tests::{checker::check_error_expectation, Case, CaseKind};
+
+use super::running_env::RunningEnv;
 
 pub struct Runner;
 
