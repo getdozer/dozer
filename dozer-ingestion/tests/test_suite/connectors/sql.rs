@@ -1,6 +1,6 @@
 use dozer_types::types::{Field, FieldDefinition, FieldType};
 
-use crate::test_suite::FieldsAndPk;
+use crate::test_suite::{records::Operation, FieldsAndPk};
 
 pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
     format!(
@@ -194,6 +194,27 @@ pub fn create_table(schema_name: Option<&str>, table_name: &str, schema: &Fields
     )
 }
 
+fn field_to_sql(field: &Field) -> String {
+    match field {
+        Field::UInt(i) => i.to_string(),
+        Field::Int(i) => i.to_string(),
+        Field::Float(f) => f.to_string(),
+        Field::Boolean(b) => b.to_string(),
+        Field::String(s) => s.to_string(),
+        Field::Text(s) => s.to_string(),
+        Field::Binary(b) => format!("'\\x{}'", hex::encode(b)),
+        Field::Decimal(d) => d.to_string(),
+        Field::Timestamp(t) => format!("'{}'", t),
+        Field::Date(d) => format!("'{}'", d),
+        Field::Bson(b) => {
+            let json = bson::from_slice::<dozer_types::serde_json::Value>(b).unwrap();
+            format!("'{}'::json", json)
+        }
+        Field::Point(p) => format!("'({},{})'", p.0.x(), p.0.y()),
+        Field::Null => "NULL".to_string(),
+    }
+}
+
 pub fn insert_record(
     schema_name: Option<&str>,
     table_name: &str,
@@ -205,26 +226,7 @@ pub fn insert_record(
         if field_type_to_sql(field.typ).is_none() {
             continue;
         }
-
-        let value_sql = match value {
-            Field::UInt(i) => i.to_string(),
-            Field::Int(i) => i.to_string(),
-            Field::Float(f) => f.to_string(),
-            Field::Boolean(b) => b.to_string(),
-            Field::String(s) => s.to_string(),
-            Field::Text(s) => s.to_string(),
-            Field::Binary(b) => format!("'\\x{}'", hex::encode(b)),
-            Field::Decimal(d) => d.to_string(),
-            Field::Timestamp(t) => format!("'{}'", t),
-            Field::Date(d) => format!("'{}'", d),
-            Field::Bson(b) => {
-                let json = bson::from_slice::<dozer_types::serde_json::Value>(b).unwrap();
-                format!("'{}'::json", json)
-            }
-            Field::Point(p) => format!("'({},{})'", p.0.x(), p.0.y()),
-            Field::Null => "NULL".to_string(),
-        };
-        values_sql.push(value_sql);
+        values_sql.push(field_to_sql(value));
     }
 
     format!(
@@ -234,4 +236,93 @@ pub fn insert_record(
         table_name = full_table_name(schema_name, table_name),
         values = values_sql.join(", "),
     )
+}
+
+fn update_record(
+    schema_name: Option<&str>,
+    table_name: &str,
+    old: &[Field],
+    new: &[Field],
+    (fields, primary_key): &FieldsAndPk,
+) -> String {
+    let mut set = vec![];
+    let mut where_ = vec![];
+    for (index, ((old_field, new_field), field_definition)) in
+        old.iter().zip(new).zip(fields).enumerate()
+    {
+        if field_type_to_sql(field_definition.typ).is_none() {
+            continue;
+        }
+
+        let is_primary_key = primary_key.iter().any(|i| *i == index);
+
+        if is_primary_key {
+            assert_eq!(old_field, new_field);
+            where_.push(format!(
+                "{} = {}",
+                field_definition.name,
+                field_to_sql(old_field)
+            ));
+        } else {
+            set.push(format!(
+                "{} = {}",
+                field_definition.name,
+                field_to_sql(new_field)
+            ));
+        }
+    }
+
+    format!(
+        r#"
+        UPDATE {table_name} SET {set} WHERE {where};
+        "#,
+        table_name = full_table_name(schema_name, table_name),
+        set = set.join(", "),
+        where = where_.join(" AND "),
+    )
+}
+
+fn delete_record(
+    schema_name: Option<&str>,
+    table_name: &str,
+    record: &[Field],
+    (fields, primary_key): &FieldsAndPk,
+) -> String {
+    let mut where_ = vec![];
+    for (index, (field, field_definition)) in record.iter().zip(fields).enumerate() {
+        if field_type_to_sql(field_definition.typ).is_none() {
+            continue;
+        }
+
+        let is_primary_key = primary_key.iter().any(|i| *i == index);
+
+        if is_primary_key {
+            where_.push(format!(
+                "{} = {}",
+                field_definition.name,
+                field_to_sql(field)
+            ));
+        }
+    }
+
+    format!(
+        r#"
+        DELETE FROM {table_name} WHERE {where};
+        "#,
+        table_name = full_table_name(schema_name, table_name),
+        where = where_.join(" AND "),
+    )
+}
+
+pub fn operation_to_sql(
+    schema_name: Option<&str>,
+    table_name: &str,
+    operation: &Operation,
+    schema: &FieldsAndPk,
+) -> String {
+    match operation {
+        Operation::Insert { new } => insert_record(schema_name, table_name, new, &schema.0),
+        Operation::Update { new, old } => update_record(schema_name, table_name, old, new, schema),
+        Operation::Delete { old } => delete_record(schema_name, table_name, old, schema),
+    }
 }

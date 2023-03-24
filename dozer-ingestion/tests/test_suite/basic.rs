@@ -10,7 +10,11 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema, SchemaIdentifier},
 };
 
-use super::{data, DataReadyConnectorTest, InsertOnlyConnectorTest};
+use super::{
+    data,
+    records::{Operation as RecordsOperation, Records},
+    CudConnectorTest, DataReadyConnectorTest, InsertOnlyConnectorTest,
+};
 
 pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     let (_connector_test, connector) = T::new();
@@ -183,6 +187,84 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             "Connector sent less records than expected."
         );
     }
+}
+
+pub fn run_test_suite_basic_cud<T: CudConnectorTest>() {
+    // Load test data.
+    let ((fields, primary_index), operations) = data::cud_operations();
+
+    // Create connector.
+    let schema_name = None;
+    let table_name = "test_table".to_string();
+    let (connector_test, connector, (_, actual_primary_index)) = T::new(
+        schema_name.clone(),
+        table_name.clone(),
+        (fields.clone(), primary_index.clone()),
+        vec![],
+    )
+    .unwrap();
+
+    // Get schema.
+    let tables = connector
+        .list_columns(vec![TableIdentifier::new(schema_name, table_name.clone())])
+        .unwrap();
+    let mut schemas = connector.get_schemas(&tables).unwrap();
+    let actual_schema = schemas.remove(0).unwrap().schema;
+
+    // Feed data to connector.
+    connector_test.start_cud(operations.clone());
+
+    // Run the connector.
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
+    std::thread::spawn(move || {
+        if let Err(e) = connector.start(&ingestor, vec![]) {
+            error!("Connector `start` returned error: {e}")
+        }
+    });
+
+    // Check data schema consistency.
+    let mut last_identifier = None;
+    let mut records = Records::new(actual_primary_index.clone());
+    while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
+        // Identifier must be increasing.
+        if let Some(identifier) = last_identifier {
+            assert!(message.identifier > identifier);
+            last_identifier = Some(message.identifier);
+        }
+
+        // Filter out non-operation events.
+        let IngestionMessageKind::OperationEvent(operation) = message.kind else {
+            continue;
+        };
+
+        // Record must match schema.
+        match operation {
+            Operation::Insert { new } => {
+                assert_record_matches_schema(&new, &actual_schema, false);
+                records.append_operation(RecordsOperation::Insert { new: new.values });
+            }
+            Operation::Update { old, new } => {
+                assert_record_matches_schema(&old, &actual_schema, false);
+                assert_record_matches_schema(&new, &actual_schema, false);
+                records.append_operation(RecordsOperation::Update {
+                    old: old.values,
+                    new: new.values,
+                });
+            }
+            Operation::Delete { old } => {
+                assert_record_matches_schema(&old, &actual_schema, false);
+                records.append_operation(RecordsOperation::Delete { old: old.values });
+            }
+        }
+    }
+
+    // We can't check operation exact match because the connector may have batched some of them,
+    // so we check that the final state is the same.
+    let mut expected_records = Records::new(actual_primary_index);
+    for operation in operations {
+        expected_records.append_operation(operation);
+    }
+    assert_eq!(records, expected_records);
 }
 
 fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk: bool) {

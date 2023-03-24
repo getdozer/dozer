@@ -1,4 +1,6 @@
-use test_suite::{run_test_suite_basic_data_ready, run_test_suite_basic_insert_only};
+use test_suite::{
+    run_test_suite_basic_cud, run_test_suite_basic_data_ready, run_test_suite_basic_insert_only,
+};
 
 #[test]
 fn test_local_storage() {
@@ -14,6 +16,7 @@ fn test_postgres() {
 
     run_test_suite_basic_data_ready::<test_suite::PostgresConnectorTest>();
     run_test_suite_basic_insert_only::<test_suite::PostgresConnectorTest>();
+    run_test_suite_basic_cud::<test_suite::PostgresConnectorTest>();
 }
 
 mod test_suite;

@@ -3,14 +3,21 @@ use dozer_types::types::Field;
 use dozer_utils::{process::run_docker_compose, Cleanup};
 use tempdir::TempDir;
 
-use crate::test_suite::{DataReadyConnectorTest, FieldsAndPk, InsertOnlyConnectorTest};
+use crate::test_suite::{
+    records::Operation, CudConnectorTest, DataReadyConnectorTest, FieldsAndPk,
+    InsertOnlyConnectorTest,
+};
 
 use super::sql::{
     create_schema, create_table, create_table_with_all_supported_data_types, insert_record,
-    schema_to_sql,
+    operation_to_sql, schema_to_sql,
 };
 
 pub struct PostgresConnectorTest {
+    config: postgres::Config,
+    schema_name: Option<String>,
+    table_name: String,
+    schema: FieldsAndPk,
     _cleanup: Cleanup,
     _temp_dir: TempDir,
 }
@@ -37,7 +44,7 @@ impl InsertOnlyConnectorTest for PostgresConnectorTest {
         schema: FieldsAndPk,
         records: Vec<Vec<Field>>,
     ) -> Option<(Self, Self::Connector, FieldsAndPk)> {
-        let (mut client, connector_test, connector) = create_postgres_server();
+        let (mut client, mut connector_test, connector) = create_postgres_server();
 
         let (actual_schema, _) = schema_to_sql(schema.clone());
 
@@ -59,7 +66,32 @@ impl InsertOnlyConnectorTest for PostgresConnectorTest {
                 .expect("Failed to insert record");
         }
 
+        connector_test.schema_name = schema_name;
+        connector_test.table_name = table_name;
+        connector_test.schema = schema;
+
         Some((connector_test, connector, actual_schema))
+    }
+}
+
+impl CudConnectorTest for PostgresConnectorTest {
+    fn start_cud(&self, operations: Vec<Operation>) {
+        let mut client = self.config.connect(postgres::NoTls).unwrap();
+        let schema_name = self.schema_name.clone();
+        let table_name = self.table_name.clone();
+        let schema = self.schema.clone();
+        std::thread::spawn(move || {
+            for operation in operations {
+                client
+                    .batch_execute(&operation_to_sql(
+                        schema_name.as_deref(),
+                        &table_name,
+                        &operation,
+                        &schema,
+                    ))
+                    .unwrap();
+            }
+        });
     }
 }
 
@@ -84,18 +116,22 @@ fn create_postgres_server() -> (postgres::Client, PostgresConnectorTest, Postgre
         .password(password)
         .dbname(dbname);
 
-    let client = postgres::Config::from(config.clone())
-        .connect(postgres::NoTls)
-        .unwrap();
-
     let connector = PostgresConnector::new(PostgresConfig {
         name: "postgres_connector_test".to_string(),
-        config,
+        config: config.clone(),
     });
+
+    let config = postgres::Config::from(config);
+
+    let client = config.connect(postgres::NoTls).unwrap();
 
     (
         client,
         PostgresConnectorTest {
+            config,
+            schema_name: Default::default(),
+            table_name: Default::default(),
+            schema: Default::default(),
             _cleanup: cleanup,
             _temp_dir: temp_dir,
         },
