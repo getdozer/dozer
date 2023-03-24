@@ -35,10 +35,7 @@ macro_rules! define_comparison {
                     // left: Int, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: Int, right: UInt
-                    Field::UInt(right_v) => Ok(Field::Boolean($function(
-                        left_v,
-                        right_v as i64,
-                    ))),
+                    Field::UInt(right_v) => Ok(Field::Boolean($function(left_v, right_v as i64))),
                     // left: Int, right: Float
                     Field::Float(right_v) => {
                         let left_v_f = OrderedFloat::<f64>::from_i64(left_v).unwrap();
@@ -63,10 +60,7 @@ macro_rules! define_comparison {
                 },
                 Field::UInt(left_v) => match right_p {
                     // left: UInt, right: Int
-                    Field::Int(right_v) => Ok(Field::Boolean($function(
-                        left_v as i64,
-                        right_v,
-                    ))),
+                    Field::Int(right_v) => Ok(Field::Boolean($function(left_v as i64, right_v))),
                     // left: UInt, right: UInt
                     Field::UInt(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: UInt, right: Float
@@ -76,11 +70,11 @@ macro_rules! define_comparison {
                     }
                     // left: UInt, right: Decimal
                     Field::Decimal(right_v) => {
-                        let left_v_d = Decimal::from_f64(left_v as f64)
-                        .ok_or(PipelineError::UnableToCast(
-                            format!("{}", left_v),
-                            "Decimal".to_string(),
-                        ))?;
+                        let left_v_d =
+                            Decimal::from_f64(left_v as f64).ok_or(PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Decimal".to_string(),
+                            ))?;
                         Ok(Field::Boolean($function(left_v_d, right_v)))
                     }
                     // left: UInt, right: Null
@@ -106,11 +100,11 @@ macro_rules! define_comparison {
                     }
                     // left: Float, right: Decimal
                     Field::Decimal(right_v) => {
-                        let left_v_d = Decimal::from_f64(*left_v)
-                        .ok_or(PipelineError::UnableToCast(
-                            format!("{}", left_v),
-                            "Decimal".to_string(),
-                        ))?;
+                        let left_v_d =
+                            Decimal::from_f64(*left_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Decimal".to_string(),
+                            ))?;
                         Ok(Field::Boolean($function(left_v_d, right_v)))
                     }
                     // left: Float, right: Null
@@ -124,11 +118,11 @@ macro_rules! define_comparison {
                 Field::Decimal(left_v) => match right_p {
                     // left: Decimal, right: Float
                     Field::Float(right_v) => {
-                        let right_v_d = Decimal::from_f64(*right_v)
-                        .ok_or(PipelineError::UnableToCast(
-                            format!("{}", right_v),
-                            "Decimal".to_string(),
-                        ))?;
+                        let right_v_d =
+                            Decimal::from_f64(*right_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
+                            ))?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
                     // left: Decimal, right: Int
@@ -142,11 +136,11 @@ macro_rules! define_comparison {
                     }
                     // left: Decimal, right: UInt
                     Field::UInt(right_v) => {
-                        let right_v_d = Decimal::from_u64(right_v)
-                        .ok_or(PipelineError::UnableToCast(
-                            format!("{}", right_v),
-                            "Decimal".to_string(),
-                        ))?;
+                        let right_v_d =
+                            Decimal::from_u64(right_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
+                            ))?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
                     // left: Decimal, right: Decimal

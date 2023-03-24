@@ -21,13 +21,8 @@ impl Arbitrary for ArbitraryDecimal {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (
-            i64::MIN..i64::MAX,
-            u32::MIN..29u32,
-        )
-            .prop_map(|(num, scale)| {
-                ArbitraryDecimal(Decimal::new(num, scale))
-            })
+        (i64::MIN..i64::MAX, u32::MIN..29u32)
+            .prop_map(|(num, scale)| ArbitraryDecimal(Decimal::new(num, scale)))
             .boxed()
     }
 }

@@ -1,5 +1,8 @@
+use crate::pipeline::expression::comparison::{
+    evaluate_eq, evaluate_gt, evaluate_gte, evaluate_lt, evaluate_lte, evaluate_ne,
+};
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
-use crate::pipeline::expression::comparison::{evaluate_eq, evaluate_ne, evaluate_gt, evaluate_lt, evaluate_gte, evaluate_lte};
 use dozer_types::types::Record;
 use dozer_types::{
     ordered_float::OrderedFloat,
@@ -8,7 +11,6 @@ use dozer_types::{
 };
 use num_traits::FromPrimitive;
 use proptest::prelude::*;
-use crate::pipeline::expression::execution::Expression;
 
 #[derive(Debug)]
 struct ArbitraryDecimal(Decimal);
@@ -18,13 +20,8 @@ impl Arbitrary for ArbitraryDecimal {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (
-            i64::MIN..i64::MAX,
-            u32::MIN..29u32,
-        )
-            .prop_map(|(num, scale)| {
-                ArbitraryDecimal(Decimal::new(num, scale))
-            })
+        (i64::MIN..i64::MAX, u32::MIN..29u32)
+            .prop_map(|(num, scale)| ArbitraryDecimal(Decimal::new(num, scale)))
             .boxed()
     }
 }
@@ -504,7 +501,6 @@ fn test_lt(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result:
         }
     }
 }
-
 
 fn test_gte(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result: Option<Field>) {
     match result {
