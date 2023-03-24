@@ -1,0 +1,8 @@
+container_name: yellow_taxi
+image: curlimages/curl
+user: root
+working_dir: /root
+command: sh dozer-tests/src/e2e_tests/connections/yellow_taxi/init.sh
+volumes:
+  # All these `..` leads to repository root, which is the `dozer` working directory.
+  - ../../../../../..:/root
