@@ -9,7 +9,7 @@
                         "fields": [
                             {
                                 "name": "location",
-                                "typ": "String",
+                                "typ": "Int",
                                 "nullable": true,
                                 "source": "Dynamic"
                             },
@@ -46,7 +46,7 @@
                         "fields": [
                             {
                                 "name": "location",
-                                "typ": "String",
+                                "typ": "Int",
                                 "nullable": true,
                                 "source": "Dynamic"
                             },
