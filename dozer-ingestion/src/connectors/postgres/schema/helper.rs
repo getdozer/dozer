@@ -14,6 +14,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::connectors::postgres::schema::sorter::sort_schemas;
 use tokio_postgres::Row;
+use dozer_types::log::info;
 
 use PostgresSchemaError::TableTypeNotFound;
 
@@ -272,12 +273,13 @@ impl SchemaHelper {
             primary_index,
         };
 
-        let cdc_type = match table.replication_type.as_str() {
-            "d" => Ok(CdcType::OnlyPK),
-            "i" => Ok(CdcType::OnlyPK),
-            "n" => Ok(CdcType::Nothing),
-            "f" => Ok(CdcType::FullChanges),
-            typ => Err(PostgresSchemaError::UnsupportedReplicationType(
+        let cdc_type = match (table.replication_type.as_str(), schema.primary_index.is_empty()) {
+            ("d", false) => Ok(CdcType::OnlyPK),
+            ("d", true) => Ok(CdcType::Nothing),
+            ("i", _) => Ok(CdcType::OnlyPK),
+            ("n", _) => Ok(CdcType::Nothing),
+            ("f", _) => Ok(CdcType::FullChanges),
+            (typ, _) => Err(PostgresSchemaError::UnsupportedReplicationType(
                 typ.to_string(),
             )),
         }?;
@@ -292,7 +294,7 @@ impl SchemaHelper {
         table_name: &str,
         schema: &SourceSchema,
     ) -> Result<(), PostgresSchemaError> {
-        if schema.schema.primary_index.is_empty() {
+        if schema.cdc_type == CdcType::OnlyPK && schema.schema.primary_index.is_empty() {
             Err(PostgresSchemaError::PrimaryKeyIsMissingInSchema(
                 table_name.to_string(),
             ))
