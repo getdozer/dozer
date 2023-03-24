@@ -15,19 +15,19 @@
                             },
                             {
                                 "name": "pickup_time",
-                                "typ": "String",
+                                "typ": "Timestamp",
                                 "nullable": true,
                                 "source": "Dynamic"
                             },
                             {
                                 "name": "start",
-                                "typ": "String",
+                                "typ": "Timestamp",
                                 "nullable": false,
                                 "source": "Dynamic"
                             },
                             {
                                 "name": "end",
-                                "typ": "String",
+                                "typ": "Timestamp",
                                 "nullable": false,
                                 "source": "Dynamic"
                             }
@@ -52,19 +52,19 @@
                             },
                             {
                                 "name": "pickup_time",
-                                "typ": "String",
+                                "typ": "Timestamp",
                                 "nullable": true,
                                 "source": "Dynamic"
                             },
                             {
                                 "name": "start",
-                                "typ": "String",
+                                "typ": "Timestamp",
                                 "nullable": true,
                                 "source": "Dynamic"
                             },
                             {
                                 "name": "end",
-                                "typ": "String",
+                                "typ": "Timestamp",
                                 "nullable": true,
                                 "source": "Dynamic"
                             }
