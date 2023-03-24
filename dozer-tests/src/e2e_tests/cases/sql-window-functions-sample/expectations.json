@@ -36,5 +36,42 @@
                 }
             ]
         }
+    },
+    {
+        "Endpoint": {
+            "endpoint": "hop",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "location",
+                                "typ": "String",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "pickup_time",
+                                "typ": "String",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "start",
+                                "typ": "String",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "end",
+                                "typ": "String",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
     }
 ]
