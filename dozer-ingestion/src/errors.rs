@@ -134,11 +134,11 @@ pub enum PostgresConnectorError {
     #[error("Failed to create a replication slot : {0}")]
     CreateSlotError(String, #[source] Error),
 
-    #[error("Failed to create publication")]
-    CreatePublicationError,
+    #[error("Failed to create publication: {0}")]
+    CreatePublicationError(#[source] Error),
 
-    #[error("Failed to drop publication")]
-    DropPublicationError,
+    #[error("Failed to drop publication: {0}")]
+    DropPublicationError(#[source] Error),
 
     #[error("Failed to begin txn for replication")]
     BeginReplication,

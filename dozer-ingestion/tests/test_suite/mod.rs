@@ -4,9 +4,7 @@ use dozer_types::types::{Operation, Record, Schema};
 pub trait DataReadyConnectorTest: Send + Sized + 'static {
     type Connector: Connector;
 
-    fn new() -> Self;
-
-    fn connector(&self) -> &Self::Connector;
+    fn new() -> (Self, Self::Connector);
 }
 
 pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
@@ -25,9 +23,7 @@ pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
         table_name: String,
         schema: Schema,
         records: Vec<Record>,
-    ) -> Option<(Self, Schema)>;
-
-    fn connector(&self) -> &Self::Connector;
+    ) -> Option<(Self, Self::Connector, Schema)>;
 }
 
 pub trait CrudConnectorTest: InsertOnlyConnectorTest {
@@ -39,4 +35,4 @@ mod connectors;
 mod data;
 
 pub use basic::{run_test_suite_basic_data_ready, run_test_suite_basic_insert_only};
-pub use connectors::LocalStorageObjectStoreConnectorTest;
+pub use connectors::{LocalStorageObjectStoreConnectorTest, PostgresConnectorTest};

@@ -14,23 +14,20 @@ use super::super::arrow::{
 
 pub struct LocalStorageObjectStoreConnectorTest {
     _temp_dir: TempDir,
-    connector: ObjectStoreConnector<LocalStorage>,
 }
 
 impl DataReadyConnectorTest for LocalStorageObjectStoreConnectorTest {
     type Connector = ObjectStoreConnector<LocalStorage>;
 
-    fn new() -> Self {
+    fn new() -> (Self, Self::Connector) {
         let record_batch = record_batch_with_all_supported_data_types();
         let (temp_dir, connector) = create_connector("sample".to_string(), &record_batch);
-        Self {
-            _temp_dir: temp_dir,
+        (
+            Self {
+                _temp_dir: temp_dir,
+            },
             connector,
-        }
-    }
-
-    fn connector(&self) -> &Self::Connector {
-        &self.connector
+        )
     }
 }
 
@@ -42,7 +39,7 @@ impl InsertOnlyConnectorTest for LocalStorageObjectStoreConnectorTest {
         table_name: String,
         schema: Schema,
         records: Vec<Record>,
-    ) -> Option<(Self, Schema)> {
+    ) -> Option<(Self, Self::Connector, Schema)> {
         if schema_name.is_some() {
             return None;
         }
@@ -59,14 +56,10 @@ impl InsertOnlyConnectorTest for LocalStorageObjectStoreConnectorTest {
         Some((
             Self {
                 _temp_dir: temp_dir,
-                connector,
             },
+            connector,
             schema,
         ))
-    }
-
-    fn connector(&self) -> &Self::Connector {
-        &self.connector
     }
 }
 
