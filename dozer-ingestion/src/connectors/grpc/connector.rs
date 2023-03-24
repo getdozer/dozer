@@ -161,7 +161,6 @@ where
                 .iter()
                 .any(|(name, _)| name == &table.name && table.schema.is_none())
             {
-                dbg!(&table);
                 return Err(ConnectorError::TableNotFound(table_name(
                     table.schema.as_deref(),
                     &table.name,
