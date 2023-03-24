@@ -20,6 +20,7 @@ impl Runner {
                 run_command(
                     "docker",
                     &["compose", "-f", docker_compose_path, "pull", "dozer"],
+                    None,
                 );
                 let _cleanup = Cleanup::DockerCompose(docker_compose_path.to_string());
                 run_command(
@@ -29,8 +30,13 @@ impl Runner {
                         "-f",
                         docker_compose_path,
                         "run",
+                        "--build",
                         &dozer_tests_service_name,
                     ],
+                    Some((
+                        "docker",
+                        &["compose", "-f", docker_compose_path, "logs", "--no-color"],
+                    )),
                 );
             }
             RunningEnv::WithErrorExpectation {
@@ -50,6 +56,7 @@ impl Runner {
                 run_command(
                     "docker",
                     &["compose", "-f", docker_compose_path, "pull", "dozer"],
+                    None,
                 );
                 check_error_expectation(
                     || {
