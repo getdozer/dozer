@@ -1,11 +1,82 @@
+use crate::arg_point;
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{
     InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,
 };
 use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::expression::geo::distance::validate_distance;
+use crate::pipeline::expression::execution::Expression::Literal;
+use crate::pipeline::expression::geo::common::GeoFunctionType;
+use crate::pipeline::expression::geo::distance::{evaluate_distance, validate_distance, Algorithm};
 use crate::pipeline::expression::geo::tests::geo_common::run_geo_fct;
+use dozer_types::geo::{GeodesicDistance, HaversineDistance};
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{DozerPoint, Field, FieldDefinition, FieldType, Schema, SourceDefinition};
+use dozer_types::types::{
+    DozerPoint, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition,
+};
+use proptest::prelude::*;
+
+#[test]
+fn test_geo() {
+    proptest!(ProptestConfig::with_cases(1000), move |(x1: f64, x2: f64, y1: f64, y2: f64)| {
+        let row = Record::new(None, vec![], None);
+        let from = Field::Point(DozerPoint::from((x1, y1)));
+        let to = Field::Point(DozerPoint::from((x2, y2)));
+        let null = Field::Null;
+
+        test_distance(&from, &to, None, &row, None);
+        test_distance(&from, &null, None, &row, Some(Ok(Field::Null)));
+        test_distance(&null, &to, None, &row, Some(Ok(Field::Null)));
+
+        test_distance(&from, &to, Some(Algorithm::Geodesic), &row, None);
+        test_distance(&from, &null, Some(Algorithm::Geodesic), &row, Some(Ok(Field::Null)));
+        test_distance(&null, &to, Some(Algorithm::Geodesic), &row, Some(Ok(Field::Null)));
+
+        test_distance(&from, &to, Some(Algorithm::Haversine), &row, None);
+        test_distance(&from, &null, Some(Algorithm::Haversine), &row, Some(Ok(Field::Null)));
+        test_distance(&null, &to, Some(Algorithm::Haversine), &row, Some(Ok(Field::Null)));
+
+        // test_distance(&from, &to, Some(Algorithm::Vincenty), &row, None);
+        // test_distance(&from, &null, Some(Algorithm::Vincenty), &row, Some(Ok(Field::Null)));
+        // test_distance(&null, &to, Some(Algorithm::Vincenty), &row, Some(Ok(Field::Null)));
+    });
+}
+
+fn test_distance(
+    from: &Field,
+    to: &Field,
+    typ: Option<Algorithm>,
+    row: &Record,
+    result: Option<Result<Field, PipelineError>>,
+) {
+    let args = &vec![Literal(from.clone()), Literal(to.clone())];
+    if validate_distance(args, &Schema::empty()).is_ok() {
+        match result {
+            None => {
+                let from_f = from.to_owned();
+                let to_f = to.to_owned();
+                let f = arg_point!(from_f, GeoFunctionType::Distance, 0).unwrap();
+                let t = arg_point!(to_f, GeoFunctionType::Distance, 0).unwrap();
+                let _dist = match typ {
+                    None => f.geodesic_distance(t),
+                    Some(Algorithm::Geodesic) => f.geodesic_distance(t),
+                    Some(Algorithm::Haversine) => f.0.haversine_distance(&t.0),
+                    Some(Algorithm::Vincenty) => OrderedFloat(0.0),
+                    // Some(Algorithm::Vincenty) => f.0.vincenty_distance(&t.0).unwrap(),
+                };
+                assert!(matches!(
+                    evaluate_distance(&Schema::empty(), args, row),
+                    Ok(Field::Float(_dist)),
+                ))
+            }
+            Some(_val) => {
+                assert!(matches!(
+                    evaluate_distance(&Schema::empty(), args, row),
+                    _val,
+                ))
+            }
+        }
+    }
+}
 
 #[test]
 fn test_validate_distance() {
@@ -97,7 +168,7 @@ fn test_validate_distance() {
 }
 
 #[test]
-fn test_distance() {
+fn test_distance_logical() {
     let tests = vec![
         ("", 1113.0264976969),
         ("GEODESIC", 1113.0264976969),
