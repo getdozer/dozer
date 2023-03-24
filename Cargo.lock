@@ -2180,6 +2180,7 @@ dependencies = [
  "deltalake",
  "dozer-tracing",
  "dozer-types",
+ "dozer-utils",
  "env_logger",
  "futures",
  "hex-literal",
@@ -2287,6 +2288,7 @@ dependencies = [
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
+ "dozer-utils",
  "env_logger",
  "futures",
  "mongodb",
@@ -2341,6 +2343,13 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tracing",
+]
+
+[[package]]
+name = "dozer-utils"
+version = "0.1.0"
+dependencies = [
+ "dozer-types",
 ]
 
 [[package]]

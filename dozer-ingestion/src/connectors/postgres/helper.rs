@@ -91,7 +91,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
         Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
         Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR => Ok(FieldType::String),
         Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
-        Type::BIT | Type::BYTEA => Ok(FieldType::Binary),
+        Type::BYTEA => Ok(FieldType::Binary),
         Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
         Type::NUMERIC => Ok(FieldType::Decimal),
         Type::JSONB => Ok(FieldType::Bson),
