@@ -2,8 +2,6 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
     format!(
         r#"
         CREATE TABLE {table_name} (
-            -- TODO: remove this and types in INSERT when table without primary key is supported.
-            id SERIAL PRIMARY KEY,
             boolean BOOLEAN NOT NULL,
             boolean_null BOOLEAN, 
             int2 INT2 NOT NULL,
@@ -39,42 +37,7 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             point POINT NOT NULL,
             point_null POINT
         );
-        INSERT INTO {table_name} (
-            boolean,
-            boolean_null,
-            int2,
-            int2_null,
-            int4,
-            int4_null,
-            int8,
-            int8_null,
-            char,
-            char_null,
-            text,
-            text_null,
-            varchar,
-            varchar_null,
-            bpchar,
-            bpchar_null,
-            float4,
-            float4_null,
-            float8,
-            float8_null,
-            bytea,
-            bytea_null,
-            timestamp,
-            timestamp_null,
-            timestamptz,
-            timestamptz_null,
-            numeric,
-            numeric_null,
-            jsonb,
-            jsonb_null,
-            date,
-            date_null,
-            point,
-            point_null
-        ) VALUES (
+        INSERT INTO {table_name} VALUES (
             false,
             false,
             0,
@@ -110,42 +73,7 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             '(0,0)',
             '(0,0)'
         );
-        INSERT INTO {table_name} (
-            boolean,
-            boolean_null,
-            int2,
-            int2_null,
-            int4,
-            int4_null,
-            int8,
-            int8_null,
-            char,
-            char_null,
-            text,
-            text_null,
-            varchar,
-            varchar_null,
-            bpchar,
-            bpchar_null,
-            float4,
-            float4_null,
-            float8,
-            float8_null,
-            bytea,
-            bytea_null,
-            timestamp,
-            timestamp_null,
-            timestamptz,
-            timestamptz_null,
-            numeric,
-            numeric_null,
-            jsonb,
-            jsonb_null,
-            date,
-            date_null,
-            point,
-            point_null
-        ) VALUES (
+        INSERT INTO {table_name} VALUES (
             true,
             null,
             1,
