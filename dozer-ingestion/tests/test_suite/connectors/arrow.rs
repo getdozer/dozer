@@ -170,7 +170,7 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Field::new("utf8", DataType::Utf8, false),
         Field::new("utf8_null", DataType::Utf8, true),
         // TODO: uncomment when `LargeUtf8` conversion is fixed.
-        // Field::new("large_utf8", DataType::LargeUtf8, false),
+        Field::new("large_utf8", DataType::LargeUtf8, false),
         Field::new("large_utf8_null", DataType::LargeUtf8, true),
     ]);
 
@@ -254,7 +254,7 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Arc::new(LargeBinaryArray::from_iter([Some([]), None])),
         Arc::new(StringArray::from_iter_values(["", "1"])),
         Arc::new(StringArray::from_iter([Some(""), None])),
-        // Arc::new(LargeStringArray::from_iter_values(["", "1"])),
+        Arc::new(LargeStringArray::from_iter_values(["", "1"])),
         Arc::new(LargeStringArray::from_iter([Some(""), None])),
     ];
 
