@@ -57,20 +57,20 @@ fn test_distance(
                 let f = arg_point!(from_f, GeoFunctionType::Distance, 0).unwrap();
                 let t = arg_point!(to_f, GeoFunctionType::Distance, 0).unwrap();
                 let _dist = match typ {
-                    None => f.geodesic_distance(&t),
-                    Some(Algorithm::Geodesic) => f.geodesic_distance(&t),
+                    None => f.geodesic_distance(t),
+                    Some(Algorithm::Geodesic) => f.geodesic_distance(t),
                     Some(Algorithm::Haversine) => f.0.haversine_distance(&t.0),
                     Some(Algorithm::Vincenty) => OrderedFloat(0.0),
                     // Some(Algorithm::Vincenty) => f.0.vincenty_distance(&t.0).unwrap(),
                 };
                 assert!(matches!(
-                    evaluate_distance(&Schema::empty(), args, &row),
+                    evaluate_distance(&Schema::empty(), args, row),
                     Ok(Field::Float(_dist)),
                 ))
             }
             Some(_val) => {
                 assert!(matches!(
-                    evaluate_distance(&Schema::empty(), args, &row),
+                    evaluate_distance(&Schema::empty(), args, row),
                     _val,
                 ))
             }

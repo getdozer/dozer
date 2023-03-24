@@ -502,7 +502,7 @@ fn test_float_math() {
         //// left: Float, right: Decimal
         let d_val1 = Decimal::from_f64(f_num1);
         let d_val2 = Decimal::from_f64(f_num2);
-        if !d_val1.is_none() && !d_val2.is_none() {
+        if d_val1.is_some() && d_val2.is_some() {
             assert_eq!(
                 // Float + Decimal = Decimal
                 evaluate_add(&Schema::empty(), &float1, &dec2, &row)
@@ -656,7 +656,7 @@ fn test_decimal_math() {
         // left: Decimal, right: Float
         let d_val1 = Decimal::from_f64(f_num1);
         let d_val2 = Decimal::from_f64(f_num2);
-        if !d_val1.is_none() && !d_val2.is_none() && d_val1.unwrap() != Decimal::new(0, 0) && d_val2.unwrap() != Decimal::new(0, 0) {
+        if d_val1.is_some() && d_val2.is_some() && d_val1.unwrap() != Decimal::new(0, 0) && d_val2.unwrap() != Decimal::new(0, 0) {
             assert_eq!(
                 // Decimal + Float = Decimal
                 evaluate_add(&Schema::empty(), &dec1, &float2, &row)

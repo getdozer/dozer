@@ -89,7 +89,7 @@ fn test_comparison() {
         // eq: Float
         test_eq(&float1, &float1, &row, None);
         let d_val = Decimal::from_f64(f_num1);
-        if !d_val.is_none() && f_num1 == u_num1 as f64 && f_num1 == i_num1 as f64 && f_num1 == f_num2 && d_val.unwrap() == d_num1.0 {
+        if d_val.is_some() && f_num1 == u_num1 as f64 && f_num1 == i_num1 as f64 && f_num1 == f_num2 && d_val.unwrap() == d_num1.0 {
             test_eq(&float1, &uint1, &row, None);
             test_eq(&float1, &int1, &row, None);
             test_eq(&float1, &float2, &row, None);
@@ -112,7 +112,7 @@ fn test_comparison() {
         // eq: Decimal
         test_eq(&dec1, &dec1, &row, None);
         let d_val = Decimal::from_f64(f_num1);
-        if !d_val.is_none() && d_num1.0 == Decimal::from(u_num1) && d_num1.0 == Decimal::from(i_num1) && d_num1.0 == d_val.unwrap() && d_num1.0 == d_num2.0 {
+        if d_val.is_some() && d_num1.0 == Decimal::from(u_num1) && d_num1.0 == Decimal::from(i_num1) && d_num1.0 == d_val.unwrap() && d_num1.0 == d_num2.0 {
             test_eq(&dec1, &uint1, &row, None);
             test_eq(&dec1, &int1, &row, None);
             test_eq(&dec1, &float1, &row, None);
@@ -171,7 +171,7 @@ fn test_comparison() {
 
         // not eq: Float
         let d_val = Decimal::from_f64(f_num1);
-        if !d_val.is_none() && f_num1 != u_num1 as f64 && f_num1 != i_num1 as f64 && f_num1 != f_num2 && d_val.unwrap() != d_num1.0 {
+        if d_val.is_some() && f_num1 != u_num1 as f64 && f_num1 != i_num1 as f64 && f_num1 != f_num2 && d_val.unwrap() != d_num1.0 {
             test_eq(&float1, &uint1, &row, Some(Field::Boolean(false)));
             test_eq(&float1, &int1, &row, Some(Field::Boolean(false)));
             test_eq(&float1, &float2, &row, Some(Field::Boolean(false)));
@@ -187,7 +187,7 @@ fn test_comparison() {
 
         // not eq: Decimal
         let d_val = Decimal::from_f64(f_num1);
-        if !d_val.is_none() && d_num1.0 != Decimal::from(u_num1) && d_num1.0 != Decimal::from(i_num1) && d_num1.0 != d_val.unwrap() && d_num1.0 != d_num2.0 {
+        if d_val.is_some() && d_num1.0 != Decimal::from(u_num1) && d_num1.0 != Decimal::from(i_num1) && d_num1.0 != d_val.unwrap() && d_num1.0 != d_num2.0 {
             test_eq(&dec1, &uint1, &row, Some(Field::Boolean(false)));
             test_eq(&dec1, &int1, &row, Some(Field::Boolean(false)));
             test_eq(&dec1, &float1, &row, Some(Field::Boolean(false)));
@@ -268,7 +268,7 @@ fn test_comparison() {
 
         // gt: Float
         let d_val = Decimal::from_f64(f_num1);
-        if !d_val.is_none() && f_num1 > u_num1 as f64 && f_num1 > i_num1 as f64 && f_num1 > f_num2 && d_val.unwrap() > d_num1.0 {
+        if d_val.is_some() && f_num1 > u_num1 as f64 && f_num1 > i_num1 as f64 && f_num1 > f_num2 && d_val.unwrap() > d_num1.0 {
             test_gt(&float1, &uint1, &row, None);
             test_gt(&float1, &int1, &row, None);
             test_gt(&float1, &float2, &row, None);
@@ -296,7 +296,7 @@ fn test_comparison() {
 
         // gt: Decimal
         let d_val = Decimal::from_f64(f_num1);
-        if !d_val.is_none() && d_num1.0 > Decimal::from(u_num1) && d_num1.0 > Decimal::from(i_num1) && d_num1.0 > d_val.unwrap() && d_num1.0 > d_num2.0 {
+        if d_val.is_some() && d_num1.0 > Decimal::from(u_num1) && d_num1.0 > Decimal::from(i_num1) && d_num1.0 > d_val.unwrap() && d_num1.0 > d_num2.0 {
             test_gt(&dec1, &uint1, &row, None);
             test_gt(&dec1, &int1, &row, None);
             test_gt(&dec1, &float1, &row, None);
@@ -378,7 +378,7 @@ fn test_comparison() {
 
         // gt: Float
         let d_val = Decimal::from_f64(f_num1);
-        if !d_val.is_none() && f_num1 < u_num1 as f64 && f_num1 < i_num1 as f64 && f_num1 < f_num2 && d_val.unwrap() < d_num1.0 {
+        if d_val.is_some() && f_num1 < u_num1 as f64 && f_num1 < i_num1 as f64 && f_num1 < f_num2 && d_val.unwrap() < d_num1.0 {
             test_lt(&float1, &uint1, &row, None);
             test_lt(&float1, &int1, &row, None);
             test_lt(&float1, &float2, &row, None);
@@ -406,7 +406,7 @@ fn test_comparison() {
 
         // gt: Decimal
         let d_val = Decimal::from_f64(f_num1);
-        if !d_val.is_none() && d_num1.0 < Decimal::from(u_num1) && d_num1.0 < Decimal::from(i_num1) && d_num1.0 < d_val.unwrap() && d_num1.0 < d_num2.0 {
+        if d_val.is_some() && d_num1.0 < Decimal::from(u_num1) && d_num1.0 < Decimal::from(i_num1) && d_num1.0 < d_val.unwrap() && d_num1.0 < d_num2.0 {
             test_lt(&dec1, &uint1, &row, None);
             test_lt(&dec1, &int1, &row, None);
             test_lt(&dec1, &float1, &row, None);
