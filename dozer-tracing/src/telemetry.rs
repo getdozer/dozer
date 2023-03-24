@@ -8,6 +8,8 @@ use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
+use tracing_appender;
+use tracing_appender::non_blocking::WorkerGuard;
 
 use tracing_appender::non_blocking::WorkerGuard;
 
@@ -35,7 +37,7 @@ pub fn init_telemetry(
 
     let layers = telemetry_config.map_or((None, None), |c| {
         let trace_filter = EnvFilter::try_from_env("DOZER_TRACE_FILTER")
-            .or_else(|_| EnvFilter::try_new("dozer=trace"))
+            .or_else(|_| EnvFilter::try_new("dozer=debug"))
             .unwrap();
         match c {
             TelemetryConfig::Dozer(config) => (
@@ -108,6 +110,7 @@ pub fn init_telemetry_closure<T>(
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     let subscriber = tracing_subscriber::registry()
+        .with(fmt::Layer::default().with_writer(non_blocking))
         .with(fmt_layer.with_filter(fmt_filter))
         .with(
             fmt::Layer::default()
