@@ -22,13 +22,13 @@
                             {
                                 "name": "start",
                                 "typ": "String",
-                                "nullable": true,
+                                "nullable": false,
                                 "source": "Dynamic"
                             },
                             {
                                 "name": "end",
                                 "typ": "String",
-                                "nullable": true,
+                                "nullable": false,
                                 "source": "Dynamic"
                             }
                         ]
