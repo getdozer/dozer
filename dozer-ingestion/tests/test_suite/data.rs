@@ -1,8 +1,6 @@
-use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SchemaIdentifier,
-};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier};
 
-pub fn append_only_operations_without_primary_key() -> (Schema, Vec<Operation>) {
+pub fn records_without_primary_key() -> (Schema, Vec<Record>) {
     let mut schema = Schema::empty();
     schema.identifier = Some(SchemaIdentifier { id: 0, version: 0 });
     schema.field(
@@ -15,14 +13,12 @@ pub fn append_only_operations_without_primary_key() -> (Schema, Vec<Operation>) 
         false,
     );
 
-    let operations = vec![Operation::Insert {
-        new: Record::new(schema.identifier, vec![Field::UInt(0)], None),
-    }];
+    let records = vec![Record::new(schema.identifier, vec![Field::UInt(0)], None)];
 
-    (schema, operations)
+    (schema, records)
 }
 
-pub fn append_only_operations_with_primary_key() -> (Schema, Vec<Operation>) {
+pub fn records_with_primary_key() -> (Schema, Vec<Record>) {
     let mut schema = Schema::empty();
     schema.identifier = Some(SchemaIdentifier { id: 0, version: 0 });
     schema.field(
@@ -35,29 +31,7 @@ pub fn append_only_operations_with_primary_key() -> (Schema, Vec<Operation>) {
         true,
     );
 
-    let operations = vec![Operation::Insert {
-        new: Record::new(schema.identifier, vec![Field::UInt(0)], None),
-    }];
+    let records = vec![Record::new(schema.identifier, vec![Field::UInt(0)], None)];
 
-    (schema, operations)
-}
-
-pub fn all_kinds_of_operations() -> (Schema, Vec<Operation>) {
-    let mut schema = Schema::empty();
-    schema.identifier = Some(SchemaIdentifier { id: 0, version: 0 });
-    schema.field(
-        FieldDefinition {
-            name: "uint".to_string(),
-            typ: FieldType::UInt,
-            nullable: false,
-            source: Default::default(),
-        },
-        true,
-    );
-
-    let operations = vec![Operation::Insert {
-        new: Record::new(schema.identifier, vec![Field::UInt(0)], None),
-    }];
-
-    (schema, operations)
+    (schema, records)
 }

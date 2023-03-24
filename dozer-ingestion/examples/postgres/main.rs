@@ -21,7 +21,7 @@ fn main() {
             .to_owned(),
     };
 
-    let connector = PostgresConnector::new(1, postgres_config);
+    let connector = PostgresConnector::new(postgres_config);
     let tables = connector
         .list_columns(vec![TableIdentifier::from_table_name("users".to_string())])
         .unwrap();
