@@ -20,6 +20,12 @@ cargo run --bin dozer-tests
 
 It will run all the test cases and stop on first failure.
 
+The cases starting with `ignore-` are ignored by default. To run them, use `--ignored` flag:
+
+```rust
+cargo run --bin dozer-tests -- --ignored
+```
+
 Filtering of test cases similar to `cargo test` is supported. For example, to run all test cases whose names start with `eth`:
 
 ```rust
