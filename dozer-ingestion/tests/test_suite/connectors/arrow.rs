@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
+use dozer_types::arrow::array::{
+    Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
+};
 use dozer_types::{
     arrow,
     chrono::Datelike,
     types::{Field, FieldDefinition, FieldType, Record, Schema},
 };
-use dozer_types::arrow::array::{Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray};
 
 pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::RecordBatch {
     use arrow::datatypes::{DataType, Field, TimeUnit};

@@ -142,15 +142,17 @@ pub fn map_schema_to_dozer<'a, I: Iterator<Item = &'a Field>>(
         .map(|field| {
             let mapped_field_type = match field.data_type() {
                 DataType::Boolean => FieldType::Boolean,
-                | DataType::Duration(_)
+                DataType::Duration(_)
                 | DataType::Int8
                 | DataType::Int16
                 | DataType::Int32
                 | DataType::Int64 => FieldType::Int,
-                DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 | DataType::Time32(_)
-                | DataType::Time64(_) => {
-                    FieldType::UInt
-                }
+                DataType::UInt8
+                | DataType::UInt16
+                | DataType::UInt32
+                | DataType::UInt64
+                | DataType::Time32(_)
+                | DataType::Time64(_) => FieldType::UInt,
                 DataType::Float16 | DataType::Float32 | DataType::Float64 => FieldType::Float,
                 DataType::Timestamp(_, _) => FieldType::Timestamp,
                 DataType::Date32 | DataType::Date64 => FieldType::Date,
