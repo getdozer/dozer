@@ -13,9 +13,28 @@ use num_traits::FromPrimitive;
 use proptest::prelude::*;
 use std::num::Wrapping;
 
+#[derive(Debug)]
+struct ArbitraryDecimal(Decimal);
+
+impl Arbitrary for ArbitraryDecimal {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (
+            i64::MIN..i64::MAX,
+            u32::MIN..29u32,
+        )
+            .prop_map(|(num, scale)| {
+                ArbitraryDecimal(Decimal::new(num, scale))
+            })
+            .boxed()
+    }
+}
+
 #[test]
 fn test_uint_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64)| {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
@@ -24,8 +43,8 @@ fn test_uint_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(Decimal::from(u_num1))));
-        let dec2 = Box::new(Literal(Field::Decimal(Decimal::from(u_num2))));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
 
@@ -130,32 +149,33 @@ fn test_uint_math() {
             // UInt + Decimal = Decimal
             evaluate_add(&Schema::empty(), &uint1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_u64(u_num1).unwrap() + Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(Decimal::from_u64(u_num1).unwrap() + d_num2.0)
         );
         assert_eq!(
             // UInt - Decimal = Decimal
             evaluate_sub(&Schema::empty(), &uint1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_u64(u_num1).unwrap() - Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(Decimal::from_u64(u_num1).unwrap() - d_num2.0)
         );
-        //// todo: Multiplication overflowed
+        // // todo: Multiplication overflowed
         // assert_eq!(
         //     // UInt * Decimal = Decimal
         //     evaluate_mul(&Schema::empty(), &uint2, &dec1, &row)
         //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_u64(u_num2).unwrap() * Decimal::from_u64(u_num1).unwrap())
+        //     Field::Decimal(Decimal::from_u64(u_num2).unwrap().checked_mul(d_num1.0).unwrap())
         // );
-        assert_eq!(
-            // UInt / Decimal = Decimal
-            evaluate_div(&Schema::empty(), &uint2, &dec1, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_u64(u_num2).unwrap() / Decimal::from_u64(u_num1).unwrap())
-        );
+        // // todo: Division overflowed
+        // assert_eq!(
+        //     // UInt / Decimal = Decimal
+        //     evaluate_div(&Schema::empty(), &uint2, &dec1, &row)
+        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        //     Field::Decimal(Decimal::from_u64(u_num2).unwrap() / d_num1.0)
+        // );
         assert_eq!(
             // UInt % Decimal = Decimal
             evaluate_mod(&Schema::empty(), &uint1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_u64(u_num1).unwrap() % Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(Decimal::from_u64(u_num1).unwrap() % d_num2.0)
         );
 
         //// left: UInt, right: Null
@@ -194,7 +214,7 @@ fn test_uint_math() {
 
 #[test]
 fn test_int_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64)| {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
@@ -203,8 +223,8 @@ fn test_int_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(Decimal::from(u_num1))));
-        let dec2 = Box::new(Literal(Field::Decimal(Decimal::from(u_num2))));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
 
@@ -309,32 +329,33 @@ fn test_int_math() {
             // Int + Decimal = Decimal
             evaluate_add(&Schema::empty(), &int1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_i64(i_num1).unwrap() + Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(Decimal::from_i64(i_num1).unwrap() + d_num2.0)
         );
         assert_eq!(
             // Int - Decimal = Decimal
             evaluate_sub(&Schema::empty(), &int1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_i64(i_num1).unwrap() - Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(Decimal::from_i64(i_num1).unwrap() - d_num2.0)
         );
         // // todo: Multiplication overflowed
         // assert_eq!(
         //     // Int * Decimal = Decimal
         //     evaluate_mul(&Schema::empty(), &int2, &dec1, &row)
         //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_i64(i_num2).unwrap() * Decimal::from_u64(u_num1).unwrap())
+        //     Field::Decimal(Decimal::from_i64(i_num2).unwrap() *d_num1.0)
         // );
-        assert_eq!(
-            // Int / Decimal = Decimal
-            evaluate_div(&Schema::empty(), &int2, &dec1, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_i64(i_num2).unwrap() / Decimal::from_u64(u_num1).unwrap())
-        );
+        // // todo: Division overflowed
+        // assert_eq!(
+        //     // Int / Decimal = Decimal
+        //     evaluate_div(&Schema::empty(), &int2, &dec1, &row)
+        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        //     Field::Decimal(Decimal::from_i64(i_num2).unwrap() / d_num1.0)
+        // );
         assert_eq!(
             // Int % Decimal = Decimal
             evaluate_mod(&Schema::empty(), &int1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_i64(i_num1).unwrap() % Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(Decimal::from_i64(i_num1).unwrap() % d_num2.0)
         );
 
         //// left: Int, right: Null
@@ -373,7 +394,7 @@ fn test_int_math() {
 
 #[test]
 fn test_float_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64)| {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
@@ -382,8 +403,8 @@ fn test_float_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let _dec1 = Box::new(Literal(Field::Decimal(Decimal::from(u_num1))));
-        let _dec2 = Box::new(Literal(Field::Decimal(Decimal::from(u_num2))));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
 
@@ -483,38 +504,43 @@ fn test_float_math() {
             Field::Float(OrderedFloat(f_num1 % f_num2))
         );
 
-        // //// left: Float, right: Decimal
-        // assert_eq!(
-        //     // Float + Decimal = Decimal
-        //     evaluate_add(&Schema::empty(), &float1, &dec2, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_f64(f_num1).unwrap() + Decimal::from_u64(u_num2).unwrap())
-        // );
-        // assert_eq!(
-        //     // Float - Decimal = Decimal
-        //     evaluate_sub(&Schema::empty(), &float1, &dec2, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_f64(f_num1).unwrap() - Decimal::from_u64(u_num2).unwrap())
-        // );
-        // // // todo: Multiplication overflowed
-        // // assert_eq!(
-        // //     // Float * Decimal = Decimal
-        // //     evaluate_mul(&Schema::empty(), &float2, &dec1, &row)
-        // //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        // //     Field::Decimal(Decimal::from_f64(f_num2).unwrap() * Decimal::from_u64(u_num1).unwrap())
-        // // );
-        // assert_eq!(
-        //     // Float / Decimal = Decimal
-        //     evaluate_div(&Schema::empty(), &float2, &dec1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_f64(f_num2).unwrap() / Decimal::from_u64(u_num1).unwrap())
-        // );
-        // assert_eq!(
-        //     // Float % Decimal = Decimal
-        //     evaluate_mod(&Schema::empty(), &float1, &dec2, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_f64(f_num1).unwrap() % Decimal::from_u64(u_num2).unwrap())
-        // );
+        //// left: Float, right: Decimal
+        let d_val1 = Decimal::from_f64(f_num1);
+        let d_val2 = Decimal::from_f64(f_num2);
+        if (!d_val1.is_none() && !d_val2.is_none()) {
+            assert_eq!(
+                // Float + Decimal = Decimal
+                evaluate_add(&Schema::empty(), &float1, &dec2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_val1.unwrap() + d_num2.0)
+            );
+            assert_eq!(
+                // Float - Decimal = Decimal
+                evaluate_sub(&Schema::empty(), &float1, &dec2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_val1.unwrap() - d_num2.0)
+            );
+            // // todo: Multiplication overflowed
+            // assert_eq!(
+            //     // Float * Decimal = Decimal
+            //     evaluate_mul(&Schema::empty(), &float2, &dec1, &row)
+            //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            //     Field::Decimal(d_val2.unwrap() * d_num1.0)
+            // );
+            // // todo: Division overflowed
+            // assert_eq!(
+            //     // Float / Decimal = Decimal
+            //     evaluate_div(&Schema::empty(), &float2, &dec1, &row)
+            //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            //     Field::Decimal(d_val2.unwrap() / d_num1.0)
+            // );
+            assert_eq!(
+                // Float % Decimal = Decimal
+                evaluate_mod(&Schema::empty(), &float1, &dec2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_val1.unwrap() % d_num2.0)
+            );
+        }
 
         //// left: Float, right: Null
         assert_eq!(
@@ -552,17 +578,17 @@ fn test_float_math() {
 
 #[test]
 fn test_decimal_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64)| {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
-        let _float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
-        let _float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(Decimal::from(u_num1))));
-        let dec2 = Box::new(Literal(Field::Decimal(Decimal::from(u_num2))));
+        let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
+        let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
 
@@ -571,32 +597,32 @@ fn test_decimal_math() {
             // Decimal + UInt = Decimal
             evaluate_add(&Schema::empty(), &dec1, &uint2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) + Decimal::from(u_num2))
+            Field::Decimal(d_num1.0 + Decimal::from(u_num2))
         );
         assert_eq!(
             // Decimal - UInt = Decimal
             evaluate_sub(&Schema::empty(), &dec1, &uint2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) - Decimal::from(u_num2))
+            Field::Decimal(d_num1.0 - Decimal::from(u_num2))
         );
         // // todo: Multiplication overflowed
         // assert_eq!(
         //     // Decimal * UInt = Decimal
         //     evaluate_mul(&Schema::empty(), &dec2, &uint1, &row)
         //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from(u_num2) * Decimal::from(u_num1))
+        //     Field::Decimal(d_num2.0 * Decimal::from(u_num1))
         // );
         assert_eq!(
             // Decimal / UInt = Decimal
             evaluate_div(&Schema::empty(), &dec2, &uint1, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num2) / Decimal::from(u_num1))
+            Field::Decimal(d_num2.0 / Decimal::from(u_num1))
         );
         assert_eq!(
             // Decimal % UInt = Decimal
             evaluate_mod(&Schema::empty(), &dec1, &uint2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) % Decimal::from(u_num2))
+            Field::Decimal(d_num1.0 % Decimal::from(u_num2))
         );
 
         //// left: Decimal, right: Int
@@ -604,102 +630,104 @@ fn test_decimal_math() {
             // Decimal + Int = Decimal
             evaluate_add(&Schema::empty(), &dec1, &int2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) + Decimal::from(i_num2))
+            Field::Decimal(d_num1.0 + Decimal::from(i_num2))
         );
         assert_eq!(
             // Decimal - Int = Decimal
             evaluate_sub(&Schema::empty(), &dec1, &int2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) - Decimal::from(i_num2))
+            Field::Decimal(d_num1.0 - Decimal::from(i_num2))
         );
         // // todo: Multiplication overflowed
         // assert_eq!(
         //     // Decimal * Int = Float
         //     evaluate_mul(&Schema::empty(), &dec2, &int1, &row)
         //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from(u_num2) * Decimal::from(i_num1))
+        //     Field::Decimal(d_num2.0 * Decimal::from(i_num1))
         // );
         assert_eq!(
             // Decimal / Int = Decimal
             evaluate_div(&Schema::empty(), &dec2, &int1, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num2) / Decimal::from(i_num1))
+            Field::Decimal(d_num2.0 / Decimal::from(i_num1))
         );
         assert_eq!(
             // Decimal % Int = Decimal
             evaluate_mod(&Schema::empty(), &dec1, &int2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) % Decimal::from(i_num2))
+            Field::Decimal(d_num1.0 % Decimal::from(i_num2))
         );
 
-        //// left: Decimal, right: Float
-        // // todo: conversion error sue to overflow
-        // assert_eq!(
-        //     // Decimal + Float = Decimal
-        //     evaluate_add(&Schema::empty(), &dec1, &float2, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from(u_num1) + Decimal::from_f64(f_num2).unwrap())
-        // );
-        // // todo: conversion error sue to overflow
-        // assert_eq!(
-        //     // Decimal - Float = Decimal
-        //     evaluate_sub(&Schema::empty(), &dec1, &float2, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from(u_num1) - Decimal::from_f64(f_num2).unwrap())
-        // );
-        // // todo: Multiplication overflowed
-        // assert_eq!(
-        //     // Decimal * Float = Decimal
-        //     evaluate_mul(&Schema::empty(), &dec2, &float1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from(u_num2) * Decimal::from_f64(f_num1).unwrap())
-        // );
-        // // todo: Division by zero
-        // assert_eq!(
-        //     // Decimal / Float = Decimal
-        //     evaluate_div(&Schema::empty(), &dec2, &float1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from(u_num2) / Decimal::from_f64(f_num1).unwrap())
-        // );
-        // // todo: Division by zero
-        // assert_eq!(
-        //     // Decimal % Float = Decimal
-        //     evaluate_mod(&Schema::empty(), &dec1, &float2, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from(u_num1) % Decimal::from_f64(f_num2).unwrap())
-        // );
+        // left: Decimal, right: Float
+        let d_val1 = Decimal::from_f64(f_num1);
+        let d_val2 = Decimal::from_f64(f_num2);
+        if (!d_val1.is_none() && !d_val2.is_none() && d_val1.unwrap() != Decimal::new(0, 0) && d_val2.unwrap() != Decimal::new(0, 0)) {
+            assert_eq!(
+                // Decimal + Float = Decimal
+                evaluate_add(&Schema::empty(), &dec1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num1.0 + d_val2.unwrap())
+            );
+            assert_eq!(
+                // Decimal - Float = Decimal
+                evaluate_sub(&Schema::empty(), &dec1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num1.0 - d_val2.unwrap())
+            );
+            // // todo: Multiplication overflowed
+            // assert_eq!(
+            //     // Decimal * Float = Decimal
+            //     evaluate_mul(&Schema::empty(), &dec2, &float1, &row)
+            //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            //     Field::Decimal(d_num2.0 * d_val1.unwrap())
+            // );
+            // // todo: Division overflowed
+            // assert_eq!(
+            //     // Decimal / Float = Decimal
+            //     evaluate_div(&Schema::empty(), &dec2, &float1, &row)
+            //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            //     Field::Decimal(d_num2.0 / d_val1.unwrap())
+            // );
+            assert_eq!(
+                // Decimal % Float = Decimal
+                evaluate_mod(&Schema::empty(), &dec1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num1.0 % d_val2.unwrap())
+            );
+        }
+
 
         //// left: Decimal, right: Decimal
         assert_eq!(
             // Decimal + Decimal = Decimal
             evaluate_add(&Schema::empty(), &dec1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) + Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(d_num1.0 + d_num2.0)
         );
         assert_eq!(
             // Decimal - Decimal = Decimal
             evaluate_sub(&Schema::empty(), &dec1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) - Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(d_num1.0 - d_num2.0)
         );
         // // todo: Multiplication overflowed
         // assert_eq!(
         //     // Decimal * Decimal = Decimal
         //     evaluate_mul(&Schema::empty(), &dec2, &dec1, &row)
         //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from(u_num2).unwrap() * Decimal::from_u64(u_num1).unwrap())
+        //     Field::Decimal(d_num2.0 * d_num1.0)
         // );
         assert_eq!(
             // Decimal / Decimal = Decimal
             evaluate_div(&Schema::empty(), &dec2, &dec1, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num2) / Decimal::from_u64(u_num1).unwrap())
+            Field::Decimal(d_num2.0 / d_num1.0)
         );
         assert_eq!(
             // Decimal % Decimal = Decimal
             evaluate_mod(&Schema::empty(), &dec1, &dec2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from(u_num1) % Decimal::from_u64(u_num2).unwrap())
+            Field::Decimal(d_num1.0 % d_num2.0)
         );
 
         //// left: Decimal, right: Null
@@ -738,7 +766,7 @@ fn test_decimal_math() {
 
 #[test]
 fn test_null_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64)| {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));

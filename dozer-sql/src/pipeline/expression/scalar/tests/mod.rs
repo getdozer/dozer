@@ -10,3 +10,7 @@ mod number;
 mod scalar_common;
 #[cfg(test)]
 mod string;
+#[cfg(test)]
+mod logical;
+#[cfg(test)]
+mod comparison;

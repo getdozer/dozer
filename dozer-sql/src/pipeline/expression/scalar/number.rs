@@ -13,8 +13,10 @@ pub(crate) fn evaluate_abs(
 ) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record, schema)?;
     match value {
+        Field::UInt(u) => Ok(Field::UInt(u)),
         Field::Int(i) => Ok(Field::Int(i.abs())),
         Field::Float(f) => Ok(Field::Float(f.abs())),
+        Field::Decimal(d) => Ok(Field::Decimal(d.abs())),
         _ => Err(InvalidFunctionArgument(
             ScalarFunctionType::Abs.to_string(),
             value,
@@ -33,6 +35,7 @@ pub(crate) fn evaluate_round(
     let mut places = 0;
     if let Some(expression) = decimals {
         match expression.evaluate(record, schema)? {
+            Field::UInt(u) => places = u as i32,
             Field::Int(i) => places = i as i32,
             Field::Float(f) => places = f.round().0 as i32,
             _ => {} // Truncate value to 0 decimals
@@ -41,9 +44,10 @@ pub(crate) fn evaluate_round(
     let order = OrderedFloat(10.0_f64.powi(places));
 
     match value {
+        Field::UInt(u) => Ok(Field::UInt(u)),
         Field::Int(i) => Ok(Field::Int(i)),
         Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
-        Field::Decimal(_) => Err(PipelineError::InvalidOperandType("ROUND()".to_string())),
+        Field::Decimal(d) => Ok(Field::Decimal(d.round_dp(places as u32))),
         Field::Null => Ok(Field::Null),
         _ => Err(InvalidFunctionArgument(
             ScalarFunctionType::Round.to_string(),
