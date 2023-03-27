@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dozer-api-svc
+  namespace: dozer
+spec:
+  selector:
+    app: dozer-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080
+      protocol: TCP
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+      nodePort: 30081
+      protocol: TCP
+  type: NodePort

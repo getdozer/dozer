@@ -2,17 +2,15 @@
 
 1. Local Minikube cluster
 2. kubectl command line utility
-3. Mount the parent directory for your k8 folder on  /data folder for minikube
+3. Mount your home directory on a /data folder for minikube
 
 ```bash
-minikube mount ParentDir:/data
+minikube mount $HOME:/data
 ```
-4. Execute the init.sh script
-
 ## Running
 
-1. Put your app-config.yaml for app in workspace folder
-2. Put your api-config.yaml for api in wokspace folder . Add the following lines to your config to configure api in the api-config.yaml:
+1. Put your app-config.yaml for app in workspace folder (you need to create dozer_data directory in root)
+2. Put your api-config.yaml for api in ./workspace/ . Add the following lines to your config to configure api:
 ```
 api:
   rest:

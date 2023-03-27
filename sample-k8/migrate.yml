@@ -9,7 +9,7 @@ spec:
       containers:
       - name: dozer-migrate
         image: ramitabh/dozer:local
-        command: ["dozer", "-c", "./app-config.yaml","migrate"]
+        command: ["dozer", "-c", "./app-config.yaml", "migrate"]
         volumeMounts:
         - name: data
           mountPath: /usr/dozer
@@ -21,7 +21,7 @@ spec:
       volumes:
       - name: data
         hostPath:
-          path: /data/Dozer/dozer/dozer-k8/dozer_data
+          path: /data/Dozer/dozer/sample-k8/workspace
       - name: dozer
         persistentVolumeClaim:
             claimName: dozer-pvc

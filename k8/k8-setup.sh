@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 kubectl apply -f namespace.yml
 kubectl apply -f pvc.yml
 sleep 10
@@ -12,5 +11,4 @@ sleep 10
 kubectl apply -f api.yml
 kubectl apply -f api-svc.yml
 
-echo "HTTP and gRPC Endpoints respectively:" 
-echo "$(minikube service dozer-api-svc -n dozer --url)"
+# echo "Local Endpoint: $(minikube service api-svc -n dozer --url)"

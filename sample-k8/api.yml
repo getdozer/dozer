@@ -1,24 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dozer-app
+  name: dozer-api
   namespace: dozer
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: dozer-app
+      app: dozer-api
   template:
     metadata:
       labels:
-        app: dozer-app
+        app: dozer-api
     spec:
       containers:
-      - name: dozer-app
+      - name: dozer-api
         image: ramitabh/dozer:local
-        command: ["dozer","-c", "./app-config.yaml", "app", "run"]
+        command: ["dozer", "-c", "./api-config.yaml", "api", "run"]
         ports:
-        - containerPort: 50052
+        - containerPort: 8080
+        - containerPort: 50051
         volumeMounts:
         - name: data
           mountPath: /usr/dozer
@@ -29,8 +30,7 @@ spec:
       volumes:
       - name: data
         hostPath:
-          path: /data/Dozer/dozer/k8/workspace
+          path: /data/Dozer/dozer/sample-k8/workspace
       - name: dozer
         persistentVolumeClaim:
-            claimName: dozer-pvc
-    
+          claimName: dozer-pvc
