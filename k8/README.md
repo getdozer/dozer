@@ -20,7 +20,7 @@ api:
   app_grpc:
     port: 50052
     host: app-svc.dozer
-'''
+```
 
 3. Put your data set in the dozer_data inside data folder. Example:
 ```bash
