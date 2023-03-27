@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use dozer_storage::{
     errors::StorageError,
@@ -64,7 +64,7 @@ pub struct LmdbCacheManager {
     base_path: PathBuf,
     alias_db: Database,
     env: Mutex<RwLmdbEnvironment>,
-    indexing_thread_pool: Mutex<IndexingThreadPool>,
+    indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
     _temp_dir: Option<TempDir>,
 }
 
@@ -89,8 +89,9 @@ impl LmdbCacheManager {
         )?;
         let alias_db = env.create_database(None, DatabaseFlags::empty())?;
 
-        let indexing_thread_pool =
-            Mutex::new(IndexingThreadPool::new(options.num_indexing_threads));
+        let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(
+            options.num_indexing_threads,
+        )));
 
         Ok(Self {
             options,
@@ -126,7 +127,7 @@ impl CacheManager for LmdbCacheManager {
                 let cache = LmdbRwCache::new(
                     None,
                     &self.cache_options(real_name.to_string()),
-                    &mut self.indexing_thread_pool.lock(),
+                    self.indexing_thread_pool.clone(),
                     conflict_resolution,
                 )?;
                 Some(Box::new(cache))
@@ -168,7 +169,7 @@ impl CacheManager for LmdbCacheManager {
         let cache = LmdbRwCache::new(
             Some(&(schema, indexes)),
             &self.cache_options(name),
-            &mut self.indexing_thread_pool.lock(),
+            self.indexing_thread_pool.clone(),
             conflict_resolution,
         )?;
         Ok(Box::new(cache))

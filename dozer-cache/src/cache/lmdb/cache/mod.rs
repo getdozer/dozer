@@ -1,6 +1,7 @@
 use dozer_types::models::api_endpoint::ConflictResolution;
-use std::fmt::Debug;
+use dozer_types::parking_lot::Mutex;
 use std::path::PathBuf;
+use std::{fmt::Debug, sync::Arc};
 
 use dozer_types::types::{Record, SchemaWithIndex};
 
@@ -75,13 +76,14 @@ impl LmdbRoCache {
 pub struct LmdbRwCache {
     main_env: RwMainEnvironment,
     secondary_envs: Vec<RoSecondaryEnvironment>,
+    indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
 }
 
 impl LmdbRwCache {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
         options: &CacheOptions,
-        indexing_thread_pool: &mut IndexingThreadPool,
+        indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
         conflict_resolution: ConflictResolution,
     ) -> Result<Self, CacheError> {
         let rw_main_env = RwMainEnvironment::new(schema, options, conflict_resolution)?;
@@ -107,11 +109,14 @@ impl LmdbRwCache {
             ro_secondary_envs.push(ro_secondary_env);
         }
 
-        indexing_thread_pool.add_cache(ro_main_env, rw_secondary_envs);
+        indexing_thread_pool
+            .lock()
+            .add_cache(ro_main_env, rw_secondary_envs);
 
         Ok(Self {
             main_env: rw_main_env,
             secondary_envs: ro_secondary_envs,
+            indexing_thread_pool,
         })
     }
 }
@@ -162,6 +167,7 @@ impl RwCache for LmdbRwCache {
 
     fn commit(&mut self) -> Result<(), CacheError> {
         self.main_env.commit()?;
+        self.indexing_thread_pool.lock().wake(self.name());
         Ok(())
     }
 }

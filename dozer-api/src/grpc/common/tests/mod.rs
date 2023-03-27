@@ -135,7 +135,6 @@ async fn test_grpc_common_get_fields() {
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_grpc_common_on_event() {
     // start fake internal pipeline
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
