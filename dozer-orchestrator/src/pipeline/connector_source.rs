@@ -300,7 +300,7 @@ impl Source for ConnectorSource {
                                 r#type: "source".to_string(),
                                 count: *schema_counter as i64,
                             };
-                            notifier.2
+                            let _ = notifier.2
                                 .try_send(status_update)
                                 .map_err(|e| ExecutionError::InternalError(Box::new(e)));
                         }

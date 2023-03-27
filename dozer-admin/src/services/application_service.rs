@@ -36,7 +36,6 @@ use tokio::time::interval;
 use tonic::Status;
 use dozer_types::grpc_types::admin::SaveFilesResponse;
 use dozer_types::grpc_types::admin::SaveFilesRequest;
-use dozer_types::log::info;
 use dozer_types::models::api_config::GrpcApiOptions;
 
 #[derive(Clone)]
@@ -356,19 +355,21 @@ impl AppService {
         let mut position = 0;
 
         loop {
-            let mut file = fs::File::open("./log/dozer.log").unwrap();
-            file.seek(SeekFrom::Start(position as u64)).unwrap();
+            let file_result = fs::File::open("../log/dozer.log");
+            if let Ok(mut file) = file_result {
+                file.seek(SeekFrom::Start(position as u64)).unwrap();
 
-            position = file.metadata().unwrap().len();
-            let reader = BufReader::new(file);
-            for line in reader.lines() {
-                let log_message = LogMessage {
-                    message: line.unwrap()
-                };
+                position = file.metadata().unwrap().len();
+                let reader = BufReader::new(file);
+                for line in reader.lines() {
+                    let log_message = LogMessage {
+                        message: line.unwrap()
+                    };
 
-                if (tx.send(Ok(log_message)).await).is_err() {
-                    // receiver dropped
-                    break;
+                    if (tx.send(Ok(log_message)).await).is_err() {
+                        // receiver dropped
+                        break;
+                    }
                 }
             }
 
