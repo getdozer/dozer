@@ -1,0 +1,14 @@
+#!/bin/bash
+
+kubectl apply -f namespace.yml
+kubectl apply -f pvc.yml
+sleep 10
+kubectl apply -f migrate.yml
+sleep 10
+kubectl apply -f app.yml
+kubectl apply -f app-svc.yml
+sleep 10
+kubectl apply -f api.yml
+kubectl apply -f api-svc.yml
+
+echo "Local Endpoint: $(minikube service api-svc -n dozer --url)"

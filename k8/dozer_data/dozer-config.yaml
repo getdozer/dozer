@@ -1,4 +1,3 @@
-app_name: dozer-taxi-apis
 home_dir: /usr/app_data/app_data
 connections:    
   - config : !LocalStorage
@@ -18,7 +17,7 @@ api:
     port: 50051
   app_grpc:
     port: 50052
-    host: dozer-app-svc.dozer
+    #host: dozer-app.default
 sql: |
   SELECT 
     PULocationID as pickup_location, 
