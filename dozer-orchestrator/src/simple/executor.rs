@@ -21,6 +21,7 @@ use OrchestrationError::ExecutionError;
 use crate::errors::OrchestrationError;
 
 pub struct Executor<'a> {
+    connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
     api_endpoints: &'a [ApiEndpoint],
@@ -29,6 +30,7 @@ pub struct Executor<'a> {
 }
 impl<'a> Executor<'a> {
     pub fn new(
+        connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
@@ -36,6 +38,7 @@ impl<'a> Executor<'a> {
         running: Arc<AtomicBool>,
     ) -> Self {
         Self {
+            connections,
             sources,
             sql,
             api_endpoints,
@@ -66,6 +69,7 @@ impl<'a> Executor<'a> {
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
+            self.connections,
             self.sources,
             self.sql,
             self.api_endpoints,
