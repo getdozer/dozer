@@ -2,11 +2,11 @@ use dozer_ingestion::connectors::object_store::connector::ObjectStoreConnector;
 use dozer_types::{
     arrow,
     ingestion_types::{LocalDetails, LocalStorage, Table},
-    types::{Record, Schema},
+    types::Field,
 };
 use tempdir::TempDir;
 
-use crate::test_suite::{DataReadyConnectorTest, InsertOnlyConnectorTest};
+use crate::test_suite::{DataReadyConnectorTest, FieldsAndPk, InsertOnlyConnectorTest};
 
 use super::super::arrow::{
     record_batch_with_all_supported_data_types, records_to_arrow, schema_to_arrow,
@@ -37,21 +37,18 @@ impl InsertOnlyConnectorTest for LocalStorageObjectStoreConnectorTest {
     fn new(
         schema_name: Option<String>,
         table_name: String,
-        schema: Schema,
-        records: Vec<Record>,
-    ) -> Option<(Self, Self::Connector, Schema)> {
+        schema: FieldsAndPk,
+        records: Vec<Vec<Field>>,
+    ) -> Option<(Self, Self::Connector, FieldsAndPk)> {
         if schema_name.is_some() {
             return None;
         }
-        if !schema.is_append_only() {
-            return None;
-        }
 
-        let record_batch = records_to_arrow(&records, schema.clone());
+        let record_batch = records_to_arrow(&records, schema.0.clone());
 
         let (temp_dir, connector) = create_connector(table_name, &record_batch);
 
-        let (_, schema) = schema_to_arrow(schema);
+        let (_, schema) = schema_to_arrow(schema.0);
 
         Some((
             Self {

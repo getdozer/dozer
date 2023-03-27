@@ -1,11 +1,13 @@
 use dozer_ingestion::connectors::Connector;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition};
 
 pub trait DataReadyConnectorTest: Send + Sized + 'static {
     type Connector: Connector;
 
     fn new() -> (Self, Self::Connector);
 }
+
+pub type FieldsAndPk = (Vec<FieldDefinition>, Vec<usize>);
 
 pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
     type Connector: Connector;
@@ -21,18 +23,22 @@ pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
     fn new(
         schema_name: Option<String>,
         table_name: String,
-        schema: Schema,
-        records: Vec<Record>,
-    ) -> Option<(Self, Self::Connector, Schema)>;
+        schema: FieldsAndPk,
+        records: Vec<Vec<Field>>,
+    ) -> Option<(Self, Self::Connector, FieldsAndPk)>;
 }
 
-pub trait CrudConnectorTest: InsertOnlyConnectorTest {
-    fn start_crud(&self, operations: Vec<Operation>);
+pub trait CudConnectorTest: InsertOnlyConnectorTest {
+    /// Spawns a thread to feed cud operations to connector.
+    fn start_cud(&self, operations: Vec<records::Operation>);
 }
 
 mod basic;
 mod connectors;
 mod data;
+mod records;
 
-pub use basic::{run_test_suite_basic_data_ready, run_test_suite_basic_insert_only};
+pub use basic::{
+    run_test_suite_basic_cud, run_test_suite_basic_data_ready, run_test_suite_basic_insert_only,
+};
 pub use connectors::{LocalStorageObjectStoreConnectorTest, PostgresConnectorTest};

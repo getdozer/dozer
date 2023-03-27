@@ -2183,6 +2183,7 @@ dependencies = [
  "dozer-utils",
  "env_logger",
  "futures",
+ "hex",
  "hex-literal",
  "include_dir",
  "kafka",

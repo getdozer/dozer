@@ -6,11 +6,15 @@ use dozer_ingestion::{
 };
 use dozer_types::{
     ingestion_types::IngestionMessageKind,
-    log::warn,
-    types::{Field, FieldType, Operation, Record, Schema, SchemaIdentifier},
+    log::{error, warn},
+    types::{Field, FieldDefinition, FieldType, Operation, Record, Schema, SchemaIdentifier},
 };
 
-use super::{data, DataReadyConnectorTest, InsertOnlyConnectorTest};
+use super::{
+    data,
+    records::{Operation as RecordsOperation, Records},
+    CudConnectorTest, DataReadyConnectorTest, InsertOnlyConnectorTest,
+};
 
 pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     let (_connector_test, connector) = T::new();
@@ -36,7 +40,9 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     // Run connector.
     let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
     std::thread::spawn(move || {
-        connector.start(&ingestor, tables).unwrap();
+        if let Err(e) = connector.start(&ingestor, tables) {
+            error!("Connector `start` returned error: {e}");
+        }
     });
 
     // Loop over messages until timeout.
@@ -78,23 +84,21 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         data::records_without_primary_key,
     ] {
         // Load test data.
-        let (schema, records) = data_fn();
+        let ((fields, primary_index), records) = data_fn();
 
         // Create connector.
         let schema_name = None;
-        let Some((_connector_test, connector, actual_schema)) = T::new(
+        let Some((_connector_test, connector, (actual_fields, actual_primary_index))) = T::new(
             schema_name.clone(),
             table_name.clone(),
-            schema.clone(),
+            (fields.clone(), primary_index.clone()),
             records.clone(),
         ) else {
-            warn!("Connector does not support schema name {schema_name:?} or primary index {:?}.", schema.primary_index);
+            warn!("Connector does not support schema name {schema_name:?} or primary index {primary_index:?}.");
             continue;
         };
-        assert_eq!(schema.identifier, actual_schema.identifier);
-        for field in &schema.fields {
-            if !actual_schema
-                .fields
+        for field in &fields {
+            if !actual_fields
                 .iter()
                 .any(|actual_field| actual_field == field)
             {
@@ -121,8 +125,7 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         assert_eq!(tables[0].name, table_name);
         assert_eq!(
             tables[0].column_names,
-            actual_schema
-                .fields
+            actual_fields
                 .iter()
                 .map(|field| field.name.clone())
                 .collect::<Vec<_>>()
@@ -131,39 +134,137 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         // Validate schemas.
         let schemas = connector.get_schemas(&tables).unwrap();
         assert_eq!(schemas.len(), 1);
-        assert_eq!(schemas[0].as_ref().unwrap().schema, actual_schema);
+        let actual_schema = &schemas[0].as_ref().unwrap().schema;
+        assert_eq!(actual_schema.fields, actual_fields);
+        assert_eq!(actual_schema.primary_index, actual_primary_index);
 
         // Run the connector and check data is ingested.
         let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
         std::thread::spawn(move || {
-            connector
-                .start(&ingestor, tables)
-                .expect("Failed to start connector.");
+            if let Err(e) = connector.start(&ingestor, tables) {
+                error!("Connector `start` returned error: {e}")
+            }
         });
 
-        let mut last_identifier = None;
-        for record in &records {
-            // Connector must send message.
-            let message = iterator.next().unwrap();
+        let mut record_iter = records.iter();
 
+        let mut last_identifier = None;
+        while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
             // Identifier must be increasing.
             if let Some(identifier) = last_identifier {
                 assert!(message.identifier > identifier);
                 last_identifier = Some(message.identifier);
             }
 
-            // Message must be an insert event.
-            let IngestionMessageKind::OperationEvent(Operation::Insert { new: actual_record }) = message.kind else {
-                panic!("Expected an insert event, but got {:?}", message.kind);
+            // Filter out non-operation events.
+            let IngestionMessageKind::OperationEvent(operation) = message.kind else {
+                continue;
+            };
+
+            // Operation must be insert.
+            let Operation::Insert { new: actual_record } = operation else {
+                panic!("Expected an insert event, but got {:?}", operation);
             };
 
             // Record must match schema.
-            assert_record_matches_schema(&actual_record, &actual_schema, false);
+            assert_record_matches_schema(&actual_record, actual_schema, false);
 
             // Record must match expected record.
-            assert_records_match(&actual_record, &actual_schema, record, &schema, false);
+            assert_records_match(
+                &actual_record.values,
+                &actual_fields,
+                &actual_primary_index,
+                record_iter
+                    .next()
+                    .expect("Connector sent more records than expected"),
+                &fields,
+                false,
+            );
+        }
+
+        assert!(
+            record_iter.next().is_none(),
+            "Connector sent less records than expected."
+        );
+    }
+}
+
+pub fn run_test_suite_basic_cud<T: CudConnectorTest>() {
+    // Load test data.
+    let ((fields, primary_index), operations) = data::cud_operations();
+
+    // Create connector.
+    let schema_name = None;
+    let table_name = "test_table".to_string();
+    let (connector_test, connector, (_, actual_primary_index)) = T::new(
+        schema_name.clone(),
+        table_name.clone(),
+        (fields.clone(), primary_index.clone()),
+        vec![],
+    )
+    .unwrap();
+
+    // Get schema.
+    let tables = connector
+        .list_columns(vec![TableIdentifier::new(schema_name, table_name.clone())])
+        .unwrap();
+    let mut schemas = connector.get_schemas(&tables).unwrap();
+    let actual_schema = schemas.remove(0).unwrap().schema;
+
+    // Feed data to connector.
+    connector_test.start_cud(operations.clone());
+
+    // Run the connector.
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
+    std::thread::spawn(move || {
+        if let Err(e) = connector.start(&ingestor, vec![]) {
+            error!("Connector `start` returned error: {e}")
+        }
+    });
+
+    // Check data schema consistency.
+    let mut last_identifier = None;
+    let mut records = Records::new(actual_primary_index.clone());
+    while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
+        // Identifier must be increasing.
+        if let Some(identifier) = last_identifier {
+            assert!(message.identifier > identifier);
+            last_identifier = Some(message.identifier);
+        }
+
+        // Filter out non-operation events.
+        let IngestionMessageKind::OperationEvent(operation) = message.kind else {
+            continue;
+        };
+
+        // Record must match schema.
+        match operation {
+            Operation::Insert { new } => {
+                assert_record_matches_schema(&new, &actual_schema, false);
+                records.append_operation(RecordsOperation::Insert { new: new.values });
+            }
+            Operation::Update { old, new } => {
+                assert_record_matches_schema(&old, &actual_schema, false);
+                assert_record_matches_schema(&new, &actual_schema, false);
+                records.append_operation(RecordsOperation::Update {
+                    old: old.values,
+                    new: new.values,
+                });
+            }
+            Operation::Delete { old } => {
+                assert_record_matches_schema(&old, &actual_schema, false);
+                records.append_operation(RecordsOperation::Delete { old: old.values });
+            }
         }
     }
+
+    // We can't check operation exact match because the connector may have batched some of them,
+    // so we check that the final state is the same.
+    let mut expected_records = Records::new(actual_primary_index);
+    for operation in operations {
+        expected_records.append_operation(operation);
+    }
+    assert_eq!(records, expected_records);
 }
 
 fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk: bool) {
@@ -215,37 +316,26 @@ fn assert_record_matches_one_schema(
 }
 
 fn assert_records_match(
-    partial_record: &Record,
-    partial_schema: &Schema,
-    record: &Record,
-    schema: &Schema,
+    partial_record: &[Field],
+    partial_fields: &[FieldDefinition],
+    partial_primary_index: &[usize],
+    record: &[Field],
+    fields: &[FieldDefinition],
     only_match_pk: bool,
 ) {
-    let partial_index_to_index = partial_schema
-        .fields
+    let partial_index_to_index = partial_fields
         .iter()
-        .map(|field| {
-            schema
-                .fields
-                .iter()
-                .position(|f| f.name == field.name)
-                .unwrap()
-        })
+        .map(|field| fields.iter().position(|f| f.name == field.name).unwrap())
         .collect::<Vec<_>>();
 
-    for (partial_index, partial_value) in partial_record.values.iter().enumerate() {
+    for (partial_index, partial_value) in partial_record.iter().enumerate() {
         // If `only_match_pk` is true, we only check primary key fields.
-        if only_match_pk
-            && !partial_schema
-                .primary_index
-                .iter()
-                .any(|i| i == &partial_index)
-        {
+        if only_match_pk && !partial_primary_index.iter().any(|i| i == &partial_index) {
             continue;
         }
         assert_eq!(
             partial_value,
-            &record.values[partial_index_to_index[partial_index]]
+            &record[partial_index_to_index[partial_index]]
         );
     }
 }
