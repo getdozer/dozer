@@ -1,10 +1,14 @@
 use std::{path::Path, process::Command};
 
+use dozer_utils::{
+    process::{run_command, run_docker_compose},
+    Cleanup,
+};
+
 use crate::e2e_tests::{Case, CaseKind};
 
 use super::{
-    super::{checker::check_error_expectation, cleanup::Cleanup, run_test_client},
-    run_command, run_docker_compose,
+    super::{checker::check_error_expectation, run_test_client},
     running_env::LocalDockerCompose,
     spawn_command,
 };
@@ -88,7 +92,11 @@ fn spawn_dozer_same_process(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cle
 }
 
 fn spawn_dozer_two_processes(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
-    run_command(dozer_bin, &["--config-path", dozer_config_path, "migrate"]);
+    run_command(
+        dozer_bin,
+        &["--config-path", dozer_config_path, "migrate"],
+        None,
+    );
     let mut cleanups = vec![];
     let child = spawn_command(
         dozer_bin,

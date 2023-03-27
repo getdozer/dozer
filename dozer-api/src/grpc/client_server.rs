@@ -146,7 +146,8 @@ impl ApiServer {
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
-                    .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+                    .on_response(trace::DefaultOnResponse::new().level(Level::INFO))
+                    .on_failure(trace::DefaultOnFailure::new().level(Level::ERROR)),
             )
             .accept_http1(true)
             .concurrency_limit_per_connection(32)

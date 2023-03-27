@@ -31,7 +31,7 @@ use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
 #[serde(crate = "dozer_types::serde")]
 /// A source table's CDC event type.
 pub enum CdcType {
@@ -157,7 +157,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             if let Some(dbname) = postgres_config.config.get_dbname() {
                 debug!("Connecting to postgres database - {}", dbname.to_string());
             }
-            Ok(Box::new(PostgresConnector::new(1, postgres_config)))
+            Ok(Box::new(PostgresConnector::new(postgres_config)))
         }
         ConnectionConfig::Ethereum(eth_config) => match eth_config.provider.unwrap() {
             dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => Ok(Box::new(

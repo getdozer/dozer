@@ -22,7 +22,6 @@ use dozer_types::types::Operation;
 pub struct PostgresSnapshotter<'a> {
     pub conn_config: tokio_postgres::Config,
     pub ingestor: &'a Ingestor,
-    pub connector_id: u64,
 }
 
 impl<'a> PostgresSnapshotter<'a> {
@@ -143,9 +142,7 @@ mod tests {
     use crate::{
         connectors::{
             postgres::{
-                connection::helper::map_connection_config,
-                connector::{PostgresConfig, PostgresConnector},
-                tests::client::TestPostgresClient,
+                connection::helper::map_connection_config, tests::client::TestPostgresClient,
             },
             ListOrFilterColumns,
         },
@@ -173,19 +170,11 @@ mod tests {
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
-            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
 
             test_client.create_simple_table("public", &table_name);
             test_client.insert_rows(&table_name, 2, None);
 
             let conn_config = map_connection_config(config).unwrap();
-
-            let postgres_config = PostgresConfig {
-                name: connector_name,
-                config: conn_config.clone(),
-            };
-
-            let connector = PostgresConnector::new(1, postgres_config);
 
             let input_tables = vec![ListOrFilterColumns {
                 name: table_name,
@@ -199,7 +188,6 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
-                connector_id: connector.id,
             };
 
             let actual = snapshotter.sync_tables(&input_tables);
@@ -239,19 +227,11 @@ mod tests {
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
-            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
 
             test_client.create_simple_table("public", &table_name);
             test_client.insert_rows(&table_name, 2, None);
 
             let conn_config = map_connection_config(config).unwrap();
-
-            let postgres_config = PostgresConfig {
-                name: connector_name,
-                config: conn_config.clone(),
-            };
-
-            let connector = PostgresConnector::new(1, postgres_config);
 
             let input_table_name = String::from("not_existing_table");
             let input_tables = vec![ListOrFilterColumns {
@@ -266,7 +246,6 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
-                connector_id: connector.id,
             };
 
             let actual = snapshotter.sync_tables(&input_tables);
@@ -297,16 +276,8 @@ mod tests {
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
-            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
 
             let conn_config = map_connection_config(config).unwrap();
-
-            let postgres_config = PostgresConfig {
-                name: connector_name,
-                config: conn_config.clone(),
-            };
-
-            let connector = PostgresConnector::new(1, postgres_config);
 
             let input_tables = vec![ListOrFilterColumns {
                 name: table_name,
@@ -320,7 +291,6 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
-                connector_id: connector.id,
             };
 
             let actual = snapshotter.sync_tables(&input_tables);

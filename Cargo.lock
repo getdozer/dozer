@@ -930,10 +930,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "bit-set"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0700ddab506f33b20a03b13996eccd309a48e5ff77d0d95926aa0210fb4e95f1"
+dependencies = [
+ "bit-vec 0.6.3",
+]
+
+[[package]]
 name = "bit-vec"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02b4ff8b16e6076c3e14220b39fbc1fabb6737522281a388998046859400895f"
+
+[[package]]
+name = "bit-vec"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
 
 [[package]]
 name = "bitflags"
@@ -1013,7 +1028,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d00ac8e5056d6d65376a3c1aa5c7c34850d6949ace17f0266953a254eb3d6fe8"
 dependencies = [
- "bit-vec",
+ "bit-vec 0.4.4",
 ]
 
 [[package]]
@@ -1762,7 +1777,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parking_lot",
- "parquet",
+ "parquet 31.0.0",
  "paste",
  "percent-encoding",
  "pin-project-lite",
@@ -1788,7 +1803,7 @@ dependencies = [
  "chrono",
  "num_cpus",
  "object_store",
- "parquet",
+ "parquet 31.0.0",
  "sqlparser 0.30.0",
 ]
 
@@ -1923,7 +1938,7 @@ dependencies = [
  "object_store",
  "once_cell",
  "parking_lot",
- "parquet",
+ "parquet 31.0.0",
  "percent-encoding",
  "regex",
  "serde",
@@ -2060,7 +2075,7 @@ checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
 
 [[package]]
 name = "dozer-admin"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "clap 4.1.11",
  "diesel",
@@ -2088,7 +2103,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-api"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "Inflector",
  "actix-cors",
@@ -2123,7 +2138,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "criterion",
  "dozer-storage",
@@ -2141,7 +2156,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "crossbeam",
  "daggy",
@@ -2156,7 +2171,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "base64 0.21.0",
  "bson",
@@ -2165,12 +2180,16 @@ dependencies = [
  "deltalake",
  "dozer-tracing",
  "dozer-types",
+ "dozer-utils",
+ "env_logger",
  "futures",
+ "hex",
  "hex-literal",
  "include_dir",
  "kafka",
  "object_store",
  "odbc",
+ "parquet 33.0.0",
  "postgres",
  "postgres-protocol",
  "postgres-types",
@@ -2181,6 +2200,7 @@ dependencies = [
  "reqwest",
  "schema_registry_converter",
  "serial_test",
+ "tempdir",
  "tokio",
  "tokio-postgres",
  "tonic",
@@ -2192,7 +2212,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-orchestrator"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "clap 4.1.11",
  "crossterm",
@@ -2222,7 +2242,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "ahash 0.8.3",
  "bloom",
@@ -2237,6 +2257,7 @@ dependencies = [
  "lmdb-rkv-sys",
  "multimap",
  "num-traits",
+ "proptest",
  "sqlparser 0.32.0",
  "tempdir",
  "uuid",
@@ -2244,17 +2265,18 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
  "lmdb-rkv-sys",
+ "page_size",
  "tempdir",
 ]
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "async-trait",
  "bson",
@@ -2267,6 +2289,7 @@ dependencies = [
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
+ "dozer-utils",
  "env_logger",
  "futures",
  "mongodb",
@@ -2281,7 +2304,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "dozer-types",
  "opentelemetry",
@@ -2293,7 +2316,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "ahash 0.8.3",
  "arrow 33.0.0",
@@ -2321,6 +2344,13 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tracing",
+]
+
+[[package]]
+name = "dozer-utils"
+version = "0.1.0"
+dependencies = [
+ "dozer-types",
 ]
 
 [[package]]
@@ -4145,9 +4175,9 @@ dependencies = [
 
 [[package]]
 name = "openssl"
-version = "0.10.45"
+version = "0.10.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b102428fd03bc5edf97f62620f7298614c45cedf287c271e7ed450bbaf83f2e1"
+checksum = "518915b97df115dd36109bfa429a48b8f737bd05508cf9588977b599648926d2"
 dependencies = [
  "bitflags 1.3.2",
  "cfg-if",
@@ -4177,9 +4207,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.80"
+version = "0.9.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23bbbf7854cd45b83958ebe919f0e8e516793727652e27fda10a8384cfc790b7"
+checksum = "666416d899cf077260dac8698d60a60b435a46d57e82acb1be3d0dad87284e5b"
 dependencies = [
  "autocfg",
  "cc",
@@ -4309,6 +4339,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1b04fb49957986fdce4d6ee7a65027d55d4b6d2265e5848bbb507b58ccfdb6f"
 
 [[package]]
+name = "page_size"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b7663cbd190cfd818d08efa8497f6cd383076688c49a391ef7c0d03cd12b561"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "parity-scale-codec"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4386,6 +4426,37 @@ dependencies = [
  "snap",
  "thrift 0.17.0",
  "tokio",
+ "twox-hash",
+ "zstd",
+]
+
+[[package]]
+name = "parquet"
+version = "33.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1b076829801167d889795cd1957989055543430fa1469cb1f6e32b789bfc764"
+dependencies = [
+ "ahash 0.8.3",
+ "arrow-array 33.0.0",
+ "arrow-buffer 33.0.0",
+ "arrow-cast 33.0.0",
+ "arrow-data 33.0.0",
+ "arrow-ipc 33.0.0",
+ "arrow-schema 33.0.0",
+ "arrow-select 33.0.0",
+ "base64 0.21.0",
+ "brotli",
+ "bytes",
+ "chrono",
+ "flate2",
+ "hashbrown 0.13.2",
+ "lz4",
+ "num",
+ "num-bigint",
+ "paste",
+ "seq-macro",
+ "snap",
+ "thrift 0.17.0",
  "twox-hash",
  "zstd",
 ]
@@ -4761,6 +4832,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "proptest"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29f1b898011ce9595050a68e60f90bad083ff2987a695a42357134c8381fba70"
+dependencies = [
+ "bit-set",
+ "bitflags 1.3.2",
+ "byteorder",
+ "lazy_static",
+ "num-traits",
+ "quick-error 2.0.1",
+ "rand 0.8.5",
+ "rand_chacha",
+ "rand_xorshift",
+ "regex-syntax",
+ "rusty-fork",
+ "tempfile",
+ "unarray",
+]
+
+[[package]]
 name = "prost"
 version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4922,6 +5014,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
 
 [[package]]
+name = "quick-error"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
+
+[[package]]
 name = "quick-xml"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5023,6 +5121,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
+]
+
+[[package]]
+name = "rand_xorshift"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
+dependencies = [
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -5177,7 +5284,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52e44394d2086d010551b14b53b1f24e31647570cd1deb0379e2c21b329aba00"
 dependencies = [
  "hostname",
- "quick-error",
+ "quick-error 1.2.3",
 ]
 
 [[package]]
@@ -5377,6 +5484,18 @@ name = "rustversion"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f3208ce4d8448b3f3e7d168a73f5e0c43a61e32930de3bceeccedb388b6bf06"
+
+[[package]]
+name = "rusty-fork"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb3dcc6e454c328bb824492db107ab7c0ae8fcffe4ad210136ef014458c1bc4f"
+dependencies = [
+ "fnv",
+ "quick-error 1.2.3",
+ "tempfile",
+ "wait-timeout",
+]
 
 [[package]]
 name = "rustyline"
@@ -6715,6 +6834,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "unarray"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
+
+[[package]]
 name = "unicase"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6820,6 +6945,15 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "wait-timeout"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f200f5b12eb75f8c1ed65abd4b2db8a6e1b138a20de009dacee265a2498f3f6"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "walkdir"

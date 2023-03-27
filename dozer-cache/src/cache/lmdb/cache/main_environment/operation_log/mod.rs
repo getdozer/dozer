@@ -169,28 +169,37 @@ impl OperationLog {
         txn: &mut RwTransaction,
         record: &mut Record,
         primary_key: Option<&[u8]>,
+        upsert_on_collision: bool,
     ) -> Result<Option<u64>, StorageError> {
         // Calculate operation id and record id.
-        let (operation_id, record_id) = if let Some(primary_key) = primary_key {
+        let (operation_id, record_id, record_version) = if let Some(primary_key) = primary_key {
             // Get or generate record id from `primary_key_to_metadata`.
-            let (record_id, record_version) =
-                match self.primary_key_to_metadata.get(txn, primary_key)? {
-                    // Primary key is never inserted before. Generate new id from `primary_key_to_metadata`.
-                    None => (
-                        self.primary_key_to_metadata.count(txn)? as u64,
-                        INITIAL_RECORD_VERSION,
-                    ),
-                    Some(metadata) => {
-                        let metadata = metadata.borrow();
-                        if metadata.insert_operation_id.is_some() {
-                            // Primary key collision.
-                            return Ok(None);
-                        } else {
-                            // This primary key was deleted. Use the record id from its first insertion.
-                            (metadata.id, metadata.version + 1)
-                        }
+            let pk_metadata = self.primary_key_to_metadata.get(txn, primary_key)?;
+            let (record_id, record_version, metadata_to_delete) = match pk_metadata {
+                // Primary key is never inserted before. Generate new id from `primary_key_to_metadata`.
+                None => (
+                    self.primary_key_to_metadata.count(txn)? as u64,
+                    INITIAL_RECORD_VERSION,
+                    None,
+                ),
+                Some(metadata) => {
+                    let metadata = metadata.borrow();
+                    if metadata.insert_operation_id.is_none() {
+                        // This primary key was deleted. Use the record id from its first insertion.
+                        (metadata.id, metadata.version + 1, None)
+                    } else if upsert_on_collision {
+                        (metadata.id, metadata.version + 1, Some(*metadata))
+                    } else {
+                        // Primary key collision.
+                        return Ok(None);
                     }
-                };
+                }
+            };
+
+            if let Some(metadata) = metadata_to_delete {
+                self.execute_deletion(txn, primary_key, metadata)?;
+            }
+
             // Generation operation id.
             let operation_id = self.next_operation_id.fetch_add(txn, 1)?;
             // Update `primary_key_to_metadata` and `present_operation_ids`.
@@ -207,15 +216,15 @@ impl OperationLog {
                 panic!("Inconsistent state: operation id already exists");
             }
             // Update record version.
-            record.version = Some(record_version);
-            (operation_id, record_id)
+            (operation_id, record_id, record_version)
         } else {
-            record.version = Some(INITIAL_RECORD_VERSION);
             // Generation operation id.
             let operation_id = self.next_operation_id.fetch_add(txn, 1)?;
             // If the record has no primary key, record id is operation id.
-            (operation_id, operation_id)
+            (operation_id, operation_id, INITIAL_RECORD_VERSION)
         };
+
+        record.version = Some(record_version);
         // Record operation. The operation id must not exist.
         if !self.operation_id_to_operation.insert(
             txn,
@@ -237,10 +246,22 @@ impl OperationLog {
         let Some(metadata) = self.primary_key_to_metadata.get(txn, primary_key)? else {
             return Ok(None);
         };
+
         let metadata = metadata.into_owned();
+
+        self.execute_deletion(txn, primary_key, metadata)
+    }
+
+    fn execute_deletion(
+        &self,
+        txn: &mut RwTransaction,
+        primary_key: &[u8],
+        metadata: RecordMetadata,
+    ) -> Result<Option<u32>, StorageError> {
         let Some(insert_operation_id) = metadata.insert_operation_id else {
             return Ok(None);
         };
+
         // Remove deleted operation id.
         self.primary_key_to_metadata.insert_overwrite(
             txn,
@@ -303,7 +324,7 @@ mod tests {
 
         let mut records = vec![Record::new(None, vec![], None); 10];
         for (index, record) in records.iter_mut().enumerate() {
-            let record_id = log.insert(&mut txn, record, None).unwrap().unwrap();
+            let record_id = log.insert(&mut txn, record, None, false).unwrap().unwrap();
             assert_eq!(record_id, index as u64);
             assert_eq!(record.version, Some(INITIAL_RECORD_VERSION));
             assert_eq!(
@@ -348,7 +369,7 @@ mod tests {
         let mut record = Record::new(None, vec![], None);
         let primary_key = b"primary_key";
         let record_id = log
-            .insert(&mut txn, &mut record, Some(primary_key))
+            .insert(&mut txn, &mut record, Some(primary_key), false)
             .unwrap()
             .unwrap();
         assert_eq!(record_id, 0);
@@ -382,7 +403,7 @@ mod tests {
 
         // Insert again with the same primary key should fail.
         assert_eq!(
-            log.insert(&mut txn, &mut record, Some(primary_key))
+            log.insert(&mut txn, &mut record, Some(primary_key), false)
                 .unwrap(),
             None
         );
@@ -418,7 +439,7 @@ mod tests {
 
         // Insert with that primary key again.
         let record_id = log
-            .insert(&mut txn, &mut record, Some(primary_key))
+            .insert(&mut txn, &mut record, Some(primary_key), false)
             .unwrap()
             .unwrap();
         assert_eq!(record_id, 0);

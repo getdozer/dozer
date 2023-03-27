@@ -19,11 +19,9 @@ use dozer_api::{
 };
 use dozer_cache::cache::{CacheManager, LmdbCacheManager};
 use dozer_core::app::AppPipeline;
-use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
+use dozer_core::dag_schemas::DagSchemas;
 use dozer_core::errors::ExecutionError::InternalError;
-use dozer_core::petgraph::visit::{IntoEdgesDirected, IntoNodeReferences};
-use dozer_core::petgraph::Direction;
-use dozer_core::NodeKind;
+
 use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
@@ -32,7 +30,7 @@ use dozer_types::grpc_types::internal::AliasRedirected;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
-use dozer_types::types::{Operation, Schema};
+
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, TryFutureExt};
 use std::collections::HashMap;
@@ -140,17 +138,17 @@ impl Orchestrator for SimpleOrchestrator {
             while let Some(result) = futures.next().await {
                 result?;
             }
+            let server_handle = rx
+                .recv()
+                .map_err(OrchestrationError::GrpcServerHandleError)?;
+            // Waiting for Ctrl+C
+            while running.load(Ordering::Relaxed) {}
+
+            sender_shutdown.send(()).unwrap();
+            rest::ApiServer::stop(server_handle);
+
             Ok::<(), OrchestrationError>(())
         })?;
-
-        let server_handle = rx
-            .recv()
-            .map_err(OrchestrationError::GrpcServerHandleError)?;
-
-        // Waiting for Ctrl+C
-        while running.load(Ordering::SeqCst) {}
-        sender_shutdown.send(()).unwrap();
-        rest::ApiServer::stop(server_handle);
 
         Ok(())
     }
@@ -224,45 +222,6 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::GenerateTokenFailed(
             "Missing api config or security input".to_owned(),
         ))
-    }
-
-    fn query(
-        &self,
-        sql: String,
-        sender: Sender<Operation>,
-        running: Arc<AtomicBool>,
-    ) -> Result<Schema, OrchestrationError> {
-        let pipeline_dir = tempdir::TempDir::new("query4")
-            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-        let executor = Executor::new(
-            &self.config.sources,
-            self.config.sql.as_deref(),
-            &[],
-            pipeline_dir.path(),
-            running,
-        );
-
-        let dag = executor.query(sql, sender)?;
-        let dag_schemas = DagSchemas::new(dag)?;
-
-        let sink_index = (|| {
-            for (node_index, node) in dag_schemas.graph().node_references() {
-                if matches!(node.kind, NodeKind::Sink(_)) {
-                    return node_index;
-                }
-            }
-            panic!("Sink is expected");
-        })();
-
-        let schema = dag_schemas
-            .graph()
-            .edges_directed(sink_index, Direction::Incoming)
-            .next()
-            .expect("Sink must have incoming edge")
-            .weight()
-            .schema
-            .clone();
-        Ok(schema)
     }
 
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
@@ -342,6 +301,7 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         let running_api = running.clone();
+        let running_wait = running.clone();
         // TODO: remove this after checkpointing
         self.clean()?;
 
@@ -370,12 +330,15 @@ impl Orchestrator for SimpleOrchestrator {
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
 
-        thread::spawn(move || {
+        let _api_thread = thread::spawn(move || {
             if let Err(e) = dozer_api.run_api(running_api) {
                 std::panic::panic_any(e);
             }
         });
 
+        while running_wait.load(Ordering::Relaxed) {}
+
+        // wait for threads to shutdown gracefully
         pipeline_thread.join().unwrap();
         Ok(())
     }

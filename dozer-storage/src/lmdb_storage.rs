@@ -94,6 +94,14 @@ impl LmdbEnvironmentManager {
         name: &str,
         options: LmdbEnvironmentOptions,
     ) -> Result<Self, StorageError> {
+        let page_size = page_size::get();
+        if options.max_map_sz == 0 || options.max_map_sz % page_size != 0 {
+            return Err(StorageError::BadPageSize {
+                map_size: options.max_map_sz,
+                page_size,
+            });
+        }
+
         let full_path = base_path.join(Path::new(name));
 
         let mut builder = Environment::new();

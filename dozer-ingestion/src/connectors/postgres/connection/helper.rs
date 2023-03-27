@@ -8,13 +8,14 @@ pub fn map_connection_config(
     auth_details: &ConnectionConfig,
 ) -> Result<tokio_postgres::Config, ConnectorError> {
     if let ConnectionConfig::Postgres(postgres) = auth_details {
-        Ok(tokio_postgres::Config::new()
+        let mut config = tokio_postgres::Config::new();
+        config
             .host(&postgres.host)
             .port(postgres.port as u16)
             .user(&postgres.user)
             .dbname(&postgres.database)
-            .password(&postgres.password)
-            .to_owned())
+            .password(&postgres.password);
+        Ok(config)
     } else {
         Err(ConnectorError::WrongConnectionConfiguration)
     }

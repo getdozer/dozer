@@ -103,7 +103,7 @@ message Value {
   oneof value {
     uint64 uint_value = 1;     // Unsigned 64 bit integer.
     int64 int_value = 2;       // Signed 64 bit integer.
-    double float_value = 3;    // 32 bit floating point number.
+    double float_value = 3;    // 64 bit floating point number.
     bool bool_value = 4;       // Boolean.
     string string_value = 5;   // UTF-8 string.
     bytes bytes_value = 7;     // Binary data.

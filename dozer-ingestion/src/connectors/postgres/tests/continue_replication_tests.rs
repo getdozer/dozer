@@ -37,7 +37,7 @@ mod tests {
                 config: conn_config.clone(),
             };
 
-            let connector = PostgresConnector::new(1, postgres_config);
+            let connector = PostgresConnector::new(postgres_config);
 
             // let result = connector.can_start_from((1, 0)).unwrap();
             // assert!(!result, "Cannot continue, because slot doesnt exist");
@@ -92,7 +92,7 @@ mod tests {
                 config: conn_config.clone(),
             };
 
-            let connector = PostgresConnector::new(1, postgres_config);
+            let connector = PostgresConnector::new(postgres_config);
 
             let mut replication_conn_config = conn_config;
             replication_conn_config.replication_mode(ReplicationMode::Logical);
@@ -122,7 +122,7 @@ mod tests {
             // assume that we already received two rows
             // let last_parsed_position = 2_u64;
             // thread::spawn(move || {
-            //     let connector = PostgresConnector::new(1, postgres_config);
+            //     let connector = PostgresConnector::new(postgres_config);
             //     let _ = connector.start(
             //         Some((u64::from(parsed_lsn), last_parsed_position)),
             //         &ingestor,

@@ -1,6 +1,6 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.12"
+version = "0.1.13"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -37,6 +37,7 @@ prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] }
 deltalake = { version = "0.7.0", default-features = false, features = ["datafusion"] }
 bson = "2.5.0"
+dozer-utils = { version = "0.1.0", path = "../dozer-utils" }
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
@@ -44,6 +45,10 @@ serial_test = "1.0.0"
 rand = "0.8.5"
 hex-literal = "0.3.4"
 dozer-tracing = {path = "../dozer-tracing"}
+tempdir = "0.3.7"
+parquet = "33.0.0"
+env_logger = "0.10.0"
+hex = "0.4.3"
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.

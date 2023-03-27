@@ -40,13 +40,11 @@ pub enum ReplicationState {
 pub struct PostgresIterator<'a> {
     details: Arc<Details>,
     ingestor: &'a Ingestor,
-    connector_id: u64,
 }
 
 impl<'a> PostgresIterator<'a> {
     #![allow(clippy::too_many_arguments)]
     pub fn new(
-        id: u64,
         name: String,
         publication_name: String,
         slot_name: String,
@@ -63,11 +61,7 @@ impl<'a> PostgresIterator<'a> {
             replication_conn_config,
             conn_config,
         });
-        PostgresIterator {
-            details,
-            ingestor,
-            connector_id: id,
-        }
+        PostgresIterator { details, ingestor }
     }
 }
 
@@ -76,14 +70,12 @@ impl<'a> PostgresIterator<'a> {
         let lsn = RefCell::new(lsn);
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
-        let connector_id = self.connector_id;
 
         let stream_inner = PostgresIteratorHandler {
             details,
             ingestor: self.ingestor,
             state,
             lsn,
-            connector_id,
         };
         stream_inner._start()
     }
@@ -94,7 +86,6 @@ pub struct PostgresIteratorHandler<'a> {
     pub lsn: RefCell<Option<(PgLsn, u64)>>,
     pub state: RefCell<ReplicationState>,
     pub ingestor: &'a Ingestor,
-    pub connector_id: u64,
 }
 
 impl<'a> PostgresIteratorHandler<'a> {
@@ -163,7 +154,6 @@ impl<'a> PostgresIteratorHandler<'a> {
             let snapshotter = PostgresSnapshotter {
                 conn_config: details.conn_config.to_owned(),
                 ingestor: self.ingestor,
-                connector_id: self.connector_id,
             };
             let tables = details
                 .tables
@@ -216,7 +206,6 @@ impl<'a> PostgresIteratorHandler<'a> {
                 publication_name,
                 slot_name,
                 last_commit_lsn: 0,
-                connector_id: self.connector_id,
                 seq_no: 0,
                 name: self.details.name.clone(),
             };

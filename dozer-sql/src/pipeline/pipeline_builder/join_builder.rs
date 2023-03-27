@@ -8,7 +8,7 @@ use dozer_core::{
 use sqlparser::ast::TableWithJoins;
 
 use crate::pipeline::{
-    builder::{QueryContext, SchemaSQLContext},
+    builder::{get_from_source, QueryContext, SchemaSQLContext},
     errors::PipelineError,
     product::{
         join::factory::{JoinProcessorFactory, LEFT_JOIN_PORT, RIGHT_JOIN_PORT},
@@ -182,7 +182,7 @@ fn insert_join_source_to_pipeline(
             "Nested JOINs are not supported".to_string(),
         ));
     } else {
-        let name_or_alias = get_name_or_alias(&source)?;
+        let name_or_alias = get_from_source(&source, pipeline, query_context, pipeline_idx)?;
         JoinSource::Table(name_or_alias.0)
     };
     Ok(join_source)

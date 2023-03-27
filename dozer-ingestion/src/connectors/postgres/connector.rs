@@ -5,7 +5,7 @@ use crate::connectors::{
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use dozer_types::tracing::{error, info};
+use dozer_types::tracing::info;
 use postgres::Client;
 use postgres_types::PgLsn;
 
@@ -25,7 +25,6 @@ pub struct PostgresConfig {
 
 #[derive(Debug)]
 pub struct PostgresConnector {
-    pub id: u64,
     name: String,
     replication_conn_config: Config,
     conn_config: Config,
@@ -39,7 +38,7 @@ pub struct ReplicationSlotInfo {
 }
 
 impl PostgresConnector {
-    pub fn new(id: u64, config: PostgresConfig) -> PostgresConnector {
+    pub fn new(config: PostgresConfig) -> PostgresConnector {
         let mut replication_conn_config = config.config.clone();
         replication_conn_config.replication_mode(ReplicationMode::Logical);
 
@@ -49,7 +48,6 @@ impl PostgresConnector {
         // conn_str_plain- conn_config
 
         PostgresConnector {
-            id,
             name: config.name,
             conn_config: config.config,
             replication_conn_config,
@@ -169,7 +167,6 @@ impl Connector for PostgresConnector {
             })
             .collect::<Vec<_>>();
         let iterator = PostgresIterator::new(
-            self.id,
             self.name.clone(),
             self.get_publication_name(),
             self.get_slot_name(),
@@ -216,17 +213,12 @@ impl PostgresConnector {
 
         client
             .simple_query(format!("DROP PUBLICATION IF EXISTS {publication_name}").as_str())
-            .map_err(|e| {
-                error!("failed to drop publication {}", e.to_string());
-                DropPublicationError
-            })?;
+            .map_err(DropPublicationError)?;
 
         client
             .simple_query(format!("CREATE PUBLICATION {publication_name} FOR {table_str}").as_str())
-            .map_err(|e| {
-                error!("failed to create publication {}", e.to_string());
-                CreatePublicationError
-            })?;
+            .map_err(CreatePublicationError)?;
+
         Ok(())
     }
 }

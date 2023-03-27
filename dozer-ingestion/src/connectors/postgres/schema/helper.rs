@@ -273,7 +273,13 @@ impl SchemaHelper {
         };
 
         let cdc_type = match table.replication_type.as_str() {
-            "d" => Ok(CdcType::OnlyPK),
+            "d" => {
+                if schema.primary_index.is_empty() {
+                    Ok(CdcType::Nothing)
+                } else {
+                    Ok(CdcType::OnlyPK)
+                }
+            }
             "i" => Ok(CdcType::OnlyPK),
             "n" => Ok(CdcType::Nothing),
             "f" => Ok(CdcType::FullChanges),
@@ -292,7 +298,7 @@ impl SchemaHelper {
         table_name: &str,
         schema: &SourceSchema,
     ) -> Result<(), PostgresSchemaError> {
-        if schema.schema.primary_index.is_empty() {
+        if schema.cdc_type == CdcType::OnlyPK && schema.schema.primary_index.is_empty() {
             Err(PostgresSchemaError::PrimaryKeyIsMissingInSchema(
                 table_name.to_string(),
             ))

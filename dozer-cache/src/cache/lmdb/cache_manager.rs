@@ -7,6 +7,7 @@ use dozer_storage::{
         CreateDatabase, LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
     },
 };
+use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::{
     parking_lot::Mutex,
     types::{IndexDefinition, Schema},
@@ -112,7 +113,11 @@ impl LmdbCacheManager {
 }
 
 impl CacheManager for LmdbCacheManager {
-    fn open_rw_cache(&self, name: &str) -> Result<Option<Box<dyn RwCache>>, CacheError> {
+    fn open_rw_cache(
+        &self,
+        name: &str,
+        conflict_resolution: ConflictResolution,
+    ) -> Result<Option<Box<dyn RwCache>>, CacheError> {
         let mut txn = self.txn.write();
         // Open a new transaction to make sure we get the latest changes.
         txn.commit_and_renew()?;
@@ -123,6 +128,7 @@ impl CacheManager for LmdbCacheManager {
                     None,
                     &self.cache_options(real_name.to_string()),
                     &mut self.indexing_thread_pool.lock(),
+                    conflict_resolution,
                 )?;
                 Some(Box::new(cache))
             } else {
@@ -150,12 +156,14 @@ impl CacheManager for LmdbCacheManager {
         &self,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
+        conflict_resolution: ConflictResolution,
     ) -> Result<Box<dyn RwCache>, CacheError> {
         let name = self.generate_unique_name();
         let cache = LmdbRwCache::new(
             Some(&(schema, indexes)),
             &self.cache_options(name),
             &mut self.indexing_thread_pool.lock(),
+            conflict_resolution,
         )?;
         Ok(Box::new(cache))
     }
@@ -206,14 +214,14 @@ mod tests {
     fn test_lmdb_cache_manager() {
         let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
         let real_name = cache_manager
-            .create_cache(Schema::empty(), vec![])
+            .create_cache(Schema::empty(), vec![], ConflictResolution::default())
             .unwrap()
             .name()
             .to_string();
         // Test open with real name.
         assert_eq!(
             cache_manager
-                .open_rw_cache(&real_name)
+                .open_rw_cache(&real_name, ConflictResolution::default())
                 .unwrap()
                 .unwrap()
                 .name(),
@@ -231,7 +239,11 @@ mod tests {
         let alias = "alias";
         cache_manager.create_alias(&real_name, alias).unwrap();
         assert_eq!(
-            cache_manager.open_rw_cache(alias).unwrap().unwrap().name(),
+            cache_manager
+                .open_rw_cache(alias, ConflictResolution::default())
+                .unwrap()
+                .unwrap()
+                .name(),
             real_name
         );
         assert_eq!(
@@ -242,7 +254,7 @@ mod tests {
         cache_manager.create_alias(&real_name, &real_name).unwrap();
         assert_eq!(
             cache_manager
-                .open_rw_cache(&real_name)
+                .open_rw_cache(&real_name, ConflictResolution::default())
                 .unwrap()
                 .unwrap()
                 .name(),
@@ -258,14 +270,14 @@ mod tests {
         );
         // If name is both alias and real name, alias shadows real name.
         let real_name2 = cache_manager
-            .create_cache(Schema::empty(), vec![])
+            .create_cache(Schema::empty(), vec![], ConflictResolution::default())
             .unwrap()
             .name()
             .to_string();
         cache_manager.create_alias(&real_name, &real_name2).unwrap();
         assert_eq!(
             cache_manager
-                .open_rw_cache(&real_name)
+                .open_rw_cache(&real_name, ConflictResolution::default())
                 .unwrap()
                 .unwrap()
                 .name(),

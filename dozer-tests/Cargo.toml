@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.12"
+version = "0.1.13"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -37,6 +37,7 @@ dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 tempdir = "0.3.7"
 walkdir = "2.3.2"
+dozer-utils = { version = "0.1.0", path = "../dozer-utils" }
 
 
 [dev-dependencies]

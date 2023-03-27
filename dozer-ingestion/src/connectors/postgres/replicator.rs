@@ -24,7 +24,6 @@ use super::xlog_mapper::MappedReplicationMessage;
 
 pub struct CDCHandler<'a> {
     pub name: String,
-    pub connector_id: u64,
     pub ingestor: &'a Ingestor,
 
     pub replication_conn_config: tokio_postgres::Config,
