@@ -22,9 +22,91 @@ use tempdir::TempDir;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
-const USER_PORT: u16 = 0 as PortHandle;
-const DEPARTMENT_PORT: u16 = 1 as PortHandle;
-const COUNTRY_PORT: u16 = 2 as PortHandle;
+const ACTOR: u16 = 0 as PortHandle;
+const FILM_ACTOR: u16 = 1 as PortHandle;
+
+#[test]
+#[ignore]
+fn test_pipeline_builder() {
+    dozer_tracing::init_telemetry(None, None);
+
+    let mut pipeline = AppPipeline::new();
+
+    let context = statement_to_pipeline(
+        // "SELECT a.actor_id, a.first_name, a.last_name, fa.film_id from actor a
+        // LEFT JOIN film_actor fa on fa.actor_id = a.actor_id;",
+        "SELECT a.first_name, a.last_name
+                FROM actor a
+                INNER JOIN (
+                SELECT actor_id
+                FROM film_actor
+                GROUP BY actor_id
+                HAVING COUNT(*) >= 10
+                ) fa ON a.actor_id = fa.actor_id",
+        &mut pipeline,
+        Some("results".to_string()),
+    )
+    .unwrap();
+
+    let table_info = context.output_tables_map.get("results").unwrap();
+    let latch = Arc::new(AtomicBool::new(true));
+
+    let mut asm = AppSourceManager::new();
+    asm.add(AppSource::new(
+        "conn".to_string(),
+        Arc::new(TestSourceFactory::new(latch.clone())),
+        vec![
+            ("actor".to_string(), ACTOR),
+            ("film_actor".to_string(), FILM_ACTOR),
+        ]
+        .into_iter()
+        .collect(),
+    ))
+    .unwrap();
+
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
+    pipeline
+        .connect_nodes(
+            &table_info.node,
+            Some(table_info.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        )
+        .unwrap();
+
+    let mut app = App::new(asm);
+    app.add_pipeline(pipeline);
+
+    let dag = app.get_dag().unwrap();
+    dag.print_dot();
+
+    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    if tmp_dir.path().exists() {
+        std::fs::remove_dir_all(tmp_dir.path())
+            .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+    }
+    std::fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
+    use std::time::Instant;
+    let now = Instant::now();
+
+    let tmp_dir = TempDir::new("test").unwrap();
+
+    DagExecutor::new(
+        dag,
+        tmp_dir.path().to_path_buf(),
+        ExecutorOptions::default(),
+    )
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
+
+    let elapsed = now.elapsed();
+    debug!("Elapsed: {:.2?}", elapsed);
+}
 
 #[derive(Debug)]
 pub struct TestSourceFactory {
@@ -40,12 +122,8 @@ impl TestSourceFactory {
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![
-            OutputPortDef::new(USER_PORT, OutputPortType::StatefulWithPrimaryKeyLookup),
-            OutputPortDef::new(
-                DEPARTMENT_PORT,
-                OutputPortType::StatefulWithPrimaryKeyLookup,
-            ),
-            OutputPortDef::new(COUNTRY_PORT, OutputPortType::StatefulWithPrimaryKeyLookup),
+            OutputPortDef::new(ACTOR, OutputPortType::Stateless),
+            OutputPortDef::new(FILM_ACTOR, OutputPortType::Stateless),
         ]
     }
 
@@ -53,16 +131,16 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         &self,
         port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        if port == &USER_PORT {
+        if port == &ACTOR {
             let source_id = SourceDefinition::Table {
                 connection: "connection".to_string(),
-                name: "user".to_string(),
+                name: "actor".to_string(),
             };
             Ok((
                 Schema::empty()
                     .field(
                         FieldDefinition::new(
-                            String::from("id"),
+                            String::from("actor_id"),
                             FieldType::Int,
                             false,
                             source_id.clone(),
@@ -71,7 +149,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     )
                     .field(
                         FieldDefinition::new(
-                            String::from("name"),
+                            String::from("first_name"),
                             FieldType::String,
                             false,
                             source_id.clone(),
@@ -80,44 +158,26 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     )
                     .field(
                         FieldDefinition::new(
-                            String::from("department_id"),
-                            FieldType::Int,
-                            false,
-                            source_id.clone(),
-                        ),
-                        false,
-                    )
-                    .field(
-                        FieldDefinition::new(
-                            String::from("country_id"),
+                            String::from("last_name"),
                             FieldType::String,
                             false,
                             source_id.clone(),
-                        ),
-                        false,
-                    )
-                    .field(
-                        FieldDefinition::new(
-                            String::from("salary"),
-                            FieldType::Float,
-                            false,
-                            source_id,
                         ),
                         false,
                     )
                     .clone(),
                 SchemaSQLContext::default(),
             ))
-        } else if port == &DEPARTMENT_PORT {
+        } else if port == &FILM_ACTOR {
             let source_id = SourceDefinition::Table {
                 connection: "connection".to_string(),
-                name: "department".to_string(),
+                name: "film_actor".to_string(),
             };
             Ok((
                 Schema::empty()
                     .field(
                         FieldDefinition::new(
-                            String::from("did"),
+                            String::from("actor_id"),
                             FieldType::Int,
                             false,
                             source_id.clone(),
@@ -126,40 +186,12 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                     )
                     .field(
                         FieldDefinition::new(
-                            String::from("dname"),
-                            FieldType::String,
-                            false,
-                            source_id,
-                        ),
-                        false,
-                    )
-                    .clone(),
-                SchemaSQLContext::default(),
-            ))
-        } else if port == &COUNTRY_PORT {
-            let source_id = SourceDefinition::Table {
-                connection: "connection".to_string(),
-                name: "country".to_string(),
-            };
-            Ok((
-                Schema::empty()
-                    .field(
-                        FieldDefinition::new(
-                            String::from("cid"),
-                            FieldType::String,
+                            String::from("film_id"),
+                            FieldType::Int,
                             false,
                             source_id.clone(),
                         ),
                         true,
-                    )
-                    .field(
-                        FieldDefinition::new(
-                            String::from("cname"),
-                            FieldType::String,
-                            false,
-                            source_id,
-                        ),
-                        false,
                     )
                     .clone(),
                 SchemaSQLContext::default(),
@@ -200,198 +232,131 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(10000),
-                            Field::String("Alice".to_string()),
-                            Field::Int(0),
-                            Field::String("UK".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                        Some(1),
-                    ),
-                },
-                USER_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10001),
-                            Field::String("Bob".to_string()),
-                            Field::Int(0),
-                            Field::String("UK".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                        Some(1),
-                    ),
-                },
-                USER_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::Int(0), Field::String("IT".to_string())],
-                        Some(1),
-                    ),
-                },
-                DEPARTMENT_PORT,
-            ),
-            // (
-            //     Operation::Insert {
-            //         new: Record::new(
-            //             None,
-            //             vec![Field::Int(1), Field::String("HR".to_string())],
-            //             Some(1),
-            //         ),
-            //     },
-            //     DEPARTMENT_PORT,
-            // ),
-            // (
-            //     Operation::Insert {
-            //         new: Record::new(
-            //             None,
-            //             vec![
-            //                 Field::String("UK".to_string()),
-            //                 Field::String("United Kingdom".to_string()),
-            //             ],
-            //             Some(1),
-            //         ),
-            //     },
-            //     COUNTRY_PORT,
-            // ),
-            // (
-            //     Operation::Insert {
-            //         new: Record::new(
-            //             None,
-            //             vec![
-            //                 Field::String("SG".to_string()),
-            //                 Field::String("Singapore".to_string()),
-            //             ],
-            //             Some(1),
-            //         ),
-            //     },
-            //     COUNTRY_PORT,
-            // ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10002),
-                            Field::String("Craig".to_string()),
                             Field::Int(1),
-                            Field::String("SG".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
+                            Field::String("Penelope".to_string()),
+                            Field::String("Guiness".to_string()),
                         ],
                         Some(1),
                     ),
                 },
-                USER_PORT,
-            ),
-            // (
-            //     Operation::Delete {
-            //         old: Record::new(
-            //             None,
-            //             vec![Field::Int(1), Field::String("HR".to_string())],
-            //             Some(1),
-            //         ),
-            //     },
-            //     DEPARTMENT_PORT,
-            // ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10003),
-                            Field::String("Dan".to_string()),
-                            Field::Int(0),
-                            Field::String("UK".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                        Some(1),
-                    ),
-                },
-                USER_PORT,
+                ACTOR,
             ),
             (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(10004),
-                            Field::String("Eve".to_string()),
                             Field::Int(1),
-                            Field::String("SG".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
+                            Field::String("Penelope".to_string()),
+                            Field::String("Guiness".to_string()),
                         ],
                         Some(1),
                     ),
                 },
-                USER_PORT,
+                ACTOR,
             ),
-            // (
-            //     Operation::Delete {
-            //         old: Record::new(
-            //             None,
-            //             vec![
-            //                 Field::Int(10002),
-            //                 Field::String("Craig".to_string()),
-            //                 Field::Int(1),
-            //                 Field::Float(OrderedFloat(1.1)),
-            //             ],
-            //             None,
-            //         ),
-            //     },
-            //     USER_PORT,
-            // ),
             (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(10005),
-                            Field::String("Frank".to_string()),
-                            Field::Int(1),
-                            Field::String("SG".to_string()),
-                            Field::Float(OrderedFloat(1.5)),
+                            Field::Int(2),
+                            Field::String("Jack".to_string()),
+                            Field::String("Nicholson".to_string()),
                         ],
-                        None,
-                    ),
-                },
-                USER_PORT,
-            ),
-            (
-                Operation::Update {
-                    old: Record::new(
-                        None,
-                        vec![Field::Int(0), Field::String("IT".to_string())],
                         Some(1),
                     ),
+                },
+                ACTOR,
+            ),
+            (
+                Operation::Insert {
                     new: Record::new(
                         None,
-                        vec![Field::Int(0), Field::String("RD".to_string())],
-                        Some(2),
+                        vec![
+                            Field::Int(3),
+                            Field::String("Angelina".to_string()),
+                            Field::String("Jolie".to_string()),
+                        ],
+                        Some(1),
                     ),
                 },
-                DEPARTMENT_PORT,
+                ACTOR,
             ),
-            // (
-            //     Operation::Update {
-            //         old: Record::new(
-            //             None,
-            //             vec![Field::Int(0), Field::String("IT".to_string())],
-            //             None,
-            //         ),
-            //         new: Record::new(
-            //             None,
-            //             vec![Field::Int(0), Field::String("XX".to_string())],
-            //             None,
-            //         ),
-            //     },
-            //     DEPARTMENT_PORT,
-            // ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(4),
+                            Field::String("Tom".to_string()),
+                            Field::String("Hanks".to_string()),
+                        ],
+                        Some(1),
+                    ),
+                },
+                ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(1), Field::Int(1)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(1), Field::Int(2)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(1), Field::Int(3)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(2), Field::Int(4)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(2), Field::Int(5)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(2), Field::Int(6)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(3), Field::Int(7)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(3), Field::Int(8)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(3), Field::Int(9)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(4), Field::Int(10)], Some(1)),
+                },
+                FILM_ACTOR,
+            ),
         ];
 
         for (index, (op, port)) in operations.into_iter().enumerate() {
@@ -504,77 +469,4 @@ impl Sink for TestSink {
     fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
-}
-
-#[test]
-#[ignore]
-fn test_pipeline_builder() {
-    dozer_tracing::init_telemetry(None, None);
-
-    let mut pipeline = AppPipeline::new();
-
-    let context = statement_to_pipeline(
-        "SELECT  name, dname, cname, salary \
-        FROM user LEFT JOIN department ON user.department_id = department.did LEFT JOIN country ON user.country_id = country.cid ",
-    &mut pipeline, Some("results".to_string()))
-    .unwrap();
-
-    let table_info = context.output_tables_map.get("results").unwrap();
-    let latch = Arc::new(AtomicBool::new(true));
-
-    let mut asm = AppSourceManager::new();
-    asm.add(AppSource::new(
-        "conn".to_string(),
-        Arc::new(TestSourceFactory::new(latch.clone())),
-        vec![
-            ("user".to_string(), USER_PORT),
-            ("department".to_string(), DEPARTMENT_PORT),
-            ("country".to_string(), COUNTRY_PORT),
-        ]
-        .into_iter()
-        .collect(),
-    ))
-    .unwrap();
-
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
-    pipeline
-        .connect_nodes(
-            &table_info.node,
-            Some(table_info.port),
-            "sink",
-            Some(DEFAULT_PORT_HANDLE),
-            true,
-        )
-        .unwrap();
-
-    let mut app = App::new(asm);
-    app.add_pipeline(pipeline);
-
-    let dag = app.get_dag().unwrap();
-
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-    if tmp_dir.path().exists() {
-        std::fs::remove_dir_all(tmp_dir.path())
-            .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-    }
-    std::fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-
-    use std::time::Instant;
-    let now = Instant::now();
-
-    let tmp_dir = TempDir::new("test").unwrap();
-
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
-    )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
-
-    let elapsed = now.elapsed();
-    debug!("Elapsed: {:.2?}", elapsed);
 }
