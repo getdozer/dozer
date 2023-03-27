@@ -14,6 +14,7 @@ use dozer_types::{
 use futures_util::{Future, StreamExt};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tonic::{transport::Channel, Streaming};
+use dozer_types::grpc_types::internal::{StatusUpdate, StatusUpdateRequest};
 
 use crate::errors::GrpcError;
 
@@ -66,6 +67,26 @@ impl InternalPipelineClient {
         let stream = self
             .client
             .stream_operations(OperationsRequest {})
+            .await
+            .map_err(|err| GrpcError::InternalError(Box::new(err)))?
+            .into_inner();
+        let (sender, receiver) = tokio::sync::broadcast::channel(16);
+        let future = redirect_loop(stream, sender);
+        Ok((receiver, future))
+    }
+
+    pub async fn stream_status_update(
+        &mut self,
+    ) -> Result<
+        (
+            Receiver<StatusUpdate>,
+            impl Future<Output = Result<(), GrpcError>>,
+        ),
+        GrpcError,
+    > {
+        let stream = self
+            .client
+            .stream_status_updates(StatusUpdateRequest {})
             .await
             .map_err(|err| GrpcError::InternalError(Box::new(err)))?
             .into_inner();

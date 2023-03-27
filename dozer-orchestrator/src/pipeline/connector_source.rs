@@ -16,6 +16,8 @@ use dozer_types::types::{Operation, Schema, SchemaIdentifier, SourceDefinition};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
+use dozer_types::grpc_types::internal::StatusUpdate;
 use tokio::runtime::Runtime;
 
 fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
@@ -57,6 +59,7 @@ pub struct ConnectorSourceFactory {
     connector: Mutex<Option<Box<dyn Connector>>>,
     runtime: Arc<Runtime>,
     progress: Option<MultiProgress>,
+    notifier: Option<PipelineEventSenders>
 }
 
 fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
@@ -73,6 +76,7 @@ impl ConnectorSourceFactory {
         connection: Connection,
         runtime: Arc<Runtime>,
         progress: Option<MultiProgress>,
+        notifier: Option<PipelineEventSenders>,
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
 
@@ -116,6 +120,7 @@ impl ConnectorSourceFactory {
             connector: Mutex::new(Some(connector)),
             runtime,
             progress,
+            notifier
         })
     }
 }
@@ -202,6 +207,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
             bars,
+            notifier: self.notifier.clone()
         }))
     }
 }
@@ -216,6 +222,7 @@ pub struct ConnectorSource {
     runtime: Arc<Runtime>,
     connection_name: String,
     bars: HashMap<PortHandle, ProgressBar>,
+    notifier: Option<PipelineEventSenders>
 }
 
 impl Source for ConnectorSource {
@@ -286,6 +293,16 @@ impl Source for ConnectorSource {
                         let pb = self.bars.get(port);
                         if let Some(pb) = pb {
                             pb.set_position(*schema_counter);
+                        }
+                        if let Some(notifier) = &self.notifier {
+                            let status_update = StatusUpdate {
+                                source: schema_id.to_string(),
+                                r#type: "source".to_string(),
+                                count: *schema_counter as i64,
+                            };
+                            notifier.2
+                                .try_send(status_update)
+                                .map_err(|e| ExecutionError::InternalError(Box::new(e)));
                         }
                     }
                     fw.send(IngestionMessage { identifier, kind }, *port)?

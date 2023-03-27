@@ -14,13 +14,15 @@ use std::{fmt::Debug, net::ToSocketAddrs, pin::Pin, thread};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
+use dozer_types::grpc_types::internal::{StatusUpdate, StatusUpdateRequest};
 
-pub type PipelineEventSenders = (Sender<AliasRedirected>, Sender<Operation>);
-pub type PipelineEventReceivers = (Receiver<AliasRedirected>, Receiver<Operation>);
+pub type PipelineEventSenders = (Sender<AliasRedirected>, Sender<Operation>, Sender<StatusUpdate>);
+pub type PipelineEventReceivers = (Receiver<AliasRedirected>, Receiver<Operation>, Receiver<StatusUpdate>);
 
 pub struct InternalPipelineServer {
     alias_redirected_receiver: broadcast::Receiver<AliasRedirected>,
     operation_receiver: broadcast::Receiver<Operation>,
+    status_updates_receiver: broadcast::Receiver<StatusUpdate>,
 }
 impl InternalPipelineServer {
     pub fn new(pipeline_event_receivers: PipelineEventReceivers) -> Self {
@@ -28,9 +30,12 @@ impl InternalPipelineServer {
             crossbeam_mpsc_receiver_to_tokio_broadcast_receiver(pipeline_event_receivers.0);
         let operation_receiver =
             crossbeam_mpsc_receiver_to_tokio_broadcast_receiver(pipeline_event_receivers.1);
+        let status_updates_receiver =
+            crossbeam_mpsc_receiver_to_tokio_broadcast_receiver(pipeline_event_receivers.2);
         Self {
             alias_redirected_receiver,
             operation_receiver,
+            status_updates_receiver
         }
     }
 }
@@ -62,6 +67,7 @@ fn crossbeam_mpsc_receiver_to_tokio_broadcast_receiver<T: Clone + Debug + Send +
 
 type OperationsStream = Pin<Box<dyn Stream<Item = Result<Operation, Status>> + Send>>;
 type AliasEventsStream = Pin<Box<dyn Stream<Item = Result<AliasRedirected, Status>> + Send>>;
+type StatusUpdateStream = Pin<Box<dyn Stream<Item = Result<StatusUpdate, Status>> + Send>>;
 
 #[tonic::async_trait]
 impl InternalPipelineService for InternalPipelineServer {
@@ -125,6 +131,38 @@ impl InternalPipelineService for InternalPipelineServer {
             }
         });
         let output_stream = ReceiverStream::new(alias_redirected_receiver);
+        Ok(Response::new(Box::pin(output_stream)))
+    }
+
+    type StreamStatusUpdatesStream = StatusUpdateStream;
+
+    async fn stream_status_updates(
+        &self,
+        _request: tonic::Request<StatusUpdateRequest>,
+    ) -> Result<Response<Self::StreamStatusUpdatesStream>, Status> {
+        let (status_updates_sender, status_updates_receiver) = tokio::sync::mpsc::channel(1000);
+        let mut receiver = self.status_updates_receiver.resubscribe();
+        tokio::spawn(async move {
+            loop {
+                let result = receiver.try_recv();
+                match result {
+                    Ok(alias_redirected) => {
+                        let result = status_updates_sender.send(Ok(alias_redirected)).await;
+                        if let Err(e) = result {
+                            warn!("Error sending message to mpsc channel: {:?}", e);
+                            break;
+                        }
+                    }
+                    Err(err) => {
+                        if err == broadcast::error::TryRecvError::Closed {
+                            break;
+                        }
+                    }
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            }
+        });
+        let output_stream = ReceiverStream::new(status_updates_receiver);
         Ok(Response::new(Box::pin(output_stream)))
     }
 }

@@ -114,6 +114,7 @@ impl<'a> CDCHandler<'a> {
     ) -> Result<(), ConnectorError> {
         match message {
             Some(Ok(XLogData(body))) => {
+                info!("MESSAGE BODY: {:?}", body);
                 let lsn = body.wal_start();
                 let message = mapper
                     .handle_message(body)

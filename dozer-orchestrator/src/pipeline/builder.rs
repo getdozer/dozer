@@ -225,7 +225,7 @@ impl<'a> PipelineBuilder<'a> {
             }
         }
 
-        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
+        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress), notifier.clone());
 
         let conn_ports = source_builder.get_ports();
 

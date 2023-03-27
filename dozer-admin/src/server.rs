@@ -9,23 +9,23 @@ use dozer_types::{log::info, tracing::Level};
 use tonic::{transport::Server, Request, Response, Status};
 use tower_http::trace::{self, TraceLayer};
 
-use dozer_types::grpc_types::admin::{
-    dozer_admin_server::{DozerAdmin, DozerAdminServer},
-    AppResponse, ConnectionRequest, ConnectionResponse, CreateAppRequest, GetAllConnectionRequest,
-    GetAllConnectionResponse, GetAppRequest, GetTablesRequest, GetTablesResponse,
-    UpdateConnectionRequest,
-};
+use dozer_types::grpc_types::admin::{dozer_admin_server::{DozerAdmin, DozerAdminServer}, AppResponse, ConnectionRequest, ConnectionResponse, CreateAppRequest, GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetTablesRequest, GetTablesResponse, UpdateConnectionRequest, ListFilesRequest, ListFilesResponse, SaveFilesResponse, SaveFilesRequest, StatusUpdateRequest, StatusUpdate};
 use dozer_types::grpc_types::admin::{
     GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
     ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, ParseYamlRequest,
     ParseYamlResponse, StartRequest, StartResponse, StopRequest, StopResponse, UpdateAppRequest,
     ValidateConnectionResponse,
 };
+use dozer_types::grpc_types::admin::LogMessage;
+use dozer_types::grpc_types::admin::LogMessageRequest;
 
 pub struct GrpcService {
     app_service: AppService,
     connection_service: ConnectionService,
 }
+
+use tokio_stream::wrappers::ReceiverStream;
+type EventResult<T> = Result<Response<T>, Status>;
 
 #[tonic::async_trait]
 impl DozerAdmin for GrpcService {
@@ -198,10 +198,56 @@ impl DozerAdmin for GrpcService {
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
         }
     }
+
+    async fn list_files(
+        &self,
+        _request: tonic::Request<ListFilesRequest>,
+    ) -> Result<tonic::Response<ListFilesResponse>, tonic::Status> {
+        let result = self.app_service.list_files();
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn save_files(
+        &self,
+        request: tonic::Request<SaveFilesRequest>,
+    ) -> Result<tonic::Response<SaveFilesResponse>, tonic::Status> {
+        let result = self.app_service.save_files(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    type OnLogMessageStream = ReceiverStream<Result<LogMessage, tonic::Status>>;
+
+    async fn on_log_message(&self, _request: Request<LogMessageRequest>) -> EventResult<Self::OnLogMessageStream> {
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+
+        tokio::spawn(async move {
+            AppService::read_logs(tx).await
+        });
+
+        Ok(Response::new(ReceiverStream::new(rx)))
+    }
+
+    type OnStatusUpdateStream = ReceiverStream<Result<StatusUpdate, tonic::Status>>;
+
+    async fn on_status_update(&self, _request: Request<StatusUpdateRequest>) -> Result<Response<Self::OnStatusUpdateStream>, Status> {
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+
+        tokio::spawn(async move {
+            AppService::stream_status_update(tx).await
+        });
+
+        Ok(Response::new(ReceiverStream::new(rx)))
+    }
 }
 
 pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::transport::Error> {
-    dozer_tracing::init_telemetry(None, None);
+    let _guard = dozer_tracing::init_telemetry(None, None);
 
     let host = config.host;
     let port = config.port;

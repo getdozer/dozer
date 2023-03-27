@@ -8,6 +8,7 @@ edition = "2021"
 dozer-orchestrator = {path = "../dozer-orchestrator"}
 dozer-types = {path = "../dozer-types"}
 dozer-tracing = {path = "../dozer-tracing"}
+dozer-api = {path = "../dozer-api"}
 
 futures = "0.3.23"
 json = "0.12.4"
@@ -28,6 +29,9 @@ tower-http = {version = "0.3.5", features = ["full"]}
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 prost = "0.11.8"
 clap = {version = "4.1.11", features = ["derive"]}
+glob = "0.3.1"
+tokio-stream = "0.1.12"
+notify = "5.1.0"
 
 [build-dependencies]
 tonic-build = "0.8.2"

@@ -11,7 +11,7 @@ use diesel::{insert_into, QueryDsl, RunQueryDsl};
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::wrapped_statement_to_pipeline;
 use dozer_orchestrator::Orchestrator;
-use dozer_types::grpc_types::admin::StopRequest;
+use dozer_types::grpc_types::admin::{File, ListFilesResponse, LogMessage, StatusUpdate, StopRequest};
 use dozer_types::grpc_types::admin::StopResponse;
 use dozer_types::grpc_types::admin::{
     AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
@@ -21,12 +21,23 @@ use dozer_types::grpc_types::admin::{
 };
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_yaml;
+use dozer_api::grpc::internal::internal_pipeline_client::InternalPipelineClient;
+
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::thread;
+use std::{fs, thread};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
+use std::time::Duration;
+use glob::glob;
+use tokio::time::interval;
+use tonic::Status;
+use dozer_types::grpc_types::admin::SaveFilesResponse;
+use dozer_types::grpc_types::admin::SaveFilesRequest;
+use dozer_types::log::info;
+use dozer_types::models::api_config::GrpcApiOptions;
 
 #[derive(Clone)]
 pub struct AppService {
@@ -300,5 +311,93 @@ impl AppService {
                 Ok(StopResponse { success: true })
             },
         )
+    }
+
+    pub fn list_files(&self) -> Result<ListFilesResponse, ErrorResponse> {
+        let mut files = vec![];
+        let files_glob = glob("*.yaml").map_err(|e| ErrorResponse {
+            message: e.to_string()
+        })?;
+
+        for entry in files_glob {
+            match entry {
+                Ok(path) => {
+                    files.push(File {
+                        name: format!("{:?}", path.display()),
+                        content: fs::read_to_string(path).map_err(|e| ErrorResponse {
+                            message: e.to_string()
+                        })?
+                    });
+                },
+                Err(e) => {
+                    return Err(ErrorResponse {
+                        message: e.to_string()
+                    })
+                },
+            }
+        }
+
+        Ok(ListFilesResponse {
+            files,
+        })
+    }
+
+    pub fn save_files(&self, request: SaveFilesRequest) -> Result<SaveFilesResponse, ErrorResponse> {
+        for file in request.files {
+            let mut fs_file = fs::File::create(file.name).unwrap();
+            fs_file.write_all(file.content.as_bytes()).unwrap();
+        }
+
+        Ok(SaveFilesResponse {})
+    }
+
+    pub async fn read_logs(tx: tokio::sync::mpsc::Sender<Result<LogMessage, Status>>) {
+        let mut interval = interval(Duration::from_millis(1000));
+        let mut position = 0;
+
+        loop {
+            let mut file = fs::File::open("./log/dozer.log").unwrap();
+            file.seek(SeekFrom::Start(position as u64)).unwrap();
+
+            position = file.metadata().unwrap().len();
+            let reader = BufReader::new(file);
+            for line in reader.lines() {
+                let log_message = LogMessage {
+                    message: line.unwrap()
+                };
+
+                if (tx.send(Ok(log_message)).await).is_err() {
+                    // receiver dropped
+                    break;
+                }
+            }
+
+            interval.tick().await;
+        }
+    }
+
+    pub async fn stream_status_update(tx: tokio::sync::mpsc::Sender<Result<StatusUpdate, Status>>) {
+        let mut grpc_options = GrpcApiOptions::default();
+        grpc_options.host = "0.0.0.0".to_string();
+        grpc_options.port = 50053;
+        let mut internal_pipeline_client =
+            InternalPipelineClient::new(&grpc_options).await.unwrap();
+
+        let (mut status_updates_receiver, future) =
+            internal_pipeline_client.stream_status_update().await.unwrap();
+
+        tokio::spawn(future);
+
+        while let Ok(msg) = status_updates_receiver.recv().await {
+            let status_msg = StatusUpdate {
+                source: msg.source,
+                r#type: msg.r#type,
+                count: msg.count,
+            };
+            if (tx.send(Ok(status_msg)).await).is_err() {
+                // receiver dropped
+                break;
+            }
+        }
     }
 }

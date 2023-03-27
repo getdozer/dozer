@@ -155,6 +155,21 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
+        // gRPC notifier channel
+        let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
+        let (operation_sender, operation_receiver) = channel::unbounded();
+        let (status_update_sender, status_update_receiver) = channel::unbounded();
+        let internal_app_config = self.config.clone();
+        let _intern_pipeline_thread = thread::spawn(move || {
+            if let Err(e) = start_internal_pipeline_server(
+                internal_app_config,
+                (alias_redirected_receiver, operation_receiver, status_update_receiver),
+            ) {
+                std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
+            }
+            warn!("Shutting down internal pipeline server");
+        });
+
         let pipeline_dir = get_pipeline_dir(&self.config);
         let executor = Executor::new(
             &self.config.connections,
