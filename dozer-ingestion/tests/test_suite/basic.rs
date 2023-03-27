@@ -199,14 +199,14 @@ pub fn run_test_suite_basic_cud<T: CudConnectorTest>() {
     let (connector_test, connector, (_, actual_primary_index)) = T::new(
         schema_name.clone(),
         table_name.clone(),
-        (fields.clone(), primary_index.clone()),
+        (fields, primary_index),
         vec![],
     )
     .unwrap();
 
     // Get schema.
     let tables = connector
-        .list_columns(vec![TableIdentifier::new(schema_name, table_name.clone())])
+        .list_columns(vec![TableIdentifier::new(schema_name, table_name)])
         .unwrap();
     let mut schemas = connector.get_schemas(&tables).unwrap();
     let actual_schema = schemas.remove(0).unwrap().schema;
@@ -282,8 +282,14 @@ fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk:
             FieldType::UInt => {
                 assert!(value.as_uint().is_some())
             }
+            FieldType::U128 => {
+                assert!(value.as_u128().is_some())
+            }
             FieldType::Int => {
                 assert!(value.as_int().is_some())
+            }
+            FieldType::I128 => {
+                assert!(value.as_i128().is_some())
             }
             FieldType::Float => {
                 assert!(value.as_float().is_some())

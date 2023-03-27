@@ -106,14 +106,13 @@ impl Field {
                 if nullable && (value.is_empty() || value == "null") {
                     Ok(Field::Null)
                 } else {
-                    value
-                        .parse::<i128>()
-                        .map(Field::I128)
-                        .map_err(|_| TypeError::InvalidFieldValue {
+                    value.parse::<i128>().map(Field::I128).map_err(|_| {
+                        TypeError::InvalidFieldValue {
                             field_type: typ,
                             nullable,
                             value: value.to_string(),
-                        })
+                        }
+                    })
                 }
             }
             FieldType::Float => {

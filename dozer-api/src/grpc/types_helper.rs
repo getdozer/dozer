@@ -1,11 +1,11 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
+use dozer_types::grpc_types::types::{
+    value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
+};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 use prost_reflect::prost_types::Timestamp;
-use dozer_types::grpc_types::types::{
-    value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
-};
 
 pub fn map_insert_operation(endpoint_name: String, record: DozerRecord, id: u64) -> Operation {
     Operation {
