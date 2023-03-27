@@ -98,6 +98,7 @@ impl<'a> PipelineBuilder<'a> {
                             name: table.name.clone(),
                             table_name: table.name.clone(),
                             schema: table.schema.clone(),
+                            connection: Some(connection.clone()),
                             ..Default::default()
                         },
                     }
