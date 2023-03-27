@@ -19,42 +19,64 @@ pub fn json_value_to_field(
         }
     }
 
-    match (typ, &value) {
-        (FieldType::UInt, _) => serde_json::from_value(value)
+    match typ {
+        FieldType::UInt => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::UInt),
-        (FieldType::Int, _) => serde_json::from_value(value)
+        FieldType::U128 => serde_json::from_value(value)
+            .map_err(DeserializationError::Json)
+            .map(Field::U128),
+        FieldType::Int => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Int),
-        (FieldType::Float, _) => serde_json::from_value(value)
+        FieldType::I128 => serde_json::from_value(value)
+            .map_err(DeserializationError::Json)
+            .map(Field::I128),
+        FieldType::Float => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Float),
-        (FieldType::Boolean, _) => serde_json::from_value(value)
+        FieldType::Boolean => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Boolean),
-        (FieldType::String, _) => serde_json::from_value(value)
+        FieldType::String => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::String),
-        (FieldType::Text, _) => serde_json::from_value(value)
+        FieldType::Text => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Text),
-        (FieldType::Binary, _) => serde_json::from_value(value)
+        FieldType::Binary => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Binary),
-        (FieldType::Decimal, Value::String(str)) => return Field::from_str(str, typ, nullable),
-        (FieldType::Timestamp, Value::String(str)) => return Field::from_str(str, typ, nullable),
-        (FieldType::Date, Value::String(str)) => return Field::from_str(str, typ, nullable),
-        (FieldType::Bson, _) => serde_json::from_value(value)
+        FieldType::Decimal => match value {
+            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
+            _ => Err(DeserializationError::Custom(
+                "Json value type does not match field type"
+                    .to_string()
+                    .into(),
+            )),
+        },
+        FieldType::Timestamp => match value {
+            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
+            _ => Err(DeserializationError::Custom(
+                "Json value type does not match field type"
+                    .to_string()
+                    .into(),
+            )),
+        },
+        FieldType::Date => match value {
+            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
+            _ => Err(DeserializationError::Custom(
+                "Json value type does not match field type"
+                    .to_string()
+                    .into(),
+            )),
+        },
+        FieldType::Bson => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Bson),
-        (FieldType::Point, _) => serde_json::from_value(value)
+        FieldType::Point => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),
-        _ => Err(DeserializationError::Custom(
-            "Json value type does not match field type"
-                .to_string()
-                .into(),
-        )),
     }
     .map_err(TypeError::DeserializationError)
 }
@@ -228,7 +250,9 @@ mod tests {
     fn test_field_from_str() {
         let ok_cases = [
             ("1", FieldType::UInt, false, Field::UInt(1)),
+            ("1", FieldType::U128, false, Field::U128(1)),
             ("1", FieldType::Int, false, Field::Int(1)),
+            ("1", FieldType::I128, false, Field::I128(1)),
             ("1.1", FieldType::Float, false, Field::Float(1.1.into())),
             ("true", FieldType::Boolean, false, Field::Boolean(true)),
             ("false", FieldType::Boolean, false, Field::Boolean(false)),
@@ -273,7 +297,9 @@ mod tests {
                 Field::Point(DozerPoint(Point::new(OrderedFloat(1.0), OrderedFloat(1.0)))),
             ),
             ("null", FieldType::UInt, true, Field::Null),
+            ("null", FieldType::U128, true, Field::Null),
             ("null", FieldType::Int, true, Field::Null),
+            ("null", FieldType::I128, true, Field::Null),
             ("null", FieldType::Float, true, Field::Null),
             ("null", FieldType::Boolean, true, Field::Null),
             (
@@ -295,7 +321,9 @@ mod tests {
             ("null", FieldType::Bson, true, Field::Null),
             ("null", FieldType::Point, true, Field::Null),
             ("", FieldType::UInt, true, Field::Null),
+            ("", FieldType::U128, true, Field::Null),
             ("", FieldType::Int, true, Field::Null),
+            ("", FieldType::I128, true, Field::Null),
             ("", FieldType::Float, true, Field::Null),
             ("", FieldType::Boolean, true, Field::Null),
             ("", FieldType::String, true, Field::String(String::new())),
@@ -314,7 +342,9 @@ mod tests {
 
         let err_cases = [
             ("null", FieldType::UInt, false),
+            ("null", FieldType::U128, false),
             ("null", FieldType::Int, false),
+            ("null", FieldType::I128, false),
             ("null", FieldType::Float, false),
             ("null", FieldType::Boolean, false),
             ("null", FieldType::Binary, false),
@@ -324,7 +354,9 @@ mod tests {
             ("null", FieldType::Bson, false),
             ("null", FieldType::Point, false),
             ("", FieldType::UInt, false),
+            ("", FieldType::U128, false),
             ("", FieldType::Int, false),
+            ("", FieldType::I128, false),
             ("", FieldType::Float, false),
             ("", FieldType::Boolean, false),
             ("", FieldType::Binary, false),
