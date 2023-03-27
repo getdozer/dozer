@@ -132,6 +132,8 @@ impl<'a> PipelineBuilder<'a> {
         Ok(grouped_connections)
     }
 
+    // This function is used to figure out the sources that are used in the pipeline
+    // based on the SQL and API Endpoints
     pub fn calculate_sources(&self) -> Result<CalculatedSources, OrchestrationError> {
         let mut original_sources = vec![];
 
@@ -163,10 +165,14 @@ impl<'a> PipelineBuilder<'a> {
         for api_endpoint in self.api_endpoints {
             let table_name = &api_endpoint.table_name;
 
+            // Don't add if the table is a result of SQL
             if !transformed_sources.contains(table_name) {
                 original_sources.push(table_name.clone());
             }
         }
+        original_sources.dedup();
+        transformed_sources.dedup();
+
         Ok(CalculatedSources {
             original_sources,
             transformed_sources,
@@ -182,10 +188,11 @@ impl<'a> PipelineBuilder<'a> {
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
+
+        debug!("Used Sources: {:?}", calculated_sources.original_sources);
         let grouped_connections = self.get_grouped_tables(&calculated_sources.original_sources)?;
 
         let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
-        let mut used_sources = vec![];
 
         let mut pipeline = AppPipeline::new();
 
@@ -215,27 +222,9 @@ impl<'a> PipelineBuilder<'a> {
                 available_output_tables
                     .insert(name.clone(), OutputTableInfo::Transformed(table_info));
             }
-
-            for name in query_context.used_sources {
-                // Add all source tables to input tables
-                used_sources.push(name);
-            }
-        }
-        // Add Used Souces if direct from source
-        for api_endpoint in self.api_endpoints {
-            let table_name = &api_endpoint.table_name;
-
-            let table_info = available_output_tables
-                .get(table_name)
-                .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
-
-            if let OutputTableInfo::Original(table_info) = table_info {
-                used_sources.push(table_info.table_name.clone());
-            }
         }
 
-        let source_builder =
-            SourceBuilder::new(&used_sources, grouped_connections, Some(&self.progress));
+        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
 
         let conn_ports = source_builder.get_ports();
 

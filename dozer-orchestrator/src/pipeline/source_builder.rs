@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct SourceBuilder<'a> {
-    used_sources: &'a [String],
     grouped_connections: HashMap<String, Vec<Source>>,
     progress: Option<&'a MultiProgress>,
 }
@@ -18,12 +17,10 @@ const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
 impl<'a> SourceBuilder<'a> {
     pub fn new(
-        used_sources: &'a [String],
         grouped_connections: HashMap<String, Vec<Source>>,
         progress: Option<&'a MultiProgress>,
     ) -> Self {
         Self {
-            used_sources,
             grouped_connections,
             progress,
         }
@@ -35,10 +32,8 @@ impl<'a> SourceBuilder<'a> {
         let mut ports = HashMap::new();
         for (conn, sources_group) in &self.grouped_connections {
             for source in sources_group {
-                if self.used_sources.contains(&source.name) {
-                    ports.insert((conn.as_str(), source.name.as_str()), port);
-                    port += 1;
-                }
+                ports.insert((conn.as_str(), source.name.as_str()), port);
+                port += 1;
             }
         }
         ports
@@ -58,20 +53,18 @@ impl<'a> SourceBuilder<'a> {
                 let mut ports = HashMap::new();
                 let mut table_and_ports = vec![];
                 for source in &sources_group {
-                    if self.used_sources.contains(&source.name) {
-                        ports.insert(source.name.clone(), port);
+                    ports.insert(source.name.clone(), port);
 
-                        table_and_ports.push((
-                            TableInfo {
-                                schema: source.schema.clone(),
-                                name: source.table_name.clone(),
-                                column_names: source.columns.clone(),
-                            },
-                            port,
-                        ));
+                    table_and_ports.push((
+                        TableInfo {
+                            schema: source.schema.clone(),
+                            name: source.table_name.clone(),
+                            column_names: source.columns.clone(),
+                        },
+                        port,
+                    ));
 
-                        port += 1;
-                    }
+                    port += 1;
                 }
 
                 let source_factory = ConnectorSourceFactory::new(

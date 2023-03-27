@@ -66,7 +66,7 @@ fn load_multi_sources() {
 
     let grouped_connections = builder.get_grouped_tables(&used_sources).unwrap();
 
-    let source_builder = SourceBuilder::new(&used_sources, grouped_connections, None);
+    let source_builder = SourceBuilder::new(grouped_connections, None);
     let asm = source_builder.build_source_manager().unwrap();
 
     let conn_name_1 = config.connections.get(0).unwrap().name.clone();
