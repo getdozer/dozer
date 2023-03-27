@@ -16,7 +16,7 @@ spec:
       containers:
       - name: dozer-api
         image: ramitabh/dozer:local
-        command: ["dozer", "-c", "./api-config/dozer-config.yaml", "api", "run"]
+        command: ["dozer", "-c", "./api-config.yaml", "api", "run"]
         ports:
         - containerPort: 8080
         - containerPort: 50051
@@ -30,7 +30,7 @@ spec:
       volumes:
       - name: data
         hostPath:
-          path: /data/Dozer/dozer/dozer-k8/dozer_data
+          path: /data/Dozer/dozer/k8/workspace
       - name: dozer
         persistentVolumeClaim:
           claimName: dozer-pvc

@@ -9,8 +9,8 @@ minikube mount $HOME:/data
 ```
 ## Running
 
-1. Put your dozer-config.yaml for app in dozer_data folder (you need to create dozer_data directory in root)
-2. Put your dozer-config.yaml for api in ./dozer_data/api_config/ . Add the following lines to your config to configure api:
+1. Put your app-config.yaml for app in workspace folder (you need to create dozer_data directory in root)
+2. Put your api-config.yaml for api in ./workspace/ . Add the following lines to your config to configure api:
 ```
 api:
   rest:
@@ -24,7 +24,7 @@ api:
 
 3. Put your data set in the dozer_data inside data folder. Example:
 ```bash
-./dozer-data/data/trips/fhvhv_tripdata_2022-01.parquet
+./workspace/data/trips/fhvhv_tripdata_2022-01.parquet
 ```
 4. Run the k8-setup.sh to do an instant setup.
 ```

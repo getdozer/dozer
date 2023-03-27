@@ -1,15 +1,24 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: dozer-migrate
+  name: dozer-app
   namespace: dozer
 spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dozer-app
   template:
+    metadata:
+      labels:
+        app: dozer-app
     spec:
       containers:
-      - name: dozer-migrate
+      - name: dozer-app
         image: ramitabh/dozer:local
-        command: ["dozer", "-c", "./app-config.yaml","migrate"]
+        command: ["dozer","-c", "./app-config.yaml", "app", "run"]
+        ports:
+        - containerPort: 50052
         volumeMounts:
         - name: data
           mountPath: /usr/dozer
@@ -17,12 +26,11 @@ spec:
           mountPath: /usr/app_data
         stdin: true
         tty: true
-      restartPolicy: Never
       volumes:
       - name: data
         hostPath:
-          path: /data/Dozer/dozer/dozer-k8/dozer_data
+          path: /data/Dozer/dozer/sample-k8/workspace
       - name: dozer
         persistentVolumeClaim:
             claimName: dozer-pvc
-  backoffLimit: 0
+    
