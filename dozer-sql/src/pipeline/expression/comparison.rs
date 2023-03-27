@@ -409,7 +409,7 @@ pub fn evaluate_lt(
         Field::Null => Ok(Field::Null),
         Field::Boolean(left_v) => match right_p {
             // left: Bool, right: Bool
-            Field::Boolean(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            Field::Boolean(right_v) => Ok(Field::Boolean(!left_v & right_v)),
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
@@ -775,7 +775,7 @@ pub fn evaluate_gt(
         Field::Null => Ok(Field::Null),
         Field::Boolean(left_v) => match right_p {
             // left: Bool, right: Bool
-            Field::Boolean(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            Field::Boolean(right_v) => Ok(Field::Boolean(left_v & !right_v)),
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
