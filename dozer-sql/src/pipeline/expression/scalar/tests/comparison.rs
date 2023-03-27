@@ -32,15 +32,15 @@ fn test_comparison() {
         u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
-        let uint1 = Box::new(Literal(Field::UInt(u_num1)));
-        let uint2 = Box::new(Literal(Field::UInt(u_num2)));
-        let int1 = Box::new(Literal(Field::Int(i_num1)));
-        let int2 = Box::new(Literal(Field::Int(i_num2)));
-        let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
-        let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
-        let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
-        let null = Box::new(Literal(Field::Null));
+        let uint1 = Literal(Field::UInt(u_num1));
+        let uint2 = Literal(Field::UInt(u_num2));
+        let int1 = Literal(Field::Int(i_num1));
+        let int2 = Literal(Field::Int(i_num2));
+        let float1 = Literal(Field::Float(OrderedFloat(f_num1)));
+        let float2 = Literal(Field::Float(OrderedFloat(f_num2)));
+        let dec1 = Literal(Field::Decimal(d_num1.0));
+        let dec2 = Literal(Field::Decimal(d_num2.0));
+        let null = Literal(Field::Null);
 
         // eq: UInt
         test_eq(&uint1, &uint1, &row, None);
@@ -434,7 +434,7 @@ fn test_comparison() {
     });
 }
 
-fn test_eq(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result: Option<Field>) {
+fn test_eq(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -451,7 +451,7 @@ fn test_eq(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result:
     }
 }
 
-fn test_ne(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result: Option<Field>) {
+fn test_ne(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -468,7 +468,7 @@ fn test_ne(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result:
     }
 }
 
-fn test_gt(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result: Option<Field>) {
+fn test_gt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -485,7 +485,7 @@ fn test_gt(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result:
     }
 }
 
-fn test_lt(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result: Option<Field>) {
+fn test_lt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -502,7 +502,7 @@ fn test_lt(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result:
     }
 }
 
-fn test_gte(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result: Option<Field>) {
+fn test_gte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -519,7 +519,7 @@ fn test_gte(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result
     }
 }
 
-fn test_lte(exp1: &Box<Expression>, exp2: &Box<Expression>, row: &Record, result: Option<Field>) {
+fn test_lte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
