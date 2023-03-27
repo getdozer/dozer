@@ -13,20 +13,29 @@ pub fn validate_max(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
     let arg = &argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema)?;
 
     let ret_type = match arg.return_type {
-        FieldType::Decimal => FieldType::Decimal,
-        FieldType::Int => FieldType::Int,
         FieldType::UInt => FieldType::UInt,
+        FieldType::U128 => FieldType::U128,
+        FieldType::Int => FieldType::Int,
+        FieldType::I128 => FieldType::I128,
         FieldType::Float => FieldType::Float,
+        FieldType::Decimal => FieldType::Decimal,
         FieldType::Timestamp => FieldType::Timestamp,
         FieldType::Date => FieldType::Date,
-        r => {
+        FieldType::Boolean
+        | FieldType::String
+        | FieldType::Text
+        | FieldType::Binary
+        | FieldType::Bson
+        | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Max.to_string(),
-                r,
+                arg.return_type,
                 FieldTypes::new(vec![
                     FieldType::Decimal,
                     FieldType::UInt,
+                    FieldType::U128,
                     FieldType::Int,
+                    FieldType::I128,
                     FieldType::Float,
                     FieldType::Timestamp,
                     FieldType::Date,
@@ -88,31 +97,36 @@ fn get_max(
     } else {
         let val = calculate_err!(field_map.keys().max(), Max).clone();
         match return_type {
-            Some(FieldType::UInt) => Ok(Field::UInt(calculate_err_field!(val.to_uint(), Max, val))),
-            Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(val.to_int(), Max, val))),
-            Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
-                val.to_float(),
-                Max,
-                val
-            )))),
-            Some(FieldType::Decimal) => Ok(Field::Decimal(calculate_err_field!(
-                val.to_decimal(),
-                Max,
-                val
-            ))),
-            Some(FieldType::Timestamp) => Ok(Field::Timestamp(calculate_err_field!(
-                val.to_timestamp()?,
-                Max,
-                val
-            ))),
-            Some(FieldType::Date) => {
-                Ok(Field::Date(calculate_err_field!(val.to_date()?, Max, val)))
-            }
-            Some(not_supported_return_type) => {
-                Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                    "Not supported return type {not_supported_return_type} for {Max}"
-                ))))
-            }
+            Some(typ) => match typ {
+                FieldType::UInt => Ok(Field::UInt(calculate_err_field!(val.to_uint(), Max, val))),
+                FieldType::U128 => Ok(Field::U128(calculate_err_field!(val.to_u128(), Max, val))),
+                FieldType::Int => Ok(Field::Int(calculate_err_field!(val.to_int(), Max, val))),
+                FieldType::I128 => Ok(Field::I128(calculate_err_field!(val.to_i128(), Max, val))),
+                FieldType::Float => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
+                    val.to_float(),
+                    Max,
+                    val
+                )))),
+                FieldType::Decimal => Ok(Field::Decimal(calculate_err_field!(
+                    val.to_decimal(),
+                    Max,
+                    val
+                ))),
+                FieldType::Timestamp => Ok(Field::Timestamp(calculate_err_field!(
+                    val.to_timestamp()?,
+                    Max,
+                    val
+                ))),
+                FieldType::Date => Ok(Field::Date(calculate_err_field!(val.to_date()?, Max, val))),
+                FieldType::Boolean
+                | FieldType::String
+                | FieldType::Text
+                | FieldType::Binary
+                | FieldType::Bson
+                | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(
+                    format!("Not supported return type {typ} for {Max}"),
+                ))),
+            },
             None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
                 "Not supported None return type for {Max}"
             )))),
