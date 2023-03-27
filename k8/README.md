@@ -9,7 +9,7 @@ minikube mount $HOME:/data
 ```
 ## Running
 
-1. Put your dozer-config.yaml for app in dozer_data folder
+1. Put your dozer-config.yaml for app in dozer_data folder (you need to create dozer_data directory in root)
 2. Put your dozer-config.yaml for api in ./dozer_data/api_config/ . Add the following lines to your config to configure api:
 ```
 api:
