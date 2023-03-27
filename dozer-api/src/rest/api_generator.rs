@@ -190,7 +190,9 @@ fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Val
 fn field_to_json_value(field: Field) -> Value {
     match field {
         Field::UInt(n) => Value::from(n),
+        Field::U128(n) => Value::from(n as u64), // TODO: Map this correctly
         Field::Int(n) => Value::from(n),
+        Field::I128(n) => Value::from(n as i64), // TODO: Map this correctly
         Field::Float(n) => Value::from(n.0),
         Field::Boolean(b) => Value::from(b),
         Field::String(s) => Value::from(s),

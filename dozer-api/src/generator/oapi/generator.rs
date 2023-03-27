@@ -30,8 +30,10 @@ impl<'a> OpenApiGenerator<'a> {
                 let field_def = &self.schema.fields[fields[0]];
                 let name = field_def.name.clone();
                 let val = match field_def.typ {
-                    FieldType::Int => Value::from(-1),
                     FieldType::UInt => Value::from(-1),
+                    FieldType::U128 => Value::from(-1),
+                    FieldType::Int => Value::from(-1),
+                    FieldType::I128 => Value::from(-1),
                     FieldType::Float => Value::from(1.1),
                     FieldType::Boolean => Value::from(true),
                     FieldType::String => Value::from("foo".to_string()),

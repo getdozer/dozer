@@ -29,7 +29,7 @@ futures = { version = "0.3.26", optional = true }
 env_logger = "0.10.0"
 clap = { version = "4.1.11", features = ["derive"] }
 dozer-orchestrator = { path = "../dozer-orchestrator" }
-rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
+rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype", "serde_json"] }
 sqllogictest = "0.11.1"
 async-trait = "0.1.53"
 dozer-core = { path = "../dozer-core" }
@@ -45,7 +45,7 @@ dozer-tracing = { path = "../dozer-tracing" }
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
-rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
+rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype", "serde_json"] }
 csv = "1.2"
 tempdir = "0.3.7"
 

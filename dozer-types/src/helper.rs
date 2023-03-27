@@ -75,6 +75,19 @@ impl Field {
                     })
                 }
             }
+            FieldType::U128 => {
+                if nullable && (value.is_empty() || value == "null") {
+                    Ok(Field::Null)
+                } else {
+                    value.parse::<u128>().map(Field::U128).map_err(|_| {
+                        TypeError::InvalidFieldValue {
+                            field_type: typ,
+                            nullable,
+                            value: value.to_string(),
+                        }
+                    })
+                }
+            }
             FieldType::Int => {
                 if nullable && (value.is_empty() || value == "null") {
                     Ok(Field::Null)
@@ -82,6 +95,20 @@ impl Field {
                     value
                         .parse::<i64>()
                         .map(Field::Int)
+                        .map_err(|_| TypeError::InvalidFieldValue {
+                            field_type: typ,
+                            nullable,
+                            value: value.to_string(),
+                        })
+                }
+            }
+            FieldType::I128 => {
+                if nullable && (value.is_empty() || value == "null") {
+                    Ok(Field::Null)
+                } else {
+                    value
+                        .parse::<i128>()
+                        .map(Field::I128)
                         .map_err(|_| TypeError::InvalidFieldValue {
                             field_type: typ,
                             nullable,

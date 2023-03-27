@@ -127,13 +127,14 @@ pub fn map_record_to_arrow(
 pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, String>>) -> DataType {
     match typ {
         FieldType::UInt => DataType::UInt64,
+        FieldType::U128 => DataType::UInt64, // TODO: Map this correctly
         FieldType::Int => DataType::Int64,
+        FieldType::I128 => DataType::Int64, // TODO: Map this correctly
         FieldType::Float => DataType::Float64,
         FieldType::Boolean => DataType::Boolean,
         FieldType::String => DataType::Utf8,
         FieldType::Text => DataType::LargeUtf8,
-        // TODO: Map thsi correctly
-        FieldType::Decimal => DataType::Decimal256(10, 5),
+        FieldType::Decimal => DataType::Decimal256(10, 5), // TODO: Map this correctly
         FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Nanosecond, None),
         FieldType::Date => DataType::Date64,
         FieldType::Binary => {

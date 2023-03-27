@@ -311,7 +311,10 @@ impl ExpressionExecutor for Expression {
 
 fn get_field_type(field: &Field) -> Option<FieldType> {
     match field {
+        Field::UInt(_) => Some(FieldType::UInt),
+        Field::U128(_) => Some(FieldType::U128),
         Field::Int(_) => Some(FieldType::Int),
+        Field::I128(_) => Some(FieldType::I128),
         Field::Float(_) => Some(FieldType::Float),
         Field::Boolean(_) => Some(FieldType::Boolean),
         Field::String(_) => Some(FieldType::String),
@@ -320,7 +323,6 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::Timestamp(_) => Some(FieldType::Timestamp),
         Field::Bson(_) => Some(FieldType::Bson),
         Field::Null => None,
-        Field::UInt(_) => Some(FieldType::UInt),
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
         Field::Point(_) => Some(FieldType::Point),

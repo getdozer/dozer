@@ -134,24 +134,23 @@ impl CacheSinkFactory {
             .flat_map(|(idx, f)| match f.typ {
                 // Create sorted inverted indexes for these fields
                 FieldType::UInt
+                | FieldType::U128
                 | FieldType::Int
+                | FieldType::I128
                 | FieldType::Float
                 | FieldType::Boolean
                 | FieldType::Decimal
                 | FieldType::Timestamp
                 | FieldType::Date
                 | FieldType::Point => vec![IndexDefinition::SortedInverted(vec![idx])],
-
                 // Create sorted inverted and full text indexes for string fields.
                 FieldType::String => vec![
                     IndexDefinition::SortedInverted(vec![idx]),
                     IndexDefinition::FullText(idx),
                 ],
-
                 // Create full text indexes for text fields
                 // FieldType::Text => vec![IndexDefinition::FullText(idx)],
                 FieldType::Text => vec![],
-
                 // Skip creating indexes
                 FieldType::Binary | FieldType::Bson => vec![],
             })
