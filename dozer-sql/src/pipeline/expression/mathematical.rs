@@ -138,7 +138,9 @@ macro_rules! define_math_operator {
                                 )?,
                             ))),
                             // When it's not division operation
-                            "+" | "-" | "*" | "%" => Ok(Field::Int($fct(Wrapping(left_v), Wrapping(right_v)).0)),
+                            "+" | "-" | "*" | "%" => {
+                                Ok(Field::Int($fct(Wrapping(left_v), Wrapping(right_v)).0))
+                            }
                             &_ => Err(PipelineError::InvalidTypeComparison(
                                 left_p,
                                 right_p,
@@ -165,7 +167,9 @@ macro_rules! define_math_operator {
                                 )?,
                             ))),
                             // When it's not division operation
-                            "+" | "-" | "*" | "%" => Ok(Field::I128($fct(Wrapping(left_v as i128), Wrapping(right_v)).0)),
+                            "+" | "-" | "*" | "%" => Ok(Field::I128(
+                                $fct(Wrapping(left_v as i128), Wrapping(right_v)).0,
+                            )),
                             &_ => Err(PipelineError::InvalidTypeComparison(
                                 left_p,
                                 right_p,
@@ -281,7 +285,9 @@ macro_rules! define_math_operator {
                                 )?,
                             ))),
                             // When it's not division operation
-                            "+" | "-" | "*" | "%" => Ok(Field::I128($fct(Wrapping(left_v), Wrapping(right_v as i128)).0)),
+                            "+" | "-" | "*" | "%" => Ok(Field::I128(
+                                $fct(Wrapping(left_v), Wrapping(right_v as i128)).0,
+                            )),
                             &_ => Err(PipelineError::InvalidTypeComparison(
                                 left_p,
                                 right_p,
@@ -308,7 +314,9 @@ macro_rules! define_math_operator {
                                 )?,
                             ))),
                             // When it's not division operation
-                            "+" | "-" | "*" | "%" => Ok(Field::I128($fct(Wrapping(left_v), Wrapping(right_v)).0)),
+                            "+" | "-" | "*" | "%" => {
+                                Ok(Field::I128($fct(Wrapping(left_v), Wrapping(right_v)).0))
+                            }
                             &_ => Err(PipelineError::InvalidTypeComparison(
                                 left_p,
                                 right_p,
@@ -476,7 +484,9 @@ macro_rules! define_math_operator {
                                 ))?,
                             )),
                             // When it's not division operation
-                            "+" | "-" | "*" | "%" => Ok(Field::UInt($fct(Wrapping(left_v), Wrapping(right_v)).0)),
+                            "+" | "-" | "*" | "%" => {
+                                Ok(Field::UInt($fct(Wrapping(left_v), Wrapping(right_v)).0))
+                            }
                             &_ => Err(PipelineError::InvalidTypeComparison(
                                 left_p,
                                 right_p,
@@ -505,7 +515,9 @@ macro_rules! define_math_operator {
                                 ))?,
                             )),
                             // When it's not division operation
-                            "+" | "-" | "*" | "%" => Ok(Field::U128($fct(Wrapping(left_v as u128), Wrapping(right_v)).0)),
+                            "+" | "-" | "*" | "%" => Ok(Field::U128(
+                                $fct(Wrapping(left_v as u128), Wrapping(right_v)).0,
+                            )),
                             &_ => Err(PipelineError::InvalidTypeComparison(
                                 left_p,
                                 right_p,
@@ -530,7 +542,7 @@ macro_rules! define_math_operator {
                     ))),
                     // left: UInt, right: Null
                     Field::Null => Ok(Field::Null),
-                    | Field::Boolean(_)
+                    Field::Boolean(_)
                     | Field::String(_)
                     | Field::Text(_)
                     | Field::Binary(_)
@@ -615,7 +627,9 @@ macro_rules! define_math_operator {
                                 ))?,
                             )),
                             // When it's not division operation
-                            "+" | "-" | "*" | "%" => Ok(Field::U128($fct(Wrapping(left_v), Wrapping(right_v as u128)).0)),
+                            "+" | "-" | "*" | "%" => Ok(Field::U128(
+                                $fct(Wrapping(left_v), Wrapping(right_v as u128)).0,
+                            )),
                             &_ => Err(PipelineError::InvalidTypeComparison(
                                 left_p,
                                 right_p,
@@ -644,7 +658,9 @@ macro_rules! define_math_operator {
                                 ))?,
                             )),
                             // When it's not division operation
-                            "+" | "-" | "*" | "%" => Ok(Field::U128($fct(Wrapping(left_v), Wrapping(right_v)).0)),
+                            "+" | "-" | "*" | "%" => {
+                                Ok(Field::U128($fct(Wrapping(left_v), Wrapping(right_v)).0))
+                            }
                             &_ => Err(PipelineError::InvalidTypeComparison(
                                 left_p,
                                 right_p,
@@ -669,7 +685,7 @@ macro_rules! define_math_operator {
                     ))),
                     // left: U128, right: Null
                     Field::Null => Ok(Field::Null),
-                    | Field::Boolean(_)
+                    Field::Boolean(_)
                     | Field::String(_)
                     | Field::Text(_)
                     | Field::Binary(_)

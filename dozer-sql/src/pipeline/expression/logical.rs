@@ -27,10 +27,7 @@ pub fn evaluate_and(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidType(
-                r_field,
-                "AND".to_string(),
-            )),
+            | Field::Point(_) => Err(PipelineError::InvalidType(r_field, "AND".to_string())),
         },
         Field::Boolean(false) => match r_field {
             Field::Boolean(true) => Ok(Field::Boolean(false)),
@@ -48,10 +45,7 @@ pub fn evaluate_and(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidType(
-                r_field,
-                "AND".to_string(),
-            )),
+            | Field::Point(_) => Err(PipelineError::InvalidType(r_field, "AND".to_string())),
         },
         Field::Null => Ok(Field::Boolean(false)),
         Field::UInt(_)
@@ -66,10 +60,7 @@ pub fn evaluate_and(
         | Field::Timestamp(_)
         | Field::Date(_)
         | Field::Bson(_)
-        | Field::Point(_) => Err(PipelineError::InvalidType(
-            l_field,
-            "AND".to_string(),
-        )),
+        | Field::Point(_) => Err(PipelineError::InvalidType(l_field, "AND".to_string())),
     }
 }
 
@@ -98,10 +89,7 @@ pub fn evaluate_or(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidType(
-                r_field,
-                "OR".to_string(),
-            )),
+            | Field::Point(_) => Err(PipelineError::InvalidType(r_field, "OR".to_string())),
         },
         Field::Boolean(false) | Field::Null => match right.evaluate(record, schema)? {
             Field::Boolean(false) => Ok(Field::Boolean(false)),
@@ -119,10 +107,7 @@ pub fn evaluate_or(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidType(
-                r_field,
-                "OR".to_string(),
-            )),
+            | Field::Point(_) => Err(PipelineError::InvalidType(r_field, "OR".to_string())),
         },
         Field::UInt(_)
         | Field::U128(_)
@@ -136,10 +121,7 @@ pub fn evaluate_or(
         | Field::Timestamp(_)
         | Field::Date(_)
         | Field::Bson(_)
-        | Field::Point(_) => Err(PipelineError::InvalidType(
-            l_field,
-            "OR".to_string(),
-        )),
+        | Field::Point(_) => Err(PipelineError::InvalidType(l_field, "OR".to_string())),
     }
 }
 
@@ -165,9 +147,6 @@ pub fn evaluate_not(
         | Field::Timestamp(_)
         | Field::Date(_)
         | Field::Bson(_)
-        | Field::Point(_) => Err(PipelineError::InvalidType(
-            value_p,
-            "NOT".to_string(),
-        )),
+        | Field::Point(_) => Err(PipelineError::InvalidType(value_p, "NOT".to_string())),
     }
 }

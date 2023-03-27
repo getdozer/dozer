@@ -156,7 +156,9 @@ macro_rules! define_comparison {
                 },
                 Field::U128(left_v) => match right_p {
                     // left: U128, right: Int
-                    Field::Int(right_v) => Ok(Field::Boolean($function(left_v as i128, right_v as i128))),
+                    Field::Int(right_v) => {
+                        Ok(Field::Boolean($function(left_v as i128, right_v as i128)))
+                    }
                     // left: U128, right: I128
                     Field::I128(right_v) => Ok(Field::Boolean($function(left_v as i128, right_v))),
                     // left: U128, right: UInt
@@ -386,13 +388,9 @@ macro_rules! define_comparison {
                         $op.to_string(),
                     )),
                 },
-                Field::Binary(_)
-                | Field::Bson(_)
-                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
-                    left_p,
-                    right_p,
-                    $op.to_string(),
-                )),
+                Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+                    PipelineError::InvalidTypeComparison(left_p, right_p, $op.to_string()),
+                ),
             }
         }
     };
@@ -443,11 +441,10 @@ pub fn evaluate_lt(
             }
             // left: Int, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_i64(left_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_i64(left_v).ok_or(PipelineError::UnableToCast(
+                    format!("{}", left_v),
+                    "Decimal".to_string(),
+                ))?;
                 Ok(Field::Boolean(left_v_d < right_v))
             }
             // left: Int, right: Null
@@ -481,11 +478,10 @@ pub fn evaluate_lt(
             }
             // left: I128, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_i128(left_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_i128(left_v).ok_or(PipelineError::UnableToCast(
+                    format!("{}", left_v),
+                    "Decimal".to_string(),
+                ))?;
                 Ok(Field::Boolean(left_v_d < right_v))
             }
             // left: I128, right: Null
@@ -519,11 +515,9 @@ pub fn evaluate_lt(
             }
             // left: UInt, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_f64(left_v as f64).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_f64(left_v as f64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
                 Ok(Field::Boolean(left_v_d < right_v))
             }
             // left: UInt, right: Null
@@ -557,11 +551,9 @@ pub fn evaluate_lt(
             }
             // left: U128, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_f64(left_v as f64).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_f64(left_v as f64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
                 Ok(Field::Boolean(left_v_d < right_v))
             }
             // left: U128, right: Null
@@ -604,11 +596,10 @@ pub fn evaluate_lt(
             }
             // left: Float, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_f64(*left_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_f64(*left_v).ok_or(PipelineError::UnableToCast(
+                    format!("{}", left_v),
+                    "Decimal".to_string(),
+                ))?;
                 Ok(Field::Boolean(left_v_d < right_v))
             }
             // left: Float, right: Null
@@ -626,69 +617,61 @@ pub fn evaluate_lt(
                 "<".to_string(),
             )),
         },
-        Field::Decimal(left_v) => match right_p {
-            // left: Decimal, right: Float
-            Field::Float(right_v) => {
-                let right_v_d =
-                    Decimal::from_f64(*right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v < right_v_d))
+        Field::Decimal(left_v) => {
+            match right_p {
+                // left: Decimal, right: Float
+                Field::Float(right_v) => {
+                    let right_v_d = Decimal::from_f64(*right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v < right_v_d))
+                }
+                // left: Decimal, right: Int
+                Field::Int(right_v) => {
+                    let right_v_d = Decimal::from_i64(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v < right_v_d))
+                }
+                // left: Decimal, right: I128
+                Field::I128(right_v) => {
+                    let right_v_d = Decimal::from_i128(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v < right_v_d))
+                }
+                // left: Decimal, right: UInt
+                Field::UInt(right_v) => {
+                    let right_v_d = Decimal::from_u64(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v < right_v_d))
+                }
+                // left: Decimal, right: U128
+                Field::U128(right_v) => {
+                    let right_v_d = Decimal::from_u128(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v < right_v_d))
+                }
+                // left: Decimal, right: Decimal
+                Field::Decimal(right_v) => Ok(Field::Boolean(left_v < right_v)),
+                // left: Decimal, right: Null
+                Field::Null => Ok(Field::Null),
+                Field::Boolean(_)
+                | Field::String(_)
+                | Field::Text(_)
+                | Field::Binary(_)
+                | Field::Timestamp(_)
+                | Field::Date(_)
+                | Field::Bson(_)
+                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    left_p,
+                    right_p,
+                    "<".to_string(),
+                )),
             }
-            // left: Decimal, right: Int
-            Field::Int(right_v) => {
-                let right_v_d =
-                    Decimal::from_i64(right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v < right_v_d))
-            }
-            // left: Decimal, right: I128
-            Field::I128(right_v) => {
-                let right_v_d =
-                    Decimal::from_i128(right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v < right_v_d))
-            }
-            // left: Decimal, right: UInt
-            Field::UInt(right_v) => {
-                let right_v_d =
-                    Decimal::from_u64(right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v < right_v_d))
-            }
-            // left: Decimal, right: U128
-            Field::U128(right_v) => {
-                let right_v_d =
-                    Decimal::from_u128(right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v < right_v_d))
-            }
-            // left: Decimal, right: Decimal
-            Field::Decimal(right_v) => Ok(Field::Boolean(left_v < right_v)),
-            // left: Decimal, right: Null
-            Field::Null => Ok(Field::Null),
-            Field::Boolean(_)
-            | Field::String(_)
-            | Field::Text(_)
-            | Field::Binary(_)
-            | Field::Timestamp(_)
-            | Field::Date(_)
-            | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
-                left_p,
-                right_p,
-                "<".to_string(),
-            )),
-        },
+        }
         Field::String(ref left_v) => match right_p {
             Field::String(ref right_v) => Ok(Field::Boolean(left_v < right_v)),
             Field::Text(ref right_v) => Ok(Field::Boolean(left_v < right_v)),
@@ -773,13 +756,9 @@ pub fn evaluate_lt(
                 "<".to_string(),
             )),
         },
-        Field::Binary(_)
-        | Field::Bson(_)
-        | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
-            left_p,
-            right_p,
-            "<".to_string(),
-        )),
+        Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+            PipelineError::InvalidTypeComparison(left_p, right_p, "<".to_string()),
+        ),
     }
 }
 
@@ -828,11 +807,10 @@ pub fn evaluate_gt(
             }
             // left: Int, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_i64(left_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_i64(left_v).ok_or(PipelineError::UnableToCast(
+                    format!("{}", left_v),
+                    "Decimal".to_string(),
+                ))?;
                 Ok(Field::Boolean(left_v_d > right_v))
             }
             // left: Int, right: Null
@@ -866,11 +844,10 @@ pub fn evaluate_gt(
             }
             // left: I128, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_i128(left_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_i128(left_v).ok_or(PipelineError::UnableToCast(
+                    format!("{}", left_v),
+                    "Decimal".to_string(),
+                ))?;
                 Ok(Field::Boolean(left_v_d > right_v))
             }
             // left: I128, right: Null
@@ -904,11 +881,9 @@ pub fn evaluate_gt(
             }
             // left: UInt, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_f64(left_v as f64).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_f64(left_v as f64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
                 Ok(Field::Boolean(left_v_d > right_v))
             }
             // left: UInt, right: Null
@@ -942,11 +917,9 @@ pub fn evaluate_gt(
             }
             // left: U128, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_f64(left_v as f64).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_f64(left_v as f64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
                 Ok(Field::Boolean(left_v_d > right_v))
             }
             // left: U128, right: Null
@@ -989,11 +962,10 @@ pub fn evaluate_gt(
             }
             // left: Float, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d =
-                    Decimal::from_f64(*left_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", left_v),
-                        "Decimal".to_string(),
-                    ))?;
+                let left_v_d = Decimal::from_f64(*left_v).ok_or(PipelineError::UnableToCast(
+                    format!("{}", left_v),
+                    "Decimal".to_string(),
+                ))?;
                 Ok(Field::Boolean(left_v_d > right_v))
             }
             // left: Float, right: Null
@@ -1011,69 +983,61 @@ pub fn evaluate_gt(
                 ">".to_string(),
             )),
         },
-        Field::Decimal(left_v) => match right_p {
-            // left: Decimal, right: Float
-            Field::Float(right_v) => {
-                let right_v_d =
-                    Decimal::from_f64(*right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v > right_v_d))
+        Field::Decimal(left_v) => {
+            match right_p {
+                // left: Decimal, right: Float
+                Field::Float(right_v) => {
+                    let right_v_d = Decimal::from_f64(*right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v > right_v_d))
+                }
+                // left: Decimal, right: Int
+                Field::Int(right_v) => {
+                    let right_v_d = Decimal::from_i64(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v > right_v_d))
+                }
+                // left: Decimal, right: I128
+                Field::I128(right_v) => {
+                    let right_v_d = Decimal::from_i128(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v > right_v_d))
+                }
+                // left: Decimal, right: UInt
+                Field::UInt(right_v) => {
+                    let right_v_d = Decimal::from_u64(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v > right_v_d))
+                }
+                // left: Decimal, right: U128
+                Field::U128(right_v) => {
+                    let right_v_d = Decimal::from_u128(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v > right_v_d))
+                }
+                // left: Decimal, right: Decimal
+                Field::Decimal(right_v) => Ok(Field::Boolean(left_v > right_v)),
+                // left: Decimal, right: Null
+                Field::Null => Ok(Field::Null),
+                Field::Boolean(_)
+                | Field::String(_)
+                | Field::Text(_)
+                | Field::Binary(_)
+                | Field::Timestamp(_)
+                | Field::Date(_)
+                | Field::Bson(_)
+                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    left_p,
+                    right_p,
+                    ">".to_string(),
+                )),
             }
-            // left: Decimal, right: Int
-            Field::Int(right_v) => {
-                let right_v_d =
-                    Decimal::from_i64(right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v > right_v_d))
-            }
-            // left: Decimal, right: I128
-            Field::I128(right_v) => {
-                let right_v_d =
-                    Decimal::from_i128(right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v > right_v_d))
-            }
-            // left: Decimal, right: UInt
-            Field::UInt(right_v) => {
-                let right_v_d =
-                    Decimal::from_u64(right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v > right_v_d))
-            }
-            // left: Decimal, right: U128
-            Field::U128(right_v) => {
-                let right_v_d =
-                    Decimal::from_u128(right_v).ok_or(PipelineError::UnableToCast(
-                        format!("{}", right_v),
-                        "Decimal".to_string(),
-                    ))?;
-                Ok(Field::Boolean(left_v > right_v_d))
-            }
-            // left: Decimal, right: Decimal
-            Field::Decimal(right_v) => Ok(Field::Boolean(left_v > right_v)),
-            // left: Decimal, right: Null
-            Field::Null => Ok(Field::Null),
-            Field::Boolean(_)
-            | Field::String(_)
-            | Field::Text(_)
-            | Field::Binary(_)
-            | Field::Timestamp(_)
-            | Field::Date(_)
-            | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
-                left_p,
-                right_p,
-                ">".to_string(),
-            )),
-        },
+        }
         Field::String(ref left_v) => match right_p {
             Field::String(ref right_v) => Ok(Field::Boolean(left_v > right_v)),
             Field::Text(ref right_v) => Ok(Field::Boolean(left_v > right_v)),
@@ -1158,13 +1122,9 @@ pub fn evaluate_gt(
                 ">".to_string(),
             )),
         },
-        Field::Binary(_)
-        | Field::Bson(_)
-        | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
-            left_p,
-            right_p,
-            ">".to_string(),
-        )),
+        Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+            PipelineError::InvalidTypeComparison(left_p, right_p, ">".to_string()),
+        ),
     }
 }
 

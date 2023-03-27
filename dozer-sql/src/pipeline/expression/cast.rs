@@ -196,19 +196,43 @@ impl CastOperatorType {
     ) -> Result<ExpressionType, PipelineError> {
         let (expected_input_type, return_type) = match self {
             CastOperatorType::UInt => (
-                vec![FieldType::Int, FieldType::String, FieldType::UInt, FieldType::I128, FieldType::U128],
+                vec![
+                    FieldType::Int,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                ],
                 FieldType::UInt,
             ),
             CastOperatorType::U128 => (
-                vec![FieldType::Int, FieldType::String, FieldType::UInt, FieldType::I128, FieldType::U128],
+                vec![
+                    FieldType::Int,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                ],
                 FieldType::U128,
             ),
             CastOperatorType::Int => (
-                vec![FieldType::Int, FieldType::String, FieldType::UInt, FieldType::I128, FieldType::U128],
+                vec![
+                    FieldType::Int,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                ],
                 FieldType::Int,
             ),
             CastOperatorType::I128 => (
-                vec![FieldType::Int, FieldType::String, FieldType::UInt, FieldType::I128, FieldType::U128],
+                vec![
+                    FieldType::Int,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                ],
                 FieldType::I128,
             ),
             CastOperatorType::Float => (
