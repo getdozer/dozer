@@ -93,6 +93,7 @@ impl ReceiverLoop for ProcessorNode {
             warn!("Processor error: {:?}", e);
         }
 
+        // TODO: Enable "test_run_dag_proc_err_2" and "test_run_dag_proc_err_3" tests when errors threshold is implemented
         Ok(())
     }
 
