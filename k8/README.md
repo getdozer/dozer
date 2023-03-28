@@ -7,7 +7,7 @@
 ```bash
 minikube mount ParentDir:/data
 ```
-4. Execute the init.sh script
+4. Execute the init.sh script in the scripts folder
 
 ## Running
 
@@ -24,11 +24,11 @@ api:
     host: app-svc.dozer
 ```
 
-3. Put your data set in the dozer_data inside data folder. Example:
+3. Put your data set in the workspace inside data folder. Example:
 ```bash
 ./workspace/data/trips/fhvhv_tripdata_2022-01.parquet
 ```
-4. Run the k8-setup.sh to do an instant setup.
+4. Run the k8-setup.sh in the scripts directory to do an instant setup.
 ```
 ./k8-setup.sh
 ```
