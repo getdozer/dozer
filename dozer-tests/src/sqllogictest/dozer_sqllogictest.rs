@@ -97,6 +97,14 @@ impl AsyncDB for Dozer {
         let statement: &Statement = &ast[0];
         match statement {
             Statement::Query(_) => {
+                let change_log = self.source_db.get_change_log().unwrap();
+
+                self.ops = vec![];
+                for change_operation in change_log {
+                    let (source, operation) = self.source_db.get_operation(change_operation);
+                    self.ops.push((source, operation));
+                }
+
                 self.run_pipeline(sql)?;
                 let res = self.check_results();
                 // drop table results
@@ -107,8 +115,6 @@ impl AsyncDB for Dozer {
             // If statement is Insert/Update/Delete, collect ops from sql
             Statement::Insert { .. } | Statement::Update { .. } | Statement::Delete { .. } => {
                 self.source_db.conn.execute(sql, ())?;
-
-                self.ops.push(self.source_db.get_operation_from_sql(sql));
                 return Ok(DBOutput::StatementComplete(0));
             }
             // If sql is create table, run `source_db` to get table schema

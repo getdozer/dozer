@@ -6,9 +6,12 @@ use dozer_core::errors::ExecutionError;
 use dozer_sql::sqlparser::ast::{BinaryOperator, Expr, Statement};
 use dozer_sql::sqlparser::ast::{SetExpr, TableFactor};
 use dozer_sql::sqlparser::parser::*;
+use dozer_types::json_value_to_field;
+use dozer_types::serde_json::{self, Value};
 use dozer_types::types::{Field, Operation, Record, Schema};
 use rusqlite::config::DbConfig;
 use rusqlite::hooks;
+use rusqlite::types::Type;
 use sqlparser::dialect::AnsiDialect;
 
 pub struct SchemaResponse {
@@ -22,16 +25,10 @@ pub struct SqlMapper {
     pub schema_map: HashMap<String, Schema>,
     // Used by execute create table sql.
     pub conn: rusqlite::Connection,
-
-    // pub mut glue = Glue;
-    pub results: Vec<Record>,
 }
 
 impl Default for SqlMapper {
     fn default() -> Self {
-        // let storage = MemoryStorage::new().unwrap();
-        // let mut glue = Glue::new(storage);
-
         let conn = rusqlite::Connection::open("mydb.sqlite").unwrap();
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, true)
             .expect("Unable to enable triggers");
@@ -55,7 +52,6 @@ impl Default for SqlMapper {
         Self {
             schema_map: Default::default(),
             conn,
-            results: vec![],
         }
     }
 }
@@ -63,6 +59,60 @@ impl Default for SqlMapper {
 impl SqlMapper {
     pub fn insert_schema(&mut self, name: String, schema: Schema) {
         self.schema_map.insert(name.clone(), schema);
+    }
+
+    pub fn get_change_log(&mut self) -> Result<Vec<Vec<String>>> {
+        let mut stmt = self.conn.prepare("select * from Change_Log")?;
+        let column_count = stmt.column_count();
+        let mut rows = stmt.query(())?;
+        let mut parsed_rows = vec![];
+        while let Ok(Some(row)) = rows.next() {
+            let mut parsed_row = vec![];
+            for idx in 0..column_count {
+                let val_ref = row.get_ref::<usize>(idx)?;
+                match val_ref.data_type() {
+                    Type::Null => {
+                        parsed_row.push("NULL".to_string());
+                    }
+                    Type::Integer => {
+                        parsed_row.push(val_ref.as_i64().unwrap().to_string());
+                    }
+                    Type::Real => {
+                        parsed_row.push(val_ref.as_f64().unwrap().to_string());
+                    }
+                    Type::Text => {
+                        parsed_row.push(val_ref.as_str().unwrap().to_string());
+                    }
+                    Type::Blob => {
+                        parsed_row
+                            .push(String::from_utf8(val_ref.as_blob().unwrap().to_vec()).unwrap());
+                    }
+                }
+            }
+            parsed_rows.push(parsed_row);
+        }
+        self.conn
+            .execute("DELETE FROM Change_Log", ())
+            .expect("Unable to clear the change log");
+        Ok(parsed_rows)
+    }
+
+    pub fn get_operation(&self, change_operation: Vec<String>) -> (String, Operation) {
+        let operation = change_operation[2].clone();
+        let table_name = change_operation[3].clone();
+        let old_data = change_operation[5].clone();
+        let new_data = change_operation[6].clone();
+
+        let schema = self.schema_map.get(&table_name).unwrap();
+
+        let operation = match operation.as_str() {
+            "I" => get_insert(new_data, schema),
+            "U" => get_update(old_data, new_data, schema),
+            "D" => get_delete(old_data, schema),
+            _ => panic!("Operation is not supported"),
+        };
+
+        (table_name, operation)
     }
 
     pub fn execute_list(
@@ -382,4 +432,43 @@ fn get_json_object_converstion(prefix: &str, schema: &Schema) -> String {
     }
     let fields_text = fields.join(", ");
     format!("json_object({fields_text})")
+}
+
+fn get_delete(data: String, schema: &Schema) -> Operation {
+    let old = get_record_from_json(data, schema);
+    Operation::Delete { old }
+}
+
+fn get_insert(data: String, schema: &Schema) -> Operation {
+    let new = get_record_from_json(data, schema);
+    Operation::Insert { new }
+}
+
+fn get_update(old_data: String, new_data: String, schema: &Schema) -> Operation {
+    let old = get_record_from_json(old_data, schema);
+    let new = get_record_from_json(new_data, schema);
+    Operation::Update { old, new }
+}
+
+fn get_record_from_json(data: String, schema: &Schema) -> Record {
+    let root: Value = serde_json::from_str(&data).unwrap();
+    let mut record = Record {
+        values: vec![],
+        schema_id: None,
+        version: None,
+    };
+
+    for field_definition in schema.fields.iter() {
+        let field_name = &field_definition.name;
+
+        let json_value = root.get(field_name).unwrap();
+
+        let Ok(value) = json_value_to_field(json_value.clone(), field_definition.typ, field_definition.nullable) else {
+            panic!("Cannot convert json value to field: {json_value:?}")
+        };
+
+        record.values.push(value);
+    }
+
+    record
 }
