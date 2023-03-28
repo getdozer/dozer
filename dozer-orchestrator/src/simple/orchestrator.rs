@@ -174,6 +174,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let pipeline_dir = get_pipeline_dir(&self.config);
         let executor = Executor::new(
+            &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
@@ -245,6 +246,7 @@ impl Orchestrator for SimpleOrchestrator {
         validate_config(&self.config)?;
 
         let builder = PipelineBuilder::new(
+            &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
