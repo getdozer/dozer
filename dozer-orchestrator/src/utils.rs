@@ -4,8 +4,8 @@ use dozer_types::models::{
     api_config::{ApiConfig, GrpcApiOptions, RestApiOptions},
     api_security::ApiSecurity,
     app_config::{
-        default_app_buffer_size, default_app_max_map_size, default_cache_max_map_size,
-        default_commit_size, default_commit_timeout, Config,
+        default_app_buffer_size, default_cache_max_map_size, default_commit_size,
+        default_commit_timeout, Config,
     },
 };
 use std::{
@@ -27,12 +27,6 @@ fn get_cache_max_map_size(config: &Config) -> u64 {
     config
         .cache_max_map_size
         .unwrap_or_else(default_cache_max_map_size)
-}
-
-fn get_app_max_map_size(config: &Config) -> u64 {
-    config
-        .app_max_map_size
-        .unwrap_or_else(default_app_max_map_size)
 }
 
 fn get_commit_time_threshold(config: &Config) -> Duration {
@@ -77,7 +71,6 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
         commit_sz: get_commit_size(config),
         channel_buffer_sz: get_buffer_size(config) as usize,
         commit_time_threshold: get_commit_time_threshold(config),
-        max_map_size: get_app_max_map_size(config) as usize,
     }
 }
 

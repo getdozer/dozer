@@ -52,11 +52,6 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_max_map_size: Option<u64>,
 
-    /// Pipeline lmdb max map size
-    #[prost(uint64, optional, tag = "11")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_max_map_size: Option<u64>,
-
     /// Pipeline buffer size
     #[prost(uint32, optional, tag = "12")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,10 +78,6 @@ pub fn default_home_dir() -> String {
 }
 
 pub fn default_cache_max_map_size() -> u64 {
-    1024 * 1024 * 1024
-}
-
-pub fn default_app_max_map_size() -> u64 {
     1024 * 1024 * 1024
 }
 
@@ -132,7 +123,6 @@ impl<'de> Deserialize<'de> for Config {
                 let mut home_dir: String = default_home_dir();
 
                 let mut cache_max_map_size: Option<u64> = Some(default_cache_max_map_size());
-                let mut app_max_map_size: Option<u64> = Some(default_app_max_map_size());
                 let mut app_buffer_size: Option<u32> = Some(default_app_buffer_size());
                 let mut commit_size: Option<u32> = Some(default_commit_size());
                 let mut commit_timeout: Option<u64> = Some(default_commit_timeout());
@@ -165,9 +155,6 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "cache_max_map_size" => {
                             cache_max_map_size = access.next_value::<Option<u64>>()?;
-                        }
-                        "app_max_map_size" => {
-                            app_max_map_size = access.next_value::<Option<u64>>()?;
                         }
                         "app_buffer_size" => {
                             app_buffer_size = access.next_value::<Option<u32>>()?;
@@ -247,7 +234,6 @@ impl<'de> Deserialize<'de> for Config {
                     home_dir,
                     flags,
                     cache_max_map_size,
-                    app_max_map_size,
                     app_buffer_size,
                     commit_size,
                     commit_timeout,

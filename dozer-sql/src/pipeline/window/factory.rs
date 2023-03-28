@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use dozer_core::{
     errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
-    storage::lmdb_storage::LmdbExclusiveTransaction,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::Schema;
@@ -78,7 +77,6 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
