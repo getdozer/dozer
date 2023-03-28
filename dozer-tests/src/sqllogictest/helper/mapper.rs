@@ -186,22 +186,51 @@ impl SqlMapper {
         self.conn.execute(table_sql, ())?;
         let schema = { self.get_schema_from_conn(table_name).unwrap() };
         self.insert_schema(table_name.to_string(), schema.clone());
-        if table_name == "actor" {
-            let json_conversion: String = get_json_object_converstion("NEW", &schema);
-            let sql_trigger = format!(
-                "CREATE TRIGGER Table_Insert_Trigger \
-            AFTER INSERT ON actor \
-            FOR EACH ROW \
-            BEGIN \
-                INSERT INTO Change_Log (Change_Type, Table_Name, Record_ID, New_Value) \
-                VALUES ('I', 'actor', NEW.actor_id, {json_conversion}); \
-            END;"
-            );
 
-            self.conn
-                .execute(&sql_trigger, ())
-                .expect("unable to create trigger");
-        }
+        let json_conversion: String = get_json_object_converstion("NEW", &schema);
+        let insert_trigger = format!(
+            "CREATE TRIGGER {table_name}_insert_trigger \
+                AFTER INSERT ON {table_name} \
+                FOR EACH ROW \
+                BEGIN \
+                    INSERT INTO Change_Log (Change_Type, Table_Name, Record_ID, New_Value) \
+                    VALUES ('I', '{table_name}', NEW.rowid, {json_conversion}); \
+                END;"
+        );
+
+        let json_conversion: String = get_json_object_converstion("OLD", &schema);
+        let delete_trigger = format!(
+            "CREATE TRIGGER {table_name}_delete_trigger \
+                AFTER DELETE ON {table_name} \
+                FOR EACH ROW \
+                BEGIN \
+                    INSERT INTO Change_Log (Change_Type, Table_Name, Record_ID, Old_Value) \
+                    VALUES ('D', '{table_name}', OLD.rowid, {json_conversion}); \
+                END;"
+        );
+
+        let old_json_conversion: String = get_json_object_converstion("OLD", &schema);
+        let new_json_conversion: String = get_json_object_converstion("NEW", &schema);
+        let update_trigger = format!(
+                "CREATE TRIGGER {table_name}_update_Trigger \
+                AFTER UPDATE ON {table_name} \
+                FOR EACH ROW \
+                BEGIN \
+                    INSERT INTO Change_Log (Change_Type, Table_Name, Record_ID, Old_Value, New_Value) \
+                    VALUES ('U', '{table_name}', OLD.rowid, {old_json_conversion}, {new_json_conversion}); \
+                END;"
+                );
+
+        self.conn
+            .execute(&insert_trigger, ())
+            .expect("unable to create trigger");
+        self.conn
+            .execute(&delete_trigger, ())
+            .expect("unable to create trigger");
+        self.conn
+            .execute(&update_trigger, ())
+            .expect("unable to create trigger");
+
         Ok(())
     }
 
