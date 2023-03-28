@@ -6,7 +6,6 @@ mod validator;
 use arg::SqlLogicTestArgs;
 use clap::Parser;
 use dozer_sql::sqlparser::ast::Statement;
-use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser as SqlParser;
 use dozer_types::types::Operation;
 use error::DozerSqlLogicTestError;
@@ -16,6 +15,7 @@ use helper::mapper::SqlMapper;
 use helper::pipeline::TestPipeline;
 use rusqlite::types::Type;
 use sqllogictest::{default_validator, parse_file, update_test_file, AsyncDB, DBOutput, Runner};
+use sqlparser::dialect::AnsiDialect;
 use std::sync::{Arc, Mutex};
 use validator::Validator;
 use walkdir::WalkDir;
@@ -26,7 +26,6 @@ pub struct Dozer {
     pub source_db: SqlMapper,
     // Key is table name, value is operation(Insert/Update/Delete) for the table.
     pub ops: Vec<(String, Operation)>,
-    pub dest_db: Arc<Mutex<SqlMapper>>,
 }
 
 impl Dozer {
@@ -34,7 +33,6 @@ impl Dozer {
         Self {
             source_db,
             ops: vec![],
-            dest_db: Arc::new(Mutex::new(SqlMapper::default())),
         }
     }
 
@@ -44,7 +42,6 @@ impl Dozer {
             sql.to_string(),
             self.source_db.schema_map.clone(),
             self.ops.clone(),
-            self.dest_db.clone(),
         );
         pipeline.run()?;
         Ok(())
@@ -52,8 +49,7 @@ impl Dozer {
 
     // Run `select * from results` to check results
     pub fn check_results(&mut self) -> Result<DBOutput> {
-        let dest_db = self.dest_db.lock().unwrap();
-        let mut stmt = dest_db.conn.prepare("select * from results")?;
+        let mut stmt = self.source_db.conn.prepare("select * from Change_Log")?;
         let column_count = stmt.column_count();
         let mut rows = stmt.query(())?;
         let mut parsed_rows = vec![];
@@ -96,20 +92,22 @@ impl AsyncDB for Dozer {
     async fn run(&mut self, sql: &str) -> Result<DBOutput> {
         use std::println as info;
         info!("SQL [{}] is running", sql);
-        let dialect = GenericDialect {};
-        let ast = SqlParser::parse_sql(&dialect, sql)?;
+
+        let ast = SqlParser::parse_sql(&AnsiDialect {}, sql)?;
         let statement: &Statement = &ast[0];
         match statement {
             Statement::Query(_) => {
                 self.run_pipeline(sql)?;
                 let res = self.check_results();
                 // drop table results
-                let dest_db = self.dest_db.lock().unwrap();
-                dest_db.conn.execute("drop table results", ())?;
+                // let dest_db = self.dest_db.lock().unwrap();
+                // dest_db.conn.execute("drop table results", ())?;
                 res
             }
             // If statement is Insert/Update/Delete, collect ops from sql
             Statement::Insert { .. } | Statement::Update { .. } | Statement::Delete { .. } => {
+                self.source_db.conn.execute(sql, ())?;
+
                 self.ops.push(self.source_db.get_operation_from_sql(sql));
                 return Ok(DBOutput::StatementComplete(0));
             }
@@ -142,7 +140,7 @@ async fn main() -> Result<()> {
 
     let args = SqlLogicTestArgs::parse();
     let suits = SqlLogicTestArgs::parse().suites;
-    let suits = std::fs::read_dir(suits).unwrap();
+    let suits = std::fs::read_dir("dozer-tests/src/sqllogictest/test_suits").unwrap();
     let mut files = vec![];
     for suit in suits {
         let suit = suit.unwrap().path();

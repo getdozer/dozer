@@ -5,9 +5,11 @@ use crate::error::Result;
 use dozer_core::errors::ExecutionError;
 use dozer_sql::sqlparser::ast::{BinaryOperator, Expr, Statement};
 use dozer_sql::sqlparser::ast::{SetExpr, TableFactor};
-use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::*;
 use dozer_types::types::{Field, Operation, Record, Schema};
+use rusqlite::config::DbConfig;
+use rusqlite::hooks;
+use sqlparser::dialect::AnsiDialect;
 
 pub struct SchemaResponse {
     schema: Schema,
@@ -20,26 +22,63 @@ pub struct SqlMapper {
     pub schema_map: HashMap<String, Schema>,
     // Used by execute create table sql.
     pub conn: rusqlite::Connection,
+
+    // pub mut glue = Glue;
+    pub results: Vec<Record>,
 }
 
 impl Default for SqlMapper {
     fn default() -> Self {
+        // let storage = MemoryStorage::new().unwrap();
+        // let mut glue = Glue::new(storage);
+
+        let conn = rusqlite::Connection::open("mydb.sqlite").unwrap();
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, true)
+            .expect("Unable to enable triggers");
+
+        let triggers_enabled = conn
+            .db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER)
+            .expect("Unable to get triggers status");
+
+        let sql_trigger = r#"CREATE TABLE Change_Log (
+            Log_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            Change_Time DATETIME DEFAULT CURRENT_TIMESTAMP,
+            Change_Type CHAR(1),
+            Table_Name TEXT,
+            Record_ID INTEGER,
+            Old_Value TEXT,
+            New_Value TEXT
+        );"#
+        .to_string();
+        conn.execute(&sql_trigger, ()).unwrap();
+
         Self {
             schema_map: Default::default(),
-            conn: rusqlite::Connection::open_in_memory().unwrap(),
+            conn,
+            results: vec![],
         }
     }
 }
 
 impl SqlMapper {
     pub fn insert_schema(&mut self, name: String, schema: Schema) {
-        self.schema_map.insert(name, schema);
+        self.schema_map.insert(name.clone(), schema);
     }
 
     pub fn execute_list(
         &mut self,
         list: Vec<(&'static str, String)>,
     ) -> Result<Vec<(String, Operation)>> {
+        // set up the update hook
+        self.conn.update_hook(Some(
+            |action: hooks::Action, dbname: &str, table_name: &str, rowid: i64| {
+                println!(
+                    "update_hook: action={:?}, dbname={:?}, table_name={:?}, rowid={:?}",
+                    action, dbname, table_name, rowid
+                );
+            },
+        ));
+
         let mut ops = vec![];
         for (_, sql) in list {
             let op = self.get_operation_from_sql(&sql);
@@ -59,10 +98,7 @@ impl SqlMapper {
     }
 
     pub fn get_operation_from_sql(&mut self, sql: &str) -> (String, Operation) {
-        let dialect = GenericDialect {};
-
-        let ast = Parser::parse_sql(&dialect, sql).unwrap();
-
+        let ast = Parser::parse_sql(&AnsiDialect {}, sql).unwrap();
         let st: &Statement = &ast[0];
         match st {
             Statement::Insert {
@@ -149,7 +185,23 @@ impl SqlMapper {
     pub fn create_table(&mut self, table_name: &str, table_sql: &str) -> Result<()> {
         self.conn.execute(table_sql, ())?;
         let schema = { self.get_schema_from_conn(table_name).unwrap() };
-        self.insert_schema(table_name.to_string(), schema);
+        self.insert_schema(table_name.to_string(), schema.clone());
+        if table_name == "actor" {
+            let json_conversion: String = get_json_object_converstion("NEW", &schema);
+            let sql_trigger = format!(
+                "CREATE TRIGGER Table_Insert_Trigger \
+            AFTER INSERT ON actor \
+            FOR EACH ROW \
+            BEGIN \
+                INSERT INTO Change_Log (Change_Type, Table_Name, Record_ID, New_Value) \
+                VALUES ('I', 'actor', NEW.actor_id, {json_conversion}); \
+            END;"
+            );
+
+            self.conn
+                .execute(&sql_trigger, ())
+                .expect("unable to create trigger");
+        }
         Ok(())
     }
 
@@ -288,4 +340,17 @@ impl SqlMapper {
             panic!("no rows found");
         }
     }
+}
+
+fn get_json_object_converstion(prefix: &str, schema: &Schema) -> String {
+    let mut fields = vec![];
+    for field in schema.fields.iter() {
+        let field_name = field
+            .name
+            .replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+        let full_name = format!("'{field_name}', {prefix}.{field_name}");
+        fields.push(full_name);
+    }
+    let fields_text = fields.join(", ");
+    format!("json_object({fields_text})")
 }

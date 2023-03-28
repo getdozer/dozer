@@ -150,14 +150,12 @@ pub struct SchemaHolder {
 #[derive(Debug)]
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
-    mapper: Arc<Mutex<SqlMapper>>,
 }
 
 impl TestSinkFactory {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>) -> Self {
+    pub fn new() -> Self {
         Self {
             input_ports: vec![DEFAULT_PORT_HANDLE],
-            mapper,
         }
     }
 }
@@ -180,25 +178,18 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
 
-        self.mapper
-            .lock()
-            .unwrap()
-            .create_table("results", &get_table_create_sql("results", schema))
-            .unwrap();
-
-        Ok(Box::new(TestSink::new(self.mapper.clone())))
+        Ok(Box::new(TestSink::new()))
     }
 }
 
 #[derive(Debug)]
 pub struct TestSink {
-    mapper: Arc<Mutex<SqlMapper>>,
     curr: usize,
 }
 
 impl TestSink {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>) -> Self {
-        Self { mapper, curr: 0 }
+    pub fn new() -> Self {
+        Self { curr: 0 }
     }
 }
 
@@ -209,19 +200,6 @@ impl Sink for TestSink {
         op: Operation,
         _state: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
-        let sql = self
-            .mapper
-            .lock()
-            .unwrap()
-            .map_operation_to_sql(&"results".to_string(), op)
-            .unwrap();
-
-        self.mapper
-            .lock()
-            .unwrap()
-            .execute_list(vec![("results", sql)])
-            .unwrap();
-
         self.curr += 1;
 
         Ok(())
@@ -250,16 +228,14 @@ impl TestPipeline {
         sql: String,
         schemas: HashMap<String, Schema>,
         ops: Vec<(String, Operation)>,
-        mapper: Arc<Mutex<SqlMapper>>,
     ) -> Self {
-        Self::build_pipeline(sql, schemas, ops, mapper).unwrap()
+        Self::build_pipeline(sql, schemas, ops).unwrap()
     }
 
     pub fn build_pipeline(
         sql: String,
         schemas: HashMap<String, Schema>,
         ops: Vec<(String, Operation)>,
-        mapper: Arc<Mutex<SqlMapper>>,
     ) -> Result<TestPipeline, ExecutionError> {
         let mut pipeline = AppPipeline::new();
 
@@ -293,7 +269,7 @@ impl TestPipeline {
         ))
         .unwrap();
 
-        pipeline.add_sink(Arc::new(TestSinkFactory::new(mapper)), "sink");
+        pipeline.add_sink(Arc::new(TestSinkFactory::new()), "sink");
 
         pipeline
             .connect_nodes(
