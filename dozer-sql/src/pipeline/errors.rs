@@ -186,6 +186,18 @@ pub enum SqlError {
     WindowError(String),
     #[error("SQL Error: Invalid column name {0}.")]
     InvalidColumn(String),
+    #[error(transparent)]
+    Operation(#[from] OperationError),
+}
+
+#[derive(Error, Debug)]
+pub enum OperationError {
+    #[error("SQL Error: Multiplication operation cannot be done due to overflow.")]
+    MultiplicationOverflow,
+    #[error("SQL Error: Division operation cannot be done.")]
+    DivisionByZeroOrOverflow,
+    #[error("SQL Error: Modulo operation cannot be done.")]
+    ModuloByZeroOrOverflow,
 }
 
 #[derive(Error, Debug)]

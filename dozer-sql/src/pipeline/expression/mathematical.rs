@@ -1,4 +1,6 @@
+use crate::pipeline::errors::OperationError;
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::SqlError::Operation;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::Schema;
@@ -65,13 +67,55 @@ macro_rules! define_math_operator {
                     // left: Float, right: Float
                     Field::Float(right_v) => Ok(Field::Float($fct(left_v, right_v))),
                     // left: Float, right: Decimal
-                    Field::Decimal(right_v) => Ok(Field::Decimal($fct(
-                        Decimal::from_f64(*left_v).ok_or(PipelineError::UnableToCast(
-                            format!("{}", left_v),
-                            "Decimal".to_string(),
-                        ))?,
-                        right_v,
-                    ))),
+                    Field::Decimal(right_v) => {
+                        return match $op {
+                            "/" => Ok(Field::Decimal(
+                                Decimal::from_f64(*left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_div(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::DivisionByZeroOrOverflow,
+                                    )))?,
+                            )),
+                            "%" => Ok(Field::Decimal(
+                                Decimal::from_f64(*left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_rem(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::ModuloByZeroOrOverflow,
+                                    )))?,
+                            )),
+                            "*" => Ok(Field::Decimal(
+                                Decimal::from_f64(*left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_mul(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::MultiplicationOverflow,
+                                    )))?,
+                            )),
+                            "+" | "-" => Ok(Field::Decimal($fct(
+                                Decimal::from_f64(*left_v).ok_or(PipelineError::UnableToCast(
+                                    format!("{}", left_v),
+                                    "Decimal".to_string(),
+                                ))?,
+                                right_v,
+                            ))),
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        }
+                    }
                     Field::Null => Ok(Field::Null),
                     _ => Err(PipelineError::InvalidTypeComparison(
                         left_p,
@@ -134,13 +178,55 @@ macro_rules! define_math_operator {
                         right_v,
                     ))),
                     // left: Int, right: Decimal
-                    Field::Decimal(right_v) => Ok(Field::Decimal($fct(
-                        Decimal::from_i64(left_v).ok_or(PipelineError::UnableToCast(
-                            format!("{}", left_v),
-                            "Decimal".to_string(),
-                        ))?,
-                        right_v,
-                    ))),
+                    Field::Decimal(right_v) => {
+                        return match $op {
+                            "/" => Ok(Field::Decimal(
+                                Decimal::from_i64(left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_div(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::DivisionByZeroOrOverflow,
+                                    )))?,
+                            )),
+                            "%" => Ok(Field::Decimal(
+                                Decimal::from_i64(left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_rem(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::ModuloByZeroOrOverflow,
+                                    )))?,
+                            )),
+                            "*" => Ok(Field::Decimal(
+                                Decimal::from_i64(left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_mul(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::MultiplicationOverflow,
+                                    )))?,
+                            )),
+                            "+" | "-" => Ok(Field::Decimal($fct(
+                                Decimal::from_i64(left_v).ok_or(PipelineError::UnableToCast(
+                                    format!("{}", left_v),
+                                    "Decimal".to_string(),
+                                ))?,
+                                right_v,
+                            ))),
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        }
+                    }
                     // left: Int, right: Null
                     Field::Null => Ok(Field::Null),
                     _ => Err(PipelineError::InvalidTypeComparison(
@@ -202,13 +288,55 @@ macro_rules! define_math_operator {
                         right_v,
                     ))),
                     // left: UInt, right: Decimal
-                    Field::Decimal(right_v) => Ok(Field::Decimal($fct(
-                        Decimal::from_u64(left_v).ok_or(PipelineError::UnableToCast(
-                            format!("{}", left_v),
-                            "Decimal".to_string(),
-                        ))?,
-                        right_v,
-                    ))),
+                    Field::Decimal(right_v) => {
+                        return match $op {
+                            "/" => Ok(Field::Decimal(
+                                Decimal::from_u64(left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_div(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::DivisionByZeroOrOverflow,
+                                    )))?,
+                            )),
+                            "%" => Ok(Field::Decimal(
+                                Decimal::from_u64(left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_rem(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::ModuloByZeroOrOverflow,
+                                    )))?,
+                            )),
+                            "*" => Ok(Field::Decimal(
+                                Decimal::from_u64(left_v)
+                                    .ok_or(PipelineError::UnableToCast(
+                                        format!("{}", left_v),
+                                        "Decimal".to_string(),
+                                    ))?
+                                    .checked_mul(right_v)
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::MultiplicationOverflow,
+                                    )))?,
+                            )),
+                            "+" | "-" => Ok(Field::Decimal($fct(
+                                Decimal::from_u64(left_v).ok_or(PipelineError::UnableToCast(
+                                    format!("{}", left_v),
+                                    "Decimal".to_string(),
+                                ))?,
+                                right_v,
+                            ))),
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        }
+                    }
                     // left: UInt, right: Null
                     Field::Null => Ok(Field::Null),
                     _ => Err(PipelineError::InvalidTypeComparison(
@@ -218,41 +346,226 @@ macro_rules! define_math_operator {
                     )),
                 },
                 Field::Decimal(left_v) => {
-                    match right_p {
-                        // left: Decimal, right: Int
-                        Field::Int(right_v) => Ok(Field::Decimal($fct(
-                            left_v,
-                            Decimal::from_i64(right_v).ok_or(PipelineError::UnableToCast(
-                                format!("{}", left_v),
-                                "Decimal".to_string(),
-                            ))?,
-                        ))),
-                        // left: Decimal, right: UInt
-                        Field::UInt(right_v) => Ok(Field::Decimal($fct(
-                            left_v,
-                            Decimal::from_u64(right_v).ok_or(PipelineError::UnableToCast(
-                                format!("{}", right_v),
-                                "Decimal".to_string(),
-                            ))?,
-                        ))),
-                        // left: Decimal, right: Float
-                        Field::Float(right_v) => Ok(Field::Decimal($fct(
-                            left_v,
-                            Decimal::from_f64(*right_v).ok_or(PipelineError::UnableToCast(
-                                format!("{}", right_v),
-                                "Decimal".to_string(),
-                            ))?,
-                        ))),
-                        // left: Decimal, right: Null
-                        Field::Null => Ok(Field::Null),
-                        // left: Decimal, right: Decimal
-                        Field::Decimal(right_v) => Ok(Field::Decimal($fct(left_v, right_v))),
-                        _ => Err(PipelineError::InvalidTypeComparison(
+                    return match $op {
+                        "/" => {
+                            match right_p {
+                                // left: Decimal, right: Int
+                                Field::Int(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_div(Decimal::from_i64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: UInt
+                                Field::UInt(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_div(Decimal::from_u64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: Float
+                                Field::Float(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_div(Decimal::from_f64(*right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: Null
+                                Field::Null => Ok(Field::Null),
+                                // left: Decimal, right: Decimal
+                                Field::Decimal(right_v) => Ok(Field::Decimal(
+                                    left_v.checked_div(right_v).ok_or(PipelineError::SqlError(
+                                        Operation(OperationError::DivisionByZeroOrOverflow),
+                                    ))?,
+                                )),
+                                _ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            }
+                        }
+                        "%" => {
+                            match right_p {
+                                // left: Decimal, right: Int
+                                Field::Int(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_rem(Decimal::from_i64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::ModuloByZeroOrOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: UInt
+                                Field::UInt(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_rem(Decimal::from_u64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::ModuloByZeroOrOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: Float
+                                Field::Float(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_rem(Decimal::from_f64(*right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::ModuloByZeroOrOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: Null
+                                Field::Null => Ok(Field::Null),
+                                // left: Decimal, right: Decimal
+                                Field::Decimal(right_v) => Ok(Field::Decimal(
+                                    left_v.checked_rem(right_v).ok_or(PipelineError::SqlError(
+                                        Operation(OperationError::ModuloByZeroOrOverflow),
+                                    ))?,
+                                )),
+                                _ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            }
+                        }
+                        "*" => {
+                            match right_p {
+                                // left: Decimal, right: Int
+                                Field::Int(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_mul(Decimal::from_i64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::MultiplicationOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: UInt
+                                Field::UInt(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_mul(Decimal::from_u64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::MultiplicationOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: Float
+                                Field::Float(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_mul(Decimal::from_f64(*right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(Operation(
+                                            OperationError::MultiplicationOverflow,
+                                        )))?,
+                                )),
+                                // left: Decimal, right: Null
+                                Field::Null => Ok(Field::Null),
+                                // left: Decimal, right: Decimal
+                                Field::Decimal(right_v) => Ok(Field::Decimal(
+                                    left_v.checked_mul(right_v).ok_or(PipelineError::SqlError(
+                                        Operation(OperationError::MultiplicationOverflow),
+                                    ))?,
+                                )),
+                                _ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            }
+                        }
+                        "+" | "-" => {
+                            match right_p {
+                                // left: Decimal, right: Int
+                                Field::Int(right_v) => Ok(Field::Decimal($fct(
+                                    left_v,
+                                    Decimal::from_i64(right_v).ok_or(
+                                        PipelineError::UnableToCast(
+                                            format!("{}", left_v),
+                                            "Decimal".to_string(),
+                                        ),
+                                    )?,
+                                ))),
+                                // left: Decimal, right: UInt
+                                Field::UInt(right_v) => Ok(Field::Decimal($fct(
+                                    left_v,
+                                    Decimal::from_u64(right_v).ok_or(
+                                        PipelineError::UnableToCast(
+                                            format!("{}", right_v),
+                                            "Decimal".to_string(),
+                                        ),
+                                    )?,
+                                ))),
+                                // left: Decimal, right: Float
+                                Field::Float(right_v) => Ok(Field::Decimal($fct(
+                                    left_v,
+                                    Decimal::from_f64(*right_v).ok_or(
+                                        PipelineError::UnableToCast(
+                                            format!("{}", right_v),
+                                            "Decimal".to_string(),
+                                        ),
+                                    )?,
+                                ))),
+                                // left: Decimal, right: Null
+                                Field::Null => Ok(Field::Null),
+                                // left: Decimal, right: Decimal
+                                Field::Decimal(right_v) => {
+                                    Ok(Field::Decimal($fct(left_v, right_v)))
+                                }
+                                _ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            }
+                        }
+                        &_ => Err(PipelineError::InvalidTypeComparison(
                             left_p,
                             right_p,
                             $op.to_string(),
                         )),
-                    }
+                    };
                 }
                 // right: Null, right: *
                 Field::Null => Ok(Field::Null),
