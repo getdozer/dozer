@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use dozer_types::grpc_types::internal::{StatusUpdate, StatusUpdateRequest};
 use dozer_types::{
     grpc_types::{
         internal::{
@@ -14,7 +15,6 @@ use dozer_types::{
 use futures_util::{Future, StreamExt};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tonic::{transport::Channel, Streaming};
-use dozer_types::grpc_types::internal::{StatusUpdate, StatusUpdateRequest};
 
 use crate::errors::GrpcError;
 

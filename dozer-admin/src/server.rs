@@ -9,15 +9,21 @@ use dozer_types::{log::info, tracing::Level};
 use tonic::{transport::Server, Request, Response, Status};
 use tower_http::trace::{self, TraceLayer};
 
-use dozer_types::grpc_types::admin::{dozer_admin_server::{DozerAdmin, DozerAdminServer}, AppResponse, ConnectionRequest, ConnectionResponse, CreateAppRequest, GetAllConnectionRequest, GetAllConnectionResponse, GetAppRequest, GetTablesRequest, GetTablesResponse, UpdateConnectionRequest, ListFilesRequest, ListFilesResponse, SaveFilesResponse, SaveFilesRequest, StatusUpdateRequest, StatusUpdate};
+use dozer_types::grpc_types::admin::LogMessage;
+use dozer_types::grpc_types::admin::LogMessageRequest;
+use dozer_types::grpc_types::admin::{
+    dozer_admin_server::{DozerAdmin, DozerAdminServer},
+    AppResponse, ConnectionRequest, ConnectionResponse, CreateAppRequest, GetAllConnectionRequest,
+    GetAllConnectionResponse, GetAppRequest, GetTablesRequest, GetTablesResponse, ListFilesRequest,
+    ListFilesResponse, SaveFilesRequest, SaveFilesResponse, StatusUpdate, StatusUpdateRequest,
+    UpdateConnectionRequest,
+};
 use dozer_types::grpc_types::admin::{
     GenerateGraphRequest, GenerateGraphResponse, GenerateYamlRequest, GenerateYamlResponse,
     ListAppRequest, ListAppResponse, ParseRequest, ParseResponse, ParseYamlRequest,
     ParseYamlResponse, StartRequest, StartResponse, StopRequest, StopResponse, UpdateAppRequest,
     ValidateConnectionResponse,
 };
-use dozer_types::grpc_types::admin::LogMessage;
-use dozer_types::grpc_types::admin::LogMessageRequest;
 
 pub struct GrpcService {
     app_service: AppService,
@@ -223,24 +229,26 @@ impl DozerAdmin for GrpcService {
 
     type OnLogMessageStream = ReceiverStream<Result<LogMessage, tonic::Status>>;
 
-    async fn on_log_message(&self, _request: Request<LogMessageRequest>) -> EventResult<Self::OnLogMessageStream> {
+    async fn on_log_message(
+        &self,
+        _request: Request<LogMessageRequest>,
+    ) -> EventResult<Self::OnLogMessageStream> {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
 
-        tokio::spawn(async move {
-            AppService::read_logs(tx).await
-        });
+        tokio::spawn(async move { AppService::read_logs(tx).await });
 
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 
     type OnStatusUpdateStream = ReceiverStream<Result<StatusUpdate, tonic::Status>>;
 
-    async fn on_status_update(&self, _request: Request<StatusUpdateRequest>) -> Result<Response<Self::OnStatusUpdateStream>, Status> {
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
+    async fn on_status_update(
+        &self,
+        _request: Request<StatusUpdateRequest>,
+    ) -> Result<Response<Self::OnStatusUpdateStream>, Status> {
+        let (tx, rx) = tokio::sync::mpsc::channel(1000);
 
-        tokio::spawn(async move {
-            AppService::stream_status_update(tx).await
-        });
+        tokio::spawn(async move { AppService::stream_status_update(tx).await });
 
         Ok(Response::new(ReceiverStream::new(rx)))
     }

@@ -6,7 +6,9 @@ use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
+use dozer_types::grpc_types::internal::StatusUpdate;
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, IngestorError};
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
@@ -19,27 +21,6 @@ use std::thread;
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_types::grpc_types::internal::StatusUpdate;
 use tokio::runtime::Runtime;
-
-fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    multi_pb.as_ref().map(|m| m.add(pb.clone()));
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.red} {msg}: {pos}: {per_sec}")
-            .unwrap()
-            // For more spinners check out the cli-spinners project:
-            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
-            .tick_strings(&[
-                "▹▹▹▹▹",
-                "▸▹▹▹▹",
-                "▹▸▹▹▹",
-                "▹▹▸▹▹",
-                "▹▹▹▸▹",
-                "▹▹▹▹▸",
-                "▪▪▪▪▪",
-            ]),
-    );
-    pb
-}
 
 #[derive(Debug)]
 struct Table {
@@ -58,8 +39,7 @@ pub struct ConnectorSourceFactory {
     /// Will be moved to `ConnectorSource` in `build`.
     connector: Mutex<Option<Box<dyn Connector>>>,
     runtime: Arc<Runtime>,
-    progress: Option<MultiProgress>,
-    notifier: Option<PipelineEventSenders>
+    notifier: Option<PipelineEventSenders>,
 }
 
 fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
@@ -75,7 +55,6 @@ impl ConnectorSourceFactory {
         table_and_ports: Vec<(TableInfo, PortHandle)>,
         connection: Connection,
         runtime: Arc<Runtime>,
-        progress: Option<MultiProgress>,
         notifier: Option<PipelineEventSenders>,
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
@@ -119,7 +98,6 @@ impl ConnectorSourceFactory {
             tables,
             connector: Mutex::new(Some(connector)),
             runtime,
-            progress,
             notifier
         })
     }
@@ -191,13 +169,6 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             .take()
             .expect("ConnectorSource was already built");
 
-        let mut bars = HashMap::new();
-        for table in &self.tables {
-            let pb = attach_progress(self.progress.clone());
-            pb.set_message(table.name.clone());
-            bars.insert(table.port, pb);
-        }
-
         Ok(Box::new(ConnectorSource {
             ingestor,
             iterator: Mutex::new(iterator),
@@ -206,8 +177,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             connector,
             runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
-            bars,
-            notifier: self.notifier.clone()
+            notifier: self.notifier.clone(),
         }))
     }
 }
@@ -221,8 +191,7 @@ pub struct ConnectorSource {
     connector: Box<dyn Connector>,
     runtime: Arc<Runtime>,
     connection_name: String,
-    bars: HashMap<PortHandle, ProgressBar>,
-    notifier: Option<PipelineEventSenders>
+    notifier: Option<PipelineEventSenders>,
 }
 
 impl Source for ConnectorSource {
@@ -290,17 +259,14 @@ impl Source for ConnectorSource {
 
                     let schema_counter = counter.get(&schema_id).unwrap();
                     if *schema_counter % 1000 == 0 {
-                        let pb = self.bars.get(port);
-                        if let Some(pb) = pb {
-                            pb.set_position(*schema_counter);
-                        }
                         if let Some(notifier) = &self.notifier {
                             let status_update = StatusUpdate {
                                 source: schema_id.to_string(),
                                 r#type: "source".to_string(),
                                 count: *schema_counter as i64,
                             };
-                            let _ = notifier.2
+                            let _ = notifier
+                                .2
                                 .try_send(status_update)
                                 .map_err(|e| ExecutionError::InternalError(Box::new(e)));
                         }

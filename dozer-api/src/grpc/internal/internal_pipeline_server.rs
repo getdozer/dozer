@@ -1,4 +1,5 @@
 use crossbeam::channel::{Receiver, Sender};
+use dozer_types::grpc_types::internal::{StatusUpdate, StatusUpdateRequest};
 use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
 use dozer_types::{
     grpc_types::{
@@ -14,10 +15,17 @@ use std::{fmt::Debug, net::ToSocketAddrs, pin::Pin, thread};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
-use dozer_types::grpc_types::internal::{StatusUpdate, StatusUpdateRequest};
 
-pub type PipelineEventSenders = (Sender<AliasRedirected>, Sender<Operation>, Sender<StatusUpdate>);
-pub type PipelineEventReceivers = (Receiver<AliasRedirected>, Receiver<Operation>, Receiver<StatusUpdate>);
+pub type PipelineEventSenders = (
+    Sender<AliasRedirected>,
+    Sender<Operation>,
+    Sender<StatusUpdate>,
+);
+pub type PipelineEventReceivers = (
+    Receiver<AliasRedirected>,
+    Receiver<Operation>,
+    Receiver<StatusUpdate>,
+);
 
 pub struct InternalPipelineServer {
     alias_redirected_receiver: broadcast::Receiver<AliasRedirected>,
@@ -35,7 +43,7 @@ impl InternalPipelineServer {
         Self {
             alias_redirected_receiver,
             operation_receiver,
-            status_updates_receiver
+            status_updates_receiver,
         }
     }
 }

@@ -3,17 +3,17 @@ use crate::OrchestrationError;
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::TableInfo;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::indicatif::MultiProgress;
+
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::collections::HashMap;
 use std::sync::Arc;
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use tokio::runtime::Runtime;
 
 pub struct SourceBuilder<'a> {
     grouped_connections: HashMap<Connection, Vec<Source>>,
-    notifier: Option<PipelineEventSenders>
+    notifier: Option<PipelineEventSenders>,
 }
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
@@ -25,7 +25,7 @@ impl<'a> SourceBuilder<'a> {
     ) -> Self {
         Self {
             grouped_connections,
-            notifier
+            notifier,
         }
     }
 
@@ -72,7 +72,7 @@ impl<'a> SourceBuilder<'a> {
                 table_and_ports,
                 connection.clone(),
                 runtime.clone(),
-                self.notifier.clone()
+                self.notifier.clone(),
             ))?;
 
             asm.add(AppSource::new(

@@ -163,7 +163,11 @@ impl Orchestrator for SimpleOrchestrator {
         let _intern_pipeline_thread = thread::spawn(move || {
             if let Err(e) = start_internal_pipeline_server(
                 internal_app_config,
-                (alias_redirected_receiver, operation_receiver, status_update_receiver),
+                (
+                    alias_redirected_receiver,
+                    operation_receiver,
+                    status_update_receiver,
+                ),
             ) {
                 std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
             }
