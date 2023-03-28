@@ -130,7 +130,7 @@ impl Source for TestSource {
             fw.send(IngestionMessage::new_op(idx, 0, op), *port)
                 .unwrap();
         }
-        thread::sleep(Duration::from_millis(500));
+        thread::sleep(Duration::from_millis(100));
 
         self.running
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -305,16 +305,15 @@ impl TestPipeline {
     }
 
     pub fn run(self) -> Result<(), ExecutionError> {
-        let tmp_dir =
-            TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+        let tmp_dir = TempDir::new("sqltest").expect("Unable to create temp dir");
 
-        let exec = DagExecutor::new(
+        let executor = DagExecutor::new(
             self.dag,
             tmp_dir.path().to_path_buf(),
             ExecutorOptions::default(),
         )
         .unwrap_or_else(|e| panic!("Unable to create exec: {e}"));
-        let join_handle = exec.start(self.running.clone())?;
+        let join_handle = executor.start(self.running.clone())?;
 
         for (schema_name, op) in &self.ops {
             if self.used_schemas.contains(&schema_name.to_string()) {

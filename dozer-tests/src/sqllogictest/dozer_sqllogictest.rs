@@ -16,7 +16,6 @@ use helper::pipeline::TestPipeline;
 use rusqlite::types::Type;
 use sqllogictest::{default_validator, parse_file, update_test_file, AsyncDB, DBOutput, Runner};
 use sqlparser::dialect::AnsiDialect;
-use std::sync::{Arc, Mutex};
 use validator::Validator;
 use walkdir::WalkDir;
 
@@ -106,11 +105,11 @@ impl AsyncDB for Dozer {
                 }
 
                 self.run_pipeline(sql)?;
-                let res = self.check_results();
+
                 // drop table results
                 // let dest_db = self.dest_db.lock().unwrap();
                 // dest_db.conn.execute("drop table results", ())?;
-                res
+                self.check_results()
             }
             // If statement is Insert/Update/Delete, collect ops from sql
             Statement::Insert { .. } | Statement::Update { .. } | Statement::Delete { .. } => {
@@ -145,7 +144,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let args = SqlLogicTestArgs::parse();
-    let suits = SqlLogicTestArgs::parse().suites;
+    //let suits = SqlLogicTestArgs::parse().suites;
     let suits = std::fs::read_dir("dozer-tests/src/sqllogictest/test_suits").unwrap();
     let mut files = vec![];
     for suit in suits {

@@ -42,6 +42,9 @@ pub fn json_value_to_field(
             .map_err(DeserializationError::Json)
             .map(Field::Binary),
         (FieldType::Decimal, Value::String(str)) => return Field::from_str(str, typ, nullable),
+        (FieldType::Decimal, Value::Number(number)) => {
+            return Field::from_str(&number.to_string(), typ, nullable)
+        }
         (FieldType::Timestamp, Value::String(str)) => return Field::from_str(str, typ, nullable),
         (FieldType::Date, Value::String(str)) => return Field::from_str(str, typ, nullable),
         (FieldType::Bson, _) => serde_json::from_value(value)

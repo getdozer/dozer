@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use super::helper::*;
 use crate::error::Result;
@@ -6,9 +7,13 @@ use dozer_core::errors::ExecutionError;
 use dozer_sql::sqlparser::ast::{BinaryOperator, Expr, Statement};
 use dozer_sql::sqlparser::ast::{SetExpr, TableFactor};
 use dozer_sql::sqlparser::parser::*;
+use dozer_types::arrow::ipc::Timestamp;
+use dozer_types::chrono::{DateTime, NaiveDateTime, Offset, Utc};
 use dozer_types::json_value_to_field;
+use dozer_types::rust_decimal::prelude::FromPrimitive;
+use dozer_types::rust_decimal::Decimal;
 use dozer_types::serde_json::{self, Value};
-use dozer_types::types::{Field, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use rusqlite::config::DbConfig;
 use rusqlite::hooks;
 use rusqlite::types::Type;
@@ -29,7 +34,8 @@ pub struct SqlMapper {
 
 impl Default for SqlMapper {
     fn default() -> Self {
-        let conn = rusqlite::Connection::open("mydb.sqlite").unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        //let conn = rusqlite::Connection::open("mydb.sqlite").unwrap();
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, true)
             .expect("Unable to enable triggers");
 
@@ -459,12 +465,35 @@ fn get_record_from_json(data: String, schema: &Schema) -> Record {
     };
 
     for field_definition in schema.fields.iter() {
+        let field_type = field_definition.typ;
         let field_name = &field_definition.name;
-
         let json_value = root.get(field_name).unwrap();
 
-        let Ok(value) = json_value_to_field(json_value.clone(), field_definition.typ, field_definition.nullable) else {
-            panic!("Cannot convert json value to field: {json_value:?}")
+        let value = match field_definition.typ {
+            FieldType::UInt
+            | FieldType::Int
+            | FieldType::Float
+            | FieldType::Boolean
+            | FieldType::String
+            | FieldType::Text => json_value_to_field(
+                json_value.clone(),
+                field_definition.typ,
+                field_definition.nullable,
+            )
+            .unwrap(),
+            FieldType::Decimal => {
+                Field::Decimal(Decimal::from_f64(json_value.as_f64().unwrap()).unwrap())
+            }
+            FieldType::Timestamp => {
+                let naive_date_time = NaiveDateTime::parse_from_str(
+                    json_value.as_str().unwrap(),
+                    "%Y-%m-%d %H:%M:%S",
+                )
+                .unwrap();
+
+                Field::Timestamp(DateTime::from_utc(naive_date_time, Utc.fix()))
+            }
+            _ => panic!("Unsupported field type: {field_type:?}"),
         };
 
         record.values.push(value);
