@@ -1,13 +1,11 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 
-use super::helper::*;
+use super::schema::*;
 use crate::error::Result;
 use dozer_core::errors::ExecutionError;
 use dozer_sql::sqlparser::ast::{BinaryOperator, Expr, Statement};
 use dozer_sql::sqlparser::ast::{SetExpr, TableFactor};
 use dozer_sql::sqlparser::parser::*;
-use dozer_types::arrow::ipc::Timestamp;
 use dozer_types::chrono::{DateTime, NaiveDateTime, Offset, Utc};
 use dozer_types::json_value_to_field;
 use dozer_types::rust_decimal::prelude::FromPrimitive;
@@ -39,10 +37,6 @@ impl Default for SqlMapper {
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, true)
             .expect("Unable to enable triggers");
 
-        let triggers_enabled = conn
-            .db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER)
-            .expect("Unable to get triggers status");
-
         let sql_trigger = r#"CREATE TABLE Change_Log (
             Log_ID INTEGER PRIMARY KEY AUTOINCREMENT,
             Change_Time DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -64,7 +58,7 @@ impl Default for SqlMapper {
 
 impl SqlMapper {
     pub fn insert_schema(&mut self, name: String, schema: Schema) {
-        self.schema_map.insert(name.clone(), schema);
+        self.schema_map.insert(name, schema);
     }
 
     pub fn get_change_log(&mut self) -> Result<Vec<Vec<String>>> {
@@ -333,21 +327,17 @@ impl SqlMapper {
 
                 let mut field_names = vec![];
                 for (idx, v) in new.values.iter().enumerate() {
-                    if idx != get_primary_key_index(schema) {
-                        if old.values.get(idx).is_some() {
-                            field_names.push(format!(
-                                "{}={}",
-                                schema.fields.get(idx).map_or(
-                                    Err(ExecutionError::InternalStringError(
-                                        "index out of bounds for schema".to_string()
-                                    )),
-                                    |f| Ok(f
-                                        .name
-                                        .replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
-                                )?,
-                                map_field_to_string(v)
-                            ))
-                        }
+                    if idx != get_primary_key_index(schema) && old.values.get(idx).is_some() {
+                        field_names.push(format!(
+                            "{}={}",
+                            schema.fields.get(idx).map_or(
+                                Err(ExecutionError::InternalStringError(
+                                    "index out of bounds for schema".to_string()
+                                )),
+                                |f| Ok(f.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
+                            )?,
+                            map_field_to_string(v)
+                        ))
                     }
                 }
                 let values_str = field_names.join(",");

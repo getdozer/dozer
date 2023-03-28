@@ -28,7 +28,7 @@ macro_rules! convert_type {
     };
 }
 
-pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
+pub fn _get_table_create_sql(name: &str, schema: Schema) -> String {
     let columns = schema
         .fields
         .iter()
