@@ -11,7 +11,6 @@ use dozer_core::petgraph::Direction;
 use dozer_core::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::storage::lmdb_storage::SharedTransaction;
 
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
@@ -21,14 +20,11 @@ use dozer_types::types::{Operation, Schema, SourceDefinition};
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 
-use crate::helper::helper::get_table_create_sql;
 use std::time::Duration;
 use tempdir::TempDir;
-
-use crate::helper::mapper::SqlMapper;
 
 #[derive(Debug)]
 pub(crate) struct TestSourceFactory {
@@ -174,10 +170,8 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
-        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
-
         Ok(Box::new(TestSink::new()))
     }
 }
@@ -194,18 +188,13 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
         self.curr += 1;
 
         Ok(())
     }
 
-    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 
