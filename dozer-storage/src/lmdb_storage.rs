@@ -108,12 +108,7 @@ impl LmdbEnvironmentManager {
         builder.set_max_dbs(options.max_dbs);
         builder.set_map_size(options.max_map_sz);
         builder.set_max_readers(options.max_readers);
-        builder.set_flags(
-            options.flags
-                | EnvironmentFlags::NO_SUB_DIR
-                | EnvironmentFlags::NO_TLS
-                | EnvironmentFlags::NO_LOCK,
-        );
+        builder.set_flags(options.flags | EnvironmentFlags::NO_SUB_DIR | EnvironmentFlags::NO_TLS);
 
         let env = builder.open(&full_path)?;
         Ok(LmdbEnvironmentManager { inner: env })
