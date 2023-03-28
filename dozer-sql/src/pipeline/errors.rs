@@ -189,6 +189,8 @@ pub enum SqlError {
     WindowError(String),
     #[error("SQL Error: Invalid column name {0}.")]
     InvalidColumn(String),
+    #[error("SQL Error: {0} operation cannot be done due to {1}.")]
+    OperationError(String, String),
 }
 
 #[derive(Error, Debug)]

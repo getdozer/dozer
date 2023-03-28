@@ -382,7 +382,10 @@ fn get_binary_operator_type(
             }
         }
 
-        BinaryOperatorType::Add | BinaryOperatorType::Sub | BinaryOperatorType::Mul => {
+        BinaryOperatorType::Add
+        | BinaryOperatorType::Sub
+        | BinaryOperatorType::Mul
+        | BinaryOperatorType::Mod => {
             match (left_field_type.return_type, right_field_type.return_type) {
                 (FieldType::UInt, FieldType::UInt) => Ok(ExpressionType::new(
                     FieldType::UInt,
@@ -434,7 +437,7 @@ fn get_binary_operator_type(
             }
         }
 
-        BinaryOperatorType::Div | BinaryOperatorType::Mod => {
+        BinaryOperatorType::Div => {
             match (left_field_type.return_type, right_field_type.return_type) {
                 (FieldType::Int, FieldType::Int)
                 | (FieldType::Int, FieldType::UInt)
