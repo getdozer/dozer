@@ -30,7 +30,7 @@ spec:
       volumes:
       - name: data
         hostPath:
-          path: /data/Dozer/dozer/k8/workspace
+          path: /data/k8/workspace
       - name: dozer
         persistentVolumeClaim:
           claimName: dozer-pvc
