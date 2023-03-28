@@ -2,11 +2,9 @@ use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::node::ProcessorFactory;
-use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Field, Operation, Record, Schema};
 use std::collections::HashMap;
-use tempdir::TempDir;
 
 struct TestChannelForwarder {
     operations: Vec<Operation>,
@@ -38,15 +36,10 @@ pub(crate) fn run_geo_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field
         )
         .unwrap();
 
-    let tmp_dir = TempDir::new("test").unwrap();
-    let storage =
-        LmdbEnvironmentManager::create(tmp_dir.path(), "geo_test", Default::default()).unwrap();
-    let tx = storage.create_txn().unwrap();
     let mut processor = processor_factory
         .build(
             HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
             HashMap::new(),
-            &mut tx.write(),
         )
         .unwrap();
 
@@ -56,9 +49,7 @@ pub(crate) fn run_geo_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field
         new: Record::new(None, input, None),
     };
 
-    processor
-        .process(DEFAULT_PORT_HANDLE, op, &mut fw, &tx)
-        .unwrap();
+    processor.process(DEFAULT_PORT_HANDLE, op, &mut fw).unwrap();
 
     match &fw.operations[0] {
         Operation::Insert { new } => new.values[0].clone(),

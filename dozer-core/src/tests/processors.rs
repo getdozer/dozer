@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use dozer_storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_types::types::Schema;
 
 use crate::{
@@ -39,7 +38,6 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, crate::errors::ExecutionError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
@@ -76,7 +74,6 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, crate::errors::ExecutionError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
