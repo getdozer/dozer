@@ -11,14 +11,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-pub struct SourceBuilder<'a> {
+pub struct SourceBuilder {
     grouped_connections: HashMap<Connection, Vec<Source>>,
     notifier: Option<PipelineEventSenders>,
 }
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
-impl<'a> SourceBuilder<'a> {
+impl SourceBuilder {
     pub fn new(
         grouped_connections: HashMap<Connection, Vec<Source>>,
         notifier: Option<PipelineEventSenders>,
