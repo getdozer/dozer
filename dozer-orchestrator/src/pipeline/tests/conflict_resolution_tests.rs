@@ -7,22 +7,15 @@ mod tests {
     use dozer_core::errors::{ExecutionError, SinkError};
     use dozer_core::node::Sink;
     use dozer_core::DEFAULT_PORT_HANDLE;
-    use dozer_storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
     use dozer_types::models::api_endpoint::{
         ConflictResolution, OnDeleteResolutionTypes, OnInsertResolutionTypes,
         OnUpdateResolutionTypes,
     };
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, Schema, SchemaIdentifier};
-    use tempdir::TempDir;
 
     fn init_cache_and_sink(
         conflict_resolution: Option<ConflictResolution>,
-    ) -> (Box<dyn RoCache>, CacheSink, SharedTransaction, Schema) {
-        let tmp_dir = TempDir::new("example").unwrap();
-        let env =
-            LmdbEnvironmentManager::create(tmp_dir.path(), "test", Default::default()).unwrap();
-        let txn = env.create_txn().unwrap();
-
+    ) -> (Box<dyn RoCache>, CacheSink, Schema) {
         let schema = test_utils::get_schema();
         let secondary_indexes: Vec<IndexDefinition> = schema
             .fields
@@ -38,12 +31,12 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        (cache, sink, txn, schema)
+        (cache, sink, schema)
     }
 
     #[test]
     fn ignore_insert_error_when_type_nothing() {
-        let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
+        let (cache, mut sink, schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::Nothing as i32,
             on_update: OnUpdateResolutionTypes::default() as i32,
             on_delete: OnDeleteResolutionTypes::default() as i32,
@@ -57,9 +50,9 @@ mod tests {
                 version: None,
             },
         };
-        sink.process(DEFAULT_PORT_HANDLE, insert_operation.clone(), &txn)
+        sink.process(DEFAULT_PORT_HANDLE, insert_operation.clone())
             .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.commit().unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
@@ -67,9 +60,8 @@ mod tests {
         assert_eq!(initial_values, record.values);
         assert_eq!(Some(1), record.version);
 
-        sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn)
-            .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, insert_operation).unwrap();
+        sink.commit().unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
@@ -81,7 +73,7 @@ mod tests {
 
     #[test]
     fn update_after_insert_error_when_type_update() {
-        let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
+        let (cache, mut sink, schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::Update as i32,
             on_update: OnUpdateResolutionTypes::default() as i32,
             on_delete: OnDeleteResolutionTypes::default() as i32,
@@ -95,9 +87,8 @@ mod tests {
                 version: None,
             },
         };
-        sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn)
-            .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, insert_operation).unwrap();
+        sink.commit().unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
@@ -117,9 +108,9 @@ mod tests {
             },
         };
 
-        sink.process(DEFAULT_PORT_HANDLE, second_insert_operation, &txn)
+        sink.process(DEFAULT_PORT_HANDLE, second_insert_operation)
             .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.commit().unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
@@ -135,7 +126,7 @@ mod tests {
 
     #[test]
     fn return_insert_error_when_type_panic() {
-        let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
+        let (cache, mut sink, schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::Panic as i32,
             on_update: OnUpdateResolutionTypes::default() as i32,
             on_delete: OnDeleteResolutionTypes::default() as i32,
@@ -149,9 +140,9 @@ mod tests {
                 version: None,
             },
         };
-        sink.process(DEFAULT_PORT_HANDLE, insert_operation.clone(), &txn)
+        sink.process(DEFAULT_PORT_HANDLE, insert_operation.clone())
             .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.commit().unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
@@ -160,7 +151,7 @@ mod tests {
         assert_eq!(Some(1), record.version);
 
         // Try insert same data again
-        let result = sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn);
+        let result = sink.process(DEFAULT_PORT_HANDLE, insert_operation);
         assert!(matches!(
             result,
             Err(ExecutionError::SinkError(SinkError::CacheInsertFailed(
@@ -172,7 +163,7 @@ mod tests {
 
     #[test]
     fn ignore_update_error_when_type_nothing() {
-        let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
+        let (cache, mut sink, schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
             on_update: OnUpdateResolutionTypes::Nothing as i32,
             on_delete: OnDeleteResolutionTypes::default() as i32,
@@ -196,9 +187,8 @@ mod tests {
                 version: None,
             },
         };
-        sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn)
-            .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, update_operation).unwrap();
+        sink.commit().unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key);
@@ -208,7 +198,7 @@ mod tests {
 
     #[test]
     fn update_after_update_error_when_type_update() {
-        let (cache, mut sink, txn, schema) = init_cache_and_sink(Some(ConflictResolution {
+        let (cache, mut sink, schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
             on_update: OnUpdateResolutionTypes::Upsert as i32,
             on_delete: OnDeleteResolutionTypes::default() as i32,
@@ -232,9 +222,8 @@ mod tests {
                 version: None,
             },
         };
-        sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn)
-            .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, update_operation).unwrap();
+        sink.commit().unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
@@ -245,7 +234,7 @@ mod tests {
 
     #[test]
     fn return_update_error_when_type_panic() {
-        let (_cache, mut sink, txn, _schema) = init_cache_and_sink(Some(ConflictResolution {
+        let (_cache, mut sink, _schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
             on_update: OnUpdateResolutionTypes::Panic as i32,
             on_delete: OnInsertResolutionTypes::default() as i32,
@@ -271,7 +260,7 @@ mod tests {
         };
 
         // Try insert same data again
-        let result = sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn);
+        let result = sink.process(DEFAULT_PORT_HANDLE, update_operation);
         assert!(matches!(
             result,
             Err(ExecutionError::SinkError(SinkError::CacheUpdateFailed(
@@ -283,7 +272,7 @@ mod tests {
 
     #[test]
     fn ignore_delete_error_when_type_nothing() {
-        let (cache, mut sink, txn, _schema) = init_cache_and_sink(Some(ConflictResolution {
+        let (cache, mut sink, _schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
             on_update: OnUpdateResolutionTypes::default() as i32,
             on_delete: OnUpdateResolutionTypes::Nothing as i32,
@@ -304,12 +293,12 @@ mod tests {
         assert_eq!(current_count, 0_usize);
 
         // Trying delete not existing record should be ignored
-        let result = sink.process(DEFAULT_PORT_HANDLE, delete_operation, &txn);
+        let result = sink.process(DEFAULT_PORT_HANDLE, delete_operation);
         assert!(result.is_ok());
     }
     #[test]
     fn return_delete_error_when_type_panic() {
-        let (_cache, mut sink, txn, _schema) = init_cache_and_sink(Some(ConflictResolution {
+        let (_cache, mut sink, _schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
             on_update: OnUpdateResolutionTypes::default() as i32,
             on_delete: OnDeleteResolutionTypes::Panic as i32,
@@ -326,7 +315,7 @@ mod tests {
         };
 
         // Try insert same data again
-        let result = sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn);
+        let result = sink.process(DEFAULT_PORT_HANDLE, update_operation);
         assert!(matches!(
             result,
             Err(ExecutionError::SinkError(SinkError::CacheDeleteFailed(

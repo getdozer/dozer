@@ -4,8 +4,6 @@ use dozer_types::log::info;
 use dozer_types::models::api_config::ApiConfig;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
-
-use dozer_types::models::source::Source;
 use dozer_types::prettytable::{row, Table};
 
 pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
@@ -13,20 +11,10 @@ pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
     if let Some(api_config) = &config.api {
         print_api_config(api_config)
     }
-    validate_sources(&config.sources)?;
 
     validate_endpoints(&config.endpoints)?;
 
     print_api_endpoints(&config.endpoints);
-    Ok(())
-}
-pub fn validate_sources(sources: &[Source]) -> Result<(), OrchestrationError> {
-    if sources.is_empty() {
-        return Err(OrchestrationError::ConfigError(
-            "No sources initialized in the config provided".to_string(),
-        ));
-    }
-
     Ok(())
 }
 

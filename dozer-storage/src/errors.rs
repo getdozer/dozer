@@ -17,8 +17,6 @@ pub enum StorageError {
         typ: &'static str,
         reason: BoxedError,
     },
-    #[error("Invalid record")]
-    InvalidRecord,
 
     // Error forwarding
     #[error("Lmdb error: {0}")]

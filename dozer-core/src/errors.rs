@@ -1,7 +1,5 @@
 use crate::appsource::AppSourceId;
-use crate::dag_metadata::SchemaType;
 use crate::node::PortHandle;
-use dozer_storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
 use dozer_types::node::NodeHandle;
@@ -32,12 +30,6 @@ pub enum ExecutionError {
     FieldNotFound(String),
     #[error("Record not found")]
     RecordNotFound(),
-    #[error("Node {node} has incompatible {typ:?} schemas: {source}")]
-    IncompatibleSchemas {
-        node: NodeHandle,
-        typ: SchemaType,
-        source: IncompatibleSchemas,
-    },
     #[error("Cannot send to channel")]
     CannotSendToChannel,
     #[error("Cannot receive from channel")]
@@ -70,13 +62,11 @@ pub enum ExecutionError {
     },
 
     // Error forwarders
-    #[error(transparent)]
+    #[error("Internal type error: {0}")]
     InternalTypeError(#[from] TypeError),
-    #[error(transparent)]
-    InternalDatabaseError(#[from] StorageError),
-    #[error("internal error: {0}")]
+    #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
-    #[error(transparent)]
+    #[error("Sink error: {0}")]
     SinkError(#[from] SinkError),
 
     #[error("Failed to initialize source: {0}")]
@@ -93,7 +83,7 @@ pub enum ExecutionError {
     )]
     ProcessorReceiverError(usize, #[source] BoxedError),
 
-    #[error(transparent)]
+    #[error("Source error: {0}")]
     SourceError(SourceError),
 
     #[error("Failed to execute product processor: {0}")]
@@ -119,16 +109,6 @@ impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
     fn from(_: daggy::WouldCycle<T>) -> Self {
         ExecutionError::WouldCycle
     }
-}
-
-#[derive(Error, Debug)]
-pub enum IncompatibleSchemas {
-    #[error("Length mismatch: current {current}, existing {existing}")]
-    LengthMismatch { current: usize, existing: usize },
-    #[error("Not found on port {0}")]
-    NotFound(PortHandle),
-    #[error("Schema mismatch on port {0}")]
-    SchemaMismatch(PortHandle),
 }
 
 #[derive(Error, Debug)]

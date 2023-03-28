@@ -6,7 +6,6 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
@@ -163,16 +162,11 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 
