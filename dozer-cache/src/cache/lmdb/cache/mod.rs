@@ -1,6 +1,6 @@
 use dozer_types::models::api_endpoint::ConflictResolution;
+use std::fmt::Debug;
 use std::path::PathBuf;
-use std::{fmt::Debug, sync::Arc};
 
 use dozer_types::types::{Record, SchemaWithIndex};
 
@@ -52,10 +52,10 @@ impl Default for CacheOptions {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LmdbRoCache {
-    main_env: RoMainEnvironment,
-    secondary_envs: Vec<RoSecondaryEnvironment>,
+    pub(crate) main_env: RoMainEnvironment,
+    pub(crate) secondary_envs: Vec<RoSecondaryEnvironment>,
 }
 
 impl LmdbRoCache {
@@ -93,18 +93,21 @@ impl LmdbRwCache {
             )),
             ..*options
         };
-        let ro_main_env = Arc::new(RoMainEnvironment::new(&options)?);
+        let ro_main_env = rw_main_env.share();
 
+        let mut rw_secondary_envs = vec![];
         let mut ro_secondary_envs = vec![];
         for (index, index_definition) in ro_main_env.schema().1.iter().enumerate() {
             let name = secondary_environment_name(index);
             let rw_secondary_env =
-                RwSecondaryEnvironment::new(Some(index_definition), name.clone(), &options)?;
-            indexing_thread_pool.add_indexing_task(ro_main_env.clone(), Arc::new(rw_secondary_env));
+                RwSecondaryEnvironment::new(index_definition, name.clone(), &options)?;
+            let ro_secondary_env = rw_secondary_env.share();
 
-            let ro_secondary_env = RoSecondaryEnvironment::new(name, &options)?;
+            rw_secondary_envs.push(rw_secondary_env);
             ro_secondary_envs.push(ro_secondary_env);
         }
+
+        indexing_thread_pool.add_cache(ro_main_env, rw_secondary_envs);
 
         Ok(Self {
             main_env: rw_main_env,
@@ -136,24 +139,28 @@ impl<C: LmdbCache> RoCache for C {
 }
 
 impl RwCache for LmdbRwCache {
-    fn insert(&self, record: &mut Record) -> Result<u64, CacheError> {
+    fn insert(&mut self, record: &mut Record) -> Result<u64, CacheError> {
         let span = dozer_types::tracing::span!(dozer_types::tracing::Level::TRACE, "insert_cache");
         let _enter = span.enter();
         let record_id = self.main_env.insert(record)?;
         Ok(record_id)
     }
 
-    fn delete(&self, key: &[u8]) -> Result<u32, CacheError> {
+    fn delete(&mut self, key: &[u8]) -> Result<u32, CacheError> {
         let version = self.main_env.delete(key)?;
         Ok(version)
     }
 
-    fn update(&self, key: &[u8], record: &mut Record) -> Result<(Option<u32>, u64), CacheError> {
+    fn update(
+        &mut self,
+        key: &[u8],
+        record: &mut Record,
+    ) -> Result<(Option<u32>, u64), CacheError> {
         let version = self.main_env.update(key, record)?;
         Ok(version)
     }
 
-    fn commit(&self) -> Result<(), CacheError> {
+    fn commit(&mut self) -> Result<(), CacheError> {
         self.main_env.commit()?;
         Ok(())
     }

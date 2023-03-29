@@ -1,5 +1,5 @@
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_cache::cache::CacheManagerOptions;
+use dozer_cache::cache::CacheManager;
 
 use dozer_types::models::api_endpoint::ApiEndpoint;
 
@@ -64,7 +64,7 @@ impl<'a> Executor<'a> {
     pub fn create_dag_executor(
         &self,
         notifier: Option<PipelineEventSenders>,
-        cache_manager_options: CacheManagerOptions,
+        cache_manager: Arc<dyn CacheManager>,
         settings: CacheSinkSettings,
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
@@ -76,7 +76,7 @@ impl<'a> Executor<'a> {
             self.pipeline_dir,
         );
 
-        let dag = builder.build(notifier, cache_manager_options, settings)?;
+        let dag = builder.build(notifier, cache_manager, settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {

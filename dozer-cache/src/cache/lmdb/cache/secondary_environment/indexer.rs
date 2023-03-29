@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_secondary_indexes() {
-        let (cache, mut indexing_thread_pool, schema, secondary_indexes) =
+        let (mut cache, mut indexing_thread_pool, schema, secondary_indexes) =
             create_cache(test_utils::schema_1);
 
         let items = vec![
@@ -114,7 +114,7 @@ mod tests {
         ];
 
         for val in items.clone() {
-            lmdb_utils::insert_rec_1(&cache, &schema, val);
+            lmdb_utils::insert_rec_1(&mut cache, &schema, val);
         }
         cache.commit().unwrap();
         indexing_thread_pool.wait_until_catchup();
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn test_full_text_secondary_index_with_duplicated_words() {
-        let (cache, mut indexing_thread_pool, schema, _) =
+        let (mut cache, mut indexing_thread_pool, schema, _) =
             create_cache(test_utils::schema_full_text);
 
         let items = vec![(
@@ -172,7 +172,7 @@ mod tests {
         )];
 
         for val in items {
-            lmdb_utils::insert_full_text(&cache, &schema, val);
+            lmdb_utils::insert_full_text(&mut cache, &schema, val);
         }
 
         {

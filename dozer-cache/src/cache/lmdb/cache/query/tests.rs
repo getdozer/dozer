@@ -11,7 +11,7 @@ use dozer_types::{
 
 #[test]
 fn query_secondary_sorted_inverted() {
-    let (cache, mut indexing_thread_pool, schema, _) = create_cache(schema_1);
+    let (mut cache, mut indexing_thread_pool, schema, _) = create_cache(schema_1);
 
     let mut record = Record::new(
         schema.identifier,
@@ -48,7 +48,7 @@ fn query_secondary_sorted_inverted() {
 
 #[test]
 fn query_secondary_full_text() {
-    let (cache, mut indexing_thread_pool, schema, _) = create_cache(schema_full_text);
+    let (mut cache, mut indexing_thread_pool, schema, _) = create_cache(schema_full_text);
 
     let mut record = Record::new(
         schema.identifier,
@@ -83,7 +83,7 @@ fn query_secondary_full_text() {
 
 #[test]
 fn query_secondary_vars() {
-    let (cache, mut indexing_thread_pool, schema, _) = create_cache(schema_1);
+    let (mut cache, mut indexing_thread_pool, schema, _) = create_cache(schema_1);
 
     let items = vec![
         (1, Some("yuri".to_string()), Some(521)),
@@ -97,7 +97,7 @@ fn query_secondary_vars() {
     ];
     // 26 alphabets
     for val in items {
-        insert_rec_1(&cache, &schema, val);
+        insert_rec_1(&mut cache, &schema, val);
     }
     cache.commit().unwrap();
     indexing_thread_pool.wait_until_catchup();
@@ -194,7 +194,7 @@ fn query_secondary_vars() {
 
 #[test]
 fn query_secondary_multi_indices() {
-    let (cache, mut indexing_thread_pool, schema, _) = create_cache(schema_multi_indices);
+    let (mut cache, mut indexing_thread_pool, schema, _) = create_cache(schema_multi_indices);
 
     for (id, text) in [
         (1, "apple ball cake dance"),

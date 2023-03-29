@@ -48,9 +48,7 @@ mod tests {
     use std::cmp::Ordering::{self, Equal, Greater, Less};
 
     use dozer_storage::{
-        lmdb::DatabaseFlags,
-        lmdb_storage::{CreateDatabase, LmdbEnvironmentManager},
-        lmdb_sys::mdb_cmp,
+        lmdb::DatabaseFlags, lmdb_sys::mdb_cmp, LmdbEnvironment, RwLmdbEnvironment,
     };
     use dozer_types::{
         chrono::{DateTime, NaiveDate, TimeZone, Utc},
@@ -140,13 +138,13 @@ mod tests {
         check_test_cases(check_composite);
     }
 
-    fn setup(num_fields: usize) -> (LmdbEnvironmentManager, Database) {
-        let mut env = utils::init_env(&Default::default(), true).unwrap().0;
+    fn setup(num_fields: usize) -> (RwLmdbEnvironment, Database) {
+        let mut env = utils::create_env(&Default::default()).unwrap().0;
         let db = env
-            .create_database(Some("test"), Some(DatabaseFlags::DUP_SORT))
+            .create_database(Some("test"), DatabaseFlags::DUP_SORT)
             .unwrap();
         let fields = (0..num_fields).collect::<Vec<_>>();
-        let txn = env.begin_ro_txn().unwrap();
+        let txn = env.begin_txn().unwrap();
         set_sorted_inverted_comparator(&txn, db, &fields).unwrap();
         txn.commit().unwrap();
         (env, db)
@@ -167,7 +165,7 @@ mod tests {
                 mv_size: b.len() as _,
                 mv_data: b.as_ptr() as *mut _,
             };
-            let txn = env.begin_ro_txn().unwrap();
+            let txn = env.begin_txn().unwrap();
             assert_eq!(
                 unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) }.cmp(&0),
                 expected
@@ -195,7 +193,7 @@ mod tests {
                 mv_size: b.len() as _,
                 mv_data: b.as_ptr() as *mut _,
             };
-            let txn = env.begin_ro_txn().unwrap();
+            let txn = env.begin_txn().unwrap();
             assert_eq!(
                 unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) }.cmp(&0),
                 expected
@@ -206,7 +204,7 @@ mod tests {
     #[test]
     fn null_is_greater_than_other_thing() {
         let (env, db) = setup(1);
-        let txn = env.begin_ro_txn().unwrap();
+        let txn = env.begin_txn().unwrap();
         let check = |field: &Field| {
             let serialize = |a| get_secondary_index(&[a], true);
             let a = serialize(field);
