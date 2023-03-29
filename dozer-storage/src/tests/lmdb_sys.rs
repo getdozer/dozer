@@ -13,9 +13,7 @@ fn create_env() -> (Environment, Database) {
     fs::create_dir(tmp_dir.path()).unwrap();
 
     let mut builder = Environment::new();
-    builder.set_flags(
-        EnvironmentFlags::NO_SYNC | EnvironmentFlags::NO_LOCK | EnvironmentFlags::NO_TLS,
-    );
+    builder.set_flags(EnvironmentFlags::NO_SYNC | EnvironmentFlags::NO_TLS);
     builder.set_max_dbs(10);
     builder.set_max_readers(10);
     builder.set_map_size(1024 * 1024 * 1024);

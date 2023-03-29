@@ -103,11 +103,12 @@ impl RwSecondaryEnvironment {
         }
     }
 
+    /// Returns `true` if the secondary index is up to date.
     pub fn index<T: Transaction>(
         &mut self,
         log_txn: &T,
         operation_log: OperationLog,
-    ) -> Result<(), CacheError> {
+    ) -> Result<bool, CacheError> {
         let main_env_next_operation_id = operation_log.next_operation_id(log_txn)?;
 
         let txn = self.env.txn_mut()?;
@@ -115,13 +116,13 @@ impl RwSecondaryEnvironment {
             // Start from `next_operation_id`.
             let operation_id = self.next_operation_id.load(txn)?;
             if operation_id >= main_env_next_operation_id {
-                return Ok(());
+                return Ok(true);
             }
             // Get operation by operation id.
             let Some(operation) = operation_log.get_operation(log_txn, operation_id)? else {
                 // We're not able to read this operation yet, try again later.
                 debug!("Operation {} not found", operation_id);
-                return Ok(());
+                return Ok(false);
             };
             match operation {
                 Operation::Insert { record, .. } => {
@@ -139,7 +140,7 @@ impl RwSecondaryEnvironment {
                     let Some(operation) = operation_log.get_operation(log_txn, operation_id)? else {
                         // We're not able to read this operation yet, try again later.
                         debug!("Operation {} not found", operation_id);
-                        return Ok(())
+                        return Ok(false)
                     };
                     let Operation::Insert { record, .. } = operation else {
                         panic!("Insert operation {} not found", operation_id);

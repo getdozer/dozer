@@ -1,6 +1,6 @@
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Barrier,
+    mpsc::{Receiver, Sender},
+    Arc,
 };
 
 use dozer_storage::LmdbEnvironment;
@@ -9,26 +9,26 @@ use dozer_types::{
     parking_lot::Mutex,
 };
 
-use crate::errors::CacheError;
+use crate::{cache::lmdb::cache::SecondaryEnvironment, errors::CacheError};
 
 use super::cache::{LmdbRoCache, MainEnvironment, RoMainEnvironment, RwSecondaryEnvironment};
 
 #[derive(Debug)]
 pub struct IndexingThreadPool {
-    num_threads: usize,
-    termination_barrier: Arc<Barrier>,
     caches: Vec<Cache>,
-    running: Running,
+    task_completion_sender: Sender<(usize, usize)>,
+    task_completion_receiver: Receiver<(usize, usize)>,
+    pool: rayon::ThreadPool,
 }
 
 impl IndexingThreadPool {
     pub fn new(num_threads: usize) -> Self {
-        let termination_barrier = Arc::new(Barrier::new(num_threads + 1));
+        let (sender, receiver) = std::sync::mpsc::channel();
         Self {
-            num_threads,
             caches: Vec::new(),
-            running: create_running(num_threads, termination_barrier.clone()),
-            termination_barrier,
+            task_completion_sender: sender,
+            task_completion_receiver: receiver,
+            pool: create_thread_pool(num_threads),
         }
     }
 
@@ -37,16 +37,19 @@ impl IndexingThreadPool {
         main_env: RoMainEnvironment,
         secondary_envs: Vec<RwSecondaryEnvironment>,
     ) {
+        let num_secondary_envs = secondary_envs.len();
         let secondary_envs = secondary_envs
             .into_iter()
-            .map(|env| Arc::new(Mutex::new(env)))
+            .map(|env| (Arc::new(Mutex::new(env)), false))
             .collect();
         let cache = Cache {
             main_env,
             secondary_envs,
         };
-        add_indexing_tasks(&mut self.running, &cache);
         self.caches.push(cache);
+        for secondary_index in 0..num_secondary_envs {
+            self.spawn_task_if_not_running(self.caches.len() - 1, secondary_index);
+        }
     }
 
     pub fn find_cache(&self, name: &str) -> Option<LmdbRoCache> {
@@ -55,7 +58,7 @@ impl IndexingThreadPool {
                 let secondary_envs = cache
                     .secondary_envs
                     .iter()
-                    .map(|env| env.lock().share())
+                    .map(|(env, _)| env.lock().share())
                     .collect();
                 return Some(LmdbRoCache {
                     main_env: cache.main_env.clone(),
@@ -66,113 +69,127 @@ impl IndexingThreadPool {
         None
     }
 
-    pub fn wait_until_catchup(&mut self) {
-        let running = std::mem::replace(
-            &mut self.running,
-            create_running(self.num_threads, self.termination_barrier.clone()),
-        );
-        drop(running);
-        self.termination_barrier.wait();
+    pub fn wake(&mut self, env_name: &str) {
+        self.refresh_task_state();
+        for index in 0..self.caches.len() {
+            let cache = &self.caches[index];
+            if cache.main_env.name() == env_name {
+                for secondary_index in 0..cache.secondary_envs.len() {
+                    self.spawn_task_if_not_running(index, secondary_index);
+                }
+            }
+        }
+    }
 
-        for cache in self.caches.iter() {
-            add_indexing_tasks(&mut self.running, cache);
+    pub fn wait_until_catchup(&mut self) {
+        while self
+            .caches
+            .iter()
+            .any(|cache| cache.secondary_envs.iter().any(|(_, running)| *running))
+        {
+            let (index, secondary_index) = self
+                .task_completion_receiver
+                .recv()
+                .expect("At least one sender is alive");
+            self.mark_not_running(index, secondary_index);
+        }
+    }
+
+    fn refresh_task_state(&mut self) {
+        while let Ok((index, secondary_index)) = self.task_completion_receiver.try_recv() {
+            self.mark_not_running(index, secondary_index);
+        }
+    }
+
+    fn mark_not_running(&mut self, index: usize, secondary_index: usize) {
+        let running = &mut self.caches[index].secondary_envs[secondary_index].1;
+        debug_assert!(*running);
+        *running = false;
+    }
+
+    fn spawn_task_if_not_running(&mut self, index: usize, secondary_index: usize) {
+        let cache = &mut self.caches[index];
+        let (secondary_env, running) = &mut cache.secondary_envs[secondary_index];
+        if !*running {
+            let main_env = cache.main_env.clone();
+            let secondary_env = secondary_env.clone();
+            let sender = self.task_completion_sender.clone();
+            self.pool.spawn(move || {
+                index_and_log_error(index, secondary_index, main_env, secondary_env, sender);
+            });
+            *running = true;
         }
     }
 }
 
-fn create_running(num_threads: usize, termination_barrier: Arc<Barrier>) -> Running {
-    Running::new(num_threads, move |_| {
-        termination_barrier.wait();
-    })
-}
-
-fn add_indexing_tasks(running: &mut Running, cache: &Cache) {
-    for secondary_env in &cache.secondary_envs {
-        running.add_indexing_task(cache.main_env.clone(), secondary_env.clone());
-    }
+fn create_thread_pool(num_threads: usize) -> rayon::ThreadPool {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .thread_name(|index| format!("indexing-thread-{}", index))
+        .build()
+        .unwrap()
 }
 
 #[derive(Debug, Clone)]
 struct Cache {
     main_env: RoMainEnvironment,
-    secondary_envs: Vec<Arc<Mutex<RwSecondaryEnvironment>>>,
-}
-
-#[derive(Debug)]
-struct Running {
-    inner: rayon::ThreadPool,
-    running: Arc<AtomicBool>,
-}
-
-impl Running {
-    fn new(num_threads: usize, exit_handler: impl Fn(usize) + Send + Sync + 'static) -> Self {
-        let inner = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .thread_name(|index| format!("indexing-thread-{}", index))
-            .exit_handler(exit_handler)
-            .build()
-            .unwrap();
-
-        Self {
-            inner,
-            running: Arc::new(AtomicBool::new(true)),
-        }
-    }
-
-    fn add_indexing_task(
-        &self,
-        main_env: RoMainEnvironment,
-        secondary_env: Arc<Mutex<RwSecondaryEnvironment>>,
-    ) {
-        let running = self.running.clone();
-        self.inner
-            .spawn(move || index_and_log_error(main_env, secondary_env, running));
-    }
-}
-
-impl Drop for Running {
-    fn drop(&mut self) {
-        self.running.store(false, Ordering::SeqCst);
-    }
+    secondary_envs: Vec<(Arc<Mutex<RwSecondaryEnvironment>>, bool)>,
 }
 
 fn index_and_log_error(
+    index: usize,
+    secondary_index: usize,
     main_env: RoMainEnvironment,
     secondary_env: Arc<Mutex<RwSecondaryEnvironment>>,
-    running: Arc<AtomicBool>,
+    task_completion_sender: Sender<(usize, usize)>,
 ) {
+    // Loop until map full or up to date.
     loop {
         let mut secondary_env = secondary_env.lock();
 
-        // Run `index` for at least once before quitting.
-        if let Err(e) = index(&main_env, &mut secondary_env) {
-            debug!("Error while indexing {}: {e}", main_env.name());
-            if e.is_map_full() {
-                error!(
-                    "Cache {} has reached its maximum size. Try to increase `cache_max_map_size` in the config.",
-                    main_env.name()
+        match run_indexing(&main_env, &mut secondary_env) {
+            Ok(true) => {
+                break;
+            }
+            Ok(false) => {
+                debug!(
+                    "Some operation can't be read from {}: {:?}",
+                    main_env.name(),
+                    secondary_env.index_definition()
                 );
+                rayon::yield_local();
+                continue;
+            }
+            Err(e) => {
+                debug!("Error while indexing {}: {e}", main_env.name());
+                if e.is_map_full() {
+                    error!(
+                        "Cache {} has reached its maximum size. Try to increase `cache_max_map_size` in the config.",
+                        main_env.name()
+                    );
+                    break;
+                }
             }
         }
-
-        if !running.load(Ordering::SeqCst) {
-            break;
-        }
-
-        rayon::yield_local();
+    }
+    if task_completion_sender
+        .send((index, secondary_index))
+        .is_err()
+    {
+        error!("`IndexingThreadPool` dropped while indexing task is running");
     }
 }
 
-fn index(
+fn run_indexing(
     main_env: &RoMainEnvironment,
     secondary_env: &mut RwSecondaryEnvironment,
-) -> Result<(), CacheError> {
+) -> Result<bool, CacheError> {
     let txn = main_env.begin_txn()?;
 
     let span = dozer_types::tracing::span!(dozer_types::tracing::Level::TRACE, "build_indexes",);
     let _enter = span.enter();
 
-    secondary_env.index(&txn, main_env.operation_log())?;
+    let result = secondary_env.index(&txn, main_env.operation_log())?;
     secondary_env.commit()?;
-    Ok(())
+    Ok(result)
 }
