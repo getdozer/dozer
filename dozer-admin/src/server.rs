@@ -248,7 +248,9 @@ impl DozerAdmin for GrpcService {
     ) -> Result<Response<Self::OnStatusUpdateStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1000);
 
-        tokio::spawn(async move { AppService::stream_status_update(request.into_inner(), tx).await });
+        tokio::spawn(
+            async move { AppService::stream_status_update(request.into_inner(), tx).await },
+        );
 
         Ok(Response::new(ReceiverStream::new(rx)))
     }

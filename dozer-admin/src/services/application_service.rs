@@ -12,7 +12,6 @@ use dozer_api::grpc::internal::internal_pipeline_client::InternalPipelineClient;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::wrapped_statement_to_pipeline;
 use dozer_orchestrator::Orchestrator;
-use dozer_types::grpc_types::admin::{StatusUpdateRequest, StopResponse};
 use dozer_types::grpc_types::admin::{
     AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
     GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
@@ -22,6 +21,7 @@ use dozer_types::grpc_types::admin::{
 use dozer_types::grpc_types::admin::{
     File, ListFilesResponse, LogMessage, StatusUpdate, StopRequest,
 };
+use dozer_types::grpc_types::admin::{StatusUpdateRequest, StopResponse};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_yaml;
 
@@ -396,7 +396,10 @@ impl AppService {
         }
     }
 
-    pub async fn stream_status_update(request: StatusUpdateRequest, tx: tokio::sync::mpsc::Sender<Result<StatusUpdate, Status>>) {
+    pub async fn stream_status_update(
+        request: StatusUpdateRequest,
+        tx: tokio::sync::mpsc::Sender<Result<StatusUpdate, Status>>,
+    ) {
         let mut retries_left = 100;
         let mut retry_interval = interval(Duration::from_millis(1000));
 
