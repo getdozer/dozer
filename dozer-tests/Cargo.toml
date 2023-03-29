@@ -38,6 +38,9 @@ dozer-sql = { path = "../dozer-sql" }
 tempdir = "0.3.7"
 walkdir = "2.3.2"
 dozer-utils = { version = "0.1.0", path = "../dozer-utils" }
+multimap = "0.8.3"
+hashbrown = "0.13"
+ahash = "0.8.3"
 
 
 [dev-dependencies]

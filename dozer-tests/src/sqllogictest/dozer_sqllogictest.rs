@@ -3,6 +3,8 @@ mod error;
 mod helper;
 mod validator;
 
+use std::path::Path;
+
 use arg::SqlLogicTestArgs;
 use clap::Parser;
 use dozer_sql::sqlparser::ast::Statement;
@@ -13,7 +15,7 @@ use error::Result;
 use helper::mapper::SqlMapper;
 use helper::pipeline::TestPipeline;
 use helper::schema::get_table_name;
-use rusqlite::types::Type;
+
 use sqllogictest::{default_validator, parse_file, update_test_file, AsyncDB, DBOutput, Runner};
 use sqlparser::dialect::AnsiDialect;
 use validator::Validator;
@@ -36,51 +38,13 @@ impl Dozer {
     }
 
     // Only in dozer and sink results to **results** table
-    pub fn run_pipeline(&mut self, sql: &str) -> Result<()> {
+    pub fn run_pipeline(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
         let pipeline = TestPipeline::new(
             sql.to_string(),
             self.source_db.schema_map.clone(),
             self.ops.clone(),
         );
-        pipeline.run()?;
-        Ok(())
-    }
-
-    // Run `select * from results` to check results
-    pub fn check_results(&mut self) -> Result<DBOutput> {
-        let mut stmt = self.source_db.conn.prepare("select * from Change_Log")?;
-        let column_count = stmt.column_count();
-        let mut rows = stmt.query(())?;
-        let mut parsed_rows = vec![];
-        while let Ok(Some(row)) = rows.next() {
-            let mut parsed_row = vec![];
-            for idx in 0..column_count {
-                let val_ref = row.get_ref::<usize>(idx)?;
-                match val_ref.data_type() {
-                    Type::Null => {
-                        parsed_row.push("NULL".to_string());
-                    }
-                    Type::Integer => {
-                        parsed_row.push(val_ref.as_i64().unwrap().to_string());
-                    }
-                    Type::Real => {
-                        parsed_row.push(val_ref.as_f64().unwrap().to_string());
-                    }
-                    Type::Text => {
-                        parsed_row.push(val_ref.as_str().unwrap().to_string());
-                    }
-                    Type::Blob => {
-                        parsed_row
-                            .push(String::from_utf8(val_ref.as_blob().unwrap().to_vec()).unwrap());
-                    }
-                }
-            }
-            parsed_rows.push(parsed_row);
-        }
-        Ok(DBOutput::Rows {
-            types: vec![],
-            rows: parsed_rows,
-        })
+        pipeline.run().map_err(DozerSqlLogicTestError::from)
     }
 }
 
@@ -95,6 +59,18 @@ impl AsyncDB for Dozer {
         let ast = SqlParser::parse_sql(&AnsiDialect {}, sql)?;
         let statement: &Statement = &ast[0];
         match statement {
+            // If sql is create table, run `source_db` to get table schema
+            Statement::CreateTable { name, .. } => {
+                let table_name = get_table_name(name);
+                // create table and get schema
+                self.source_db.create_table(&table_name, sql)?;
+                return Ok(DBOutput::StatementComplete(0));
+            }
+            // If statement is Insert/Update/Delete, collect ops from sql
+            Statement::Insert { .. } | Statement::Update { .. } | Statement::Delete { .. } => {
+                self.source_db.conn.execute(sql, ())?;
+                return Ok(DBOutput::StatementComplete(0));
+            }
             Statement::Query(_) => {
                 let change_log = self.source_db.get_change_log().unwrap();
 
@@ -104,25 +80,19 @@ impl AsyncDB for Dozer {
                     self.ops.push((source, operation));
                 }
 
-                self.run_pipeline(sql)?;
+                let output = self.run_pipeline(sql)?;
+
+                Ok(DBOutput::Rows {
+                    types: vec![],
+                    rows: output,
+                })
 
                 // drop table results
                 // let dest_db = self.dest_db.lock().unwrap();
                 // dest_db.conn.execute("drop table results", ())?;
-                self.check_results()
+                //self.check_results()
             }
-            // If statement is Insert/Update/Delete, collect ops from sql
-            Statement::Insert { .. } | Statement::Update { .. } | Statement::Delete { .. } => {
-                self.source_db.conn.execute(sql, ())?;
-                return Ok(DBOutput::StatementComplete(0));
-            }
-            // If sql is create table, run `source_db` to get table schema
-            Statement::CreateTable { name, .. } => {
-                let table_name = get_table_name(name);
-                // create table and get schema
-                self.source_db.create_table(&table_name, sql)?;
-                return Ok(DBOutput::StatementComplete(0));
-            }
+
             _ => panic!("{}", format!("{statement} is not supported")),
         }
     }
@@ -145,7 +115,25 @@ async fn main() -> Result<()> {
 
     let args = SqlLogicTestArgs::parse();
     //let suits = SqlLogicTestArgs::parse().suites;
-    let suits = std::fs::read_dir("dozer-tests/src/sqllogictest/test_suits").unwrap();
+
+    let suits = std::fs::read_dir("src/sqllogictest/test_suits").unwrap();
+    if args.complete {
+        delete_dir_contents(suits);
+        let suits_proto = std::fs::read_dir("src/sqllogictest/suits_proto").unwrap();
+        for proto in suits_proto {
+            let suit = suit.unwrap().path();
+            for entry in WalkDir::new(suit)
+                .min_depth(0)
+                .max_depth(100)
+                .sort_by(|a, b| a.file_name().cmp(b.file_name()))
+                .into_iter()
+                .filter(|e| !e.as_ref().unwrap().file_type().is_dir())
+            {
+                files.push(entry)
+            }
+        }
+    }
+
     let mut files = vec![];
     for suit in suits {
         let suit = suit.unwrap().path();
@@ -163,6 +151,7 @@ async fn main() -> Result<()> {
         let file_path = file.as_ref().unwrap().path();
         let mut runner = Runner::new(create_dozer()?);
         let records = parse_file(file_path).unwrap();
+
         if args.complete {
             // Use validator db to generate expected results
             let mut validator_runner = Runner::new(Validator::create());
@@ -184,6 +173,35 @@ async fn main() -> Result<()> {
             for record in records.iter() {
                 runner.run_async(record.clone()).await?;
             }
+        }
+    }
+    Ok(())
+}
+
+fn delete_dir_contents(dir: std::fs::ReadDir) {
+    for entry in dir {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+
+            if path.is_dir() {
+                std::fs::remove_dir_all(path).expect("Failed to remove a dir");
+            } else {
+                std::fs::remove_file(path).expect("Failed to remove a file");
+            }
+        };
+    }
+}
+
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+    std::fs::create_dir_all(&dst).expect("Failed to create dir");
+    for entry in std::fs::read_dir(src).expect("Failed to read dir") {
+        let entry = entry.expect("Failed to read dir entry");
+        let ty = entry.file_type().expect("Failed to get entry type");
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))
+                .expect("Failed to copy file");
         }
     }
     Ok(())

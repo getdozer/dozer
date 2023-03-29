@@ -1,3 +1,4 @@
+use ahash::AHasher;
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
@@ -16,11 +17,13 @@ use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::types::{Operation, Schema, SourceDefinition};
+use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
+use multimap::MultiMap;
 use std::collections::HashMap;
 
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use std::time::Duration;
@@ -130,7 +133,7 @@ impl Source for TestSource {
             fw.send(IngestionMessage::new_op(idx, 0, op), *port)
                 .unwrap();
         }
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(500));
 
         self.running
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -145,12 +148,14 @@ pub struct SchemaHolder {
 
 #[derive(Debug)]
 pub struct TestSinkFactory {
+    output: Arc<Mutex<MultiMap<Vec<u8>, Record>>>,
     input_ports: Vec<PortHandle>,
 }
 
 impl TestSinkFactory {
-    pub fn new() -> Self {
+    pub fn new(output: Arc<Mutex<MultiMap<Vec<u8>, Record>>>) -> Self {
         Self {
+            output,
             input_ports: vec![DEFAULT_PORT_HANDLE],
         }
     }
@@ -172,25 +177,43 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
-        Ok(Box::new(TestSink::new()))
+        Ok(Box::new(TestSink::new(self.output.to_owned())))
     }
 }
 
 #[derive(Debug)]
 pub struct TestSink {
-    curr: usize,
+    output: Arc<Mutex<MultiMap<Vec<u8>, Record>>>,
 }
 
 impl TestSink {
-    pub fn new() -> Self {
-        Self { curr: 0 }
+    pub fn new(output: Arc<Mutex<MultiMap<Vec<u8>, Record>>>) -> Self {
+        Self { output }
+    }
+
+    fn update_result(&mut self, op: Operation) {
+        match op {
+            Operation::Insert { new } => {
+                self.output.lock().unwrap().insert(get_key(&new), new);
+            }
+            Operation::Delete { ref old } => {
+                if let Some(map_records) = self.output.lock().unwrap().get_vec_mut(&get_key(old)) {
+                    map_records.pop();
+                }
+            }
+            Operation::Update { ref old, new } => {
+                if let Some(map_records) = self.output.lock().unwrap().get_vec_mut(&get_key(old)) {
+                    map_records.pop();
+                }
+                self.output.lock().unwrap().insert(get_key(&new), new);
+            }
+        }
     }
 }
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
-        self.curr += 1;
-
+    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
+        self.update_result(op);
         Ok(())
     }
 
@@ -210,6 +233,7 @@ pub struct TestPipeline {
     pub running: Arc<AtomicBool>,
     pub sender: Sender<Option<(String, Operation)>>,
     pub ops: Vec<(String, Operation)>,
+    pub result: Arc<Mutex<MultiMap<Vec<u8>, Record>>>,
 }
 
 impl TestPipeline {
@@ -258,7 +282,8 @@ impl TestPipeline {
         ))
         .unwrap();
 
-        pipeline.add_sink(Arc::new(TestSinkFactory::new()), "sink");
+        let output = Arc::new(Mutex::new(MultiMap::new()));
+        pipeline.add_sink(Arc::new(TestSinkFactory::new(output.clone())), "sink");
 
         pipeline
             .connect_nodes(
@@ -301,10 +326,11 @@ impl TestPipeline {
             running,
             sender,
             ops,
+            result: output,
         })
     }
 
-    pub fn run(self) -> Result<(), ExecutionError> {
+    pub fn run(self) -> Result<Vec<Vec<String>>, ExecutionError> {
         let tmp_dir = TempDir::new("sqltest").expect("Unable to create temp dir");
 
         let executor = DagExecutor::new(
@@ -326,6 +352,29 @@ impl TestPipeline {
 
         join_handle.join()?;
 
-        Ok(())
+        let mut output = vec![];
+        // iterate over all keys and the key's vector.
+        for (_, values) in self.result.lock().unwrap().iter_all() {
+            for value in values {
+                let mut row = vec![];
+                for field in &value.values {
+                    let value = match field {
+                        dozer_types::types::Field::Null => "NULL".to_string(),
+                        _ => field.to_string().unwrap(),
+                    };
+                    row.push(value);
+                }
+                output.push(row);
+            }
+        }
+
+        Ok(output)
     }
+}
+
+fn get_key(record: &Record) -> Vec<u8> {
+    let mut hasher = AHasher::default();
+    record.values.hash(&mut hasher);
+    let key = hasher.finish();
+    key.to_be_bytes().to_vec()
 }

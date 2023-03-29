@@ -91,9 +91,9 @@ impl SqlMapper {
             }
             parsed_rows.push(parsed_row);
         }
-        self.conn
-            .execute("DELETE FROM Change_Log", ())
-            .expect("Unable to clear the change log");
+        // self.conn
+        //     .execute("DELETE FROM Change_Log", ())
+        //     .expect("Unable to clear the change log");
         Ok(parsed_rows)
     }
 
@@ -237,7 +237,7 @@ impl SqlMapper {
         let schema = { self.get_schema_from_conn(table_name).unwrap() };
         self.insert_schema(table_name.to_string(), schema.clone());
 
-        let json_conversion: String = get_json_object_converstion("NEW", &schema);
+        let json_conversion: String = get_json_object_conversion("NEW", &schema);
         let insert_trigger = format!(
             "CREATE TRIGGER {table_name}_insert_trigger \
                 AFTER INSERT ON {table_name} \
@@ -248,7 +248,7 @@ impl SqlMapper {
                 END;"
         );
 
-        let json_conversion: String = get_json_object_converstion("OLD", &schema);
+        let json_conversion: String = get_json_object_conversion("OLD", &schema);
         let delete_trigger = format!(
             "CREATE TRIGGER {table_name}_delete_trigger \
                 AFTER DELETE ON {table_name} \
@@ -259,8 +259,8 @@ impl SqlMapper {
                 END;"
         );
 
-        let old_json_conversion: String = get_json_object_converstion("OLD", &schema);
-        let new_json_conversion: String = get_json_object_converstion("NEW", &schema);
+        let old_json_conversion: String = get_json_object_conversion("OLD", &schema);
+        let new_json_conversion: String = get_json_object_conversion("NEW", &schema);
         let update_trigger = format!(
                 "CREATE TRIGGER {table_name}_update_Trigger \
                 AFTER UPDATE ON {table_name} \
@@ -417,7 +417,7 @@ impl SqlMapper {
     }
 }
 
-fn get_json_object_converstion(prefix: &str, schema: &Schema) -> String {
+fn get_json_object_conversion(prefix: &str, schema: &Schema) -> String {
     let mut fields = vec![];
     for field in schema.fields.iter() {
         let field_name = field
