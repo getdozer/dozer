@@ -150,7 +150,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         let mut schema_port_map = HashMap::new();
         for table in &self.tables {
             let schema_id = get_schema_id(table.schema.identifier)?;
-            schema_port_map.insert(schema_id, table.port);
+            schema_port_map.insert(schema_id, (table.port, table.name.clone()));
         }
 
         let tables = self
@@ -186,7 +186,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
 pub struct ConnectorSource {
     ingestor: Ingestor,
     iterator: Mutex<IngestionIterator>,
-    schema_port_map: HashMap<u32, PortHandle>,
+    schema_port_map: HashMap<u32, (PortHandle, String)>,
     tables: Vec<TableInfo>,
     connector: Box<dyn Connector>,
     runtime: Arc<Runtime>,
@@ -245,7 +245,7 @@ impl Source for ConnectorSource {
                     | IngestionMessageKind::SnapshottingStarted => None,
                 };
                 if let Some(schema_id) = schema_id {
-                    let port =
+                    let (port, table_name) =
                         self.schema_port_map
                             .get(&schema_id)
                             .ok_or(ExecutionError::SourceError(SourceError::PortError(
@@ -261,7 +261,7 @@ impl Source for ConnectorSource {
                     if *schema_counter % 1000 == 0 {
                         if let Some(notifier) = &self.notifier {
                             let status_update = StatusUpdate {
-                                source: schema_id.to_string(),
+                                source: table_name.clone(),
                                 r#type: "source".to_string(),
                                 count: *schema_counter as i64,
                             };
@@ -273,7 +273,7 @@ impl Source for ConnectorSource {
                     }
                     fw.send(IngestionMessage { identifier, kind }, *port)?
                 } else {
-                    for port in self.schema_port_map.values() {
+                    for (port, _) in self.schema_port_map.values() {
                         fw.send(
                             IngestionMessage::new_snapshotting_done(
                                 identifier.txid,
