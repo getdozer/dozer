@@ -6,6 +6,8 @@ default-run = "dozer"
 authors = ["getdozer/dozer-dev"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.deb]
+name = "dozer"
 
 [dependencies]
 dozer-api = {path = "../dozer-api"}
