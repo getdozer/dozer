@@ -266,7 +266,9 @@ impl JoinOperator {
             (JoinType::Inner, JoinBranch::Left) => {
                 let join_key: Vec<u8> = get_join_key(old, &self.left_join_key_indexes);
                 if let Some(map_records) = self.left_map.get_vec_mut(&join_key) {
-                    map_records.retain(|x| x != old);
+                    if let Some(index) = map_records.iter().position(|x| x == old) {
+                        map_records.remove(index);
+                    }
                 }
                 let records = self.inner_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
@@ -274,7 +276,9 @@ impl JoinOperator {
             (JoinType::Inner, JoinBranch::Right) => {
                 let join_key: Vec<u8> = get_join_key(old, &self.right_join_key_indexes);
                 if let Some(map_records) = self.right_map.get_vec_mut(&join_key) {
-                    map_records.retain(|x| x != old);
+                    if let Some(index) = map_records.iter().position(|x| x == old) {
+                        map_records.remove(index);
+                    }
                 }
                 let records = self.inner_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
@@ -282,7 +286,9 @@ impl JoinOperator {
             (JoinType::LeftOuter, JoinBranch::Left) => {
                 let join_key: Vec<u8> = get_join_key(old, &self.left_join_key_indexes);
                 if let Some(map_records) = self.left_map.get_vec_mut(&join_key) {
-                    map_records.retain(|x| x != old);
+                    if let Some(index) = map_records.iter().position(|x| x == old) {
+                        map_records.remove(index);
+                    }
                 }
                 let records = self.left_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
@@ -290,7 +296,9 @@ impl JoinOperator {
             (JoinType::LeftOuter, JoinBranch::Right) => {
                 let join_key: Vec<u8> = get_join_key(old, &self.right_join_key_indexes);
                 if let Some(map_records) = self.right_map.get_vec_mut(&join_key) {
-                    map_records.retain(|x| x != old);
+                    if let Some(index) = map_records.iter().position(|x| x == old) {
+                        map_records.remove(index);
+                    }
                 }
                 let records = self.left_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
@@ -298,7 +306,9 @@ impl JoinOperator {
             (JoinType::RightOuter, JoinBranch::Left) => {
                 let join_key: Vec<u8> = get_join_key(old, &self.left_join_key_indexes);
                 if let Some(map_records) = self.left_map.get_vec_mut(&join_key) {
-                    map_records.retain(|x| x != old);
+                    if let Some(index) = map_records.iter().position(|x| x == old) {
+                        map_records.remove(index);
+                    }
                 }
                 let records = self.right_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
@@ -306,7 +316,9 @@ impl JoinOperator {
             (JoinType::RightOuter, JoinBranch::Right) => {
                 let join_key: Vec<u8> = get_join_key(old, &self.right_join_key_indexes);
                 if let Some(map_records) = self.right_map.get_vec_mut(&join_key) {
-                    map_records.retain(|x| x != old);
+                    if let Some(index) = map_records.iter().position(|x| x == old) {
+                        map_records.remove(index);
+                    }
                 }
                 let records = self.right_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
