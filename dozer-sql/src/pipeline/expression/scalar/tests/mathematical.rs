@@ -10,6 +10,8 @@ use dozer_types::{
 };
 use num_traits::FromPrimitive;
 
+use crate::pipeline::errors::SqlError::Operation;
+use crate::pipeline::errors::{OperationError, PipelineError};
 use proptest::prelude::*;
 use std::num::Wrapping;
 
@@ -38,7 +40,7 @@ fn test_uint_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let _dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
         let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
@@ -152,26 +154,59 @@ fn test_uint_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Decimal(Decimal::from_u64(u_num1).unwrap() - d_num2.0)
         );
-        // // todo: Multiplication overflowed
-        // assert_eq!(
-        //     // UInt * Decimal = Decimal
-        //     evaluate_mul(&Schema::empty(), &uint2, &dec1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_u64(u_num2).unwrap().checked_mul(d_num1.0).unwrap())
-        // );
-        // // todo: Division overflowed
-        // assert_eq!(
-        //     // UInt / Decimal = Decimal
-        //     evaluate_div(&Schema::empty(), &uint2, &dec1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_u64(u_num2).unwrap() / d_num1.0)
-        // );
-        assert_eq!(
-            // UInt % Decimal = Decimal
-            evaluate_mod(&Schema::empty(), &uint1, &dec2, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_u64(u_num1).unwrap() % d_num2.0)
-        );
+        // UInt * Decimal = Decimal
+        let res = evaluate_mul(&Schema::empty(), &uint2, &dec1, &row);
+        if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_u64(u_num2).unwrap().checked_mul(d_num1.0).unwrap())
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+            ));
+        }
+        // UInt / Decimal = Decimal
+        let res = evaluate_div(&Schema::empty(), &uint2, &dec1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+            ));
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_u64(u_num2).unwrap() / d_num1.0)
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+            ));
+        }
+        // UInt % Decimal = Decimal
+        let res = evaluate_mod(&Schema::empty(), &uint2, &dec1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+            ));
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_u64(u_num2).unwrap() % d_num1.0)
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+            ));
+        }
 
         //// left: UInt, right: Null
         assert_eq!(
@@ -218,7 +253,7 @@ fn test_int_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let _dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
         let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
@@ -332,26 +367,59 @@ fn test_int_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Decimal(Decimal::from_i64(i_num1).unwrap() - d_num2.0)
         );
-        // // todo: Multiplication overflowed
-        // assert_eq!(
-        //     // Int * Decimal = Decimal
-        //     evaluate_mul(&Schema::empty(), &int2, &dec1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_i64(i_num2).unwrap() *d_num1.0)
-        // );
-        // // todo: Division overflowed
-        // assert_eq!(
-        //     // Int / Decimal = Decimal
-        //     evaluate_div(&Schema::empty(), &int2, &dec1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(Decimal::from_i64(i_num2).unwrap() / d_num1.0)
-        // );
-        assert_eq!(
-            // Int % Decimal = Decimal
-            evaluate_mod(&Schema::empty(), &int1, &dec2, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(Decimal::from_i64(i_num1).unwrap() % d_num2.0)
-        );
+        // Int * Decimal = Decimal
+        let res = evaluate_mul(&Schema::empty(), &int2, &dec1, &row);
+        if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_i64(i_num2).unwrap().checked_mul(d_num1.0).unwrap())
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+            ));
+        }
+        // Int / Decimal = Decimal
+        let res = evaluate_div(&Schema::empty(), &int2, &dec1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+            ));
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_i64(i_num2).unwrap() / d_num1.0)
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+            ));
+        }
+        // Int % Decimal = Decimal
+        let res = evaluate_mod(&Schema::empty(), &int1, &dec2, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+            ));
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_i64(i_num1).unwrap() % d_num2.0)
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+            ));
+        }
 
         //// left: Int, right: Null
         assert_eq!(
@@ -398,7 +466,7 @@ fn test_float_math() {
         let int2 = Box::new(Literal(Field::Int(i_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
-        let _dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
         let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
 
         let null = Box::new(Literal(Field::Null));
@@ -515,26 +583,59 @@ fn test_float_math() {
                     .unwrap_or_else(|e| panic!("{}", e.to_string())),
                 Field::Decimal(d_val1.unwrap() - d_num2.0)
             );
-            // // todo: Multiplication overflowed
-            // assert_eq!(
-            //     // Float * Decimal = Decimal
-            //     evaluate_mul(&Schema::empty(), &float2, &dec1, &row)
-            //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            //     Field::Decimal(d_val2.unwrap() * d_num1.0)
-            // );
-            // // todo: Division overflowed
-            // assert_eq!(
-            //     // Float / Decimal = Decimal
-            //     evaluate_div(&Schema::empty(), &float2, &dec1, &row)
-            //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            //     Field::Decimal(d_val2.unwrap() / d_num1.0)
-            // );
-            assert_eq!(
-                // Float % Decimal = Decimal
-                evaluate_mod(&Schema::empty(), &float1, &dec2, &row)
-                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
-                Field::Decimal(d_val1.unwrap() % d_num2.0)
-            );
+            // Float * Decimal = Decimal
+            let res = evaluate_mul(&Schema::empty(), &float2, &dec1, &row);
+            if res.is_ok() {
+                 assert_eq!(
+                    res.unwrap(), Field::Decimal(d_val2.unwrap().checked_mul(d_num1.0).unwrap())
+                );
+            } else {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+                ));
+            }
+            // Float / Decimal = Decimal
+            let res = evaluate_div(&Schema::empty(), &float2, &dec1, &row);
+            if d_num1.0 == Decimal::new(0, 0) {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+            else if res.is_ok() {
+                 assert_eq!(
+                    res.unwrap(), Field::Decimal(d_val2.unwrap().checked_div(d_num1.0).unwrap())
+                );
+            } else {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+            // Float % Decimal = Decimal
+            let res = evaluate_mod(&Schema::empty(), &float1, &dec2, &row);
+            if d_num1.0 == Decimal::new(0, 0) {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
+            else if res.is_ok() {
+                 assert_eq!(
+                    res.unwrap(), Field::Decimal(d_val1.unwrap().checked_rem(d_num2.0).unwrap())
+                );
+            } else {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
         }
 
         //// left: Float, right: Null
@@ -580,7 +681,7 @@ fn test_decimal_math() {
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
-        let _float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
+        let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
         let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
         let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
@@ -600,25 +701,59 @@ fn test_decimal_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Decimal(d_num1.0 - Decimal::from(u_num2))
         );
-        // // todo: Multiplication overflowed
-        // assert_eq!(
-        //     // Decimal * UInt = Decimal
-        //     evaluate_mul(&Schema::empty(), &dec2, &uint1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(d_num2.0 * Decimal::from(u_num1))
-        // );
-        assert_eq!(
-            // Decimal / UInt = Decimal
-            evaluate_div(&Schema::empty(), &dec2, &uint1, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(d_num2.0 / Decimal::from(u_num1))
-        );
-        assert_eq!(
-            // Decimal % UInt = Decimal
-            evaluate_mod(&Schema::empty(), &dec1, &uint2, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(d_num1.0 % Decimal::from(u_num2))
-        );
+        // Decimal * UInt = Decimal
+        let res = evaluate_mul(&Schema::empty(), &dec2, &uint1, &row);
+        if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num2.0 * Decimal::from(u_num1))
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+            ));
+        }
+        // Decimal / UInt = Decimal
+        let res = evaluate_div(&Schema::empty(), &dec2, &uint1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+            ));
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num2.0 / Decimal::from(u_num1))
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+            ));
+        }
+        // Decimal % UInt = Decimal
+        let res = evaluate_mod(&Schema::empty(), &dec1, &uint2, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+            ));
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num1.0 % Decimal::from(u_num2))
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+            ));
+        }
 
         //// left: Decimal, right: Int
         assert_eq!(
@@ -669,26 +804,59 @@ fn test_decimal_math() {
                     .unwrap_or_else(|e| panic!("{}", e.to_string())),
                 Field::Decimal(d_num1.0 - d_val2.unwrap())
             );
-            // // todo: Multiplication overflowed
-            // assert_eq!(
-            //     // Decimal * Float = Decimal
-            //     evaluate_mul(&Schema::empty(), &dec2, &float1, &row)
-            //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            //     Field::Decimal(d_num2.0 * d_val1.unwrap())
-            // );
-            // // todo: Division overflowed
-            // assert_eq!(
-            //     // Decimal / Float = Decimal
-            //     evaluate_div(&Schema::empty(), &dec2, &float1, &row)
-            //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            //     Field::Decimal(d_num2.0 / d_val1.unwrap())
-            // );
-            assert_eq!(
-                // Decimal % Float = Decimal
-                evaluate_mod(&Schema::empty(), &dec1, &float2, &row)
-                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
-                Field::Decimal(d_num1.0 % d_val2.unwrap())
-            );
+            // Decimal * Float = Decimal
+            let res = evaluate_mul(&Schema::empty(), &dec2, &float1, &row);
+            if res.is_ok() {
+                 assert_eq!(
+                    res.unwrap(), Field::Decimal(d_num2.0 * d_val1.unwrap())
+                );
+            } else {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+                ));
+            }
+            // Decimal / Float = Decimal
+            let res = evaluate_div(&Schema::empty(), &dec2, &float1, &row);
+            if d_num1.0 == Decimal::new(0, 0) {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+            else if res.is_ok() {
+                 assert_eq!(
+                    res.unwrap(), Field::Decimal(d_num2.0 / d_val1.unwrap())
+                );
+            } else {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+            // Decimal % Float = Decimal
+            let res = evaluate_mod(&Schema::empty(), &dec1, &float2, &row);
+            if d_num1.0 == Decimal::new(0, 0) {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
+            else if res.is_ok() {
+                 assert_eq!(
+                    res.unwrap(),Field::Decimal(d_num1.0 % d_val2.unwrap())
+                );
+            } else {
+                assert!(res.is_err());
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
         }
 
 
@@ -705,25 +873,59 @@ fn test_decimal_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Decimal(d_num1.0 - d_num2.0)
         );
-        // // todo: Multiplication overflowed
-        // assert_eq!(
-        //     // Decimal * Decimal = Decimal
-        //     evaluate_mul(&Schema::empty(), &dec2, &dec1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(d_num2.0 * d_num1.0)
-        // );
-        assert_eq!(
-            // Decimal / Decimal = Decimal
-            evaluate_div(&Schema::empty(), &dec2, &dec1, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(d_num2.0 / d_num1.0)
-        );
-        assert_eq!(
-            // Decimal % Decimal = Decimal
-            evaluate_mod(&Schema::empty(), &dec1, &dec2, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Decimal(d_num1.0 % d_num2.0)
-        );
+        // Decimal * Decimal = Decimal
+        let res = evaluate_mul(&Schema::empty(), &dec2, &dec1, &row);
+        if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num2.0 * d_num1.0)
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+            ));
+        }
+        // Decimal / Decimal = Decimal
+        let res = evaluate_div(&Schema::empty(), &dec2, &dec1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+            ));
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num2.0 / d_num1.0)
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+            ));
+        }
+        // Decimal % Decimal = Decimal
+        let res = evaluate_mod(&Schema::empty(), &dec1, &dec2, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+            ));
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num1.0 % d_num2.0)
+            );
+        } else {
+            assert!(res.is_err());
+            assert!(matches!(
+                res,
+                Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+            ));
+        }
 
         //// left: Decimal, right: Null
         assert_eq!(

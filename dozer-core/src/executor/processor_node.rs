@@ -2,6 +2,7 @@ use std::{borrow::Cow, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
+use dozer_types::log::warn;
 
 use dozer_types::node::NodeHandle;
 
@@ -85,8 +86,15 @@ impl ReceiverLoop for ProcessorNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        self.processor
-            .process(self.port_handles[index], op, &mut self.channel_manager)
+        let result =
+            self.processor
+                .process(self.port_handles[index], op, &mut self.channel_manager);
+        if let Err(e) = result {
+            warn!("Processor error: {:?}", e);
+        }
+
+        // TODO: Enable "test_run_dag_proc_err_2" and "test_run_dag_proc_err_3" tests when errors threshold is implemented
+        Ok(())
     }
 
     fn on_commit(&mut self, epoch: &crate::epoch::Epoch) -> Result<(), ExecutionError> {

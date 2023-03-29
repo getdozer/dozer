@@ -382,22 +382,13 @@ fn get_binary_operator_type(
             }
         }
 
-        BinaryOperatorType::Add | BinaryOperatorType::Sub | BinaryOperatorType::Mul => {
+        BinaryOperatorType::Add
+        | BinaryOperatorType::Sub
+        | BinaryOperatorType::Mul
+        | BinaryOperatorType::Mod => {
             match (left_field_type.return_type, right_field_type.return_type) {
-                (FieldType::Int, FieldType::Int) => Ok(ExpressionType::new(
-                    FieldType::Int,
-                    false,
-                    SourceDefinition::Dynamic,
-                    false,
-                )),
-                (FieldType::UInt, FieldType::Int) => Ok(ExpressionType::new(
-                    FieldType::Int,
-                    false,
-                    SourceDefinition::Dynamic,
-                    false,
-                )),
-                (FieldType::Int, FieldType::UInt) => Ok(ExpressionType::new(
-                    FieldType::Int,
+                (FieldType::UInt, FieldType::UInt) => Ok(ExpressionType::new(
+                    FieldType::UInt,
                     false,
                     SourceDefinition::Dynamic,
                     false,
@@ -408,10 +399,32 @@ fn get_binary_operator_type(
                     SourceDefinition::Dynamic,
                     false,
                 )),
-                (FieldType::Int, FieldType::Float)
+                (FieldType::Int, FieldType::Int)
+                | (FieldType::Int, FieldType::UInt)
+                | (FieldType::UInt, FieldType::Int) => Ok(ExpressionType::new(
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (FieldType::Float, FieldType::Float)
+                | (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
-                | (FieldType::Float, FieldType::Float) => Ok(ExpressionType::new(
+                | (FieldType::UInt, FieldType::Float)
+                | (FieldType::Float, FieldType::UInt) => Ok(ExpressionType::new(
                     FieldType::Float,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (FieldType::Decimal, FieldType::Decimal)
+                | (FieldType::UInt, FieldType::Decimal)
+                | (FieldType::Int, FieldType::Decimal)
+                | (FieldType::Float, FieldType::Decimal)
+                | (FieldType::Decimal, FieldType::UInt)
+                | (FieldType::Decimal, FieldType::Int)
+                | (FieldType::Decimal, FieldType::Float) => Ok(ExpressionType::new(
+                    FieldType::Decimal,
                     false,
                     SourceDefinition::Dynamic,
                     false,
@@ -423,12 +436,30 @@ fn get_binary_operator_type(
                 }
             }
         }
-        BinaryOperatorType::Div | BinaryOperatorType::Mod => {
+
+        BinaryOperatorType::Div => {
             match (left_field_type.return_type, right_field_type.return_type) {
-                (FieldType::Int, FieldType::Float)
+                (FieldType::Int, FieldType::Int)
+                | (FieldType::Int, FieldType::UInt)
+                | (FieldType::Int, FieldType::Float)
+                | (FieldType::UInt, FieldType::UInt)
+                | (FieldType::UInt, FieldType::Int)
+                | (FieldType::UInt, FieldType::Float)
+                | (FieldType::Float, FieldType::UInt)
                 | (FieldType::Float, FieldType::Int)
                 | (FieldType::Float, FieldType::Float) => Ok(ExpressionType::new(
                     FieldType::Float,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (FieldType::Decimal, FieldType::Int)
+                | (FieldType::Decimal, FieldType::Float)
+                | (FieldType::Decimal, FieldType::UInt)
+                | (FieldType::UInt, FieldType::Decimal)
+                | (FieldType::Int, FieldType::Decimal)
+                | (FieldType::Float, FieldType::Decimal) => Ok(ExpressionType::new(
+                    FieldType::Decimal,
                     false,
                     SourceDefinition::Dynamic,
                     false,
