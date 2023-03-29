@@ -29,7 +29,7 @@ use std::collections::HashMap;
 
 use dozer_types::grpc_types::admin::SaveFilesRequest;
 use dozer_types::grpc_types::admin::SaveFilesResponse;
-use dozer_types::log::{info, warn};
+use dozer_types::log::warn;
 use dozer_types::models::api_config::GrpcApiOptions;
 use glob::glob;
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
@@ -292,12 +292,16 @@ impl AppService {
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
         thread::spawn(move || {
-            let _guard = dozer_tracing::init_telemetry_closure(Some(&c.app_name.clone()), None, || -> Result<(), ErrorResponse> {
-                let mut dozer = Dozer::new(c);
-                dozer.run_all(running).unwrap();
+            let _guard = dozer_tracing::init_telemetry_closure(
+                Some(&c.app_name.clone()),
+                None,
+                || -> Result<(), ErrorResponse> {
+                    let mut dozer = Dozer::new(c);
+                    dozer.run_all(running).unwrap();
 
-                Ok(())
-            });
+                    Ok(())
+                },
+            );
         });
         self.apps.write().insert(generated_id.clone(), r);
         Ok(StartResponse {
