@@ -233,7 +233,7 @@ impl DozerAdmin for GrpcService {
         &self,
         _request: Request<LogMessageRequest>,
     ) -> EventResult<Self::OnLogMessageStream> {
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
 
         tokio::spawn(async move { AppService::read_logs(tx).await });
 
@@ -244,11 +244,11 @@ impl DozerAdmin for GrpcService {
 
     async fn on_status_update(
         &self,
-        _request: Request<StatusUpdateRequest>,
+        request: Request<StatusUpdateRequest>,
     ) -> Result<Response<Self::OnStatusUpdateStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1000);
 
-        tokio::spawn(async move { AppService::stream_status_update(tx).await });
+        tokio::spawn(async move { AppService::stream_status_update(request.into_inner(), tx).await });
 
         Ok(Response::new(ReceiverStream::new(rx)))
     }

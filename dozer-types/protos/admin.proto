@@ -116,6 +116,8 @@ message LogMessageRequest {
   string app_name = 1;
 }
 message StatusUpdateRequest {
+  optional string host = 1;
+  optional uint32 port = 2;
 }
 message Pagination {
   uint32 limit = 1;

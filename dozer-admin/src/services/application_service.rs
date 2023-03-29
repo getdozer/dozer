@@ -12,7 +12,7 @@ use dozer_api::grpc::internal::internal_pipeline_client::InternalPipelineClient;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::wrapped_statement_to_pipeline;
 use dozer_orchestrator::Orchestrator;
-use dozer_types::grpc_types::admin::StopResponse;
+use dozer_types::grpc_types::admin::{StatusUpdateRequest, StopResponse};
 use dozer_types::grpc_types::admin::{
     AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
     GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
@@ -396,13 +396,13 @@ impl AppService {
         }
     }
 
-    pub async fn stream_status_update(tx: tokio::sync::mpsc::Sender<Result<StatusUpdate, Status>>) {
+    pub async fn stream_status_update(request: StatusUpdateRequest, tx: tokio::sync::mpsc::Sender<Result<StatusUpdate, Status>>) {
         let mut retries_left = 100;
         let mut retry_interval = interval(Duration::from_millis(1000));
 
         let grpc_options = GrpcApiOptions {
-            host: "0.0.0.0".to_string(),
-            port: 50053,
+            host: request.host.unwrap_or("0.0.0.0".to_string()),
+            port: request.port.unwrap_or(50053),
             ..Default::default()
         };
 
