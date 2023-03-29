@@ -292,8 +292,12 @@ impl AppService {
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
         thread::spawn(move || {
-            let mut dozer = Dozer::new(c);
-            dozer.run_all(running).unwrap();
+            let _guard = dozer_tracing::init_telemetry_closure(Some(&c.app_name.clone()), None, || -> Result<(), ErrorResponse> {
+                let mut dozer = Dozer::new(c);
+                dozer.run_all(running).unwrap();
+
+                Ok(())
+            });
         });
         self.apps.write().insert(generated_id.clone(), r);
         Ok(StartResponse {
@@ -359,7 +363,7 @@ impl AppService {
         let mut position = 0;
 
         loop {
-            let file_result = fs::File::open("../log/dozer.log");
+            let file_result = fs::File::open("./log/dozer.log");
             if let Ok(mut file) = file_result {
                 let seek_result = file.seek(SeekFrom::Start(position));
 
@@ -408,7 +412,6 @@ impl AppService {
                     tokio::spawn(future);
 
                     while let Ok(msg) = status_updates_receiver.recv().await {
-                        info!("Count: {}", msg.count);
                         let status_msg = StatusUpdate {
                             source: msg.source,
                             r#type: msg.r#type,
