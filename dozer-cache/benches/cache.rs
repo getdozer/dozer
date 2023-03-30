@@ -66,18 +66,26 @@ fn cache(c: &mut Criterion) {
             .unwrap(),
     );
 
-    let size: usize = 1000000;
-    let mut idx = 0;
-    c.bench_with_input(BenchmarkId::new("cache_insert", size), &size, |b, &_s| {
-        b.iter(|| {
-            insert(&cache, &schema, idx, commit_size);
-            idx += 1;
-        })
-    });
+    let iterations = std::env::var("CACHE_BENCH_ITERATIONS").unwrap_or("".to_string());
+    let iterations: usize = iterations.parse().unwrap_or(1000000);
 
-    c.bench_with_input(BenchmarkId::new("cache_query", size), &size, |b, &s| {
-        b.iter(|| query(&cache, s))
-    });
+    let mut idx = 0;
+    c.bench_with_input(
+        BenchmarkId::new("cache_insert", iterations),
+        &iterations,
+        |b, &_s| {
+            b.iter(|| {
+                insert(&cache, &schema, idx, commit_size);
+                idx += 1;
+            })
+        },
+    );
+
+    c.bench_with_input(
+        BenchmarkId::new("cache_query", iterations),
+        &iterations,
+        |b, &s| b.iter(|| query(&cache, s)),
+    );
 }
 
 criterion_group!(benches, cache);
