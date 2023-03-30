@@ -7,7 +7,7 @@ use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::geo::distance::{evaluate_distance, validate_distance, Algorithm};
-use crate::pipeline::expression::geo::tests::geo_common::run_geo_fct;
+use crate::pipeline::expression::tests::test_common::run_fct;
 use dozer_types::geo::{GeodesicDistance, HaversineDistance};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
@@ -208,8 +208,7 @@ fn test_distance_logical() {
         } else {
             format!("SELECT DISTANCE(from, to, '{calculation_type}') FROM LOCATIONS")
         };
-        if let Field::Float(OrderedFloat(result)) = run_geo_fct(&sql, schema.clone(), input.clone())
-        {
+        if let Field::Float(OrderedFloat(result)) = run_fct(&sql, schema.clone(), input.clone()) {
             assert!((result - expected_result) < 0.000000001);
         } else {
             panic!("Expected float");
@@ -219,7 +218,7 @@ fn test_distance_logical() {
 
 #[test]
 fn test_distance_with_nullable_parameter() {
-    let f = run_geo_fct(
+    let f = run_fct(
         "SELECT DISTANCE(from, to) FROM LOCATION",
         Schema::empty()
             .field(

@@ -15,20 +15,6 @@ use crate::pipeline::errors::{OperationError, PipelineError};
 use proptest::prelude::*;
 use std::num::Wrapping;
 
-#[derive(Debug)]
-struct ArbitraryDecimal(Decimal);
-
-impl Arbitrary for ArbitraryDecimal {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (i64::MIN..i64::MAX, u32::MIN..29u32)
-            .prop_map(|(num, scale)| ArbitraryDecimal(Decimal::new(num, scale)))
-            .boxed()
-    }
-}
-
 #[test]
 fn test_uint_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {

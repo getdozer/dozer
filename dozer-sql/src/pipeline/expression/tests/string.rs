@@ -5,7 +5,7 @@ use crate::pipeline::expression::scalar::string::{
 };
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
-use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
+use crate::pipeline::expression::tests::test_common::run_fct;
 use proptest::prelude::*;
 
 #[test]
@@ -307,7 +307,7 @@ fn test_trim(s_val1: &str, c_val: char) {
 
 #[test]
 fn test_concat_string() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT CONCAT(fn, ln, fn) FROM USERS",
         Schema::empty()
             .field(
@@ -339,7 +339,7 @@ fn test_concat_string() {
 
 #[test]
 fn test_concat_text() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT CONCAT(fn, ln, fn) FROM USERS",
         Schema::empty()
             .field(
@@ -371,7 +371,7 @@ fn test_concat_text() {
 
 #[test]
 fn test_concat_text_empty() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT CONCAT() FROM USERS",
         Schema::empty()
             .field(
@@ -404,7 +404,7 @@ fn test_concat_text_empty() {
 #[test]
 #[should_panic]
 fn test_concat_wrong_schema() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT CONCAT(fn, ln) FROM USERS",
         Schema::empty()
             .field(
@@ -433,7 +433,7 @@ fn test_concat_wrong_schema() {
 
 #[test]
 fn test_ucase_string() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT UCASE(fn) FROM USERS",
         Schema::empty()
             .field(
@@ -453,7 +453,7 @@ fn test_ucase_string() {
 
 #[test]
 fn test_ucase_text() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT UCASE(fn) FROM USERS",
         Schema::empty()
             .field(
@@ -473,7 +473,7 @@ fn test_ucase_text() {
 
 #[test]
 fn test_length() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT LENGTH(fn) FROM USERS",
         Schema::empty()
             .field(
@@ -493,7 +493,7 @@ fn test_length() {
 
 #[test]
 fn test_trim_string() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT TRIM(fn) FROM USERS",
         Schema::empty()
             .field(
@@ -513,7 +513,7 @@ fn test_trim_string() {
 
 #[test]
 fn test_trim_null() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT TRIM(fn) FROM USERS",
         Schema::empty()
             .field(
@@ -533,7 +533,7 @@ fn test_trim_null() {
 
 #[test]
 fn test_trim_text() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT TRIM(fn) FROM USERS",
         Schema::empty()
             .field(
@@ -553,7 +553,7 @@ fn test_trim_text() {
 
 #[test]
 fn test_trim_value() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT TRIM('_' FROM fn) FROM USERS",
         Schema::empty()
             .field(
@@ -573,7 +573,7 @@ fn test_trim_value() {
 
 #[test]
 fn test_btrim_value() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT TRIM(BOTH '_' FROM fn) FROM USERS",
         Schema::empty()
             .field(
@@ -593,7 +593,7 @@ fn test_btrim_value() {
 
 #[test]
 fn test_ltrim_value() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT TRIM(LEADING '_' FROM fn) FROM USERS",
         Schema::empty()
             .field(
@@ -613,7 +613,7 @@ fn test_ltrim_value() {
 
 #[test]
 fn test_ttrim_value() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT TRIM(TRAILING '_' FROM fn) FROM USERS",
         Schema::empty()
             .field(
@@ -633,7 +633,7 @@ fn test_ttrim_value() {
 
 #[test]
 fn test_like_value() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT first_name FROM users WHERE first_name LIKE 'J%'",
         Schema::empty()
             .field(
@@ -653,7 +653,7 @@ fn test_like_value() {
 
 #[test]
 fn test_not_like_value() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT first_name FROM users WHERE first_name NOT LIKE 'A%'",
         Schema::empty()
             .field(
@@ -673,7 +673,7 @@ fn test_not_like_value() {
 
 #[test]
 fn test_like_escape() {
-    let f = run_scalar_fct(
+    let f = run_fct(
         "SELECT first_name FROM users WHERE first_name LIKE 'J$%'",
         Schema::empty()
             .field(

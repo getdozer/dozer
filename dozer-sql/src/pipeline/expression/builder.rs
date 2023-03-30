@@ -13,10 +13,13 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::errors::{PipelineError, SqlError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
+use crate::pipeline::expression::conditional::ConditionalExpressionType;
 use crate::pipeline::expression::datetime::DateTimeFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::expression::execution::Expression::{GeoFunction, ScalarFunction};
+use crate::pipeline::expression::execution::Expression::{
+    ConditionalExpression, GeoFunction, ScalarFunction,
+};
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
@@ -300,7 +303,13 @@ impl ExpressionBuilder {
                             fun: gft,
                             args: function_args.clone(),
                         }),
-                        Err(_err) => Err(InvalidNestedAggregationFunction(function_name)),
+                        Err(_e) => match ConditionalExpressionType::new(function_name.as_str()) {
+                            Ok(cet) => Ok(ConditionalExpression {
+                                fun: cet,
+                                args: function_args.clone(),
+                            }),
+                            Err(_err) => Err(InvalidNestedAggregationFunction(function_name)),
+                        },
                     },
                 }
             }
