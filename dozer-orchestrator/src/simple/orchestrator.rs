@@ -36,7 +36,7 @@ use futures::{StreamExt, TryFutureExt};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::oneshot;
@@ -55,7 +55,7 @@ impl SimpleOrchestrator {
 impl Orchestrator for SimpleOrchestrator {
     fn run_api(
         &mut self,
-        running: Arc<AtomicBool>,
+        _running: Arc<AtomicBool>,
         cache_manager: Option<Arc<dyn CacheManager>>,
     ) -> Result<(), OrchestrationError> {
         // Channel to communicate CtrlC with API Server
@@ -148,8 +148,6 @@ impl Orchestrator for SimpleOrchestrator {
             let server_handle = rx
                 .recv()
                 .map_err(OrchestrationError::GrpcServerHandleError)?;
-            // Waiting for Ctrl+C
-            while running.load(Ordering::Relaxed) {}
 
             sender_shutdown.send(()).unwrap();
             rest::ApiServer::stop(server_handle);
@@ -316,7 +314,6 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         let running_api = running.clone();
-        let running_wait = running.clone();
         let cache_manager_app = create_cache_manager(&self.config)?;
         let cache_manager_api = cache_manager_app.clone();
         // TODO: remove this after checkpointing
@@ -352,8 +349,6 @@ impl Orchestrator for SimpleOrchestrator {
                 std::panic::panic_any(e);
             }
         });
-
-        while running_wait.load(Ordering::Relaxed) {}
 
         // wait for threads to shutdown gracefully
         pipeline_thread.join().unwrap();
