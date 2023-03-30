@@ -16,7 +16,7 @@ path = "src/dozer_test_client.rs"
 
 [[test]]
 name = "sqllogictest"
-path = "src/sqllogictest/dozer_sqllogictest.rs"
+path = "src/sqllogictest/logic_test.rs"
 harness = false
 
 [dependencies]
@@ -41,6 +41,7 @@ dozer-utils = { version = "0.1.0", path = "../dozer-utils" }
 multimap = "0.8.3"
 hashbrown = "0.13"
 ahash = "0.8.3"
+csv = "1.2"
 
 
 [dev-dependencies]

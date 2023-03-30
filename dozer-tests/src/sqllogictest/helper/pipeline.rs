@@ -130,10 +130,11 @@ impl Source for TestSource {
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             idx += 1;
             let port = self.name_to_port.get(&schema_name).expect("port not found");
+            println!("so {}: {:?} ", port, op);
             fw.send(IngestionMessage::new_op(idx, 0, op), *port)
                 .unwrap();
         }
-        thread::sleep(Duration::from_millis(500));
+        thread::sleep(Duration::from_millis(1000));
 
         self.running
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -198,12 +199,16 @@ impl TestSink {
             }
             Operation::Delete { ref old } => {
                 if let Some(map_records) = self.output.lock().unwrap().get_vec_mut(&get_key(old)) {
-                    map_records.pop();
+                    if let Some(index) = map_records.iter().position(|x| x == old) {
+                        map_records.remove(index);
+                    }
                 }
             }
             Operation::Update { ref old, new } => {
                 if let Some(map_records) = self.output.lock().unwrap().get_vec_mut(&get_key(old)) {
-                    map_records.pop();
+                    if let Some(index) = map_records.iter().position(|x| x == old) {
+                        map_records.remove(index);
+                    }
                 }
                 self.output.lock().unwrap().insert(get_key(&new), new);
             }
@@ -213,6 +218,7 @@ impl TestSink {
 
 impl Sink for TestSink {
     fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
+        println!("xi _: {:?} ", op);
         self.update_result(op);
         Ok(())
     }
@@ -257,7 +263,7 @@ impl TestPipeline {
 
         let output_table = transform_response.output_tables_map.get("results").unwrap();
         let (sender, receiver) =
-            dozer_types::crossbeam::channel::bounded::<Option<(String, Operation)>>(10);
+            dozer_types::crossbeam::channel::bounded::<Option<(String, Operation)>>(1000);
         let mut port_to_schemas = HashMap::new();
         let mut mappings = HashMap::new();
 

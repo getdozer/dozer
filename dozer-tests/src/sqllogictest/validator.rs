@@ -20,9 +20,9 @@ impl AsyncDB for Validator {
     type Error = DozerSqlLogicTestError;
 
     async fn run(&mut self, sql: &str) -> Result<DBOutput, Self::Error> {
-        let sql = sql.trim_start().to_ascii_lowercase();
-        if sql.starts_with("select") || sql.starts_with("with") {
-            let mut stmt = self.conn.prepare(sql.as_str())?;
+        let sql = sql.trim_start();
+        if sql.to_lowercase().starts_with("select") || sql.to_lowercase().starts_with("with") {
+            let mut stmt = self.conn.prepare(sql)?;
             let column_count = stmt.column_count();
             let mut rows = stmt.query(())?;
             let mut parsed_rows = vec![];
@@ -57,7 +57,7 @@ impl AsyncDB for Validator {
                 rows: parsed_rows,
             })
         } else {
-            self.conn.execute(sql.as_str(), ())?;
+            self.conn.execute(sql, ())?;
             Ok(DBOutput::StatementComplete(0))
         }
     }

@@ -5,8 +5,8 @@ mod validator;
 
 use std::path::Path;
 
-use arg::SqlLogicTestArgs;
-use clap::Parser;
+// use arg::SqlLogicTestArgs;
+// use clap::Parser;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::parser::Parser as SqlParser;
 use dozer_types::types::Operation;
@@ -53,8 +53,8 @@ impl AsyncDB for Dozer {
     type Error = DozerSqlLogicTestError;
 
     async fn run(&mut self, sql: &str) -> Result<DBOutput> {
-        use std::println as info;
-        info!("SQL [{}] is running", sql);
+        // use std::println as info;
+        // info!("SQL [{}] is running", sql);
 
         let ast = SqlParser::parse_sql(&AnsiDialect {}, sql)?;
         let statement: &Statement = &ast[0];
@@ -113,7 +113,7 @@ fn create_dozer() -> Result<Dozer> {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let args = SqlLogicTestArgs::parse();
+    //let args = SqlLogicTestArgs::parse();
     //let suits = SqlLogicTestArgs::parse().suites;
 
     //let complete = args.complete;
@@ -159,7 +159,7 @@ async fn main() -> Result<()> {
         let records = parse_file(file_path).unwrap();
         // Run dozer to check if dozer's outputs satisfy expected results
         for record in records.iter() {
-            runner.run_async(record.clone()).await?;
+            runner.run_async(record.clone()).await.unwrap();
         }
     }
     Ok(())
