@@ -46,7 +46,7 @@ fn cache(c: &mut Criterion) {
     let commit_size = std::env::var("CACHE_BENCH_COMMIT_SIZE").unwrap_or("".to_string());
     let commit_size: usize = commit_size.parse().unwrap_or(1000);
 
-    let max_size = std::env::var("CACHE_BENCH_COMMIT_SIZE").unwrap_or("".to_string());
+    let max_size = std::env::var("CACHE_BENCH_MAP_SIZE").unwrap_or("".to_string());
     let max_size: usize = max_size.parse().unwrap_or(49999872000);
 
     let cache_manager = LmdbRwCacheManager::new(CacheManagerOptions {
