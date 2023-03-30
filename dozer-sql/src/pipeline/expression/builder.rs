@@ -8,8 +8,8 @@ use sqlparser::ast::{
 };
 
 use crate::pipeline::errors::PipelineError::{
-    InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
-    InvalidValue,
+    InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
+    InvalidOperator, InvalidValue,
 };
 use crate::pipeline::errors::{PipelineError, SqlError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
@@ -237,21 +237,13 @@ impl ExpressionBuilder {
         Ok(Expression::Trim { arg, what, typ })
     }
 
-    fn parse_sql_function(
+    fn aggr_function_check(
         &mut self,
+        function_name: String,
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
     ) -> Result<Expression, PipelineError> {
-        let function_name = sql_function.name.to_string().to_lowercase();
-
-        #[cfg(feature = "python")]
-        if function_name.starts_with("py_") {
-            // The function is from python udf.
-            let udf_name = function_name.strip_prefix("py_").unwrap();
-            return self.parse_python_udf(udf_name, sql_function, schema);
-        }
-
         match (
             AggregateFunctionType::new(function_name.as_str()),
             parse_aggregations,
@@ -283,37 +275,99 @@ impl ExpressionBuilder {
                 })
             }
             (Ok(_agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
-            (Err(_), _) => {
-                let mut function_args: Vec<Expression> = Vec::new();
-                for arg in &sql_function.args {
-                    function_args.push(self.parse_sql_function_arg(
-                        parse_aggregations,
-                        arg,
-                        schema,
-                    )?);
-                }
-
-                match ScalarFunctionType::new(function_name.as_str()) {
-                    Ok(sft) => Ok(ScalarFunction {
-                        fun: sft,
-                        args: function_args.clone(),
-                    }),
-                    Err(_d) => match GeoFunctionType::new(function_name.as_str()) {
-                        Ok(gft) => Ok(GeoFunction {
-                            fun: gft,
-                            args: function_args.clone(),
-                        }),
-                        Err(_e) => match ConditionalExpressionType::new(function_name.as_str()) {
-                            Ok(cet) => Ok(ConditionalExpression {
-                                fun: cet,
-                                args: function_args.clone(),
-                            }),
-                            Err(_err) => Err(InvalidNestedAggregationFunction(function_name)),
-                        },
-                    },
-                }
-            }
+            (Err(_), _) => Err(InvalidNestedAggregationFunction(function_name)),
         }
+    }
+
+    fn scalar_function_check(
+        &mut self,
+        function_name: String,
+        parse_aggregations: bool,
+        sql_function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let mut function_args: Vec<Expression> = Vec::new();
+        for arg in &sql_function.args {
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+        }
+
+        match ScalarFunctionType::new(function_name.as_str()) {
+            Ok(sft) => Ok(ScalarFunction {
+                fun: sft,
+                args: function_args.clone(),
+            }),
+            Err(_d) => Err(InvalidFunction(function_name)),
+        }
+    }
+
+    fn conditional_expr_check(
+        &mut self,
+        function_name: String,
+        parse_aggregations: bool,
+        sql_function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let mut function_args: Vec<Expression> = Vec::new();
+        for arg in &sql_function.args {
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+        }
+
+        match GeoFunctionType::new(function_name.as_str()) {
+            Ok(gft) => Ok(GeoFunction {
+                fun: gft,
+                args: function_args.clone(),
+            }),
+            Err(_e) => match ConditionalExpressionType::new(function_name.as_str()) {
+                Ok(cet) => Ok(ConditionalExpression {
+                    fun: cet,
+                    args: function_args.clone(),
+                }),
+                Err(_err) => Err(InvalidFunction(function_name)),
+            },
+        }
+    }
+
+    fn parse_sql_function(
+        &mut self,
+        parse_aggregations: bool,
+        sql_function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let function_name = sql_function.name.to_string().to_lowercase();
+
+        #[cfg(feature = "python")]
+        if function_name.starts_with("py_") {
+            // The function is from python udf.
+            let udf_name = function_name.strip_prefix("py_").unwrap();
+            return self.parse_python_udf(udf_name, sql_function, schema);
+        }
+
+        let aggr_check = self.aggr_function_check(
+            function_name.clone(),
+            parse_aggregations,
+            sql_function,
+            schema,
+        );
+        if aggr_check.is_ok() {
+            return aggr_check;
+        }
+
+        let scalar_check = self.scalar_function_check(
+            function_name.clone(),
+            parse_aggregations,
+            sql_function,
+            schema,
+        );
+        if scalar_check.is_ok() {
+            return scalar_check;
+        }
+
+        self.conditional_expr_check(
+            function_name,
+            parse_aggregations,
+            sql_function,
+            schema,
+        )
     }
 
     fn parse_sql_function_arg(
