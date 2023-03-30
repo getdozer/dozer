@@ -106,7 +106,6 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
-        let mut dozer = init_dozer(cli.config_path)?;
         dozer.run_all(running)
     }
 }
