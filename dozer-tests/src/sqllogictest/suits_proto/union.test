@@ -114,9 +114,6 @@ WITH actor_id_union_all AS (
         SELECT actor_id
         FROM actor_id_union_all;
 
-
-
-
 query I
 WITH actor_id_union AS (
             SELECT actor_id

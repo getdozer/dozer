@@ -116,24 +116,19 @@ async fn main() -> Result<()> {
     let args = SqlLogicTestArgs::parse();
     //let suits = SqlLogicTestArgs::parse().suites;
 
-    let suits = std::fs::read_dir("src/sqllogictest/test_suits").unwrap();
-    if args.complete {
-        delete_dir_contents(suits);
-        let suits_proto = std::fs::read_dir("src/sqllogictest/suits_proto").unwrap();
-        for proto in suits_proto {
-            let suit = suit.unwrap().path();
-            for entry in WalkDir::new(suit)
-                .min_depth(0)
-                .max_depth(100)
-                .sort_by(|a, b| a.file_name().cmp(b.file_name()))
-                .into_iter()
-                .filter(|e| !e.as_ref().unwrap().file_type().is_dir())
-            {
-                files.push(entry)
-            }
-        }
+    //let complete = args.complete;
+    let complete = true;
+
+    let current_suits = std::fs::read_dir("dozer-tests/src/sqllogictest/test_suits").unwrap();
+    if complete {
+        delete_dir_contents(current_suits);
+        copy_dir_all(
+            "dozer-tests/src/sqllogictest/suits_proto",
+            "dozer-tests/src/sqllogictest/test_suits",
+        )?;
     }
 
+    let suits = std::fs::read_dir("dozer-tests/src/sqllogictest/test_suits").unwrap();
     let mut files = vec![];
     for suit in suits {
         let suit = suit.unwrap().path();
@@ -149,46 +144,36 @@ async fn main() -> Result<()> {
     }
     for file in files.into_iter() {
         let file_path = file.as_ref().unwrap().path();
-        let mut runner = Runner::new(create_dozer()?);
-        let records = parse_file(file_path).unwrap();
 
-        if args.complete {
+        if complete {
             // Use validator db to generate expected results
             let mut validator_runner = Runner::new(Validator::create());
             let col_separator = " ";
             let validator = default_validator;
-            update_test_file(
-                file.unwrap().path(),
-                &mut validator_runner,
-                col_separator,
-                validator,
-            )
-            .await
-            .unwrap();
-            // Run dozer to check if dozer's outputs satisfy expected results
-            for record in records.iter() {
-                runner.run_async(record.clone()).await?;
-            }
-        } else {
-            for record in records.iter() {
-                runner.run_async(record.clone()).await?;
-            }
+            update_test_file(file_path, &mut validator_runner, col_separator, validator)
+                .await
+                .unwrap();
+        }
+
+        let mut runner = Runner::new(create_dozer()?);
+        let records = parse_file(file_path).unwrap();
+        // Run dozer to check if dozer's outputs satisfy expected results
+        for record in records.iter() {
+            runner.run_async(record.clone()).await?;
         }
     }
     Ok(())
 }
 
 fn delete_dir_contents(dir: std::fs::ReadDir) {
-    for entry in dir {
-        if let Ok(entry) = entry {
-            let path = entry.path();
+    for entry in dir.flatten() {
+        let path = entry.path();
 
-            if path.is_dir() {
-                std::fs::remove_dir_all(path).expect("Failed to remove a dir");
-            } else {
-                std::fs::remove_file(path).expect("Failed to remove a file");
-            }
-        };
+        if path.is_dir() {
+            std::fs::remove_dir_all(path).expect("Failed to remove a dir");
+        } else {
+            std::fs::remove_file(path).expect("Failed to remove a file");
+        }
     }
 }
 
