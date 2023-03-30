@@ -1,7 +1,10 @@
+use crate::pipeline::errors::SqlError::Operation;
+use crate::pipeline::errors::{OperationError, PipelineError};
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
+use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::types::Record;
 use dozer_types::{
     ordered_float::OrderedFloat,
@@ -9,9 +12,6 @@ use dozer_types::{
     types::{Field, Schema},
 };
 use num_traits::FromPrimitive;
-use crate::pipeline::expression::tests::test_common::*;
-use crate::pipeline::errors::SqlError::Operation;
-use crate::pipeline::errors::{OperationError, PipelineError};
 use proptest::prelude::*;
 use std::num::Wrapping;
 

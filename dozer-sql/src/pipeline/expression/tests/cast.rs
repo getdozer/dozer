@@ -2,6 +2,7 @@ use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
+use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::types::{Record, SourceDefinition};
 use dozer_types::{
     chrono::{DateTime, NaiveDate, TimeZone, Utc},
@@ -10,7 +11,6 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Schema},
 };
 use num_traits::FromPrimitive;
-use crate::pipeline::expression::tests::test_common::*;
 
 // #[test]
 // fn test_uint() {

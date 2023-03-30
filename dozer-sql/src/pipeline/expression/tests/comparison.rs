@@ -3,6 +3,7 @@ use crate::pipeline::expression::comparison::{
 };
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
+use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::types::Record;
 use dozer_types::{
     ordered_float::OrderedFloat,
@@ -11,7 +12,6 @@ use dozer_types::{
 };
 use num_traits::FromPrimitive;
 use proptest::prelude::*;
-use crate::pipeline::expression::tests::test_common::*;
 
 #[test]
 fn test_comparison() {

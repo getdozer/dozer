@@ -5,7 +5,6 @@ use dozer_types::{ordered_float::OrderedFloat, rust_decimal::Decimal};
 #[cfg(test)]
 use proptest::prelude::*;
 
-
 #[test]
 fn test_logical() {
     proptest!(

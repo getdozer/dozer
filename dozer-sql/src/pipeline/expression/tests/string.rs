@@ -3,8 +3,8 @@ use crate::pipeline::expression::scalar::string::{
     evaluate_concat, evaluate_like, evaluate_trim, evaluate_ucase, validate_concat, validate_trim,
     TrimType,
 };
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 use proptest::prelude::*;
 
 #[test]
