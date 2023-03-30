@@ -107,7 +107,7 @@ pub fn initialize_cache(
 ) -> Box<dyn CacheManager> {
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
-    let cache = cache_manager
+    let mut cache = cache_manager
         .create_cache(
             schema.clone(),
             secondary_indexes,

@@ -1,7 +1,6 @@
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
-use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Operation, Schema};
 
 use dozer_types::log::debug;
@@ -59,7 +58,7 @@ pub(crate) struct CountingSink {
     running: Arc<AtomicBool>,
 }
 impl Sink for CountingSink {
-    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), ExecutionError> {
         // if self.current == self.expected {
         //     info!(
         //         "Received {} messages. Notifying sender to exit!",
@@ -70,12 +69,7 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
         self.current += 1;
         if self.current == self.expected {
             debug!(

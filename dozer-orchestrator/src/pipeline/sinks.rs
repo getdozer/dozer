@@ -6,7 +6,6 @@ use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::{CacheManager, RwCache};
 use dozer_core::errors::{ExecutionError, SinkError};
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
-use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::crossbeam::channel::Sender;
@@ -323,7 +322,7 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), ExecutionError> {
         let endpoint_name = self.api_endpoint.name.clone();
         // Update Counter on commit
         self.pb.set_position(self.counter as u64);
@@ -349,12 +348,7 @@ impl Sink for CacheSink {
         Ok(())
     }
 
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        op: Operation,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
         self.counter += 1;
 
         let span = span!(
@@ -366,7 +360,7 @@ impl Sink for CacheSink {
         let _enter = span.enter();
 
         let endpoint_name = &self.api_endpoint.name;
-        let schema = &self.cache.get_schema().0;
+        let schema = self.cache.get_schema().0.clone();
 
         match op {
             Operation::Delete { mut old } => {
@@ -388,7 +382,7 @@ impl Sink for CacheSink {
                     Err(e) => {
                         ConflictResolver::resolve_delete_error(
                             old,
-                            schema,
+                            &schema,
                             e,
                             self.api_endpoint
                                 .conflict_resolution
@@ -426,7 +420,7 @@ impl Sink for CacheSink {
                     Err(e) => {
                         ConflictResolver::resolve_insert_error(
                             new,
-                            schema,
+                            &schema,
                             e,
                             self.api_endpoint
                                 .conflict_resolution
@@ -484,7 +478,7 @@ impl Sink for CacheSink {
                     Err(e) => {
                         ConflictResolver::resolve_update_error(
                             new,
-                            schema,
+                            &schema,
                             e,
                             self.api_endpoint
                                 .conflict_resolution
@@ -597,21 +591,13 @@ mod tests {
 
     use dozer_cache::cache::index;
     use dozer_core::node::Sink;
-    use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
     use dozer_core::DEFAULT_PORT_HANDLE;
 
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
 
-    use tempdir::TempDir;
-
     #[test]
     // This test cases covers update of records when primary key changes because of value change in primary_key
     fn update_record_when_primary_changes() {
-        let tmp_dir = TempDir::new("example").unwrap();
-        let env =
-            LmdbEnvironmentManager::create(tmp_dir.path(), "test", Default::default()).unwrap();
-        let txn = env.create_txn().unwrap();
-
         let schema = test_utils::get_schema();
         let secondary_indexes: Vec<IndexDefinition> = schema
             .fields
@@ -655,18 +641,16 @@ mod tests {
             },
         };
 
-        sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn)
-            .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, insert_operation).unwrap();
+        sink.commit().unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap().record;
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn)
-            .unwrap();
-        sink.commit(&txn).unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, update_operation).unwrap();
+        sink.commit().unwrap();
 
         // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);

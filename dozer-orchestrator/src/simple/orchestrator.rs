@@ -53,7 +53,11 @@ impl SimpleOrchestrator {
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
+    fn run_api(
+        &mut self,
+        running: Arc<AtomicBool>,
+        cache_manager: Option<Arc<dyn CacheManager>>,
+    ) -> Result<(), OrchestrationError> {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
 
@@ -77,20 +81,23 @@ impl Orchestrator for SimpleOrchestrator {
             )));
 
             // Open `RoCacheEndpoint`s.
-            let cache_manager = LmdbCacheManager::new(get_cache_manager_options(&self.config))
-                .map_err(OrchestrationError::CacheInitFailed)?;
+            let cache_manager = if let Some(cache_manager) = cache_manager {
+                cache_manager
+            } else {
+                create_cache_manager(&self.config)?
+            };
             let cache_endpoints = self
                 .config
                 .endpoints
                 .iter()
                 .map(|endpoint| {
-                    RoCacheEndpoint::new(&cache_manager, endpoint.clone()).map(Arc::new)
+                    RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).map(Arc::new)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Listen to endpoint redirect events.
             tokio::spawn(redirect_cache_endpoints(
-                Box::new(cache_manager),
+                cache_manager,
                 cache_endpoints.clone(),
                 alias_redirected_receiver,
             ));
@@ -157,6 +164,7 @@ impl Orchestrator for SimpleOrchestrator {
         &mut self,
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
+        cache_manager: Option<Arc<dyn CacheManager>>,
     ) -> Result<(), OrchestrationError> {
         // gRPC notifier channel
         let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
@@ -174,6 +182,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let pipeline_dir = get_pipeline_dir(&self.config);
         let executor = Executor::new(
+            &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
@@ -183,9 +192,14 @@ impl Orchestrator for SimpleOrchestrator {
         let flags = get_flags(self.config.clone());
         let api_security = get_api_security_config(self.config.clone());
         let settings = CacheSinkSettings::new(get_api_dir(&self.config), flags, api_security);
+        let cache_manager = if let Some(cache_manager) = cache_manager {
+            cache_manager
+        } else {
+            create_cache_manager(&self.config)?
+        };
         let dag_executor = executor.create_dag_executor(
             Some((alias_redirected_sender, operation_sender)),
-            get_cache_manager_options(&self.config),
+            cache_manager,
             settings,
             get_executor_options(&self.config),
         )?;
@@ -245,6 +259,7 @@ impl Orchestrator for SimpleOrchestrator {
         validate_config(&self.config)?;
 
         let builder = PipelineBuilder::new(
+            &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
@@ -266,7 +281,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(api_dir.clone(), flags, api_security);
-        let dag = builder.build(None, get_cache_manager_options(&self.config), settings)?;
+        let dag = builder.build(None, create_cache_manager(&self.config)?, settings)?;
         // Populate schemas.
         DagSchemas::new(dag)?;
 
@@ -302,6 +317,8 @@ impl Orchestrator for SimpleOrchestrator {
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         let running_api = running.clone();
         let running_wait = running.clone();
+        let cache_manager_app = create_cache_manager(&self.config)?;
+        let cache_manager_api = cache_manager_app.clone();
         // TODO: remove this after checkpointing
         self.clean()?;
 
@@ -322,7 +339,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let mut dozer_pipeline = self.clone();
         let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer_pipeline.run_apps(running, Some(tx)) {
+            if let Err(e) = dozer_pipeline.run_apps(running, Some(tx), Some(cache_manager_app)) {
                 std::panic::panic_any(e);
             }
         });
@@ -331,7 +348,7 @@ impl Orchestrator for SimpleOrchestrator {
         rx.recv().unwrap();
 
         let _api_thread = thread::spawn(move || {
-            if let Err(e) = dozer_api.run_api(running_api) {
+            if let Err(e) = dozer_api.run_api(running_api, Some(cache_manager_api)) {
                 std::panic::panic_any(e);
             }
         });
@@ -364,8 +381,14 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
     )
 }
 
+fn create_cache_manager(config: &Config) -> Result<Arc<dyn CacheManager>, OrchestrationError> {
+    LmdbCacheManager::new(get_cache_manager_options(config))
+        .map(|manager| Arc::new(manager) as Arc<dyn CacheManager>)
+        .map_err(OrchestrationError::CacheInitFailed)
+}
+
 async fn redirect_cache_endpoints(
-    cache_manager: Box<dyn CacheManager>,
+    cache_manager: Arc<dyn CacheManager>,
     cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
     mut alias_redirected_receiver: Receiver<AliasRedirected>,
 ) -> Result<(), OrchestrationError> {

@@ -1,13 +1,12 @@
 #![allow(clippy::enum_variant_names)]
 
 use dozer_core::errors::ExecutionError;
-use dozer_core::storage::errors::StorageError;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::{DeserializationError, TypeError};
+use dozer_types::errors::types::TypeError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use dozer_types::types::{Field, FieldType, Record};
+use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
@@ -84,28 +83,26 @@ pub enum PipelineError {
     PythonErr(dozer_types::pyo3::PyErr),
 
     // Error forwarding
-    #[error(transparent)]
-    InternalStorageError(#[from] StorageError),
-    #[error(transparent)]
+    #[error("Internal type error: {0}")]
     InternalTypeError(#[from] TypeError),
-    #[error(transparent)]
+    #[error("Internal execution error: {0}")]
     InternalExecutionError(#[from] ExecutionError),
-    #[error(transparent)]
+    #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
 
-    #[error(transparent)]
+    #[error("Unsupported sql: {0}")]
     UnsupportedSqlError(#[from] UnsupportedSqlError),
 
-    #[error(transparent)]
+    #[error("Join: {0}")]
     JoinError(#[from] JoinError),
 
-    #[error(transparent)]
+    #[error("Set: {0}")]
     SetError(#[from] SetError),
 
-    #[error(transparent)]
+    #[error("Sql: {0}")]
     SqlError(#[from] SqlError),
 
-    #[error(transparent)]
+    #[error("Window: {0}")]
     WindowError(#[from] WindowError),
 
     #[error("Table Function is not supported")]
@@ -189,6 +186,18 @@ pub enum SqlError {
     WindowError(String),
     #[error("SQL Error: Invalid column name {0}.")]
     InvalidColumn(String),
+    #[error(transparent)]
+    Operation(#[from] OperationError),
+}
+
+#[derive(Error, Debug)]
+pub enum OperationError {
+    #[error("SQL Error: Multiplication operation cannot be done due to overflow.")]
+    MultiplicationOverflow,
+    #[error("SQL Error: Division operation cannot be done.")]
+    DivisionByZeroOrOverflow,
+    #[error("SQL Error: Modulo operation cannot be done.")]
+    ModuloByZeroOrOverflow,
 }
 
 #[derive(Error, Debug)]
@@ -207,8 +216,6 @@ pub enum SetError {
 
 #[derive(Error, Debug)]
 pub enum JoinError {
-    #[error("Field {0:?} not found")]
-    FieldError(String),
     #[error("Currently join supports two level of namespacing. For example, `connection1.field1` is valid, but `connection1.n1.field1` is not.")]
     NameSpaceTooLong(String),
     #[error("Invalid Join constraint on : {0}")]
@@ -229,43 +236,6 @@ pub enum JoinError {
     UnsupportedJoinConstraintType,
     #[error("Unsupported Join type")]
     UnsupportedJoinType,
-    #[error("Invalid Table name specified")]
-    InvalidRelation(String),
-
-    #[error("Invalid Join Source: {0}")]
-    InvalidSource(u16),
-
-    #[error("Invalid Key for the record:\n{0}\n{1}")]
-    InvalidKey(Record, TypeError),
-
-    #[error("Error trying to deserialise a record from JOIN processor index: {0}")]
-    DeserializationError(DeserializationError),
-
-    #[error("History unavailable for JOIN source [{0}]")]
-    HistoryUnavailable(u16),
-
-    #[error(
-        "Record with key: {0:x?} version: {1} not available in History for JOIN source[{2}]\n{3}"
-    )]
-    HistoryRecordNotFound(Vec<u8>, u32, u16, dozer_core::errors::ExecutionError),
-
-    #[error("Error inserting key: {0:x?} value: {1:x?} in the JOIN index\n{2}")]
-    IndexPutError(Vec<u8>, Vec<u8>, StorageError),
-
-    #[error("Error deleting key: {0:x?} value: {1:x?} from the JOIN index\n{2}")]
-    IndexDelError(Vec<u8>, Vec<u8>, StorageError),
-
-    #[error("Error reading key: {0:x?} from the JOIN index\n")]
-    IndexGetError(Vec<u8>),
-
-    #[error("Error in the FROM clause, Invalid function {0:x?}")]
-    UnsupportedRelationFunction(String),
-
-    #[error("Invalid Join Source: {0}")]
-    InvalidSourceName(String),
-
-    #[error("Error building the JOIN on the {0} source of the Processor")]
-    JoinBuild(String),
 }
 
 #[derive(Error, Debug)]

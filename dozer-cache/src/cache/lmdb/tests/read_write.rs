@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use crate::cache::lmdb::cache::{CacheOptions, LmdbRoCache, LmdbRwCache};
 use crate::cache::lmdb::indexing::IndexingThreadPool;
 use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, RoCache, RwCache};
 use dozer_types::models::api_endpoint::ConflictResolution;
+use dozer_types::parking_lot::Mutex;
 use dozer_types::serde_json::Value;
 use dozer_types::types::Field;
 use tempdir::TempDir;
@@ -15,17 +18,17 @@ fn read_and_write() {
     // write and read from cache from two different threads.
 
     let schema = test_utils::schema_1();
-    let mut indexing_thread_pool = IndexingThreadPool::new(1);
-    let cache_writer = LmdbRwCache::new(
+    let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(1)));
+    let mut cache_writer = LmdbRwCache::new(
         Some(&schema),
         &CacheOptions {
-            max_readers: 1,
+            max_readers: 2,
             max_db_size: 100,
             max_size: 1024 * 1024,
             path: Some(path.clone()),
             intersection_chunk_size: 1,
         },
-        &mut indexing_thread_pool,
+        indexing_thread_pool.clone(),
         ConflictResolution::default(),
     )
     .unwrap();
@@ -38,11 +41,11 @@ fn read_and_write() {
     ];
 
     for val in items.clone() {
-        lmdb_utils::insert_rec_1(&cache_writer, &schema.0, val.clone());
+        lmdb_utils::insert_rec_1(&mut cache_writer, &schema.0, val.clone());
     }
     cache_writer.commit().unwrap();
 
-    indexing_thread_pool.wait_until_catchup();
+    indexing_thread_pool.lock().wait_until_catchup();
 
     let read_options = CacheOptions {
         path: Some(path),

@@ -1,11 +1,10 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use dozer_storage::{
     errors::StorageError,
     lmdb::{Database, DatabaseFlags},
-    lmdb_storage::{
-        CreateDatabase, LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
-    },
+    lmdb_storage::LmdbEnvironmentManager,
+    RwLmdbEnvironment,
 };
 use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::{
@@ -64,8 +63,8 @@ pub struct LmdbCacheManager {
     options: CacheManagerOptions,
     base_path: PathBuf,
     alias_db: Database,
-    txn: SharedTransaction,
-    indexing_thread_pool: Mutex<IndexingThreadPool>,
+    env: Mutex<RwLmdbEnvironment>,
+    indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
     _temp_dir: Option<TempDir>,
 }
 
@@ -83,22 +82,22 @@ impl LmdbCacheManager {
             }
         };
 
-        let mut env = LmdbEnvironmentManager::create(
+        let mut env = LmdbEnvironmentManager::create_rw(
             &base_path,
             LMDB_CACHE_MANAGER_ALIAS_ENV_NAME,
             Default::default(),
         )?;
-        let alias_db = env.create_database(None, Some(DatabaseFlags::empty()))?;
-        let txn = env.create_txn()?;
+        let alias_db = env.create_database(None, DatabaseFlags::empty())?;
 
-        let indexing_thread_pool =
-            Mutex::new(IndexingThreadPool::new(options.num_indexing_threads));
+        let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(
+            options.num_indexing_threads,
+        )));
 
         Ok(Self {
             options,
             base_path,
             alias_db,
-            txn,
+            env: Mutex::new(env),
             indexing_thread_pool,
             _temp_dir: temp_dir,
         })
@@ -118,16 +117,17 @@ impl CacheManager for LmdbCacheManager {
         name: &str,
         conflict_resolution: ConflictResolution,
     ) -> Result<Option<Box<dyn RwCache>>, CacheError> {
-        let mut txn = self.txn.write();
+        let mut env = self.env.lock();
         // Open a new transaction to make sure we get the latest changes.
-        txn.commit_and_renew()?;
-        let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
+        env.commit()?;
+        let real_name = self.resolve_alias(name, &mut env)?;
+        let real_name = real_name.as_deref().unwrap_or(name);
         let cache: Option<Box<dyn RwCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
                 let cache = LmdbRwCache::new(
                     None,
                     &self.cache_options(real_name.to_string()),
-                    &mut self.indexing_thread_pool.lock(),
+                    self.indexing_thread_pool.clone(),
                     conflict_resolution,
                 )?;
                 Some(Box::new(cache))
@@ -138,10 +138,17 @@ impl CacheManager for LmdbCacheManager {
     }
 
     fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError> {
-        let mut txn = self.txn.write();
+        let mut env = self.env.lock();
         // Open a new transaction to make sure we get the latest changes.
-        txn.commit_and_renew()?;
-        let real_name = self.resolve_alias(name, &txn)?.unwrap_or(name);
+        env.commit()?;
+        let real_name = self.resolve_alias(name, &mut env)?;
+        let real_name = real_name.as_deref().unwrap_or(name);
+
+        // Check if the cache is already opened.
+        if let Some(cache) = self.indexing_thread_pool.lock().find_cache(real_name) {
+            return Ok(Some(Box::new(cache)));
+        }
+
         let cache: Option<Box<dyn RoCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
                 let cache = LmdbRoCache::new(&self.cache_options(real_name.to_string()))?;
@@ -162,16 +169,16 @@ impl CacheManager for LmdbCacheManager {
         let cache = LmdbRwCache::new(
             Some(&(schema, indexes)),
             &self.cache_options(name),
-            &mut self.indexing_thread_pool.lock(),
+            self.indexing_thread_pool.clone(),
             conflict_resolution,
         )?;
         Ok(Box::new(cache))
     }
 
     fn create_alias(&self, name: &str, alias: &str) -> Result<(), CacheError> {
-        let mut txn = self.txn.write();
-        txn.put(self.alias_db, alias.as_bytes(), name.as_bytes())?;
-        txn.commit_and_renew()?;
+        let mut env = self.env.lock();
+        env.put(self.alias_db, alias.as_bytes(), name.as_bytes())?;
+        env.commit()?;
         Ok(())
     }
 }
@@ -193,16 +200,21 @@ impl LmdbCacheManager {
         uuid::Uuid::new_v4().to_string()
     }
 
-    fn resolve_alias<'a>(
+    fn resolve_alias(
         &self,
         alias: &str,
-        txn: &'a LmdbExclusiveTransaction,
-    ) -> Result<Option<&'a str>, StorageError> {
-        txn.get(self.alias_db, alias.as_bytes()).map(|bytes| {
-            bytes.map(|bytes| {
-                std::str::from_utf8(bytes).expect("Real names should always be utf8 string")
-            })
-        })
+        txn: &mut RwLmdbEnvironment,
+    ) -> Result<Option<String>, StorageError> {
+        let result = txn
+            .get(self.alias_db, alias.as_bytes())
+            .map(|bytes| {
+                bytes.map(|bytes| {
+                    std::str::from_utf8(bytes).expect("Real names should always be utf8 string")
+                })
+            })?
+            .map(|name| name.to_string());
+        txn.commit()?;
+        Ok(result)
     }
 }
 

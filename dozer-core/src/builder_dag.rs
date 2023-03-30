@@ -5,7 +5,6 @@ use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
     dag_checkpoint::{DagCheckpoint, NodeKind as CheckpointNodeKind},
-    dag_metadata::NodeStorage,
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
     node::{Processor, Sink, Source},
@@ -16,8 +15,6 @@ use crate::{
 pub struct NodeType {
     /// The node handle.
     pub handle: NodeHandle,
-    /// The node storage environment.
-    pub storage: NodeStorage,
     /// The node kind.
     pub kind: NodeKind,
 }
@@ -39,13 +36,9 @@ pub struct BuilderDag {
 }
 
 impl BuilderDag {
-    pub fn new<T>(
-        dag_schemas: DagSchemas<T>,
-        path: PathBuf,
-        max_map_size: usize,
-    ) -> Result<Self, ExecutionError> {
+    pub fn new<T>(dag_schemas: DagSchemas<T>, path: PathBuf) -> Result<Self, ExecutionError> {
         // Decide the checkpoint to start from.
-        let dag_checkpoint = DagCheckpoint::new(dag_schemas, path, max_map_size)?;
+        let dag_checkpoint = DagCheckpoint::new(dag_schemas, path)?;
 
         // Create processors and sinks.
         let mut nodes = vec![];
@@ -62,11 +55,7 @@ impl BuilderDag {
             let kind = match &node.kind {
                 CheckpointNodeKind::Source(_) => None,
                 CheckpointNodeKind::Processor(processor) => {
-                    let processor = processor.build(
-                        input_schemas,
-                        output_schemas,
-                        &mut node.storage.master_txn.write(),
-                    )?;
+                    let processor = processor.build(input_schemas, output_schemas)?;
                     Some(NodeKind::Processor(processor))
                 }
                 CheckpointNodeKind::Sink(sink) => {
@@ -84,13 +73,11 @@ impl BuilderDag {
                 if let Some(kind) = nodes[node_index.index()].take() {
                     NodeType {
                         handle: node.handle,
-                        storage: node.storage,
                         kind,
                     }
                 } else {
                     NodeType {
                         handle: node.handle,
-                        storage: node.storage,
                         kind: match node.kind {
                             CheckpointNodeKind::Source((source, checkpoint)) => {
                                 NodeKind::Source(source, checkpoint)

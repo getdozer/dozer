@@ -45,7 +45,7 @@ brew tap getdozer/dozer && brew install dozer
 **Ubuntu 20.04**
 
 ```bash
-curl -sLO https://github.com/getdozer/dozer/releases/download/latest/dozer_linux_x86_64.deb && sudo dpkg -i dozer_linux_x86_64.deb 
+curl -sLO https://github.com/getdozer/dozer/releases/latest/download/dozer-linux-x86_64.deb && sudo dpkg -i dozer-linux-x86_64.deb 
 ```
 
 **Build from source**

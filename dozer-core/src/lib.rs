@@ -5,7 +5,6 @@ pub mod channels;
 mod dag_impl;
 pub use dag_impl::*;
 mod dag_checkpoint;
-mod dag_metadata;
 pub mod dag_schemas;
 pub mod epoch;
 pub mod errors;
@@ -19,4 +18,3 @@ pub mod record_store;
 pub mod tests;
 
 pub use daggy::petgraph;
-pub use dozer_storage as storage;

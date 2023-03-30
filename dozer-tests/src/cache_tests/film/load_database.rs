@@ -18,7 +18,7 @@ pub async fn load_database(
     // Create cache and insert schema.
     let schema = film_schema();
     let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
-    let cache = cache_manager
+    let mut cache = cache_manager
         .create_cache(
             schema.clone(),
             secondary_indexes,
