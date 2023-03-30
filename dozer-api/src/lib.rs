@@ -1,7 +1,7 @@
 use std::{ops::Deref, sync::Arc};
 
 use arc_swap::ArcSwap;
-use dozer_cache::{cache::CacheManager, CacheReader};
+use dozer_cache::{cache::RoCacheManager, CacheReader};
 use dozer_types::{log::info, models::api_endpoint::ApiEndpoint};
 mod api_helper;
 
@@ -12,7 +12,10 @@ pub struct RoCacheEndpoint {
 }
 
 impl RoCacheEndpoint {
-    pub fn new(cache_manager: &dyn CacheManager, endpoint: ApiEndpoint) -> Result<Self, ApiError> {
+    pub fn new(
+        cache_manager: &dyn RoCacheManager,
+        endpoint: ApiEndpoint,
+    ) -> Result<Self, ApiError> {
         let cache_reader = open_cache_reader(cache_manager, &endpoint.name)?;
         Ok(Self {
             cache_reader: ArcSwap::from_pointee(cache_reader),
@@ -28,7 +31,7 @@ impl RoCacheEndpoint {
         &self.endpoint
     }
 
-    pub fn redirect_cache(&self, cache_manager: &dyn CacheManager) -> Result<(), ApiError> {
+    pub fn redirect_cache(&self, cache_manager: &dyn RoCacheManager) -> Result<(), ApiError> {
         let cache_reader = open_cache_reader(cache_manager, &self.endpoint.name)?;
         self.cache_reader.store(Arc::new(cache_reader));
         Ok(())
@@ -36,7 +39,7 @@ impl RoCacheEndpoint {
 }
 
 fn open_cache_reader(
-    cache_manager: &dyn CacheManager,
+    cache_manager: &dyn RoCacheManager,
     name: &str,
 ) -> Result<CacheReader, ApiError> {
     let cache = cache_manager

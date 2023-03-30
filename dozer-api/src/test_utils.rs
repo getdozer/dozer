@@ -5,7 +5,7 @@ use dozer_types::{
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
 };
 
-use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId};
+use dozer_cache::cache::{LmdbRwCacheManager, RecordWithId, RwCacheManager};
 use dozer_types::models::api_endpoint::ConflictResolution;
 
 pub fn get_schema() -> SchemaWithIndex {
@@ -104,8 +104,8 @@ fn get_films() -> Vec<Value> {
 pub fn initialize_cache(
     schema_name: &str,
     schema: Option<SchemaWithIndex>,
-) -> Box<dyn CacheManager> {
-    let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
+) -> Box<LmdbRwCacheManager> {
+    let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     let mut cache = cache_manager
         .create_cache(

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_cache::cache::CacheManager;
+use dozer_cache::cache::RwCacheManager;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -184,7 +184,7 @@ impl<'a> PipelineBuilder<'a> {
     pub fn build(
         &self,
         notifier: Option<PipelineEventSenders>,
-        cache_manager: Arc<dyn CacheManager>,
+        cache_manager: Arc<dyn RwCacheManager>,
         settings: CacheSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;

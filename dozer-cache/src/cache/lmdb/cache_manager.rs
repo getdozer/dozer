@@ -1,12 +1,14 @@
+use std::path::Path;
 use std::{path::PathBuf, sync::Arc};
 
+use dozer_storage::lmdb::RoTransaction;
 use dozer_storage::{
-    errors::StorageError,
-    lmdb::{Database, DatabaseFlags},
-    lmdb_storage::LmdbEnvironmentManager,
+    lmdb_storage::LmdbEnvironmentManager, LmdbEnvironment, LmdbMap, RoLmdbEnvironment,
     RwLmdbEnvironment,
 };
+use dozer_types::borrow::Cow;
 use dozer_types::models::api_endpoint::ConflictResolution;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::{
     parking_lot::Mutex,
     types::{IndexDefinition, Schema},
@@ -14,7 +16,7 @@ use dozer_types::{
 use tempdir::TempDir;
 
 use crate::{
-    cache::{CacheManager, RoCache, RwCache},
+    cache::{RoCache, RoCacheManager, RwCache, RwCacheManager},
     errors::CacheError,
 };
 
@@ -59,16 +61,54 @@ impl Default for CacheManagerOptions {
 }
 
 #[derive(Debug)]
-pub struct LmdbCacheManager {
+pub struct LmdbRoCacheManager {
     options: CacheManagerOptions,
     base_path: PathBuf,
-    alias_db: Database,
-    env: Mutex<RwLmdbEnvironment>,
+    alias_to_real_name: LmdbMap<String, String>,
+    env: RoLmdbEnvironment,
+}
+
+impl LmdbRoCacheManager {
+    pub fn new(options: CacheManagerOptions) -> Result<Self, CacheError> {
+        let base_path = options
+            .path
+            .as_deref()
+            .ok_or(CacheError::PathNotInitialized)?;
+        let env = LmdbEnvironmentManager::create_ro(
+            base_path,
+            LMDB_CACHE_MANAGER_ALIAS_ENV_NAME,
+            Default::default(),
+        )?;
+        let base_path = base_path.to_path_buf();
+        let alias_to_real_name = LmdbMap::open(&env, None)?;
+        Ok(Self {
+            options,
+            base_path,
+            alias_to_real_name,
+            env,
+        })
+    }
+}
+
+impl RoCacheManager for LmdbRoCacheManager {
+    fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError> {
+        let txn = self.env.begin_txn()?;
+        let real_name = resolve_alias(&txn, self.alias_to_real_name, name)?;
+        open_ro_cache(&self.base_path, real_name, &self.options)
+    }
+}
+
+#[derive(Debug)]
+pub struct LmdbRwCacheManager {
+    options: CacheManagerOptions,
+    base_path: PathBuf,
+    alias_to_real_name: LmdbMap<String, String>,
+    env: RwLock<RwLmdbEnvironment>,
     indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
     _temp_dir: Option<TempDir>,
 }
 
-impl LmdbCacheManager {
+impl LmdbRwCacheManager {
     pub fn new(options: CacheManagerOptions) -> Result<Self, CacheError> {
         let (temp_dir, base_path) = match &options.path {
             Some(path) => {
@@ -87,7 +127,7 @@ impl LmdbCacheManager {
             LMDB_CACHE_MANAGER_ALIAS_ENV_NAME,
             Default::default(),
         )?;
-        let alias_db = env.create_database(None, DatabaseFlags::empty())?;
+        let alias_to_real_name = LmdbMap::create(&mut env, None)?;
 
         let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(
             options.num_indexing_threads,
@@ -96,8 +136,8 @@ impl LmdbCacheManager {
         Ok(Self {
             options,
             base_path,
-            alias_db,
-            env: Mutex::new(env),
+            alias_to_real_name,
+            env: RwLock::new(env),
             indexing_thread_pool,
             _temp_dir: temp_dir,
         })
@@ -111,47 +151,39 @@ impl LmdbCacheManager {
     }
 }
 
-impl CacheManager for LmdbCacheManager {
-    fn open_rw_cache(
-        &self,
-        name: &str,
-        conflict_resolution: ConflictResolution,
-    ) -> Result<Option<Box<dyn RwCache>>, CacheError> {
-        let mut env = self.env.lock();
-        // Open a new transaction to make sure we get the latest changes.
-        env.commit()?;
-        let real_name = self.resolve_alias(name, &mut env)?;
-        let real_name = real_name.as_deref().unwrap_or(name);
-        let cache: Option<Box<dyn RwCache>> =
-            if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
-                let cache = LmdbRwCache::new(
-                    None,
-                    &self.cache_options(real_name.to_string()),
-                    self.indexing_thread_pool.clone(),
-                    conflict_resolution,
-                )?;
-                Some(Box::new(cache))
-            } else {
-                None
-            };
-        Ok(cache)
-    }
-
+impl RoCacheManager for LmdbRwCacheManager {
     fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError> {
-        let mut env = self.env.lock();
-        // Open a new transaction to make sure we get the latest changes.
-        env.commit()?;
-        let real_name = self.resolve_alias(name, &mut env)?;
-        let real_name = real_name.as_deref().unwrap_or(name);
+        let env = self.env.read();
+        let txn = env.begin_txn()?;
+        let real_name = resolve_alias(&txn, self.alias_to_real_name, name)?;
 
         // Check if the cache is already opened.
         if let Some(cache) = self.indexing_thread_pool.lock().find_cache(real_name) {
             return Ok(Some(Box::new(cache)));
         }
 
-        let cache: Option<Box<dyn RoCache>> =
+        open_ro_cache(&self.base_path, real_name, &self.options)
+    }
+}
+
+impl RwCacheManager for LmdbRwCacheManager {
+    fn open_rw_cache(
+        &self,
+        name: &str,
+        conflict_resolution: ConflictResolution,
+    ) -> Result<Option<Box<dyn RwCache>>, CacheError> {
+        let env = self.env.read();
+        let txn = env.begin_txn()?;
+        let real_name = resolve_alias(&txn, self.alias_to_real_name, name)?;
+
+        let cache: Option<Box<dyn RwCache>> =
             if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
-                let cache = LmdbRoCache::new(&self.cache_options(real_name.to_string()))?;
+                let cache = LmdbRwCache::new(
+                    None,
+                    &cache_options(&self.options, self.base_path.clone(), real_name.to_string()),
+                    self.indexing_thread_pool.clone(),
+                    conflict_resolution,
+                )?;
                 Some(Box::new(cache))
             } else {
                 None
@@ -168,7 +200,7 @@ impl CacheManager for LmdbCacheManager {
         let name = self.generate_unique_name();
         let cache = LmdbRwCache::new(
             Some(&(schema, indexes)),
-            &self.cache_options(name),
+            &cache_options(&self.options, self.base_path.clone(), name),
             self.indexing_thread_pool.clone(),
             conflict_resolution,
         )?;
@@ -176,8 +208,9 @@ impl CacheManager for LmdbCacheManager {
     }
 
     fn create_alias(&self, name: &str, alias: &str) -> Result<(), CacheError> {
-        let mut env = self.env.lock();
-        env.put(self.alias_db, alias.as_bytes(), name.as_bytes())?;
+        let mut env = self.env.write();
+        self.alias_to_real_name
+            .insert_overwrite(env.txn_mut()?, alias, name)?;
         env.commit()?;
         Ok(())
     }
@@ -185,37 +218,54 @@ impl CacheManager for LmdbCacheManager {
 
 const LMDB_CACHE_MANAGER_ALIAS_ENV_NAME: &str = "__DOZER_CACHE_MANAGER_ALIAS__";
 
-impl LmdbCacheManager {
-    fn cache_options(&self, name: String) -> CacheOptions {
-        CacheOptions {
-            max_db_size: self.options.max_db_size,
-            max_readers: self.options.max_readers,
-            max_size: self.options.max_size,
-            intersection_chunk_size: self.options.intersection_chunk_size,
-            path: Some((self.base_path.clone(), name)),
-        }
-    }
-
+impl LmdbRwCacheManager {
     fn generate_unique_name(&self) -> String {
         uuid::Uuid::new_v4().to_string()
     }
+}
 
-    fn resolve_alias(
-        &self,
-        alias: &str,
-        txn: &mut RwLmdbEnvironment,
-    ) -> Result<Option<String>, StorageError> {
-        let result = txn
-            .get(self.alias_db, alias.as_bytes())
-            .map(|bytes| {
-                bytes.map(|bytes| {
-                    std::str::from_utf8(bytes).expect("Real names should always be utf8 string")
-                })
-            })?
-            .map(|name| name.to_string());
-        txn.commit()?;
-        Ok(result)
+fn resolve_alias<'a>(
+    txn: &'a RoTransaction,
+    alias_to_real_name: LmdbMap<String, String>,
+    name: &'a str,
+) -> Result<&'a str, CacheError> {
+    Ok(match alias_to_real_name.get(txn, name)? {
+        None => name,
+        Some(real_name) => {
+            let Cow::Borrowed(real_name) = real_name else {
+                panic!("String should be zero-copy")
+            };
+            real_name
+        }
+    })
+}
+
+fn cache_options(options: &CacheManagerOptions, base_path: PathBuf, name: String) -> CacheOptions {
+    CacheOptions {
+        max_db_size: options.max_db_size,
+        max_readers: options.max_readers,
+        max_size: options.max_size,
+        intersection_chunk_size: options.intersection_chunk_size,
+        path: Some((base_path, name)),
     }
+}
+
+fn open_ro_cache(
+    base_path: &Path,
+    name: &str,
+    options: &CacheManagerOptions,
+) -> Result<Option<Box<dyn RoCache>>, CacheError> {
+    let cache: Option<Box<dyn RoCache>> = if LmdbEnvironmentManager::exists(base_path, name) {
+        let cache = LmdbRoCache::new(&cache_options(
+            options,
+            base_path.to_path_buf(),
+            name.to_string(),
+        ))?;
+        Some(Box::new(cache))
+    } else {
+        None
+    };
+    Ok(cache)
 }
 
 #[cfg(test)]
@@ -224,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_lmdb_cache_manager() {
-        let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
+        let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
         let real_name = cache_manager
             .create_cache(Schema::empty(), vec![], ConflictResolution::default())
             .unwrap()
