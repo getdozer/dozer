@@ -423,7 +423,7 @@ fn get_binary_operator_type(
                 | (FieldType::I128, FieldType::Int)
                 | (FieldType::UInt, FieldType::I128)
                 | (FieldType::U128, FieldType::I128)
-                | (FieldType::Int, FieldType::I128)=> Ok(ExpressionType::new(
+                | (FieldType::Int, FieldType::I128) => Ok(ExpressionType::new(
                     FieldType::I128,
                     false,
                     SourceDefinition::Dynamic,
