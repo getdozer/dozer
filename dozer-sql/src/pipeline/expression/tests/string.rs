@@ -4,8 +4,7 @@ use crate::pipeline::expression::scalar::string::{
     TrimType,
 };
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
-
-use crate::pipeline::expression::tests::test_common::run_fct;
+use crate::pipeline::expression::tests::test_common::*;
 use proptest::prelude::*;
 
 #[test]

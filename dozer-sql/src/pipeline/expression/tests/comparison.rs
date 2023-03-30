@@ -11,6 +11,7 @@ use dozer_types::{
 };
 use num_traits::FromPrimitive;
 use proptest::prelude::*;
+use crate::pipeline::expression::tests::test_common::*;
 
 #[test]
 fn test_comparison() {

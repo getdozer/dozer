@@ -6,6 +6,9 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefini
 fn test_validate_coalesce() {}
 
 #[test]
+fn test_evaluate_coalesce() {}
+
+#[test]
 fn test_coalesce_logic() {
     let f = run_fct(
         "SELECT COALESCE(field, 2) FROM users",

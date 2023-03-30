@@ -7,7 +7,7 @@ use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::geo::distance::{evaluate_distance, validate_distance, Algorithm};
-use crate::pipeline::expression::tests::test_common::run_fct;
+use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::geo::{GeodesicDistance, HaversineDistance};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{

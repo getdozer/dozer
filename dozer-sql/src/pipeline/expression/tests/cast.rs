@@ -10,8 +10,7 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Schema},
 };
 use num_traits::FromPrimitive;
-
-use crate::pipeline::expression::tests::test_common::run_fct;
+use crate::pipeline::expression::tests::test_common::*;
 
 // #[test]
 // fn test_uint() {

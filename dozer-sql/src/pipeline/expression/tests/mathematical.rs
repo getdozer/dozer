@@ -9,7 +9,7 @@ use dozer_types::{
     types::{Field, Schema},
 };
 use num_traits::FromPrimitive;
-
+use crate::pipeline::expression::tests::test_common::*;
 use crate::pipeline::errors::SqlError::Operation;
 use crate::pipeline::errors::{OperationError, PipelineError};
 use proptest::prelude::*;

@@ -49,7 +49,7 @@ pub(crate) fn validate_coalesce(
     args: &[Expression],
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
-    if args.len() < 1 {
+    if args.is_empty() {
         return Err(NotEnoughArguments(
             ConditionalExpressionType::Coalesce.to_string(),
         ));

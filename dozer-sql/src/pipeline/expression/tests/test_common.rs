@@ -63,7 +63,7 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
 }
 
 #[derive(Debug)]
-pub struct ArbitraryDecimal(Decimal);
+pub struct ArbitraryDecimal(pub Decimal);
 
 impl Arbitrary for ArbitraryDecimal {
     type Parameters = ();
@@ -77,7 +77,7 @@ impl Arbitrary for ArbitraryDecimal {
 }
 
 #[derive(Debug)]
-pub struct ArbitraryDateTime(DateTime<FixedOffset>);
+pub struct ArbitraryDateTime(pub DateTime<FixedOffset>);
 
 impl Arbitrary for ArbitraryDateTime {
     type Parameters = ();

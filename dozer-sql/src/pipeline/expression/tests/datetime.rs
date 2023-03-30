@@ -1,12 +1,9 @@
+use num_traits::ToPrimitive;
 use crate::pipeline::expression::datetime::evaluate_date_part;
 use crate::pipeline::expression::execution::Expression;
-use dozer_types::chrono::{
-    DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike,
-};
-
+use dozer_types::chrono::{Datelike, DateTime, NaiveDate};
 use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
-use num_traits::ToPrimitive;
 use proptest::prelude::*;
 use sqlparser::ast::DateTimeField;
 
