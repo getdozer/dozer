@@ -362,12 +362,7 @@ impl ExpressionBuilder {
             return scalar_check;
         }
 
-        self.conditional_expr_check(
-            function_name,
-            parse_aggregations,
-            sql_function,
-            schema,
-        )
+        self.conditional_expr_check(function_name, parse_aggregations, sql_function, schema)
     }
 
     fn parse_sql_function_arg(
