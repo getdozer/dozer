@@ -3,6 +3,7 @@ use crate::pipeline::expression::comparison::{
 };
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
+use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::types::Record;
 use dozer_types::{
     ordered_float::OrderedFloat,
@@ -11,20 +12,6 @@ use dozer_types::{
 };
 use num_traits::FromPrimitive;
 use proptest::prelude::*;
-
-#[derive(Debug)]
-struct ArbitraryDecimal(Decimal);
-
-impl Arbitrary for ArbitraryDecimal {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (i64::MIN..i64::MAX, u32::MIN..29u32)
-            .prop_map(|(num, scale)| ArbitraryDecimal(Decimal::new(num, scale)))
-            .boxed()
-    }
-}
 
 #[test]
 fn test_comparison() {
