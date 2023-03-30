@@ -10,8 +10,8 @@ use crate::cache::{
 };
 use crate::errors::{CacheError, PlanError};
 use dozer_storage::errors::StorageError;
-use dozer_storage::lmdb::Transaction;
-use dozer_storage::BeginTransaction;
+use dozer_storage::lmdb::{RoTransaction, Transaction};
+use dozer_storage::LmdbEnvironment;
 use dozer_types::borrow::IntoOwned;
 use itertools::Either;
 
@@ -99,8 +99,7 @@ impl<'a, C: LmdbCache> LmdbQueryHandler<'a, C> {
     fn create_secondary_txns(
         &self,
         index_scans: &[IndexScan],
-    ) -> Result<Vec<<C::SecondaryEnvironment as BeginTransaction>::Transaction<'_>>, StorageError>
-    {
+    ) -> Result<Vec<RoTransaction<'_>>, StorageError> {
         index_scans
             .iter()
             .map(|index_scan| self.cache.secondary_env(index_scan.index_id).begin_txn())

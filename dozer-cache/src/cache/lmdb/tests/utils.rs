@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use dozer_types::models::api_endpoint::ConflictResolution;
+use dozer_types::parking_lot::Mutex;
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaWithIndex};
 
 use crate::cache::{
@@ -13,16 +16,16 @@ pub fn create_cache(
     schema_gen: impl FnOnce() -> SchemaWithIndex,
 ) -> (
     LmdbRwCache,
-    IndexingThreadPool,
+    Arc<Mutex<IndexingThreadPool>>,
     Schema,
     Vec<IndexDefinition>,
 ) {
     let schema = schema_gen();
-    let mut indexing_thread_pool = IndexingThreadPool::new(1);
+    let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(1)));
     let cache = LmdbRwCache::new(
         Some(&schema),
         &Default::default(),
-        &mut indexing_thread_pool,
+        indexing_thread_pool.clone(),
         ConflictResolution::default(),
     )
     .unwrap();
@@ -30,7 +33,7 @@ pub fn create_cache(
 }
 
 pub fn insert_rec_1(
-    cache: &LmdbRwCache,
+    cache: &mut LmdbRwCache,
     schema: &Schema,
     (a, b, c): (i64, Option<String>, Option<i64>),
 ) {
@@ -47,7 +50,7 @@ pub fn insert_rec_1(
 }
 
 pub fn insert_full_text(
-    cache: &LmdbRwCache,
+    cache: &mut LmdbRwCache,
     schema: &Schema,
     (a, b): (Option<String>, Option<String>),
 ) {

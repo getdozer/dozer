@@ -38,4 +38,3 @@ endpoints:
       primary_key: 
 
 cache_max_map_size: 2147483648
-app_max_map_size: 2147483648
