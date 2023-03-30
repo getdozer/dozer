@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression, Skip};
-use dozer_cache::cache::{index, test_utils, CacheManager, LmdbCacheManager, RwCache};
+use dozer_cache::cache::{index, test_utils, LmdbRwCacheManager, RwCache, RwCacheManager};
 use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::serde_json::Value;
@@ -51,7 +51,7 @@ fn query(cache: &Mutex<Box<dyn RwCache>>, _n: usize) {
 
 fn cache(c: &mut Criterion) {
     let (schema, secondary_indexes) = test_utils::schema_0();
-    let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
+    let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
     let cache = Mutex::new(
         cache_manager
             .create_cache(
