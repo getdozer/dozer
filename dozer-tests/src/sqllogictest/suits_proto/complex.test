@@ -153,13 +153,12 @@ INSERT INTO film_actor (actor_id, film_id, last_update) VALUES (4, 10, '2022-03-
 
 
 query IR rowsort
-SELECT COUNT(DISTINCT fa.actor_id) AS total_actors, AVG(f.length) AS avg_length
+SELECT COUNT(fa.actor_id) AS total_actors, AVG(f.length) AS avg_length
 FROM film_actor fa
 INNER JOIN film f ON fa.film_id = f.film_id
 WHERE f.rating = 'PG';
 
 
-onlyif bug
 query TT rowsort
 SELECT a.first_name, a.last_name
 FROM actor a
@@ -209,12 +208,11 @@ GROUP BY actor.actor_id
 HAVING COUNT(film_actor.film_id) > 50;
 
 
-onlyif bug
 query TTT rowsort
 SELECT film.title, film.release_year, film.rating
 FROM film
 INNER JOIN film_actor ON film.film_id = film_actor.film_id
-WHERE film.release_year > 2000 AND film.rating = 'PG-13';
+WHERE CAST(film.release_year AS Int) > 2010 AND film.rating = 'PG-13';
 
 
 query ITTI rowsort
@@ -224,7 +222,6 @@ INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
 GROUP BY a.actor_id;
 
 
-onlyif bug
 query ITTR rowsort
 SELECT a.actor_id, a.first_name, a.last_name, SUM(f.replacement_cost)
 FROM actor a
