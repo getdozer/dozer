@@ -1114,7 +1114,7 @@ macro_rules! define_math_operator {
                                         PipelineError::UnableToCast(
                                             format!("{}", left_v),
                                             "Decimal".to_string(),
-                                        )
+                                        ),
                                     )?,
                                 ))),
                                 // left: Decimal, right: UInt
@@ -1134,7 +1134,7 @@ macro_rules! define_math_operator {
                                         PipelineError::UnableToCast(
                                             format!("{}", right_v),
                                             "Decimal".to_string(),
-                                        )
+                                        ),
                                     )?,
                                 ))),
                                 // left: Decimal, right: Float
