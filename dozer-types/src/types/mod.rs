@@ -241,7 +241,7 @@ impl Display for Record {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// A CDC event.
 pub enum Operation {
     Delete { old: Record },

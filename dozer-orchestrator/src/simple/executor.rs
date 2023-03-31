@@ -76,7 +76,7 @@ impl<'a> Executor<'a> {
             self.pipeline_dir,
         );
 
-        let dag = builder.build(notifier, cache_manager, settings)?;
+        let dag = builder.build(settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {
