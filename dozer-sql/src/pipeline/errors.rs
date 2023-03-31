@@ -63,9 +63,11 @@ pub enum PipelineError {
         "Invalid argument type for function {0}(): type: {1}, expected types: {2}, index: {3}"
     )]
     InvalidFunctionArgumentType(String, FieldType, FieldTypes, usize),
+    #[error("Mismatching argument types for {0}(): {1}, consider using CAST function")]
+    InvalidConditionalExpression(String, FieldTypes),
     #[error("Invalid cast: from: {from}, to: {to}")]
     InvalidCast { from: Field, to: FieldType },
-    #[error("{0}() cannot be called frome here. Aggregations can only be used in SELECT and HAVING and cannot be nested within other aggregations.")]
+    #[error("{0}() cannot be called from here. Aggregations can only be used in SELECT and HAVING and cannot be nested within other aggregations.")]
     InvalidNestedAggregationFunction(String),
     #[error("Field {0} is not present in the source schema")]
     UnknownFieldIdentifier(String),

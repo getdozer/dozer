@@ -1,6 +1,6 @@
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
-use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
+use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 use proptest::prelude::*;
@@ -89,7 +89,7 @@ fn test_round() {
 #[test]
 fn test_abs_logic() {
     proptest!(ProptestConfig::with_cases(1000), |(i_num in 0i64..100000000i64)| {
-        let f = run_scalar_fct(
+        let f = run_fct(
             "SELECT ABS(c) FROM USERS",
             Schema::empty()
                 .field(

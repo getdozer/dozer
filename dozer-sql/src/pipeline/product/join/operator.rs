@@ -223,7 +223,7 @@ impl JoinOperator {
 
         // no joining records on the right branch
         if left_records.is_empty() {
-            let join_record = join_records(right_record, &self.left_default_record);
+            let join_record = join_records(&self.left_default_record, right_record);
             return Ok(vec![(action.clone(), join_record)]);
         }
 

@@ -17,7 +17,7 @@ use dozer_api::{
     grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
     rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{CacheManager, LmdbCacheManager};
+use dozer_cache::cache::{LmdbRoCacheManager, LmdbRwCacheManager, RoCacheManager, RwCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_core::errors::ExecutionError::InternalError;
@@ -36,7 +36,7 @@ use futures::{StreamExt, TryFutureExt};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::oneshot;
@@ -55,8 +55,8 @@ impl SimpleOrchestrator {
 impl Orchestrator for SimpleOrchestrator {
     fn run_api(
         &mut self,
-        running: Arc<AtomicBool>,
-        cache_manager: Option<Arc<dyn CacheManager>>,
+        _running: Arc<AtomicBool>,
+        cache_manager: Option<Arc<dyn RoCacheManager>>,
     ) -> Result<(), OrchestrationError> {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
@@ -84,7 +84,10 @@ impl Orchestrator for SimpleOrchestrator {
             let cache_manager = if let Some(cache_manager) = cache_manager {
                 cache_manager
             } else {
-                create_cache_manager(&self.config)?
+                Arc::new(
+                    LmdbRoCacheManager::new(get_cache_manager_options(&self.config))
+                        .map_err(OrchestrationError::RoCacheInitFailed)?,
+                )
             };
             let cache_endpoints = self
                 .config
@@ -148,8 +151,6 @@ impl Orchestrator for SimpleOrchestrator {
             let server_handle = rx
                 .recv()
                 .map_err(OrchestrationError::GrpcServerHandleError)?;
-            // Waiting for Ctrl+C
-            while running.load(Ordering::Relaxed) {}
 
             sender_shutdown.send(()).unwrap();
             rest::ApiServer::stop(server_handle);
@@ -164,7 +165,7 @@ impl Orchestrator for SimpleOrchestrator {
         &mut self,
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
-        cache_manager: Option<Arc<dyn CacheManager>>,
+        cache_manager: Option<Arc<dyn RwCacheManager>>,
     ) -> Result<(), OrchestrationError> {
         // gRPC notifier channel
         let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
@@ -195,7 +196,7 @@ impl Orchestrator for SimpleOrchestrator {
         let cache_manager = if let Some(cache_manager) = cache_manager {
             cache_manager
         } else {
-            create_cache_manager(&self.config)?
+            create_rw_cache_manager(&self.config)?
         };
         let dag_executor = executor.create_dag_executor(
             Some((alias_redirected_sender, operation_sender)),
@@ -281,7 +282,7 @@ impl Orchestrator for SimpleOrchestrator {
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
         let settings = CacheSinkSettings::new(api_dir.clone(), flags, api_security);
-        let dag = builder.build(None, create_cache_manager(&self.config)?, settings)?;
+        let dag = builder.build(None, create_rw_cache_manager(&self.config)?, settings)?;
         // Populate schemas.
         DagSchemas::new(dag)?;
 
@@ -316,8 +317,7 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         let running_api = running.clone();
-        let running_wait = running.clone();
-        let cache_manager_app = create_cache_manager(&self.config)?;
+        let cache_manager_app = create_rw_cache_manager(&self.config)?;
         let cache_manager_api = cache_manager_app.clone();
         // TODO: remove this after checkpointing
         self.clean()?;
@@ -353,8 +353,6 @@ impl Orchestrator for SimpleOrchestrator {
             }
         });
 
-        while running_wait.load(Ordering::Relaxed) {}
-
         // wait for threads to shutdown gracefully
         pipeline_thread.join().unwrap();
         Ok(())
@@ -381,14 +379,14 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
     )
 }
 
-fn create_cache_manager(config: &Config) -> Result<Arc<dyn CacheManager>, OrchestrationError> {
-    LmdbCacheManager::new(get_cache_manager_options(config))
-        .map(|manager| Arc::new(manager) as Arc<dyn CacheManager>)
-        .map_err(OrchestrationError::CacheInitFailed)
+fn create_rw_cache_manager(config: &Config) -> Result<Arc<LmdbRwCacheManager>, OrchestrationError> {
+    LmdbRwCacheManager::new(get_cache_manager_options(config))
+        .map(Arc::new)
+        .map_err(OrchestrationError::RwCacheInitFailed)
 }
 
 async fn redirect_cache_endpoints(
-    cache_manager: Arc<dyn CacheManager>,
+    cache_manager: Arc<dyn RoCacheManager>,
     cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
     mut alias_redirected_receiver: Receiver<AliasRedirected>,
 ) -> Result<(), OrchestrationError> {

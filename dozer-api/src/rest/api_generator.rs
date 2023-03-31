@@ -8,7 +8,7 @@ use dozer_cache::CacheReader;
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::errors::types::TypeError;
 use dozer_types::indexmap::IndexMap;
-use dozer_types::log::info;
+use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, Schema, DATE_FORMAT};
@@ -86,7 +86,7 @@ pub async fn list(
         Err(e) => match e {
             ApiError::QueryFailed(_) => {
                 let res: Vec<String> = vec![];
-                info!("No records found.");
+                warn!("No records found.");
                 Ok(HttpResponse::Ok().json(res))
             }
             _ => Err(ApiError::InternalError(Box::new(e))),

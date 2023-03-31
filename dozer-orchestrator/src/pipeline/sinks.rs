@@ -3,7 +3,7 @@ use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_api::grpc::types_helper;
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::index::get_primary_key;
-use dozer_cache::cache::{CacheManager, RwCache};
+use dozer_cache::cache::{RwCache, RwCacheManager};
 use dozer_core::errors::{ExecutionError, SinkError};
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -61,7 +61,7 @@ impl CacheSinkSettings {
 }
 #[derive(Debug)]
 pub struct CacheSinkFactory {
-    cache_manager: Arc<dyn CacheManager>,
+    cache_manager: Arc<dyn RwCacheManager>,
     api_endpoint: ApiEndpoint,
     notifier: Option<PipelineEventSenders>,
     multi_pb: MultiProgress,
@@ -70,7 +70,7 @@ pub struct CacheSinkFactory {
 
 impl CacheSinkFactory {
     pub fn new(
-        cache_manager: Arc<dyn CacheManager>,
+        cache_manager: Arc<dyn RwCacheManager>,
         api_endpoint: ApiEndpoint,
         notifier: Option<PipelineEventSenders>,
         multi_pb: MultiProgress,
@@ -240,7 +240,7 @@ fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
 }
 
 fn open_or_create_cache(
-    cache_manager: &dyn CacheManager,
+    cache_manager: &dyn RwCacheManager,
     name: &str,
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
@@ -297,7 +297,7 @@ fn open_or_create_cache(
 }
 
 fn create_alias(
-    cache_manager: &dyn CacheManager,
+    cache_manager: &dyn RwCacheManager,
     name: &str,
     alias: &str,
 ) -> Result<(), ExecutionError> {
@@ -312,7 +312,7 @@ fn create_alias(
 
 #[derive(Debug)]
 pub struct CacheSink {
-    cache_manager: Arc<dyn CacheManager>,
+    cache_manager: Arc<dyn RwCacheManager>,
     cache: Box<dyn RwCache>,
     counter: usize,
     // Number of records in the cache that's currently served, if that's different from the one being written to.
@@ -518,7 +518,7 @@ impl Sink for CacheSink {
 
 impl CacheSink {
     pub fn new(
-        cache_manager: Arc<dyn CacheManager>,
+        cache_manager: Arc<dyn RwCacheManager>,
         api_endpoint: ApiEndpoint,
         schema: Schema,
         secondary_indexes: Vec<IndexDefinition>,

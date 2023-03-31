@@ -29,7 +29,7 @@ pub enum ApiError {
     NotFound(#[source] CacheError),
     #[error("Failed to count records")]
     CountFailed(#[source] CacheError),
-    #[error("Failed to query cache")]
+    #[error("Failed to query cache: {0}")]
     QueryFailed(#[source] CacheError),
     #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
