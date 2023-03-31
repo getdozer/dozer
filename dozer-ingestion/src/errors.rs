@@ -87,6 +87,9 @@ pub enum ConnectorError {
 
     #[error("Runtime creation error")]
     RuntimeCreationError(#[from] std::io::Error),
+
+    #[error("Kafka Feature is not enabled")]
+    KafkaFeatureNotEnabled,
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {
@@ -307,6 +310,7 @@ pub enum DebeziumError {
     #[error(transparent)]
     DebeziumSchemaError(#[from] DebeziumSchemaError),
 
+    #[cfg(feature = "kafka")]
     #[error("Connection error")]
     DebeziumConnectionError(#[source] kafka::Error),
 
@@ -316,6 +320,7 @@ pub enum DebeziumError {
     #[error("Bytes convert error")]
     BytesConvertError(#[source] Utf8Error),
 
+    #[cfg(feature = "kafka")]
     #[error(transparent)]
     DebeziumStreamError(#[from] DebeziumStreamError),
 
@@ -326,6 +331,7 @@ pub enum DebeziumError {
     TopicNotDefined,
 }
 
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
 pub enum DebeziumStreamError {
     #[error("Consume commit error")]
