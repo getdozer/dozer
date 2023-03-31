@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
-use dozer_api::errors::{ApiError, GrpcError};
+use dozer_api::errors::{ApiError, GenerationError, GrpcError};
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
@@ -16,6 +16,8 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("Failed to initialize. {0}[/api/generated,/cache] are not empty. Use -f to clean the directory and overwrite. Warning! there will be data loss.")]
     InitializationFailed(String),
+    #[error("Failed to generate proto files: {0:?}")]
+    FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Failed to initialize pipeline_dir. Is the path {0:?} accessible?: {1}")]
     PipelineDirectoryInitFailed(String, #[source] std::io::Error),
     #[error("Can't locate pipeline_dir. Have you run `dozer migrate`?")]
@@ -56,6 +58,12 @@ pub enum OrchestrationError {
     DuplicateTable(String),
     #[error("Configuration Error: {0:?}")]
     ConfigError(String),
+    #[error("Loading Schema failed: {0:?}")]
+    SchemaLoadFailed(#[source] CacheError),
+    #[error("Schemas not found in Path specified {0:?}")]
+    SchemasNotInitializedPath(PathBuf),
+    #[error("Cannot convert Schemas in Path specified {0:?}")]
+    DeserializeSchemas(PathBuf),
 }
 
 #[derive(Error, Debug)]

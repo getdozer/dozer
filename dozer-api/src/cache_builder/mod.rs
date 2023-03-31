@@ -19,15 +19,17 @@ use crate::grpc::types_helper;
 use self::log_reader::LogReader;
 
 mod log_reader;
+pub const SCHEMA_FILE_NAME: &str = "schemas.json";
 
 pub fn create_cache(
     cache_manager: &dyn RwCacheManager,
+    schema: Schema,
     log_path: &Path,
     conflict_resolution: ConflictResolution,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
 ) -> Result<(String, impl Future<Output = Result<(), CacheError>>), CacheError> {
     // Create log reader.
-    let (log_reader, schema) = LogReader::new(log_path);
+    let log_reader = LogReader::new(log_path)?;
     // Automatically create secondary indexes
     let secondary_indexes = generate_secondary_indexes(&schema.fields);
     // Create the cache.

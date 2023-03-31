@@ -97,6 +97,23 @@ impl<T> DagSchemas<T> {
     pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
         self.graph
     }
+
+    pub fn get_sink_schemas(&self) -> HashMap<String, Vec<Schema>> {
+        let mut schemas = HashMap::new();
+
+        for (node_index, node) in self.graph.node_references() {
+            if let NodeKind::Sink(_) = &node.kind {
+                let input_schemas = self.get_node_input_schemas(node_index);
+
+                schemas.insert(
+                    node.handle.id.clone(),
+                    input_schemas.values().cloned().collect(),
+                );
+            }
+        }
+
+        schemas
+    }
 }
 
 impl<T: Clone> DagSchemas<T> {

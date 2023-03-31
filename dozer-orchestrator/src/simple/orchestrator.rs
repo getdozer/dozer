@@ -1,8 +1,10 @@
 use super::executor::Executor;
+use super::schemas::load_schemas;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
+use crate::simple::schemas::write_schemas;
 use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_cache_manager_options,
     get_endpoint_log_path, get_executor_options, get_grpc_config, get_pipeline_dir,
@@ -57,6 +59,24 @@ impl Orchestrator for SimpleOrchestrator {
         rt.block_on(async {
             let mut futures = FuturesUnordered::new();
 
+            // Load schemas.
+            let pipeline_path = get_pipeline_dir(&self.config);
+            let schemas = load_schemas(&pipeline_path).map_err(|e| {
+                error!("Failed to load schemas: {}", e);
+                OrchestrationError::SchemaLoadFailed(e)
+            })?;
+            let api_dir = get_api_dir(&self.config);
+            let api_config = self.config.api.clone().unwrap_or_default();
+            for (schema_name, schema) in &schemas {
+                ProtoGenerator::generate(
+                    &api_dir,
+                    schema_name,
+                    schema,
+                    &api_config.api_security,
+                    &self.config.flags,
+                )?;
+            }
+
             // Open `RoCacheEndpoint`s. Streaming operations if necessary.
             let flags = self.config.flags.clone().unwrap_or_default();
             let (operations_sender, operations_receiver) = if flags.dynamic {
@@ -65,6 +85,7 @@ impl Orchestrator for SimpleOrchestrator {
             } else {
                 (None, None)
             };
+
             let cache_manager = Arc::new(
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::RoCacheInitFailed)?,
@@ -75,9 +96,13 @@ impl Orchestrator for SimpleOrchestrator {
                 .endpoints
                 .iter()
                 .map(|endpoint| -> Result<Arc<CacheEndpoint>, ApiError> {
+                    let schema = schemas
+                        .get(&endpoint.name)
+                        .expect("schema is expected to exist");
                     let log_path = get_endpoint_log_path(&pipeline_dir, &endpoint.name);
                     let (cache_endpoint, task) = CacheEndpoint::new(
                         &*cache_manager,
+                        schema.clone(),
                         endpoint.clone(),
                         &log_path,
                         operations_sender.clone(),
@@ -234,7 +259,10 @@ impl Orchestrator for SimpleOrchestrator {
         };
         let dag = builder.build(settings)?;
         // Populate schemas.
-        DagSchemas::new(dag)?;
+        let dag_schemas = DagSchemas::new(dag)?;
+
+        // Write schemas to pipeline_dir
+        write_schemas(&dag_schemas, pipeline_home_dir.clone())?;
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {

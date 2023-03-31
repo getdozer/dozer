@@ -1,8 +1,10 @@
-use std::{ops::Deref, path::Path, sync::Arc};
-
 use arc_swap::ArcSwap;
 use dozer_cache::{cache::RwCacheManager, errors::CacheError, CacheReader};
-use dozer_types::{grpc_types::types::Operation, log::info, models::api_endpoint::ApiEndpoint};
+use dozer_types::{
+    grpc_types::types::Operation, log::info, models::api_endpoint::ApiEndpoint, types::Schema,
+};
+use std::{ops::Deref, path::Path, sync::Arc};
+
 mod api_helper;
 
 #[derive(Debug)]
@@ -14,6 +16,7 @@ pub struct CacheEndpoint {
 impl CacheEndpoint {
     pub fn new(
         cache_manager: &dyn RwCacheManager,
+        schema: Schema,
         endpoint: ApiEndpoint,
         log_path: &Path,
         operations_sender: Option<Sender<Operation>>,
@@ -26,6 +29,7 @@ impl CacheEndpoint {
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
             let (cache_name, task) = cache_builder::create_cache(
                 cache_manager,
+                schema,
                 &log_path,
                 endpoint.conflict_resolution.unwrap_or_default(),
                 operations_sender,
@@ -86,6 +90,7 @@ pub mod rest;
 // Re-exports
 pub use actix_web;
 pub use async_trait;
+pub use cache_builder::load_schemas;
 use errors::ApiError;
 use futures_util::Future;
 pub use openapiv3;

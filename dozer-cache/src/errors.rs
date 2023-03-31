@@ -19,6 +19,10 @@ pub enum CacheError {
     Plan(#[from] PlanError),
     #[error("Type error: {0}")]
     Type(#[from] TypeError),
+
+    #[error("Log error: {0}")]
+    LogError(#[from] LogError),
+
     #[error("Storage error: {0}")]
     Storage(#[from] dozer_storage::errors::StorageError),
     #[error("Schema is not found")]
@@ -43,6 +47,8 @@ pub enum CacheError {
     PrimaryKeyNotFound,
     #[error("Primary key already exists")]
     PrimaryKeyExists,
+    #[error("Cannot find log file {0:?}")]
+    LogFileNotFound(PathBuf),
 }
 
 impl CacheError {
@@ -64,7 +70,11 @@ impl CacheError {
         )
     }
 }
-
+#[derive(Error, Debug)]
+pub enum LogError {
+    #[error("Failed to read n bytes - {0:?}")]
+    ReadError(#[source] std::io::Error),
+}
 #[derive(Error, Debug)]
 pub enum QueryError {
     #[error("Failed to get a record by id - {0:?}")]

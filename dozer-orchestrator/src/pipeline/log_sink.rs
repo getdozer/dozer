@@ -27,8 +27,6 @@ pub struct LogSinkSettings {
     pub pipeline_dir: PathBuf,
 }
 
-const SCHEMA_FILE_NAME: &str = "schemas.json";
-
 #[derive(Debug, Clone)]
 pub struct LogSinkFactory {
     settings: LogSinkSettings,
@@ -102,26 +100,6 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
         &self,
         input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
-        // Get output schema.
-        let schema = self.get_output_schema(
-            input_schemas
-                .into_iter()
-                .map(|(key, (schema, _))| (key, schema))
-                .collect(),
-        )?;
-
-        schema.print().printstd();
-
-        let path = Path::new(&self.settings.pipeline_dir).join(SCHEMA_FILE_NAME);
-        let mut file = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .open(path)
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-
-        writeln!(file, "{}", serde_json::to_string(&schema).unwrap())
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-
         Ok(())
     }
 
