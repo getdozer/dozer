@@ -63,7 +63,7 @@ jobs:
           fi
 
   release-linux-aarch64:
-    name: Publish binary for aarch64
+    name: Release Linux binary for aarch64
     runs-on: ${{ matrix.os }}
     needs: prepare
     strategy:
@@ -79,16 +79,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Installing Rust toolchain
+      - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
           profile: minimal
+          toolchain: stable
           target: ${{ matrix.target }}
-          override: true
+          components: rustfmt, clippy
       - name: APT update
         run: |
           sudo apt update
+          sudo apt-get install -y openssl:armhf
+          sudo apt-get install -y libssl-dev:armhf
       - name: Install target specific tools
         if: matrix.use-cross
         run: |
