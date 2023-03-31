@@ -75,6 +75,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
             linker: gcc-aarch64-linux-gnu
             use-cross: true
+            file_name: dozer
             asset_name: dozer-linux-aarch64
     steps:
       - name: Checkout repository
@@ -113,6 +114,29 @@ jobs:
           args: --release --target ${{ matrix.target }}
       - name: List target output files
         run: ls -lR ./target
+      
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p release
+          cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
+          cp target/release/${{matrix.file_name}} release/
+
+          mv release/ ${{matrix.asset_name}}/
+
+          tar -czvf ${{matrix.asset_name}}.tar.gz ${{matrix.asset_name}}/
+
+      - name: Upload the release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{matrix.asset_name}}*
+          file_glob: true
+          overwrite: true
+          tag: ${{ needs.prepare.outputs.version }}
+          release_name: "Development Release - ${{ needs.prepare.outputs.version }}"
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          body: "${{ needs.prepare.outputs.release_body }}"
 
   release:
     name: Release
