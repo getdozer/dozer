@@ -75,6 +75,10 @@ jobs:
             file_name: dozer
             target: x86_64-unknown-linux-gnu
             asset_name: dozer-linux-amd64
+          - os: ubuntu-20-16-cores
+            file_name: dozer
+            target: aarch64-unknown-linux-gnu
+            asset_name: dozer-linux-arm64
           - os: macos-12
             file_name: dozer
             target: x86_64-apple-darwin
