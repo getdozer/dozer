@@ -1,3 +1,4 @@
+#[cfg(feature = "ethereum")]
 pub mod ethereum;
 pub mod grpc;
 #[cfg(feature = "kafka")]
@@ -28,7 +29,9 @@ use dozer_types::types::{FieldType, Schema};
 pub mod delta_lake;
 pub mod snowflake;
 
+#[cfg(feature = "ethereum")]
 use self::ethereum::{EthLogConnector, EthTraceConnector};
+
 use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
@@ -161,6 +164,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             }
             Ok(Box::new(PostgresConnector::new(postgres_config)))
         }
+        #[cfg(feature = "ethereum")]
         ConnectionConfig::Ethereum(eth_config) => match eth_config.provider.unwrap() {
             dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => Ok(Box::new(
                 EthLogConnector::new(2, log_config, connection.name),
@@ -169,6 +173,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 EthTraceConnector::new(2, trace_config, connection.name),
             )),
         },
+        ConnectionConfig::Ethereum(_) => Err(ConnectorError::EthereumFeatureNotEnabled),
         ConnectionConfig::Grpc(grpc_config) => match grpc_config.adapter.as_str() {
             "arrow" => Ok(Box::new(GrpcConnector::<ArrowAdapter>::new(
                 3,

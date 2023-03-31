@@ -72,6 +72,7 @@ pub enum ConnectorError {
     #[error("Failed to send message on channel")]
     IngestorError(#[source] IngestorError),
 
+    #[cfg(feature = "ethereum")]
     #[error("Error in Eth Connection: {0}")]
     EthError(#[source] web3::Error),
 
@@ -90,8 +91,11 @@ pub enum ConnectorError {
     #[error("Runtime creation error")]
     RuntimeCreationError(#[from] std::io::Error),
 
-    #[error("Kafka Feature is not enabled")]
+    #[error("kafka feature is not enabled")]
     KafkaFeatureNotEnabled,
+
+    #[error("ethereum feature is not enabled")]
+    EthereumFeatureNotEnabled,
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {
