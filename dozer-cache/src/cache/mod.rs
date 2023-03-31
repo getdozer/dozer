@@ -8,7 +8,7 @@ use dozer_types::{
     serde::{Deserialize, Serialize},
     types::{IndexDefinition, Record, Schema, SchemaWithIndex},
 };
-pub use lmdb::cache_manager::{CacheManagerOptions, LmdbCacheManager};
+pub use lmdb::cache_manager::{CacheManagerOptions, LmdbRoCacheManager, LmdbRwCacheManager};
 pub mod expression;
 pub mod index;
 mod plan;
@@ -27,7 +27,14 @@ impl RecordWithId {
     }
 }
 
-pub trait CacheManager: Send + Sync + Debug {
+pub trait RoCacheManager: Send + Sync + Debug {
+    /// Opens a cache in read-only mode with given name or an alias with that name.
+    ///
+    /// If the name is both an alias and a real name, it's treated as an alias.
+    fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError>;
+}
+
+pub trait RwCacheManager: RoCacheManager {
     /// Opens a cache in read-write mode with given name or an alias with that name.
     ///
     /// If the name is both an alias and a real name, it's treated as an alias.
@@ -36,11 +43,6 @@ pub trait CacheManager: Send + Sync + Debug {
         name: &str,
         conflict_resolution: ConflictResolution,
     ) -> Result<Option<Box<dyn RwCache>>, CacheError>;
-
-    /// Opens a cache in read-only mode with given name or an alias with that name.
-    ///
-    /// If the name is both an alias and a real name, it's treated as an alias.
-    fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError>;
 
     /// Creates a new cache with given `schema`s, which can also be opened in read-only mode using `open_ro_cache`.
     ///

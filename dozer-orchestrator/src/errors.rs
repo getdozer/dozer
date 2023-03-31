@@ -18,7 +18,7 @@ pub enum OrchestrationError {
     InitializationFailed(String),
     #[error("Failed to initialize pipeline_dir. Is the path {0:?} accessible?: {1}")]
     PipelineDirectoryInitFailed(String, #[source] std::io::Error),
-    #[error("Can't locate pipeline_dir. Has dozer been initialized(dozer init) ?")]
+    #[error("Can't locate pipeline_dir. Have you run `dozer migrate`?")]
     PipelineDirectoryNotFound(String),
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
@@ -28,10 +28,10 @@ pub enum OrchestrationError {
     GrpcServerFailed(#[from] GrpcError),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] tonic::transport::Error),
-    #[error(
-        "{0}: Failed to initialize read only cache. Has dozer been initialized (`dozer init`)?"
-    )]
-    CacheInitFailed(#[source] CacheError),
+    #[error("Failed to initialize cache: {0}")]
+    RwCacheInitFailed(#[source] CacheError),
+    #[error("{0}: Failed to initialize read only cache. Have you run `dozer migrate`?")]
+    RoCacheInitFailed(#[source] CacheError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
     #[error(transparent)]

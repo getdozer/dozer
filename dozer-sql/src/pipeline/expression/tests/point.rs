@@ -1,5 +1,5 @@
 use crate::pipeline::expression::geo::point::{evaluate_point, validate_point};
-use crate::pipeline::expression::geo::tests::geo_common::run_geo_fct;
+use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
     DozerPoint, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition,
@@ -187,7 +187,7 @@ fn test_evaluate_point(x: i64, y: i64) {
 
 #[test]
 fn test_point_logical() {
-    let f = run_geo_fct(
+    let f = run_fct(
         "SELECT POINT(x, y) FROM LOCATION",
         Schema::empty()
             .field(
@@ -219,7 +219,7 @@ fn test_point_logical() {
 
 #[test]
 fn test_point_with_nullable_parameter() {
-    let f = run_geo_fct(
+    let f = run_fct(
         "SELECT POINT(x, y) FROM LOCATION",
         Schema::empty()
             .field(

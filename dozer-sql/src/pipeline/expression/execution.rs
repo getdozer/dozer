@@ -4,6 +4,9 @@ use crate::pipeline::aggregation::max::validate_max;
 use crate::pipeline::aggregation::min::validate_min;
 use crate::pipeline::aggregation::sum::validate_sum;
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::conditional::{
+    get_conditional_expr_type, ConditionalExpressionType,
+};
 use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -37,6 +40,10 @@ pub enum Expression {
     },
     GeoFunction {
         fun: GeoFunctionType,
+        args: Vec<Expression>,
+    },
+    ConditionalExpression {
+        fun: ConditionalExpressionType,
         args: Vec<Expression>,
     },
     DateTimeFunction {
@@ -89,6 +96,17 @@ impl Expression {
                     + right.to_string(schema).as_str()
             }
             Expression::ScalarFunction { fun, args } => {
+                fun.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|e| e.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
+            Expression::ConditionalExpression { fun, args } => {
                 fun.to_string()
                     + "("
                     + args
@@ -241,6 +259,7 @@ impl ExpressionExecutor for Expression {
             } => evaluate_like(schema, arg, pattern, *escape, record),
             Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
             Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
+            Expression::ConditionalExpression { fun, args } => fun.evaluate(schema, args, record),
             Expression::DateTimeFunction { fun, arg } => fun.evaluate(schema, arg, record),
         }
     }
@@ -280,6 +299,9 @@ impl ExpressionExecutor for Expression {
                 right,
             } => get_binary_operator_type(left, operator, right, schema),
             Expression::ScalarFunction { fun, args } => get_scalar_function_type(fun, args, schema),
+            Expression::ConditionalExpression { fun, args } => {
+                get_conditional_expr_type(fun, args, schema)
+            }
             Expression::AggregateFunction { fun, args } => {
                 get_aggregate_function_type(fun, args, schema)
             }

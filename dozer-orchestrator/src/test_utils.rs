@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::pipeline::CacheSink;
-use dozer_cache::cache::{CacheManager, LmdbCacheManager};
+use dozer_cache::cache::{LmdbRwCacheManager, RwCacheManager};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex, ConflictResolution};
 use dozer_types::types::{
     FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
@@ -32,8 +32,8 @@ pub fn init_sink(
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
     conflict_resolution: Option<ConflictResolution>,
-) -> (Arc<dyn CacheManager>, CacheSink) {
-    let cache_manager = Arc::new(LmdbCacheManager::new(Default::default()).unwrap());
+) -> (Arc<dyn RwCacheManager>, CacheSink) {
+    let cache_manager = Arc::new(LmdbRwCacheManager::new(Default::default()).unwrap());
     let cache = CacheSink::new(
         cache_manager.clone(),
         init_endpoint(conflict_resolution),

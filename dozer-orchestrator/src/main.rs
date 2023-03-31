@@ -9,6 +9,7 @@ use dozer_types::tracing::{error, info};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use std::{process, thread};
 
 fn main() {
@@ -74,7 +75,10 @@ fn run() -> Result<(), OrchestrationError> {
                             std::panic::panic_any(e);
                         }
                     });
-                    while running.load(Ordering::SeqCst) {}
+                    // HACK: until we do api thread graceful shutdown, spin on the running flag.
+                    while running.load(Ordering::SeqCst) {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
                     Ok(())
                 }
                 ApiCommands::GenerateToken => {
@@ -106,7 +110,6 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
-        let mut dozer = init_dozer(cli.config_path)?;
         dozer.run_all(running)
     }
 }
