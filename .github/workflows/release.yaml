@@ -65,7 +65,7 @@ jobs:
   release-linux-aarch64:
     name: Publish binary for aarch64
     runs-on: ${{ matrix.os }}
-    needs: check-version
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -86,13 +86,30 @@ jobs:
           profile: minimal
           target: ${{ matrix.target }}
           override: true
-      - name: APT update
-        run: |
-          sudo apt update
       - name: Install target specific tools
         if: matrix.use-cross
         run: |
           sudo apt-get install -y ${{ matrix.linker }}
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-release-
+
       - name: Configure target aarch64 GNU
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
