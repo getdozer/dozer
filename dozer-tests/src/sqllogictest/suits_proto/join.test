@@ -151,6 +151,14 @@ INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario
 statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', 'guiness','2020-02-15 09:34:33+00')
 
+# statement ok
+# DELETE FROM film_actor WHERE actor_id = 2;
+
+
+
+query IT
+SELECT a.actor_id, b.first_name from actor a
+        JOIN actor b on a.actor_id = b.actor_id
 
 query ITT
 SELECT actor.actor_id, first_name, last_name from actor
@@ -176,6 +184,34 @@ WITH tbl AS (SELECT actor_id, first_name, last_name FROM actor)
         FROM tbl t
         JOIN film_actor fa ON fa.actor_id = t.actor_id;
 
+
 query ITT
 SELECT a.actor_id, a.first_name, a.last_name from actor a
         LEFT JOIN film_actor fa on fa.actor_id = a.actor_id;
+
+query ITT
+SELECT a.actor_id, a.first_name, a.last_name from actor a
+        LEFT JOIN film_actor fa on fa.actor_id = a.actor_id
+        LEFT JOIN film f on fa.film_id=f.film_id
+        WHERE f.film_id = 1;
+
+
+query T
+SELECT f.title from film_actor fa
+        RIGHT JOIN film f on fa.film_id = f.film_id;
+
+query T
+SELECT f.title from actor a
+        RIGHT JOIN film_actor fa ON a.actor_id = fa.actor_id
+        RIGHT JOIN film f on fa.film_id = f.film_id
+        WHERE f.film_id < 5;
+
+query TT
+SELECT a.first_name, a.last_name
+FROM actor a
+INNER JOIN (
+        SELECT actor_id, COUNT(actor_id)
+        FROM film_actor
+        GROUP BY actor_id
+        HAVING COUNT(actor_id) >= 0 
+) fa ON a.actor_id = fa.actor_id;
