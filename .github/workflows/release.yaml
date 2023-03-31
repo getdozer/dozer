@@ -61,6 +61,53 @@ jobs:
             echo "::set-output name=version::dev"
             echo "::set-output name=prerelease::true"
           fi
+
+  release-linux-aarch64:
+    name: Publish binary for aarch64
+    runs-on: ${{ matrix.os }}
+    needs: check-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: aarch64
+            os: ubuntu-20-16-cores
+            target: aarch64-unknown-linux-gnu
+            linker: gcc-aarch64-linux-gnu
+            use-cross: true
+            asset_name: dozer-linux-aarch64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Installing Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          target: ${{ matrix.target }}
+          override: true
+      - name: APT update
+        run: |
+          sudo apt update
+      - name: Install target specific tools
+        if: matrix.use-cross
+        run: |
+          sudo apt-get install -y ${{ matrix.linker }}
+      - name: Configure target aarch64 GNU
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config
+          echo 'JEMALLOC_SYS_WITH_LG_PAGE=16' >> $GITHUB_ENV
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          use-cross: ${{ matrix.use-cross }}
+          args: --release --target ${{ matrix.target }}
+      - name: List target output files
+        run: ls -lR ./target
+
   release:
     name: Release
     runs-on: 
@@ -75,10 +122,6 @@ jobs:
             file_name: dozer
             target: x86_64-unknown-linux-gnu
             asset_name: dozer-linux-amd64
-          - os: ubuntu-20-16-cores
-            file_name: dozer
-            target: aarch64-unknown-linux-gnu
-            asset_name: dozer-linux-arm64
           - os: macos-12
             file_name: dozer
             target: x86_64-apple-darwin
@@ -115,17 +158,9 @@ jobs:
       - name: Build package
         run: cargo build --release
 
-      - name: Build Linux x86_64 binary
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: cargo build --release
-
-      - name: Build Linux aarch64 binary
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo build --target aarch64-unknown-linux-gnu --release
-
-      - name: Build Macos amd64 binary
-        if: matrix.target == 'dozer-macos-amd64'
-        run: cargo build --release
+      # - name: Build Linux binary
+      #   if: matrix.os == 'ubuntu-20-16-cores'
+      #   run: cargo build --features=snowflake --release
 
       - name: Prepare release assets
         shell: bash
@@ -215,3 +250,7 @@ jobs:
           "color": 990099
           }]'
         uses: Ilshidur/action-discord@master
+
+
+  
+          
