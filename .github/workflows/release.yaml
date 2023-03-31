@@ -93,8 +93,8 @@ jobs:
         if: matrix.use-cross
         run: |
           sudo apt-get install -y ${{ matrix.linker }}
-          sudo apt-get install protobuf-compiler
-          
+          sudo apt-get install -y protobuf-compiler
+
       # - name: Install Protoc
       #   uses: arduino/setup-protoc@v1
       #   with:
