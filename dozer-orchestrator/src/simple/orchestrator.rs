@@ -5,7 +5,7 @@ use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir,
-    get_cache_manager_options, get_executor_options, get_flags, get_grpc_config, get_pipeline_dir,
+    get_cache_manager_options, get_executor_options, get_grpc_config, get_pipeline_dir,
     get_rest_config,
 };
 use crate::{flatten_join_handle, Orchestrator};
@@ -17,7 +17,7 @@ use dozer_api::{
     grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
     rest, RoCacheEndpoint,
 };
-use dozer_cache::cache::{LmdbRoCacheManager, LmdbRwCacheManager, RoCacheManager, RwCacheManager};
+use dozer_cache::cache::{LmdbRwCacheManager, RoCacheManager, RwCacheManager};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_core::errors::ExecutionError::InternalError;
@@ -186,9 +186,9 @@ impl Orchestrator for SimpleOrchestrator {
             &pipeline_dir,
             running,
         );
-        let flags = get_flags(self.config.clone());
-        let api_security = get_api_security_config(self.config.clone());
-        let settings = LogSinkSettings;
+        let settings = LogSinkSettings {
+            pipeline_dir: get_api_dir(&self.config),
+        };
         let cache_manager = if let Some(cache_manager) = cache_manager {
             cache_manager
         } else {
@@ -275,10 +275,11 @@ impl Orchestrator for SimpleOrchestrator {
                 e,
             )
         })?;
-        let api_security = get_api_security_config(self.config.clone());
-        let flags = get_flags(self.config.clone());
-        let settings = LogSinkSettings;
-        let dag = builder.build(None, create_rw_cache_manager(&self.config)?, settings)?;
+
+        let settings = LogSinkSettings {
+            pipeline_dir: api_dir.clone(),
+        };
+        let dag = builder.build(settings)?;
         // Populate schemas.
         DagSchemas::new(dag)?;
 

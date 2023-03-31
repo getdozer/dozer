@@ -1,11 +1,13 @@
 use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 use dozer_types::parking_lot::Mutex;
+use dozer_types::serde::{self, Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Barrier};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 pub struct Epoch {
     pub id: u64,
     pub details: SourceStates,
