@@ -173,6 +173,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 EthTraceConnector::new(2, trace_config, connection.name),
             )),
         },
+        #[cfg(not(feature = "ethereum"))]
         ConnectionConfig::Ethereum(_) => Err(ConnectorError::EthereumFeatureNotEnabled),
         ConnectionConfig::Grpc(grpc_config) => match grpc_config.adapter.as_str() {
             "arrow" => Ok(Box::new(GrpcConnector::<ArrowAdapter>::new(
@@ -200,6 +201,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         }
         #[cfg(feature = "kafka")]
         ConnectionConfig::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
+        #[cfg(not(feature = "kafka"))]
         ConnectionConfig::Kafka(_) => Err(ConnectorError::KafkaFeatureNotEnabled),
         ConnectionConfig::S3Storage(object_store_config) => {
             Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
