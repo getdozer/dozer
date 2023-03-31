@@ -4,9 +4,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use dozer_core::dag_schemas;
+use dozer_core::{dag_schemas, errors::ExecutionError, DEFAULT_PORT_HANDLE};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::types::Schema;
+use dozer_types::{
+    grpc_types::admin::ApiIndex,
+    types::{Schema, SchemaIdentifier},
+};
 use std::io::Write;
 
 use crate::errors::OrchestrationError;

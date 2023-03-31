@@ -98,17 +98,18 @@ impl<T> DagSchemas<T> {
         self.graph
     }
 
-    pub fn get_sink_schemas(&self) -> HashMap<String, Vec<Schema>> {
+    pub fn get_sink_schemas(&self) -> HashMap<String, Schema> {
         let mut schemas = HashMap::new();
 
         for (node_index, node) in self.graph.node_references() {
             if let NodeKind::Sink(_) = &node.kind {
                 let input_schemas = self.get_node_input_schemas(node_index);
-
-                schemas.insert(
-                    node.handle.id.clone(),
-                    input_schemas.values().cloned().collect(),
-                );
+                let schema = input_schemas
+                    .into_iter()
+                    .next()
+                    .expect("schema is missing")
+                    .1;
+                schemas.insert(node.handle.id.clone(), schema);
             }
         }
 

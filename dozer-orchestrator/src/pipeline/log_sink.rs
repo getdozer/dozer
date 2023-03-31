@@ -11,8 +11,8 @@ use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::{
     bytes::{BufMut, BytesMut},
     indicatif::MultiProgress,
-    models::api_endpoint::{ApiEndpoint, ApiIndex},
-    types::{Operation, Schema, SchemaIdentifier},
+    models::api_endpoint::ApiEndpoint,
+    types::{Operation, Schema},
 };
 use std::fs::OpenOptions;
 
@@ -42,49 +42,6 @@ impl LogSinkFactory {
             multi_pb,
         }
     }
-
-    fn get_output_schema(
-        &self,
-        mut input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        debug_assert!(input_schemas.len() == 1);
-        let mut schema = input_schemas
-            .remove(&DEFAULT_PORT_HANDLE)
-            .expect("Input schema should be on default port");
-
-        // Generated Cache index based on api_index
-        let configured_index = create_primary_indexes(
-            &schema,
-            &self.api_endpoint.index.to_owned().unwrap_or_default(),
-        )?;
-        // Generated schema in SQL
-        let upstream_index = schema.primary_index.clone();
-
-        let index = match (configured_index.is_empty(), upstream_index.is_empty()) {
-            (true, true) => vec![],
-            (true, false) => upstream_index,
-            (false, true) => configured_index,
-            (false, false) => {
-                if !upstream_index.eq(&configured_index) {
-                    return Err(ExecutionError::MismatchPrimaryKey {
-                        endpoint_name: self.api_endpoint.name.clone(),
-                        expected: get_field_names(&schema, &upstream_index),
-                        actual: get_field_names(&schema, &configured_index),
-                    });
-                }
-                configured_index
-            }
-        };
-
-        schema.primary_index = index;
-
-        schema.identifier = Some(SchemaIdentifier {
-            id: DEFAULT_PORT_HANDLE as u32,
-            version: 1,
-        });
-
-        Ok(schema)
-    }
 }
 
 impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
@@ -94,8 +51,9 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
 
     fn prepare(
         &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
+        debug_assert!(input_schemas.len() == 1);
         Ok(())
     }
 
@@ -154,32 +112,6 @@ impl Sink for LogSink {
         let executor_operation = ExecutorOperation::SnapshottingDone {};
         todo!("Write snapshotting done to log file.")
     }
-}
-
-fn create_primary_indexes(
-    schema: &Schema,
-    api_index: &ApiIndex,
-) -> Result<Vec<usize>, ExecutionError> {
-    let mut primary_index = Vec::new();
-    for name in api_index.primary_key.iter() {
-        let idx = schema
-            .fields
-            .iter()
-            .position(|fd| fd.name == name.clone())
-            .map_or(Err(ExecutionError::FieldNotFound(name.to_owned())), |p| {
-                Ok(p)
-            })?;
-
-        primary_index.push(idx);
-    }
-    Ok(primary_index)
-}
-
-fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
-    indexes
-        .iter()
-        .map(|idx| schema.fields[*idx].name.to_owned())
-        .collect()
 }
 
 fn write_msg_to_file(file: &mut std::fs::File, msg: &[u8]) -> Result<(), ExecutionError> {
