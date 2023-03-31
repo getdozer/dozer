@@ -7,7 +7,7 @@ use futures_util::Stream;
 pub struct LogReader;
 
 impl LogReader {
-    pub fn new(path: &str) -> (Self, Schema) {
+    pub fn new(path: &Path) -> (Self, Schema) {
         todo!("Load schema. Start watching log file change.")
     }
 }

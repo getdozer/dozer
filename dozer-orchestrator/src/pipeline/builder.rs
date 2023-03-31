@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::sync::Arc;
+
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -9,11 +13,8 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use dozer_types::{indicatif::MultiProgress, log::debug};
-use std::collections::HashMap;
-use std::collections::HashSet;
 use std::hash::Hash;
 use std::path::Path;
-use std::sync::Arc;
 
 use crate::pipeline::{LogSinkFactory, LogSinkSettings};
 

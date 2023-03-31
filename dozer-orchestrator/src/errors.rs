@@ -32,6 +32,8 @@ pub enum OrchestrationError {
     RwCacheInitFailed(#[source] CacheError),
     #[error("{0}: Failed to initialize read only cache. Have you run `dozer migrate`?")]
     RoCacheInitFailed(#[source] CacheError),
+    #[error("Failed to build cache from log")]
+    CacheBuildFailed(#[source] CacheError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
     #[error(transparent)]

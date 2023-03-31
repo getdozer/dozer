@@ -20,6 +20,8 @@ use dozer_types::{
 };
 use std::fs::OpenOptions;
 
+use crate::utils::get_endpoint_log_path;
+
 #[derive(Debug, Clone)]
 pub struct LogSinkSettings {
     pub pipeline_dir: PathBuf,
@@ -204,14 +206,6 @@ fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
         .iter()
         .map(|idx| schema.fields[*idx].name.to_owned())
         .collect()
-}
-
-fn get_logs_path(pipeline_dir: &Path) -> PathBuf {
-    pipeline_dir.join("logs")
-}
-
-fn get_endpoint_log_path(pipeline_dir: &Path, endpoint_name: &str) -> PathBuf {
-    get_logs_path(pipeline_dir).join(endpoint_name.to_lowercase())
 }
 
 fn write_msg_to_file(file: &mut std::fs::File, msg: &[u8]) -> Result<(), ExecutionError> {

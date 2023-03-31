@@ -4,20 +4,16 @@ use crate::errors::OrchestrationError;
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir,
-    get_cache_manager_options, get_executor_options, get_grpc_config, get_pipeline_dir,
+    get_api_dir, get_api_security_config, get_cache_dir, get_cache_manager_options,
+    get_endpoint_log_path, get_executor_options, get_grpc_config, get_pipeline_dir,
     get_rest_config,
 };
 use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
+use dozer_api::errors::ApiError;
 use dozer_api::generator::protoc::generator::ProtoGenerator;
-use dozer_api::grpc::internal::internal_pipeline_client::InternalPipelineClient;
-use dozer_api::{
-    actix_web::dev::ServerHandle,
-    grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
-    rest, RoCacheEndpoint,
-};
-use dozer_cache::cache::{LmdbRwCacheManager, RoCacheManager, RwCacheManager};
+use dozer_api::{actix_web::dev::ServerHandle, grpc, rest, CacheEndpoint};
+use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_core::errors::ExecutionError::InternalError;
@@ -26,7 +22,6 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::grpc_types::internal::AliasRedirected;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
@@ -38,7 +33,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 
 #[derive(Default, Clone)]
@@ -53,11 +48,7 @@ impl SimpleOrchestrator {
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn run_api(
-        &mut self,
-        _running: Arc<AtomicBool>,
-        cache_manager: Option<Arc<dyn RoCacheManager>>,
-    ) -> Result<(), OrchestrationError> {
+    fn run_api(&mut self, _running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
 
@@ -66,40 +57,39 @@ impl Orchestrator for SimpleOrchestrator {
         rt.block_on(async {
             let mut futures = FuturesUnordered::new();
 
-            // Initiate `AliasRedirected` events, must be done before `RoCacheEndpoint::new` to avoid following scenario:
-            // 1. `RoCacheEndpoint::new` is called.
-            // 2. App server sends an `AliasRedirected` event.
-            // 3. Push event is initiated.
-            // In this scenario, the `AliasRedirected` event will be lost and the API server will be serving the wrong cache.
-            let app_grpc_config = get_app_grpc_config(self.config.clone());
-            let mut internal_pipeline_client =
-                InternalPipelineClient::new(&app_grpc_config).await?;
-            let (alias_redirected_receiver, future) =
-                internal_pipeline_client.stream_alias_events().await?;
-            futures.push(flatten_join_handle(tokio::spawn(
-                future.map_err(OrchestrationError::GrpcServerFailed),
-            )));
-
-            // Open `RoCacheEndpoint`s.
+            // Open `RoCacheEndpoint`s. Streaming operations if necessary.
+            let flags = self.config.flags.clone().unwrap_or_default();
+            let (operations_sender, operations_receiver) = if flags.dynamic {
+                let (sender, receiver) = broadcast::channel(16);
+                (Some(sender), Some(receiver))
+            } else {
+                (None, None)
+            };
             let cache_manager = Arc::new(
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::RoCacheInitFailed)?,
             );
+            let pipeline_dir = get_pipeline_dir(&self.config);
             let cache_endpoints = self
                 .config
                 .endpoints
                 .iter()
-                .map(|endpoint| {
-                    RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).map(Arc::new)
+                .map(|endpoint| -> Result<Arc<CacheEndpoint>, ApiError> {
+                    let log_path = get_endpoint_log_path(&pipeline_dir, &endpoint.name);
+                    let (cache_endpoint, task) = CacheEndpoint::new(
+                        &*cache_manager,
+                        endpoint.clone(),
+                        &log_path,
+                        operations_sender.clone(),
+                    )?;
+                    if let Some(task) = task {
+                        futures.push(flatten_join_handle(tokio::spawn(
+                            task.map_err(OrchestrationError::CacheBuildFailed),
+                        )));
+                    }
+                    Ok(Arc::new(cache_endpoint))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-
-            // Listen to endpoint redirect events.
-            tokio::spawn(redirect_cache_endpoints(
-                cache_manager,
-                cache_endpoints.clone(),
-                alias_redirected_receiver,
-            ));
 
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
@@ -113,19 +103,6 @@ impl Orchestrator for SimpleOrchestrator {
                     .map_err(OrchestrationError::ApiServerFailed)
             });
 
-            // Initialize `PipelineResponse` events.
-            let flags = self.config.flags.clone().unwrap_or_default();
-            let operation_receiver = if flags.dynamic {
-                let (operation_receiver, future) =
-                    internal_pipeline_client.stream_operations().await?;
-                futures.push(flatten_join_handle(tokio::spawn(
-                    future.map_err(OrchestrationError::GrpcServerFailed),
-                )));
-                Some(operation_receiver)
-            } else {
-                None
-            };
-
             // Initialize gRPC Server
             let api_dir = get_api_dir(&self.config);
             let grpc_config = get_grpc_config(self.config.to_owned());
@@ -133,7 +110,7 @@ impl Orchestrator for SimpleOrchestrator {
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
             let grpc_handle = tokio::spawn(async move {
                 grpc_server
-                    .run(cache_endpoints, receiver_shutdown, operation_receiver)
+                    .run(cache_endpoints, receiver_shutdown, operations_receiver)
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
@@ -161,22 +138,7 @@ impl Orchestrator for SimpleOrchestrator {
         &mut self,
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
-        cache_manager: Option<Arc<dyn RwCacheManager>>,
     ) -> Result<(), OrchestrationError> {
-        // gRPC notifier channel
-        let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
-        let (operation_sender, operation_receiver) = channel::unbounded();
-        let internal_app_config = self.config.clone();
-        let _intern_pipeline_thread = thread::spawn(move || {
-            if let Err(e) = start_internal_pipeline_server(
-                internal_app_config,
-                (alias_redirected_receiver, operation_receiver),
-            ) {
-                std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
-            }
-            warn!("Shutting down internal pipeline server");
-        });
-
         let pipeline_dir = get_pipeline_dir(&self.config);
         let executor = Executor::new(
             &self.config.connections,
@@ -189,17 +151,8 @@ impl Orchestrator for SimpleOrchestrator {
         let settings = LogSinkSettings {
             pipeline_dir: get_api_dir(&self.config),
         };
-        let cache_manager = if let Some(cache_manager) = cache_manager {
-            cache_manager
-        } else {
-            create_rw_cache_manager(&self.config)?
-        };
-        let dag_executor = executor.create_dag_executor(
-            Some((alias_redirected_sender, operation_sender)),
-            cache_manager,
-            settings,
-            get_executor_options(&self.config),
-        )?;
+        let dag_executor =
+            executor.create_dag_executor(settings, get_executor_options(&self.config))?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -314,8 +267,6 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         let running_api = running.clone();
-        let cache_manager_app = create_rw_cache_manager(&self.config)?;
-        let cache_manager_api = cache_manager_app.clone();
         // TODO: remove this after checkpointing
         self.clean()?;
 
@@ -336,7 +287,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let mut dozer_pipeline = self.clone();
         let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer_pipeline.run_apps(running, Some(tx), Some(cache_manager_app)) {
+            if let Err(e) = dozer_pipeline.run_apps(running, Some(tx)) {
                 std::panic::panic_any(e);
             }
         });
@@ -345,7 +296,7 @@ impl Orchestrator for SimpleOrchestrator {
         rx.recv().unwrap();
 
         let _api_thread = thread::spawn(move || {
-            if let Err(e) = dozer_api.run_api(running_api, Some(cache_manager_api)) {
+            if let Err(e) = dozer_api.run_api(running_api) {
                 std::panic::panic_any(e);
             }
         });
@@ -374,30 +325,4 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
             Ok(())
         },
     )
-}
-
-fn create_rw_cache_manager(config: &Config) -> Result<Arc<LmdbRwCacheManager>, OrchestrationError> {
-    LmdbRwCacheManager::new(get_cache_manager_options(config))
-        .map(Arc::new)
-        .map_err(OrchestrationError::RwCacheInitFailed)
-}
-
-async fn redirect_cache_endpoints(
-    cache_manager: Arc<dyn RwCacheManager>,
-    cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
-    mut alias_redirected_receiver: Receiver<AliasRedirected>,
-) -> Result<(), OrchestrationError> {
-    loop {
-        let alias_redirected = alias_redirected_receiver
-            .recv()
-            .await
-            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-        for cache_endpoint in &cache_endpoints {
-            if cache_endpoint.endpoint().name == alias_redirected.alias {
-                cache_endpoint
-                    .redirect_cache(&*cache_manager)
-                    .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-            }
-        }
-    }
 }

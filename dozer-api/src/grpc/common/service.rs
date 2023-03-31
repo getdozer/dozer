@@ -5,7 +5,7 @@ use crate::auth::Access;
 
 use crate::grpc::shared_impl;
 use crate::grpc::types_helper::{map_field_definitions, map_record};
-use crate::RoCacheEndpoint;
+use crate::CacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -22,13 +22,13 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     /// For look up endpoint from its name. `key == value.endpoint.name`.
-    pub endpoint_map: HashMap<String, Arc<RoCacheEndpoint>>,
+    pub endpoint_map: HashMap<String, Arc<CacheEndpoint>>,
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
 }
 
 impl CommonService {
     pub fn new(
-        endpoints: Vec<Arc<RoCacheEndpoint>>,
+        endpoints: Vec<Arc<CacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
     ) -> Self {
         let endpoint_map = endpoints
@@ -44,7 +44,7 @@ impl CommonService {
     fn parse_request(
         &self,
         request: Request<QueryRequest>,
-    ) -> Result<(&RoCacheEndpoint, QueryRequest, Option<Access>), Status> {
+    ) -> Result<(&CacheEndpoint, QueryRequest, Option<Access>), Status> {
         let parts = request.into_parts();
         let mut extensions = parts.1;
         let query_request = parts.2;

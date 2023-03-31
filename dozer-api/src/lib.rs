@@ -1,26 +1,49 @@
-use std::{ops::Deref, sync::Arc};
+use std::{ops::Deref, path::Path, sync::Arc};
 
 use arc_swap::ArcSwap;
-use dozer_cache::{cache::RwCacheManager, CacheReader};
-use dozer_types::{log::info, models::api_endpoint::ApiEndpoint};
+use dozer_cache::{cache::RwCacheManager, errors::CacheError, CacheReader};
+use dozer_types::{grpc_types::types::Operation, log::info, models::api_endpoint::ApiEndpoint};
 mod api_helper;
 
 #[derive(Debug)]
-pub struct RoCacheEndpoint {
+pub struct CacheEndpoint {
     cache_reader: ArcSwap<CacheReader>,
     endpoint: ApiEndpoint,
 }
 
-impl RoCacheEndpoint {
+impl CacheEndpoint {
     pub fn new(
         cache_manager: &dyn RwCacheManager,
         endpoint: ApiEndpoint,
-    ) -> Result<Self, ApiError> {
-        let cache_reader = open_cache_reader(cache_manager, &endpoint.name)?;
-        Ok(Self {
-            cache_reader: ArcSwap::from_pointee(cache_reader),
-            endpoint,
-        })
+        log_path: &Path,
+        operations_sender: Option<Sender<Operation>>,
+    ) -> Result<(Self, Option<impl Future<Output = Result<(), CacheError>>>), ApiError> {
+        let (cache_reader, task) = if let Some(cache_reader) =
+            open_cache_reader(cache_manager, &endpoint.name)?
+        {
+            (cache_reader, None)
+        } else {
+            let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
+            let (cache_name, task) = cache_builder::create_cache(
+                cache_manager,
+                &log_path,
+                endpoint.conflict_resolution.unwrap_or_default(),
+                operations_sender,
+            )
+            .map_err(ApiError::CreateCache)?;
+            // TODO: We intentionally don't create alias endpoint.name -> cache_name here.
+            (
+                open_cache_reader(cache_manager, &cache_name)?.expect("We just created the cache"),
+                Some(task),
+            )
+        };
+        Ok((
+            Self {
+                cache_reader: ArcSwap::from_pointee(cache_reader),
+                endpoint,
+            },
+            task,
+        ))
     }
 
     pub fn cache_reader(&self) -> impl Deref<Target = Arc<CacheReader>> + '_ {
@@ -33,6 +56,8 @@ impl RoCacheEndpoint {
 
     pub fn redirect_cache(&self, cache_manager: &dyn RwCacheManager) -> Result<(), ApiError> {
         let cache_reader = open_cache_reader(cache_manager, &self.endpoint.name)?;
+        let cache_reader =
+            cache_reader.ok_or_else(|| ApiError::CacheNotFound(self.endpoint.name.clone()))?;
         self.cache_reader.store(Arc::new(cache_reader));
         Ok(())
     }
@@ -41,10 +66,14 @@ impl RoCacheEndpoint {
 fn open_cache_reader(
     cache_manager: &dyn RwCacheManager,
     name: &str,
-) -> Result<CacheReader, ApiError> {
-    let cache = build_cache(cache_manager, name).map_err(ApiError::OpenCache)?;
-    info!("[api] Serving {} using cache {}", name, cache.name());
-    Ok(CacheReader::new(cache))
+) -> Result<Option<CacheReader>, ApiError> {
+    let cache = cache_manager
+        .open_ro_cache(name)
+        .map_err(ApiError::OpenCache)?;
+    Ok(cache.map(|cache| {
+        info!("[api] Serving {} using cache {}", name, cache.name());
+        CacheReader::new(cache)
+    }))
 }
 
 // Exports
@@ -58,11 +87,11 @@ pub mod rest;
 pub use actix_web;
 pub use async_trait;
 use errors::ApiError;
+use futures_util::Future;
 pub use openapiv3;
 pub use tokio;
+use tokio::sync::broadcast::Sender;
 pub use tonic;
-
-use crate::cache_builder::build_cache;
 
 #[cfg(test)]
 mod test_utils;
