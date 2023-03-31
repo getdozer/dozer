@@ -19,7 +19,7 @@ pub const SCHEMA_FILE_NAME: &str = "schemas.json";
 pub fn write_schemas(
     dag_schemas: &dag_schemas::DagSchemas<SchemaSQLContext>,
     pipeline_dir: PathBuf,
-) -> Result<(), OrchestrationError> {
+) -> Result<HashMap<String, Schema>, OrchestrationError> {
     let path = pipeline_dir.join(SCHEMA_FILE_NAME);
     let mut file = OpenOptions::new()
         .create(true)
@@ -32,7 +32,7 @@ pub fn write_schemas(
 
     writeln!(file, "{}", serde_json::to_string(&schemas).unwrap())
         .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-    Ok(())
+    Ok(schemas)
 }
 
 pub fn load_schemas(path: &Path) -> Result<HashMap<String, Schema>, OrchestrationError> {

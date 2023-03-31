@@ -62,17 +62,6 @@ impl Orchestrator for SimpleOrchestrator {
             // Load schemas.
             let pipeline_path = get_pipeline_dir(&self.config);
             let schemas = load_schemas(&pipeline_path)?;
-            let api_dir = get_api_dir(&self.config);
-            let api_config = self.config.api.clone().unwrap_or_default();
-            for (schema_name, schema) in &schemas {
-                ProtoGenerator::generate(
-                    &api_dir,
-                    schema_name,
-                    schema,
-                    &api_config.api_security,
-                    &self.config.flags,
-                )?;
-            }
 
             // Open `RoCacheEndpoint`s. Streaming operations if necessary.
             let flags = self.config.flags.clone().unwrap_or_default();
@@ -258,8 +247,19 @@ impl Orchestrator for SimpleOrchestrator {
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
-        // Write schemas to pipeline_dir
-        write_schemas(&dag_schemas, pipeline_home_dir.clone())?;
+        // Write schemas to pipeline_dir and generate proto files.
+        let schemas = write_schemas(&dag_schemas, pipeline_home_dir.clone())?;
+        let api_dir = get_api_dir(&self.config);
+        let api_config = self.config.api.clone().unwrap_or_default();
+        for (schema_name, schema) in &schemas {
+            ProtoGenerator::generate(
+                &api_dir,
+                schema_name,
+                schema,
+                &api_config.api_security,
+                &self.config.flags,
+            )?;
+        }
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {

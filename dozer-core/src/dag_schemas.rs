@@ -1,5 +1,5 @@
 use crate::errors::ExecutionError;
-use crate::{Dag, NodeKind};
+use crate::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
 
 use crate::node::{OutputPortType, PortHandle};
 use daggy::petgraph::graph::EdgeReference;
@@ -103,13 +103,14 @@ impl<T> DagSchemas<T> {
 
         for (node_index, node) in self.graph.node_references() {
             if let NodeKind::Sink(_) = &node.kind {
-                let input_schemas = self.get_node_input_schemas(node_index);
-                let schema = input_schemas
-                    .into_iter()
-                    .next()
-                    .expect("schema is missing")
-                    .1;
-                schemas.insert(node.handle.id.clone(), schema);
+                let mut input_schemas = self.get_node_input_schemas(node_index);
+
+                schemas.insert(
+                    node.handle.id.clone(),
+                    input_schemas
+                        .remove(&DEFAULT_PORT_HANDLE)
+                        .expect("Sink must have input schema on default port"),
+                );
             }
         }
 
