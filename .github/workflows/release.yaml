@@ -88,6 +88,7 @@ jobs:
           components: rustfmt, clippy
       - name: APT update
         run: |
+          dpkg --add-architecture armhf
           sudo apt update
           sudo apt-get install -y openssl:armhf
           sudo apt-get install -y libssl-dev:armhf
