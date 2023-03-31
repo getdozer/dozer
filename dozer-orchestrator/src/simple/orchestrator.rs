@@ -160,7 +160,7 @@ impl Orchestrator for SimpleOrchestrator {
             running,
         );
         let settings = LogSinkSettings {
-            pipeline_dir: get_api_dir(&self.config),
+            pipeline_dir: pipeline_dir.clone(),
         };
         let dag_executor =
             executor.create_dag_executor(settings, get_executor_options(&self.config))?;
@@ -241,7 +241,7 @@ impl Orchestrator for SimpleOrchestrator {
         })?;
 
         let settings = LogSinkSettings {
-            pipeline_dir: api_dir.clone(),
+            pipeline_dir: pipeline_home_dir.clone(),
         };
         let dag = builder.build(settings)?;
         // Populate schemas.

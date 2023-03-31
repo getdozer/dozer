@@ -63,8 +63,10 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         let log_path = get_endpoint_log_path(&self.settings.pipeline_dir, &self.api_endpoint.name);
 
-        std::fs::create_dir_all(log_path.as_path())
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        if let Some(log_dir) = log_path.as_path().parent() {
+            std::fs::create_dir_all(log_dir)
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        }
 
         Ok(Box::new(LogSink::new(
             Some(self.multi_pb.clone()),
