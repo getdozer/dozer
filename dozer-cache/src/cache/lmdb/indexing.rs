@@ -176,7 +176,7 @@ fn index_and_log_error(
         .send((index, secondary_index))
         .is_err()
     {
-        error!("`IndexingThreadPool` dropped while indexing task is running");
+        debug!("`IndexingThreadPool` dropped while indexing task is running");
     }
 }
 
