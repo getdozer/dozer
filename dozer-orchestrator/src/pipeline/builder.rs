@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_cache::cache::RwCacheManager;
 use dozer_core::app::App;
@@ -18,6 +17,8 @@ use dozer_types::models::source::Source;
 use dozer_types::{indicatif::MultiProgress, log::debug};
 use std::hash::Hash;
 use std::path::Path;
+
+use crate::pipeline::{LogSinkFactory, LogSinkSettings};
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
@@ -185,7 +186,7 @@ impl<'a> PipelineBuilder<'a> {
         &self,
         notifier: Option<PipelineEventSenders>,
         cache_manager: Arc<dyn RwCacheManager>,
-        settings: CacheSinkSettings,
+        settings: LogSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
@@ -235,13 +236,7 @@ impl<'a> PipelineBuilder<'a> {
                 .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            let snk_factory = Arc::new(CacheSinkFactory::new(
-                cache_manager.clone(),
-                api_endpoint.clone(),
-                notifier.clone(),
-                self.progress.clone(),
-                settings.clone(),
-            )?);
+            let snk_factory = Arc::new(LogSinkFactory::new());
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {

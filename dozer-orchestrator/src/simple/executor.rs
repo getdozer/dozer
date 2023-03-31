@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 
-use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
+use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
@@ -65,7 +65,7 @@ impl<'a> Executor<'a> {
         &self,
         notifier: Option<PipelineEventSenders>,
         cache_manager: Arc<dyn RwCacheManager>,
-        settings: CacheSinkSettings,
+        settings: LogSinkSettings,
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(

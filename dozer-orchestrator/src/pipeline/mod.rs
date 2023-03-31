@@ -1,12 +1,13 @@
 mod builder;
 pub mod conflict_resolver;
 pub mod connector_source;
+mod log_sink;
 mod sinks;
 pub mod source_builder;
 pub mod validate;
 
 pub use builder::PipelineBuilder;
-pub use sinks::{CacheSink, CacheSinkFactory, CacheSinkSettings};
+pub use log_sink::{LogSink, LogSinkFactory, LogSinkSettings};
 
 #[cfg(test)]
 mod tests;

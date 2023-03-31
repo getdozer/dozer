@@ -35,6 +35,7 @@ hyper = "0.14.24"
 actix-http = "3.3.0"
 tower-http = {version = "0.3.5", features = ["full"]}
 arc-swap = "1.6.0"
+dozer-core = { version = "0.1.14", path = "../dozer-core" }
 
 [dev-dependencies]
 tempdir = "0.3.7"

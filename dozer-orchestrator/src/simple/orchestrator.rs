@@ -1,7 +1,7 @@
 use super::executor::Executor;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
-use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
+use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir,
@@ -81,14 +81,10 @@ impl Orchestrator for SimpleOrchestrator {
             )));
 
             // Open `RoCacheEndpoint`s.
-            let cache_manager = if let Some(cache_manager) = cache_manager {
-                cache_manager
-            } else {
-                Arc::new(
-                    LmdbRoCacheManager::new(get_cache_manager_options(&self.config))
-                        .map_err(OrchestrationError::RoCacheInitFailed)?,
-                )
-            };
+            let cache_manager = Arc::new(
+                LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
+                    .map_err(OrchestrationError::RoCacheInitFailed)?,
+            );
             let cache_endpoints = self
                 .config
                 .endpoints
@@ -192,7 +188,7 @@ impl Orchestrator for SimpleOrchestrator {
         );
         let flags = get_flags(self.config.clone());
         let api_security = get_api_security_config(self.config.clone());
-        let settings = CacheSinkSettings::new(get_api_dir(&self.config), flags, api_security);
+        let settings = LogSinkSettings;
         let cache_manager = if let Some(cache_manager) = cache_manager {
             cache_manager
         } else {
@@ -281,7 +277,7 @@ impl Orchestrator for SimpleOrchestrator {
         })?;
         let api_security = get_api_security_config(self.config.clone());
         let flags = get_flags(self.config.clone());
-        let settings = CacheSinkSettings::new(api_dir.clone(), flags, api_security);
+        let settings = LogSinkSettings;
         let dag = builder.build(None, create_rw_cache_manager(&self.config)?, settings)?;
         // Populate schemas.
         DagSchemas::new(dag)?;
@@ -386,7 +382,7 @@ fn create_rw_cache_manager(config: &Config) -> Result<Arc<LmdbRwCacheManager>, O
 }
 
 async fn redirect_cache_endpoints(
-    cache_manager: Arc<dyn RoCacheManager>,
+    cache_manager: Arc<dyn RwCacheManager>,
     cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
     mut alias_redirected_receiver: Receiver<AliasRedirected>,
 ) -> Result<(), OrchestrationError> {
