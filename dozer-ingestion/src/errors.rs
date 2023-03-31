@@ -19,6 +19,8 @@ use std::string::FromUtf8Error;
 use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
+
+#[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
 use tokio_postgres::Error;
 
@@ -324,6 +326,7 @@ pub enum DebeziumError {
     #[error(transparent)]
     DebeziumStreamError(#[from] DebeziumStreamError),
 
+    #[cfg(feature = "kafka")]
     #[error("Schema registry fetch failed")]
     SchemaRegistryFetchError(#[source] SRCError),
 

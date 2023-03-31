@@ -27,7 +27,7 @@ odbc = { version = "0.17.0", optional = true }
 base64 = "0.21.0"
 reqwest = { version = "0.11.14", features = ["blocking", "rustls-tls"], default-features = false }
 include_dir = {version = "0.7.3", optional = true }
-schema_registry_converter = { version = "3.1.0", features = ["blocking", "avro"] }
+schema_registry_converter = { version = "3.1.0", features = ["blocking", "avro"], optional = true }
 regex = "1"
 tonic = {version = "0.8.3"}
 tonic-web = "0.4.0"
@@ -35,7 +35,7 @@ tonic-reflection = "0.6.0"
 tower-http = {version = "0.3.5", features = ["full"]}
 prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] }
-deltalake = { version = "0.7.0", default-features = false, features = ["datafusion"] }
+deltalake = { version = "0.7.0", default-features = false, features = ["s3", "datafusion"] }
 bson = "2.5.0"
 dozer-utils = { version = "0.1.0", path = "../dozer-utils" }
 
@@ -53,7 +53,7 @@ hex = "0.4.3"
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
 snowflake = ["dep:odbc", "dep:include_dir"]
-kafka = ["dep:kafka"]
+kafka = ["dep:kafka", "dep:schema_registry_converter"]
 
 [[bench]]
 name = "connectors"
