@@ -38,8 +38,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};
+use std::time::Duration;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::oneshot;
+use tokio::time::interval;
+use dozer_api::errors::GrpcError;
+use dozer_types::models::api_config::GrpcApiOptions;
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -50,6 +54,32 @@ impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
         Self { config }
     }
+}
+
+async fn get_internal_client(grpc_options: &GrpcApiOptions, mut retries: usize) -> Result<Option<InternalPipelineClient>, GrpcError> {
+    let mut retry_interval = interval(Duration::from_millis(5000));
+
+    while retries >= 0 {
+        let result = InternalPipelineClient::new(&grpc_options).await;
+        if let Ok(_) = result {
+            return result.map(|c| Some(c))
+        } else if retries == 0 {
+            return result.map_or_else(
+                |e| {
+                    warn!("Cannot connect to internal server: {:?}. This was last retry.", e);
+                    Ok(None)
+                },
+                |c| Ok(Some(c))
+            )
+        } else {
+            warn!("Cannot connect to internal server: {:?}", result);
+            retries -= 1;
+
+            retry_interval.tick().await;
+        }
+    }
+
+    Ok(None)
 }
 
 impl Orchestrator for SimpleOrchestrator {
@@ -73,12 +103,34 @@ impl Orchestrator for SimpleOrchestrator {
             // In this scenario, the `AliasRedirected` event will be lost and the API server will be serving the wrong cache.
             let app_grpc_config = get_app_grpc_config(self.config.clone());
             let mut internal_pipeline_client =
-                InternalPipelineClient::new(&app_grpc_config).await?;
-            let (alias_redirected_receiver, future) =
-                internal_pipeline_client.stream_alias_events().await?;
-            futures.push(flatten_join_handle(tokio::spawn(
-                future.map_err(OrchestrationError::GrpcServerFailed),
-            )));
+                get_internal_client(&app_grpc_config, 5).await?;
+
+            let flags = self.config.flags.clone().unwrap_or_default();
+            let (alias_redirected_receiver, operation_receiver) = if let Some(mut client) = internal_pipeline_client {
+                let (alias_redirected_receiver, future) =
+                    client.stream_alias_events().await?;
+                futures.push(flatten_join_handle(tokio::spawn(
+                    future.map_err(OrchestrationError::GrpcServerFailed),
+                )));
+
+                // Initialize `PipelineResponse` events.
+                let operation_receiver = if flags.dynamic {
+                    let (operation_receiver, future) =
+                        client.stream_operations().await?;
+                    futures.push(flatten_join_handle(tokio::spawn(
+                        future.map_err(OrchestrationError::GrpcServerFailed),
+                    )));
+                    Some(operation_receiver)
+                } else {
+                    None
+                };
+
+                (alias_redirected_receiver, operation_receiver)
+            } else {
+                // Have empty channel when connection to app server is not possible
+                let (_, alias_redirected_receiver) = tokio::sync::broadcast::channel(1);
+                (alias_redirected_receiver, None)
+            };
 
             // Open `RoCacheEndpoint`s.
             let cache_manager = if let Some(cache_manager) = cache_manager {
@@ -117,18 +169,6 @@ impl Orchestrator for SimpleOrchestrator {
                     .map_err(OrchestrationError::ApiServerFailed)
             });
 
-            // Initialize `PipelineResponse` events.
-            let flags = self.config.flags.clone().unwrap_or_default();
-            let operation_receiver = if flags.dynamic {
-                let (operation_receiver, future) =
-                    internal_pipeline_client.stream_operations().await?;
-                futures.push(flatten_join_handle(tokio::spawn(
-                    future.map_err(OrchestrationError::GrpcServerFailed),
-                )));
-                Some(operation_receiver)
-            } else {
-                None
-            };
 
             // Initialize gRPC Server
             let api_dir = get_api_dir(&self.config);
