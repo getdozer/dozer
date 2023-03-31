@@ -109,7 +109,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          use-cross: ${{ matrix.use-cross }}
+          use-cross: false
           args: --release --target ${{ matrix.target }}
       - name: List target output files
         run: ls -lR ./target
