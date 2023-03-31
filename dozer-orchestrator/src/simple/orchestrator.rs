@@ -31,19 +31,19 @@ use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
+use dozer_api::errors::GrpcError;
+use dozer_types::models::api_config::GrpcApiOptions;
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, TryFutureExt};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::{sync::Arc, thread};
 use std::time::Duration;
+use std::{sync::Arc, thread};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::oneshot;
 use tokio::time::interval;
-use dozer_api::errors::GrpcError;
-use dozer_types::models::api_config::GrpcApiOptions;
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -56,21 +56,27 @@ impl SimpleOrchestrator {
     }
 }
 
-async fn get_internal_client(grpc_options: &GrpcApiOptions, mut retries: usize) -> Result<Option<InternalPipelineClient>, GrpcError> {
+async fn get_internal_client(
+    grpc_options: &GrpcApiOptions,
+    mut retries: usize,
+) -> Result<Option<InternalPipelineClient>, GrpcError> {
     let mut retry_interval = interval(Duration::from_millis(5000));
 
     while retries >= 0 {
-        let result = InternalPipelineClient::new(&grpc_options).await;
-        if let Ok(_) = result {
-            return result.map(|c| Some(c))
+        let result = InternalPipelineClient::new(grpc_options).await;
+        if result.is_ok() {
+            return result.map(Some);
         } else if retries == 0 {
             return result.map_or_else(
                 |e| {
-                    warn!("Cannot connect to internal server: {:?}. This was last retry.", e);
+                    warn!(
+                        "Cannot connect to internal server: {:?}. This was last retry.",
+                        e
+                    );
                     Ok(None)
                 },
-                |c| Ok(Some(c))
-            )
+                |c| Ok(Some(c)),
+            );
         } else {
             warn!("Cannot connect to internal server: {:?}", result);
             retries -= 1;
@@ -102,35 +108,33 @@ impl Orchestrator for SimpleOrchestrator {
             // 3. Push event is initiated.
             // In this scenario, the `AliasRedirected` event will be lost and the API server will be serving the wrong cache.
             let app_grpc_config = get_app_grpc_config(self.config.clone());
-            let mut internal_pipeline_client =
-                get_internal_client(&app_grpc_config, 5).await?;
+            let internal_pipeline_client = get_internal_client(&app_grpc_config, 5).await?;
 
             let flags = self.config.flags.clone().unwrap_or_default();
-            let (alias_redirected_receiver, operation_receiver) = if let Some(mut client) = internal_pipeline_client {
-                let (alias_redirected_receiver, future) =
-                    client.stream_alias_events().await?;
-                futures.push(flatten_join_handle(tokio::spawn(
-                    future.map_err(OrchestrationError::GrpcServerFailed),
-                )));
-
-                // Initialize `PipelineResponse` events.
-                let operation_receiver = if flags.dynamic {
-                    let (operation_receiver, future) =
-                        client.stream_operations().await?;
+            let (alias_redirected_receiver, operation_receiver) =
+                if let Some(mut client) = internal_pipeline_client {
+                    let (alias_redirected_receiver, future) = client.stream_alias_events().await?;
                     futures.push(flatten_join_handle(tokio::spawn(
                         future.map_err(OrchestrationError::GrpcServerFailed),
                     )));
-                    Some(operation_receiver)
-                } else {
-                    None
-                };
 
-                (alias_redirected_receiver, operation_receiver)
-            } else {
-                // Have empty channel when connection to app server is not possible
-                let (_, alias_redirected_receiver) = tokio::sync::broadcast::channel(1);
-                (alias_redirected_receiver, None)
-            };
+                    // Initialize `PipelineResponse` events.
+                    let operation_receiver = if flags.dynamic {
+                        let (operation_receiver, future) = client.stream_operations().await?;
+                        futures.push(flatten_join_handle(tokio::spawn(
+                            future.map_err(OrchestrationError::GrpcServerFailed),
+                        )));
+                        Some(operation_receiver)
+                    } else {
+                        None
+                    };
+
+                    (alias_redirected_receiver, operation_receiver)
+                } else {
+                    // Have empty channel when connection to app server is not possible
+                    let (_, alias_redirected_receiver) = tokio::sync::broadcast::channel(1);
+                    (alias_redirected_receiver, None)
+                };
 
             // Open `RoCacheEndpoint`s.
             let cache_manager = if let Some(cache_manager) = cache_manager {
@@ -168,7 +172,6 @@ impl Orchestrator for SimpleOrchestrator {
                     .await
                     .map_err(OrchestrationError::ApiServerFailed)
             });
-
 
             // Initialize gRPC Server
             let api_dir = get_api_dir(&self.config);
