@@ -85,6 +85,7 @@ impl LogSink {
     pub fn new(multi_pb: Option<MultiProgress>, log_path: PathBuf) -> Result<Self, ExecutionError> {
         let file = OpenOptions::new()
             .write(true)
+            .create(true)
             .append(true)
             .open(log_path)
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
