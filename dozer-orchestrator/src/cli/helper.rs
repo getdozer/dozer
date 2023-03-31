@@ -2,13 +2,21 @@ use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 use crate::{errors::CliError, Orchestrator};
 
+use dozer_types::models::app_config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::app_config::Config, serde_yaml};
 use handlebars::Handlebars;
 use std::{collections::BTreeMap, fs};
 
 pub fn init_dozer(config_path: String) -> Result<Dozer, CliError> {
-    let config = load_config(config_path)?;
+    let mut config = load_config(config_path)?;
+
+    let cache_max_map_size = config
+        .cache_max_map_size
+        .unwrap_or_else(default_cache_max_map_size);
+    let page_size = page_size::get() as u64;
+    config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
+
     Ok(Dozer::new(config))
 }
 

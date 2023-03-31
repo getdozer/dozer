@@ -2228,6 +2228,7 @@ dependencies = [
  "futures",
  "handlebars",
  "include_dir",
+ "page_size",
  "rustyline",
  "rustyline-derive",
  "serde",

@@ -6,6 +6,8 @@ default-run = "dozer"
 authors = ["getdozer/dozer-dev"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.deb]
+name = "dozer"
 
 [dependencies]
 dozer-api = {path = "../dozer-api"}
@@ -32,6 +34,7 @@ rustyline-derive = "0.8.0"
 crossterm = "0.26.0"
 futures = "0.3.26"
 dozer-storage = { path = "../dozer-storage" }
+page_size = "0.5.0"
 
 [[bin]]
 edition = "2021"
