@@ -19,9 +19,9 @@ impl LogReader {
         let file = OpenOptions::new()
             .read(true)
             .open(path)
-            .map_err(|e| CacheError::LogFileNotFound(path.to_path_buf()))?;
+            .map_err(|_| CacheError::LogFileNotFound(path.to_path_buf()))?;
 
-        let mut reader = BufReader::new(file);
+        let reader = BufReader::new(file);
         Ok(Self { reader })
     }
 }
@@ -33,7 +33,7 @@ impl Stream for LogReader {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let mut this = self.get_mut();
+        let this = self.get_mut();
         match read_msg(&mut this.reader) {
             Ok(msg) => std::task::Poll::Ready(Some(msg)),
             Err(e) => {

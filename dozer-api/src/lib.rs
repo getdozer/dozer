@@ -90,7 +90,6 @@ pub mod rest;
 // Re-exports
 pub use actix_web;
 pub use async_trait;
-pub use cache_builder::load_schemas;
 use errors::ApiError;
 use futures_util::Future;
 pub use openapiv3;

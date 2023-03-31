@@ -1,5 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 
+use std::path::PathBuf;
+
 use dozer_api::errors::{ApiError, GenerationError, GrpcError};
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;

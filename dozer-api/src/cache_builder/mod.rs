@@ -19,7 +19,6 @@ use crate::grpc::types_helper;
 use self::log_reader::LogReader;
 
 mod log_reader;
-pub const SCHEMA_FILE_NAME: &str = "schemas.json";
 
 pub fn create_cache(
     cache_manager: &dyn RwCacheManager,

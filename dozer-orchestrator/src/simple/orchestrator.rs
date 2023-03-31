@@ -61,10 +61,7 @@ impl Orchestrator for SimpleOrchestrator {
 
             // Load schemas.
             let pipeline_path = get_pipeline_dir(&self.config);
-            let schemas = load_schemas(&pipeline_path).map_err(|e| {
-                error!("Failed to load schemas: {}", e);
-                OrchestrationError::SchemaLoadFailed(e)
-            })?;
+            let schemas = load_schemas(&pipeline_path)?;
             let api_dir = get_api_dir(&self.config);
             let api_config = self.config.api.clone().unwrap_or_default();
             for (schema_name, schema) in &schemas {

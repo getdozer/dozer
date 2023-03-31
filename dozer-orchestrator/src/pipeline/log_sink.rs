@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use dozer_core::{
     epoch::Epoch,
@@ -98,7 +94,7 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
 
     fn prepare(
         &self,
-        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -127,7 +123,7 @@ pub struct LogSink {
 
 impl LogSink {
     pub fn new(multi_pb: Option<MultiProgress>, log_path: PathBuf) -> Result<Self, ExecutionError> {
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .write(true)
             .append(true)
             .open(log_path)
@@ -137,7 +133,7 @@ impl LogSink {
 }
 
 impl Sink for LogSink {
-    fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
         let executor_operation = ExecutorOperation::Op { op };
         let msg = dozer_types::bincode::serialize(&executor_operation)
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
