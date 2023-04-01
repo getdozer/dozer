@@ -198,6 +198,25 @@ jobs:
           profile: minimal
           target: ${{ matrix.target }}
           override: true
+            - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-release-
       - name: Cargo build
         uses: actions-rs/cargo@v1
         with:
