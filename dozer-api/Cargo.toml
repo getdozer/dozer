@@ -8,8 +8,8 @@ authors = ["getdozer/dozer-dev"]
 
 [dependencies]
 actix-cors = "0.6.3"
-actix-http = { version = "3.3.0", default-features = false, features = ["compress-brotli", "compress-gzip", "rustls"] }
-actix-web = { version = "4.2.1", default-features = false, features = ["macros", "compress-brotli", "compress-gzip", "cookies", "rustls"] }
+actix-http = { version = "3.3.0", default-features = false, features = ["rustls"] }
+actix-web = { version = "4.2.1", default-features = false, features = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "rustls"] }
 actix-web-httpauth = "0.8.0"
 dozer-cache = {path = "../dozer-cache"}
 dozer-types = {path = "../dozer-types"}
