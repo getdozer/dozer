@@ -164,7 +164,6 @@ jobs:
           echo "ARTIFACT_URL=https://${{ env.BUCKET_NAME }}.s3.ap-southeast-1.amazonaws.com/${{ env.VERSION }}/${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
 
       - name: configure aws credentials
-        if: matrix.os == 'ubuntu-20-16-cores'
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
@@ -173,7 +172,6 @@ jobs:
 
       - name: Upload release to S3
         id: upload_s3
-        if: matrix.os == 'ubuntu-20-16-cores'
         run: |
           aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
     
@@ -250,7 +248,7 @@ jobs:
           release_name: "Development Release - ${{ needs.prepare.outputs.version }}"
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           body: "${{ needs.prepare.outputs.release_body }}"
-      
+
       - name: Set env variables
         env: 
           VERSION: ${{ needs.prepare.outputs.version }}
@@ -261,7 +259,6 @@ jobs:
           echo "ARTIFACT_URL=https://${{ env.BUCKET_NAME }}.s3.ap-southeast-1.amazonaws.com/${{ env.VERSION }}/${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
 
       - name: configure aws credentials
-        if: matrix.os == 'ubuntu-20-16-cores'
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
@@ -270,9 +267,12 @@ jobs:
 
       - name: Upload release to S3
         id: upload_s3
-        if: matrix.os == 'ubuntu-20-16-cores'
         run: |
           aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
+
+
+
+
   release:
     name: Release
     runs-on: 
