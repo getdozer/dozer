@@ -206,6 +206,7 @@ impl AppService {
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
+
         let applications: Vec<AppResponse> = results
             .iter()
             .map(|result| {
