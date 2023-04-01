@@ -240,6 +240,11 @@ impl Orchestrator for SimpleOrchestrator {
             fs::create_dir_all(api_dir.clone()).map_err(|e| InternalError(Box::new(e)))?;
         }
 
+        // cache Path
+        if !cache_dir.exists() {
+            fs::create_dir_all(cache_dir.clone()).map_err(|e| InternalError(Box::new(e)))?;
+        }
+
         // Pipeline path
         fs::create_dir_all(pipeline_home_dir.clone()).map_err(|e| {
             OrchestrationError::PipelineDirectoryInitFailed(
@@ -291,10 +296,16 @@ impl Orchestrator for SimpleOrchestrator {
     // Cleaning the entire folder as there will be inconsistencies
     // between pipeline, cache and generated proto files.
     fn clean(&mut self) -> Result<(), OrchestrationError> {
+        let cache_dir = PathBuf::from(self.config.cache_dir.clone());
+        if cache_dir.exists() {
+            fs::remove_dir_all(&cache_dir).map_err(|e| InternalError(Box::new(e)))?;
+        };
+
         let home_dir = PathBuf::from(self.config.home_dir.clone());
         if home_dir.exists() {
             fs::remove_dir_all(&home_dir).map_err(|e| InternalError(Box::new(e)))?;
         };
+
         Ok(())
     }
 

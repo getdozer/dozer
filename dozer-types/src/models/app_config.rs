@@ -71,10 +71,19 @@ pub struct Config {
     /// Instrument using Dozer
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TelemetryConfig>,
+
+    #[prost(string, tag = "18")]
+    #[serde(default = "default_cache_dir")]
+    ///directory for all process; Default: ~/.dozer
+    pub cache_dir: String,
 }
 
 pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
+}
+
+pub fn default_cache_dir() -> String {
+    format!("{}/cache", DEFAULT_HOME_DIR)
 }
 
 pub fn default_cache_max_map_size() -> u64 {
@@ -121,6 +130,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut app_name = "".to_owned();
                 let mut sql = None;
                 let mut home_dir: String = default_home_dir();
+                let mut cache_dir: String = default_cache_dir();
 
                 let mut cache_max_map_size: Option<u64> = Some(default_cache_max_map_size());
                 let mut app_buffer_size: Option<u32> = Some(default_app_buffer_size());
@@ -151,6 +161,9 @@ impl<'de> Deserialize<'de> for Config {
                             endpoints_value = access.next_value::<Vec<serde_yaml::Value>>()?;
                         }
                         "home_dir" => {
+                            home_dir = access.next_value::<String>()?;
+                        }
+                        "cache_dir" => {
                             home_dir = access.next_value::<String>()?;
                         }
                         "cache_max_map_size" => {
@@ -232,6 +245,7 @@ impl<'de> Deserialize<'de> for Config {
                     endpoints,
                     sql,
                     home_dir,
+                    cache_dir,
                     flags,
                     cache_max_map_size,
                     app_buffer_size,

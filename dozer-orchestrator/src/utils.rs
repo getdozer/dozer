@@ -22,7 +22,7 @@ pub fn get_endpoint_log_path(pipeline_dir: &Path, endpoint_name: &str) -> PathBu
 }
 
 pub fn get_cache_dir(config: &Config) -> PathBuf {
-    AsRef::<Path>::as_ref(&config.home_dir).join("cache")
+    AsRef::<Path>::as_ref(&config.cache_dir).join("cache")
 }
 
 fn get_logs_path(pipeline_dir: &Path) -> PathBuf {
