@@ -21,7 +21,7 @@ use dozer_types::grpc_types::{
 };
 use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
-use std::{env, path::Path, str::FromStr, sync::Arc, time::Duration};
+use std::{env, str::FromStr, sync::Arc, time::Duration};
 
 use crate::test_utils;
 use tokio::{

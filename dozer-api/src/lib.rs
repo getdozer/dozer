@@ -32,7 +32,7 @@ impl CacheEndpoint {
             let (cache_name, task) = cache_builder::create_cache(
                 cache_manager,
                 schema,
-                &log_path,
+                log_path,
                 endpoint.conflict_resolution.unwrap_or_default(),
                 operations_sender,
                 mullti_pb,

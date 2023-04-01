@@ -237,12 +237,12 @@ impl Orchestrator for SimpleOrchestrator {
 
         // Api Path
         if !api_dir.exists() {
-            fs::create_dir_all(api_dir.clone()).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(api_dir).map_err(|e| InternalError(Box::new(e)))?;
         }
 
         // cache Path
         if !cache_dir.exists() {
-            fs::create_dir_all(cache_dir.clone()).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(cache_dir).map_err(|e| InternalError(Box::new(e)))?;
         }
 
         // Pipeline path

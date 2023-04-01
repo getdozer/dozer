@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use dozer_cache::cache::{test_utils, LmdbRwCacheManager, RwCacheManager};
-use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex, ConflictResolution};
+use dozer_cache::cache::{LmdbRwCacheManager, RwCacheManager};
+use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::types::{
     FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
 };
@@ -31,27 +31,15 @@ pub fn get_schema() -> Schema {
 }
 
 pub fn init_sink(
-    schema: Schema,
-    secondary_indexes: Vec<IndexDefinition>,
-    conflict_resolution: Option<ConflictResolution>,
+    _schema: Schema,
+    _secondary_indexes: Vec<IndexDefinition>,
+    _conflict_resolution: Option<ConflictResolution>,
 ) -> (Arc<dyn RwCacheManager>, LogSink) {
     let cache_manager = Arc::new(LmdbRwCacheManager::new(Default::default()).unwrap());
 
     let log_sink = LogSink::new(None, get_log_path(), "films").unwrap();
 
     (cache_manager, log_sink)
-}
-pub fn init_endpoint(conflict_resolution: Option<ConflictResolution>) -> ApiEndpoint {
-    ApiEndpoint {
-        name: "films".to_string(),
-        path: "/films".to_string(),
-        index: Some(ApiIndex {
-            primary_key: vec!["film_id".to_string()],
-        }),
-        table_name: "films".to_string(),
-        conflict_resolution,
-        // sql: Some("SELECT film_name FROM film WHERE 1=1".to_string()),
-    }
 }
 
 pub fn get_log_path() -> PathBuf {

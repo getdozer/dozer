@@ -58,7 +58,7 @@ impl LogReader {
                 Ok((msg, len)) => {
                     self.pos += len;
                     self.count += 1;
-                    self.pb.set_position(self.count as u64);
+                    self.pb.set_position(self.count);
                     return msg;
                 }
                 Err(e) => {
@@ -96,11 +96,11 @@ fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u64), Lo
     let mut buf = [0; 8];
     reader
         .read_exact(&mut buf)
-        .map_err(|e| LogError::ReadError(e))?;
+        .map_err(LogError::ReadError)?;
     let len = u64::from_le_bytes(buf);
 
     let buf = read_n(reader, len);
-    let msg = bincode::deserialize(&buf).map_err(|e| LogError::DeserializationError(e))?;
+    let msg = bincode::deserialize(&buf).map_err(LogError::DeserializationError)?;
     Ok((msg, len + 8))
 }
 fn read_n<R>(reader: R, bytes_to_read: u64) -> Vec<u8>
