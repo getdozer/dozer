@@ -1,12 +1,17 @@
-use std::path::Path;
+use std::{env, path::Path};
 
 use dozer_api::LogReader;
 use futures_util::StreamExt;
 
 #[tokio::main]
 async fn main() {
-    let path = ".dozer/pipeline/logs/trips";
-    let log_reader = LogReader::new(Path::new(path), "trips", 0, None).unwrap();
+    let args: Vec<String> = env::args().collect();
+
+    let mut path = ".dozer/pipeline/logs/trips";
+    if args.len() == 2 {
+        path = &args[1];
+    };
+    let log_reader = LogReader::new(Path::new(path), "logs", 0, None).unwrap();
 
     tokio::pin!(log_reader);
 
