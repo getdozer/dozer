@@ -164,7 +164,7 @@ impl<'de> Deserialize<'de> for Config {
                             home_dir = access.next_value::<String>()?;
                         }
                         "cache_dir" => {
-                            home_dir = access.next_value::<String>()?;
+                            cache_dir = access.next_value::<String>()?;
                         }
                         "cache_max_map_size" => {
                             cache_max_map_size = access.next_value::<Option<u64>>()?;
