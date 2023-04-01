@@ -37,7 +37,7 @@ pub fn init_sink(
 ) -> (Arc<dyn RwCacheManager>, LogSink) {
     let cache_manager = Arc::new(LmdbRwCacheManager::new(Default::default()).unwrap());
 
-    let log_sink = LogSink::new(None, get_log_path(), "films").unwrap();
+    let log_sink = LogSink::new(None, get_log_path(), "films", 1024 * 1024).unwrap();
 
     (cache_manager, log_sink)
 }

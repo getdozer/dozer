@@ -16,6 +16,7 @@ message AppConfig {
   optional uint32 app_max_map_size = 12;
   optional uint32 commit_size = 13;
   optional uint64 commit_timeout = 14;
+  optional uint64 file_buffer_capacity = 15;
 }
 message Flags {
   bool dynamic = 1;

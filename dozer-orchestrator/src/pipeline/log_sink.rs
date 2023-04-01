@@ -1,4 +1,9 @@
-use std::{collections::HashMap, io::Write, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufWriter, Write},
+    path::PathBuf,
+};
 
 use dozer_core::{
     epoch::Epoch,
@@ -21,6 +26,7 @@ use crate::utils::get_endpoint_log_path;
 #[derive(Debug, Clone)]
 pub struct LogSinkSettings {
     pub pipeline_dir: PathBuf,
+    pub file_buffer_capacity: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +78,7 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
             Some(self.multi_pb.clone()),
             log_path,
             &self.api_endpoint.name,
+            self.settings.file_buffer_capacity,
         )?))
     }
 }
@@ -79,7 +86,7 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
 #[derive(Debug)]
 pub struct LogSink {
     pb: ProgressBar,
-    file: std::fs::File,
+    buffered_file: BufWriter<File>,
     counter: usize,
 }
 
@@ -88,6 +95,7 @@ impl LogSink {
         multi_pb: Option<MultiProgress>,
         log_path: PathBuf,
         name: &str,
+        file_buffer_capacity: u64,
     ) -> Result<Self, ExecutionError> {
         let file = OpenOptions::new()
             .write(true)
@@ -96,12 +104,14 @@ impl LogSink {
             .open(log_path)
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
+        let buffered_file = std::io::BufWriter::with_capacity(file_buffer_capacity as usize, file);
+
         let pb = attach_progress(multi_pb);
         pb.set_message(name.to_string());
 
         Ok(Self {
             pb,
-            file,
+            buffered_file,
             counter: 0,
         })
     }
@@ -112,7 +122,7 @@ impl Sink for LogSink {
         let msg = ExecutorOperation::Op { op };
         self.counter += 1;
         self.pb.set_position(self.counter as u64);
-        write_msg_to_file(&mut self.file, &msg)
+        write_msg_to_file(&mut self.buffered_file, &msg)
     }
 
     fn commit(&mut self) -> Result<(), ExecutionError> {
@@ -120,17 +130,19 @@ impl Sink for LogSink {
             epoch: Epoch::new(0, Default::default()),
         };
 
-        write_msg_to_file(&mut self.file, &msg)
+        write_msg_to_file(&mut self.buffered_file, &msg)?;
+        self.buffered_file.flush()?;
+        Ok(())
     }
 
     fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
         let msg = ExecutorOperation::SnapshottingDone {};
-        write_msg_to_file(&mut self.file, &msg)
+        write_msg_to_file(&mut self.buffered_file, &msg)
     }
 }
 
 fn write_msg_to_file(
-    file: &mut std::fs::File,
+    file: &mut BufWriter<File>,
     msg: &ExecutorOperation,
 ) -> Result<(), ExecutionError> {
     let msg = dozer_types::bincode::serialize(msg)

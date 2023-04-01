@@ -5,7 +5,7 @@ use dozer_types::models::{
     api_security::ApiSecurity,
     app_config::{
         default_app_buffer_size, default_cache_max_map_size, default_commit_size,
-        default_commit_timeout, Config,
+        default_commit_timeout, default_file_buffer_capacity, Config,
     },
 };
 use std::{
@@ -51,6 +51,12 @@ fn get_buffer_size(config: &Config) -> u32 {
 
 fn get_commit_size(config: &Config) -> u32 {
     config.commit_size.unwrap_or_else(default_commit_size)
+}
+
+pub fn get_file_buffer_capacity(config: &Config) -> u64 {
+    config
+        .file_buffer_capacity
+        .unwrap_or_else(default_file_buffer_capacity)
 }
 
 pub fn get_api_dir(config: &Config) -> PathBuf {

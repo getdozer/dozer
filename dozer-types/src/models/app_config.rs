@@ -72,7 +72,12 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_timeout: Option<u64>,
 
-    #[prost(oneof = "TelemetryConfig", tags = "15,16,17")]
+    /// Buffer capacity for Log Writer
+    #[prost(uint64, optional, tag = "15")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_buffer_capacity: Option<u64>,
+
+    #[prost(oneof = "TelemetryConfig", tags = "16,17,18")]
     /// Instrument using Dozer
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TelemetryConfig>,
@@ -84,6 +89,10 @@ pub fn default_home_dir() -> String {
 
 pub fn default_cache_dir() -> String {
     format!("{}/cache", DEFAULT_HOME_DIR)
+}
+
+pub fn default_file_buffer_capacity() -> u64 {
+    1024 * 1024 * 1024
 }
 
 pub fn default_cache_max_map_size() -> u64 {
@@ -132,6 +141,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut home_dir: String = default_home_dir();
                 let mut cache_dir: String = default_cache_dir();
 
+                let mut file_buffer_capacity: Option<u64> = Some(default_file_buffer_capacity());
                 let mut cache_max_map_size: Option<u64> = Some(default_cache_max_map_size());
                 let mut app_buffer_size: Option<u32> = Some(default_app_buffer_size());
                 let mut commit_size: Option<u32> = Some(default_commit_size());
@@ -171,6 +181,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "app_buffer_size" => {
                             app_buffer_size = access.next_value::<Option<u32>>()?;
+                        }
+                        "file_buffer_capacity" => {
+                            file_buffer_capacity = access.next_value::<Option<u64>>()?;
                         }
                         "commit_size" => {
                             commit_size = access.next_value::<Option<u32>>()?;
@@ -249,6 +262,7 @@ impl<'de> Deserialize<'de> for Config {
                     flags,
                     cache_max_map_size,
                     app_buffer_size,
+                    file_buffer_capacity,
                     commit_size,
                     commit_timeout,
                     telemetry,

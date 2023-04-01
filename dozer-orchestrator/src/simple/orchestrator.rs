@@ -7,8 +7,8 @@ use crate::simple::helper::validate_config;
 use crate::simple::schemas::write_schemas;
 use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_cache_manager_options,
-    get_endpoint_log_path, get_executor_options, get_grpc_config, get_pipeline_dir,
-    get_rest_config,
+    get_endpoint_log_path, get_executor_options, get_file_buffer_capacity, get_grpc_config,
+    get_pipeline_dir, get_rest_config,
 };
 use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
@@ -168,6 +168,7 @@ impl Orchestrator for SimpleOrchestrator {
         );
         let settings = LogSinkSettings {
             pipeline_dir: pipeline_dir.clone(),
+            file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
         let dag_executor =
             executor.create_dag_executor(settings, get_executor_options(&self.config))?;
@@ -255,6 +256,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let settings = LogSinkSettings {
             pipeline_dir: pipeline_home_dir.clone(),
+            file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
         let dag = builder.build(settings)?;
         // Populate schemas.
