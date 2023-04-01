@@ -94,9 +94,7 @@ impl Stream for LogReader {
 
 fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u64), LogError> {
     let mut buf = [0; 8];
-    reader
-        .read_exact(&mut buf)
-        .map_err(LogError::ReadError)?;
+    reader.read_exact(&mut buf).map_err(LogError::ReadError)?;
     let len = u64::from_le_bytes(buf);
 
     let buf = read_n(reader, len);

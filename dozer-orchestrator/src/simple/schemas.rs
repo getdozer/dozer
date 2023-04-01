@@ -32,8 +32,9 @@ pub fn write_schemas(
     let mut schemas = dag_schemas.get_sink_schemas();
 
     for api_endpoint in api_endpoints {
-        let schema = schemas.get(&api_endpoint.name).unwrap_or_else(|| panic!("Schema not found for a sink {}",
-            api_endpoint.name));
+        let schema = schemas
+            .get(&api_endpoint.name)
+            .unwrap_or_else(|| panic!("Schema not found for a sink {}", api_endpoint.name));
         let schema = modify_schema(schema, api_endpoint)?;
 
         schemas.insert(api_endpoint.name.clone(), schema);
@@ -106,10 +107,7 @@ fn create_primary_indexes(
             .fields
             .iter()
             .position(|fd| fd.name == name.clone())
-            .map_or(
-                Err(OrchestrationError::FieldNotFound(name.to_owned())),
-                Ok,
-            )?;
+            .map_or(Err(OrchestrationError::FieldNotFound(name.to_owned())), Ok)?;
 
         primary_index.push(idx);
     }
