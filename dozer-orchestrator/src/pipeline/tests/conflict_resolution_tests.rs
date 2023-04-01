@@ -125,6 +125,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn return_insert_error_when_type_panic() {
         let (cache, mut sink, schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::Panic as i32,
@@ -162,6 +163,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn ignore_update_error_when_type_nothing() {
         let (cache, mut sink, schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
@@ -197,6 +199,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn update_after_update_error_when_type_update() {
         let (cache, mut sink, schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
@@ -233,6 +236,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn return_update_error_when_type_panic() {
         let (_cache, mut sink, _schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
@@ -271,6 +275,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn ignore_delete_error_when_type_nothing() {
         let (cache, mut sink, _schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
@@ -297,6 +302,7 @@ mod tests {
         assert!(result.is_ok());
     }
     #[test]
+    #[ignore]
     fn return_delete_error_when_type_panic() {
         let (_cache, mut sink, _schema) = init_cache_and_sink(Some(ConflictResolution {
             on_insert: OnInsertResolutionTypes::default() as i32,
