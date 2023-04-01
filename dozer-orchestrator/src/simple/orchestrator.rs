@@ -97,7 +97,7 @@ impl Orchestrator for SimpleOrchestrator {
                         endpoint.clone(),
                         &log_path,
                         operations_sender.clone(),
-                        self.multi_pb.clone(),
+                        Some(self.multi_pb.clone()),
                     )?;
                     if let Some(task) = task {
                         futures.push(flatten_join_handle(tokio::spawn(
@@ -261,7 +261,11 @@ impl Orchestrator for SimpleOrchestrator {
         let dag_schemas = DagSchemas::new(dag)?;
 
         // Write schemas to pipeline_dir and generate proto files.
-        let schemas = write_schemas(&dag_schemas, pipeline_home_dir.clone())?;
+        let schemas = write_schemas(
+            &dag_schemas,
+            pipeline_home_dir.clone(),
+            &self.config.endpoints,
+        )?;
         let api_dir = get_api_dir(&self.config);
         let api_config = self.config.api.clone().unwrap_or_default();
         for (schema_name, schema) in &schemas {

@@ -49,22 +49,21 @@ async fn start_internal_pipeline_client() -> Result<Receiver<Operation>, GrpcErr
 pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) {
     let endpoint = test_utils::get_endpoint();
     let schema = test_utils::get_schema().0;
-    let cache_endpoint = Arc::new(
-        CacheEndpoint::new(
-            &*test_utils::initialize_cache(&endpoint.name, None),
-            schema,
-            endpoint,
-            Path::new("./.dozer/pipeline/films"),
-            None,
-        )
-        .unwrap(),
-    );
+    let cache_endpoint = CacheEndpoint::new(
+        &*test_utils::initialize_cache(&endpoint.name, None),
+        schema,
+        endpoint,
+        test_utils::get_log_path().as_path(),
+        None,
+        None,
+    )
+    .unwrap();
 
     let receiver = start_internal_pipeline_client()
         .await
         .unwrap_or(broadcast::channel::<Operation>(1).1);
 
-    (vec![cache_endpoint], receiver)
+    (vec![Arc::new(cache_endpoint.0)], receiver)
 }
 
 async fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {

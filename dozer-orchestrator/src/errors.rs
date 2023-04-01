@@ -66,6 +66,14 @@ pub enum OrchestrationError {
     SchemasNotInitializedPath(PathBuf),
     #[error("Cannot convert Schemas in Path specified {0:?}")]
     DeserializeSchemas(PathBuf),
+    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
+    MismatchPrimaryKey {
+        endpoint_name: String,
+        expected: Vec<String>,
+        actual: Vec<String>,
+    },
+    #[error("Field not found at position {0}")]
+    FieldNotFound(String),
 }
 
 #[derive(Error, Debug)]

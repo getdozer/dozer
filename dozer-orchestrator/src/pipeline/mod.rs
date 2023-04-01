@@ -2,7 +2,6 @@ mod builder;
 pub mod conflict_resolver;
 pub mod connector_source;
 mod log_sink;
-mod sinks;
 pub mod source_builder;
 pub mod validate;
 

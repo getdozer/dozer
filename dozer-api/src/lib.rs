@@ -21,7 +21,7 @@ impl CacheEndpoint {
         endpoint: ApiEndpoint,
         log_path: &Path,
         operations_sender: Option<Sender<Operation>>,
-        mullti_pb: MultiProgress,
+        mullti_pb: Option<MultiProgress>,
     ) -> Result<(Self, Option<impl Future<Output = Result<(), CacheError>>>), ApiError> {
         let (cache_reader, task) = if let Some(cache_reader) =
             open_cache_reader(cache_manager, &endpoint.name)?

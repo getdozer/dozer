@@ -27,7 +27,7 @@ pub fn create_cache(
     log_path: &Path,
     conflict_resolution: ConflictResolution,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
-    mullti_pb: MultiProgress,
+    mullti_pb: Option<MultiProgress>,
 ) -> Result<(String, impl Future<Output = Result<(), CacheError>>), CacheError> {
     // Automatically create secondary indexes
     let secondary_indexes = generate_secondary_indexes(&schema.fields);
@@ -37,7 +37,7 @@ pub fn create_cache(
     let name = cache.name().to_string();
 
     // Create log reader.
-    let log_reader = LogReader::new(log_path, &name, 0, Some(mullti_pb))?;
+    let log_reader = LogReader::new(log_path, &name, 0, mullti_pb)?;
 
     // Spawn a task to write to cache.
     let task = build_cache(cache, log_reader, schema, operations_sender);

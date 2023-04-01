@@ -1,11 +1,13 @@
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::pipeline::CacheSink;
-use dozer_cache::cache::{LmdbRwCacheManager, RwCacheManager};
+use dozer_cache::cache::{test_utils, LmdbRwCacheManager, RwCacheManager};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex, ConflictResolution};
 use dozer_types::types::{
     FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SourceDefinition,
 };
+
+use crate::pipeline::LogSink;
 
 pub fn get_schema() -> Schema {
     Schema {
@@ -32,18 +34,12 @@ pub fn init_sink(
     schema: Schema,
     secondary_indexes: Vec<IndexDefinition>,
     conflict_resolution: Option<ConflictResolution>,
-) -> (Arc<dyn RwCacheManager>, CacheSink) {
+) -> (Arc<dyn RwCacheManager>, LogSink) {
     let cache_manager = Arc::new(LmdbRwCacheManager::new(Default::default()).unwrap());
-    let cache = CacheSink::new(
-        cache_manager.clone(),
-        init_endpoint(conflict_resolution),
-        schema,
-        secondary_indexes,
-        None,
-        None,
-    )
-    .unwrap();
-    (cache_manager, cache)
+
+    let log_sink = LogSink::new(None, get_log_path(), "films").unwrap();
+
+    (cache_manager, log_sink)
 }
 pub fn init_endpoint(conflict_resolution: Option<ConflictResolution>) -> ApiEndpoint {
     ApiEndpoint {
@@ -56,4 +52,8 @@ pub fn init_endpoint(conflict_resolution: Option<ConflictResolution>) -> ApiEndp
         conflict_resolution,
         // sql: Some("SELECT film_name FROM film WHERE 1=1".to_string()),
     }
+}
+
+pub fn get_log_path() -> PathBuf {
+    Path::new("./.dozer/pipeline/films").to_path_buf()
 }
