@@ -1,7 +1,8 @@
 use arc_swap::ArcSwap;
 use dozer_cache::{cache::RwCacheManager, errors::CacheError, CacheReader};
 use dozer_types::{
-    grpc_types::types::Operation, log::info, models::api_endpoint::ApiEndpoint, types::Schema,
+    grpc_types::types::Operation, indicatif::MultiProgress, log::info,
+    models::api_endpoint::ApiEndpoint, types::Schema,
 };
 use std::{ops::Deref, path::Path, sync::Arc};
 
@@ -20,6 +21,7 @@ impl CacheEndpoint {
         endpoint: ApiEndpoint,
         log_path: &Path,
         operations_sender: Option<Sender<Operation>>,
+        mullti_pb: MultiProgress,
     ) -> Result<(Self, Option<impl Future<Output = Result<(), CacheError>>>), ApiError> {
         let (cache_reader, task) = if let Some(cache_reader) =
             open_cache_reader(cache_manager, &endpoint.name)?
@@ -33,6 +35,7 @@ impl CacheEndpoint {
                 &log_path,
                 endpoint.conflict_resolution.unwrap_or_default(),
                 operations_sender,
+                mullti_pb,
             )
             .map_err(ApiError::CreateCache)?;
             // TODO: We intentionally don't create alias endpoint.name -> cache_name here.
@@ -83,6 +86,7 @@ fn open_cache_reader(
 // Exports
 pub mod auth;
 mod cache_builder;
+pub use cache_builder::LogReader;
 pub mod errors;
 pub mod generator;
 pub mod grpc;

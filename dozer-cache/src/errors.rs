@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use dozer_storage::errors::StorageError;
-use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
+use dozer_types::{bincode, thiserror};
 
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::types::{IndexDefinition, SchemaWithIndex};
@@ -49,6 +49,8 @@ pub enum CacheError {
     PrimaryKeyExists,
     #[error("Cannot find log file {0:?}")]
     LogFileNotFound(PathBuf),
+    #[error("Cannot read log {0:?}")]
+    LogReadError(#[source] std::io::Error),
 }
 
 impl CacheError {
@@ -70,11 +72,17 @@ impl CacheError {
         )
     }
 }
+
 #[derive(Error, Debug)]
 pub enum LogError {
-    #[error("Failed to read n bytes - {0:?}")]
+    #[error("Error reading log: {0}")]
     ReadError(#[source] std::io::Error),
+    #[error("Error seeking file log: {0},pos: {1}, error: {2}")]
+    SeekError(String, u64, #[source] std::io::Error),
+    #[error("Error deserializing log: {0}")]
+    DeserializationError(#[from] bincode::Error),
 }
+
 #[derive(Error, Debug)]
 pub enum QueryError {
     #[error("Failed to get a record by id - {0:?}")]

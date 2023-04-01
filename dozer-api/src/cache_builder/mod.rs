@@ -7,6 +7,7 @@ use dozer_cache::{
 use dozer_core::executor::ExecutorOperation;
 use dozer_types::{
     grpc_types::types::Operation as GrpcOperation,
+    indicatif::MultiProgress,
     log::error,
     models::api_endpoint::ConflictResolution,
     types::{FieldDefinition, FieldType, IndexDefinition, Operation, Schema},
@@ -16,7 +17,7 @@ use tokio::sync::broadcast::Sender;
 
 use crate::grpc::types_helper;
 
-use self::log_reader::LogReader;
+pub use self::log_reader::LogReader;
 
 mod log_reader;
 
@@ -26,15 +27,18 @@ pub fn create_cache(
     log_path: &Path,
     conflict_resolution: ConflictResolution,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
+    mullti_pb: MultiProgress,
 ) -> Result<(String, impl Future<Output = Result<(), CacheError>>), CacheError> {
-    // Create log reader.
-    let log_reader = LogReader::new(log_path)?;
     // Automatically create secondary indexes
     let secondary_indexes = generate_secondary_indexes(&schema.fields);
     // Create the cache.
     let cache =
         cache_manager.create_cache(schema.clone(), secondary_indexes, conflict_resolution)?;
     let name = cache.name().to_string();
+
+    // Create log reader.
+    let log_reader = LogReader::new(log_path, &name, 0, Some(mullti_pb))?;
+
     // Spawn a task to write to cache.
     let task = build_cache(cache, log_reader, schema, operations_sender);
     Ok((name, task))

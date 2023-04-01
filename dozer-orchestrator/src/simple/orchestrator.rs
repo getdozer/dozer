@@ -24,6 +24,7 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
@@ -41,11 +42,15 @@ use tokio::sync::oneshot;
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
+    pub multi_pb: MultiProgress,
 }
 
 impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
-        Self { config }
+        Self {
+            config,
+            multi_pb: MultiProgress::new(),
+        }
     }
 }
 
@@ -92,6 +97,7 @@ impl Orchestrator for SimpleOrchestrator {
                         endpoint.clone(),
                         &log_path,
                         operations_sender.clone(),
+                        self.multi_pb.clone(),
                     )?;
                     if let Some(task) = task {
                         futures.push(flatten_join_handle(tokio::spawn(
@@ -158,6 +164,7 @@ impl Orchestrator for SimpleOrchestrator {
             &self.config.endpoints,
             &pipeline_dir,
             running,
+            self.multi_pb.clone(),
         );
         let settings = LogSinkSettings {
             pipeline_dir: pipeline_dir.clone(),
@@ -225,6 +232,7 @@ impl Orchestrator for SimpleOrchestrator {
             self.config.sql.as_deref(),
             &self.config.endpoints,
             &pipeline_home_dir,
+            self.multi_pb.clone(),
         );
 
         // Api Path

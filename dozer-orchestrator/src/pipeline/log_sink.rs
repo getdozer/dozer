@@ -10,7 +10,7 @@ use dozer_core::{
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::{
     bytes::{BufMut, BytesMut},
-    indicatif::MultiProgress,
+    indicatif::{MultiProgress, ProgressBar, ProgressStyle},
     models::api_endpoint::ApiEndpoint,
     types::{Operation, Schema},
 };
@@ -71,56 +71,96 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
         Ok(Box::new(LogSink::new(
             Some(self.multi_pb.clone()),
             log_path,
+            &self.api_endpoint.name,
         )?))
     }
 }
 
 #[derive(Debug)]
 pub struct LogSink {
-    multi_pb: Option<MultiProgress>,
+    pb: ProgressBar,
     file: std::fs::File,
+    counter: usize,
 }
 
 impl LogSink {
-    pub fn new(multi_pb: Option<MultiProgress>, log_path: PathBuf) -> Result<Self, ExecutionError> {
+    pub fn new(
+        multi_pb: Option<MultiProgress>,
+        log_path: PathBuf,
+        name: &str,
+    ) -> Result<Self, ExecutionError> {
         let file = OpenOptions::new()
             .write(true)
             .create(true)
             .append(true)
             .open(log_path)
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        Ok(Self { multi_pb, file })
+
+        let pb = attach_progress(multi_pb);
+        pb.set_message(name.to_string());
+
+        Ok(Self {
+            pb,
+            file,
+            counter: 0,
+        })
     }
 }
 
 impl Sink for LogSink {
     fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
-        let executor_operation = ExecutorOperation::Op { op };
-        let msg = dozer_types::bincode::serialize(&executor_operation)
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-
+        let msg = ExecutorOperation::Op { op };
+        self.counter += 1;
+        self.pb.set_position(self.counter as u64);
         write_msg_to_file(&mut self.file, &msg)
     }
 
     fn commit(&mut self) -> Result<(), ExecutionError> {
-        let executor_operation = ExecutorOperation::Commit {
+        let msg = ExecutorOperation::Commit {
             epoch: Epoch::new(0, Default::default()),
         };
-        let msg = dozer_types::bincode::serialize(&executor_operation)
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
         write_msg_to_file(&mut self.file, &msg)
     }
 
     fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
-        let executor_operation = ExecutorOperation::SnapshottingDone {};
-        todo!("Write snapshotting done to log file.")
+        let msg = ExecutorOperation::SnapshottingDone {};
+        write_msg_to_file(&mut self.file, &msg)
     }
 }
 
-fn write_msg_to_file(file: &mut std::fs::File, msg: &[u8]) -> Result<(), ExecutionError> {
+fn write_msg_to_file(
+    file: &mut std::fs::File,
+    msg: &ExecutorOperation,
+) -> Result<(), ExecutionError> {
+    let msg = dozer_types::bincode::serialize(msg)
+        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
     let mut buf = BytesMut::with_capacity(msg.len() + 4);
-    buf.put_u32_le(msg.len() as u32);
-    buf.put_slice(msg);
+    buf.put_u64_le(msg.len() as u64);
+    buf.put_slice(&msg);
+
     file.write_all(&buf)
         .map_err(|e| ExecutionError::InternalError(Box::new(e)))
+}
+
+fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
+    let pb = ProgressBar::new_spinner();
+    multi_pb.as_ref().map(|m| m.add(pb.clone()));
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.blue} {msg}: {pos}: {per_sec}")
+            .unwrap()
+            // For more spinners check out the cli-spinners project:
+            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+            .tick_strings(&[
+                "▹▹▹▹▹",
+                "▸▹▹▹▹",
+                "▹▸▹▹▹",
+                "▹▹▸▹▹",
+                "▹▹▹▸▹",
+                "▹▹▹▹▸",
+                "▪▪▪▪▪",
+            ]),
+    );
+    pb
 }

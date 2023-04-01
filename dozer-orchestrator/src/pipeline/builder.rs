@@ -53,6 +53,7 @@ impl<'a> PipelineBuilder<'a> {
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
         pipeline_dir: &'a Path,
+        progress: MultiProgress,
     ) -> Self {
         Self {
             connections,
@@ -60,7 +61,7 @@ impl<'a> PipelineBuilder<'a> {
             sql,
             api_endpoints,
             pipeline_dir,
-            progress: MultiProgress::new(),
+            progress,
         }
     }
 

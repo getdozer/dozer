@@ -4,12 +4,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use dozer_core::{dag_schemas, errors::ExecutionError, DEFAULT_PORT_HANDLE};
+use dozer_core::dag_schemas::DagSchemas;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::{
-    grpc_types::admin::ApiIndex,
-    types::{Schema, SchemaIdentifier},
-};
+use dozer_types::types::Schema;
 use std::io::Write;
 
 use crate::errors::OrchestrationError;
@@ -17,7 +14,7 @@ use crate::errors::OrchestrationError;
 pub const SCHEMA_FILE_NAME: &str = "schemas.json";
 
 pub fn write_schemas(
-    dag_schemas: &dag_schemas::DagSchemas<SchemaSQLContext>,
+    dag_schemas: &DagSchemas<SchemaSQLContext>,
     pipeline_dir: PathBuf,
 ) -> Result<HashMap<String, Schema>, OrchestrationError> {
     let path = pipeline_dir.join(SCHEMA_FILE_NAME);

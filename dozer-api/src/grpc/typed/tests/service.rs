@@ -21,7 +21,7 @@ use dozer_types::grpc_types::{
 };
 use dozer_types::models::{api_config::default_api_config, api_security::ApiSecurity};
 use futures_util::FutureExt;
-use std::{env, str::FromStr, sync::Arc, time::Duration};
+use std::{env, path::Path, str::FromStr, sync::Arc, time::Duration};
 
 use crate::test_utils;
 use tokio::{
@@ -48,10 +48,14 @@ async fn start_internal_pipeline_client() -> Result<Receiver<Operation>, GrpcErr
 
 pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) {
     let endpoint = test_utils::get_endpoint();
+    let schema = test_utils::get_schema().0;
     let cache_endpoint = Arc::new(
         CacheEndpoint::new(
             &*test_utils::initialize_cache(&endpoint.name, None),
+            schema,
             endpoint,
+            Path::new("./.dozer/pipeline/films"),
+            None,
         )
         .unwrap(),
     );
