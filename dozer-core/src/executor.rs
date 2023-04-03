@@ -9,6 +9,7 @@ use dozer_types::types::Operation;
 
 use crate::epoch::Epoch;
 
+use dozer_types::serde::{self, Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -37,13 +38,15 @@ impl Default for ExecutorOptions {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 pub(crate) enum InputPortState {
     Open,
     Terminated,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 pub enum ExecutorOperation {
     Op { op: Operation },
     Commit { epoch: Epoch },

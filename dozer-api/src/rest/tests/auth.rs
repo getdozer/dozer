@@ -3,7 +3,7 @@ use std::sync::Arc;
 use super::super::{ApiServer, CorsOptions};
 use crate::{
     auth::{Access, Authorizer},
-    test_utils, RoCacheEndpoint,
+    test_utils, CacheEndpoint,
 };
 use actix_web::{body::MessageBody, dev::ServiceResponse};
 use dozer_types::{
@@ -70,7 +70,16 @@ async fn check_status(
         security,
         CorsOptions::Permissive,
         vec![Arc::new(
-            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::new(
+                &*cache_manager,
+                test_utils::get_schema().0,
+                endpoint.clone(),
+                test_utils::get_log_path().as_path(),
+                None,
+                None,
+            )
+            .unwrap()
+            .0,
         )],
     );
     let app = actix_web::test::init_service(api_server).await;
@@ -92,13 +101,23 @@ async fn _call_auth_token_api(
     body: Option<Value>,
 ) -> ServiceResponse<impl MessageBody> {
     let endpoint = test_utils::get_endpoint();
+    let schema = test_utils::get_schema();
     let schema_name = endpoint.name.clone();
     let cache_manager = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
         Some(ApiSecurity::Jwt(secret)),
         CorsOptions::Permissive,
         vec![Arc::new(
-            RoCacheEndpoint::new(&*cache_manager, endpoint).unwrap(),
+            CacheEndpoint::new(
+                &*cache_manager,
+                schema.0,
+                endpoint,
+                test_utils::get_log_path().as_path(),
+                None,
+                None,
+            )
+            .unwrap()
+            .0,
         )],
     );
     let app = actix_web::test::init_service(api_server).await;

@@ -54,12 +54,6 @@ pub enum ExecutionError {
     AppSourceConnectionAlreadyExists(String),
     #[error("Failed to get primary key for `{0}`")]
     FailedToGetPrimaryKey(String),
-    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
-    MismatchPrimaryKey {
-        endpoint_name: String,
-        expected: Vec<String>,
-        actual: Vec<String>,
-    },
 
     // Error forwarders
     #[error("Internal type error: {0}")]

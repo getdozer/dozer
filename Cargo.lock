@@ -2464,6 +2464,7 @@ dependencies = [
  "async-trait",
  "crossbeam",
  "dozer-cache",
+ "dozer-core",
  "dozer-tracing",
  "dozer-types",
  "futures-util",
