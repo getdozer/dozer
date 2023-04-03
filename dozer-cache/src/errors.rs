@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use dozer_storage::errors::StorageError;
-use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
+use dozer_types::{bincode, thiserror};
 
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::types::{IndexDefinition, SchemaWithIndex};
@@ -19,6 +19,10 @@ pub enum CacheError {
     Plan(#[from] PlanError),
     #[error("Type error: {0}")]
     Type(#[from] TypeError),
+
+    #[error("Log error: {0}")]
+    LogError(#[from] LogError),
+
     #[error("Storage error: {0}")]
     Storage(#[from] dozer_storage::errors::StorageError),
     #[error("Schema is not found")]
@@ -43,6 +47,10 @@ pub enum CacheError {
     PrimaryKeyNotFound,
     #[error("Primary key already exists")]
     PrimaryKeyExists,
+    #[error("Cannot find log file {0:?}")]
+    LogFileNotFound(PathBuf),
+    #[error("Cannot read log {0:?}")]
+    LogReadError(#[source] std::io::Error),
 }
 
 impl CacheError {
@@ -63,6 +71,16 @@ impl CacheError {
             CacheError::Storage(StorageError::Lmdb(dozer_storage::lmdb::Error::MapFull))
         )
     }
+}
+
+#[derive(Error, Debug)]
+pub enum LogError {
+    #[error("Error reading log: {0}")]
+    ReadError(#[source] std::io::Error),
+    #[error("Error seeking file log: {0},pos: {1}, error: {2}")]
+    SeekError(String, u64, #[source] std::io::Error),
+    #[error("Error deserializing log: {0}")]
+    DeserializationError(#[from] bincode::Error),
 }
 
 #[derive(Error, Debug)]

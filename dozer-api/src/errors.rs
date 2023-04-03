@@ -17,9 +17,11 @@ use prost_reflect::{DescriptorError, Kind};
 pub enum ApiError {
     #[error("Authentication error: {0}")]
     ApiAuthError(#[from] AuthError),
+    #[error("Failed to create cache: {0}")]
+    CreateCache(#[source] CacheError),
     #[error("Failed to open cache: {0}")]
     OpenCache(#[source] CacheError),
-    #[error("Failed to open cache: {0}")]
+    #[error("Failed to find cache: {0}")]
     CacheNotFound(String),
     #[error("Get by primary key is not supported when there is no primary key")]
     NoPrimaryKey,
@@ -143,6 +145,7 @@ impl actix_web::error::ResponseError for ApiError {
                 StatusCode::UNPROCESSABLE_ENTITY
             }
             ApiError::InternalError(_)
+            | ApiError::CreateCache(_)
             | ApiError::OpenCache(_)
             | ApiError::CacheNotFound(_)
             | ApiError::QueryFailed(_)

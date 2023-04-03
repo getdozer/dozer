@@ -1,5 +1,6 @@
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 use dozer_types::models::app_config::Config;
 
@@ -62,6 +63,7 @@ fn load_multi_sources() {
         config.sql.as_deref(),
         &config.endpoints,
         tmpdir.path(),
+        MultiProgress::new(),
     );
 
     let grouped_connections = builder.get_grouped_tables(&used_sources).unwrap();

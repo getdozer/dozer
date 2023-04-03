@@ -2,7 +2,6 @@ pub mod cli;
 pub mod errors;
 pub mod pipeline;
 pub mod simple;
-use dozer_cache::cache::{RoCacheManager, RwCacheManager};
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_ingestion::connectors::SourceSchema;
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
@@ -28,16 +27,11 @@ pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
     fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
-    fn run_api(
-        &mut self,
-        running: Arc<AtomicBool>,
-        cache_manager: Option<Arc<dyn RoCacheManager>>,
-    ) -> Result<(), OrchestrationError>;
+    fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
-        cache_manager: Option<Arc<dyn RwCacheManager>>,
     ) -> Result<(), OrchestrationError>;
     #[allow(clippy::type_complexity)]
     fn list_connectors(

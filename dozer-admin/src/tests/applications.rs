@@ -6,21 +6,24 @@ mod grpc_service {
 
     use crate::services::application_service::AppService;
     use crate::tests::utils::database_url_for_test_env;
-    use crate::tests::utils::{establish_test_connection, get_setup_ids};
+    use crate::tests::utils::establish_test_connection;
     use dozer_types::grpc_types::admin::{
         AppResponse, CreateAppRequest, ListAppRequest, ListAppResponse, UpdateAppRequest,
     };
+
     #[test]
     pub fn list_create_update() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
-        let setup_ids = get_setup_ids();
+
         let application_service = AppService::new(db_pool);
 
-        let config = generate_connection("Postgres");
+        let postgres_config = generate_connection("Postgres");
         let config = Config {
             app_name: "new_app_name".to_owned(),
-            connections: vec![config],
+            home_dir: "dozer".to_owned(),
+            cache_dir: "dozer".to_owned(),
+            connections: vec![postgres_config],
             ..Default::default()
         };
         let request = CreateAppRequest {
@@ -38,8 +41,8 @@ mod grpc_service {
                 offset: Some(0),
             })
             .unwrap();
-        assert!(!result.apps.is_empty());
-        assert_eq!(result.apps[0].id, setup_ids.app_id);
+
+        assert_eq!(result.apps.len(), 1);
 
         let mut updated_config = config;
         updated_config.app_name = "updated_app_name".to_owned();

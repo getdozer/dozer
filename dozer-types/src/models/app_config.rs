@@ -15,40 +15,45 @@ pub struct Config {
     /// name of the app
     pub app_name: String,
 
-    #[prost(message, tag = "3")]
-    /// Api server config related: port, host, etc
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub api: Option<ApiConfig>,
-
-    #[prost(message, repeated, tag = "4")]
-    /// connections to databases: Eg: Postgres, Snowflake, etc
-    pub connections: Vec<Connection>,
-
-    #[prost(message, repeated, tag = "5")]
-    /// sources to ingest data related to particular connection
-    pub sources: Vec<Source>,
-
-    #[prost(message, repeated, tag = "6")]
-    /// api endpoints to expose
-    pub endpoints: Vec<ApiEndpoint>,
-
-    #[prost(string, optional, tag = "7")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    /// transformations to apply to source data in SQL format as multiple queries
-    pub sql: Option<String>,
-
-    #[prost(string, tag = "8")]
+    #[prost(string, tag = "3")]
     #[serde(default = "default_home_dir")]
     ///directory for all process; Default: ~/.dozer
     pub home_dir: String,
 
+    #[prost(string, tag = "4")]
+    #[serde(default = "default_cache_dir")]
+    ///directory for cache. Default: ~/.dozer/cache
+    pub cache_dir: String,
+
+    #[prost(message, repeated, tag = "5")]
+    /// connections to databases: Eg: Postgres, Snowflake, etc
+    pub connections: Vec<Connection>,
+
+    #[prost(message, repeated, tag = "6")]
+    /// sources to ingest data related to particular connection
+    pub sources: Vec<Source>,
+
+    #[prost(message, repeated, tag = "7")]
+    /// api endpoints to expose
+    pub endpoints: Vec<ApiEndpoint>,
+
+    #[prost(message, tag = "8")]
+    /// Api server config related: port, host, etc
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(message, tag = "9")]
+    pub api: Option<ApiConfig>,
+
+    #[prost(string, optional, tag = "9")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// transformations to apply to source data in SQL format as multiple queries
+    pub sql: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[prost(message, tag = "10")]
     /// flags to enable/disable features
     pub flags: Option<Flags>,
 
     /// Cache lmdb max map size
-    #[prost(uint64, optional, tag = "10")]
+    #[prost(uint64, optional, tag = "11")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_max_map_size: Option<u64>,
 
@@ -67,7 +72,12 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_timeout: Option<u64>,
 
-    #[prost(oneof = "TelemetryConfig", tags = "15,16,17")]
+    /// Buffer capacity for Log Writer
+    #[prost(uint64, optional, tag = "15")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_buffer_capacity: Option<u64>,
+
+    #[prost(oneof = "TelemetryConfig", tags = "16,17,18")]
     /// Instrument using Dozer
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TelemetryConfig>,
@@ -75,6 +85,14 @@ pub struct Config {
 
 pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
+}
+
+pub fn default_cache_dir() -> String {
+    format!("{}/cache", DEFAULT_HOME_DIR)
+}
+
+pub fn default_file_buffer_capacity() -> u64 {
+    1024 * 1024 * 1024
 }
 
 pub fn default_cache_max_map_size() -> u64 {
@@ -121,7 +139,9 @@ impl<'de> Deserialize<'de> for Config {
                 let mut app_name = "".to_owned();
                 let mut sql = None;
                 let mut home_dir: String = default_home_dir();
+                let mut cache_dir: String = default_cache_dir();
 
+                let mut file_buffer_capacity: Option<u64> = Some(default_file_buffer_capacity());
                 let mut cache_max_map_size: Option<u64> = Some(default_cache_max_map_size());
                 let mut app_buffer_size: Option<u32> = Some(default_app_buffer_size());
                 let mut commit_size: Option<u32> = Some(default_commit_size());
@@ -153,11 +173,17 @@ impl<'de> Deserialize<'de> for Config {
                         "home_dir" => {
                             home_dir = access.next_value::<String>()?;
                         }
+                        "cache_dir" => {
+                            cache_dir = access.next_value::<String>()?;
+                        }
                         "cache_max_map_size" => {
                             cache_max_map_size = access.next_value::<Option<u64>>()?;
                         }
                         "app_buffer_size" => {
                             app_buffer_size = access.next_value::<Option<u32>>()?;
+                        }
+                        "file_buffer_capacity" => {
+                            file_buffer_capacity = access.next_value::<Option<u64>>()?;
                         }
                         "commit_size" => {
                             commit_size = access.next_value::<Option<u32>>()?;
@@ -226,15 +252,17 @@ impl<'de> Deserialize<'de> for Config {
 
                 Ok(Config {
                     app_name,
+                    home_dir,
+                    cache_dir,
                     api,
                     connections,
                     sources,
                     endpoints,
                     sql,
-                    home_dir,
                     flags,
                     cache_max_map_size,
                     app_buffer_size,
+                    file_buffer_capacity,
                     commit_size,
                     commit_timeout,
                     telemetry,

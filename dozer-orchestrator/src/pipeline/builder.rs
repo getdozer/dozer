@@ -1,23 +1,22 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_cache::cache::RwCacheManager;
+use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
-use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext, SchemaSQLContext};
-
-use dozer_core::app::App;
 use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext, SchemaSQLContext};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use dozer_types::{indicatif::MultiProgress, log::debug};
+use std::hash::Hash;
 use std::path::Path;
 
-use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
+use crate::pipeline::{LogSinkFactory, LogSinkSettings};
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
@@ -54,6 +53,7 @@ impl<'a> PipelineBuilder<'a> {
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
         pipeline_dir: &'a Path,
+        progress: MultiProgress,
     ) -> Self {
         Self {
             connections,
@@ -61,7 +61,7 @@ impl<'a> PipelineBuilder<'a> {
             sql,
             api_endpoints,
             pipeline_dir,
-            progress: MultiProgress::new(),
+            progress,
         }
     }
 
@@ -70,8 +70,8 @@ impl<'a> PipelineBuilder<'a> {
     pub fn get_grouped_tables(
         &self,
         original_sources: &[String],
-    ) -> Result<HashMap<String, Vec<Source>>, OrchestrationError> {
-        let mut grouped_connections: HashMap<String, Vec<Source>> = HashMap::new();
+    ) -> Result<HashMap<Connection, Vec<Source>>, OrchestrationError> {
+        let mut grouped_connections: HashMap<Connection, Vec<Source>> = HashMap::new();
 
         let mut connector_map = HashMap::new();
         for connection in self.connections {
@@ -105,19 +105,19 @@ impl<'a> PipelineBuilder<'a> {
                 })
                 .collect();
 
-            connector_map.insert(connection.name.clone(), connector_tables);
+            connector_map.insert(connection.clone(), connector_tables);
         }
 
         for table_name in original_sources {
             let mut table_found = false;
-            for (name, tables) in connector_map.iter() {
+            for (connection, tables) in connector_map.iter() {
                 if let Some(source) = tables
                     .iter()
                     .find(|table| table.name == table_name.as_str())
                 {
                     table_found = true;
                     grouped_connections
-                        .entry(name.clone())
+                        .entry(connection.clone())
                         .or_default()
                         .push(source.clone());
                 }
@@ -170,8 +170,8 @@ impl<'a> PipelineBuilder<'a> {
                 original_sources.push(table_name.clone());
             }
         }
-        original_sources.dedup();
-        transformed_sources.dedup();
+        dedup(&mut original_sources);
+        dedup(&mut transformed_sources);
 
         Ok(CalculatedSources {
             original_sources,
@@ -183,9 +183,7 @@ impl<'a> PipelineBuilder<'a> {
     // This function is used by both migrate and actual execution
     pub fn build(
         &self,
-        notifier: Option<PipelineEventSenders>,
-        cache_manager: Arc<dyn RwCacheManager>,
-        settings: CacheSinkSettings,
+        settings: LogSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
@@ -199,12 +197,12 @@ impl<'a> PipelineBuilder<'a> {
         let mut available_output_tables: HashMap<String, OutputTableInfo> = HashMap::new();
 
         // Add all source tables to available output tables
-        for (connection_name, sources) in &grouped_connections {
+        for (connection, sources) in &grouped_connections {
             for source in sources {
                 available_output_tables.insert(
                     source.name.clone(),
                     OutputTableInfo::Original(OriginalTableInfo {
-                        connection_name: connection_name.to_string(),
+                        connection_name: connection.name.to_string(),
                         table_name: source.name.clone(),
                     }),
                 );
@@ -235,13 +233,11 @@ impl<'a> PipelineBuilder<'a> {
                 .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            let snk_factory = Arc::new(CacheSinkFactory::new(
-                cache_manager.clone(),
-                api_endpoint.clone(),
-                notifier.clone(),
-                self.progress.clone(),
+            let snk_factory = Arc::new(LogSinkFactory::new(
                 settings.clone(),
-            )?);
+                api_endpoint.clone(),
+                self.progress.clone(),
+            ));
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
@@ -304,4 +300,9 @@ impl<'a> PipelineBuilder<'a> {
 
         Ok(dag)
     }
+}
+
+fn dedup<T: Eq + Hash + Clone>(v: &mut Vec<T>) {
+    let mut uniques = HashSet::new();
+    v.retain(|e| uniques.insert(e.clone()));
 }

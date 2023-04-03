@@ -1,7 +1,4 @@
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_cache::cache::RwCacheManager;
-
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::{indicatif::MultiProgress, models::api_endpoint::ApiEndpoint};
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -10,7 +7,7 @@ use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 
-use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
+use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
@@ -27,6 +24,7 @@ pub struct Executor<'a> {
     api_endpoints: &'a [ApiEndpoint],
     pipeline_dir: &'a Path,
     running: Arc<AtomicBool>,
+    multi_pb: MultiProgress,
 }
 impl<'a> Executor<'a> {
     pub fn new(
@@ -36,6 +34,7 @@ impl<'a> Executor<'a> {
         api_endpoints: &'a [ApiEndpoint],
         pipeline_dir: &'a Path,
         running: Arc<AtomicBool>,
+        multi_pb: MultiProgress,
     ) -> Self {
         Self {
             connections,
@@ -44,6 +43,7 @@ impl<'a> Executor<'a> {
             api_endpoints,
             pipeline_dir,
             running,
+            multi_pb,
         }
     }
 
@@ -63,9 +63,7 @@ impl<'a> Executor<'a> {
 
     pub fn create_dag_executor(
         &self,
-        notifier: Option<PipelineEventSenders>,
-        cache_manager: Arc<dyn RwCacheManager>,
-        settings: CacheSinkSettings,
+        settings: LogSinkSettings,
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
@@ -74,9 +72,10 @@ impl<'a> Executor<'a> {
             self.sql,
             self.api_endpoints,
             self.pipeline_dir,
+            self.multi_pb.clone(),
         );
 
-        let dag = builder.build(notifier, cache_manager, settings)?;
+        let dag = builder.build(settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {
