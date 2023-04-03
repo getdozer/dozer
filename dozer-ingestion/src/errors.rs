@@ -19,6 +19,8 @@ use std::string::FromUtf8Error;
 use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
+
+#[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
 use tokio_postgres::Error;
 
@@ -70,6 +72,7 @@ pub enum ConnectorError {
     #[error("Failed to send message on channel")]
     IngestorError(#[source] IngestorError),
 
+    #[cfg(feature = "ethereum")]
     #[error("Error in Eth Connection: {0}")]
     EthError(#[source] web3::Error),
 
@@ -87,6 +90,12 @@ pub enum ConnectorError {
 
     #[error("Runtime creation error")]
     RuntimeCreationError(#[from] std::io::Error),
+
+    #[error("kafka feature is not enabled")]
+    KafkaFeatureNotEnabled,
+
+    #[error("ethereum feature is not enabled")]
+    EthereumFeatureNotEnabled,
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {
@@ -307,6 +316,7 @@ pub enum DebeziumError {
     #[error(transparent)]
     DebeziumSchemaError(#[from] DebeziumSchemaError),
 
+    #[cfg(feature = "kafka")]
     #[error("Connection error")]
     DebeziumConnectionError(#[source] kafka::Error),
 
@@ -316,9 +326,11 @@ pub enum DebeziumError {
     #[error("Bytes convert error")]
     BytesConvertError(#[source] Utf8Error),
 
+    #[cfg(feature = "kafka")]
     #[error(transparent)]
     DebeziumStreamError(#[from] DebeziumStreamError),
 
+    #[cfg(feature = "kafka")]
     #[error("Schema registry fetch failed")]
     SchemaRegistryFetchError(#[source] SRCError),
 
@@ -326,6 +338,7 @@ pub enum DebeziumError {
     TopicNotDefined,
 }
 
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
 pub enum DebeziumStreamError {
     #[error("Consume commit error")]
