@@ -231,13 +231,11 @@ impl OperationLog {
 
         record.version = Some(record_version);
         // Record operation. The operation id must not exist.
-        if !self.operation_id_to_operation.insert(
+        self.operation_id_to_operation.append(
             txn,
             &operation_id,
             OperationBorrow::Insert { record_id, record },
-        )? {
-            panic!("Inconsistent state: operation id already exists");
-        }
+        )?;
         Ok(Some(record_id))
     }
 
@@ -287,15 +285,13 @@ impl OperationLog {
         // Generate new operation id.
         let operation_id = self.next_operation_id.fetch_add(txn, 1)?;
         // Record delete operation. The operation id must not exist.
-        if !self.operation_id_to_operation.insert(
+        self.operation_id_to_operation.append(
             txn,
             &operation_id,
             OperationBorrow::Delete {
                 operation_id: insert_operation_id,
             },
-        )? {
-            panic!("Inconsistent state: operation id already exists");
-        }
+        )?;
         Ok(Some(metadata.version))
     }
 }

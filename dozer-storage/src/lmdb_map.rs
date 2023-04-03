@@ -1,7 +1,8 @@
 use std::ops::Bound;
 
 use dozer_types::borrow::Cow;
-use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
+use lmdb::{Cursor, Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
+use lmdb_sys::MDB_LAST;
 
 use crate::{
     errors::StorageError,
@@ -99,6 +100,25 @@ impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
         let key = key.encode()?;
         let value = value.encode()?;
         txn.put(self.db, &key, &value, WriteFlags::empty())?;
+        Ok(())
+    }
+
+    /// User must ensure that the key is larger than any existing key.
+    pub fn append(
+        &self,
+        txn: &mut RwTransaction,
+        key: K::Encode<'_>,
+        value: V::Encode<'_>,
+    ) -> Result<(), StorageError> {
+        let mut cursor = txn.open_rw_cursor(self.db)?;
+        match cursor.get(None, None, MDB_LAST) {
+            // Not found means the database is empty, and that's OK.
+            Ok(_) | Err(lmdb::Error::NotFound) => (),
+            Err(e) => return Err(e.into()),
+        };
+        let key = key.encode()?;
+        let data = value.encode()?;
+        cursor.put(&key, &data, WriteFlags::APPEND | WriteFlags::NO_OVERWRITE)?;
         Ok(())
     }
 
@@ -224,5 +244,28 @@ mod tests {
             .remove(env.txn_mut().unwrap(), [1u8].as_slice())
             .unwrap());
         assert_eq!(map.count(env.txn_mut().unwrap()).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_lmdb_map_append() {
+        let temp_dir = TempDir::new("test_lmdb_map_append").unwrap();
+        let mut env = LmdbEnvironmentManager::create_rw(
+            temp_dir.path(),
+            "env",
+            LmdbEnvironmentOptions::default(),
+        )
+        .unwrap();
+        let map = LmdbMap::<u64, u64>::create(&mut env, None).unwrap();
+
+        let txn = env.txn_mut().unwrap();
+        for i in 0..=256u64 {
+            assert_eq!(map.count(txn).unwrap() as u64, i);
+            map.append(txn, &i, &i).unwrap();
+            assert_eq!(map.count(txn).unwrap() as u64, i + 1);
+            for j in 0..=i {
+                assert_eq!(map.get(txn, &j).unwrap().unwrap().into_owned(), j);
+            }
+            assert_eq!(map.get(txn, &(i + 1)).unwrap(), None);
+        }
     }
 }
