@@ -446,7 +446,7 @@ impl Client {
                     schema,
                 };
 
-                for row_data in iterator {
+                for (idx, row_data) in iterator.enumerate() {
                     let empty = "".to_string();
                     let table_name = if let Field::String(table_name) = &row_data.get(1).unwrap() {
                         table_name
@@ -463,8 +463,13 @@ impl Client {
                     } else {
                         &empty
                     };
-                    let nullable = if let Field::Boolean(b) = &row_data.get(4).unwrap() {
-                        b
+                    let nullable = if let Field::String(b) = &row_data.get(4).unwrap() {
+                        let is_nullable = b == "NO";
+                        if is_nullable {
+                            &true
+                        } else {
+                            &false
+                        }
                     } else {
                         &false
                     };
@@ -474,7 +479,10 @@ impl Client {
                         None
                     };
 
-                    let schema_id = *tables_indexes.as_ref().unwrap().get(table_name).unwrap();
+                    let schema_id = match &tables_indexes {
+                        None => idx,
+                        Some(indexes) => *indexes.get(table_name).unwrap_or(&idx),
+                    };
 
                     match SchemaHelper::map_schema_type(type_name, scale) {
                         Ok(typ) => {

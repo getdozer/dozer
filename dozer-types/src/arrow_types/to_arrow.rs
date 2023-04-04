@@ -8,6 +8,7 @@ use arrow::{
     datatypes::i256,
     record_batch::RecordBatch,
 };
+use arrow_schema::TimeUnit;
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
@@ -149,10 +150,7 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
             metadata.map(|m| m.insert("logical_type".to_string(), "Point".to_string()));
             DataType::Binary
         }
-        FieldType::Duration => {
-            metadata.map(|m| m.insert("logical_type".to_string(), "Duration".to_string()));
-            DataType::Binary
-        }
+        FieldType::Duration => DataType::Duration(TimeUnit::Nanosecond),
     }
 }
 

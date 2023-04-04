@@ -1,10 +1,12 @@
 use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService};
+use crate::grpc::auth::AuthService;
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, typed};
 use crate::{errors::GrpcError, generator::protoc::generator::ProtoGenerator, CacheEndpoint};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::grpc_types::{
+    auth::auth_grpc_service_server::AuthGrpcServiceServer,
     common::common_grpc_service_server::CommonGrpcServiceServer,
     health::health_grpc_service_server::HealthGrpcServiceServer,
 };
@@ -141,6 +143,12 @@ impl ApiServer {
         };
         let health_service = auth_middleware.layer(health_service);
 
+        let mut auth_service = None;
+        if self.security.is_some() {
+            let service = AuthGrpcServiceServer::new(AuthService::new(self.security.clone()));
+            auth_service = Some(auth_middleware.layer(service));
+        }
+
         // Add services to server.
         let mut grpc_router = Server::builder()
             .layer(
@@ -162,6 +170,7 @@ impl ApiServer {
         }
 
         grpc_router = grpc_router.add_service(health_service);
+        grpc_router = grpc_router.add_optional_service(auth_service);
 
         // Run server.
         let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();

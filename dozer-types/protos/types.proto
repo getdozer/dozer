@@ -51,18 +51,20 @@ message RecordWithId {
 
 // Supported data types in Dozer.
 enum Type {
-  UInt = 0;      // Unsigned 64 bit integer.
-  Int = 1;       // Signed 64 bit integer.
-  Float = 2;     // 64 bit floating point number.
-  Boolean = 3;   // Boolean.
-  String = 4;    // UTF-8 string.
-  Text = 5;      // UTF-8 string.
-  Binary = 6;    // Binary data.
-  Decimal = 7;   // Decimal number.
-  Timestamp = 8; // ISO 8601 combined date and time with time zone.
-  Date = 9;      // ISO 8601 calendar date without timezone.
-  Bson = 10;     // BSON data.
-  Point = 11;    // Geo Point type.
+  UInt = 0;       // Unsigned 64 bit integer.
+  U128 = 1;       // Unsigned 128 bit integer.
+  Int = 2;        // Signed 64 bit integer.
+  I128 = 3;       // Signed 128 bit integer.
+  Float = 4;      // 64 bit floating point number.
+  Boolean = 5;    // Boolean.
+  String = 6;     // UTF-8 string.
+  Text = 7;       // UTF-8 string.
+  Binary = 8;     // Binary data.
+  Decimal = 9;    // Decimal number.
+  Timestamp = 10; // ISO 8601 combined date and time with time zone.
+  Date = 11;      // ISO 8601 calendar date without timezone.
+  Bson = 12;      // BSON data.
+  Point = 13;     // Geo Point type.
 }
 message SchemaEvent {
   string endpoint = 1;

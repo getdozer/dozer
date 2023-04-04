@@ -103,12 +103,14 @@ pub fn convert_cache_to_oapi_schema(
 /// Should be consistent with `field_to_json_value`.
 fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) -> Type {
     match field_type {
-        FieldType::UInt | FieldType::U128 | FieldType::Int | FieldType::I128 => {
-            Type::Integer(IntegerType {
-                format: VariantOrUnknownOrEmpty::Item(IntegerFormat::Int64),
-                ..Default::default()
-            })
-        }
+        FieldType::UInt | FieldType::Int => Type::Integer(IntegerType {
+            format: VariantOrUnknownOrEmpty::Item(IntegerFormat::Int64),
+            ..Default::default()
+        }),
+        FieldType::U128 | FieldType::I128 => Type::String(StringType {
+            format: VariantOrUnknownOrEmpty::Empty,
+            ..Default::default()
+        }),
         FieldType::Float => Type::Number(NumberType {
             format: VariantOrUnknownOrEmpty::Item(NumberFormat::Double),
             ..Default::default()

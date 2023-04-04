@@ -128,10 +128,16 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             left_schema = extend_schema_source_def(&left_schema, left_table_name);
         }
 
-        // let right_name = self
-        //     .right
-        //     .clone()
-        //     .unwrap_or(NameOrAlias("Right".to_owned(), None));
+        let left_primary_key_indexes = if left_schema.primary_index.is_empty() {
+            left_schema
+                .fields
+                .iter()
+                .enumerate()
+                .map(|(index, _)| index)
+                .collect::<Vec<usize>>()
+        } else {
+            left_schema.primary_index.clone()
+        };
 
         let mut right_schema = input_schemas
             .get(&RIGHT_JOIN_PORT)
@@ -143,6 +149,17 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             right_schema = extend_schema_source_def(&right_schema, right_table_name);
         }
 
+        let right_primary_key_indexes = if right_schema.primary_index.is_empty() {
+            right_schema
+                .fields
+                .iter()
+                .enumerate()
+                .map(|(index, _)| index)
+                .collect::<Vec<usize>>()
+        } else {
+            right_schema.primary_index.clone()
+        };
+
         let (left_join_key_indexes, right_join_key_indexes) =
             parse_join_constraint(expression, &left_schema, &right_schema)
                 .map_err(|err| ExecutionError::InternalError(Box::new(err)))?;
@@ -151,6 +168,8 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             join_type,
             left_join_key_indexes,
             right_join_key_indexes,
+            left_primary_key_indexes,
+            right_primary_key_indexes,
             Record::from_schema(&left_schema),
             Record::from_schema(&right_schema),
         );

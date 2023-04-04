@@ -273,8 +273,10 @@ impl Display for TimeUnit {
 impl TimeUnit {
     type Error = String;
 
-    pub fn to_bytes(&self) -> &[u8] {
-        &self.to_string().as_bytes()
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut result = [0_u8; 16];
+        result[0..16].copy_from_slice(self.to_string().as_bytes());
+        result
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Self::Error> {
@@ -285,13 +287,13 @@ impl TimeUnit {
             "Milliseconds" => Ok(TimeUnit::Milliseconds),
             "Microseconds" => Ok(TimeUnit::Microseconds),
             "Nanoseconds" => Ok(TimeUnit::Nanoseconds),
-            &_ => Err(format!("Unsupported '{unit}' unit"))
+            &_ => Err(format!("Unsupported '{unit}' unit")),
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct DozerDuration(pub i128, pub TimeUnit);
+pub struct DozerDuration(pub std::time::Duration, pub TimeUnit);
 
 impl Ord for DozerDuration {
     fn cmp(&self, other: &Self) -> Ordering {

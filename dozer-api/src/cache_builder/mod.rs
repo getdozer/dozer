@@ -121,7 +121,8 @@ fn generate_secondary_indexes(fields: &[FieldDefinition]) -> Vec<IndexDefinition
             | FieldType::Decimal
             | FieldType::Timestamp
             | FieldType::Date
-            | FieldType::Point => vec![IndexDefinition::SortedInverted(vec![idx])],
+            | FieldType::Point
+            | FieldType::Duration => vec![IndexDefinition::SortedInverted(vec![idx])],
 
             // Create sorted inverted and full text indexes for string fields.
             FieldType::String => vec![

@@ -4,7 +4,7 @@ use dozer_types::grpc_types::types::{
 };
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
+use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT, DozerDuration};
 use prost_reflect::prost_types::Timestamp;
 
 pub fn map_insert_operation(endpoint_name: String, record: DozerRecord, id: u64) -> Operation {
@@ -69,6 +69,12 @@ fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) ->
     }
 }
 
+fn map_duration_to_prost_coord_map(d: DozerDuration) -> Value {
+    Value {
+        value: Some(value::Value::StringValue(d.0.to_string())),
+    }
+}
+
 fn map_decimal(d: Decimal) -> Value {
     Value {
         value: Some(value::Value::DecimalValue(RustDecimal {
@@ -86,13 +92,13 @@ fn field_to_prost_value(f: Field) -> Value {
             value: Some(value::Value::UintValue(n)),
         },
         Field::U128(n) => Value {
-            value: Some(value::Value::UintValue(n as u64)),
+            value: Some(value::Value::Uint128Value(n.to_string())),
         },
         Field::Int(n) => Value {
             value: Some(value::Value::IntValue(n)),
         },
         Field::I128(n) => Value {
-            value: Some(value::Value::IntValue(n as i64)),
+            value: Some(value::Value::Int128Value(n.to_string())),
         },
         Field::Float(n) => Value {
             value: Some(value::Value::FloatValue(n.0)),
@@ -126,6 +132,7 @@ fn field_to_prost_value(f: Field) -> Value {
             )),
         },
         Field::Point(point) => map_x_y_to_prost_coord_map(point.0.x_y()),
+        Field::Duration(d) => map_duration_to_prost_coord_map(d),
     }
 }
 
@@ -145,9 +152,9 @@ pub fn map_field_definitions(
 fn field_type_to_internal_type(typ: FieldType) -> Type {
     match typ {
         FieldType::UInt => Type::UInt,
-        FieldType::U128 => Type::UInt, // TODO: Map this correctly
+        FieldType::U128 => Type::U128,
         FieldType::Int => Type::Int,
-        FieldType::I128 => Type::Int, // TODO: Map this correctly
+        FieldType::I128 => Type::I128,
         FieldType::Float => Type::Float,
         FieldType::Boolean => Type::Boolean,
         FieldType::String => Type::String,
@@ -158,5 +165,6 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Bson => Type::Bson,
         FieldType::Date => Type::String,
         FieldType::Point => Type::Point,
+        FieldType::Duration => Type::String,
     }
 }

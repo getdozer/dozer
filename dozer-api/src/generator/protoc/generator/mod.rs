@@ -123,6 +123,10 @@ impl ProtoGenerator {
                 "health",
                 include_str!("../../../../../dozer-types/protos/health.proto"),
             ),
+            (
+                "auth",
+                include_str!("../../../../../dozer-types/protos/auth.proto"),
+            ),
         ];
 
         for (name, proto_str) in protos {

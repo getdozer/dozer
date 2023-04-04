@@ -1,5 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use crate::types::{DozerPoint, DATE_FORMAT, DozerDuration};
+use crate::types::{DozerDuration, DozerPoint, DATE_FORMAT};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
 use ordered_float::OrderedFloat;

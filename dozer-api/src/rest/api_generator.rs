@@ -11,7 +11,7 @@ use dozer_types::indexmap::IndexMap;
 use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, Schema, DATE_FORMAT};
+use dozer_types::types::{Field, Schema, DATE_FORMAT, DozerDuration};
 use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
@@ -69,6 +69,7 @@ pub async fn get(
     let record = get_record(
         &cache_endpoint.cache_reader(),
         &key,
+        &cache_endpoint.endpoint.name,
         access.map(|a| a.into_inner()),
     )?;
 
@@ -115,6 +116,7 @@ pub async fn count(
     get_records_count(
         &cache_endpoint.cache_reader(),
         &mut query_expression,
+        &cache_endpoint.endpoint.name,
         access.map(|a| a.into_inner()),
     )
     .map(|count| HttpResponse::Ok().json(count))
@@ -147,7 +149,12 @@ fn get_records_map(
 ) -> Result<Vec<IndexMap<String, Value>>, ApiError> {
     let mut maps = vec![];
     let cache_reader = &cache_endpoint.cache_reader();
-    let records = get_records(cache_reader, exp, access.map(|a| a.into_inner()))?;
+    let records = get_records(
+        cache_reader,
+        exp,
+        &cache_endpoint.endpoint.name,
+        access.map(|a| a.into_inner()),
+    )?;
     let schema = &cache_reader.get_schema().0;
     for record in records.into_iter() {
         let map = record_to_map(record, schema)?;
@@ -184,6 +191,13 @@ fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Val
     Value::Object(m)
 }
 
+fn convert_duration_to_object(d: &DozerDuration) -> Value {
+    let mut m = Map::new();
+    m.insert("val".to_string(), Value::from(d.0.to_string()));
+    m.insert("unit".to_string(), Value::from(d.1.to_string()));
+    Value::Object(m)
+}
+
 /// Used in REST APIs for converting raw value back and forth.
 ///
 /// Should be consistent with `convert_cache_type_to_schema_type`.
@@ -203,6 +217,7 @@ fn field_to_json_value(field: Field) -> Value {
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
         Field::Bson(b) => Value::from(b),
         Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
+        Field::Duration(d) => convert_duration_to_object(&d),
         Field::Null => Value::Null,
     }
 }

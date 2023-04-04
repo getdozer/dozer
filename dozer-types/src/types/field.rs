@@ -1,4 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
+use crate::types::{DozerDuration, DozerPoint, TimeUnit};
 #[allow(unused_imports)]
 use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
@@ -6,7 +7,6 @@ use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
-use crate::types::{DozerDuration, DozerPoint, TimeUnit};
 use std::fmt::{Display, Formatter};
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
@@ -192,7 +192,7 @@ impl Field {
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
             14 => Ok(FieldBorrow::Duration(
-                DozerDuration::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?
+                DozerDuration::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
             15 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),

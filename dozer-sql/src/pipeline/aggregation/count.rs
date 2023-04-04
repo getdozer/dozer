@@ -77,7 +77,8 @@ fn get_count(count: u64, return_type: Option<FieldType>) -> Result<Field, Pipeli
             | FieldType::Timestamp
             | FieldType::Binary
             | FieldType::Bson
-            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+            | FieldType::Point
+            | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(format!(
                 "Not supported return type {typ} for {Count}"
             )))),
         },

@@ -1,7 +1,7 @@
 use ahash::AHasher;
 use dozer_types::types::Record;
-use multimap::MultiMap;
 use std::{
+    collections::HashMap,
     fmt::Debug,
     hash::{Hash, Hasher},
 };
@@ -39,11 +39,14 @@ pub struct JoinOperator {
     left_join_key_indexes: Vec<usize>,
     right_join_key_indexes: Vec<usize>,
 
+    left_primary_key_indexes: Vec<usize>,
+    right_primary_key_indexes: Vec<usize>,
+
     left_default_record: Record,
     right_default_record: Record,
 
-    left_map: MultiMap<Vec<u8>, Record>,
-    right_map: MultiMap<Vec<u8>, Record>,
+    left_map: HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
+    right_map: HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
 }
 
 impl JoinOperator {
@@ -51,6 +54,8 @@ impl JoinOperator {
         join_type: JoinType,
         left_join_key_indexes: Vec<usize>,
         right_join_key_indexes: Vec<usize>,
+        left_primary_key_indexes: Vec<usize>,
+        right_primary_key_indexes: Vec<usize>,
         left_default_record: Record,
         right_default_record: Record,
     ) -> Self {
@@ -58,10 +63,12 @@ impl JoinOperator {
             join_type,
             left_join_key_indexes,
             right_join_key_indexes,
+            left_primary_key_indexes,
+            right_primary_key_indexes,
             left_default_record,
             right_default_record,
-            left_map: MultiMap::new(),
-            right_map: MultiMap::new(),
+            left_map: HashMap::new(),
+            right_map: HashMap::new(),
         }
     }
 
@@ -71,8 +78,7 @@ impl JoinOperator {
         join_key: &[u8],
         left_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let empty_vec = vec![];
-        let right_records = self.right_map.get_vec(join_key).unwrap_or(&empty_vec);
+        let right_records = get_join_records(&self.right_map, join_key);
 
         let output_records = right_records
             .iter()
@@ -88,8 +94,7 @@ impl JoinOperator {
         join_key: &[u8],
         right_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let empty_vec = vec![];
-        let left_records = self.left_map.get_vec(join_key).unwrap_or(&empty_vec);
+        let left_records = get_join_records(&self.left_map, join_key);
 
         let output_records = left_records
             .iter()
@@ -105,8 +110,7 @@ impl JoinOperator {
         join_key: &[u8],
         left_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let empty_vec = vec![];
-        let right_records = self.right_map.get_vec(join_key).unwrap_or(&empty_vec);
+        let right_records = get_join_records(&self.right_map, join_key);
 
         // no joining records on the right branch
         if right_records.is_empty() {
@@ -128,8 +132,7 @@ impl JoinOperator {
         join_key: &[u8],
         right_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let empty_vec = vec![];
-        let left_records = self.left_map.get_vec(join_key).unwrap_or(&empty_vec);
+        let left_records = get_join_records(&self.left_map, join_key);
 
         // if there are no matching records on the left branch, no records will be returned
         if left_records.is_empty() {
@@ -173,8 +176,7 @@ impl JoinOperator {
         join_key: &[u8],
         left_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let empty_vec = vec![];
-        let right_records = self.right_map.get_vec(join_key).unwrap_or(&empty_vec);
+        let right_records = get_join_records(&self.right_map, join_key);
 
         // if there are no matching records on the left branch, no records will be returned
         if right_records.is_empty() {
@@ -218,8 +220,7 @@ impl JoinOperator {
         join_key: &[u8],
         right_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let empty_vec = vec![];
-        let left_records = self.left_map.get_vec(join_key).unwrap_or(&empty_vec);
+        let left_records = get_join_records(&self.left_map, join_key);
 
         // no joining records on the right branch
         if left_records.is_empty() {
@@ -236,10 +237,9 @@ impl JoinOperator {
     }
 
     fn get_left_matching_count(&self, action: &JoinAction, record: &Record) -> JoinResult<usize> {
-        let join_key: Vec<u8> = get_join_key(record, &self.right_join_key_indexes);
+        let join_key: Vec<u8> = get_record_key(record, &self.right_join_key_indexes);
 
-        let mut matching_count = self.left_map.get_vec(&join_key).unwrap_or(&vec![]).len();
-
+        let mut matching_count = get_join_records(&self.left_map, &join_key).len();
         if action == &JoinAction::Insert {
             matching_count -= 1;
         }
@@ -247,10 +247,9 @@ impl JoinOperator {
     }
 
     fn get_right_matching_count(&self, action: &JoinAction, record: &Record) -> JoinResult<usize> {
-        let join_key: Vec<u8> = get_join_key(record, &self.left_join_key_indexes);
+        let join_key: Vec<u8> = get_record_key(record, &self.left_join_key_indexes);
 
-        let mut matching_count = self.right_map.get_vec(&join_key).unwrap_or(&vec![]).len();
-
+        let mut matching_count = get_join_records(&self.right_map, &join_key).len();
         if action == &JoinAction::Insert {
             matching_count -= 1;
         }
@@ -264,62 +263,72 @@ impl JoinOperator {
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
         match (&self.join_type, from) {
             (JoinType::Inner, JoinBranch::Left) => {
-                let join_key: Vec<u8> = get_join_key(old, &self.left_join_key_indexes);
-                if let Some(map_records) = self.left_map.get_vec_mut(&join_key) {
-                    if let Some(index) = map_records.iter().position(|x| x == old) {
-                        map_records.remove(index);
-                    }
-                }
+                let join_key: Vec<u8> = get_record_key(old, &self.left_join_key_indexes);
+
+                remove_join_record(
+                    &mut self.left_map,
+                    &self.left_primary_key_indexes,
+                    &join_key,
+                    old,
+                );
+
                 let records = self.inner_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
             (JoinType::Inner, JoinBranch::Right) => {
-                let join_key: Vec<u8> = get_join_key(old, &self.right_join_key_indexes);
-                if let Some(map_records) = self.right_map.get_vec_mut(&join_key) {
-                    if let Some(index) = map_records.iter().position(|x| x == old) {
-                        map_records.remove(index);
-                    }
-                }
+                let join_key: Vec<u8> = get_record_key(old, &self.right_join_key_indexes);
+
+                remove_join_record(
+                    &mut self.right_map,
+                    &self.right_primary_key_indexes,
+                    &join_key,
+                    old,
+                );
+
                 let records = self.inner_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Left) => {
-                let join_key: Vec<u8> = get_join_key(old, &self.left_join_key_indexes);
-                if let Some(map_records) = self.left_map.get_vec_mut(&join_key) {
-                    if let Some(index) = map_records.iter().position(|x| x == old) {
-                        map_records.remove(index);
-                    }
-                }
+                let join_key: Vec<u8> = get_record_key(old, &self.left_join_key_indexes);
+                remove_join_record(
+                    &mut self.left_map,
+                    &self.left_primary_key_indexes,
+                    &join_key,
+                    old,
+                );
                 let records = self.left_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Right) => {
-                let join_key: Vec<u8> = get_join_key(old, &self.right_join_key_indexes);
-                if let Some(map_records) = self.right_map.get_vec_mut(&join_key) {
-                    if let Some(index) = map_records.iter().position(|x| x == old) {
-                        map_records.remove(index);
-                    }
-                }
+                let join_key: Vec<u8> = get_record_key(old, &self.right_join_key_indexes);
+                remove_join_record(
+                    &mut self.right_map,
+                    &self.right_primary_key_indexes,
+                    &join_key,
+                    old,
+                );
                 let records = self.left_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Left) => {
-                let join_key: Vec<u8> = get_join_key(old, &self.left_join_key_indexes);
-                if let Some(map_records) = self.left_map.get_vec_mut(&join_key) {
-                    if let Some(index) = map_records.iter().position(|x| x == old) {
-                        map_records.remove(index);
-                    }
-                }
+                let join_key: Vec<u8> = get_record_key(old, &self.left_join_key_indexes);
+                remove_join_record(
+                    &mut self.left_map,
+                    &self.left_primary_key_indexes,
+                    &join_key,
+                    old,
+                );
                 let records = self.right_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Right) => {
-                let join_key: Vec<u8> = get_join_key(old, &self.right_join_key_indexes);
-                if let Some(map_records) = self.right_map.get_vec_mut(&join_key) {
-                    if let Some(index) = map_records.iter().position(|x| x == old) {
-                        map_records.remove(index);
-                    }
-                }
+                let join_key: Vec<u8> = get_record_key(old, &self.right_join_key_indexes);
+                remove_join_record(
+                    &mut self.right_map,
+                    &self.right_primary_key_indexes,
+                    &join_key,
+                    old,
+                );
                 let records = self.right_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
@@ -333,42 +342,76 @@ impl JoinOperator {
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
         match (&self.join_type, from) {
             (JoinType::Inner, JoinBranch::Left) => {
-                let join_key: Vec<u8> = get_join_key(new, &self.left_join_key_indexes);
-                self.left_map.insert(join_key.clone(), new.to_owned());
+                let join_key: Vec<u8> = get_record_key(new, &self.left_join_key_indexes);
+
+                add_join_record(
+                    &mut self.left_map,
+                    &self.left_primary_key_indexes,
+                    &join_key,
+                    new,
+                );
+
                 let records = self.inner_join_from_left(&JoinAction::Insert, &join_key, new)?;
                 Ok(records)
             }
             (JoinType::Inner, JoinBranch::Right) => {
-                let join_key: Vec<u8> = get_join_key(new, &self.right_join_key_indexes);
-                self.right_map.insert(join_key.clone(), new.to_owned());
+                let join_key: Vec<u8> = get_record_key(new, &self.right_join_key_indexes);
+
+                add_join_record(
+                    &mut self.right_map,
+                    &self.right_primary_key_indexes,
+                    &join_key,
+                    new,
+                );
+
                 let records = self.inner_join_from_right(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Left) => {
-                let join_key: Vec<u8> = get_join_key(new, &self.left_join_key_indexes);
-                self.left_map.insert(join_key.clone(), new.to_owned());
+                let join_key: Vec<u8> = get_record_key(new, &self.left_join_key_indexes);
+                add_join_record(
+                    &mut self.left_map,
+                    &self.left_primary_key_indexes,
+                    &join_key,
+                    new,
+                );
                 let records = self.left_join_from_left(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Right) => {
-                let join_key: Vec<u8> = get_join_key(new, &self.right_join_key_indexes);
-                self.right_map.insert(join_key.clone(), new.to_owned());
+                let join_key: Vec<u8> = get_record_key(new, &self.right_join_key_indexes);
+                add_join_record(
+                    &mut self.right_map,
+                    &self.right_primary_key_indexes,
+                    &join_key,
+                    new,
+                );
                 let records = self.left_join_from_right(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Left) => {
-                let join_key: Vec<u8> = get_join_key(new, &self.left_join_key_indexes);
-                self.left_map.insert(join_key.clone(), new.to_owned());
+                let join_key: Vec<u8> = get_record_key(new, &self.left_join_key_indexes);
+                add_join_record(
+                    &mut self.left_map,
+                    &self.left_primary_key_indexes,
+                    &join_key,
+                    new,
+                );
                 let records = self.right_join_from_left(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Right) => {
-                let join_key: Vec<u8> = get_join_key(new, &self.right_join_key_indexes);
-                self.right_map.insert(join_key.clone(), new.to_owned());
+                let join_key: Vec<u8> = get_record_key(new, &self.right_join_key_indexes);
+                add_join_record(
+                    &mut self.right_map,
+                    &self.right_primary_key_indexes,
+                    &join_key,
+                    new,
+                );
                 let records = self.right_join_from_right(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
@@ -377,14 +420,62 @@ impl JoinOperator {
     }
 }
 
-fn get_join_key(old: &Record, join_key_indexes: &[usize]) -> Vec<u8> {
+fn add_join_record(
+    join_map: &mut HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
+    primary_key_indexes: &[usize],
+    join_key: &[u8],
+    record: &Record,
+) {
+    if let Some(record_map) = join_map.get_mut(join_key) {
+        let record_key = get_record_key(record, primary_key_indexes);
+        if let Some(record_vec) = record_map.get_mut(&record_key) {
+            record_vec.push(record.to_owned());
+        } else {
+            record_map.insert(record_key, vec![record.to_owned()]);
+        }
+    } else {
+        let mut record_map = HashMap::new();
+        let record_key = get_record_key(record, primary_key_indexes);
+        record_map.insert(record_key, vec![record.to_owned()]);
+        join_map.insert(join_key.to_owned(), record_map);
+    }
+}
+
+fn remove_join_record(
+    join_map: &mut HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
+    primary_key_indexes: &[usize],
+    join_key: &[u8],
+    record: &Record,
+) {
+    if let Some(record_map) = join_map.get_mut(join_key) {
+        let record_key = get_record_key(record, primary_key_indexes);
+        if let Some(record_vec) = record_map.get_mut(&record_key) {
+            record_vec.pop();
+        }
+    }
+}
+
+fn get_record_key(record: &Record, key_indexes: &[usize]) -> Vec<u8> {
     let mut hasher = AHasher::default();
-    for index in join_key_indexes.iter() {
-        old.values[*index].hash(&mut hasher);
+    for index in key_indexes.iter() {
+        record.values[*index].hash(&mut hasher);
     }
     let join_key = hasher.finish();
 
     join_key.to_be_bytes().to_vec()
+}
+
+fn get_join_records(
+    join_map: &HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
+    join_key: &[u8],
+) -> Vec<Record> {
+    let join_map = join_map.get(join_key);
+
+    if let Some(records_map) = join_map {
+        records_map.values().flatten().cloned().collect()
+    } else {
+        vec![]
+    }
 }
 
 fn join_records(left_record: &Record, right_record: &Record) -> Record {
