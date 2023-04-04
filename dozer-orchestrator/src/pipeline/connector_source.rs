@@ -254,7 +254,7 @@ impl Source for ConnectorSource {
                     IngestionMessageKind::OperationEvent(Operation::Update { old: _, new }) => {
                         Some(get_schema_id(new.schema_id)?)
                     }
-                    IngestionMessageKind::SnapshottingDone => None,
+                    IngestionMessageKind::SnapshottingDone | IngestionMessageKind::SnapshottingStarted => None,
                 };
                 if let Some(schema_id) = schema_id {
                     let port =

@@ -29,6 +29,13 @@ impl IngestionMessage {
             kind: IngestionMessageKind::SnapshottingDone,
         }
     }
+
+    pub fn new_snapshotting_started(txn: u64, seq_no: u64) -> Self {
+        Self {
+            identifier: OpIdentifier::new(txn, seq_no),
+            kind: IngestionMessageKind::SnapshottingDone,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -36,6 +43,8 @@ impl IngestionMessage {
 pub enum IngestionMessageKind {
     /// A CDC event.
     OperationEvent(Operation),
+    /// A connector uses this message kind to notify Dozer that a initial snapshot of the source table is started
+    SnapshottingStarted,
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source table is done,
     /// and the data is up-to-date until next CDC event.
     SnapshottingDone,
