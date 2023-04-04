@@ -1,0 +1,13 @@
+FROM --platform=arm64 ubuntu:22.04
+
+# Install curl
+COPY install-curl-ubuntu.sh .
+RUN sh install-curl-ubuntu.sh
+
+# Install Protoc
+COPY install-protoc-ubuntu-22.sh .
+RUN sh install-protoc-ubuntu-22.sh
+
+# Install Dozer
+COPY install-dozer-ubuntu-arm64.sh .
+RUN sh install-dozer-ubuntu-arm64.sh
