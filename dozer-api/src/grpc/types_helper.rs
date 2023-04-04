@@ -86,13 +86,13 @@ fn field_to_prost_value(f: Field) -> Value {
             value: Some(value::Value::UintValue(n)),
         },
         Field::U128(n) => Value {
-            value: Some(value::Value::StringValue(n.to_string())),
+            value: Some(value::Value::Uint128Value(n.to_string())),
         },
         Field::Int(n) => Value {
             value: Some(value::Value::IntValue(n)),
         },
         Field::I128(n) => Value {
-            value: Some(value::Value::StringValue(n.to_string())),
+            value: Some(value::Value::Int128Value(n.to_string())),
         },
         Field::Float(n) => Value {
             value: Some(value::Value::FloatValue(n.0)),
