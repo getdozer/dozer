@@ -154,7 +154,10 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
         }
 
         ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done((tables.len() + 1) as u64, 0))
+            .handle_message(IngestionMessage::new_snapshotting_done(
+                (tables.len() + 1) as u64,
+                0,
+            ))
             .map_err(ObjectStoreConnectorError::IngestorError)?;
 
         Ok(())
