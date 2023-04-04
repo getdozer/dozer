@@ -150,7 +150,7 @@ pub fn map_sqlite_to_record(
                 Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
             },
             FieldType::Date =>  convert_type!(Field::String, f, row, idx),
-            FieldType::Bson | FieldType::Point => {
+            FieldType::U128 | FieldType::I128 | FieldType::Bson | FieldType::Point => {
                 panic!("type not supported : {:?}", f.typ.to_owned())
             }
         };
@@ -218,7 +218,9 @@ pub fn get_table_name(name: &ObjectName) -> String {
 pub fn map_field_to_string(f: &Field) -> String {
     match f {
         Field::UInt(i) => i.to_string(),
+        Field::U128(i) => i.to_string(),
         Field::Int(i) => i.to_string(),
+        Field::I128(i) => i.to_string(),
         Field::Float(i) => i.to_string(),
         Field::Boolean(i) => i.to_string(),
         Field::String(i) => format!("'{i}'"),

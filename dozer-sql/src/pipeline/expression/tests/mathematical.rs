@@ -17,13 +17,17 @@ use std::num::Wrapping;
 
 #[test]
 fn test_uint_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
+        let u128_1 = Box::new(Literal(Field::U128(u128_num1)));
+        let u128_2 = Box::new(Literal(Field::U128(u128_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
+        let i128_1 = Box::new(Literal(Field::I128(i128_num1)));
+        let i128_2 = Box::new(Literal(Field::I128(i128_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
         let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
@@ -63,6 +67,38 @@ fn test_uint_math() {
             Field::UInt((Wrapping(u_num1) % Wrapping(u_num2)).0)
         );
 
+        //// left: UInt, right: U128
+        assert_eq!(
+            // UInt + U128 = U128
+            evaluate_add(&Schema::empty(), &uint1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u_num1 as u128) + Wrapping(u128_num2)).0)
+        );
+        assert_eq!(
+            // UInt - U128 = U128
+            evaluate_sub(&Schema::empty(), &uint1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u_num1 as u128) - Wrapping(u128_num2)).0)
+        );
+        assert_eq!(
+            // UInt * U128 = U128
+            evaluate_mul(&Schema::empty(), &uint2, &u128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u_num2 as u128) * Wrapping(u128_num1)).0)
+        );
+        assert_eq!(
+            // UInt / U128 = Float
+            evaluate_div(&Schema::empty(), &uint2, &u128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Float(OrderedFloat(f64::from_u64(u_num2).unwrap() / f64::from_u128(u128_num1).unwrap()))
+        );
+        assert_eq!(
+            // UInt % U128 = U128
+            evaluate_mod(&Schema::empty(), &uint1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u_num1 as u128) % Wrapping(u128_num2)).0)
+        );
+
         //// left: UInt, right: Int
         assert_eq!(
             // UInt + Int = Int
@@ -93,6 +129,38 @@ fn test_uint_math() {
             evaluate_mod(&Schema::empty(), &uint1, &int2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Int((Wrapping(u_num1 as i64) % Wrapping(i_num2)).0)
+        );
+
+        //// left: UInt, right: I128
+        assert_eq!(
+            // UInt + I128 = I128
+            evaluate_add(&Schema::empty(), &uint1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u_num1 as i128) + Wrapping(i128_num2)).0)
+        );
+        assert_eq!(
+            // UInt - I128 = I128
+            evaluate_sub(&Schema::empty(), &uint1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u_num1 as i128) - Wrapping(i128_num2)).0)
+        );
+        assert_eq!(
+            // UInt * I128 = I128
+            evaluate_mul(&Schema::empty(), &uint2, &i128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u_num2 as i128) * Wrapping(i128_num1)).0)
+        );
+        assert_eq!(
+            // UInt / I128 = Float
+            evaluate_div(&Schema::empty(), &uint2, &i128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Float(OrderedFloat(f64::from_u64(u_num2).unwrap() / f64::from_i128(i128_num1).unwrap()))
+        );
+        assert_eq!(
+            // UInt % I128 = I128
+            evaluate_mod(&Schema::empty(), &uint1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u_num1 as i128) % Wrapping(i128_num2)).0)
         );
 
         //// left: UInt, right: Float
@@ -229,14 +297,330 @@ fn test_uint_math() {
 }
 
 #[test]
-fn test_int_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
+fn test_u128_math() {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
+        let u128_1 = Box::new(Literal(Field::U128(u128_num1)));
+        let u128_2 = Box::new(Literal(Field::U128(u128_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
+        let i128_1 = Box::new(Literal(Field::I128(i128_num1)));
+        let i128_2 = Box::new(Literal(Field::I128(i128_num2)));
+        let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
+        let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
+
+        let null = Box::new(Literal(Field::Null));
+
+        //// left: U128, right: UInt
+        assert_eq!(
+            // U128 + UInt = U128
+            evaluate_add(&Schema::empty(), &u128_1, &uint2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u128_num1) + Wrapping(u_num2 as u128)).0)
+        );
+        assert_eq!(
+            // U128 - UInt = U128
+            evaluate_sub(&Schema::empty(), &u128_1, &uint2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u128_num1) - Wrapping(u_num2 as u128)).0)
+        );
+        assert_eq!(
+            // U128 * UInt = U128
+            evaluate_mul(&Schema::empty(), &u128_2, &uint1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u128_num2) * Wrapping(u_num1 as u128)).0)
+        );
+        assert_eq!(
+            // U128 / UInt = Float
+            evaluate_div(&Schema::empty(), &u128_2, &uint1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Float(OrderedFloat(f64::from_u128(u128_num2).unwrap() / f64::from_u64(u_num1).unwrap()))
+        );
+        assert_eq!(
+            // U128 % UInt = U128
+            evaluate_mod(&Schema::empty(), &u128_1, &uint2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u128_num1) % Wrapping(u_num2 as u128)).0)
+        );
+
+        //// left: U128, right: U128
+        assert_eq!(
+            // U128 + U128 = U128
+            evaluate_add(&Schema::empty(), &u128_1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u128_num1) + Wrapping(u128_num2)).0)
+        );
+        assert_eq!(
+            // U128 - U128 = U128
+            evaluate_sub(&Schema::empty(), &u128_1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u128_num1) - Wrapping(u128_num2)).0)
+        );
+        assert_eq!(
+            // U128 * U128 = U128
+            evaluate_mul(&Schema::empty(), &u128_2, &u128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u128_num2) * Wrapping(u128_num1)).0)
+        );
+        assert_eq!(
+            // U128 / U128 = Float
+            evaluate_div(&Schema::empty(), &u128_2, &u128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Float(OrderedFloat(f64::from_u128(u128_num2).unwrap() / f64::from_u128(u128_num1).unwrap()))
+        );
+        assert_eq!(
+            // U128 % U128 = U128
+            evaluate_mod(&Schema::empty(), &u128_1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::U128((Wrapping(u128_num1) % Wrapping(u128_num2)).0)
+        );
+
+        //// left: U128, right: Int
+        assert_eq!(
+            // U128 + Int = I128
+            evaluate_add(&Schema::empty(), &u128_1, &int2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u128_num1 as i128) + Wrapping(i_num2 as i128)).0)
+        );
+        assert_eq!(
+            // U128 - Int = I128
+            evaluate_sub(&Schema::empty(), &u128_1, &int2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u128_num1 as i128) - Wrapping(i_num2 as i128)).0)
+        );
+        assert_eq!(
+            // U128 * Int = I128
+            evaluate_mul(&Schema::empty(), &u128_2, &int1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u128_num2 as i128) * Wrapping(i_num1 as i128)).0)
+        );
+        assert_eq!(
+            // U128 / Int = Float
+            evaluate_div(&Schema::empty(), &u128_2, &int1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Float(OrderedFloat(f64::from_u128(u128_num2).unwrap() / f64::from_i64(i_num1).unwrap()))
+        );
+        assert_eq!(
+            // U128 % Int = I128
+            evaluate_mod(&Schema::empty(), &u128_1, &int2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u128_num1 as i128) % Wrapping(i_num2 as i128)).0)
+        );
+
+        //// left: U128, right: I128
+        assert_eq!(
+            // U128 + I128 = I128
+            evaluate_add(&Schema::empty(), &u128_1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u128_num1 as i128) + Wrapping(i128_num2)).0)
+        );
+        assert_eq!(
+            // U128 - I128 = I128
+            evaluate_sub(&Schema::empty(), &u128_1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u128_num1 as i128) - Wrapping(i128_num2)).0)
+        );
+        assert_eq!(
+            // U128 * I128 = I128
+            evaluate_mul(&Schema::empty(), &u128_2, &i128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u128_num2 as i128) * Wrapping(i128_num1)).0)
+        );
+        assert_eq!(
+            // U128 / I128 = Float
+            evaluate_div(&Schema::empty(), &u128_2, &i128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Float(OrderedFloat(f64::from_u128(u128_num2).unwrap() / f64::from_i128(i128_num1).unwrap()))
+        );
+        assert_eq!(
+            // U128 % I128 = I128
+            evaluate_mod(&Schema::empty(), &u128_1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(u128_num1 as i128) % Wrapping(i128_num2)).0)
+        );
+
+        //// left: U128, right: Float
+        let res = evaluate_add(&Schema::empty(), &u128_1, &float2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // U128 + Float = Float
+                evaluate_add(&Schema::empty(), &u128_1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_u128(u128_num1).unwrap() + f_num2))
+            );
+        }
+        let res = evaluate_sub(&Schema::empty(), &u128_1, &float2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // U128 - Float = Float
+                evaluate_sub(&Schema::empty(), &u128_1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_u128(u128_num1).unwrap() - f_num2))
+            );
+        }
+        let res = evaluate_mul(&Schema::empty(), &u128_2, &float1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // U128 * Float = Float
+                evaluate_mul(&Schema::empty(), &u128_2, &float1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_u128(u128_num2).unwrap() * f_num1))
+            );
+        }
+        let res = evaluate_div(&Schema::empty(), &u128_2, &float1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // U128 / Float = Float
+                evaluate_div(&Schema::empty(), &u128_2, &float1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_u128(u128_num2).unwrap() / f_num1))
+            );
+        }
+        let res = evaluate_mod(&Schema::empty(), &u128_1, &float2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // U128 % Float = Float
+                evaluate_mod(&Schema::empty(), &u128_1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_u128(u128_num1).unwrap() % f_num2))
+            );
+        }
+
+        //// left: U128, right: Decimal
+        let res = evaluate_add(&Schema::empty(), &u128_1, &dec2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // U128 + Decimal = Decimal
+                evaluate_add(&Schema::empty(), &u128_1, &dec2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(Decimal::from_u128(u128_num1).unwrap() + d_num2.0)
+            );
+        }
+        let res = evaluate_sub(&Schema::empty(), &u128_1, &dec2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // U128 - Decimal = Decimal
+                evaluate_sub(&Schema::empty(), &u128_1, &dec2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(Decimal::from_u128(u128_num1).unwrap() - d_num2.0)
+            );
+        }
+        // U128 * Decimal = Decimal
+        let res = evaluate_mul(&Schema::empty(), &u128_2, &dec1, &row);
+        if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_u128(u128_num2).unwrap().checked_mul(d_num1.0).unwrap())
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+                ));
+            }
+        }
+        // U128 / Decimal = Decimal
+        let res = evaluate_div(&Schema::empty(), &u128_2, &dec1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_u128(u128_num2).unwrap() / d_num1.0)
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+        }
+        // U128 % Decimal = Decimal
+        let res = evaluate_mod(&Schema::empty(), &u128_1, &dec1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_u128(u128_num1).unwrap() % d_num1.0)
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
+        }
+
+        //// left: U128, right: Null
+        assert_eq!(
+            // U128 + Null = Null
+            evaluate_add(&Schema::empty(), &u128_1, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // U128 - Null = Null
+            evaluate_sub(&Schema::empty(), &u128_1, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // U128 * Null = Null
+            evaluate_mul(&Schema::empty(), &u128_2, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // U128 / Null = Null
+            evaluate_div(&Schema::empty(), &u128_2, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // U128 % Null = Null
+            evaluate_mod(&Schema::empty(), &u128_1, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+    });
+}
+
+#[test]
+fn test_int_math() {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
+        let row = Record::new(None, vec![], None);
+
+        let uint1 = Box::new(Literal(Field::UInt(u_num1)));
+        let uint2 = Box::new(Literal(Field::UInt(u_num2)));
+        let u128_1 = Box::new(Literal(Field::U128(u128_num1)));
+        let u128_2 = Box::new(Literal(Field::U128(u128_num2)));
+        let int1 = Box::new(Literal(Field::Int(i_num1)));
+        let int2 = Box::new(Literal(Field::Int(i_num2)));
+        let i128_1 = Box::new(Literal(Field::I128(i128_num1)));
+        let i128_2 = Box::new(Literal(Field::I128(i128_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
         let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
@@ -276,6 +660,40 @@ fn test_int_math() {
             Field::Int((Wrapping(i_num1) % Wrapping(u_num2 as i64)).0)
         );
 
+        //// left: Int, right: U128
+        assert_eq!(
+            // Int + U128 = I128
+            evaluate_add(&Schema::empty(), &int1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i_num1 as i128) + Wrapping(u128_num2 as i128)).0)
+        );
+        assert_eq!(
+            // Int - U128 = I128
+            evaluate_sub(&Schema::empty(), &int1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i_num1 as i128) - Wrapping(u128_num2 as i128)).0)
+        );
+        assert_eq!(
+            // Int * U128 = I128
+            evaluate_mul(&Schema::empty(), &int2, &u128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i_num2 as i128) * Wrapping(u128_num1 as i128)).0)
+        );
+        let res = evaluate_div(&Schema::empty(), &int2, &u128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Int / U128 = Float
+                evaluate_div(&Schema::empty(), &int2, &u128_1, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i_num2 as i128).unwrap() / f64::from_i128(u128_num1 as i128).unwrap()))
+            );
+        }
+        assert_eq!(
+            // Int % U128 = I128
+            evaluate_mod(&Schema::empty(), &int1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i_num1 as i128) % Wrapping(u128_num2 as i128)).0)
+        );
+
         //// left: Int, right: Int
         assert_eq!(
             // Int + Int = Int
@@ -306,6 +724,41 @@ fn test_int_math() {
             evaluate_mod(&Schema::empty(), &int1, &int2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Int((Wrapping(i_num1) % Wrapping(i_num2)).0)
+        );
+
+        //// left: Int, right: I128
+        assert_eq!(
+            // Int + I128 = I128
+            evaluate_add(&Schema::empty(), &int1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i_num1 as i128) + Wrapping(i128_num2)).0)
+        );
+        assert_eq!(
+            // Int - I128 = I128
+            evaluate_sub(&Schema::empty(), &int1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i_num1 as i128) - Wrapping(i128_num2)).0)
+        );
+        assert_eq!(
+            // Int * I128 = I128
+            evaluate_mul(&Schema::empty(), &int2, &i128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i_num2 as i128) * Wrapping(i128_num1)).0)
+        );
+        let res = evaluate_div(&Schema::empty(), &int2, &i128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Int / I128 = Float
+                evaluate_div(&Schema::empty(), &int2, &i128_1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i64(i_num2).unwrap() / f64::from_i128(i128_num1).unwrap()))
+            );
+        }
+        assert_eq!(
+            // Int % I128 = I128
+            evaluate_mod(&Schema::empty(), &int1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i_num1 as i128) % Wrapping(i128_num2)).0)
         );
 
         //// left: Int, right: Float
@@ -442,14 +895,341 @@ fn test_int_math() {
 }
 
 #[test]
-fn test_float_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
+fn test_i128_math() {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
+        let u128_1 = Box::new(Literal(Field::U128(u128_num1)));
+        let u128_2 = Box::new(Literal(Field::U128(u128_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
+        let i128_1 = Box::new(Literal(Field::I128(i128_num1)));
+        let i128_2 = Box::new(Literal(Field::I128(i128_num2)));
+        let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
+        let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
+        let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
+        let dec2 = Box::new(Literal(Field::Decimal(d_num2.0)));
+
+        let null = Box::new(Literal(Field::Null));
+
+        //// left: I128, right: UInt
+        assert_eq!(
+            // I128 + UInt = I128
+            evaluate_add(&Schema::empty(), &i128_1, &uint2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) + Wrapping(u_num2 as i128)).0)
+        );
+        assert_eq!(
+            // I128 - UInt = I128
+            evaluate_sub(&Schema::empty(), &i128_1, &uint2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) - Wrapping(u_num2 as i128)).0)
+        );
+        assert_eq!(
+            // I128 * UInt = I128
+            evaluate_mul(&Schema::empty(), &i128_2, &uint1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num2) * Wrapping(u_num1 as i128)).0)
+        );
+        let res = evaluate_div(&Schema::empty(), &i128_2, &uint1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 / UInt = Float
+                evaluate_div(&Schema::empty(), &i128_2, &uint1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num2).unwrap() / f64::from_u64(u_num1).unwrap()))
+            );
+        }
+        assert_eq!(
+            // I128 % UInt = I128
+            evaluate_mod(&Schema::empty(), &i128_1, &uint2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) % Wrapping(u_num2 as i128)).0)
+        );
+
+        //// left: I128, right: U128
+        assert_eq!(
+            // I128 + U128 = I128
+            evaluate_add(&Schema::empty(), &i128_1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) + Wrapping(u128_num2 as i128)).0)
+        );
+        assert_eq!(
+            // I128 - U128 = I128
+            evaluate_sub(&Schema::empty(), &i128_1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) - Wrapping(u128_num2 as i128)).0)
+        );
+        assert_eq!(
+            // I128 * U128 = I128
+            evaluate_mul(&Schema::empty(), &i128_2, &u128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num2) * Wrapping(u128_num1 as i128)).0)
+        );
+        let res = evaluate_div(&Schema::empty(), &i128_2, &u128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 / U128 = Float
+                evaluate_div(&Schema::empty(), &i128_2, &u128_1, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num2).unwrap() / f64::from_i128(u128_num1 as i128).unwrap()))
+            );
+        }
+        assert_eq!(
+            // I128 % U128 = I128
+            evaluate_mod(&Schema::empty(), &i128_1, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) % Wrapping(u128_num2 as i128)).0)
+        );
+
+        //// left: I128, right: Int
+        assert_eq!(
+            // I128 + Int = I128
+            evaluate_add(&Schema::empty(), &i128_1, &int2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) + Wrapping(i_num2 as i128)).0)
+        );
+        assert_eq!(
+            // I128 - Int = I128
+            evaluate_sub(&Schema::empty(), &i128_1, &int2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) - Wrapping(i_num2 as i128)).0)
+        );
+        assert_eq!(
+            // I128 * Int = I128
+            evaluate_mul(&Schema::empty(), &i128_2, &int1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num2) * Wrapping(i_num1 as i128)).0)
+        );
+        let res = evaluate_div(&Schema::empty(), &i128_2, &int1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 / Int = Float
+                evaluate_div(&Schema::empty(), &i128_2, &int1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num2).unwrap() / f64::from_i64(i_num1).unwrap()))
+            );
+        }
+        assert_eq!(
+            // I128 % Int = I128
+            evaluate_mod(&Schema::empty(), &i128_1, &int2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) % Wrapping(i_num2 as i128)).0)
+        );
+
+        //// left: I128, right: I128
+        assert_eq!(
+            // I128 + I128 = I128
+            evaluate_add(&Schema::empty(), &i128_1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) + Wrapping(i128_num2)).0)
+        );
+        assert_eq!(
+            // I128 - I128 = I128
+            evaluate_sub(&Schema::empty(), &i128_1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) - Wrapping(i128_num2)).0)
+        );
+        assert_eq!(
+            // I128 * I128 = I128
+            evaluate_mul(&Schema::empty(), &i128_2, &i128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num2) * Wrapping(i128_num1)).0)
+        );
+        let res = evaluate_div(&Schema::empty(), &i128_2, &i128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 / I128 = Float
+                evaluate_div(&Schema::empty(), &i128_2, &i128_1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num2).unwrap() / f64::from_i128(i128_num1).unwrap()))
+            );
+        }
+        assert_eq!(
+            // I128 % I128 = I128
+            evaluate_mod(&Schema::empty(), &i128_1, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::I128((Wrapping(i128_num1) % Wrapping(i128_num2)).0)
+        );
+
+        //// left: I128, right: Float
+        let res = evaluate_add(&Schema::empty(), &i128_1, &float2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 + Float = Float
+                evaluate_add(&Schema::empty(), &i128_1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num1).unwrap() + f_num2))
+            );
+        }
+        let res = evaluate_sub(&Schema::empty(), &i128_1, &float2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 - Float = Float
+                evaluate_sub(&Schema::empty(), &i128_1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num1).unwrap() - f_num2))
+            );
+        }
+        let res = evaluate_mul(&Schema::empty(), &i128_2, &float1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 * Float = Float
+                evaluate_mul(&Schema::empty(), &i128_2, &float1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num2).unwrap() * f_num1))
+            );
+        }
+        let res = evaluate_div(&Schema::empty(), &i128_2, &float1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 / Float = Float
+                evaluate_div(&Schema::empty(), &i128_2, &float1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num2).unwrap() / f_num1))
+            );
+        }
+        let res = evaluate_mod(&Schema::empty(), &i128_1, &float2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 % Float = Float
+                evaluate_mod(&Schema::empty(), &i128_1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i128(i128_num1).unwrap() % f_num2))
+            );
+        }
+
+        //// left: I128, right: Decimal
+        let res = evaluate_add(&Schema::empty(), &i128_1, &dec2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 + Decimal = Decimal
+                evaluate_add(&Schema::empty(), &i128_1, &dec2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(Decimal::from_i128(i128_num1).unwrap() + d_num2.0)
+            );
+        }
+        let res = evaluate_sub(&Schema::empty(), &i128_1, &dec2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // I128 - Decimal = Decimal
+                evaluate_sub(&Schema::empty(), &i128_1, &dec2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(Decimal::from_i128(i128_num1).unwrap() - d_num2.0)
+            );
+        }
+        // I128 * Decimal = Decimal
+        let res = evaluate_mul(&Schema::empty(), &i128_2, &dec1, &row);
+        if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_i128(i128_num2).unwrap().checked_mul(d_num1.0).unwrap())
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+                ));
+            }
+        }
+        // I128 / Decimal = Decimal
+        let res = evaluate_div(&Schema::empty(), &i128_2, &dec1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_i128(i128_num2).unwrap() / d_num1.0)
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+        }
+        // I128 % Decimal = Decimal
+        let res = evaluate_mod(&Schema::empty(), &i128_1, &dec2, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(Decimal::from_i128(i128_num1).unwrap() % d_num2.0)
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
+        }
+
+        //// left: I128, right: Null
+        assert_eq!(
+            // I128 + Null = Null
+            evaluate_add(&Schema::empty(), &i128_1, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // I128 - Null = Null
+            evaluate_sub(&Schema::empty(), &i128_1, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // I128 * Null = Null
+            evaluate_mul(&Schema::empty(), &i128_2, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // I128 / Null = Null
+            evaluate_div(&Schema::empty(), &i128_2, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // I128 % Null = Null
+            evaluate_mod(&Schema::empty(), &i128_1, &null, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+    });
+}
+
+#[test]
+fn test_float_math() {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
+        let row = Record::new(None, vec![], None);
+
+        let uint1 = Box::new(Literal(Field::UInt(u_num1)));
+        let uint2 = Box::new(Literal(Field::UInt(u_num2)));
+        let u128_1 = Box::new(Literal(Field::U128(u128_num1)));
+        let u128_2 = Box::new(Literal(Field::U128(u128_num2)));
+        let int1 = Box::new(Literal(Field::Int(i_num1)));
+        let int2 = Box::new(Literal(Field::Int(i_num2)));
+        let i128_1 = Box::new(Literal(Field::I128(i128_num1)));
+        let i128_2 = Box::new(Literal(Field::I128(i128_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
         let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
@@ -489,6 +1269,53 @@ fn test_float_math() {
             Field::Float(OrderedFloat(f_num1) % OrderedFloat(f64::from_u64(u_num2).unwrap()))
         );
 
+        //// left: Float, right: U128
+        let res = evaluate_add(&Schema::empty(), &float1, &u128_2, &row);
+        if res.is_ok() {
+           assert_eq!(
+                // Float + U128 = Float
+                evaluate_add(&Schema::empty(), &float1, &u128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num1) + OrderedFloat(f64::from_u128(u128_num2).unwrap()))
+            );
+        }
+        let res = evaluate_sub(&Schema::empty(), &float1, &u128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float - U128 = Float
+                evaluate_sub(&Schema::empty(), &float1, &u128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num1) - OrderedFloat(f64::from_u128(u128_num2).unwrap()))
+            );
+        }
+        let res = evaluate_mul(&Schema::empty(), &float2, &u128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float * U128 = Float
+                evaluate_mul(&Schema::empty(), &float2, &u128_1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num2) * OrderedFloat(f64::from_u128(u128_num1).unwrap()))
+            );
+        }
+        let res = evaluate_div(&Schema::empty(), &float2, &u128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float / U128 = Float
+                evaluate_div(&Schema::empty(), &float2, &u128_1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num2) / OrderedFloat(f64::from_u128(u128_num1).unwrap()))
+            );
+        }
+        let res = evaluate_mod(&Schema::empty(), &float1, &u128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float % U128 = Float
+                evaluate_mod(&Schema::empty(), &float1, &u128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num1) % OrderedFloat(f64::from_u128(u128_num2).unwrap()))
+            );
+        }
+
         //// left: Float, right: Int
         assert_eq!(
             // Float + Int = Float
@@ -520,6 +1347,53 @@ fn test_float_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Float(OrderedFloat(f_num1) % OrderedFloat(f64::from_i64(i_num2).unwrap()))
         );
+
+        //// left: Float, right: I128
+        let res = evaluate_add(&Schema::empty(), &float1, &i128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float + I128 = Float
+                evaluate_add(&Schema::empty(), &float1, &i128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num1) + OrderedFloat(f64::from_i128(i128_num2).unwrap()))
+            );
+        }
+        let res = evaluate_sub(&Schema::empty(), &float1, &i128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float - I128 = Float
+                evaluate_sub(&Schema::empty(), &float1, &i128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num1) - OrderedFloat(f64::from_i128(i128_num2).unwrap()))
+            );
+        }
+        let res = evaluate_mul(&Schema::empty(), &float2, &i128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float * I128 = Float
+                evaluate_mul(&Schema::empty(), &float2, &i128_1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num2) * OrderedFloat(f64::from_i128(i128_num1).unwrap()))
+            );
+        }
+        let res = evaluate_div(&Schema::empty(), &float2, &i128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float / I128 = Float
+                evaluate_div(&Schema::empty(), &float2, &i128_1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num2) / OrderedFloat(f64::from_i128(i128_num1).unwrap()))
+            );
+        }
+        let res = evaluate_mod(&Schema::empty(), &float1, &i128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Float % I128 = Float
+                evaluate_mod(&Schema::empty(), &float1, &i128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num1) % OrderedFloat(f64::from_i128(i128_num2).unwrap()))
+            );
+        }
 
         //// left: Float, right: Float
         assert_eq!(
@@ -660,13 +1534,17 @@ fn test_float_math() {
 
 #[test]
 fn test_decimal_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
+        let u128_1 = Box::new(Literal(Field::U128(u128_num1)));
+        let u128_2 = Box::new(Literal(Field::U128(u128_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
+        let i128_1 = Box::new(Literal(Field::I128(i128_num1)));
+        let i128_2 = Box::new(Literal(Field::I128(i128_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
         let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
@@ -741,6 +1619,89 @@ fn test_decimal_math() {
             ));
         }
 
+        //// left: Decimal, right: U128
+        let res = evaluate_add(&Schema::empty(), &dec1, &u128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Decimal + U128 = Decimal
+                evaluate_add(&Schema::empty(), &dec1, &u128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num1.0 + Decimal::from_u128(u128_num2).unwrap())
+            );
+        }
+        let res = evaluate_sub(&Schema::empty(), &dec1, &u128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Decimal - U128 = Decimal
+                evaluate_sub(&Schema::empty(), &dec1, &u128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num1.0 - Decimal::from_u128(u128_num2).unwrap())
+            );
+        }
+        // Decimal * U128 = Decimal
+        let res = evaluate_mul(&Schema::empty(), &dec2, &u128_1, &row);
+        if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num2.0 * Decimal::from_u128(u128_num1).unwrap())
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::MultiplicationOverflow)))
+                ));
+            }
+        }
+        // Decimal / U128 = Decimal
+        let res = evaluate_div(&Schema::empty(), &dec2, &u128_1, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num2.0 / Decimal::from_u128(u128_num1).unwrap())
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::DivisionByZeroOrOverflow)))
+                ));
+            }
+        }
+        // Decimal % U128 = Decimal
+        let res = evaluate_mod(&Schema::empty(), &dec1, &u128_2, &row);
+        if d_num1.0 == Decimal::new(0, 0) {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
+        }
+        else if res.is_ok() {
+             assert_eq!(
+                res.unwrap(), Field::Decimal(d_num1.0 % Decimal::from_u128(u128_num2).unwrap())
+            );
+        } else {
+            assert!(res.is_err());
+            if !matches!(res, Err(PipelineError::UnableToCast(_, _))) {
+                assert!(matches!(
+                    res,
+                    Err(PipelineError::SqlError(Operation(OperationError::ModuloByZeroOrOverflow)))
+                ));
+            }
+        }
+
         //// left: Decimal, right: Int
         assert_eq!(
             // Decimal + Int = Decimal
@@ -754,13 +1715,15 @@ fn test_decimal_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Decimal(d_num1.0 - Decimal::from(i_num2))
         );
-        // // todo: Multiplication overflowed
-        // assert_eq!(
-        //     // Decimal * Int = Float
-        //     evaluate_mul(&Schema::empty(), &dec2, &int1, &row)
-        //         .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        //     Field::Decimal(d_num2.0 * Decimal::from(i_num1))
-        // );
+        let res = evaluate_mul(&Schema::empty(), &dec2, &int1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Decimal * Int = Decimal
+                evaluate_mul(&Schema::empty(), &dec2, &int1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num2.0 * Decimal::from(i_num1))
+            );
+        }
         assert_eq!(
             // Decimal / Int = Decimal
             evaluate_div(&Schema::empty(), &dec2, &int1, &row)
@@ -773,6 +1736,53 @@ fn test_decimal_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Decimal(d_num1.0 % Decimal::from(i_num2))
         );
+
+        //// left: Decimal, right: I128
+        let res = evaluate_add(&Schema::empty(), &dec1, &i128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Decimal + I128 = Decimal
+                evaluate_add(&Schema::empty(), &dec1, &i128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num1.0 + Decimal::from_i128(i128_num2).unwrap())
+            );
+        }
+        let res = evaluate_sub(&Schema::empty(), &dec1, &i128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Decimal - I128 = Decimal
+                evaluate_sub(&Schema::empty(), &dec1, &i128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num1.0 - Decimal::from_i128(i128_num2).unwrap())
+            );
+        }
+        let res = evaluate_mul(&Schema::empty(), &dec2, &i128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Decimal * I128 = Decimal
+                evaluate_mul(&Schema::empty(), &dec2, &i128_1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num2.0 * Decimal::from_i128(i128_num1).unwrap())
+            );
+        }
+        let res = evaluate_div(&Schema::empty(), &dec2, &i128_1, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Decimal / I128 = Decimal
+                evaluate_div(&Schema::empty(), &dec2, &i128_1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num2.0 / Decimal::from_i128(i128_num1).unwrap())
+            );
+        }
+        let res = evaluate_mod(&Schema::empty(), &dec1, &i128_2, &row);
+        if res.is_ok() {
+            assert_eq!(
+                // Decimal % I128 = Decimal
+                evaluate_mod(&Schema::empty(), &dec1, &i128_2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Decimal(d_num1.0 % Decimal::from_i128(i128_num2).unwrap())
+            );
+        }
 
         // left: Decimal, right: Float
         let d_val1 = Decimal::from_f64(f_num1);
@@ -949,13 +1959,17 @@ fn test_decimal_math() {
 
 #[test]
 fn test_null_math() {
-    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
+    proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(None, vec![], None);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
+        let u128_1 = Box::new(Literal(Field::U128(u128_num1)));
+        let u128_2 = Box::new(Literal(Field::U128(u128_num2)));
         let int1 = Box::new(Literal(Field::Int(i_num1)));
         let int2 = Box::new(Literal(Field::Int(i_num2)));
+        let i128_1 = Box::new(Literal(Field::I128(i128_num1)));
+        let i128_2 = Box::new(Literal(Field::I128(i128_num2)));
         let float1 = Box::new(Literal(Field::Float(OrderedFloat(f_num1))));
         let float2 = Box::new(Literal(Field::Float(OrderedFloat(f_num2))));
         let dec1 = Box::new(Literal(Field::Decimal(d_num1.0)));
@@ -995,6 +2009,38 @@ fn test_null_math() {
             Field::Null
         );
 
+        //// left: Null, right: U128
+        assert_eq!(
+            // Null + U128 = Null
+            evaluate_add(&Schema::empty(), &null, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // Null - U128 = Null
+            evaluate_sub(&Schema::empty(), &null, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // Null * U128 = Null
+            evaluate_mul(&Schema::empty(), &null, &u128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // Decimal / U128 = Null
+            evaluate_div(&Schema::empty(), &null, &u128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // Decimal % U128 = Null
+            evaluate_mod(&Schema::empty(), &null, &u128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+
         //// left: Null, right: Int
         assert_eq!(
             // Null + Int = Null
@@ -1023,6 +2069,38 @@ fn test_null_math() {
         assert_eq!(
             // Decimal % Int = Null
             evaluate_mod(&Schema::empty(), &null, &int2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+
+        //// left: Null, right: I128
+        assert_eq!(
+            // Null + I128 = Null
+            evaluate_add(&Schema::empty(), &null, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // Null - I128 = Null
+            evaluate_sub(&Schema::empty(), &null, &i128_2, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // Null * I128 = Null
+            evaluate_mul(&Schema::empty(), &null, &i128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // Decimal / I128 = Null
+            evaluate_div(&Schema::empty(), &null, &i128_1, &row)
+                .unwrap_or_else(|e| panic!("{}", e.to_string())),
+            Field::Null
+        );
+        assert_eq!(
+            // Decimal % I128 = Null
+            evaluate_mod(&Schema::empty(), &null, &i128_2, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Null
         );

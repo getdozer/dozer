@@ -523,6 +523,12 @@ impl ExpressionBuilder {
             DataType::Custom(name, ..) => {
                 if name.to_string().to_lowercase() == "bson" {
                     CastOperatorType::Bson
+                } else if name.to_string().to_lowercase() == "uint" {
+                    CastOperatorType::UInt
+                } else if name.to_string().to_lowercase() == "u128" {
+                    CastOperatorType::U128
+                } else if name.to_string().to_lowercase() == "i128" {
+                    CastOperatorType::I128
                 } else {
                     Err(PipelineError::InvalidFunction(format!(
                         "Unsupported Cast type {name}"

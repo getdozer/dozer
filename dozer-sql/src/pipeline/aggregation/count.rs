@@ -59,17 +59,28 @@ impl Aggregator for CountAggregator {
 
 fn get_count(count: u64, return_type: Option<FieldType>) -> Result<Field, PipelineError> {
     match return_type {
-        Some(FieldType::UInt) => Ok(Field::UInt(count)),
-        Some(FieldType::Int) => Ok(Field::Int(count as i64)),
-        Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(count as f64))),
-        Some(FieldType::Decimal) => Ok(Field::Decimal(calculate_err_type!(
-            Decimal::from_f64(count as f64),
-            Count,
-            FieldType::Decimal
-        ))),
-        Some(not_supported_return_type) => Err(PipelineError::InternalExecutionError(InvalidType(
-            format!("Not supported return type {not_supported_return_type} for {Count}"),
-        ))),
+        Some(typ) => match typ {
+            FieldType::UInt => Ok(Field::UInt(count)),
+            FieldType::U128 => Ok(Field::U128(count as u128)),
+            FieldType::Int => Ok(Field::Int(count as i64)),
+            FieldType::I128 => Ok(Field::I128(count as i128)),
+            FieldType::Float => Ok(Field::Float(OrderedFloat::from(count as f64))),
+            FieldType::Decimal => Ok(Field::Decimal(calculate_err_type!(
+                Decimal::from_f64(count as f64),
+                Count,
+                FieldType::Decimal
+            ))),
+            FieldType::Boolean
+            | FieldType::String
+            | FieldType::Text
+            | FieldType::Date
+            | FieldType::Timestamp
+            | FieldType::Binary
+            | FieldType::Bson
+            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+                "Not supported return type {typ} for {Count}"
+            )))),
+        },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Count}"
         )))),
