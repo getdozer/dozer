@@ -268,9 +268,9 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
 fn field_type_to_arrow(field_type: FieldType) -> Option<arrow::datatypes::DataType> {
     match field_type {
         FieldType::UInt => Some(arrow::datatypes::DataType::UInt64),
-        FieldType::U128 => Some(arrow::datatypes::DataType::UInt64), // TODO: Map this correctly
+        FieldType::U128 => None,
         FieldType::Int => Some(arrow::datatypes::DataType::Int64),
-        FieldType::I128 => Some(arrow::datatypes::DataType::Int64), // TODO: Map this correctly
+        FieldType::I128 => None,
         FieldType::Float => Some(arrow::datatypes::DataType::Float64),
         FieldType::Boolean => Some(arrow::datatypes::DataType::Boolean),
         FieldType::String => Some(arrow::datatypes::DataType::Utf8),
@@ -326,17 +326,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             }
             Arc::new(builder.finish())
         }
-        FieldType::U128 => {
-            let mut builder = arrow::array::UInt64Array::builder(count);
-            for field in fields {
-                match field {
-                    Field::U128(value) => builder.append_value(*value as u64),
-                    Field::Null => builder.append_null(),
-                    _ => panic!("Unexpected field type"),
-                }
-            }
-            Arc::new(builder.finish())
-        }
+        FieldType::U128 => panic!("Unexpected field type"),
         FieldType::Int => {
             let mut builder = arrow::array::Int64Array::builder(count);
             for field in fields {
@@ -348,17 +338,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             }
             Arc::new(builder.finish())
         }
-        FieldType::I128 => {
-            let mut builder = arrow::array::Int64Array::builder(count);
-            for field in fields {
-                match field {
-                    Field::I128(value) => builder.append_value(*value as i64),
-                    Field::Null => builder.append_null(),
-                    _ => panic!("Unexpected field type"),
-                }
-            }
-            Arc::new(builder.finish())
-        }
+        FieldType::I128 => panic!("Unexpected field type"),
         FieldType::Float => {
             let mut builder = arrow::array::Float64Array::builder(count);
             for field in fields {
