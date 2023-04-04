@@ -8,10 +8,41 @@ use dozer_types::{
     models::api_security::ApiSecurity,
     serde_json::{json, Value},
 };
+use tonic::{Response, Status};
 
 use crate::errors::{ApiError, AuthError};
 
 use super::{Access, Authorizer};
+use dozer_types::grpc_types::auth::GetAuthTokenResponse;
+
+pub fn auth_grpc(
+    access: Option<&Access>,
+    tenant_access: String,
+    api_security: Option<ApiSecurity>,
+) -> Result<Response<GetAuthTokenResponse>, Status> {
+    let access = match access {
+        Some(access) => access.clone(),
+        None => Access::All,
+    };
+
+    match access {
+        // Master Key or Uninitialized
+        Access::All => {
+            let tenant_access = dozer_types::serde_json::from_str(tenant_access.as_str())
+                .map_err(ApiError::map_deserialization_error)?;
+
+            let api_security = api_security
+                .ok_or_else(|| Status::permission_denied("Cannot access this method."))?;
+
+            let ApiSecurity::Jwt(secret) = api_security;
+
+            let auth = Authorizer::new(&secret, None, None);
+            let token = auth.generate_token(tenant_access, None).unwrap();
+            Ok(Response::new(GetAuthTokenResponse { token }))
+        }
+        Access::Custom(_) => Err(Status::permission_denied("Cannot access this method.")),
+    }
+}
 
 pub async fn auth_route(
     access: Option<ReqData<Access>>,

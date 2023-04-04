@@ -42,11 +42,17 @@ Follow the instruction below to install Dozer on your machine and run a quick sa
 brew tap getdozer/dozer && brew install dozer
 ```
 
-**Ubuntu 20.04**
+**Ubuntu 20.04 and above**
 
 ```bash
-curl -sLO https://github.com/getdozer/dozer/releases/latest/download/dozer-linux-x86_64.deb && sudo dpkg -i dozer-linux-x86_64.deb 
+# amd64
+curl -sLO https://github.com/getdozer/dozer/releases/latest/download/dozer-linux-amd64.deb && sudo dpkg -i dozer-linux-amd64.deb
+
+# aarch64
+curl -sLO https://github.com/getdozer/dozer/releases/latest/download/dozer-linux-aarch64.deb && sudo dpkg -i dozer-linux-aarch64.deb
 ```
+Dozer requires `protobuf-compiler`, installation instructions can be found in [additional steps](https://getdozer.io/docs/installation/#additional-steps-for-protobuf-compiler-dependency)
+
 
 **Build from source**
 

@@ -17,6 +17,11 @@ pub mod internal {
     tonic::include_proto!("dozer.internal");
 }
 
+pub mod auth {
+    #![allow(clippy::derive_partial_eq_without_eq)]
+    tonic::include_proto!("dozer.auth");
+}
+
 pub mod ingest {
     tonic::include_proto!("dozer.ingest");
     pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("ingest");

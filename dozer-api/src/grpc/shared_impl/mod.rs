@@ -37,22 +37,24 @@ fn parse_query(
 pub fn count(
     reader: &CacheReader,
     query: Option<&str>,
+    endpoint: &str,
     access: Option<Access>,
 ) -> Result<usize, Status> {
     let mut query = parse_query(query, QueryExpression::with_no_limit)?;
-    Ok(get_records_count(reader, &mut query, access)?)
+    Ok(get_records_count(reader, &mut query, endpoint, access)?)
 }
 
 pub fn query(
     reader: &CacheReader,
     query: Option<&str>,
+    endpoint: &str,
     access: Option<Access>,
 ) -> Result<Vec<RecordWithId>, Status> {
     let mut query = parse_query(query, QueryExpression::with_default_limit)?;
     if query.limit.is_none() {
         query.limit = Some(default_limit_for_query());
     }
-    let records = get_records(reader, &mut query, access)?;
+    let records = get_records(reader, &mut query, endpoint, access)?;
     Ok(records)
 }
 

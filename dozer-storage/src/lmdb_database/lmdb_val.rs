@@ -65,7 +65,7 @@ pub enum LmdbKeyType {
 ///
 /// # Note
 ///
-/// The implementation for `u32` and `u64` has a caveat: The values are encoded in big-endian but compared in native-endian.
+/// The implementation for `u32` and `u64` has a caveat: The values are encoded in little-endian but compared in native-endian.
 pub unsafe trait LmdbKey: LmdbVal {
     const TYPE: LmdbKeyType;
 }
@@ -92,52 +92,62 @@ unsafe impl LmdbKey for u8 {
 
 unsafe impl LmdbVal for u8 {}
 
-impl<'a> Encode<'a> for &'a u32 {
-    fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        Ok(Encoded::U8x4(self.to_be_bytes()))
+#[cfg(target_endian = "little")]
+mod u32 {
+    use super::*;
+
+    impl<'a> Encode<'a> for &'a u32 {
+        fn encode(self) -> Result<Encoded<'a>, StorageError> {
+            Ok(Encoded::U8x4(self.to_le_bytes()))
+        }
     }
-}
 
-impl BorrowEncode for u32 {
-    type Encode<'a> = &'a u32;
-}
-
-impl Decode for u32 {
-    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        Ok(Cow::Owned(u32::from_be_bytes(bytes.try_into().unwrap())))
+    impl BorrowEncode for u32 {
+        type Encode<'a> = &'a u32;
     }
-}
 
-unsafe impl LmdbKey for u32 {
-    const TYPE: LmdbKeyType = LmdbKeyType::U32;
-}
-
-unsafe impl LmdbVal for u32 {}
-
-impl<'a> Encode<'a> for &'a u64 {
-    fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        Ok(Encoded::U8x8(self.to_be_bytes()))
+    impl Decode for u32 {
+        fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+            Ok(Cow::Owned(u32::from_le_bytes(bytes.try_into().unwrap())))
+        }
     }
-}
 
-impl BorrowEncode for u64 {
-    type Encode<'a> = &'a u64;
-}
-
-impl Decode for u64 {
-    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        Ok(Cow::Owned(u64::from_be_bytes(bytes.try_into().unwrap())))
+    unsafe impl LmdbKey for u32 {
+        const TYPE: LmdbKeyType = LmdbKeyType::U32;
     }
+
+    unsafe impl LmdbVal for u32 {}
 }
 
-unsafe impl LmdbKey for u64 {
-    #[cfg(target_pointer_width = "64")]
-    const TYPE: LmdbKeyType = LmdbKeyType::U64;
-    #[cfg(not(target_pointer_width = "64"))]
-    const TYPE: LmdbKeyType = LmdbKeyType::FixedSizeOtherThanU32OrUsize;
-}
+#[cfg(target_endian = "little")]
+mod u64 {
+    use super::*;
 
-unsafe impl LmdbVal for u64 {}
+    impl<'a> Encode<'a> for &'a u64 {
+        fn encode(self) -> Result<Encoded<'a>, StorageError> {
+            Ok(Encoded::U8x8(self.to_le_bytes()))
+        }
+    }
+
+    impl BorrowEncode for u64 {
+        type Encode<'a> = &'a u64;
+    }
+
+    impl Decode for u64 {
+        fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+            Ok(Cow::Owned(u64::from_le_bytes(bytes.try_into().unwrap())))
+        }
+    }
+
+    unsafe impl LmdbKey for u64 {
+        #[cfg(target_pointer_width = "64")]
+        const TYPE: LmdbKeyType = LmdbKeyType::U64;
+        #[cfg(not(target_pointer_width = "64"))]
+        const TYPE: LmdbKeyType = LmdbKeyType::FixedSizeOtherThanU32OrUsize;
+    }
+
+    unsafe impl LmdbVal for u64 {}
+}
 
 impl<'a> Encode<'a> for &'a [u8] {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
