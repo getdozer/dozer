@@ -525,6 +525,13 @@ impl Field {
         }
     }
 
+    pub fn to_duration(&self) -> Option<&DozerDuration> {
+        match self {
+            Field::Duration(d) => Some(d),
+            _ => None,
+        }
+    }
+
     pub fn to_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),

@@ -9,7 +9,6 @@ use std::str::FromStr;
 use crate::errors::types::TypeError;
 use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
-use thiserror::__private::DisplayAsDisplay;
 
 mod field;
 
