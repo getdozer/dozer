@@ -16,7 +16,7 @@ use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
 use crate::generator::oapi::generator::OpenApiGenerator;
-use crate::RoCacheEndpoint;
+use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::serde_json;
@@ -37,7 +37,7 @@ fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI
 
 /// Generated function to return openapi.yaml documentation.
 pub async fn generate_oapi(
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
 ) -> Result<HttpResponse, ApiError> {
     generate_oapi3(
         &cache_endpoint.cache_reader(),
@@ -49,7 +49,7 @@ pub async fn generate_oapi(
 // Generated Get function to return a single record in JSON format
 pub async fn get(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
     let cache_reader = &cache_endpoint.cache_reader();
@@ -78,7 +78,7 @@ pub async fn get(
 // Generated list function for multiple records with a default query expression
 pub async fn list(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut exp = QueryExpression::new(None, vec![], Some(50), Skip::Skip(0));
     match get_records_map(access, cache_endpoint, &mut exp) {
@@ -103,7 +103,7 @@ pub async fn health_route() -> Result<HttpResponse, ApiError> {
 
 pub async fn count(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = match query_info {
@@ -123,7 +123,7 @@ pub async fn count(
 // Generated query function for multiple records
 pub async fn query(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = match query_info {
@@ -142,7 +142,7 @@ pub async fn query(
 /// Get multiple records
 fn get_records_map(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     exp: &mut QueryExpression,
 ) -> Result<Vec<IndexMap<String, Value>>, ApiError> {
     let mut maps = vec![];

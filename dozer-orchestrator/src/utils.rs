@@ -5,7 +5,7 @@ use dozer_types::models::{
     api_security::ApiSecurity,
     app_config::{
         default_app_buffer_size, default_cache_max_map_size, default_commit_size,
-        default_commit_timeout, Config,
+        default_commit_timeout, default_file_buffer_capacity, Config,
     },
 };
 use std::{
@@ -16,11 +16,17 @@ use std::{
 pub fn get_pipeline_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("pipeline")
 }
-pub fn get_app_grpc_config(config: Config) -> GrpcApiOptions {
-    config.api.unwrap_or_default().app_grpc.unwrap_or_default()
+
+pub fn get_endpoint_log_path(pipeline_dir: &Path, endpoint_name: &str) -> PathBuf {
+    get_logs_path(pipeline_dir).join(endpoint_name.to_lowercase())
 }
+
 pub fn get_cache_dir(config: &Config) -> PathBuf {
-    AsRef::<Path>::as_ref(&config.home_dir).join("cache")
+    AsRef::<Path>::as_ref(&config.cache_dir).join("cache")
+}
+
+fn get_logs_path(pipeline_dir: &Path) -> PathBuf {
+    pipeline_dir.join("logs")
 }
 
 fn get_cache_max_map_size(config: &Config) -> u64 {
@@ -47,6 +53,12 @@ fn get_commit_size(config: &Config) -> u32 {
     config.commit_size.unwrap_or_else(default_commit_size)
 }
 
+pub fn get_file_buffer_capacity(config: &Config) -> u64 {
+    config
+        .file_buffer_capacity
+        .unwrap_or_else(default_file_buffer_capacity)
+}
+
 pub fn get_api_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("api")
 }
@@ -63,9 +75,6 @@ pub fn get_api_security_config(config: Config) -> Option<ApiSecurity> {
     get_api_config(config).api_security
 }
 
-pub fn get_flags(config: Config) -> Option<dozer_types::models::flags::Flags> {
-    config.flags
-}
 pub fn get_executor_options(config: &Config) -> ExecutorOptions {
     ExecutorOptions {
         commit_sz: get_commit_size(config),

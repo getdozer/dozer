@@ -2,9 +2,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::pipeline::{CacheSinkFactory, CacheSinkSettings};
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_cache::cache::RwCacheManager;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -18,6 +15,8 @@ use dozer_types::models::source::Source;
 use dozer_types::{indicatif::MultiProgress, log::debug};
 use std::hash::Hash;
 use std::path::Path;
+
+use crate::pipeline::{LogSinkFactory, LogSinkSettings};
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
@@ -54,6 +53,7 @@ impl<'a> PipelineBuilder<'a> {
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
         pipeline_dir: &'a Path,
+        progress: MultiProgress,
     ) -> Self {
         Self {
             connections,
@@ -61,7 +61,7 @@ impl<'a> PipelineBuilder<'a> {
             sql,
             api_endpoints,
             pipeline_dir,
-            progress: MultiProgress::new(),
+            progress,
         }
     }
 
@@ -183,9 +183,7 @@ impl<'a> PipelineBuilder<'a> {
     // This function is used by both migrate and actual execution
     pub fn build(
         &self,
-        notifier: Option<PipelineEventSenders>,
-        cache_manager: Arc<dyn RwCacheManager>,
-        settings: CacheSinkSettings,
+        settings: LogSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
@@ -235,13 +233,11 @@ impl<'a> PipelineBuilder<'a> {
                 .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            let snk_factory = Arc::new(CacheSinkFactory::new(
-                cache_manager.clone(),
-                api_endpoint.clone(),
-                notifier.clone(),
-                self.progress.clone(),
+            let snk_factory = Arc::new(LogSinkFactory::new(
                 settings.clone(),
-            )?);
+                api_endpoint.clone(),
+                self.progress.clone(),
+            ));
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {

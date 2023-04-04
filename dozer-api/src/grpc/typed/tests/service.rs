@@ -8,7 +8,7 @@ use crate::{
             tests::fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, TypedService,
         },
     },
-    RoCacheEndpoint,
+    CacheEndpoint,
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
 use dozer_types::grpc_types::{
@@ -46,21 +46,24 @@ async fn start_internal_pipeline_client() -> Result<Receiver<Operation>, GrpcErr
     Ok(receiver)
 }
 
-pub async fn setup_pipeline() -> (Vec<Arc<RoCacheEndpoint>>, Receiver<Operation>) {
+pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) {
     let endpoint = test_utils::get_endpoint();
-    let cache_endpoint = Arc::new(
-        RoCacheEndpoint::new(
-            &*test_utils::initialize_cache(&endpoint.name, None),
-            endpoint,
-        )
-        .unwrap(),
-    );
+    let schema = test_utils::get_schema().0;
+    let cache_endpoint = CacheEndpoint::new(
+        &*test_utils::initialize_cache(&endpoint.name, None),
+        schema,
+        endpoint,
+        test_utils::get_log_path().as_path(),
+        None,
+        None,
+    )
+    .unwrap();
 
     let receiver = start_internal_pipeline_client()
         .await
         .unwrap_or(broadcast::channel::<Operation>(1).1);
 
-    (vec![cache_endpoint], receiver)
+    (vec![Arc::new(cache_endpoint.0)], receiver)
 }
 
 async fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {

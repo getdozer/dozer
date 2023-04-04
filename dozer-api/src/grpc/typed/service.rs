@@ -14,7 +14,7 @@ use crate::{
         TokenResponseDesc,
     },
     grpc::shared_impl,
-    RoCacheEndpoint,
+    CacheEndpoint,
 };
 use dozer_cache::CacheReader;
 use dozer_types::log::error;
@@ -31,7 +31,7 @@ use tonic::{
 
 #[derive(Debug, Clone)]
 struct TypedEndpoint {
-    cache_endpoint: Arc<RoCacheEndpoint>,
+    cache_endpoint: Arc<CacheEndpoint>,
     service_desc: ServiceDesc,
 }
 
@@ -59,7 +59,7 @@ impl Clone for TypedService {
 impl TypedService {
     pub fn new(
         descriptor_path: &Path,
-        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
+        cache_endpoints: Vec<Arc<CacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
         security: Option<ApiSecurity>,
     ) -> Result<Self, GrpcError> {
@@ -112,7 +112,7 @@ impl TypedService {
         let method_name = current_path[2];
         if method_name == typed_endpoint.service_desc.count.method.name() {
             struct CountService {
-                cache_endpoint: Arc<RoCacheEndpoint>,
+                cache_endpoint: Arc<CacheEndpoint>,
                 response_desc: Option<CountResponseDesc>,
             }
             impl tonic::server::UnaryService<DynamicMessage> for CountService {
@@ -141,7 +141,7 @@ impl TypedService {
             }))
         } else if method_name == typed_endpoint.service_desc.query.method.name() {
             struct QueryService {
-                cache_endpoint: Arc<RoCacheEndpoint>,
+                cache_endpoint: Arc<CacheEndpoint>,
                 response_desc: Option<QueryResponseDesc>,
             }
             impl tonic::server::UnaryService<DynamicMessage> for QueryService {
@@ -171,7 +171,7 @@ impl TypedService {
         } else if let Some(on_event_method_desc) = &typed_endpoint.service_desc.on_event {
             if method_name == on_event_method_desc.method.name() {
                 struct EventService {
-                    cache_endpoint: Arc<RoCacheEndpoint>,
+                    cache_endpoint: Arc<CacheEndpoint>,
                     event_desc: Option<EventDesc>,
                     event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
                 }

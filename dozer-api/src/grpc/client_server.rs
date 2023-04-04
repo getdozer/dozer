@@ -1,7 +1,7 @@
 use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService};
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, typed};
-use crate::{errors::GrpcError, generator::protoc::generator::ProtoGenerator, RoCacheEndpoint};
+use crate::{errors::GrpcError, generator::protoc::generator::ProtoGenerator, CacheEndpoint};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::grpc_types::{
@@ -32,7 +32,7 @@ pub struct ApiServer {
 impl ApiServer {
     fn get_dynamic_service(
         &self,
-        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
+        cache_endpoints: Vec<Arc<CacheEndpoint>>,
         operations_receiver: Option<broadcast::Receiver<Operation>>,
     ) -> Result<
         (
@@ -92,7 +92,7 @@ impl ApiServer {
 
     pub async fn run(
         &self,
-        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
+        cache_endpoints: Vec<Arc<CacheEndpoint>>,
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
         operations_receiver: Option<Receiver<Operation>>,
     ) -> Result<(), GrpcError> {

@@ -3,18 +3,20 @@ package dozer.admin;
 
 message AppConfig {
   string app_name = 2;
-  ApiConfig api = 3;
-  repeated Connection connections = 4;
-  repeated Source sources = 5;
-  repeated Endpoint endpoints = 6;
-  optional string sql = 7;
-  string home_dir = 8;
-  Flags flags = 9;
-  optional uint64 cache_max_map_size = 10;
-  optional uint32 app_max_map_size = 11;
-  optional uint32 app_buffer_size = 12;
+  string home_dir = 3;
+  string cache_dir = 4;
+
+  repeated Connection connections = 5;
+  repeated Source sources = 6;
+  repeated Endpoint endpoints = 7;
+  ApiConfig api = 8;
+  optional string sql = 9;
+  Flags flags = 10;
+  optional uint64 cache_max_map_size = 11;
+  optional uint32 app_max_map_size = 12;
   optional uint32 commit_size = 13;
   optional uint64 commit_timeout = 14;
+  optional uint64 file_buffer_capacity = 15;
 }
 message Flags {
   bool dynamic = 1;
