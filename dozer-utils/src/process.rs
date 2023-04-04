@@ -8,14 +8,18 @@ pub fn run_command(bin: &str, args: &[&str], on_error_command: Option<(&str, &[&
     let mut cmd = Command::new(bin);
     cmd.args(args);
     info!("Running command: {:?}", cmd);
-    let output = cmd.output().expect("Failed to run command");
+    let output = cmd
+        .output()
+        .unwrap_or_else(|e| panic!("Failed to run command {cmd:?}: {e}"));
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         error!("{stderr}");
         if let Some((bin, args)) = on_error_command {
             let mut cmd = Command::new(bin);
             cmd.args(args);
-            let output = cmd.output().expect("Failed to run command");
+            let output = cmd
+                .output()
+                .unwrap_or_else(|e| panic!("Failed to run command {cmd:?}: {e}"));
             let stdout = String::from_utf8_lossy(&output.stdout);
             error!("{stdout}");
         }

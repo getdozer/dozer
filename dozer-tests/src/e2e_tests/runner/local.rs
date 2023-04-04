@@ -20,12 +20,7 @@ pub struct Runner {
 impl Runner {
     pub fn new() -> Self {
         match std::env::var("DOZER_BIN") {
-            Ok(dozer_bin) => {
-                if !AsRef::<Path>::as_ref(&dozer_bin).exists() {
-                    panic!("dozer binary not found at {dozer_bin}");
-                }
-                Self { dozer_bin }
-            }
+            Ok(dozer_bin) => Self { dozer_bin },
             Err(_) => {
                 let dozer_bin = "./target/debug/dozer".to_string();
                 if !AsRef::<Path>::as_ref(&dozer_bin).exists() {
