@@ -145,9 +145,9 @@ pub fn map_field_definitions(
 fn field_type_to_internal_type(typ: FieldType) -> Type {
     match typ {
         FieldType::UInt => Type::UInt,
-        FieldType::U128 => Type::String,
+        FieldType::U128 => Type::U128,
         FieldType::Int => Type::Int,
-        FieldType::I128 => Type::String,
+        FieldType::I128 => Type::I128,
         FieldType::Float => Type::Float,
         FieldType::Boolean => Type::Boolean,
         FieldType::String => Type::String,
