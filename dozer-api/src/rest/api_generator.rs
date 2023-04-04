@@ -69,6 +69,7 @@ pub async fn get(
     let record = get_record(
         &cache_endpoint.cache_reader(),
         &key,
+        &cache_endpoint.endpoint.name,
         access.map(|a| a.into_inner()),
     )?;
 
@@ -115,6 +116,7 @@ pub async fn count(
     get_records_count(
         &cache_endpoint.cache_reader(),
         &mut query_expression,
+        &cache_endpoint.endpoint.name,
         access.map(|a| a.into_inner()),
     )
     .map(|count| HttpResponse::Ok().json(count))
@@ -147,7 +149,12 @@ fn get_records_map(
 ) -> Result<Vec<IndexMap<String, Value>>, ApiError> {
     let mut maps = vec![];
     let cache_reader = &cache_endpoint.cache_reader();
-    let records = get_records(cache_reader, exp, access.map(|a| a.into_inner()))?;
+    let records = get_records(
+        cache_reader,
+        exp,
+        &cache_endpoint.endpoint.name,
+        access.map(|a| a.into_inner()),
+    )?;
     let schema = &cache_reader.get_schema().0;
     for record in records.into_iter() {
         let map = record_to_map(record, schema)?;

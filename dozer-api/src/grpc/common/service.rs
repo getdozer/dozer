@@ -69,6 +69,7 @@ impl CommonGrpcService for CommonService {
         let count = shared_impl::count(
             &cache_endpoint.cache_reader(),
             query_request.query.as_deref(),
+            &cache_endpoint.endpoint.name,
             access,
         )?;
 
@@ -85,7 +86,12 @@ impl CommonGrpcService for CommonService {
         let (cache_endpoint, query_request, access) = self.parse_request(request)?;
 
         let cache_reader = cache_endpoint.cache_reader();
-        let records = shared_impl::query(&cache_reader, query_request.query.as_deref(), access)?;
+        let records = shared_impl::query(
+            &cache_reader,
+            query_request.query.as_deref(),
+            &cache_endpoint.endpoint.name,
+            access,
+        )?;
         let schema = &cache_reader.get_schema().0;
 
         let fields = map_field_definitions(schema.fields.clone());

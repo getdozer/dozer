@@ -1,6 +1,6 @@
 use dozer_types::models::api_security::ApiSecurity;
 use futures_util::future::BoxFuture;
-use hyper::Body;
+use hyper::{Body, Method};
 use std::task::{Context, Poll};
 use tonic::{
     body::{empty_body, BoxBody},
@@ -54,7 +54,13 @@ where
     fn call(&mut self, req: hyper::Request<Body>) -> Self::Future {
         let clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, clone);
-        let security = self.security.to_owned();
+        let security = if req.method() == Method::OPTIONS {
+            // During OPTIONS request, authorization should not be applied
+            None
+        } else {
+            self.security.to_owned()
+        };
+
         Box::pin(async move {
             match security {
                 Some(security) => {
@@ -65,22 +71,20 @@ where
                         if auth_header_str.starts_with("Bearer ") {
                             let token_array: Vec<&str> = auth_header_str.split(' ').collect();
                             let token_data = authorizer.validate_token(token_array[1]);
-                            match token_data {
+                            return match token_data {
                                 Ok(claims) => {
                                     let mut modified_request = req;
                                     modified_request.extensions_mut().insert(claims.access);
                                     let response = inner.call(modified_request).await?;
-                                    return Ok(response);
+                                    Ok(response)
                                 }
-                                Err(_) => {
-                                    return Ok(http::Response::builder()
-                                        .status(401)
-                                        .header("grpc-status", "7")
-                                        .header("content-type", "application/grpc")
-                                        .body(empty_body())
-                                        .unwrap());
-                                }
-                            }
+                                Err(_) => Ok(http::Response::builder()
+                                    .status(401)
+                                    .header("grpc-status", "7")
+                                    .header("content-type", "application/grpc")
+                                    .body(empty_body())
+                                    .unwrap()),
+                            };
                         }
                     }
                     Ok(http::Response::builder()

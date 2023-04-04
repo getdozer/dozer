@@ -1,3 +1,4 @@
+pub mod auth;
 mod client_server;
 pub mod common;
 pub mod health;
