@@ -12,59 +12,113 @@ use dozer_types::{
 };
 use num_traits::FromPrimitive;
 
-// #[test]
-// fn test_uint() {
-//     let f = run_scalar_fct(
-//         "SELECT CAST(field AS UINT) FROM users",
-//         Schema::empty()
-//             .field(
-//                 FieldDefinition::new(
-//                     String::from("field"),
-//                     FieldType::Int,
-//                     false,
-//                     SourceDefinition::Dynamic,
-//                 ),
-//                 false,
-//             )
-//             .clone(),
-//         vec![Field::Int(42)],
-//     );
-//     assert_eq!(f, Field::UInt(42));
-//
-//     let f = run_scalar_fct(
-//         "SELECT CAST(field AS UINT) FROM users",
-//         Schema::empty()
-//             .field(
-//                 FieldDefinition::new(
-//                     String::from("field"),
-//                     FieldType::String,
-//                     false,
-//                     SourceDefinition::Dynamic,
-//                 ),
-//                 false,
-//             )
-//             .clone(),
-//         vec![Field::String("42".to_string())],
-//     );
-//     assert_eq!(f, Field::UInt(42));
-//
-//     let f = run_scalar_fct(
-//         "SELECT CAST(field AS UINT) FROM users",
-//         Schema::empty()
-//             .field(
-//                 FieldDefinition::new(
-//                     String::from("field"),
-//                     FieldType::UInt,
-//                     false,
-//                     SourceDefinition::Dynamic,
-//                 ),
-//                 false,
-//             )
-//             .clone(),
-//         vec![Field::UInt(42)],
-//     );
-//     assert_eq!(f, Field::UInt(42));
-// }
+#[test]
+fn test_uint() {
+    let f = run_fct(
+        "SELECT CAST(field AS UINT) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::UInt(42));
+
+    let f = run_fct(
+        "SELECT CAST(field AS UINT) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::String("42".to_string())],
+    );
+    assert_eq!(f, Field::UInt(42));
+
+    let f = run_fct(
+        "SELECT CAST(field AS UINT) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::UInt(42)],
+    );
+    assert_eq!(f, Field::UInt(42));
+}
+
+#[test]
+fn test_u128() {
+    let f = run_fct(
+        "SELECT CAST(field AS U128) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::U128(42));
+
+    let f = run_fct(
+        "SELECT CAST(field AS U128) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::String("42".to_string())],
+    );
+    assert_eq!(f, Field::U128(42));
+
+    let f = run_fct(
+        "SELECT CAST(field AS U128) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::UInt(42)],
+    );
+    assert_eq!(f, Field::U128(42));
+}
 
 #[test]
 fn test_int() {
@@ -118,6 +172,60 @@ fn test_int() {
         vec![Field::UInt(42)],
     );
     assert_eq!(f, Field::Int(42));
+}
+
+#[test]
+fn test_i128() {
+    let f = run_fct(
+        "SELECT CAST(field AS I128) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::I128(42));
+
+    let f = run_fct(
+        "SELECT CAST(field AS I128) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::String("42".to_string())],
+    );
+    assert_eq!(f, Field::I128(42));
+
+    let f = run_fct(
+        "SELECT CAST(field AS I128) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::UInt(42)],
+    );
+    assert_eq!(f, Field::I128(42));
 }
 
 #[test]

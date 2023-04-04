@@ -105,7 +105,9 @@ pub fn get_table_name(name: &ObjectName) -> String {
 pub fn map_field_to_string(f: &Field) -> String {
     match f {
         Field::UInt(i) => i.to_string(),
+        Field::U128(i) => i.to_string(),
         Field::Int(i) => i.to_string(),
+        Field::I128(i) => i.to_string(),
         Field::Float(i) => i.to_string(),
         Field::Boolean(i) => i.to_string(),
         Field::String(i) => format!("'{i}'"),
@@ -159,7 +161,9 @@ pub fn map_sqlite_to_record(schema: &Schema, row: &rusqlite::Row) -> Result<Reco
         let val = match_type! {
             f.typ,
             FieldType::UInt => convert_type!(Field::UInt, f, row, idx),
+            FieldType::U128 => convert_type!(Field::String, f, row, idx),
             FieldType::Int => convert_type!(Field::Int, f, row, idx),
+            FieldType::I128 => convert_type!(Field::String, f, row, idx),
             FieldType::Float => Field::Float(dozer_types::ordered_float::OrderedFloat(row.get(idx)?)),
             FieldType::Boolean => convert_type!(Field::Boolean, f, row, idx),
             FieldType::String => convert_type!(Field::String, f, row, idx),

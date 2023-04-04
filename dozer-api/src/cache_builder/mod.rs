@@ -113,7 +113,9 @@ fn generate_secondary_indexes(fields: &[FieldDefinition]) -> Vec<IndexDefinition
         .flat_map(|(idx, f)| match f.typ {
             // Create sorted inverted indexes for these fields
             FieldType::UInt
+            | FieldType::U128
             | FieldType::Int
+            | FieldType::I128
             | FieldType::Float
             | FieldType::Boolean
             | FieldType::Decimal

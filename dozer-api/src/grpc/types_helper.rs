@@ -1,12 +1,11 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
+use dozer_types::grpc_types::types::{
+    value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
+};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 use prost_reflect::prost_types::Timestamp;
-
-use dozer_types::grpc_types::types::{
-    value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
-};
 
 pub fn map_insert_operation(endpoint_name: String, record: DozerRecord, id: u64) -> Operation {
     Operation {
@@ -86,17 +85,22 @@ fn field_to_prost_value(f: Field) -> Value {
         Field::UInt(n) => Value {
             value: Some(value::Value::UintValue(n)),
         },
+        Field::U128(n) => Value {
+            value: Some(value::Value::Uint128Value(n.to_string())),
+        },
         Field::Int(n) => Value {
             value: Some(value::Value::IntValue(n)),
+        },
+        Field::I128(n) => Value {
+            value: Some(value::Value::Int128Value(n.to_string())),
         },
         Field::Float(n) => Value {
             value: Some(value::Value::FloatValue(n.0)),
         },
-
+        Field::Decimal(d) => map_decimal(d),
         Field::Boolean(n) => Value {
             value: Some(value::Value::BoolValue(n)),
         },
-
         Field::String(s) => Value {
             value: Some(value::Value::StringValue(s)),
         },
@@ -106,7 +110,6 @@ fn field_to_prost_value(f: Field) -> Value {
         Field::Binary(b) => Value {
             value: Some(value::Value::BytesValue(b)),
         },
-        Field::Decimal(d) => map_decimal(d),
         Field::Timestamp(ts) => Value {
             value: Some(value::Value::TimestampValue(Timestamp {
                 seconds: ts.timestamp(),
@@ -142,7 +145,9 @@ pub fn map_field_definitions(
 fn field_type_to_internal_type(typ: FieldType) -> Type {
     match typ {
         FieldType::UInt => Type::UInt,
+        FieldType::U128 => Type::U128,
         FieldType::Int => Type::Int,
+        FieldType::I128 => Type::I128,
         FieldType::Float => Type::Float,
         FieldType::Boolean => Type::Boolean,
         FieldType::String => Type::String,

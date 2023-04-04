@@ -21,21 +21,34 @@ macro_rules! define_comparison {
             let right_p = right.evaluate(&record, schema)?;
 
             match left_p {
-                Field::Null => match right_p {
-                    // left: Null, right: Null
-                    Field::Null => Ok(Field::Boolean(true)),
-                    _ => Ok(Field::Boolean(false)),
-                },
+                Field::Null => Ok(Field::Null),
                 Field::Boolean(left_v) => match right_p {
                     // left: Bool, right: Bool
                     Field::Boolean(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    _ => Ok(Field::Boolean(false)),
+                    Field::UInt(_)
+                    | Field::U128(_)
+                    | Field::Int(_)
+                    | Field::I128(_)
+                    | Field::Float(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Decimal(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_)
+                    | Field::Null => Ok(Field::Null),
                 },
                 Field::Int(left_v) => match right_p {
                     // left: Int, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    // left: Int, right: I128
+                    Field::I128(right_v) => Ok(Field::Boolean($function(left_v as i128, right_v))),
                     // left: Int, right: UInt
                     Field::UInt(right_v) => Ok(Field::Boolean($function(left_v, right_v as i64))),
+                    // left: Int, right: U128
+                    Field::U128(right_v) => Ok(Field::Boolean($function(left_v, right_v as i64))),
                     // left: Int, right: Float
                     Field::Float(right_v) => {
                         let left_v_f = OrderedFloat::<f64>::from_i64(left_v).unwrap();
@@ -52,7 +65,52 @@ macro_rules! define_comparison {
                     }
                     // left: Int, right: Null
                     Field::Null => Ok(Field::Null),
-                    _ => Err(PipelineError::InvalidTypeComparison(
+                    Field::Boolean(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
+                },
+                Field::I128(left_v) => match right_p {
+                    // left: I128, right: Int
+                    Field::Int(right_v) => Ok(Field::Boolean($function(left_v, right_v as i128))),
+                    // left: I128, right: I128
+                    Field::I128(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    // left: I128, right: UInt
+                    Field::UInt(right_v) => Ok(Field::Boolean($function(left_v, right_v as i128))),
+                    // left: I128, right: U128
+                    Field::U128(right_v) => Ok(Field::Boolean($function(left_v, right_v as i128))),
+                    // left: I128, right: Float
+                    Field::Float(right_v) => {
+                        let left_v_f = OrderedFloat::<f64>::from_i128(left_v).unwrap();
+                        Ok(Field::Boolean($function(left_v_f, right_v)))
+                    }
+                    // left: I128, right: Decimal
+                    Field::Decimal(right_v) => {
+                        let left_v_d =
+                            Decimal::from_i128(left_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Decimal".to_string(),
+                            ))?;
+                        Ok(Field::Boolean($function(left_v_d, right_v)))
+                    }
+                    // left: I128, right: Null
+                    Field::Null => Ok(Field::Null),
+                    Field::Boolean(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -61,8 +119,12 @@ macro_rules! define_comparison {
                 Field::UInt(left_v) => match right_p {
                     // left: UInt, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(left_v as i64, right_v))),
+                    // left: UInt, right: I128
+                    Field::I128(right_v) => Ok(Field::Boolean($function(left_v as i128, right_v))),
                     // left: UInt, right: UInt
                     Field::UInt(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    // left: UInt, right: U128
+                    Field::U128(right_v) => Ok(Field::Boolean($function(left_v as u128, right_v))),
                     // left: UInt, right: Float
                     Field::Float(right_v) => {
                         let left_v_f = OrderedFloat(left_v as f64);
@@ -79,7 +141,54 @@ macro_rules! define_comparison {
                     }
                     // left: UInt, right: Null
                     Field::Null => Ok(Field::Null),
-                    _ => Err(PipelineError::InvalidTypeComparison(
+                    Field::Boolean(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
+                },
+                Field::U128(left_v) => match right_p {
+                    // left: U128, right: Int
+                    Field::Int(right_v) => {
+                        Ok(Field::Boolean($function(left_v as i128, right_v as i128)))
+                    }
+                    // left: U128, right: I128
+                    Field::I128(right_v) => Ok(Field::Boolean($function(left_v as i128, right_v))),
+                    // left: U128, right: UInt
+                    Field::UInt(right_v) => Ok(Field::Boolean($function(left_v, right_v as u128))),
+                    // left: U128, right: U128
+                    Field::U128(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    // left: U128, right: Float
+                    Field::Float(right_v) => {
+                        let left_v_f = OrderedFloat(left_v as f64);
+                        Ok(Field::Boolean($function(left_v_f, right_v)))
+                    }
+                    // left: U128, right: Decimal
+                    Field::Decimal(right_v) => {
+                        let left_v_d =
+                            Decimal::from_f64(left_v as f64).ok_or(PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Decimal".to_string(),
+                            ))?;
+                        Ok(Field::Boolean($function(left_v_d, right_v)))
+                    }
+                    // left: U128, right: Null
+                    Field::Null => Ok(Field::Null),
+                    Field::Boolean(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -88,13 +197,23 @@ macro_rules! define_comparison {
                 Field::Float(left_v) => match right_p {
                     // left: Float, right: Float
                     Field::Float(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    // left: Float, right: Int
+                    // left: Float, right: UInt
                     Field::UInt(right_v) => {
+                        let right_v_f = OrderedFloat(right_v as f64);
+                        Ok(Field::Boolean($function(left_v, right_v_f)))
+                    }
+                    // left: Float, right: U128
+                    Field::U128(right_v) => {
                         let right_v_f = OrderedFloat(right_v as f64);
                         Ok(Field::Boolean($function(left_v, right_v_f)))
                     }
                     // left: Float, right: Int
                     Field::Int(right_v) => {
+                        let right_v_f = OrderedFloat(right_v as f64);
+                        Ok(Field::Boolean($function(left_v, right_v_f)))
+                    }
+                    // left: Float, right: I128
+                    Field::I128(right_v) => {
                         let right_v_f = OrderedFloat(right_v as f64);
                         Ok(Field::Boolean($function(left_v, right_v_f)))
                     }
@@ -109,7 +228,14 @@ macro_rules! define_comparison {
                     }
                     // left: Float, right: Null
                     Field::Null => Ok(Field::Null),
-                    _ => Err(PipelineError::InvalidTypeComparison(
+                    Field::Boolean(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -134,6 +260,15 @@ macro_rules! define_comparison {
                             ))?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
+                    // left: Decimal, right: I128
+                    Field::I128(right_v) => {
+                        let right_v_d =
+                            Decimal::from_i128(right_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
+                            ))?;
+                        Ok(Field::Boolean($function(left_v, right_v_d)))
+                    }
                     // left: Decimal, right: UInt
                     Field::UInt(right_v) => {
                         let right_v_d =
@@ -143,11 +278,27 @@ macro_rules! define_comparison {
                             ))?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
+                    // left: Decimal, right: U128
+                    Field::U128(right_v) => {
+                        let right_v_d =
+                            Decimal::from_u128(right_v).ok_or(PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
+                            ))?;
+                        Ok(Field::Boolean($function(left_v, right_v_d)))
+                    }
                     // left: Decimal, right: Decimal
                     Field::Decimal(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: Decimal, right: Null
-                    Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidTypeComparison(
+                    Field::Null => Ok(Field::Null),
+                    Field::Boolean(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -155,8 +306,41 @@ macro_rules! define_comparison {
                 },
                 Field::String(ref left_v) => match right_p {
                     Field::String(ref right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidTypeComparison(
+                    Field::Text(ref right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    Field::Null => Ok(Field::Null),
+                    Field::UInt(_)
+                    | Field::U128(_)
+                    | Field::Int(_)
+                    | Field::I128(_)
+                    | Field::Float(_)
+                    | Field::Boolean(_)
+                    | Field::Binary(_)
+                    | Field::Decimal(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
+                },
+                Field::Text(ref left_v) => match right_p {
+                    Field::String(ref right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    Field::Text(ref right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    Field::Null => Ok(Field::Null),
+                    Field::UInt(_)
+                    | Field::U128(_)
+                    | Field::Int(_)
+                    | Field::I128(_)
+                    | Field::Float(_)
+                    | Field::Boolean(_)
+                    | Field::Binary(_)
+                    | Field::Decimal(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -164,23 +348,49 @@ macro_rules! define_comparison {
                 },
                 Field::Timestamp(left_v) => match right_p {
                     Field::Timestamp(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    Field::Null => Ok(Field::Boolean(false)),
-                    _ => Err(PipelineError::InvalidTypeComparison(
+                    Field::Null => Ok(Field::Null),
+                    Field::UInt(_)
+                    | Field::U128(_)
+                    | Field::Int(_)
+                    | Field::I128(_)
+                    | Field::Float(_)
+                    | Field::Boolean(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Decimal(_)
+                    | Field::Date(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
                     )),
                 },
-                Field::Binary(ref _left_v) => Err(PipelineError::InvalidTypeComparison(
-                    left_p,
-                    right_p,
-                    $op.to_string(),
-                )),
-                _ => Err(PipelineError::InvalidTypeComparison(
-                    left_p,
-                    right_p,
-                    $op.to_string(),
-                )),
+                Field::Date(left_v) => match right_p {
+                    Field::Date(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    Field::Null => Ok(Field::Null),
+                    Field::UInt(_)
+                    | Field::U128(_)
+                    | Field::Int(_)
+                    | Field::I128(_)
+                    | Field::Float(_)
+                    | Field::Boolean(_)
+                    | Field::String(_)
+                    | Field::Text(_)
+                    | Field::Binary(_)
+                    | Field::Decimal(_)
+                    | Field::Timestamp(_)
+                    | Field::Bson(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
+                },
+                Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+                    PipelineError::InvalidTypeComparison(left_p, right_p, $op.to_string()),
+                ),
             }
         }
     };
@@ -196,21 +406,34 @@ pub fn evaluate_lt(
     let right_p = right.evaluate(record, schema)?;
 
     match left_p {
-        Field::Null => match right_p {
-            // left: Null, right: Null
-            Field::Null => Ok(Field::Boolean(true)),
-            _ => Ok(Field::Boolean(false)),
-        },
+        Field::Null => Ok(Field::Null),
         Field::Boolean(left_v) => match right_p {
             // left: Bool, right: Bool
             Field::Boolean(right_v) => Ok(Field::Boolean(!left_v & right_v)),
-            _ => Ok(Field::Boolean(false)),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_)
+            | Field::Null => Ok(Field::Null),
         },
         Field::Int(left_v) => match right_p {
             // left: Int, right: Int
             Field::Int(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            // left: Int, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) < right_v)),
             // left: Int, right: UInt
-            Field::UInt(right_v) => Ok(Field::Boolean(left_v < right_v as i64)),
+            Field::UInt(right_v) => Ok(Field::Boolean(left_v < (right_v as i64))),
+            // left: Int, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean(left_v < (right_v as i64))),
             // left: Int, right: Float
             Field::Float(right_v) => {
                 let left_v_f = OrderedFloat::<f64>::from_i64(left_v).unwrap();
@@ -226,7 +449,51 @@ pub fn evaluate_lt(
             }
             // left: Int, right: Null
             Field::Null => Ok(Field::Null),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
+        },
+        Field::I128(left_v) => match right_p {
+            // left: I128, right: Int
+            Field::Int(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
+            // left: I128, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            // left: I128, right: UInt
+            Field::UInt(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
+            // left: I128, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
+            // left: I128, right: Float
+            Field::Float(right_v) => {
+                let left_v_f = OrderedFloat::<f64>::from_i128(left_v).unwrap();
+                Ok(Field::Boolean(left_v_f < right_v))
+            }
+            // left: I128, right: Decimal
+            Field::Decimal(right_v) => {
+                let left_v_d = Decimal::from_i128(left_v).ok_or(PipelineError::UnableToCast(
+                    format!("{}", left_v),
+                    "Decimal".to_string(),
+                ))?;
+                Ok(Field::Boolean(left_v_d < right_v))
+            }
+            // left: I128, right: Null
+            Field::Null => Ok(Field::Null),
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -235,8 +502,12 @@ pub fn evaluate_lt(
         Field::UInt(left_v) => match right_p {
             // left: UInt, right: Int
             Field::Int(right_v) => Ok(Field::Boolean((left_v as i64) < right_v)),
+            // left: UInt, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) < right_v)),
             // left: UInt, right: UInt
             Field::UInt(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            // left: UInt, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean((left_v as u128) < right_v)),
             // left: UInt, right: Float
             Field::Float(right_v) => {
                 let left_v_f = OrderedFloat(left_v as f64);
@@ -251,7 +522,50 @@ pub fn evaluate_lt(
             }
             // left: UInt, right: Null
             Field::Null => Ok(Field::Null),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
+        },
+        Field::U128(left_v) => match right_p {
+            // left: U128, right: Int
+            Field::Int(right_v) => Ok(Field::Boolean((left_v as i128) < (right_v as i128))),
+            // left: U128, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) < right_v)),
+            // left: U128, right: UInt
+            Field::UInt(right_v) => Ok(Field::Boolean(left_v < (right_v as u128))),
+            // left: U128, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            // left: U128, right: Float
+            Field::Float(right_v) => {
+                let left_v_f = OrderedFloat(left_v as f64);
+                Ok(Field::Boolean(left_v_f < right_v))
+            }
+            // left: U128, right: Decimal
+            Field::Decimal(right_v) => {
+                let left_v_d = Decimal::from_f64(left_v as f64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
+                Ok(Field::Boolean(left_v_d < right_v))
+            }
+            // left: U128, right: Null
+            Field::Null => Ok(Field::Null),
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -260,13 +574,23 @@ pub fn evaluate_lt(
         Field::Float(left_v) => match right_p {
             // left: Float, right: Float
             Field::Float(right_v) => Ok(Field::Boolean(left_v < right_v)),
-            // left: Float, right: Int
+            // left: Float, right: UInt
             Field::UInt(right_v) => {
+                let right_v_f = OrderedFloat(right_v as f64);
+                Ok(Field::Boolean(left_v < right_v_f))
+            }
+            // left: Float, right: U128
+            Field::U128(right_v) => {
                 let right_v_f = OrderedFloat(right_v as f64);
                 Ok(Field::Boolean(left_v < right_v_f))
             }
             // left: Float, right: Int
             Field::Int(right_v) => {
+                let right_v_f = OrderedFloat(right_v as f64);
+                Ok(Field::Boolean(left_v < right_v_f))
+            }
+            // left: Float, right: I128
+            Field::I128(right_v) => {
                 let right_v_f = OrderedFloat(right_v as f64);
                 Ok(Field::Boolean(left_v < right_v_f))
             }
@@ -280,7 +604,14 @@ pub fn evaluate_lt(
             }
             // left: Float, right: Null
             Field::Null => Ok(Field::Null),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -302,6 +633,13 @@ pub fn evaluate_lt(
                     )?;
                     Ok(Field::Boolean(left_v < right_v_d))
                 }
+                // left: Decimal, right: I128
+                Field::I128(right_v) => {
+                    let right_v_d = Decimal::from_i128(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v < right_v_d))
+                }
                 // left: Decimal, right: UInt
                 Field::UInt(right_v) => {
                     let right_v_d = Decimal::from_u64(right_v).ok_or(
@@ -309,11 +647,25 @@ pub fn evaluate_lt(
                     )?;
                     Ok(Field::Boolean(left_v < right_v_d))
                 }
+                // left: Decimal, right: U128
+                Field::U128(right_v) => {
+                    let right_v_d = Decimal::from_u128(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v < right_v_d))
+                }
                 // left: Decimal, right: Decimal
                 Field::Decimal(right_v) => Ok(Field::Boolean(left_v < right_v)),
                 // left: Decimal, right: Null
-                Field::Null => Ok(Field::Boolean(false)),
-                _ => Err(PipelineError::InvalidTypeComparison(
+                Field::Null => Ok(Field::Null),
+                Field::Boolean(_)
+                | Field::String(_)
+                | Field::Text(_)
+                | Field::Binary(_)
+                | Field::Timestamp(_)
+                | Field::Date(_)
+                | Field::Bson(_)
+                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                     left_p,
                     right_p,
                     "<".to_string(),
@@ -322,8 +674,41 @@ pub fn evaluate_lt(
         }
         Field::String(ref left_v) => match right_p {
             Field::String(ref right_v) => Ok(Field::Boolean(left_v < right_v)),
-            Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Text(ref right_v) => Ok(Field::Boolean(left_v < right_v)),
+            Field::Null => Ok(Field::Null),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::Boolean(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
+        },
+        Field::Text(ref left_v) => match right_p {
+            Field::String(ref right_v) => Ok(Field::Boolean(left_v < right_v)),
+            Field::Text(ref right_v) => Ok(Field::Boolean(left_v < right_v)),
+            Field::Null => Ok(Field::Null),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::Boolean(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -331,23 +716,49 @@ pub fn evaluate_lt(
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v < right_v)),
-            Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Null => Ok(Field::Null),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
             )),
         },
-        Field::Binary(ref _left_v) => Err(PipelineError::InvalidTypeComparison(
-            left_p,
-            right_p,
-            "<".to_string(),
-        )),
-        _ => Err(PipelineError::InvalidTypeComparison(
-            left_p,
-            right_p,
-            "<".to_string(),
-        )),
+        Field::Date(left_v) => match right_p {
+            Field::Date(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            Field::Null => Ok(Field::Null),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Timestamp(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
+        },
+        Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+            PipelineError::InvalidTypeComparison(left_p, right_p, "<".to_string()),
+        ),
     }
 }
 
@@ -361,21 +772,34 @@ pub fn evaluate_gt(
     let right_p = right.evaluate(record, schema)?;
 
     match left_p {
-        Field::Null => match right_p {
-            // left: Null, right: Null
-            Field::Null => Ok(Field::Boolean(true)),
-            _ => Ok(Field::Boolean(false)),
-        },
+        Field::Null => Ok(Field::Null),
         Field::Boolean(left_v) => match right_p {
             // left: Bool, right: Bool
             Field::Boolean(right_v) => Ok(Field::Boolean(left_v & !right_v)),
-            _ => Ok(Field::Boolean(false)),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_)
+            | Field::Null => Ok(Field::Null),
         },
         Field::Int(left_v) => match right_p {
             // left: Int, right: Int
             Field::Int(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            // left: Int, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) > right_v)),
             // left: Int, right: UInt
-            Field::UInt(right_v) => Ok(Field::Boolean(left_v > right_v as i64)),
+            Field::UInt(right_v) => Ok(Field::Boolean(left_v > (right_v as i64))),
+            // left: Int, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean(left_v > (right_v as i64))),
             // left: Int, right: Float
             Field::Float(right_v) => {
                 let left_v_f = OrderedFloat::<f64>::from_i64(left_v).unwrap();
@@ -391,7 +815,51 @@ pub fn evaluate_gt(
             }
             // left: Int, right: Null
             Field::Null => Ok(Field::Null),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                ">".to_string(),
+            )),
+        },
+        Field::I128(left_v) => match right_p {
+            // left: I128, right: Int
+            Field::Int(right_v) => Ok(Field::Boolean(left_v > (right_v as i128))),
+            // left: I128, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            // left: I128, right: UInt
+            Field::UInt(right_v) => Ok(Field::Boolean(left_v > (right_v as i128))),
+            // left: I128, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean(left_v > (right_v as i128))),
+            // left: I128, right: Float
+            Field::Float(right_v) => {
+                let left_v_f = OrderedFloat::<f64>::from_i128(left_v).unwrap();
+                Ok(Field::Boolean(left_v_f > right_v))
+            }
+            // left: I128, right: Decimal
+            Field::Decimal(right_v) => {
+                let left_v_d = Decimal::from_i128(left_v).ok_or(PipelineError::UnableToCast(
+                    format!("{}", left_v),
+                    "Decimal".to_string(),
+                ))?;
+                Ok(Field::Boolean(left_v_d > right_v))
+            }
+            // left: I128, right: Null
+            Field::Null => Ok(Field::Null),
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -400,8 +868,12 @@ pub fn evaluate_gt(
         Field::UInt(left_v) => match right_p {
             // left: UInt, right: Int
             Field::Int(right_v) => Ok(Field::Boolean((left_v as i64) > right_v)),
+            // left: UInt, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) > right_v)),
             // left: UInt, right: UInt
             Field::UInt(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            // left: UInt, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean((left_v as u128) > right_v)),
             // left: UInt, right: Float
             Field::Float(right_v) => {
                 let left_v_f = OrderedFloat(left_v as f64);
@@ -416,7 +888,50 @@ pub fn evaluate_gt(
             }
             // left: UInt, right: Null
             Field::Null => Ok(Field::Null),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                ">".to_string(),
+            )),
+        },
+        Field::U128(left_v) => match right_p {
+            // left: U128, right: Int
+            Field::Int(right_v) => Ok(Field::Boolean((left_v as i128) > (right_v as i128))),
+            // left: U128, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) > right_v)),
+            // left: U128, right: UInt
+            Field::UInt(right_v) => Ok(Field::Boolean(left_v > (right_v as u128))),
+            // left: U128, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            // left: U128, right: Float
+            Field::Float(right_v) => {
+                let left_v_f = OrderedFloat(left_v as f64);
+                Ok(Field::Boolean(left_v_f > right_v))
+            }
+            // left: U128, right: Decimal
+            Field::Decimal(right_v) => {
+                let left_v_d = Decimal::from_f64(left_v as f64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
+                Ok(Field::Boolean(left_v_d > right_v))
+            }
+            // left: U128, right: Null
+            Field::Null => Ok(Field::Null),
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -425,13 +940,23 @@ pub fn evaluate_gt(
         Field::Float(left_v) => match right_p {
             // left: Float, right: Float
             Field::Float(right_v) => Ok(Field::Boolean(left_v > right_v)),
-            // left: Float, right: Int
+            // left: Float, right: UInt
             Field::UInt(right_v) => {
+                let right_v_f = OrderedFloat(right_v as f64);
+                Ok(Field::Boolean(left_v > right_v_f))
+            }
+            // left: Float, right: U128
+            Field::U128(right_v) => {
                 let right_v_f = OrderedFloat(right_v as f64);
                 Ok(Field::Boolean(left_v > right_v_f))
             }
             // left: Float, right: Int
             Field::Int(right_v) => {
+                let right_v_f = OrderedFloat(right_v as f64);
+                Ok(Field::Boolean(left_v > right_v_f))
+            }
+            // left: Float, right: I128
+            Field::I128(right_v) => {
                 let right_v_f = OrderedFloat(right_v as f64);
                 Ok(Field::Boolean(left_v > right_v_f))
             }
@@ -445,7 +970,14 @@ pub fn evaluate_gt(
             }
             // left: Float, right: Null
             Field::Null => Ok(Field::Null),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -467,6 +999,13 @@ pub fn evaluate_gt(
                     )?;
                     Ok(Field::Boolean(left_v > right_v_d))
                 }
+                // left: Decimal, right: I128
+                Field::I128(right_v) => {
+                    let right_v_d = Decimal::from_i128(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v > right_v_d))
+                }
                 // left: Decimal, right: UInt
                 Field::UInt(right_v) => {
                     let right_v_d = Decimal::from_u64(right_v).ok_or(
@@ -474,11 +1013,25 @@ pub fn evaluate_gt(
                     )?;
                     Ok(Field::Boolean(left_v > right_v_d))
                 }
+                // left: Decimal, right: U128
+                Field::U128(right_v) => {
+                    let right_v_d = Decimal::from_u128(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v > right_v_d))
+                }
                 // left: Decimal, right: Decimal
                 Field::Decimal(right_v) => Ok(Field::Boolean(left_v > right_v)),
                 // left: Decimal, right: Null
-                Field::Null => Ok(Field::Boolean(false)),
-                _ => Err(PipelineError::InvalidTypeComparison(
+                Field::Null => Ok(Field::Null),
+                Field::Boolean(_)
+                | Field::String(_)
+                | Field::Text(_)
+                | Field::Binary(_)
+                | Field::Timestamp(_)
+                | Field::Date(_)
+                | Field::Bson(_)
+                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                     left_p,
                     right_p,
                     ">".to_string(),
@@ -487,8 +1040,41 @@ pub fn evaluate_gt(
         }
         Field::String(ref left_v) => match right_p {
             Field::String(ref right_v) => Ok(Field::Boolean(left_v > right_v)),
-            Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Text(ref right_v) => Ok(Field::Boolean(left_v > right_v)),
+            Field::Null => Ok(Field::Null),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::Boolean(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                ">".to_string(),
+            )),
+        },
+        Field::Text(ref left_v) => match right_p {
+            Field::String(ref right_v) => Ok(Field::Boolean(left_v > right_v)),
+            Field::Text(ref right_v) => Ok(Field::Boolean(left_v > right_v)),
+            Field::Null => Ok(Field::Null),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::Boolean(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -496,23 +1082,49 @@ pub fn evaluate_gt(
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v > right_v)),
-            Field::Null => Ok(Field::Boolean(false)),
-            _ => Err(PipelineError::InvalidTypeComparison(
+            Field::Null => Ok(Field::Null),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Date(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
             )),
         },
-        Field::Binary(ref _left_v) => Err(PipelineError::InvalidTypeComparison(
-            left_p,
-            right_p,
-            ">".to_string(),
-        )),
-        _ => Err(PipelineError::InvalidTypeComparison(
-            left_p,
-            right_p,
-            ">".to_string(),
-        )),
+        Field::Date(left_v) => match right_p {
+            Field::Date(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            Field::Null => Ok(Field::Null),
+            Field::UInt(_)
+            | Field::U128(_)
+            | Field::Int(_)
+            | Field::I128(_)
+            | Field::Float(_)
+            | Field::Boolean(_)
+            | Field::String(_)
+            | Field::Text(_)
+            | Field::Binary(_)
+            | Field::Decimal(_)
+            | Field::Timestamp(_)
+            | Field::Bson(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                ">".to_string(),
+            )),
+        },
+        Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+            PipelineError::InvalidTypeComparison(left_p, right_p, ">".to_string()),
+        ),
     }
 }
 
