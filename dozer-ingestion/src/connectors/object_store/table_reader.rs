@@ -91,7 +91,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
 
                 ingestor
                     .handle_message(IngestionMessage::new_op(
-                        0_u64,
+                        (id + 1) as u64,
                         idx,
                         Operation::Insert {
                             new: Record {
@@ -144,7 +144,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
             );
 
             rt.block_on(Self::read(
-                (id + 1) as u32,
+                id as u32,
                 ctx,
                 table_path,
                 listing_options,
