@@ -87,9 +87,9 @@ fn test_read_parquet_file() {
     {
         assert_eq!(seq_in_tx, 0);
     } else {
-        eprintln!("{:?}", row);
         panic!("Unexpected message");
     }
+
     let mut i = 0;
     while i < 8 {
         let row = iterator.next();
@@ -138,8 +138,19 @@ fn test_csv_read() {
         let _ = connector.start(&ingestor, tables);
     });
 
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingStarted,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 0);
+    } else {
+        panic!("Unexpected message");
+    }
+
     let mut i = 0;
-    while i < 9 {
+    while i < 8 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },

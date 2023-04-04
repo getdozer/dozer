@@ -211,7 +211,8 @@ impl SourceChannelManager {
                 self.commit(request_termination)
             }
             IngestionMessageKind::SnapshottingStarted => {
-                todo!("implement handle for snapshotting started")
+                // TODO "implement handle for snapshotting started"
+                Ok(true)
             }
         }
     }
