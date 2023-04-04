@@ -33,7 +33,7 @@ impl IngestionMessage {
     pub fn new_snapshotting_started(txn: u64, seq_no: u64) -> Self {
         Self {
             identifier: OpIdentifier::new(txn, seq_no),
-            kind: IngestionMessageKind::SnapshottingDone,
+            kind: IngestionMessageKind::SnapshottingStarted,
         }
     }
 }

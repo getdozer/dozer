@@ -87,10 +87,11 @@ fn test_read_parquet_file() {
     {
         assert_eq!(seq_in_tx, 0);
     } else {
+        eprintln!("{:?}", row);
         panic!("Unexpected message");
     }
-    let mut i = 1;
-    while i < 9 {
+    let mut i = 0;
+    while i < 8 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
