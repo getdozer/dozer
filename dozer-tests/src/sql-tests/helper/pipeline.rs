@@ -130,7 +130,6 @@ impl Source for TestSource {
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             idx += 1;
             let port = self.name_to_port.get(&schema_name).expect("port not found");
-            println!("so {}: {:?} ", port, op);
             fw.send(IngestionMessage::new_op(idx, 0, op), *port)
                 .unwrap();
         }
@@ -218,7 +217,6 @@ impl TestSink {
 
 impl Sink for TestSink {
     fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
-        println!("xi _: {:?} ", op);
         self.update_result(op);
         Ok(())
     }

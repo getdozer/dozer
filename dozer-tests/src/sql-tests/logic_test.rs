@@ -53,8 +53,8 @@ impl AsyncDB for Dozer {
     type Error = DozerSqlLogicTestError;
 
     async fn run(&mut self, sql: &str) -> Result<DBOutput> {
-        // use std::println as info;
-        // info!("SQL [{}] is running", sql);
+        use std::println as info;
+        info!("SQL [{}] is running", sql);
 
         let ast = SqlParser::parse_sql(&AnsiDialect {}, sql)?;
         let statement: &Statement = &ast[0];
@@ -119,16 +119,13 @@ async fn main() -> Result<()> {
     //let complete = args.complete;
     let complete = true;
 
-    let current_suits = std::fs::read_dir("dozer-tests/src/sqllogictest/test_suits").unwrap();
+    let current_suits = std::fs::read_dir("src/sql-tests/full").unwrap();
     if complete {
         delete_dir_contents(current_suits);
-        copy_dir_all(
-            "dozer-tests/src/sqllogictest/suits_proto",
-            "dozer-tests/src/sqllogictest/test_suits",
-        )?;
+        copy_dir_all("src/sql-tests/prototype", "src/sql-tests/full")?;
     }
 
-    let suits = std::fs::read_dir("dozer-tests/src/sqllogictest/test_suits").unwrap();
+    let suits = std::fs::read_dir("src/sql-tests/full").unwrap();
     let mut files = vec![];
     for suit in suits {
         let suit = suit.unwrap().path();

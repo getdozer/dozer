@@ -1,6 +1,8 @@
 control sortmode rowsort
 
-# actor
+
+# Create table actor
+
 statement ok
 CREATE TABLE actor(
     actor_id integer NOT NULL,
@@ -9,7 +11,8 @@ CREATE TABLE actor(
     last_update text
 )
 
-# film
+# Create table film
+
 statement ok
 CREATE TABLE film (
     film_id integer NOT NULL,
@@ -27,7 +30,8 @@ CREATE TABLE film (
     special_features text
 )
 
-# film_actor
+# Create table film_actor
+
 statement ok
 CREATE TABLE film_actor (
     actor_id integer NOT NULL,
@@ -35,6 +39,8 @@ CREATE TABLE film_actor (
     last_update timestamp NOT NULL
 );
 
+
+# Insert data to actor
 
 statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
@@ -152,30 +158,46 @@ statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', 'guiness','2020-02-15 09:34:33+00')
 
 
-query ITT
-SELECT actor.actor_id, first_name, last_name from actor
-        JOIN film_actor on film_actor.actor_id = actor.actor_id
+# Queries
 
+query II
+SELECT film_id, count(film_id) from film GROUP By film_id;
+----
+1 1
+10 1
+2 1
+3 1
+4 1
+5 1
+6 1
+7 1
+8 1
+9 1
 
-query ITT
-SELECT actor.actor_id, first_name, last_name from actor
-        JOIN film_actor on film_actor.actor_id = actor.actor_id
+query II
+SELECT actor_id, count(actor_id) from actor GROUP By actor_id;
+----
+1 2
+10 1
+2 2
+3 2
+4 1
+5 1
+6 1
+7 1
+8 1
+9 1
 
-query I
-SELECT a.actor_id from actor a
-        JOIN film_actor fa on fa.actor_id = a.actor_id
-        JOIN film f on f.film_id = fa.film_id
-
-query ITT
-SELECT a.actor_id, a.first_name, a.last_name from actor a
-        JOIN film_actor fa on fa.actor_id = a.actor_id;
-
-query ITT
-WITH tbl AS (SELECT actor_id, first_name, last_name FROM actor)
-        SELECT t.actor_id, t.first_name, t.last_name
-        FROM tbl t
-        JOIN film_actor fa ON fa.actor_id = t.actor_id;
-
-query ITT
-SELECT a.actor_id, a.first_name, a.last_name from actor a
-        LEFT JOIN film_actor fa on fa.actor_id = a.actor_id;
+query II
+SELECT actor_id, count(actor_id) from actor GROUP By actor_id;
+----
+1 2
+10 1
+2 2
+3 2
+4 1
+5 1
+6 1
+7 1
+8 1
+9 1

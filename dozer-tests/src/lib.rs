@@ -6,9 +6,3 @@ mod cache_tests;
 mod tests;
 
 pub mod e2e_tests;
-
-#[cfg(test)]
-mod read_csv;
-
-#[cfg(test)]
-mod init;

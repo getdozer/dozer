@@ -1,8 +1,7 @@
 control sortmode rowsort
 
 
-# Create table actor
-
+# actor
 statement ok
 CREATE TABLE actor(
     actor_id integer NOT NULL,
@@ -11,8 +10,7 @@ CREATE TABLE actor(
     last_update text
 )
 
-# Create table film
-
+# film
 statement ok
 CREATE TABLE film (
     film_id integer NOT NULL,
@@ -30,8 +28,7 @@ CREATE TABLE film (
     special_features text
 )
 
-# Create table film_actor
-
+# film_actor
 statement ok
 CREATE TABLE film_actor (
     actor_id integer NOT NULL,
@@ -39,9 +36,7 @@ CREATE TABLE film_actor (
     last_update timestamp NOT NULL
 );
 
-
-# Insert data to actor
-
+# insert data to actor
 statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
 
@@ -75,6 +70,7 @@ INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (9, 'meryl
 statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (10, 'leonardo', 'dicaprio', '2020-04-15 08:08:08+00');
 
+
 #insert data to film
 
 statement ok
@@ -85,17 +81,21 @@ statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
 VALUES (2, 'The Godfather', 'The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.', '1972', 1, NULL, 3, 2.99, 175, 24.99, 'R', '2022-03-16 00:00:00', 'Deleted Scenes;Behind the Scenes');
 
+
 statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
 VALUES (3, 'The Dark Knight', 'When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.', '2008', 1, NULL, 5, 3.99, 152, 29.99, 'PG-13', '2022-03-16 00:00:00', 'Deleted Scenes;Behind the Scenes');
+
 
 statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
 VALUES (4, 'Schindler''s List', 'In German-occupied Poland during World War II, Oskar Schindler gradually becomes concerned for his Jewish workforce after witnessing their persecution by the Nazi Germans.', '1993', 1, NULL, 5, 3.99, 195, 24.99, 'R', '2022-03-16 00:00:00', 'Deleted Scenes;Behind the Scenes');
 
+
 statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
 VALUES (5, 'The Godfather: Part II', 'The early life and career of Vito Corleone in 1920s New York City is portrayed, while his son, Michael, expands and tightens his grip on the family crime syndicate.', '1974', 1, NULL, 202, 2.99, 202, 18.99, 'R', '2023-03-15 10:00:00', 'Deleted Scenes,Behind the Scenes');
+
 
 statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
@@ -105,9 +105,11 @@ statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
 VALUES (7, 'Vertigo', 'A retired San Francisco detective suffering from acrophobia investigates the strange activities of an old friend''s wife, all the while becoming dangerously obsessed with her.', '1958', 1, NULL, 7, 4.99, 128, 19.99, 'PG', '2022-03-16 00:00:00', 'Commentaries');
 
+
 statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
 VALUES (8, 'When Harry Met Sally', 'Harry and Sally have known each other for years, and are very good friends, but they fear sex would ruin the friendship.', '1989', 1, NULL, 7, 4.99, 96, 19.99, 'R', '2022-03-16 00:00:00', 'Deleted Scenes');
+
 
 statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
@@ -117,8 +119,8 @@ statement ok
 INSERT INTO film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features)
 VALUES (10, 'The Great Gatsby', 'A writer and wall street trader, Nick, finds himself drawn to the past and lifestyle of his millionaire neighbor, Jay Gatsby.', '2013', 1, NULL, 7, 4.99, 143, 19.99, 'PG-13', '2022-03-16 00:00:00', 'Trailers');
 
-# insert data to film_actor
 
+# insert data to film_actor
 statement ok
 INSERT INTO film_actor (actor_id, film_id, last_update) VALUES (1, 1, '2022-03-16 10:00:00');
 
@@ -149,22 +151,122 @@ INSERT INTO film_actor (actor_id, film_id, last_update) VALUES (3, 9, '2022-03-1
 statement ok
 INSERT INTO film_actor (actor_id, film_id, last_update) VALUES (4, 10, '2022-03-16 10:00:00');
 
-# insert more data to actor
 
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', 'guiness','2020-02-15 09:34:33+00')
+query IR rowsort
+SELECT COUNT(fa.actor_id) AS total_actors, AVG(f.length) AS avg_length
+FROM film_actor fa
+INNER JOIN film f ON fa.film_id = f.film_id
+WHERE f.rating = 'PG';
+----
+1 128
 
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', 'guiness','2020-02-15 09:34:33+00')
+
+query TT rowsort
+SELECT a.first_name, a.last_name
+FROM actor a
+INNER JOIN (
+  SELECT actor_id
+  FROM film_actor
+  GROUP BY actor_id
+  HAVING COUNT(actor_id) >= 10
+) fa ON a.actor_id = fa.actor_id;
+----
 
 
-# Queries
+query I rowsort
+SELECT COUNT(DISTINCT fa.actor_id) AS num_actors
+FROM film_actor fa
+INNER JOIN film f ON fa.film_id = f.film_id
+WHERE f.release_year <= '2005' AND f.rating = 'G';
+----
+1
 
-query II
-SELECT film_id, count(film_id) from film GROUP By film_id;
 
-query II
-SELECT actor_id, count(actor_id) from actor GROUP By actor_id;
+query TT rowsort
+SELECT a.first_name, a.last_name
+FROM actor a
+INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
+INNER JOIN film f ON fa.film_id = f.film_id
+WHERE f.title LIKE '%Redemption%';
+----
+penelope guiness
+penelope guiness
 
-query II
-SELECT actor_id, count(actor_id) from actor GROUP By actor_id;
+
+query TTI rowsort
+SELECT a.first_name, a.last_name, COUNT(fa.film_id) as num_films
+FROM actor a
+INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
+GROUP BY a.actor_id;
+----
+angelina jolie 3
+jack nicholson 3
+penelope guiness 6
+tom hanks 1
+
+
+query TTI rowsort
+SELECT a.first_name, a.last_name, SUM(f.length) as total_length
+FROM actor a
+INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
+INNER JOIN film f ON fa.film_id = f.film_id
+GROUP BY a.actor_id;
+----
+angelina jolie 324
+jack nicholson 567
+penelope guiness 938
+tom hanks 143
+
+
+query TTI rowsort
+SELECT actor.first_name, actor.last_name, COUNT(film_actor.film_id) AS total_films
+FROM actor
+INNER JOIN film_actor ON actor.actor_id = film_actor.actor_id
+GROUP BY actor.actor_id
+HAVING COUNT(film_actor.film_id) > 50;
+----
+
+
+query TTT rowsort
+SELECT film.title, film.release_year, film.rating
+FROM film
+INNER JOIN film_actor ON film.film_id = film_actor.film_id
+WHERE CAST(film.release_year AS Int) > 2010 AND film.rating = 'PG-13';
+----
+The Artist 2011 PG-13
+The Great Gatsby 2013 PG-13
+
+
+query ITTI rowsort
+SELECT a.actor_id, a.first_name, a.last_name, COUNT(fa.film_id) AS num_films
+FROM actor a
+INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
+GROUP BY a.actor_id;
+----
+1 penelope guiness 6
+2 jack nicholson 3
+3 angelina jolie 3
+4 tom hanks 1
+
+
+query ITTR rowsort
+SELECT a.actor_id, a.first_name, a.last_name, SUM(f.replacement_cost)
+FROM actor a
+INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
+INNER JOIN film f ON fa.film_id = f.film_id
+GROUP BY a.actor_id;
+----
+1 penelope guiness 149.94
+2 jack nicholson 63.97
+3 angelina jolie 59.97
+4 tom hanks 19.99
+
+
+query TT rowsort
+SELECT first_name, last_name FROM actor
+INNER JOIN film_actor ON actor.actor_id = film_actor.actor_id
+INNER JOIN film ON film_actor.film_id = film.film_id
+WHERE film.title LIKE '%Red%';
+----
+penelope guiness
+penelope guiness

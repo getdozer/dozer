@@ -4,12 +4,12 @@ This is Dozer's [sqllogictest](https://www.sqlite.org/sqllogictest/doc/trunk/abo
 ### Basic usage
 Run all tests
 ```shell
-cargo test --test sqllogictest
+cargo test --test sql-tests
 ```
 
 Auto complete test file which is very convenient. It will use the validator database (currently sqlite) to produce the expected output for the test file.
 ```shell
-cargo test --test sqllogictest -- --complete
+cargo test --test sql-tests -- --complete
 ```
 
 ### Sqllogictest

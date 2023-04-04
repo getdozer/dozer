@@ -102,6 +102,17 @@ WITH actor_id_union AS (
         )
         SELECT actor_id
         FROM actor_id_union;
+----
+1
+10
+2
+3
+4
+5
+6
+7
+8
+9
 
 query I
 WITH actor_id_union_all AS (
@@ -113,9 +124,30 @@ WITH actor_id_union_all AS (
         )
         SELECT actor_id
         FROM actor_id_union_all;
-
-
-
+----
+1
+1
+1
+1
+1
+10
+2
+2
+2
+2
+2
+3
+3
+3
+3
+3
+4
+4
+5
+6
+7
+8
+9
 
 query I
 WITH actor_id_union AS (
@@ -127,6 +159,17 @@ WITH actor_id_union AS (
         )
         SELECT actor_id
         FROM actor_id_union;
+----
+1
+10
+2
+3
+4
+5
+6
+7
+8
+9
 
 query I
 WITH actor_id_union_all AS (
@@ -138,3 +181,27 @@ WITH actor_id_union_all AS (
         )
         SELECT actor_id
         FROM actor_id_union_all;
+----
+1
+1
+1
+1
+1
+10
+2
+2
+2
+2
+2
+3
+3
+3
+3
+3
+4
+4
+5
+6
+7
+8
+9
