@@ -7,9 +7,9 @@ Following table shows how Dozer type is converted to JSON type in REST API.
 | Dozer Type | JSON Type      | Note |
 |------------|----------------|-|
 | uint       | number         | |
-| u128       | number         | |
+| u128       | string         | |
 | int        | number         | |
-| i128       | number         | |
+| i128       | string         | |
 | float      | number         | |
 | boolean    | boolean        | |
 | string     | string         | |
