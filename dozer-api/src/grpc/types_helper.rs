@@ -1,5 +1,4 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
-use dozer_types::arrow::ipc::Type;
 use dozer_types::grpc_types::types::{
     value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
 };
