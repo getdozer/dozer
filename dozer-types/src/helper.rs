@@ -1,5 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use crate::types::{DozerPoint, DATE_FORMAT};
+use crate::types::{DozerPoint, DATE_FORMAT, DozerDuration};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
 use ordered_float::OrderedFloat;
@@ -87,6 +87,9 @@ pub fn json_value_to_field(
         FieldType::Point => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),
+        FieldType::Duration => serde_json::from_value(value)
+            .map_err(DeserializationError::Json)
+            .map(Field::Duration),
     }
     .map_err(TypeError::DeserializationError)
 }
@@ -242,6 +245,13 @@ impl Field {
                     Ok(Field::Null)
                 } else {
                     value.parse::<DozerPoint>().map(Field::Point)
+                }
+            }
+            FieldType::Duration => {
+                if nullable && (value.is_empty() || value == "null") {
+                    Ok(Field::Null)
+                } else {
+                    value.parse::<DozerDuration>().map(Field::Duration)
                 }
             }
         }

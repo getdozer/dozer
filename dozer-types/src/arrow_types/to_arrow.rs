@@ -149,6 +149,10 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
             metadata.map(|m| m.insert("logical_type".to_string(), "Point".to_string()));
             DataType::Binary
         }
+        FieldType::Duration => {
+            metadata.map(|m| m.insert("logical_type".to_string(), "Duration".to_string()));
+            DataType::Binary
+        }
     }
 }
 

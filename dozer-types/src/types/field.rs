@@ -6,8 +6,7 @@ use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
-
-use crate::types::DozerPoint;
+use crate::types::{DozerDuration, DozerPoint, TimeUnit};
 use std::fmt::{Display, Formatter};
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
@@ -27,6 +26,7 @@ pub enum Field {
     Date(NaiveDate),
     Bson(Vec<u8>),
     Point(DozerPoint),
+    Duration(DozerDuration),
     Null,
 }
 
@@ -46,6 +46,7 @@ pub enum FieldBorrow<'a> {
     Date(NaiveDate),
     Bson(&'a [u8]),
     Point(DozerPoint),
+    Duration(DozerDuration),
     Null,
 }
 
@@ -66,6 +67,7 @@ impl Field {
             Field::Date(_) => 10,
             Field::Bson(b) => b.len(),
             Field::Point(_p) => 16,
+            Field::Duration(_) => 32,
             Field::Null => 0,
         }
     }
@@ -85,8 +87,9 @@ impl Field {
             Field::Timestamp(t) => Cow::Owned(t.timestamp_millis().to_be_bytes().into()),
             Field::Date(t) => Cow::Owned(t.to_string().into()),
             Field::Bson(b) => Cow::Borrowed(b),
-            Field::Null => Cow::Owned([].into()),
             Field::Point(p) => Cow::Owned(p.to_bytes().into()),
+            Field::Duration(d) => Cow::Owned(d.to_bytes().into()),
+            Field::Null => Cow::Owned([].into()),
         }
     }
 
@@ -123,6 +126,7 @@ impl Field {
             Field::Date(t) => FieldBorrow::Date(*t),
             Field::Bson(b) => FieldBorrow::Bson(b),
             Field::Point(p) => FieldBorrow::Point(*p),
+            Field::Duration(d) => FieldBorrow::Duration(*d),
             Field::Null => FieldBorrow::Null,
         }
     }
@@ -187,7 +191,10 @@ impl Field {
             13 => Ok(FieldBorrow::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
-            14 => Ok(FieldBorrow::Null),
+            14 => Ok(FieldBorrow::Duration(
+                DozerDuration::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?
+            )),
+            15 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
@@ -208,7 +215,8 @@ impl Field {
             Field::Date(_) => 11,
             Field::Bson(_) => 12,
             Field::Point(_) => 13,
-            Field::Null => 14,
+            Field::Duration(_) => 32,
+            Field::Null => 15,
         }
     }
 
@@ -306,6 +314,14 @@ impl Field {
     pub fn as_point(&self) -> Option<DozerPoint> {
         match self {
             Field::Point(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    pub fn as_duration(&self) -> Option<DozerDuration> {
+        match self {
+            Field::I128(d) => Some(DozerDuration(*d, TimeUnit::Nanoseconds)),
+            Field::Duration(d) => Some(*d),
             _ => None,
         }
     }
@@ -533,8 +549,9 @@ impl Display for Field {
             Field::Timestamp(v) => f.write_str(&format!("{v}")),
             Field::Date(v) => f.write_str(&format!("{v}")),
             Field::Bson(v) => f.write_str(&format!("{v:x?}")),
-            Field::Null => f.write_str("NULL"),
             Field::Point(v) => f.write_str(&format!("{v} (Point)")),
+            Field::Duration(d) => f.write_str(&format!("{:?} {:?} (Duration)", d.0, d.1)),
+            Field::Null => f.write_str("NULL"),
         }
     }
 }
@@ -556,6 +573,7 @@ impl<'a> FieldBorrow<'a> {
             FieldBorrow::Date(d) => Field::Date(d),
             FieldBorrow::Bson(b) => Field::Bson(b.to_owned()),
             FieldBorrow::Point(p) => Field::Point(p),
+            FieldBorrow::Duration(d) => Field::Duration(DozerDuration(d.0, d.1)),
             FieldBorrow::Null => Field::Null,
         }
     }
@@ -595,6 +613,8 @@ pub enum FieldType {
     Bson,
     /// A geographic point.
     Point,
+    /// Duration up to nanoseconds.
+    Duration,
 }
 
 impl TryFrom<&str> for FieldType {
@@ -615,6 +635,8 @@ impl TryFrom<&str> for FieldType {
             "timestamp" => FieldType::Timestamp,
             "date" => FieldType::Date,
             "bson" => FieldType::Bson,
+            "point" => FieldType::Point,
+            "duration" => FieldType::Duration,
             _ => return Err(format!("Unsupported '{value}' type")),
         };
 
@@ -639,6 +661,7 @@ impl Display for FieldType {
             FieldType::Date => f.write_str("date"),
             FieldType::Bson => f.write_str("bson"),
             FieldType::Point => f.write_str("point"),
+            FieldType::Duration => f.write_str("duration"),
         }
     }
 }
@@ -701,8 +724,9 @@ impl pyo3::ToPyObject for Field {
                     .to_object(py)
             }
             Field::Bson(val) => val.to_object(py),
-            Field::Null => unreachable!(),
             Field::Point(_val) => todo!(),
+            Field::Duration(d) => todo!(),
+            Field::Null => unreachable!(),
         }
     }
 }
