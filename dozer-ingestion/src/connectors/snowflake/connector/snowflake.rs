@@ -8,7 +8,7 @@ use dozer_types::ingestion_types::SnowflakeConfig;
 
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
-use dozer_types::log::{debug, info, warn};
+use dozer_types::log::{info, warn};
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 
@@ -145,7 +145,6 @@ async fn run(
                             "[{}][{}] Continuing ingestion from {}/{}",
                             name, table.name, lsn, seq
                         );
-                        iteration = lsn;
                         if let Ok(false) = StreamConsumer::is_stream_created(&client, &table.name) {
                             return Err(ConnectorError::SnowflakeError(
                                 SnowflakeError::SnowflakeStreamError(
@@ -157,7 +156,7 @@ async fn run(
                 }
             }
 
-            debug!("[{}][{}] Reading from changes stream", name, table.name);
+            info!("[{}][{}] Reading from changes stream", name, table.name);
 
             consumer.consume_stream(&stream_client, &table.name, ingestor, idx, iteration)?;
 
