@@ -145,7 +145,9 @@ impl ApiServer {
 
         let mut auth_service = None;
         if self.security.is_some() {
-            let service = AuthGrpcServiceServer::new(AuthService::new(self.security.clone()));
+            let service = web_config.enable(AuthGrpcServiceServer::new(AuthService::new(
+                self.security.clone(),
+            )));
             auth_service = Some(auth_middleware.layer(service));
         }
 
