@@ -23,15 +23,25 @@ pub fn json_value_to_field(
         FieldType::UInt => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::UInt),
-        FieldType::U128 => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::U128),
+        FieldType::U128 => match value {
+            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
+            _ => Err(DeserializationError::Custom(
+                "Json value type does not match field type"
+                    .to_string()
+                    .into(),
+            )),
+        },
         FieldType::Int => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Int),
-        FieldType::I128 => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::I128),
+        FieldType::I128 => match value {
+            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
+            _ => Err(DeserializationError::Custom(
+                "Json value type does not match field type"
+                    .to_string()
+                    .into(),
+            )),
+        },
         FieldType::Float => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Float),

@@ -127,9 +127,9 @@ pub fn map_record_to_arrow(
 pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, String>>) -> DataType {
     match typ {
         FieldType::UInt => DataType::UInt64,
-        FieldType::U128 => DataType::UInt64, // TODO: Map this correctly
+        FieldType::U128 => DataType::Utf8,
         FieldType::Int => DataType::Int64,
-        FieldType::I128 => DataType::Int64, // TODO: Map this correctly
+        FieldType::I128 => DataType::Utf8,
         FieldType::Float => DataType::Float64,
         FieldType::Boolean => DataType::Boolean,
         FieldType::String => DataType::Utf8,
