@@ -161,9 +161,9 @@ pub fn map_sqlite_to_record(schema: &Schema, row: &rusqlite::Row) -> Result<Reco
         let val = match_type! {
             f.typ,
             FieldType::UInt => convert_type!(Field::UInt, f, row, idx),
-            // FieldType::U128 => convert_type!(Field::U128, f, row, idx), // TODO: Map this correctly
+            FieldType::U128 => convert_type!(Field::String, f, row, idx),
             FieldType::Int => convert_type!(Field::Int, f, row, idx),
-            // FieldType::I128 => convert_type!(Field::I128, f, row, idx), // TODO: Map this correctly
+            FieldType::I128 => convert_type!(Field::String, f, row, idx),
             FieldType::Float => Field::Float(dozer_types::ordered_float::OrderedFloat(row.get(idx)?)),
             FieldType::Boolean => convert_type!(Field::Boolean, f, row, idx),
             FieldType::String => convert_type!(Field::String, f, row, idx),
@@ -175,7 +175,7 @@ pub fn map_sqlite_to_record(schema: &Schema, row: &rusqlite::Row) -> Result<Reco
                 Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
             },
             FieldType::Date =>  convert_type!(Field::String, f, row, idx),
-            FieldType::U128 | FieldType::I128 | FieldType::Bson | FieldType::Point => {
+            FieldType::Bson | FieldType::Point => {
                 panic!("type not supported : {:?}", f.typ.to_owned())
             }
         };

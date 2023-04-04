@@ -131,7 +131,7 @@ fn field_type_to_sql(field_type: FieldType) -> Option<String> {
         FieldType::UInt => None,
         FieldType::U128 => None,
         FieldType::Int => Some("INT8".to_string()),
-        FieldType::I128 => Some("INT8".to_string()), // TODO: Map this correctly
+        FieldType::I128 => None,
         FieldType::Float => Some("FLOAT8".to_string()),
         FieldType::Boolean => Some("BOOLEAN".to_string()),
         FieldType::String => Some("TEXT".to_string()),
