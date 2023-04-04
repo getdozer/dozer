@@ -1,4 +1,5 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
+use dozer_types::arrow::ipc::Type;
 use dozer_types::grpc_types::types::{
     value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
 };
@@ -86,13 +87,13 @@ fn field_to_prost_value(f: Field) -> Value {
             value: Some(value::Value::UintValue(n)),
         },
         Field::U128(n) => Value {
-            value: Some(value::Value::UintValue(n as u64)),
+            value: Some(value::Value::StringValue(n.to_string())),
         },
         Field::Int(n) => Value {
             value: Some(value::Value::IntValue(n)),
         },
         Field::I128(n) => Value {
-            value: Some(value::Value::IntValue(n as i64)),
+            value: Some(value::Value::StringValue(n.to_string())),
         },
         Field::Float(n) => Value {
             value: Some(value::Value::FloatValue(n.0)),
@@ -145,9 +146,9 @@ pub fn map_field_definitions(
 fn field_type_to_internal_type(typ: FieldType) -> Type {
     match typ {
         FieldType::UInt => Type::UInt,
-        FieldType::U128 => Type::UInt, // TODO: Map this correctly
+        FieldType::U128 => Type::String,
         FieldType::Int => Type::Int,
-        FieldType::I128 => Type::Int, // TODO: Map this correctly
+        FieldType::I128 => Type::String,
         FieldType::Float => Type::Float,
         FieldType::Boolean => Type::Boolean,
         FieldType::String => Type::String,
