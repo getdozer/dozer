@@ -74,7 +74,7 @@ pub fn get_schema(
                     ConnectorError::WrongConnectionConfiguration
                 })?;
 
-            let schema = map_schema(id as u32, resolved_schema, table)?;
+            let schema = map_schema((id + 1) as u32, resolved_schema, table)?;
 
             Ok(SourceSchema::new(schema, CdcType::Nothing))
         })
