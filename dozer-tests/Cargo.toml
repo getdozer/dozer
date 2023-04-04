@@ -14,9 +14,9 @@ path = "src/dozer_tests.rs"
 name = "dozer-test-client"
 path = "src/dozer_test_client.rs"
 
-[[test]]
+[[bin]]
 name = "sql-tests"
-path = "src/sql-tests/logic_test.rs"
+path = "src/sql_tests/logic_test.rs"
 harness = false
 
 [dependencies]

@@ -8,6 +8,7 @@ use std::path::Path;
 // use arg::SqlLogicTestArgs;
 // use clap::Parser;
 use dozer_sql::sqlparser::ast::Statement;
+use dozer_sql::sqlparser::dialect::AnsiDialect;
 use dozer_sql::sqlparser::parser::Parser as SqlParser;
 use dozer_types::types::Operation;
 use error::DozerSqlLogicTestError;
@@ -17,7 +18,6 @@ use helper::pipeline::TestPipeline;
 use helper::schema::get_table_name;
 
 use sqllogictest::{default_validator, parse_file, update_test_file, AsyncDB, DBOutput, Runner};
-use sqlparser::dialect::AnsiDialect;
 use validator::Validator;
 use walkdir::WalkDir;
 
@@ -109,6 +109,8 @@ fn create_dozer() -> Result<Dozer> {
     Ok(dozer)
 }
 
+const BASE_PATH: &str = "dozer-tests/src/sql_tests";
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -119,13 +121,16 @@ async fn main() -> Result<()> {
     //let complete = args.complete;
     let complete = true;
 
-    let current_suits = std::fs::read_dir("src/sql-tests/full").unwrap();
+    let current_suits = std::fs::read_dir(format!("{BASE_PATH}/full")).unwrap();
     if complete {
         delete_dir_contents(current_suits);
-        copy_dir_all("src/sql-tests/prototype", "src/sql-tests/full")?;
+        copy_dir_all(
+            format!("{BASE_PATH}/prototype"),
+            format!("{BASE_PATH}/full"),
+        )?;
     }
 
-    let suits = std::fs::read_dir("src/sql-tests/full").unwrap();
+    let suits = std::fs::read_dir(format!("{BASE_PATH}/full")).unwrap();
     let mut files = vec![];
     for suit in suits {
         let suit = suit.unwrap().path();
