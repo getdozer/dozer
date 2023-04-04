@@ -5,6 +5,8 @@ mod validator;
 
 use std::path::Path;
 
+use arg::SqlLogicTestArgs;
+use clap::Parser;
 // use arg::SqlLogicTestArgs;
 // use clap::Parser;
 use dozer_sql::sqlparser::ast::Statement;
@@ -115,11 +117,10 @@ const BASE_PATH: &str = "dozer-tests/src/sql_tests";
 async fn main() -> Result<()> {
     env_logger::init();
 
-    //let args = SqlLogicTestArgs::parse();
+    let args = SqlLogicTestArgs::parse();
     //let suits = SqlLogicTestArgs::parse().suites;
 
-    //let complete = args.complete;
-    let complete = true;
+    let complete = args.complete;
 
     let current_suits = std::fs::read_dir(format!("{BASE_PATH}/full")).unwrap();
     if complete {

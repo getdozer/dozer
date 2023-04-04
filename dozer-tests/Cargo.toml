@@ -17,7 +17,6 @@ path = "src/dozer_test_client.rs"
 [[bin]]
 name = "sql-tests"
 path = "src/sql_tests/logic_test.rs"
-harness = false
 
 [dependencies]
 dozer-types = { path = "../dozer-types" }
