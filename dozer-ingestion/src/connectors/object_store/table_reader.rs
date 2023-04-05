@@ -2,7 +2,7 @@ use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::schema_helper::map_value_to_dozer_field;
 use crate::connectors::TableInfo;
-use crate::errors::ObjectStoreConnectorError::{DataReadError, TableReaderError};
+use crate::errors::ObjectStoreConnectorError::{RecvError, TableReaderError};
 use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
 use crate::errors::ObjectStoreTableReaderError::{
     ColumnsSelectFailed, StreamExecutionError, TableReadFailed,
@@ -19,7 +19,7 @@ use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use std::sync::Arc;
-use std::thread;
+
 use tokio::runtime::Runtime;
 
 pub struct TableReader<T: Clone + Send + Sync> {
@@ -121,6 +121,8 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
         let mut left_tables_count = tables.len();
         let (tx, rx) = unbounded();
 
+        let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
+
         for (id, table) in tables.iter().enumerate() {
             let params = self.config.table_params(&table.name)?;
 
@@ -134,8 +136,6 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
             let listing_options = map_listing_options(params.data_fusion_table)
                 .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
 
-            let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
-
             let ctx = SessionContext::new();
 
             ctx.runtime_env().register_object_store(
@@ -147,19 +147,22 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
             let sender = tx.clone();
             let t = table.clone();
 
-            thread::spawn(move || {
-                let result = rt.block_on(Self::read(
+            rt.spawn(async move {
+                let result = Self::read(
                     id as u32,
                     ctx,
                     table_path,
                     listing_options,
                     &t,
                     sender.clone(),
-                ));
-
+                )
+                .await;
                 if let Err(e) = result {
                     sender.send(Err(e)).unwrap();
+                    return Err(ObjectStoreConnectorError::DataReadError);
                 }
+
+                Ok(())
             });
         }
 
@@ -167,7 +170,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
         loop {
             let message = rx
                 .recv()
-                .map_err(|_| ConnectorError::ObjectStoreConnectorError(DataReadError))??;
+                .map_err(|e| ConnectorError::ObjectStoreConnectorError(RecvError(e)))??;
             match message {
                 None => {
                     left_tables_count -= 1;
