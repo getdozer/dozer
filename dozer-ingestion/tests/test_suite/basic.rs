@@ -303,6 +303,7 @@ fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk:
             FieldType::Date => assert!(value.as_date().is_some()),
             FieldType::Bson => assert!(value.as_bson().is_some()),
             FieldType::Point => assert!(value.as_point().is_some()),
+            FieldType::Duration => assert!(value.as_duration().is_some()),
         }
     }
 }

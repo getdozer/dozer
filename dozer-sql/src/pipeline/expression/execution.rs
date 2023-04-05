@@ -344,10 +344,11 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::Decimal(_) => Some(FieldType::Decimal),
         Field::Timestamp(_) => Some(FieldType::Timestamp),
         Field::Bson(_) => Some(FieldType::Bson),
-        Field::Null => None,
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
         Field::Point(_) => Some(FieldType::Point),
+        Field::Duration(_) => Some(FieldType::Duration),
+        Field::Null => None,
     }
 }
 

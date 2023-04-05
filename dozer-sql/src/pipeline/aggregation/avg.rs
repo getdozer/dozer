@@ -196,9 +196,9 @@ fn get_average(
             | FieldType::Binary
             | FieldType::Bson
             | FieldType::Point
-            | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                "Not supported return type {typ} for {Avg}"
-            )))),
+            | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(
+                format!("Not supported return type {typ} for {Avg}"),
+            ))),
         },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Avg}"

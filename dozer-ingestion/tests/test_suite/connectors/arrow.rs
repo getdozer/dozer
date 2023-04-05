@@ -284,6 +284,7 @@ fn field_type_to_arrow(field_type: FieldType) -> Option<arrow::datatypes::DataTy
         FieldType::Date => Some(arrow::datatypes::DataType::Date32),
         FieldType::Bson => None,
         FieldType::Point => None,
+        FieldType::Duration => None,
     }
 }
 
@@ -419,6 +420,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
         }
         FieldType::Bson => panic!("Bson not supported"),
         FieldType::Point => panic!("Point not supported"),
+        FieldType::Duration => panic!("Duration not supported"),
     }
 }
 

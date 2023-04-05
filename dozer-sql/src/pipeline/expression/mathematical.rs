@@ -61,6 +61,7 @@ macro_rules! define_math_operator {
                     | Field::Date(_)
                     | Field::Bson(_)
                     | Field::Point(_)
+                    | Field::Duration(_)
                     | Field::Null => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
@@ -156,7 +157,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -345,7 +347,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -492,7 +495,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -677,7 +681,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -820,7 +825,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -910,7 +916,8 @@ macro_rules! define_math_operator {
                                 | Field::Timestamp(_)
                                 | Field::Date(_)
                                 | Field::Bson(_)
-                                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                                | Field::Point(_)
+                                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                                     left_p,
                                     right_p,
                                     $op.to_string(),
@@ -999,7 +1006,8 @@ macro_rules! define_math_operator {
                                 | Field::Timestamp(_)
                                 | Field::Date(_)
                                 | Field::Bson(_)
-                                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                                | Field::Point(_)
+                                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                                     left_p,
                                     right_p,
                                     $op.to_string(),
@@ -1088,7 +1096,8 @@ macro_rules! define_math_operator {
                                 | Field::Timestamp(_)
                                 | Field::Date(_)
                                 | Field::Bson(_)
-                                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                                | Field::Point(_)
+                                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                                     left_p,
                                     right_p,
                                     $op.to_string(),
@@ -1160,7 +1169,8 @@ macro_rules! define_math_operator {
                                 | Field::Timestamp(_)
                                 | Field::Date(_)
                                 | Field::Bson(_)
-                                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                                | Field::Point(_)
+                                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                                     left_p,
                                     right_p,
                                     $op.to_string(),
@@ -1182,7 +1192,8 @@ macro_rules! define_math_operator {
                 | Field::Binary(_)
                 | Field::Date(_)
                 | Field::Bson(_)
-                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                | Field::Point(_)
+                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                     left_p,
                     right_p,
                     $op.to_string(),
@@ -1219,6 +1230,7 @@ pub fn evaluate_plus(
         | Field::Date(_)
         | Field::Bson(_)
         | Field::Point(_)
+        | Field::Duration(_)
         | Field::Null => Err(PipelineError::InvalidType(
             expression_result,
             "+".to_string(),
@@ -1247,6 +1259,7 @@ pub fn evaluate_minus(
         | Field::Date(_)
         | Field::Bson(_)
         | Field::Point(_)
+        | Field::Duration(_)
         | Field::Null => Err(PipelineError::InvalidType(
             expression_result,
             "-".to_string(),

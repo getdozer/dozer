@@ -53,7 +53,10 @@ impl<'a> OpenApiGenerator<'a> {
                     FieldType::Duration => {
                         let mut m = Map::new();
                         m.insert("val".to_string(), Value::from("3.3i128"));
-                        m.insert("unit".to_string(), Value::from(TimeUnit::Nanoseconds.to_string()));
+                        m.insert(
+                            "unit".to_string(),
+                            Value::from(TimeUnit::Nanoseconds.to_string()),
+                        );
                         Value::Object(m)
                     }
                 };

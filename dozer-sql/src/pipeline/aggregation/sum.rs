@@ -203,9 +203,9 @@ pub fn get_sum(
             | FieldType::Binary
             | FieldType::Bson
             | FieldType::Point
-            | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                "Not supported return type {typ} for {Sum}"
-            )))),
+            | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(
+                format!("Not supported return type {typ} for {Sum}"),
+            ))),
         },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Sum}"

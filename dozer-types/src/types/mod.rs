@@ -11,6 +11,7 @@ use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
 mod field;
+mod tests;
 
 use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
@@ -273,21 +274,22 @@ impl Display for TimeUnit {
 impl TimeUnit {
     type Error = String;
 
-    pub fn to_bytes(&self) -> [u8; 16] {
-        let mut result = [0_u8; 16];
-        result[0..16].copy_from_slice(self.to_string().as_bytes());
-        result
+    pub fn to_bytes(&self) -> [u8; 1] {
+        match self {
+            TimeUnit::Seconds => [0_u8],
+            TimeUnit::Milliseconds => [1_u8],
+            TimeUnit::Microseconds => [2_u8],
+            TimeUnit::Nanoseconds => [3_u8],
+        }
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Self::Error> {
-        let str = String::from_utf8(bytes.to_vec()).unwrap();
-        let unit = str.as_str();
-        match unit {
-            "Seconds" => Ok(TimeUnit::Seconds),
-            "Milliseconds" => Ok(TimeUnit::Milliseconds),
-            "Microseconds" => Ok(TimeUnit::Microseconds),
-            "Nanoseconds" => Ok(TimeUnit::Nanoseconds),
-            &_ => Err(format!("Unsupported '{unit}' unit")),
+        match bytes {
+            &[0_u8] => Ok(TimeUnit::Seconds),
+            &[1_u8] => Ok(TimeUnit::Milliseconds),
+            &[2_u8] => Ok(TimeUnit::Microseconds),
+            &[3_u8] => Ok(TimeUnit::Nanoseconds),
+            _ => Err("Unsupported unit".to_string()),
         }
     }
 }
@@ -297,11 +299,9 @@ pub struct DozerDuration(pub std::time::Duration, pub TimeUnit);
 
 impl Ord for DozerDuration {
     fn cmp(&self, other: &Self) -> Ordering {
-        let val1 = convert_to_nano(self);
-        let val2 = convert_to_nano(other);
-        if val1 == val2 {
+        if self.0 == other.0 {
             Ordering::Equal
-        } else if val1 > val2 {
+        } else if self.0 > self.0 {
             Ordering::Greater
         } else {
             Ordering::Less
@@ -315,16 +315,6 @@ impl PartialOrd for DozerDuration {
     }
 }
 
-fn convert_to_nano(d: &DozerDuration) -> i128 {
-    let val = d.0;
-    match d.1 {
-        TimeUnit::Seconds => val * 1000000000i128,
-        TimeUnit::Milliseconds => val * 1000000i128,
-        TimeUnit::Microseconds => val * 1000i128,
-        TimeUnit::Nanoseconds => val,
-    }
-}
-
 impl FromStr for DozerDuration {
     type Err = TypeError;
 
@@ -334,8 +324,11 @@ impl FromStr for DozerDuration {
             nullable: false,
             value: str.to_string(),
         };
-        let val = str.parse::<i128>().map_err(|_| error())?;
-        Ok(Self(val, TimeUnit::Nanoseconds))
+        let val = str.parse::<u64>().map_err(|_| error())?;
+        Ok(Self(
+            std::time::Duration::from_nanos(val),
+            TimeUnit::Nanoseconds,
+        ))
     }
 }
 
@@ -346,16 +339,17 @@ impl Display for DozerDuration {
 }
 
 impl DozerDuration {
-    pub fn to_bytes(&self) -> [u8; 32] {
-        let mut result = [0_u8; 32];
-        result[0..16].copy_from_slice(&self.0.to_be_bytes());
-        result[16..32].copy_from_slice(&self.1.to_bytes());
+    pub fn to_bytes(&self) -> [u8; 17] {
+        let mut result = [0_u8; 17];
+        result[0..1].copy_from_slice(&self.1.to_bytes());
+        result[1..17].copy_from_slice(&self.0.as_nanos().to_be_bytes());
         result
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, TryFromSliceError> {
-        let val = i128::from_be_bytes(bytes[0..16].try_into()?);
-        let unit = TimeUnit::from_bytes(bytes[16..32].try_into()?).unwrap();
+        let unit = TimeUnit::from_bytes(bytes[0..1].try_into()?).unwrap();
+        let val =
+            std::time::Duration::from_nanos(u128::from_be_bytes(bytes[1..17].try_into()?) as u64);
 
         Ok(DozerDuration(val, unit))
     }

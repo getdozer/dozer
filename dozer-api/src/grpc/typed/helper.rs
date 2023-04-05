@@ -87,6 +87,18 @@ fn interval_value_to_pb(
             point.set_field(y_field_desc, prost_reflect::Value::F64(p.y));
             Value::Message(point)
         }
+        GrpcTypes::value::Value::DurationValue(d) => {
+            let duration_type_desc = descriptor.duration_field.message.clone();
+            let value_field_desc = &descriptor.duration_field.value;
+            let time_unit_field_desc = &descriptor.duration_field.time_unit;
+            let mut duration = DynamicMessage::new(duration_type_desc);
+            duration.set_field(value_field_desc, prost_reflect::Value::String(d.value));
+            duration.set_field(
+                time_unit_field_desc,
+                prost_reflect::Value::String(d.time_unit),
+            );
+            Value::Message(duration)
+        }
         GrpcTypes::value::Value::DecimalValue(d) => {
             let decimal_type_desc = descriptor.decimal_field.message.clone();
             let flags_field_desc = &descriptor.decimal_field.flags;

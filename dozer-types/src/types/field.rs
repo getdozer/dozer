@@ -8,6 +8,7 @@ use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
+use std::time::Duration;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
@@ -51,7 +52,7 @@ pub enum FieldBorrow<'a> {
 }
 
 impl Field {
-    fn data_encoding_len(&self) -> usize {
+    pub(crate) fn data_encoding_len(&self) -> usize {
         match self {
             Field::UInt(_) => 8,
             Field::U128(_) => 16,
@@ -72,7 +73,7 @@ impl Field {
         }
     }
 
-    fn encode_data(&self) -> Cow<[u8]> {
+    pub(crate) fn encode_data(&self) -> Cow<[u8]> {
         match self {
             Field::UInt(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::U128(i) => Cow::Owned(i.to_be_bytes().into()),
@@ -320,7 +321,22 @@ impl Field {
 
     pub fn as_duration(&self) -> Option<DozerDuration> {
         match self {
-            Field::I128(d) => Some(DozerDuration(*d, TimeUnit::Nanoseconds)),
+            Field::UInt(d) => Some(DozerDuration(
+                Duration::from_nanos(*d),
+                TimeUnit::Nanoseconds,
+            )),
+            Field::U128(d) => Some(DozerDuration(
+                Duration::from_nanos(*d as u64),
+                TimeUnit::Nanoseconds,
+            )),
+            Field::Int(d) => Some(DozerDuration(
+                Duration::from_nanos(*d as u64),
+                TimeUnit::Nanoseconds,
+            )),
+            Field::I128(d) => Some(DozerDuration(
+                Duration::from_nanos(*d as u64),
+                TimeUnit::Nanoseconds,
+            )),
             Field::Duration(d) => Some(*d),
             _ => None,
         }
@@ -342,6 +358,7 @@ impl Field {
             Field::Float(f) => u64::from_f64(f.0),
             Field::Decimal(d) => d.to_u64(),
             Field::String(s) => s.parse::<u64>().ok(),
+            Field::Text(s) => s.parse::<u64>().ok(),
             Field::Null => Some(0_u64),
             _ => None,
         }
@@ -356,6 +373,7 @@ impl Field {
             Field::Float(f) => u128::from_f64(f.0),
             Field::Decimal(d) => d.to_u128(),
             Field::String(s) => s.parse::<u128>().ok(),
+            Field::Text(s) => s.parse::<u128>().ok(),
             Field::Null => Some(0_u128),
             _ => None,
         }
@@ -370,6 +388,7 @@ impl Field {
             Field::Float(f) => i64::from_f64(f.0),
             Field::Decimal(d) => d.to_i64(),
             Field::String(s) => s.parse::<i64>().ok(),
+            Field::Text(s) => s.parse::<i64>().ok(),
             Field::Null => Some(0_i64),
             _ => None,
         }
@@ -384,6 +403,7 @@ impl Field {
             Field::Float(f) => i128::from_f64(f.0),
             Field::Decimal(d) => d.to_i128(),
             Field::String(s) => s.parse::<i128>().ok(),
+            Field::Text(s) => s.parse::<i128>().ok(),
             Field::Null => Some(0_i128),
             _ => None,
         }
@@ -398,6 +418,7 @@ impl Field {
             Field::Float(f) => Some(f.0),
             Field::Decimal(d) => d.to_f64(),
             Field::String(s) => s.parse::<f64>().ok(),
+            Field::Text(s) => s.parse::<f64>().ok(),
             Field::Null => Some(0_f64),
             _ => None,
         }
@@ -413,6 +434,7 @@ impl Field {
             Field::Decimal(i) => Some(i.gt(&Decimal::from(0_u64))),
             Field::Boolean(b) => Some(*b),
             Field::String(s) => s.parse::<bool>().ok(),
+            Field::Text(s) => s.parse::<bool>().ok(),
             Field::Null => Some(false),
             _ => None,
         }

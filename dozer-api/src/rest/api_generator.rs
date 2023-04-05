@@ -11,7 +11,7 @@ use dozer_types::indexmap::IndexMap;
 use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, Schema, DATE_FORMAT, DozerDuration};
+use dozer_types::types::{DozerDuration, Field, Schema, DATE_FORMAT};
 use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
@@ -192,10 +192,7 @@ fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Val
 }
 
 fn convert_duration_to_object(d: &DozerDuration) -> Value {
-    let mut m = Map::new();
-    m.insert("val".to_string(), Value::from(d.0.to_string()));
-    m.insert("unit".to_string(), Value::from(d.1.to_string()));
-    Value::Object(m)
+    Value::from(d.to_string())
 }
 
 /// Used in REST APIs for converting raw value back and forth.

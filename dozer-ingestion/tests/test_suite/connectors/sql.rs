@@ -142,6 +142,7 @@ fn field_type_to_sql(field_type: FieldType) -> Option<String> {
         FieldType::Date => Some("DATE".to_string()),
         FieldType::Bson => Some("JSONB".to_string()),
         FieldType::Point => Some("POINT".to_string()),
+        FieldType::Duration => Some("DURATION".to_string()),
     }
 }
 
@@ -215,6 +216,7 @@ fn field_to_sql(field: &Field) -> String {
             format!("'{}'::json", json)
         }
         Field::Point(p) => format!("'({},{})'", p.0.x(), p.0.y()),
+        Field::Duration(d) => d.to_string(),
         Field::Null => "NULL".to_string(),
     }
 }

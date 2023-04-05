@@ -4,7 +4,7 @@ use dozer_types::grpc_types::types::{
 };
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT, DozerDuration};
+use dozer_types::types::{DozerDuration, Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 use prost_reflect::prost_types::Timestamp;
 
 pub fn map_insert_operation(endpoint_name: String, record: DozerRecord, id: u64) -> Operation {
@@ -71,7 +71,7 @@ fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) ->
 
 fn map_duration_to_prost_coord_map(d: DozerDuration) -> Value {
     Value {
-        value: Some(value::Value::StringValue(d.0.to_string())),
+        value: Some(value::Value::StringValue(d.to_string())),
     }
 }
 
