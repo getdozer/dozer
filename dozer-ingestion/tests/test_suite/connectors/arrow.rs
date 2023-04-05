@@ -4,7 +4,6 @@ use dozer_types::arrow::array::{
     Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
 };
 
-
 use dozer_types::{
     arrow,
     chrono::Datelike,

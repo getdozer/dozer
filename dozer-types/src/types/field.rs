@@ -754,7 +754,7 @@ impl pyo3::ToPyObject for Field {
             }
             Field::Bson(val) => val.to_object(py),
             Field::Point(_val) => todo!(),
-            Field::Duration(d) => todo!(),
+            Field::Duration(_d) => todo!(),
             Field::Null => unreachable!(),
         }
     }

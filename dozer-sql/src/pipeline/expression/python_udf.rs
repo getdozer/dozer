@@ -60,6 +60,7 @@ pub fn evaluate_py_udf(
             | FieldType::Date
             | FieldType::Timestamp
             | FieldType::Point
+            | FieldType::Duration
             | FieldType::Bson => {
                 return Err(UnsupportedSqlError(GenericError(
                     "Unsupported return type for python udf".to_string(),

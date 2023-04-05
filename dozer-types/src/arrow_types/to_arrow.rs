@@ -10,7 +10,6 @@ use arrow::{
 };
 use arrow_schema::TimeUnit;
 
-
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
     schema: &crate::types::Schema,
