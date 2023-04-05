@@ -1,6 +1,6 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::grpc_types::types::{
-    value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
+    value, Operation, OperationType, PointType, DurationType, Record, RecordWithId, RustDecimal, Type, Value,
 };
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
