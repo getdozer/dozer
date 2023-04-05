@@ -90,7 +90,7 @@ message PointType {
 }
 
 message DurationType {
-  string value = 1;      // u128
+  string value = 1;      // up to u128
   string time_unit = 2;  // nanoseconds by default
 }
 

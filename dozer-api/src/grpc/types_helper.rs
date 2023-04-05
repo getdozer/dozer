@@ -71,7 +71,7 @@ fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) ->
 
 fn map_duration_to_prost_coord_map(d: DozerDuration) -> Value {
     Value {
-        value: Some(value::Value::StringValue(d.to_string())),
+        value: Some(value::Value::DurationValue(DurationType { value: d.0.as_nanos().to_string(), time_unit: d.1.to_string() })),
     }
 }
 
@@ -165,6 +165,6 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Bson => Type::Bson,
         FieldType::Date => Type::String,
         FieldType::Point => Type::Point,
-        FieldType::Duration => Type::String,
+        FieldType::Duration => Type::Duration,
     }
 }
