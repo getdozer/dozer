@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::types::{Field, FieldDefinition, FieldType, Record, Schema};
-use arrow::datatypes::{self as arrow_types, DataType, ToByteSlice};
+use arrow::datatypes::{self as arrow_types, DataType};
 
 use arrow::{
     array::{self as arrow_array, ArrayRef},
@@ -115,7 +115,11 @@ pub fn map_record_to_arrow(
                 ])) as ArrayRef
             }
             (Field::Duration(d), FieldType::Duration) => {
-                Arc::new(arrow_array::DurationNanosecondArray::from_iter_values([d.0.as_nanos().to_i64().unwrap()])) as ArrayRef
+                Arc::new(arrow_array::DurationNanosecondArray::from_iter_values([d
+                    .0
+                    .as_nanos()
+                    .to_i64()
+                    .unwrap()])) as ArrayRef
             }
             (Field::Null, FieldType::Duration) => {
                 Arc::new(arrow_array::BinaryArray::from_opt_vec(vec![

@@ -3,12 +3,12 @@ use std::sync::Arc;
 use dozer_types::arrow::array::{
     Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
 };
+use dozer_types::arrow::datatypes::TimeUnit;
 use dozer_types::{
     arrow,
     chrono::Datelike,
     types::{Field, FieldDefinition, FieldType},
 };
-use dozer_types::arrow::datatypes::TimeUnit;
 
 use crate::test_suite::FieldsAndPk;
 
@@ -285,7 +285,9 @@ fn field_type_to_arrow(field_type: FieldType) -> Option<arrow::datatypes::DataTy
         FieldType::Date => Some(arrow::datatypes::DataType::Date32),
         FieldType::Bson => None,
         FieldType::Point => None,
-        FieldType::Duration => Some(arrow::datatypes::DataType::Duration(arrow::datatypes::TimeUnit::Nanosecond)),
+        FieldType::Duration => Some(arrow::datatypes::DataType::Duration(
+            arrow::datatypes::TimeUnit::Nanosecond,
+        )),
     }
 }
 
