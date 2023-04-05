@@ -271,6 +271,26 @@ impl Display for TimeUnit {
     }
 }
 
+impl FromStr for TimeUnit {
+    type Err = TypeError;
+
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        let error = || InvalidFieldValue {
+            field_type: FieldType::Duration,
+            nullable: false,
+            value: str.to_string(),
+        };
+        let string = str.parse::<String>().map_err(|_| error())?;
+        match string.as_str() {
+            "Seconds" => Ok(TimeUnit::Seconds),
+            "Milliseconds" => Ok(TimeUnit::Milliseconds),
+            "Microseconds" => Ok(TimeUnit::Microseconds),
+            "Nanoseconds" => Ok(TimeUnit::Nanoseconds),
+            &_ => Err(error()),
+        }
+    }
+}
+
 impl TimeUnit {
     type Error = String;
 
@@ -285,10 +305,10 @@ impl TimeUnit {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Self::Error> {
         match bytes {
-            &[0_u8] => Ok(TimeUnit::Seconds),
-            &[1_u8] => Ok(TimeUnit::Milliseconds),
-            &[2_u8] => Ok(TimeUnit::Microseconds),
-            &[3_u8] => Ok(TimeUnit::Nanoseconds),
+            [0_u8] => Ok(TimeUnit::Seconds),
+            [1_u8] => Ok(TimeUnit::Milliseconds),
+            [2_u8] => Ok(TimeUnit::Microseconds),
+            [3_u8] => Ok(TimeUnit::Nanoseconds),
             _ => Err("Unsupported unit".to_string()),
         }
     }

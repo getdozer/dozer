@@ -1,11 +1,12 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use crate::types::{DozerDuration, DozerPoint, DATE_FORMAT};
+use crate::types::{DozerDuration, DozerPoint, DATE_FORMAT, TimeUnit};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use serde_json::Value;
 use std::str::FromStr;
+use std::time::Duration;
 
 /// Used in REST APIs and query expressions for converting JSON value to `Field`
 pub fn json_value_to_field(
@@ -87,9 +88,42 @@ pub fn json_value_to_field(
         FieldType::Point => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),
-        FieldType::Duration => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Duration),
+        FieldType::Duration => {
+            match value.get("value") {
+                Some(Value::String(v_val)) => {
+                    match value.get("time_unit") {
+                        Some(Value::String(tu_val)) => {
+                            let time_unit = TimeUnit::from_str(tu_val)?;
+                            return match time_unit {
+                                TimeUnit::Seconds => {
+                                    let dur = u64::from_str(v_val).unwrap();
+                                    Ok(Field::Duration(DozerDuration(Duration::from_secs(dur), time_unit)))
+                                },
+                                TimeUnit::Milliseconds => {
+                                    let dur = u64::from_str(v_val).unwrap();
+                                    Ok(Field::Duration(DozerDuration(Duration::from_millis(dur), time_unit)))
+                                },
+                                TimeUnit::Microseconds => {
+                                    let dur = u64::from_str(v_val).unwrap();
+                                    Ok(Field::Duration(DozerDuration(Duration::from_micros(dur), time_unit)))
+                                },
+                                TimeUnit::Nanoseconds => Ok(Field::Duration(DozerDuration::from_str(v_val).unwrap())),
+                            }
+                        }
+                        _ => Err(DeserializationError::Custom(
+                            "Json value type does not match field type"
+                                .to_string()
+                                .into(),
+                        )),
+                    }
+                }
+                _ => Err(DeserializationError::Custom(
+                    "Json value type does not match field type"
+                        .to_string()
+                        .into(),
+                )),
+            }
+        },
     }
     .map_err(TypeError::DeserializationError)
 }
