@@ -90,8 +90,8 @@ fn test_read_parquet_file() {
         panic!("Unexpected message");
     }
 
-    let mut i = 0;
-    while i < 8 {
+    let mut i = 1;
+    while i < 9 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
@@ -149,8 +149,8 @@ fn test_csv_read() {
         panic!("Unexpected message");
     }
 
-    let mut i = 0;
-    while i < 8 {
+    let mut i = 1;
+    while i < 9 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
