@@ -224,7 +224,7 @@ fn field_to_json_value(field: Field) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use dozer_types::types::TimeUnit;
     use dozer_types::{
         chrono::{NaiveDate, Offset, TimeZone, Utc},
         json_value_to_field,
@@ -232,7 +232,7 @@ mod tests {
         rust_decimal::Decimal,
         types::{DozerPoint, Field, FieldType},
     };
-    use dozer_types::types::TimeUnit;
+    use std::time::Duration;
 
     use super::*;
 
@@ -278,7 +278,10 @@ mod tests {
             ),
             (
                 FieldType::Duration,
-                Field::Duration(DozerDuration(Duration::from_nanos(123_u64), TimeUnit::Nanoseconds)),
+                Field::Duration(DozerDuration(
+                    Duration::from_nanos(123_u64),
+                    TimeUnit::Nanoseconds,
+                )),
             ),
         ];
         for (field_type, field) in fields {

@@ -174,7 +174,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                     if let Some(decimal_values) = descriptor.get_message_by_name(DECIMAL_TYPE_CLASS)
                     {
                         if let Some(dv) = descriptor.get_message_by_name(DURATION_TYPE_CLASS) {
-                            let durv = dv.clone();
+                            let durv = dv;
                             Ok(RecordDesc {
                                 message,
                                 version_field,

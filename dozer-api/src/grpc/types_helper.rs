@@ -1,6 +1,7 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::grpc_types::types::{
-    value, Operation, OperationType, PointType, DurationType, Record, RecordWithId, RustDecimal, Type, Value,
+    value, DurationType, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal,
+    Type, Value,
 };
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
@@ -71,7 +72,10 @@ fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) ->
 
 fn map_duration_to_prost_coord_map(d: DozerDuration) -> Value {
     Value {
-        value: Some(value::Value::DurationValue(DurationType { value: d.0.as_nanos().to_string(), time_unit: d.1.to_string() })),
+        value: Some(value::Value::DurationValue(DurationType {
+            value: d.0.as_nanos().to_string(),
+            time_unit: d.1.to_string(),
+        })),
     }
 }
 
