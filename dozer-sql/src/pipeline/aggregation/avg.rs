@@ -19,19 +19,30 @@ pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
     let arg = &argv!(args, 0, AggregateFunctionType::Avg)?.get_type(schema)?;
 
     let ret_type = match arg.return_type {
-        FieldType::Decimal => FieldType::Decimal,
-        FieldType::Int => FieldType::Decimal,
         FieldType::UInt => FieldType::Decimal,
+        FieldType::U128 => FieldType::Decimal,
+        FieldType::Int => FieldType::Decimal,
+        FieldType::I128 => FieldType::Decimal,
         FieldType::Float => FieldType::Float,
-        r => {
+        FieldType::Decimal => FieldType::Decimal,
+        FieldType::Boolean
+        | FieldType::String
+        | FieldType::Text
+        | FieldType::Date
+        | FieldType::Timestamp
+        | FieldType::Binary
+        | FieldType::Bson
+        | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Avg.to_string(),
-                r,
+                arg.return_type,
                 FieldTypes::new(vec![
-                    FieldType::Decimal,
                     FieldType::UInt,
+                    FieldType::U128,
                     FieldType::Int,
+                    FieldType::I128,
                     FieldType::Float,
+                    FieldType::Decimal,
                 ]),
                 0,
             ));
@@ -58,7 +69,9 @@ impl AvgAggregator {
         Self {
             current_state: SumState {
                 int_state: 0_i64,
+                i128_state: 0_i128,
                 uint_state: 0_u64,
+                u128_state: 0_u128,
                 float_state: 0_f64,
                 decimal_state: Decimal::from_f64(0_f64).unwrap(),
             },
@@ -111,51 +124,80 @@ fn get_average(
     let sum = get_sum(field, current_sum, return_type, decr)?;
 
     match return_type {
-        Some(FieldType::UInt) => {
-            if *current_count == 0 {
-                return Ok(Field::Null);
+        Some(typ) => match typ {
+            FieldType::UInt => {
+                if *current_count == 0 {
+                    return Ok(Field::Null);
+                }
+                let u_sum = sum
+                    .to_uint()
+                    .ok_or(InvalidValue(sum.to_string().unwrap()))
+                    .unwrap();
+                Ok(Field::UInt(u_sum.div_wrapping(*current_count)))
             }
-            let u_sum = sum
-                .to_uint()
-                .ok_or(InvalidValue(sum.to_string().unwrap()))
-                .unwrap();
-            Ok(Field::UInt(u_sum.div_wrapping(*current_count)))
-        }
-        Some(FieldType::Int) => {
-            if *current_count == 0 {
-                return Ok(Field::Null);
+            FieldType::U128 => {
+                if *current_count == 0 {
+                    return Ok(Field::Null);
+                }
+                let u_sum = sum
+                    .to_u128()
+                    .ok_or(InvalidValue(sum.to_string().unwrap()))
+                    .unwrap();
+                Ok(Field::U128(u_sum.wrapping_div(*current_count as u128)))
             }
-            let i_sum = sum
-                .to_int()
-                .ok_or(InvalidValue(sum.to_string().unwrap()))
-                .unwrap();
-            Ok(Field::Int(i_sum.div_wrapping(*current_count as i64)))
-        }
-        Some(FieldType::Float) => {
-            if *current_count == 0 {
-                return Ok(Field::Null);
+            FieldType::Int => {
+                if *current_count == 0 {
+                    return Ok(Field::Null);
+                }
+                let i_sum = sum
+                    .to_int()
+                    .ok_or(InvalidValue(sum.to_string().unwrap()))
+                    .unwrap();
+                Ok(Field::Int(i_sum.div_wrapping(*current_count as i64)))
             }
-            let f_sum = sum
-                .to_float()
-                .ok_or(InvalidValue(sum.to_string().unwrap()))
-                .unwrap();
-            Ok(Field::Float(OrderedFloat(
-                f_sum.div_wrapping(*current_count as f64),
-            )))
-        }
-        Some(FieldType::Decimal) => {
-            if *current_count == 0 {
-                return Ok(Field::Null);
+            FieldType::I128 => {
+                if *current_count == 0 {
+                    return Ok(Field::Null);
+                }
+                let i_sum = sum
+                    .to_i128()
+                    .ok_or(InvalidValue(sum.to_string().unwrap()))
+                    .unwrap();
+                Ok(Field::I128(i_sum.div_wrapping(*current_count as i128)))
             }
-            let d_sum = sum
-                .to_decimal()
-                .ok_or(InvalidValue(sum.to_string().unwrap()))
-                .unwrap();
-            Ok(Field::Decimal(d_sum.div(Decimal::from(*current_count))))
-        }
-        Some(not_supported_return_type) => Err(PipelineError::InternalExecutionError(InvalidType(
-            format!("Not supported return type {not_supported_return_type} for {Avg}"),
-        ))),
+            FieldType::Float => {
+                if *current_count == 0 {
+                    return Ok(Field::Null);
+                }
+                let f_sum = sum
+                    .to_float()
+                    .ok_or(InvalidValue(sum.to_string().unwrap()))
+                    .unwrap();
+                Ok(Field::Float(OrderedFloat(
+                    f_sum.div_wrapping(*current_count as f64),
+                )))
+            }
+            FieldType::Decimal => {
+                if *current_count == 0 {
+                    return Ok(Field::Null);
+                }
+                let d_sum = sum
+                    .to_decimal()
+                    .ok_or(InvalidValue(sum.to_string().unwrap()))
+                    .unwrap();
+                Ok(Field::Decimal(d_sum.div(Decimal::from(*current_count))))
+            }
+            FieldType::Boolean
+            | FieldType::String
+            | FieldType::Text
+            | FieldType::Date
+            | FieldType::Timestamp
+            | FieldType::Binary
+            | FieldType::Bson
+            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+                "Not supported return type {typ} for {Avg}"
+            )))),
+        },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Avg}"
         )))),

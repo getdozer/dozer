@@ -75,6 +75,9 @@ fn interval_value_to_pb(
         GrpcTypes::value::Value::BytesValue(n) => {
             Value::Bytes(prost_reflect::bytes::Bytes::from(n))
         }
+        GrpcTypes::value::Value::Uint128Value(n) | GrpcTypes::value::Value::Int128Value(n) => {
+            Value::String(n)
+        }
         GrpcTypes::value::Value::PointValue(p) => {
             let point_type_desc = descriptor.point_field.message.clone();
             let x_field_desc = &descriptor.point_field.x;

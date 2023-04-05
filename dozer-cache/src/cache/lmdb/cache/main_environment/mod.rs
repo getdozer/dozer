@@ -283,8 +283,14 @@ fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
             FieldType::UInt => {
                 debug_assert!(value.as_uint().is_some())
             }
+            FieldType::U128 => {
+                debug_assert!(value.as_u128().is_some())
+            }
             FieldType::Int => {
                 debug_assert!(value.as_int().is_some())
+            }
+            FieldType::I128 => {
+                debug_assert!(value.as_i128().is_some())
             }
             FieldType::Float => {
                 debug_assert!(value.as_float().is_some())

@@ -91,7 +91,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
 
                 ingestor
                     .handle_message(IngestionMessage::new_op(
-                        0_u64,
+                        (id + 1) as u64,
                         idx,
                         Operation::Insert {
                             new: Record {
@@ -117,6 +117,9 @@ pub trait Reader<T> {
 
 impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
     fn read_tables(&self, tables: &[TableInfo], ingestor: &Ingestor) -> Result<(), ConnectorError> {
+        ingestor
+            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
+            .map_err(ObjectStoreConnectorError::IngestorError)?;
         for (id, table) in tables.iter().enumerate() {
             let params = self.config.table_params(&table.name)?;
 
@@ -149,6 +152,13 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
                 table,
             ))?;
         }
+
+        ingestor
+            .handle_message(IngestionMessage::new_snapshotting_done(
+                (tables.len() + 1) as u64,
+                0,
+            ))
+            .map_err(ObjectStoreConnectorError::IngestorError)?;
 
         Ok(())
     }

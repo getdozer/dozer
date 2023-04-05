@@ -107,6 +107,10 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
             format: VariantOrUnknownOrEmpty::Item(IntegerFormat::Int64),
             ..Default::default()
         }),
+        FieldType::U128 | FieldType::I128 => Type::String(StringType {
+            format: VariantOrUnknownOrEmpty::Empty,
+            ..Default::default()
+        }),
         FieldType::Float => Type::Number(NumberType {
             format: VariantOrUnknownOrEmpty::Item(NumberFormat::Double),
             ..Default::default()

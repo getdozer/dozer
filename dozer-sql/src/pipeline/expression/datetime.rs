@@ -83,7 +83,19 @@ pub(crate) fn evaluate_date_part(
             .ok_or(InvalidValue(format!(
                 "Unable to cast date {d} to timestamp"
             ))),
-        _ => {
+        Field::UInt(_)
+        | Field::U128(_)
+        | Field::Int(_)
+        | Field::I128(_)
+        | Field::Float(_)
+        | Field::Boolean(_)
+        | Field::String(_)
+        | Field::Text(_)
+        | Field::Binary(_)
+        | Field::Decimal(_)
+        | Field::Bson(_)
+        | Field::Point(_)
+        | Field::Null => {
             return Err(InvalidFunctionArgument(
                 DateTimeFunctionType::Extract { field: *field }.to_string(),
                 value,

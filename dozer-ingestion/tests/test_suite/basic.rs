@@ -50,12 +50,12 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     let mut num_operations = 0;
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
         // Check message identifier.
-        if let Some(last_identifier) = last_identifier {
-            assert!(message.identifier > last_identifier);
-        }
-        last_identifier = Some(message.identifier);
-
         if let IngestionMessageKind::OperationEvent(operation) = &message.kind {
+            if let Some(last_identifier) = last_identifier {
+                assert!(message.identifier > last_identifier);
+            }
+            last_identifier = Some(message.identifier);
+
             num_operations += 1;
             // Check record schema consistency.
             match operation {
@@ -282,8 +282,14 @@ fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk:
             FieldType::UInt => {
                 assert!(value.as_uint().is_some())
             }
+            FieldType::U128 => {
+                assert!(value.as_u128().is_some())
+            }
             FieldType::Int => {
                 assert!(value.as_int().is_some())
+            }
+            FieldType::I128 => {
+                assert!(value.as_i128().is_some())
             }
             FieldType::Float => {
                 assert!(value.as_float().is_some())

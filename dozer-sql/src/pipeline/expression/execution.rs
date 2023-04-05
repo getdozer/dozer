@@ -333,7 +333,10 @@ impl ExpressionExecutor for Expression {
 
 fn get_field_type(field: &Field) -> Option<FieldType> {
     match field {
+        Field::UInt(_) => Some(FieldType::UInt),
+        Field::U128(_) => Some(FieldType::U128),
         Field::Int(_) => Some(FieldType::Int),
+        Field::I128(_) => Some(FieldType::I128),
         Field::Float(_) => Some(FieldType::Float),
         Field::Boolean(_) => Some(FieldType::Boolean),
         Field::String(_) => Some(FieldType::String),
@@ -342,7 +345,6 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::Timestamp(_) => Some(FieldType::Timestamp),
         Field::Bson(_) => Some(FieldType::Bson),
         Field::Null => None,
-        Field::UInt(_) => Some(FieldType::UInt),
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
         Field::Point(_) => Some(FieldType::Point),
@@ -415,6 +417,14 @@ fn get_binary_operator_type(
                     SourceDefinition::Dynamic,
                     false,
                 )),
+                (FieldType::U128, FieldType::U128)
+                | (FieldType::U128, FieldType::UInt)
+                | (FieldType::UInt, FieldType::U128) => Ok(ExpressionType::new(
+                    FieldType::U128,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
                 (FieldType::Timestamp, FieldType::Timestamp) => Ok(ExpressionType::new(
                     FieldType::Int,
                     false,
@@ -429,11 +439,27 @@ fn get_binary_operator_type(
                     SourceDefinition::Dynamic,
                     false,
                 )),
+                (FieldType::I128, FieldType::I128)
+                | (FieldType::I128, FieldType::UInt)
+                | (FieldType::I128, FieldType::U128)
+                | (FieldType::I128, FieldType::Int)
+                | (FieldType::UInt, FieldType::I128)
+                | (FieldType::U128, FieldType::I128)
+                | (FieldType::Int, FieldType::I128) => Ok(ExpressionType::new(
+                    FieldType::I128,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
                 (FieldType::Float, FieldType::Float)
-                | (FieldType::Int, FieldType::Float)
+                | (FieldType::Float, FieldType::UInt)
+                | (FieldType::Float, FieldType::U128)
                 | (FieldType::Float, FieldType::Int)
+                | (FieldType::Float, FieldType::I128)
                 | (FieldType::UInt, FieldType::Float)
-                | (FieldType::Float, FieldType::UInt) => Ok(ExpressionType::new(
+                | (FieldType::U128, FieldType::Float)
+                | (FieldType::Int, FieldType::Float)
+                | (FieldType::I128, FieldType::Float) => Ok(ExpressionType::new(
                     FieldType::Float,
                     false,
                     SourceDefinition::Dynamic,
@@ -441,10 +467,14 @@ fn get_binary_operator_type(
                 )),
                 (FieldType::Decimal, FieldType::Decimal)
                 | (FieldType::UInt, FieldType::Decimal)
+                | (FieldType::U128, FieldType::Decimal)
                 | (FieldType::Int, FieldType::Decimal)
+                | (FieldType::I128, FieldType::Decimal)
                 | (FieldType::Float, FieldType::Decimal)
                 | (FieldType::Decimal, FieldType::UInt)
+                | (FieldType::Decimal, FieldType::U128)
                 | (FieldType::Decimal, FieldType::Int)
+                | (FieldType::Decimal, FieldType::I128)
                 | (FieldType::Decimal, FieldType::Float) => Ok(ExpressionType::new(
                     FieldType::Decimal,
                     false,
@@ -461,25 +491,46 @@ fn get_binary_operator_type(
 
         BinaryOperatorType::Div => {
             match (left_field_type.return_type, right_field_type.return_type) {
-                (FieldType::Int, FieldType::Int)
-                | (FieldType::Int, FieldType::UInt)
+                (FieldType::Int, FieldType::UInt)
+                | (FieldType::Int, FieldType::Int)
+                | (FieldType::Int, FieldType::U128)
+                | (FieldType::Int, FieldType::I128)
                 | (FieldType::Int, FieldType::Float)
+                | (FieldType::I128, FieldType::UInt)
+                | (FieldType::I128, FieldType::Int)
+                | (FieldType::I128, FieldType::U128)
+                | (FieldType::I128, FieldType::I128)
+                | (FieldType::I128, FieldType::Float)
                 | (FieldType::UInt, FieldType::UInt)
+                | (FieldType::UInt, FieldType::U128)
                 | (FieldType::UInt, FieldType::Int)
+                | (FieldType::UInt, FieldType::I128)
                 | (FieldType::UInt, FieldType::Float)
+                | (FieldType::U128, FieldType::UInt)
+                | (FieldType::U128, FieldType::U128)
+                | (FieldType::U128, FieldType::Int)
+                | (FieldType::U128, FieldType::I128)
+                | (FieldType::U128, FieldType::Float)
                 | (FieldType::Float, FieldType::UInt)
+                | (FieldType::Float, FieldType::U128)
                 | (FieldType::Float, FieldType::Int)
+                | (FieldType::Float, FieldType::I128)
                 | (FieldType::Float, FieldType::Float) => Ok(ExpressionType::new(
                     FieldType::Float,
                     false,
                     SourceDefinition::Dynamic,
                     false,
                 )),
-                (FieldType::Decimal, FieldType::Int)
-                | (FieldType::Decimal, FieldType::Float)
+                (FieldType::Decimal, FieldType::Decimal)
                 | (FieldType::Decimal, FieldType::UInt)
+                | (FieldType::Decimal, FieldType::U128)
+                | (FieldType::Decimal, FieldType::Int)
+                | (FieldType::Decimal, FieldType::I128)
+                | (FieldType::Decimal, FieldType::Float)
                 | (FieldType::UInt, FieldType::Decimal)
+                | (FieldType::U128, FieldType::Decimal)
                 | (FieldType::Int, FieldType::Decimal)
+                | (FieldType::I128, FieldType::Decimal)
                 | (FieldType::Float, FieldType::Decimal) => Ok(ExpressionType::new(
                     FieldType::Decimal,
                     false,

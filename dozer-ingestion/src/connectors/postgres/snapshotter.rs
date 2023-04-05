@@ -108,7 +108,10 @@ impl<'a> PostgresSnapshotter<'a> {
             });
         }
 
-        let mut idx = 0;
+        self.ingestor
+            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
+            .map_err(ConnectorError::IngestorError)?;
+        let mut idx = 1;
         loop {
             let message = rx
                 .recv()
@@ -128,6 +131,10 @@ impl<'a> PostgresSnapshotter<'a> {
                 }
             }
         }
+
+        self.ingestor
+            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, idx))
+            .map_err(ConnectorError::IngestorError)?;
 
         Ok(())
     }
