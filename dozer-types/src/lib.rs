@@ -1,4 +1,3 @@
-#![feature(inherent_associated_types)]
 pub mod borrow;
 pub mod constants;
 pub mod errors;

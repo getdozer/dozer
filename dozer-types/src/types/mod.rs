@@ -13,6 +13,7 @@ use serde::{self, Deserialize, Serialize};
 mod field;
 mod tests;
 
+use crate::errors::internal::BoxedError;
 use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
@@ -292,8 +293,6 @@ impl FromStr for TimeUnit {
 }
 
 impl TimeUnit {
-    type Error = String;
-
     pub fn to_bytes(&self) -> [u8; 1] {
         match self {
             TimeUnit::Seconds => [0_u8],
@@ -303,13 +302,13 @@ impl TimeUnit {
         }
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Self::Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, BoxedError> {
         match bytes {
             [0_u8] => Ok(TimeUnit::Seconds),
             [1_u8] => Ok(TimeUnit::Milliseconds),
             [2_u8] => Ok(TimeUnit::Microseconds),
             [3_u8] => Ok(TimeUnit::Nanoseconds),
-            _ => Err("Unsupported unit".to_string()),
+            _ => Err(BoxedError::from("Unsupported unit".to_string())),
         }
     }
 }
@@ -319,13 +318,7 @@ pub struct DozerDuration(pub std::time::Duration, pub TimeUnit);
 
 impl Ord for DozerDuration {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.0 == other.0 {
-            Ordering::Equal
-        } else if self.0 > self.0 {
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        }
+        std::time::Duration::cmp(&self.0, &other.0)
     }
 }
 

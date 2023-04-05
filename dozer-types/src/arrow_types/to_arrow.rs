@@ -9,7 +9,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use arrow_schema::TimeUnit;
-use rust_decimal::prelude::ToPrimitive;
+
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
@@ -115,11 +115,9 @@ pub fn map_record_to_arrow(
                 ])) as ArrayRef
             }
             (Field::Duration(d), FieldType::Duration) => {
-                Arc::new(arrow_array::DurationNanosecondArray::from_iter_values([d
-                    .0
-                    .as_nanos()
-                    .to_i64()
-                    .unwrap()])) as ArrayRef
+                Arc::new(arrow_array::DurationNanosecondArray::from_iter_values([
+                    d.0.as_nanos() as i64,
+                ])) as ArrayRef
             }
             (Field::Null, FieldType::Duration) => {
                 Arc::new(arrow_array::BinaryArray::from_opt_vec(vec![

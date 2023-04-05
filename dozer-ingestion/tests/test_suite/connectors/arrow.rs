@@ -3,7 +3,8 @@ use std::sync::Arc;
 use dozer_types::arrow::array::{
     Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
 };
-use dozer_types::arrow::datatypes::TimeUnit;
+
+
 use dozer_types::{
     arrow,
     chrono::Datelike,
@@ -427,7 +428,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             let mut builder = arrow::array::DurationNanosecondArray::builder(count);
             for field in fields {
                 match field {
-                    Field::Duration(value) => builder.append_value(value.0.as_nanos().as_i64()),
+                    Field::Duration(value) => builder.append_value(value.0.as_nanos() as i64),
                     Field::Null => builder.append_null(),
                     _ => panic!("Unexpected field type"),
                 }
