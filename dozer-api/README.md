@@ -20,6 +20,7 @@ Following table shows how Dozer type is converted to JSON type in REST API.
 | date       | string         | "%Y-%m-%d" format |
 | bson       | array of number | Every number is between 0-255 and represents a byte. |
 | point      | object         | { x: number, y: number } |
+| duration   | object         | { value: string, time_unit: string } |
 
 ## gRPC
 
@@ -41,3 +42,4 @@ Following table shows how Dozer type is converted to gRPC type in gRPC API.
 | date       | string         | "%Y-%m-%d" format |
 | bson       | bytes          | |
 | point      | Point          | { x: double, y: double } |
+| duration   | Duration       | { value: string, time_unit: string } |

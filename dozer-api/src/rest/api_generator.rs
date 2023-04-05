@@ -192,7 +192,10 @@ fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Val
 }
 
 fn convert_duration_to_object(d: &DozerDuration) -> Value {
-    Value::from(d.to_string())
+    let mut m = Map::new();
+    m.insert("value".to_string(), Value::from(d.0.as_nanos().to_string()));
+    m.insert("time_unit".to_string(), Value::from(d.1.to_string()));
+    Value::Object(m)
 }
 
 /// Used in REST APIs for converting raw value back and forth.
@@ -221,6 +224,7 @@ fn field_to_json_value(field: Field) -> Value {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use dozer_types::{
         chrono::{NaiveDate, Offset, TimeZone, Utc},
         json_value_to_field,
@@ -228,6 +232,7 @@ mod tests {
         rust_decimal::Decimal,
         types::{DozerPoint, Field, FieldType},
     };
+    use dozer_types::types::TimeUnit;
 
     use super::*;
 
@@ -270,6 +275,10 @@ mod tests {
             (
                 FieldType::Point,
                 Field::Point(DozerPoint::from((3.234, 4.567))),
+            ),
+            (
+                FieldType::Duration,
+                Field::Duration(DozerDuration(Duration::from_nanos(123_u64), TimeUnit::Nanoseconds)),
             ),
         ];
         for (field_type, field) in fields {
