@@ -50,12 +50,12 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     let mut num_operations = 0;
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
         // Check message identifier.
-        if let Some(last_identifier) = last_identifier {
-            assert!(message.identifier > last_identifier);
-        }
-        last_identifier = Some(message.identifier);
-
         if let IngestionMessageKind::OperationEvent(operation) = &message.kind {
+            if let Some(last_identifier) = last_identifier {
+                assert!(message.identifier > last_identifier);
+            }
+            last_identifier = Some(message.identifier);
+
             num_operations += 1;
             // Check record schema consistency.
             match operation {

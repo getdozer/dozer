@@ -1,0 +1,75 @@
+version: '3.1'
+
+services:
+  dozer-tests-ubuntu-20-amd64:
+    build:
+      context: dockerfiles
+      dockerfile: ubuntu-20-amd64
+    volumes:
+      - ${PWD}:/dozer
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+    working_dir: /dozer
+    environment:
+      - DOZER_VERSION
+    command: sh /dozer/.github/workflows/integration/test-dozer-ubuntu.sh
+  dozer-tests-ubuntu-20-arm64:
+    build:
+      context: dockerfiles
+      dockerfile: ubuntu-20-arm64
+    volumes:
+      - ${PWD}:/dozer
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+    working_dir: /dozer
+    environment:
+      - DOZER_VERSION
+    command: sh /dozer/.github/workflows/integration/test-dozer-ubuntu.sh
+  dozer-tests-ubuntu-22-amd64:
+    build:
+      context: dockerfiles
+      dockerfile: ubuntu-22-amd64
+    volumes:
+      - ${PWD}:/dozer
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+    working_dir: /dozer
+    environment:
+      - DOZER_VERSION
+    command: sh /dozer/.github/workflows/integration/test-dozer-ubuntu.sh
+  dozer-tests-ubuntu-22-arm64:
+    build:
+      context: dockerfiles
+      dockerfile: ubuntu-22-arm64
+    volumes:
+      - ${PWD}:/dozer
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+    working_dir: /dozer
+    environment:
+      - DOZER_VERSION
+    command: sh /dozer/.github/workflows/integration/test-dozer-ubuntu.sh
+  run-tests:
+    image: alpine
+    command: echo 'All tests passed'
+    depends_on:
+      dozer-tests-ubuntu-20-amd64:
+        condition: service_completed_successfully
+      dozer-tests-ubuntu-20-arm64:
+        condition: service_completed_successfully
+      dozer-tests-ubuntu-22-amd64:
+        condition: service_completed_successfully
+      dozer-tests-ubuntu-22-arm64:
+        condition: service_completed_successfully

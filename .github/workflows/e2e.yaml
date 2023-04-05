@@ -3,6 +3,8 @@ name: Dozer E2E Test
 on:
   pull_request_target:
     branches: [main, e2e-yaml-dev]
+  push:
+    branches: [main, e2e-yaml-dev]
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,9 +22,13 @@ jobs:
       labels: ubuntu-latest-16-cores
 
     steps:
-      - uses: actions/checkout@v3
+      - if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+
+      - if: github.event_name == 'push'
+        uses: actions/checkout@v3
 
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1

@@ -392,13 +392,6 @@ jobs:
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Trigger BuildKite integration tests
-        if: matrix.os == 'ubuntu-20-16-cores'
-        run: |
-          curl -X POST "https://api.buildkite.com/v2/organizations/dozer-data-pte-ltd/pipelines/integration-tests/builds" \
-            --header 'Authorization: Bearer ${{ secrets.BUILDKITE_API_ACCESS_TOKEN_WRITE_BUILDS }}' \
-            -d '{ "commit": "${{ github.sha }}", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ github.sha }}" }, "ignore_pipeline_branch_filters": true }'
-
       - name: Release notification
         if: ${{ env.VERSION != 'dev' && matrix.os == 'ubuntu-20-16-cores'}}
         env:

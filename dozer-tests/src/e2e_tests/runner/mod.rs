@@ -64,7 +64,9 @@ fn spawn_command(bin: &str, args: &[&str]) -> Child {
     let mut cmd = Command::new(bin);
     cmd.args(args);
     info!("Spawning command: {:?}", cmd);
-    let mut child = cmd.spawn().expect("Failed to run command");
+    let mut child = cmd
+        .spawn()
+        .unwrap_or_else(|e| panic!("Failed to run command {cmd:?}: {e}"));
     // Give dozer some time to start.
     sleep(Duration::from_millis(30000));
     if let Some(exit_status) = child
