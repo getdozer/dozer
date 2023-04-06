@@ -3,8 +3,9 @@ use dozer_types::{
     types::{Field, FieldDefinition, Schema, SourceDefinition},
 };
 use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
-    FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+    BinaryOperator as SqlBinaryOperator, DataType, DateTimeField, Expr as SqlExpr, Expr, Function,
+    FunctionArg, FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator,
+    Value as SqlValue,
 };
 
 use crate::pipeline::errors::PipelineError::{
@@ -111,6 +112,15 @@ impl ExpressionBuilder {
             }
             SqlExpr::Extract { field, expr } => {
                 self.parse_sql_extract_operator(parse_aggregations, field, expr, schema)
+            }
+            SqlExpr::Interval {
+                value,
+                leading_field,
+                leading_precision: _,
+                last_field: _,
+                fractional_seconds_precision: _,
+            } => {
+                self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema)
             }
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
@@ -393,6 +403,26 @@ impl ExpressionBuilder {
             FunctionArg::Unnamed(FunctionArgExpr::QualifiedWildcard(_)) => {
                 Err(InvalidArgument(format!("{argument:?}")))
             }
+        }
+    }
+
+    fn parse_sql_interval_expression(
+        &mut self,
+        parse_aggregations: bool,
+        value: &Expr,
+        leading_field: &Option<DateTimeField>,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let right = self.parse_sql_expression(parse_aggregations, value, schema)?;
+        if leading_field.is_some() {
+            Ok(Expression::DateTimeFunction {
+                fun: DateTimeFunctionType::Interval {
+                    field: leading_field.unwrap(),
+                },
+                arg: Box::new(right),
+            })
+        } else {
+            Err(InvalidExpression(format!("INTERVAL for {leading_field:?}")))
         }
     }
 

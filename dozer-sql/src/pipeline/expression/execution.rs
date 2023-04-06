@@ -427,7 +427,25 @@ fn get_binary_operator_type(
                     false,
                 )),
                 (FieldType::Timestamp, FieldType::Timestamp) => Ok(ExpressionType::new(
-                    FieldType::Int,
+                    FieldType::Duration,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (FieldType::Timestamp, FieldType::Duration) => Ok(ExpressionType::new(
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (FieldType::Duration, FieldType::Timestamp) => Ok(ExpressionType::new(
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (FieldType::Duration, FieldType::Duration) => Ok(ExpressionType::new(
+                    FieldType::Duration,
                     false,
                     SourceDefinition::Dynamic,
                     false,

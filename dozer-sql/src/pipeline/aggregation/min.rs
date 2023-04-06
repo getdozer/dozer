@@ -21,13 +21,13 @@ pub fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         FieldType::Decimal => FieldType::Decimal,
         FieldType::Timestamp => FieldType::Timestamp,
         FieldType::Date => FieldType::Date,
+        FieldType::Duration => FieldType::Duration,
         FieldType::Boolean
         | FieldType::String
         | FieldType::Text
         | FieldType::Binary
         | FieldType::Bson
-        | FieldType::Point
-        | FieldType::Duration => {
+        | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Min.to_string(),
                 arg.return_type,
@@ -40,6 +40,7 @@ pub fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
                     FieldType::Float,
                     FieldType::Timestamp,
                     FieldType::Date,
+                    FieldType::Duration,
                 ]),
                 0,
             ));
@@ -119,13 +120,17 @@ fn get_min(
                     val
                 ))),
                 FieldType::Date => Ok(Field::Date(calculate_err_field!(val.to_date()?, Min, val))),
+                FieldType::Duration => Ok(Field::Duration(calculate_err_field!(
+                    val.to_duration()?,
+                    Min,
+                    val
+                ))),
                 FieldType::Boolean
                 | FieldType::String
                 | FieldType::Text
                 | FieldType::Binary
                 | FieldType::Bson
-                | FieldType::Point
-                | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(
+                | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(
                     format!("Not supported return type {typ} for {Min}"),
                 ))),
             },
