@@ -548,11 +548,29 @@ impl Field {
         }
     }
 
-    pub fn to_duration(&self) -> Option<DozerDuration> {
+    pub fn to_duration(&self) -> Result<Option<DozerDuration>, TypeError> {
         match self {
-            Field::Duration(d) => Some(*d),
-            Field::Null => Some(DozerDuration::from_str("0").unwrap()),
-            _ => None,
+            Field::UInt(d) => Ok(Some(
+                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            )),
+            Field::U128(d) => Ok(Some(
+                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            )),
+            Field::Int(d) => Ok(Some(
+                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            )),
+            Field::I128(d) => Ok(Some(
+                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            )),
+            Field::Duration(d) => Ok(Some(*d)),
+            Field::String(d) => Ok(Some(DozerDuration::from_str(d.as_str()).unwrap())),
+            Field::Text(d) => Ok(Some(DozerDuration::from_str(d.as_str()).unwrap())),
+            Field::Null => Ok(Some(DozerDuration::from_str("0").unwrap())),
+            _ => Err(TypeError::InvalidFieldValue {
+                field_type: FieldType::Duration,
+                nullable: false,
+                value: format!("{:?}", self),
+            }),
         }
     }
 

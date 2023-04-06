@@ -201,12 +201,12 @@ pub fn get_sum(
             FieldType::Duration => {
                 if decr {
                     for field in fields {
-                        let val = calculate_err_field!(field.to_duration(), Sum, field);
+                        let val = calculate_err_field!(field.to_duration()?, Sum, field);
                         current_state.duration_state -= val.0;
                     }
                 } else {
                     for field in fields {
-                        let val = calculate_err_field!(field.to_duration(), Sum, field);
+                        let val = calculate_err_field!(field.to_duration()?, Sum, field);
                         current_state.duration_state += val.0;
                     }
                 }

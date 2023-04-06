@@ -194,9 +194,9 @@ fn get_average(
                 if *current_count == 0 {
                     return Ok(Field::Null);
                 }
-                let str_dur = sum.to_duration().unwrap().to_string();
+                let str_dur = sum.to_duration()?.unwrap().to_string();
                 let d_sum = sum
-                    .to_duration()
+                    .to_duration()?
                     .ok_or(InvalidValue(str_dur.clone()))
                     .unwrap();
 

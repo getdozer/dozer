@@ -120,13 +120,17 @@ fn get_max(
                     val
                 ))),
                 FieldType::Date => Ok(Field::Date(calculate_err_field!(val.to_date()?, Max, val))),
+                FieldType::Duration => Ok(Field::Duration(calculate_err_field!(
+                    val.to_duration()?,
+                    Max,
+                    val
+                ))),
                 FieldType::Boolean
                 | FieldType::String
                 | FieldType::Text
                 | FieldType::Binary
                 | FieldType::Bson
-                | FieldType::Point
-                | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(
+                | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(
                     format!("Not supported return type {typ} for {Max}"),
                 ))),
             },
