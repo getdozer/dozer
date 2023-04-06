@@ -95,6 +95,7 @@ pub(crate) fn evaluate_date_part(
         | Field::Decimal(_)
         | Field::Bson(_)
         | Field::Point(_)
+        | Field::Duration(_)
         | Field::Null => {
             return Err(InvalidFunctionArgument(
                 DateTimeFunctionType::Extract { field: *field }.to_string(),

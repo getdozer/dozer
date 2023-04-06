@@ -11,7 +11,7 @@ use dozer_types::indexmap::IndexMap;
 use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, Schema, DATE_FORMAT};
+use dozer_types::types::{DozerDuration, Field, Schema, DATE_FORMAT};
 use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
@@ -191,6 +191,13 @@ fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Val
     Value::Object(m)
 }
 
+fn convert_duration_to_object(d: &DozerDuration) -> Value {
+    let mut m = Map::new();
+    m.insert("value".to_string(), Value::from(d.0.as_nanos().to_string()));
+    m.insert("time_unit".to_string(), Value::from(d.1.to_string()));
+    Value::Object(m)
+}
+
 /// Used in REST APIs for converting raw value back and forth.
 ///
 /// Should be consistent with `convert_cache_type_to_schema_type`.
@@ -210,12 +217,14 @@ fn field_to_json_value(field: Field) -> Value {
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
         Field::Bson(b) => Value::from(b),
         Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
+        Field::Duration(d) => convert_duration_to_object(&d),
         Field::Null => Value::Null,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::types::TimeUnit;
     use dozer_types::{
         chrono::{NaiveDate, Offset, TimeZone, Utc},
         json_value_to_field,
@@ -223,6 +232,7 @@ mod tests {
         rust_decimal::Decimal,
         types::{DozerPoint, Field, FieldType},
     };
+    use std::time::Duration;
 
     use super::*;
 
@@ -265,6 +275,13 @@ mod tests {
             (
                 FieldType::Point,
                 Field::Point(DozerPoint::from((3.234, 4.567))),
+            ),
+            (
+                FieldType::Duration,
+                Field::Duration(DozerDuration(
+                    Duration::from_nanos(123_u64),
+                    TimeUnit::Nanoseconds,
+                )),
             ),
         ];
         for (field_type, field) in fields {

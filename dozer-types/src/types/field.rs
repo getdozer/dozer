@@ -1,4 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
+use crate::types::{DozerDuration, DozerPoint, TimeUnit};
 #[allow(unused_imports)]
 use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
@@ -6,9 +7,8 @@ use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
-
-use crate::types::DozerPoint;
 use std::fmt::{Display, Formatter};
+use std::time::Duration;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
@@ -27,6 +27,7 @@ pub enum Field {
     Date(NaiveDate),
     Bson(Vec<u8>),
     Point(DozerPoint),
+    Duration(DozerDuration),
     Null,
 }
 
@@ -46,11 +47,12 @@ pub enum FieldBorrow<'a> {
     Date(NaiveDate),
     Bson(&'a [u8]),
     Point(DozerPoint),
+    Duration(DozerDuration),
     Null,
 }
 
 impl Field {
-    fn data_encoding_len(&self) -> usize {
+    pub(crate) fn data_encoding_len(&self) -> usize {
         match self {
             Field::UInt(_) => 8,
             Field::U128(_) => 16,
@@ -66,11 +68,12 @@ impl Field {
             Field::Date(_) => 10,
             Field::Bson(b) => b.len(),
             Field::Point(_p) => 16,
+            Field::Duration(_) => 32,
             Field::Null => 0,
         }
     }
 
-    fn encode_data(&self) -> Cow<[u8]> {
+    pub(crate) fn encode_data(&self) -> Cow<[u8]> {
         match self {
             Field::UInt(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::U128(i) => Cow::Owned(i.to_be_bytes().into()),
@@ -85,8 +88,9 @@ impl Field {
             Field::Timestamp(t) => Cow::Owned(t.timestamp_millis().to_be_bytes().into()),
             Field::Date(t) => Cow::Owned(t.to_string().into()),
             Field::Bson(b) => Cow::Borrowed(b),
-            Field::Null => Cow::Owned([].into()),
             Field::Point(p) => Cow::Owned(p.to_bytes().into()),
+            Field::Duration(d) => Cow::Owned(d.to_bytes().into()),
+            Field::Null => Cow::Owned([].into()),
         }
     }
 
@@ -123,6 +127,7 @@ impl Field {
             Field::Date(t) => FieldBorrow::Date(*t),
             Field::Bson(b) => FieldBorrow::Bson(b),
             Field::Point(p) => FieldBorrow::Point(*p),
+            Field::Duration(d) => FieldBorrow::Duration(*d),
             Field::Null => FieldBorrow::Null,
         }
     }
@@ -187,7 +192,10 @@ impl Field {
             13 => Ok(FieldBorrow::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
-            14 => Ok(FieldBorrow::Null),
+            14 => Ok(FieldBorrow::Duration(
+                DozerDuration::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
+            )),
+            15 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
@@ -208,7 +216,8 @@ impl Field {
             Field::Date(_) => 11,
             Field::Bson(_) => 12,
             Field::Point(_) => 13,
-            Field::Null => 14,
+            Field::Duration(_) => 32,
+            Field::Null => 15,
         }
     }
 
@@ -310,6 +319,29 @@ impl Field {
         }
     }
 
+    pub fn as_duration(&self) -> Option<DozerDuration> {
+        match self {
+            Field::UInt(d) => Some(DozerDuration(
+                Duration::from_nanos(*d),
+                TimeUnit::Nanoseconds,
+            )),
+            Field::U128(d) => Some(DozerDuration(
+                Duration::from_nanos(*d as u64),
+                TimeUnit::Nanoseconds,
+            )),
+            Field::Int(d) => Some(DozerDuration(
+                Duration::from_nanos(*d as u64),
+                TimeUnit::Nanoseconds,
+            )),
+            Field::I128(d) => Some(DozerDuration(
+                Duration::from_nanos(*d as u64),
+                TimeUnit::Nanoseconds,
+            )),
+            Field::Duration(d) => Some(*d),
+            _ => None,
+        }
+    }
+
     pub fn as_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
@@ -326,6 +358,7 @@ impl Field {
             Field::Float(f) => u64::from_f64(f.0),
             Field::Decimal(d) => d.to_u64(),
             Field::String(s) => s.parse::<u64>().ok(),
+            Field::Text(s) => s.parse::<u64>().ok(),
             Field::Null => Some(0_u64),
             _ => None,
         }
@@ -340,6 +373,7 @@ impl Field {
             Field::Float(f) => u128::from_f64(f.0),
             Field::Decimal(d) => d.to_u128(),
             Field::String(s) => s.parse::<u128>().ok(),
+            Field::Text(s) => s.parse::<u128>().ok(),
             Field::Null => Some(0_u128),
             _ => None,
         }
@@ -354,6 +388,7 @@ impl Field {
             Field::Float(f) => i64::from_f64(f.0),
             Field::Decimal(d) => d.to_i64(),
             Field::String(s) => s.parse::<i64>().ok(),
+            Field::Text(s) => s.parse::<i64>().ok(),
             Field::Null => Some(0_i64),
             _ => None,
         }
@@ -368,6 +403,7 @@ impl Field {
             Field::Float(f) => i128::from_f64(f.0),
             Field::Decimal(d) => d.to_i128(),
             Field::String(s) => s.parse::<i128>().ok(),
+            Field::Text(s) => s.parse::<i128>().ok(),
             Field::Null => Some(0_i128),
             _ => None,
         }
@@ -382,6 +418,7 @@ impl Field {
             Field::Float(f) => Some(f.0),
             Field::Decimal(d) => d.to_f64(),
             Field::String(s) => s.parse::<f64>().ok(),
+            Field::Text(s) => s.parse::<f64>().ok(),
             Field::Null => Some(0_f64),
             _ => None,
         }
@@ -397,6 +434,7 @@ impl Field {
             Field::Decimal(i) => Some(i.gt(&Decimal::from(0_u64))),
             Field::Boolean(b) => Some(*b),
             Field::String(s) => s.parse::<bool>().ok(),
+            Field::Text(s) => s.parse::<bool>().ok(),
             Field::Null => Some(false),
             _ => None,
         }
@@ -509,6 +547,13 @@ impl Field {
         }
     }
 
+    pub fn to_duration(&self) -> Option<&DozerDuration> {
+        match self {
+            Field::Duration(d) => Some(d),
+            _ => None,
+        }
+    }
+
     pub fn to_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
@@ -533,8 +578,9 @@ impl Display for Field {
             Field::Timestamp(v) => f.write_str(&format!("{v}")),
             Field::Date(v) => f.write_str(&format!("{v}")),
             Field::Bson(v) => f.write_str(&format!("{v:x?}")),
-            Field::Null => f.write_str("NULL"),
             Field::Point(v) => f.write_str(&format!("{v} (Point)")),
+            Field::Duration(d) => f.write_str(&format!("{:?} {:?} (Duration)", d.0, d.1)),
+            Field::Null => f.write_str("NULL"),
         }
     }
 }
@@ -556,6 +602,7 @@ impl<'a> FieldBorrow<'a> {
             FieldBorrow::Date(d) => Field::Date(d),
             FieldBorrow::Bson(b) => Field::Bson(b.to_owned()),
             FieldBorrow::Point(p) => Field::Point(p),
+            FieldBorrow::Duration(d) => Field::Duration(DozerDuration(d.0, d.1)),
             FieldBorrow::Null => Field::Null,
         }
     }
@@ -595,6 +642,8 @@ pub enum FieldType {
     Bson,
     /// A geographic point.
     Point,
+    /// Duration up to nanoseconds.
+    Duration,
 }
 
 impl TryFrom<&str> for FieldType {
@@ -615,6 +664,8 @@ impl TryFrom<&str> for FieldType {
             "timestamp" => FieldType::Timestamp,
             "date" => FieldType::Date,
             "bson" => FieldType::Bson,
+            "point" => FieldType::Point,
+            "duration" => FieldType::Duration,
             _ => return Err(format!("Unsupported '{value}' type")),
         };
 
@@ -639,6 +690,7 @@ impl Display for FieldType {
             FieldType::Date => f.write_str("date"),
             FieldType::Bson => f.write_str("bson"),
             FieldType::Point => f.write_str("point"),
+            FieldType::Duration => f.write_str("duration"),
         }
     }
 }
@@ -701,8 +753,9 @@ impl pyo3::ToPyObject for Field {
                     .to_object(py)
             }
             Field::Bson(val) => val.to_object(py),
-            Field::Null => unreachable!(),
             Field::Point(_val) => todo!(),
+            Field::Duration(_d) => todo!(),
+            Field::Null => unreachable!(),
         }
     }
 }

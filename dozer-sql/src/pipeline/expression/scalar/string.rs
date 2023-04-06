@@ -47,7 +47,8 @@ pub(crate) fn evaluate_ucase(
         | FieldType::Timestamp
         | FieldType::Binary
         | FieldType::Bson
-        | FieldType::Point => Field::Text(ret),
+        | FieldType::Point
+        | FieldType::Duration => Field::Text(ret),
     })
 }
 
@@ -108,7 +109,8 @@ pub(crate) fn evaluate_concat(
         | FieldType::Timestamp
         | FieldType::Binary
         | FieldType::Bson
-        | FieldType::Point => Field::String(res_str),
+        | FieldType::Point
+        | FieldType::Duration => Field::String(res_str),
     })
 }
 
@@ -191,7 +193,8 @@ pub(crate) fn evaluate_trim(
         | FieldType::Timestamp
         | FieldType::Binary
         | FieldType::Bson
-        | FieldType::Point => Field::Text(retval),
+        | FieldType::Point
+        | FieldType::Duration => Field::Text(retval),
     })
 }
 

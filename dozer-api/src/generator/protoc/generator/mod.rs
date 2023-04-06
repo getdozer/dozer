@@ -56,6 +56,7 @@ pub struct RecordDesc {
     pub version_field: FieldDescriptor,
     pub point_field: PointDesc,
     pub decimal_field: DecimalDesc,
+    pub duration_field: DurationDesc,
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +64,13 @@ pub struct PointDesc {
     pub message: MessageDescriptor,
     pub x: FieldDescriptor,
     pub y: FieldDescriptor,
+}
+
+#[derive(Debug, Clone)]
+pub struct DurationDesc {
+    pub message: MessageDescriptor,
+    pub value: FieldDescriptor,
+    pub time_unit: FieldDescriptor,
 }
 
 #[derive(Debug, Clone)]

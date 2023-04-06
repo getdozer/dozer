@@ -32,7 +32,8 @@ pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         | FieldType::Timestamp
         | FieldType::Binary
         | FieldType::Bson
-        | FieldType::Point => {
+        | FieldType::Point
+        | FieldType::Duration => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Avg.to_string(),
                 arg.return_type,
@@ -194,9 +195,10 @@ fn get_average(
             | FieldType::Timestamp
             | FieldType::Binary
             | FieldType::Bson
-            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                "Not supported return type {typ} for {Avg}"
-            )))),
+            | FieldType::Point
+            | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(
+                format!("Not supported return type {typ} for {Avg}"),
+            ))),
         },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Avg}"
