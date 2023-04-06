@@ -409,7 +409,7 @@ impl ExpressionBuilder {
     fn parse_sql_interval_expression(
         &mut self,
         parse_aggregations: bool,
-        value: &Box<Expr>,
+        value: &Expr,
         leading_field: &Option<DateTimeField>,
         schema: &Schema,
     ) -> Result<Expression, PipelineError> {
