@@ -133,16 +133,24 @@ macro_rules! define_math_operator {
                     },
                     Field::Timestamp(right_v) => match $op {
                         "-" => {
-                            let duration: i64 = (left_v - right_v).num_nanoseconds().ok_or(
-                                PipelineError::UnableToCast(
-                                    format!("{}", left_v - right_v),
-                                    "i64".to_string(),
-                                ),
-                            )?;
-                            Ok(Field::from(DozerDuration(
-                                std::time::Duration::from_nanos(duration as u64),
-                                TimeUnit::Nanoseconds,
-                            )))
+                            if left_v > right_v {
+                                let duration: i64 = (left_v - right_v).num_nanoseconds().ok_or(
+                                    PipelineError::UnableToCast(
+                                        format!("{}", left_v - right_v),
+                                        "i64".to_string(),
+                                    ),
+                                )?;
+                                Ok(Field::from(DozerDuration(
+                                    std::time::Duration::from_nanos(duration as u64),
+                                    TimeUnit::Nanoseconds,
+                                )))
+                            } else {
+                                Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                ))
+                            }
                         }
                         "+" | "*" | "/" | "%" => Err(PipelineError::InvalidTypeComparison(
                             left_p,
