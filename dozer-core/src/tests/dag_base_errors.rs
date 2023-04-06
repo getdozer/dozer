@@ -369,7 +369,6 @@ impl Source for ErrGeneratorSource {
                                 Field::String(format!("key_{n}")),
                                 Field::String(format!("value_{n}")),
                             ],
-                            None,
                         ),
                     },
                 ),

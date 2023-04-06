@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
-use dozer_cache::cache::{index, RecordWithId};
+use dozer_cache::cache::{index, CacheRecord};
 use dozer_cache::CacheReader;
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::errors::types::TypeError;
@@ -165,7 +165,7 @@ fn get_records_map(
 
 /// Used in REST APIs for converting to JSON
 fn record_to_map(
-    record: RecordWithId,
+    record: CacheRecord,
     schema: &Schema,
 ) -> Result<IndexMap<String, Value>, TypeError> {
     let mut map = IndexMap::new();
@@ -178,7 +178,7 @@ fn record_to_map(
     map.insert("__dozer_record_id".to_string(), Value::from(record.id));
     map.insert(
         "__dozer_record_version".to_string(),
-        Value::from(record.record.version),
+        Value::from(record.version),
     );
 
     Ok(map)

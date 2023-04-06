@@ -1,4 +1,4 @@
-use crate::cache::{expression::QueryExpression, RecordWithId, RoCache};
+use crate::cache::{expression::QueryExpression, CacheRecord, RoCache};
 
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
@@ -40,11 +40,7 @@ impl CacheReader {
         self.cache.get_schema()
     }
 
-    pub fn get(
-        &self,
-        key: &[u8],
-        access_filter: &AccessFilter,
-    ) -> Result<RecordWithId, CacheError> {
+    pub fn get(&self, key: &[u8], access_filter: &AccessFilter) -> Result<CacheRecord, CacheError> {
         let record = self.cache.get(key)?;
         match self.check_access(&record.record, access_filter) {
             Ok(_) => Ok(record),
@@ -56,7 +52,7 @@ impl CacheReader {
         &self,
         query: &mut QueryExpression,
         access_filter: AccessFilter,
-    ) -> Result<Vec<RecordWithId>, CacheError> {
+    ) -> Result<Vec<CacheRecord>, CacheError> {
         self.apply_access_filter(query, access_filter);
         self.cache.query(query)
     }

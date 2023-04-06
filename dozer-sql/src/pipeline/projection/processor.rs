@@ -32,7 +32,7 @@ impl ProjectionProcessor {
             );
         }
         Ok(Operation::Delete {
-            old: Record::new(None, results, None),
+            old: Record::new(None, results),
         })
     }
 
@@ -46,7 +46,7 @@ impl ProjectionProcessor {
             );
         }
         Ok(Operation::Insert {
-            new: Record::new(None, results, None),
+            new: Record::new(None, results),
         })
     }
 
@@ -66,8 +66,8 @@ impl ProjectionProcessor {
         }
 
         Ok(Operation::Update {
-            old: Record::new(None, old_results, None),
-            new: Record::new(None, new_results, None),
+            old: Record::new(None, old_results),
+            new: Record::new(None, new_results),
         })
     }
 }

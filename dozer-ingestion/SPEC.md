@@ -149,16 +149,12 @@ pub enum Operation {
 
 `values` must be of the same length, order, and type as the `fields` in corresponding `Schema`, expect for `old` in `Delete` and `Update` operation, see [Omitting fields](#omitting-fields-in-delete-and-update-operations).
 
-`version` is set by Dozer, and can be `None` when the connector constructs the `Record`.
-
 ```rust
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
-    /// Records with same primary key will have increasing version.
-    pub version: Option<u32>,
 }
 ```
 

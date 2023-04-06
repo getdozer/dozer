@@ -14,7 +14,6 @@ fn py_udf_query() {
     let record1 = Record {
         schema_id: None,
         values: vec![Float(OrderedFloat(2.0)), Float(OrderedFloat(3.0))],
-        version: None,
     };
 
     let query1_expected_results = Some(vec![record1]);

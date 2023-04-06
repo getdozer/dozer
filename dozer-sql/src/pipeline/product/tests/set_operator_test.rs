@@ -291,7 +291,6 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![Field::Int(1000), Field::String("Microsoft".to_string())],
-                        Some(1),
                     ),
                 },
                 SUPPLIERS_PORT,
@@ -301,7 +300,6 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![Field::Int(2000), Field::String("Oracle".to_string())],
-                        Some(1),
                     ),
                 },
                 SUPPLIERS_PORT,
@@ -311,7 +309,6 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![Field::Int(3000), Field::String("Apple".to_string())],
-                        Some(1),
                     ),
                 },
                 SUPPLIERS_PORT,
@@ -321,7 +318,6 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![Field::Int(4000), Field::String("Samsung".to_string())],
-                        Some(1),
                     ),
                 },
                 SUPPLIERS_PORT,
@@ -335,7 +331,6 @@ impl Source for TestSource {
                             Field::Date(NaiveDate::from_ymd_opt(2015, 8, 1).unwrap()),
                             Field::Int(2000),
                         ],
-                        Some(1),
                     ),
                 },
                 ORDERS_PORT,
@@ -349,7 +344,6 @@ impl Source for TestSource {
                             Field::Date(NaiveDate::from_ymd_opt(2015, 8, 1).unwrap()),
                             Field::Int(6000),
                         ],
-                        Some(1),
                     ),
                 },
                 ORDERS_PORT,
@@ -363,7 +357,6 @@ impl Source for TestSource {
                             Field::Date(NaiveDate::from_ymd_opt(2015, 8, 2).unwrap()),
                             Field::Int(7000),
                         ],
-                        Some(1),
                     ),
                 },
                 ORDERS_PORT,
@@ -377,7 +370,6 @@ impl Source for TestSource {
                             Field::Date(NaiveDate::from_ymd_opt(2015, 8, 3).unwrap()),
                             Field::Int(8000),
                         ],
-                        Some(1),
                     ),
                 },
                 ORDERS_PORT,

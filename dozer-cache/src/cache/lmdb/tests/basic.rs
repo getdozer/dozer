@@ -46,7 +46,7 @@ fn insert_get_and_delete_record() {
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
-    let record = Record::new(schema.identifier, vec![Field::String(val.clone())], Some(1));
+    let record = Record::new(schema.identifier, vec![Field::String(val.clone())]);
     let UpsertResult::Inserted { meta } = cache.insert(&record).unwrap() else {
         panic!("Must be inserted")
     };
@@ -74,16 +74,8 @@ fn insert_get_and_delete_record() {
 #[test]
 fn insert_and_update_record() {
     let (mut cache, _, schema) = _setup();
-    let foo = Record::new(
-        schema.identifier,
-        vec![Field::String("foo".to_string())],
-        Some(1),
-    );
-    let bar = Record::new(
-        schema.identifier,
-        vec![Field::String("bar".to_string())],
-        Some(1),
-    );
+    let foo = Record::new(schema.identifier, vec![Field::String("foo".to_string())]);
+    let bar = Record::new(schema.identifier, vec![Field::String("bar".to_string())]);
     let UpsertResult::Inserted { meta } = cache.insert(&foo).unwrap() else {
         panic!("Must be inserted")
     };
@@ -105,7 +97,7 @@ fn insert_and_query_record_impl(
     schema: Schema,
 ) {
     let val = "bar".to_string();
-    let mut record = Record::new(schema.identifier, vec![Field::String(val)], Some(1));
+    let mut record = Record::new(schema.identifier, vec![Field::String(val)]);
 
     cache.insert(&mut record).unwrap();
     cache.commit().unwrap();

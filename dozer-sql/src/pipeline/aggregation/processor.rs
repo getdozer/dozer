@@ -505,7 +505,7 @@ impl AggregationProcessor {
             output.push(exp.evaluate(original, aggregation_schema)?);
         }
         original.values.drain(original_len..);
-        Ok(Record::new(None, output, None))
+        Ok(Record::new(None, output))
     }
 
     pub fn aggregate(&mut self, mut op: Operation) -> Result<Vec<Operation>, PipelineError> {

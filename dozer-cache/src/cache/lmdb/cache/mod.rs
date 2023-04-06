@@ -10,7 +10,7 @@ use super::{
     indexing::IndexingThreadPool,
 };
 use crate::cache::expression::QueryExpression;
-use crate::cache::{RecordMeta, RecordWithId, UpsertResult};
+use crate::cache::{CacheRecord, RecordMeta, UpsertResult};
 use crate::errors::CacheError;
 
 mod main_environment;
@@ -126,7 +126,7 @@ impl<C: LmdbCache> RoCache for C {
         self.main_env().name()
     }
 
-    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
+    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError> {
         self.main_env().get(key)
     }
 
@@ -134,7 +134,7 @@ impl<C: LmdbCache> RoCache for C {
         LmdbQueryHandler::new(self, query).count()
     }
 
-    fn query(&self, query: &QueryExpression) -> Result<Vec<RecordWithId>, CacheError> {
+    fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError> {
         LmdbQueryHandler::new(self, query).query()
     }
 

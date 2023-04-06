@@ -35,7 +35,6 @@ fn test_framework_to_dozer_types() {
             new: Record {
                 schema_id,
                 values: values.clone(),
-                version: None
             }
         },
         ops[0].1
@@ -52,12 +51,10 @@ fn test_framework_to_dozer_types() {
             old: Record {
                 schema_id,
                 values: values.clone(),
-                version: None
             },
             new: Record {
                 schema_id,
                 values: new_values.clone(),
-                version: None
             }
         },
         ops[0].1
@@ -75,7 +72,6 @@ fn test_framework_to_dozer_types() {
             old: Record {
                 schema_id,
                 values: new_values.clone(),
-                version: None
             },
         },
         ops[0].1
@@ -88,7 +84,6 @@ fn test_framework_to_dozer_types() {
                 new: Record {
                     schema_id,
                     values: values.clone(),
-                    version: None,
                 },
             },
         )
@@ -99,15 +94,10 @@ fn test_framework_to_dozer_types() {
         .map_operation_to_sql(
             &"actor".to_string(),
             Operation::Update {
-                old: Record {
-                    schema_id,
-                    values,
-                    version: None,
-                },
+                old: Record { schema_id, values },
                 new: Record {
                     schema_id,
                     values: new_values.clone(),
-                    version: None,
                 },
             },
         )
@@ -121,7 +111,6 @@ fn test_framework_to_dozer_types() {
                 old: Record {
                     schema_id,
                     values: new_values,
-                    version: None,
                 },
             },
         )
@@ -159,7 +148,6 @@ fn test_null_inserts() {
             new: Record {
                 schema_id,
                 values: values.clone(),
-                version: None
             }
         },
         op
@@ -189,7 +177,6 @@ fn test_null_inserts() {
         vec![Record {
             schema_id,
             values: vec![Field::Int(1)],
-            version: None
         }],
         "are to be equal"
     );
@@ -230,11 +217,7 @@ fn test_null_inserts() {
             }
         )
         .unwrap(),
-        vec![Record {
-            schema_id,
-            values,
-            version: None
-        }],
+        vec![Record { schema_id, values }],
         "are to be equal"
     );
 }

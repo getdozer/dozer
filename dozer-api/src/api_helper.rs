@@ -1,7 +1,7 @@
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use dozer_cache::cache::expression::QueryExpression;
-use dozer_cache::cache::RecordWithId;
+use dozer_cache::cache::CacheRecord;
 use dozer_cache::{AccessFilter, CacheReader};
 
 pub fn get_record(
@@ -9,7 +9,7 @@ pub fn get_record(
     key: &[u8],
     endpoint: &str,
     access: Option<Access>,
-) -> Result<RecordWithId, ApiError> {
+) -> Result<CacheRecord, ApiError> {
     let access_filter = get_access_filter(access, endpoint)?;
     let record = cache_reader
         .get(key, &access_filter)
@@ -35,7 +35,7 @@ pub fn get_records(
     exp: &mut QueryExpression,
     endpoint: &str,
     access: Option<Access>,
-) -> Result<Vec<RecordWithId>, ApiError> {
+) -> Result<Vec<CacheRecord>, ApiError> {
     let access_filter = get_access_filter(access, endpoint)?;
     cache_reader
         .query(exp, access_filter)

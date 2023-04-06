@@ -115,7 +115,7 @@ fn test_validate_point(x: i64, y: i64) {
 }
 
 fn test_evaluate_point(x: i64, y: i64) {
-    let row = Record::new(None, vec![], None);
+    let row = Record::new(None, vec![]);
 
     let schema = Schema::empty()
         .field(

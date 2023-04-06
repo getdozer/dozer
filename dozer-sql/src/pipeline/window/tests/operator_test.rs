@@ -13,7 +13,6 @@ fn test_hop() {
             Field::Int(0),
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
         ],
-        Some(1),
     );
 
     let window = WindowType::Hop {
@@ -33,7 +32,6 @@ fn test_hop() {
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:09:00Z").unwrap()),
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:14:00Z").unwrap()),
         ],
-        Some(1),
     );
 
     assert_eq!(*window_record, expected_record);
@@ -48,7 +46,6 @@ fn test_hop() {
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
         ],
-        Some(1),
     );
 
     assert_eq!(*window_record, expected_record);
@@ -62,7 +59,6 @@ fn test_tumble() {
             Field::Int(0),
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
         ],
-        Some(1),
     );
 
     let window = WindowType::Tumble {
@@ -82,7 +78,6 @@ fn test_tumble() {
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
         ],
-        Some(1),
     );
 
     assert_eq!(*window_record, expected_record);

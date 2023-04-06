@@ -9,7 +9,7 @@ use dozer_types::{
     types::Record,
 };
 
-use crate::cache::{RecordMeta, RecordWithId};
+use crate::cache::{CacheRecord, RecordMeta};
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
@@ -103,7 +103,7 @@ impl OperationLog {
         &self,
         txn: &T,
         key: &[u8],
-    ) -> Result<Option<(RecordWithId, u32)>, StorageError> {
+    ) -> Result<Option<CacheRecord>, StorageError> {
         let Some(metadata) = self.get_metadata(txn, key)? else {
             return Ok(None);
         };
@@ -150,7 +150,7 @@ impl OperationLog {
         &self,
         txn: &T,
         operation_id: u64,
-    ) -> Result<(RecordWithId, u32), StorageError> {
+    ) -> Result<CacheRecord, StorageError> {
         let Some(Cow::Owned(Operation::Insert {
             record_meta,
             record,
@@ -159,9 +159,10 @@ impl OperationLog {
                 "Inconsistent state: primary_key_to_metadata or present_operation_ids contains an insert operation id that is not an Insert operation"
             );
         };
-        Ok((
-            RecordWithId::new(record_meta.id, record),
+        Ok(CacheRecord::new(
+            record_meta.id,
             record_meta.version,
+            record,
         ))
     }
 
@@ -376,7 +377,7 @@ mod tests {
         let txn = env.txn_mut().unwrap();
         let append_only = true;
 
-        let records = vec![Record::new(None, vec![], None); 10];
+        let records = vec![Record::new(None, vec![]); 10];
         for (index, record) in records.iter().enumerate() {
             let record_meta = log.insert_new(txn, None, record).unwrap();
             assert_eq!(record_meta.id, index as u64);
@@ -400,10 +401,7 @@ mod tests {
             assert_eq!(
                 log.get_record_by_operation_id_unchecked(txn, index as _)
                     .unwrap(),
-                (
-                    RecordWithId::new(record_meta.id, record.clone()),
-                    record_meta.version
-                )
+                CacheRecord::new(record_meta.id, record_meta.version, record.clone()),
             );
             assert_eq!(
                 log.get_operation(txn, index as _).unwrap().unwrap(),
@@ -423,7 +421,7 @@ mod tests {
         let append_only = false;
 
         // Insert a record.
-        let record = Record::new(None, vec![], None);
+        let record = Record::new(None, vec![]);
         let primary_key = b"primary_key";
         let mut record_meta = log.insert_new(txn, Some(primary_key), &record).unwrap();
         assert_eq!(record_meta.id, 0);
@@ -431,10 +429,7 @@ mod tests {
         assert_eq!(log.count_present_records(txn, append_only).unwrap(), 1);
         assert_eq!(
             log.get_record(txn, primary_key).unwrap().unwrap(),
-            (
-                RecordWithId::new(record_meta.id, record.clone()),
-                record_meta.version
-            )
+            CacheRecord::new(record_meta.id, record_meta.version, record.clone()),
         );
         assert_eq!(log.next_operation_id(txn).unwrap(), 1);
         assert_eq!(
@@ -448,10 +443,7 @@ mod tests {
         assert!(log.contains_operation_id(txn, append_only, 0).unwrap());
         assert_eq!(
             log.get_record_by_operation_id_unchecked(txn, 0).unwrap(),
-            (
-                RecordWithId::new(record_meta.id, record.clone()),
-                record_meta.version
-            )
+            CacheRecord::new(record_meta.id, record_meta.version, record.clone()),
         );
         assert_eq!(
             log.get_operation(txn, 0).unwrap().unwrap(),
@@ -468,10 +460,7 @@ mod tests {
         assert_eq!(log.count_present_records(txn, append_only).unwrap(), 1);
         assert_eq!(
             log.get_record(txn, primary_key).unwrap().unwrap(),
-            (
-                RecordWithId::new(record_meta.id, record.clone()),
-                record_meta.version
-            )
+            CacheRecord::new(record_meta.id, record_meta.version, record.clone()),
         );
         assert_eq!(log.next_operation_id(txn).unwrap(), 3);
         assert_eq!(
@@ -485,10 +474,7 @@ mod tests {
         assert!(log.contains_operation_id(txn, append_only, 2).unwrap());
         assert_eq!(
             log.get_record_by_operation_id_unchecked(txn, 2).unwrap(),
-            (
-                RecordWithId::new(record_meta.id, record.clone()),
-                record_meta.version
-            )
+            CacheRecord::new(record_meta.id, record_meta.version, record.clone()),
         );
         assert_eq!(
             log.get_operation(txn, 1).unwrap().unwrap(),
@@ -528,10 +514,7 @@ mod tests {
         assert_eq!(log.count_present_records(txn, append_only).unwrap(), 1);
         assert_eq!(
             log.get_record(txn, primary_key).unwrap().unwrap(),
-            (
-                RecordWithId::new(record_meta.id, record.clone()),
-                record_meta.version
-            )
+            CacheRecord::new(record_meta.id, record_meta.version, record.clone()),
         );
         assert_eq!(log.next_operation_id(txn).unwrap(), 5);
         assert_eq!(
@@ -545,10 +528,7 @@ mod tests {
         assert!(log.contains_operation_id(txn, append_only, 4).unwrap());
         assert_eq!(
             log.get_record_by_operation_id_unchecked(txn, 4).unwrap(),
-            (
-                RecordWithId::new(record_meta.id, record.clone()),
-                record_meta.version
-            )
+            CacheRecord::new(record_meta.id, record_meta.version, record.clone()),
         );
         assert_eq!(
             log.get_operation(txn, 4).unwrap().unwrap(),

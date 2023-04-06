@@ -91,12 +91,12 @@ mod tests {
 
         // Expected seq no - 2
         let operation = Operation::Insert {
-            new: Record::new(None, vec![], None),
+            new: Record::new(None, vec![]),
         };
 
         // Expected seq no - 3
         let operation2 = Operation::Insert {
-            new: Record::new(None, vec![], None),
+            new: Record::new(None, vec![]),
         };
 
         ingestor

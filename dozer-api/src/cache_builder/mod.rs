@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use dozer_cache::{
-    cache::{index::get_primary_key, RwCache, RwCacheManager, UpsertResult},
+    cache::{index::get_primary_key, CacheRecord, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
 use dozer_core::executor::ExecutorOperation;
@@ -57,12 +57,12 @@ async fn build_cache(
                     old.schema_id = schema.identifier;
                     let key = get_primary_key(&schema.primary_index, &old.values);
                     if let Some(meta) = cache.delete(&key)? {
-                        old.version = Some(meta.version);
-
                         if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref()
                         {
-                            let operation =
-                                types_helper::map_delete_operation(endpoint_name.clone(), old);
+                            let operation = types_helper::map_delete_operation(
+                                endpoint_name.clone(),
+                                CacheRecord::new(meta.id, meta.version, old),
+                            );
                             send_and_log_error(operations_sender, operation);
                         }
                     }
@@ -154,29 +154,32 @@ fn send_upsert_result(
     upsert_result: UpsertResult,
     schema: &Schema,
     old: Option<Record>,
-    mut new: Record,
+    new: Record,
 ) {
     match upsert_result {
         UpsertResult::Inserted { meta } => {
-            new.version = Some(meta.version);
-            let op = types_helper::map_insert_operation(endpoint_name.to_string(), new, meta.id);
+            let op = types_helper::map_insert_operation(
+                endpoint_name.to_string(),
+                CacheRecord::new(meta.id, meta.version, new),
+            );
             send_and_log_error(operations_sender, op);
         }
         UpsertResult::Updated { old_meta, new_meta } => {
             // If `old` is `None`, it means `Updated` comes from `Insert` operation.
             // In this case, we can't get the full old record, but the fields in the primary index must be the same with the new record.
             // So we create the old record with only the fields in the primary index, cloned from `new`.
-            let mut old = old.unwrap_or_else(|| {
-                let mut record =
-                    Record::new(new.schema_id, vec![Field::Null; new.values.len()], None);
+            let old = old.unwrap_or_else(|| {
+                let mut record = Record::new(new.schema_id, vec![Field::Null; new.values.len()]);
                 for index in schema.primary_index.iter() {
                     record.values[*index] = new.values[*index].clone();
                 }
                 record
             });
-            old.version = Some(old_meta.version);
-            new.version = Some(new_meta.version);
-            let op = types_helper::map_update_operation(endpoint_name.to_string(), old, new);
+            let op = types_helper::map_update_operation(
+                endpoint_name.to_string(),
+                CacheRecord::new(old_meta.id, old_meta.version, old),
+                CacheRecord::new(new_meta.id, new_meta.version, new),
+            );
             send_and_log_error(operations_sender, op);
         }
         UpsertResult::Ignored => {}

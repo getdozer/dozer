@@ -183,7 +183,7 @@ pub fn map_row_to_operation_event(
 ) -> Result<Operation, PostgresSchemaError> {
     match get_values(row, columns) {
         Ok(values) => Ok(Operation::Insert {
-            new: Record::new(Some(identifier), values, None),
+            new: Record::new(Some(identifier), values),
         }),
         Err(e) => Err(e),
     }

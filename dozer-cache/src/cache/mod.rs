@@ -16,14 +16,19 @@ pub mod test_utils;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
-pub struct RecordWithId {
+pub struct CacheRecord {
     pub id: u64,
+    pub version: u32,
     pub record: Record,
 }
 
-impl RecordWithId {
-    pub fn new(id: u64, record: Record) -> Self {
-        Self { id, record }
+impl CacheRecord {
+    pub fn new(id: u64, version: u32, record: Record) -> Self {
+        Self {
+            id,
+            version,
+            record,
+        }
     }
 }
 
@@ -70,9 +75,9 @@ pub trait RoCache: Send + Sync + Debug {
     fn get_schema(&self) -> &SchemaWithIndex;
 
     // Record Operations
-    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError>;
+    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError>;
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError>;
-    fn query(&self, query: &QueryExpression) -> Result<Vec<RecordWithId>, CacheError>;
+    fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

@@ -3,7 +3,7 @@ use crate::generator::protoc::generator::{
     TokenResponseDesc,
 };
 use crate::grpc::types_helper::map_record;
-use dozer_cache::cache::RecordWithId;
+use dozer_cache::cache::CacheRecord;
 use dozer_types::grpc_types::types as GrpcTypes;
 use prost_reflect::{DynamicMessage, ReflectMessage, SetFieldError, Value};
 
@@ -118,7 +118,7 @@ fn interval_value_to_pb(
 }
 
 fn internal_record_with_id_to_pb(
-    record_with_id: RecordWithId,
+    record_with_id: CacheRecord,
     record_with_id_desc: &RecordWithIdDesc,
 ) -> Result<DynamicMessage, SetFieldError> {
     let mut msg = DynamicMessage::new(record_with_id_desc.message.clone());
@@ -154,7 +154,7 @@ pub fn count_response_to_typed_response(
 }
 
 pub fn query_response_to_typed_response(
-    records: Vec<RecordWithId>,
+    records: Vec<CacheRecord>,
     response_desc: QueryResponseDesc,
 ) -> Result<TypedResponse, SetFieldError> {
     let mut msg = DynamicMessage::new(response_desc.message);
