@@ -1,11 +1,14 @@
+
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
 };
 use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
-    FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+    BinaryOperator as SqlBinaryOperator, DataType, DateTimeField, Expr as SqlExpr, Expr, Function,
+    FunctionArg, FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator,
+    Value as SqlValue,
 };
+
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
@@ -112,6 +115,21 @@ impl ExpressionBuilder {
             SqlExpr::Extract { field, expr } => {
                 self.parse_sql_extract_operator(parse_aggregations, field, expr, schema)
             }
+            SqlExpr::Interval {
+                value,
+                leading_field,
+                leading_precision,
+                last_field,
+                fractional_seconds_precision,
+            } => self.parse_sql_interval_expression(
+                parse_aggregations,
+                value,
+                leading_field,
+                leading_precision,
+                last_field,
+                fractional_seconds_precision,
+                schema,
+            ),
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
@@ -393,6 +411,29 @@ impl ExpressionBuilder {
             FunctionArg::Unnamed(FunctionArgExpr::QualifiedWildcard(_)) => {
                 Err(InvalidArgument(format!("{argument:?}")))
             }
+        }
+    }
+
+    fn parse_sql_interval_expression(
+        &mut self,
+        parse_aggregations: bool,
+        value: &Box<Expr>,
+        leading_field: &Option<DateTimeField>,
+        _leading_precision: &Option<u64>,
+        _last_field: &Option<DateTimeField>,
+        _fractional_seconds_precision: &Option<u64>,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let right = self.parse_sql_expression(parse_aggregations, value, schema)?;
+        if leading_field.is_some() {
+            Ok(Expression::DateTimeFunction {
+                fun: DateTimeFunctionType::Interval {
+                    field: leading_field.unwrap(),
+                },
+                arg: Box::new(right),
+            })
+        } else {
+            Err(InvalidExpression(format!("INTERVAL for {leading_field:?}")))
         }
     }
 
