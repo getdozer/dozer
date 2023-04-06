@@ -172,6 +172,10 @@ impl RwMainEnvironment {
     }
 
     pub fn delete(&mut self, primary_key: &[u8]) -> Result<Option<RecordMeta>, CacheError> {
+        if self.schema.0.is_append_only() {
+            return Err(CacheError::AppendOnlySchema);
+        }
+
         let txn = self.env.txn_mut()?;
         let operation_log = self.common.operation_log;
 
@@ -228,12 +232,17 @@ impl RwMainEnvironment {
                 index::get_primary_key(&self.schema.0.primary_index, &record.values);
             if new_primary_key == primary_key {
                 // Case 1.
-                let new_meta = RecordMeta::new(old_meta.id, old_meta.version + 1);
-                operation_log.update(txn, primary_key, record, new_meta, insert_operation_id)?;
+                let new_meta = operation_log.update(
+                    txn,
+                    primary_key,
+                    record,
+                    old_meta,
+                    insert_operation_id,
+                )?;
                 Ok(UpsertResult::Updated { old_meta, new_meta })
             } else {
                 // Case 5, 6, 7, 8.
-                let new_metadata = operation_log.get_metadata(txn, &new_primary_key)?;
+                let new_metadata = operation_log.get_deleted_metadata(txn, &new_primary_key)?;
                 match new_metadata {
                     Some(RecordMetadata {
                         insert_operation_id: Some(_),
@@ -250,17 +259,14 @@ impl RwMainEnvironment {
                         }
                     }
                     Some(RecordMetadata {
-                        mut meta,
+                        meta,
                         insert_operation_id: None,
                     }) => {
                         // Case 8. Meta from deleted record.
-                        meta.version += 1;
                         operation_log.delete(txn, primary_key, old_meta, insert_operation_id)?;
-                        operation_log.insert_deleted(txn, &new_primary_key, record, meta)?;
-                        Ok(UpsertResult::Updated {
-                            old_meta,
-                            new_meta: meta,
-                        })
+                        let new_meta =
+                            operation_log.insert_deleted(txn, &new_primary_key, record, meta)?;
+                        Ok(UpsertResult::Updated { old_meta, new_meta })
                     }
                     None => {
                         // Case 8. Meta from `insert_new`.
@@ -315,7 +321,7 @@ fn insert_impl(
         Ok(UpsertResult::Inserted { meta })
     } else {
         let primary_key = index::get_primary_key(&schema.primary_index, &record.values);
-        let metadata = operation_log.get_metadata(txn, &primary_key)?;
+        let metadata = operation_log.get_deleted_metadata(txn, &primary_key)?;
         match metadata {
             Some(RecordMetadata {
                 meta,
@@ -326,12 +332,11 @@ fn insert_impl(
                     OnInsertResolutionTypes::Nothing => Ok(UpsertResult::Ignored),
                     OnInsertResolutionTypes::Panic => Err(CacheError::PrimaryKeyExists),
                     OnInsertResolutionTypes::Update => {
-                        let new_meta = RecordMeta::new(meta.id, meta.version + 1);
-                        operation_log.update(
+                        let new_meta = operation_log.update(
                             txn,
                             &primary_key,
                             record,
-                            new_meta,
+                            meta,
                             insert_operation_id,
                         )?;
                         Ok(UpsertResult::Updated {
@@ -367,7 +372,7 @@ fn get_existing_record_metadata<T: Transaction>(
     if let Some(RecordMetadata {
         meta,
         insert_operation_id: Some(insert_operation_id),
-    }) = operation_log.get_metadata(txn, primary_key)?
+    }) = operation_log.get_present_metadata(txn, primary_key)?
     {
         Ok(Some((meta, insert_operation_id)))
     } else {

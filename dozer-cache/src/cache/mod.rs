@@ -46,6 +46,7 @@ pub struct CacheWriteOptions {
     pub insert_resolution: OnInsertResolutionTypes,
     pub delete_resolution: OnDeleteResolutionTypes,
     pub update_resolution: OnUpdateResolutionTypes,
+    pub detect_hash_collision: bool,
 }
 
 pub trait RwCacheManager: RoCacheManager {

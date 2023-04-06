@@ -43,6 +43,8 @@ pub enum CacheError {
     },
     #[error("Path not initialized for Cache Reader")]
     PathNotInitialized,
+    #[error("Attempt to delete or update a cache with append-only schema")]
+    AppendOnlySchema,
     #[error("Primary key is not found")]
     PrimaryKeyNotFound,
     #[error("Primary key already exists")]
