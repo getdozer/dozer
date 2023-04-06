@@ -11,6 +11,7 @@ use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
 mod field;
+#[cfg(test)]
 mod tests;
 
 use crate::errors::internal::BoxedError;
