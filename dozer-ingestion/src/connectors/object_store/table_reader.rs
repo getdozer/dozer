@@ -159,10 +159,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
                 .await;
                 if let Err(e) = result {
                     sender.send(Err(e)).unwrap();
-                    return Err(ObjectStoreConnectorError::DataReadError);
                 }
-
-                Ok(())
             });
         }
 
