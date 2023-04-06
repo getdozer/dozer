@@ -69,7 +69,7 @@ impl Field {
             Field::Date(_) => 10,
             Field::Bson(b) => b.len(),
             Field::Point(_p) => 16,
-            Field::Duration(_) => 32,
+            Field::Duration(_) => 17,
             Field::Null => 0,
         }
     }
@@ -217,7 +217,7 @@ impl Field {
             Field::Date(_) => 11,
             Field::Bson(_) => 12,
             Field::Point(_) => 13,
-            Field::Duration(_) => 32,
+            Field::Duration(_) => 14,
             Field::Null => 15,
         }
     }
