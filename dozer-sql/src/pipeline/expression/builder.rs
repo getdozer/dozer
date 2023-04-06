@@ -1,4 +1,3 @@
-
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -8,7 +7,6 @@ use sqlparser::ast::{
     FunctionArg, FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator,
     Value as SqlValue,
 };
-
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
@@ -118,16 +116,13 @@ impl ExpressionBuilder {
             SqlExpr::Interval {
                 value,
                 leading_field,
-                leading_precision,
-                last_field,
-                fractional_seconds_precision,
+                leading_precision: _,
+                last_field: _,
+                fractional_seconds_precision: _,
             } => self.parse_sql_interval_expression(
                 parse_aggregations,
                 value,
                 leading_field,
-                leading_precision,
-                last_field,
-                fractional_seconds_precision,
                 schema,
             ),
             _ => Err(InvalidExpression(format!("{expression:?}"))),
@@ -419,9 +414,6 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         value: &Box<Expr>,
         leading_field: &Option<DateTimeField>,
-        _leading_precision: &Option<u64>,
-        _last_field: &Option<DateTimeField>,
-        _fractional_seconds_precision: &Option<u64>,
         schema: &Schema,
     ) -> Result<Expression, PipelineError> {
         let right = self.parse_sql_expression(parse_aggregations, value, schema)?;
