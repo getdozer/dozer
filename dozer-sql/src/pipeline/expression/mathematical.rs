@@ -4,12 +4,13 @@ use crate::pipeline::errors::SqlError::Operation;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::Schema;
+use dozer_types::types::{DozerDuration, TimeUnit};
 use dozer_types::{
+    chrono,
     ordered_float::OrderedFloat,
     types::{Field, Record},
 };
 use num_traits::FromPrimitive;
-
 use std::num::Wrapping;
 use std::ops::Neg;
 
@@ -25,17 +26,131 @@ macro_rules! define_math_operator {
             let right_p = right.evaluate(&record, schema)?;
 
             match left_p {
+                Field::Duration(left_v) => {
+                    match right_p {
+                        Field::Duration(right_v) => match $op {
+                            "-" => {
+                                let duration = left_v.0.checked_sub(right_v.0).ok_or(
+                                    PipelineError::SqlError(Operation(
+                                        OperationError::AdditionOverflow,
+                                    )),
+                                )?;
+                                Ok(Field::from(DozerDuration(duration, TimeUnit::Nanoseconds)))
+                            }
+                            "+" => {
+                                let duration = left_v.0.checked_add(right_v.0).ok_or(
+                                    PipelineError::SqlError(Operation(
+                                        OperationError::SubtractionOverflow,
+                                    )),
+                                )?;
+                                Ok(Field::from(DozerDuration(duration, TimeUnit::Nanoseconds)))
+                            }
+                            "*" | "/" | "%" => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        },
+                        Field::Timestamp(right_v) => match $op {
+                            "+" => {
+                                let duration = right_v
+                                    .checked_add_signed(chrono::Duration::nanoseconds(
+                                        left_v.0.as_nanos() as i64,
+                                    ))
+                                    .ok_or(PipelineError::SqlError(Operation(
+                                        OperationError::AdditionOverflow,
+                                    )))?;
+                                Ok(Field::Timestamp(duration))
+                            }
+                            "-" | "*" | "/" | "%" => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        },
+                        Field::UInt(_)
+                        | Field::U128(_)
+                        | Field::Int(_)
+                        | Field::I128(_)
+                        | Field::Float(_)
+                        | Field::Boolean(_)
+                        | Field::String(_)
+                        | Field::Text(_)
+                        | Field::Binary(_)
+                        | Field::Decimal(_)
+                        | Field::Date(_)
+                        | Field::Bson(_)
+                        | Field::Point(_)
+                        | Field::Null => Err(PipelineError::InvalidTypeComparison(
+                            left_p,
+                            right_p,
+                            $op.to_string(),
+                        )),
+                    }
+                }
                 Field::Timestamp(left_v) => match right_p {
+                    Field::Duration(right_v) => match $op {
+                        "-" => {
+                            let duration = left_v
+                                .checked_sub_signed(chrono::Duration::nanoseconds(
+                                    right_v.0.as_nanos() as i64,
+                                ))
+                                .ok_or(PipelineError::SqlError(Operation(
+                                    OperationError::AdditionOverflow,
+                                )))?;
+                            Ok(Field::Timestamp(duration))
+                        }
+                        "+" => {
+                            let duration = left_v
+                                .checked_add_signed(chrono::Duration::nanoseconds(
+                                    right_v.0.as_nanos() as i64,
+                                ))
+                                .ok_or(PipelineError::SqlError(Operation(
+                                    OperationError::SubtractionOverflow,
+                                )))?;
+                            Ok(Field::Timestamp(duration))
+                        }
+                        "*" | "/" | "%" => Err(PipelineError::InvalidTypeComparison(
+                            left_p,
+                            right_p,
+                            $op.to_string(),
+                        )),
+                        &_ => Err(PipelineError::InvalidTypeComparison(
+                            left_p,
+                            right_p,
+                            $op.to_string(),
+                        )),
+                    },
                     Field::Timestamp(right_v) => match $op {
                         "-" => {
-                            let duration = left_v - right_v;
-                            duration
-                                .num_nanoseconds()
-                                .ok_or(PipelineError::UnableToCast(
-                                    format!("{}", duration),
-                                    "i64".to_string(),
+                            if left_v > right_v {
+                                let duration: i64 = (left_v - right_v).num_nanoseconds().ok_or(
+                                    PipelineError::UnableToCast(
+                                        format!("{}", left_v - right_v),
+                                        "i64".to_string(),
+                                    ),
+                                )?;
+                                Ok(Field::from(DozerDuration(
+                                    std::time::Duration::from_nanos(duration as u64),
+                                    TimeUnit::Nanoseconds,
+                                )))
+                            } else {
+                                Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
                                 ))
-                                .map(Field::Int)
+                            }
                         }
                         "+" | "*" | "/" | "%" => Err(PipelineError::InvalidTypeComparison(
                             left_p,
@@ -156,7 +271,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -345,7 +461,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -492,7 +609,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -677,7 +795,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -820,7 +939,8 @@ macro_rules! define_math_operator {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -910,7 +1030,8 @@ macro_rules! define_math_operator {
                                 | Field::Timestamp(_)
                                 | Field::Date(_)
                                 | Field::Bson(_)
-                                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                                | Field::Point(_)
+                                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                                     left_p,
                                     right_p,
                                     $op.to_string(),
@@ -999,7 +1120,8 @@ macro_rules! define_math_operator {
                                 | Field::Timestamp(_)
                                 | Field::Date(_)
                                 | Field::Bson(_)
-                                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                                | Field::Point(_)
+                                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                                     left_p,
                                     right_p,
                                     $op.to_string(),
@@ -1088,7 +1210,8 @@ macro_rules! define_math_operator {
                                 | Field::Timestamp(_)
                                 | Field::Date(_)
                                 | Field::Bson(_)
-                                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                                | Field::Point(_)
+                                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                                     left_p,
                                     right_p,
                                     $op.to_string(),
@@ -1160,7 +1283,8 @@ macro_rules! define_math_operator {
                                 | Field::Timestamp(_)
                                 | Field::Date(_)
                                 | Field::Bson(_)
-                                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                                | Field::Point(_)
+                                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                                     left_p,
                                     right_p,
                                     $op.to_string(),
@@ -1219,6 +1343,7 @@ pub fn evaluate_plus(
         | Field::Date(_)
         | Field::Bson(_)
         | Field::Point(_)
+        | Field::Duration(_)
         | Field::Null => Err(PipelineError::InvalidType(
             expression_result,
             "+".to_string(),
@@ -1239,14 +1364,16 @@ pub fn evaluate_minus(
         Field::I128(v) => Ok(Field::I128(-v)),
         Field::Float(v) => Ok(Field::Float(-v)),
         Field::Decimal(v) => Ok(Field::Decimal(v.neg())),
+        Field::Timestamp(dt) => Ok(Field::Timestamp(dt.checked_add_signed(chrono::Duration::nanoseconds(1)).unwrap())),
         Field::Boolean(_)
         | Field::String(_)
         | Field::Text(_)
         | Field::Binary(_)
-        | Field::Timestamp(_)
+        // | Field::Timestamp(_)
         | Field::Date(_)
         | Field::Bson(_)
         | Field::Point(_)
+        | Field::Duration(_)
         | Field::Null => Err(PipelineError::InvalidType(
             expression_result,
             "-".to_string(),

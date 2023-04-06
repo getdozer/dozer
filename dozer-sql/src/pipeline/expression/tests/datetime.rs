@@ -1,8 +1,14 @@
 use crate::pipeline::expression::datetime::evaluate_date_part;
 use crate::pipeline::expression::execution::Expression;
+use crate::pipeline::expression::mathematical::{
+    evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
+};
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_types::chrono;
 use dozer_types::chrono::{DateTime, Datelike, NaiveDate};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
+use dozer_types::types::{
+    DozerDuration, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition, TimeUnit,
+};
 use num_traits::ToPrimitive;
 use proptest::prelude::*;
 use sqlparser::ast::DateTimeField;
@@ -126,7 +132,106 @@ fn test_timestamp_diff() {
             Field::Timestamp(DateTime::parse_from_rfc3339("2023-01-02T00:12:10Z").unwrap()),
         ],
     );
-    assert_eq!(f, Field::Int(1000 * 1000 * 1000));
+    assert_eq!(
+        f,
+        Field::Duration(DozerDuration(
+            std::time::Duration::from_secs(1),
+            TimeUnit::Nanoseconds
+        ))
+    );
+}
+
+#[test]
+fn test_duration() {
+    proptest!(
+        ProptestConfig::with_cases(1000),
+        move |(d1: u64, d2: u64, dt1: ArbitraryDateTime)| {
+            test_duration_math(d1, d2, dt1)
+    });
+}
+
+fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
+    let row = Record::new(None, vec![], None);
+
+    let v = Expression::Literal(Field::Date(dt1.0.date_naive()));
+    let dur1 = Expression::Literal(Field::Duration(DozerDuration(
+        std::time::Duration::from_nanos(d1),
+        TimeUnit::Nanoseconds,
+    )));
+    let dur2 = Expression::Literal(Field::Duration(DozerDuration(
+        std::time::Duration::from_nanos(d2),
+        TimeUnit::Nanoseconds,
+    )));
+
+    // Duration + Duration = Duration
+    let result = evaluate_add(&Schema::empty(), &dur1, &dur2, &row);
+    let sum = std::time::Duration::from_nanos(d1).checked_add(std::time::Duration::from_nanos(d2));
+    if result.is_ok() && sum.is_some() {
+        assert_eq!(
+            result.unwrap(),
+            Field::Duration(DozerDuration(sum.unwrap(), TimeUnit::Nanoseconds))
+        );
+    }
+    // Duration - Duration = Duration
+    let result = evaluate_sub(&Schema::empty(), &dur1, &dur2, &row);
+    let diff = std::time::Duration::from_nanos(d1).checked_sub(std::time::Duration::from_nanos(d2));
+    if result.is_ok() && diff.is_some() {
+        assert_eq!(
+            result.unwrap(),
+            Field::Duration(DozerDuration(diff.unwrap(), TimeUnit::Nanoseconds))
+        );
+    }
+    // Duration * Duration = Error
+    let result = evaluate_mul(&Schema::empty(), &dur1, &dur2, &row);
+    assert!(result.is_err());
+    // Duration / Duration = Error
+    let result = evaluate_div(&Schema::empty(), &dur1, &dur2, &row);
+    assert!(result.is_err());
+    // Duration % Duration = Error
+    let result = evaluate_mod(&Schema::empty(), &dur1, &dur2, &row);
+    assert!(result.is_err());
+
+    // Duration + Timestamp = Error
+    let result = evaluate_add(&Schema::empty(), &dur1, &v, &row);
+    assert!(result.is_err());
+    // Duration - Timestamp = Error
+    let result = evaluate_sub(&Schema::empty(), &dur1, &v, &row);
+    assert!(result.is_err());
+    // Duration * Timestamp = Error
+    let result = evaluate_mul(&Schema::empty(), &dur1, &v, &row);
+    assert!(result.is_err());
+    // Duration / Timestamp = Error
+    let result = evaluate_div(&Schema::empty(), &dur1, &v, &row);
+    assert!(result.is_err());
+    // Duration % Timestamp = Error
+    let result = evaluate_mod(&Schema::empty(), &dur1, &v, &row);
+    assert!(result.is_err());
+
+    // Timestamp + Duration = Timestamp
+    let result = evaluate_add(&Schema::empty(), &v, &dur1, &row);
+    let sum = dt1
+        .0
+        .checked_add_signed(chrono::Duration::nanoseconds(d1 as i64));
+    if result.is_ok() && sum.is_some() {
+        assert_eq!(result.unwrap(), Field::Timestamp(sum.unwrap()));
+    }
+    // Timestamp - Duration = Timestamp
+    let result = evaluate_sub(&Schema::empty(), &v, &dur2, &row);
+    let diff = dt1
+        .0
+        .checked_sub_signed(chrono::Duration::nanoseconds(d2 as i64));
+    if result.is_ok() && diff.is_some() {
+        assert_eq!(result.unwrap(), Field::Timestamp(diff.unwrap()));
+    }
+    // Timestamp * Duration = Error
+    let result = evaluate_mul(&Schema::empty(), &v, &dur1, &row);
+    assert!(result.is_err());
+    // Timestamp / Duration = Error
+    let result = evaluate_div(&Schema::empty(), &v, &dur1, &row);
+    assert!(result.is_err());
+    // Timestamp % Duration = Error
+    let result = evaluate_mod(&Schema::empty(), &v, &dur1, &row);
+    assert!(result.is_err());
 }
 
 // #[test]

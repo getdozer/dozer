@@ -38,6 +38,7 @@ macro_rules! define_comparison {
                     | Field::Date(_)
                     | Field::Bson(_)
                     | Field::Point(_)
+                    | Field::Duration(_)
                     | Field::Null => Ok(Field::Null),
                 },
                 Field::Int(left_v) => match right_p {
@@ -72,7 +73,8 @@ macro_rules! define_comparison {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -110,7 +112,8 @@ macro_rules! define_comparison {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -148,7 +151,8 @@ macro_rules! define_comparison {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -188,7 +192,8 @@ macro_rules! define_comparison {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -235,7 +240,8 @@ macro_rules! define_comparison {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -298,7 +304,8 @@ macro_rules! define_comparison {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -319,7 +326,8 @@ macro_rules! define_comparison {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -340,7 +348,8 @@ macro_rules! define_comparison {
                     | Field::Timestamp(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -361,7 +370,8 @@ macro_rules! define_comparison {
                     | Field::Decimal(_)
                     | Field::Date(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -382,13 +392,14 @@ macro_rules! define_comparison {
                     | Field::Decimal(_)
                     | Field::Timestamp(_)
                     | Field::Bson(_)
-                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                    | Field::Point(_)
+                    | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
                     )),
                 },
-                Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+                Field::Binary(_) | Field::Bson(_) | Field::Point(_) | Field::Duration(_) => Err(
                     PipelineError::InvalidTypeComparison(left_p, right_p, $op.to_string()),
                 ),
             }
@@ -423,6 +434,7 @@ pub fn evaluate_lt(
             | Field::Date(_)
             | Field::Bson(_)
             | Field::Point(_)
+            | Field::Duration(_)
             | Field::Null => Ok(Field::Null),
         },
         Field::Int(left_v) => match right_p {
@@ -456,7 +468,8 @@ pub fn evaluate_lt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -493,7 +506,8 @@ pub fn evaluate_lt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -529,7 +543,8 @@ pub fn evaluate_lt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -565,7 +580,8 @@ pub fn evaluate_lt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -611,7 +627,8 @@ pub fn evaluate_lt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -665,7 +682,8 @@ pub fn evaluate_lt(
                 | Field::Timestamp(_)
                 | Field::Date(_)
                 | Field::Bson(_)
-                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                | Field::Point(_)
+                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                     left_p,
                     right_p,
                     "<".to_string(),
@@ -687,7 +705,8 @@ pub fn evaluate_lt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -708,7 +727,8 @@ pub fn evaluate_lt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -729,7 +749,8 @@ pub fn evaluate_lt(
             | Field::Decimal(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -750,13 +771,14 @@ pub fn evaluate_lt(
             | Field::Decimal(_)
             | Field::Timestamp(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
             )),
         },
-        Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+        Field::Binary(_) | Field::Bson(_) | Field::Point(_) | Field::Duration(_) => Err(
             PipelineError::InvalidTypeComparison(left_p, right_p, "<".to_string()),
         ),
     }
@@ -789,6 +811,7 @@ pub fn evaluate_gt(
             | Field::Date(_)
             | Field::Bson(_)
             | Field::Point(_)
+            | Field::Duration(_)
             | Field::Null => Ok(Field::Null),
         },
         Field::Int(left_v) => match right_p {
@@ -822,7 +845,8 @@ pub fn evaluate_gt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -859,7 +883,8 @@ pub fn evaluate_gt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -895,7 +920,8 @@ pub fn evaluate_gt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -931,7 +957,8 @@ pub fn evaluate_gt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -977,7 +1004,8 @@ pub fn evaluate_gt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -1031,7 +1059,8 @@ pub fn evaluate_gt(
                 | Field::Timestamp(_)
                 | Field::Date(_)
                 | Field::Bson(_)
-                | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                | Field::Point(_)
+                | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                     left_p,
                     right_p,
                     ">".to_string(),
@@ -1053,7 +1082,8 @@ pub fn evaluate_gt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -1074,7 +1104,8 @@ pub fn evaluate_gt(
             | Field::Timestamp(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -1095,7 +1126,8 @@ pub fn evaluate_gt(
             | Field::Decimal(_)
             | Field::Date(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -1116,13 +1148,14 @@ pub fn evaluate_gt(
             | Field::Decimal(_)
             | Field::Timestamp(_)
             | Field::Bson(_)
-            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+            | Field::Point(_)
+            | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
             )),
         },
-        Field::Binary(_) | Field::Bson(_) | Field::Point(_) => Err(
+        Field::Binary(_) | Field::Bson(_) | Field::Point(_) | Field::Duration(_) => Err(
             PipelineError::InvalidTypeComparison(left_p, right_p, ">".to_string()),
         ),
     }

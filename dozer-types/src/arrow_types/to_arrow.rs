@@ -8,6 +8,7 @@ use arrow::{
     datatypes::i256,
     record_batch::RecordBatch,
 };
+use arrow_schema::TimeUnit;
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
@@ -112,6 +113,16 @@ pub fn map_record_to_arrow(
                     None as Option<&[u8]>,
                 ])) as ArrayRef
             }
+            (Field::Duration(d), FieldType::Duration) => {
+                Arc::new(arrow_array::DurationNanosecondArray::from_iter_values([
+                    d.0.as_nanos() as i64,
+                ])) as ArrayRef
+            }
+            (Field::Null, FieldType::Duration) => {
+                Arc::new(arrow_array::BinaryArray::from_opt_vec(vec![
+                    None as Option<&[u8]>,
+                ])) as ArrayRef
+            }
             (a, b) => Err(arrow::error::ArrowError::InvalidArgumentError(format!(
                 "Invalid field type {b:?} for the field: {a:?}",
             )))?,
@@ -149,6 +160,7 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
             metadata.map(|m| m.insert("logical_type".to_string(), "Point".to_string()));
             DataType::Binary
         }
+        FieldType::Duration => DataType::Duration(TimeUnit::Nanosecond),
     }
 }
 

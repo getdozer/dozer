@@ -9,6 +9,7 @@ use dozer_types::{rust_decimal, thiserror};
 
 use base64::DecodeError;
 
+use crossbeam::channel::RecvError;
 use deltalake::datafusion::error::DataFusionError;
 use deltalake::DeltaTableError;
 #[cfg(feature = "snowflake")]
@@ -402,6 +403,9 @@ pub enum ObjectStoreConnectorError {
 
     #[error(transparent)]
     IngestorError(#[from] IngestorError),
+
+    #[error("Failed to send message on data read channel. Error: {0}")]
+    RecvError(#[source] RecvError),
 }
 
 #[derive(Error, Debug, PartialEq)]

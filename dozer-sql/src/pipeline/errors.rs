@@ -194,6 +194,10 @@ pub enum SqlError {
 
 #[derive(Error, Debug)]
 pub enum OperationError {
+    #[error("SQL Error: Addition operation cannot be done due to overflow.")]
+    AdditionOverflow,
+    #[error("SQL Error: Subtraction operation cannot be done due to overflow.")]
+    SubtractionOverflow,
     #[error("SQL Error: Multiplication operation cannot be done due to overflow.")]
     MultiplicationOverflow,
     #[error("SQL Error: Division operation cannot be done.")]

@@ -4,7 +4,7 @@ use super::utils::{
 use dozer_types::indexmap::{self, IndexMap};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Map;
-use dozer_types::types::IndexDefinition;
+use dozer_types::types::{IndexDefinition, TimeUnit};
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
 use openapiv3::*;
 use serde_json::{json, Value};
@@ -48,6 +48,15 @@ impl<'a> OpenApiGenerator<'a> {
                         let mut m = Map::new();
                         m.insert("x".to_string(), Value::from(3.3));
                         m.insert("y".to_string(), Value::from(4.4));
+                        Value::Object(m)
+                    }
+                    FieldType::Duration => {
+                        let mut m = Map::new();
+                        m.insert("val".to_string(), Value::from("3.3i128"));
+                        m.insert(
+                            "unit".to_string(),
+                            Value::from(TimeUnit::Nanoseconds.to_string()),
+                        );
                         Value::Object(m)
                     }
                 };

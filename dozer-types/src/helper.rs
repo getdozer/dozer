@@ -1,11 +1,12 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use crate::types::{DozerPoint, DATE_FORMAT};
+use crate::types::{DozerDuration, DozerPoint, TimeUnit, DATE_FORMAT};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use serde_json::Value;
 use std::str::FromStr;
+use std::time::Duration;
 
 /// Used in REST APIs and query expressions for converting JSON value to `Field`
 pub fn json_value_to_field(
@@ -88,6 +89,49 @@ pub fn json_value_to_field(
         FieldType::Point => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),
+        FieldType::Duration => match value.get("value") {
+            Some(Value::String(v_val)) => match value.get("time_unit") {
+                Some(Value::String(tu_val)) => {
+                    let time_unit = TimeUnit::from_str(tu_val)?;
+                    return match time_unit {
+                        TimeUnit::Seconds => {
+                            let dur = u64::from_str(v_val).unwrap();
+                            Ok(Field::Duration(DozerDuration(
+                                Duration::from_secs(dur),
+                                time_unit,
+                            )))
+                        }
+                        TimeUnit::Milliseconds => {
+                            let dur = u64::from_str(v_val).unwrap();
+                            Ok(Field::Duration(DozerDuration(
+                                Duration::from_millis(dur),
+                                time_unit,
+                            )))
+                        }
+                        TimeUnit::Microseconds => {
+                            let dur = u64::from_str(v_val).unwrap();
+                            Ok(Field::Duration(DozerDuration(
+                                Duration::from_micros(dur),
+                                time_unit,
+                            )))
+                        }
+                        TimeUnit::Nanoseconds => {
+                            Ok(Field::Duration(DozerDuration::from_str(v_val).unwrap()))
+                        }
+                    };
+                }
+                _ => Err(DeserializationError::Custom(
+                    "Json value type does not match field type"
+                        .to_string()
+                        .into(),
+                )),
+            },
+            _ => Err(DeserializationError::Custom(
+                "Json value type does not match field type"
+                    .to_string()
+                    .into(),
+            )),
+        },
     }
     .map_err(TypeError::DeserializationError)
 }
@@ -245,6 +289,13 @@ impl Field {
                     value.parse::<DozerPoint>().map(Field::Point)
                 }
             }
+            FieldType::Duration => {
+                if nullable && (value.is_empty() || value == "null") {
+                    Ok(Field::Null)
+                } else {
+                    value.parse::<DozerDuration>().map(Field::Duration)
+                }
+            }
         }
     }
 }
@@ -331,6 +382,7 @@ mod tests {
             ("null", FieldType::Date, true, Field::Null),
             ("null", FieldType::Bson, true, Field::Null),
             ("null", FieldType::Point, true, Field::Null),
+            ("null", FieldType::Duration, true, Field::Null),
             ("", FieldType::UInt, true, Field::Null),
             ("", FieldType::U128, true, Field::Null),
             ("", FieldType::Int, true, Field::Null),
@@ -345,6 +397,7 @@ mod tests {
             ("", FieldType::Date, true, Field::Null),
             ("", FieldType::Bson, true, Field::Null),
             ("", FieldType::Point, true, Field::Null),
+            ("", FieldType::Duration, true, Field::Null),
         ];
 
         for case in ok_cases {
@@ -364,6 +417,7 @@ mod tests {
             ("null", FieldType::Date, false),
             ("null", FieldType::Bson, false),
             ("null", FieldType::Point, false),
+            ("null", FieldType::Duration, false),
             ("", FieldType::UInt, false),
             ("", FieldType::U128, false),
             ("", FieldType::Int, false),
@@ -376,6 +430,7 @@ mod tests {
             ("", FieldType::Date, false),
             ("", FieldType::Bson, false),
             ("", FieldType::Point, false),
+            ("", FieldType::Duration, false),
         ];
         for err_case in err_cases {
             assert!(Field::from_str(err_case.0, err_case.1, err_case.2).is_err());

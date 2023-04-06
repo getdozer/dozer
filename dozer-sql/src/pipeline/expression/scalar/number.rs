@@ -27,6 +27,7 @@ pub(crate) fn evaluate_abs(
         | Field::Binary(_)
         | Field::Bson(_)
         | Field::Point(_)
+        | Field::Duration(_)
         | Field::Null => Err(InvalidFunctionArgument(
             ScalarFunctionType::Abs.to_string(),
             value,
@@ -68,6 +69,7 @@ pub(crate) fn evaluate_round(
             | Field::Binary(_)
             | Field::Bson(_)
             | Field::Point(_)
+            | Field::Duration(_)
             | Field::Null => {} // Truncate value to 0 decimals
         }
     }
@@ -88,7 +90,8 @@ pub(crate) fn evaluate_round(
         | Field::Timestamp(_)
         | Field::Binary(_)
         | Field::Bson(_)
-        | Field::Point(_) => Err(InvalidFunctionArgument(
+        | Field::Point(_)
+        | Field::Duration(_) => Err(InvalidFunctionArgument(
             ScalarFunctionType::Round.to_string(),
             value,
             0,

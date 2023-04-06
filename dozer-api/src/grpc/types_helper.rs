@@ -1,10 +1,11 @@
 use dozer_cache::cache::RecordWithId as CacheRecordWithId;
 use dozer_types::grpc_types::types::{
-    value, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal, Type, Value,
+    value, DurationType, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal,
+    Type, Value,
 };
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType, Record as DozerRecord, DATE_FORMAT};
+use dozer_types::types::{DozerDuration, Field, FieldType, Record as DozerRecord, DATE_FORMAT};
 use prost_reflect::prost_types::Timestamp;
 
 pub fn map_insert_operation(endpoint_name: String, record: DozerRecord, id: u64) -> Operation {
@@ -69,6 +70,15 @@ fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) ->
     }
 }
 
+fn map_duration_to_prost_coord_map(d: DozerDuration) -> Value {
+    Value {
+        value: Some(value::Value::DurationValue(DurationType {
+            value: d.0.as_nanos().to_string(),
+            time_unit: d.1.to_string(),
+        })),
+    }
+}
+
 fn map_decimal(d: Decimal) -> Value {
     Value {
         value: Some(value::Value::DecimalValue(RustDecimal {
@@ -126,6 +136,7 @@ fn field_to_prost_value(f: Field) -> Value {
             )),
         },
         Field::Point(point) => map_x_y_to_prost_coord_map(point.0.x_y()),
+        Field::Duration(d) => map_duration_to_prost_coord_map(d),
     }
 }
 
@@ -158,5 +169,6 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Bson => Type::Bson,
         FieldType::Date => Type::String,
         FieldType::Point => Type::Point,
+        FieldType::Duration => Type::Duration,
     }
 }
