@@ -21,13 +21,13 @@ pub fn validate_max(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         FieldType::Decimal => FieldType::Decimal,
         FieldType::Timestamp => FieldType::Timestamp,
         FieldType::Date => FieldType::Date,
+        FieldType::Duration => FieldType::Duration,
         FieldType::Boolean
         | FieldType::String
         | FieldType::Text
         | FieldType::Binary
         | FieldType::Bson
-        | FieldType::Point
-        | FieldType::Duration => {
+        | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Max.to_string(),
                 arg.return_type,
@@ -40,6 +40,7 @@ pub fn validate_max(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
                     FieldType::Float,
                     FieldType::Timestamp,
                     FieldType::Date,
+                    FieldType::Duration,
                 ]),
                 0,
             ));

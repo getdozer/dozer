@@ -20,6 +20,7 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         FieldType::I128 => FieldType::I128,
         FieldType::Float => FieldType::Float,
         FieldType::Decimal => FieldType::Decimal,
+        FieldType::Duration => FieldType::Duration,
         FieldType::Boolean
         | FieldType::String
         | FieldType::Text
@@ -27,8 +28,7 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         | FieldType::Timestamp
         | FieldType::Binary
         | FieldType::Bson
-        | FieldType::Point
-        | FieldType::Duration => {
+        | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Sum.to_string(),
                 arg.return_type,
@@ -39,6 +39,7 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
                     FieldType::I128,
                     FieldType::Float,
                     FieldType::Decimal,
+                    FieldType::Duration,
                 ]),
                 0,
             ));
