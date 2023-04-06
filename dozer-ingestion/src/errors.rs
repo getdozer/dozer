@@ -404,9 +404,6 @@ pub enum ObjectStoreConnectorError {
     #[error(transparent)]
     IngestorError(#[from] IngestorError),
 
-    #[error("Failed to read data")]
-    DataReadError,
-
     #[error("Failed to send message on data read channel. Error: {0}")]
     RecvError(#[source] RecvError),
 }
