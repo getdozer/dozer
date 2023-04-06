@@ -13,7 +13,6 @@ use num_traits::ToPrimitive;
 use proptest::prelude::*;
 use sqlparser::ast::DateTimeField;
 
-
 #[test]
 fn test_time() {
     proptest!(
