@@ -7,7 +7,7 @@ use dozer_storage::{
     LmdbEnvironment, LmdbOption,
 };
 use dozer_types::models::api_endpoint::{
-    ConflictResolution, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
+    OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
 };
 use dozer_types::{
     borrow::IntoOwned,
@@ -29,7 +29,7 @@ mod operation_log;
 use operation_log::RecordMetadata;
 pub use operation_log::{Operation, OperationLog};
 
-use super::CacheOptions;
+use super::{CacheOptions, CacheWriteOptions};
 
 pub trait MainEnvironment: LmdbEnvironment {
     fn common(&self) -> &MainEnvironmentCommon;
@@ -84,9 +84,7 @@ pub struct RwMainEnvironment {
     common: MainEnvironmentCommon,
     _temp_dir: Option<TempDir>,
     schema: SchemaWithIndex,
-    insert_resolution: OnInsertResolutionTypes,
-    delete_resolution: OnDeleteResolutionTypes,
-    update_resolution: OnUpdateResolutionTypes,
+    write_options: CacheWriteOptions,
 }
 
 impl LmdbEnvironment for RwMainEnvironment {
@@ -109,7 +107,7 @@ impl RwMainEnvironment {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
         options: &CacheOptions,
-        conflict_resolution: ConflictResolution,
+        write_options: CacheWriteOptions,
     ) -> Result<Self, CacheError> {
         let (mut env, (base_path, name), temp_dir) = create_env(options)?;
 
@@ -150,9 +148,7 @@ impl RwMainEnvironment {
             },
             schema,
             _temp_dir: temp_dir,
-            insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
-            delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
-            update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
+            write_options,
         })
     }
 
@@ -171,7 +167,7 @@ impl RwMainEnvironment {
             txn,
             &self.schema.0,
             record,
-            self.insert_resolution,
+            self.write_options.insert_resolution,
         )
     }
 
@@ -187,7 +183,7 @@ impl RwMainEnvironment {
             Ok(Some(meta))
         } else {
             // The record does not exist. Resolve the conflict.
-            match self.delete_resolution {
+            match self.write_options.delete_resolution {
                 OnDeleteResolutionTypes::Nothing => Ok(None),
                 OnDeleteResolutionTypes::Panic => Err(CacheError::PrimaryKeyNotFound),
             }
@@ -244,7 +240,8 @@ impl RwMainEnvironment {
                         ..
                     }) => {
                         // Case 5, 6, 7.
-                        if self.update_resolution == OnUpdateResolutionTypes::Nothing {
+                        if self.write_options.update_resolution == OnUpdateResolutionTypes::Nothing
+                        {
                             // Case 5.
                             Ok(UpsertResult::Ignored)
                         } else {
@@ -276,7 +273,7 @@ impl RwMainEnvironment {
             }
         } else {
             // Case 2, 3, 4, 9, 10, 11, 12, 13.
-            match self.update_resolution {
+            match self.write_options.update_resolution {
                 OnUpdateResolutionTypes::Nothing => {
                     // Case 2, 9, 12.
                     Ok(UpsertResult::Ignored)

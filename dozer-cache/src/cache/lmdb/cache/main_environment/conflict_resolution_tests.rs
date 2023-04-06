@@ -1,5 +1,5 @@
 use crate::cache::index;
-use crate::cache::lmdb::cache::MainEnvironment;
+use crate::cache::lmdb::cache::{CacheWriteOptions, MainEnvironment};
 use crate::cache::test_utils::schema_multi_indices;
 use crate::errors::CacheError;
 use dozer_types::models::api_endpoint::{
@@ -11,8 +11,13 @@ use super::RwMainEnvironment;
 
 fn init_env(conflict_resolution: ConflictResolution) -> (RwMainEnvironment, Schema) {
     let schema = schema_multi_indices();
+    let write_options = CacheWriteOptions {
+        insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
+        delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
+        update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
+    };
     let main_env =
-        RwMainEnvironment::new(Some(&schema), &Default::default(), conflict_resolution).unwrap();
+        RwMainEnvironment::new(Some(&schema), &Default::default(), write_options).unwrap();
     (main_env, schema.0)
 }
 

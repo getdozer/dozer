@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaWithIndex};
 
@@ -25,8 +24,8 @@ pub fn create_cache(
     let cache = LmdbRwCache::new(
         Some(&schema),
         &Default::default(),
+        Default::default(),
         indexing_thread_pool.clone(),
-        ConflictResolution::default(),
     )
     .unwrap();
     (cache, indexing_thread_pool, schema.0, schema.1)

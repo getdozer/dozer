@@ -1,4 +1,3 @@
-use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::parking_lot::Mutex;
 use std::path::PathBuf;
 use std::{fmt::Debug, sync::Arc};
@@ -10,7 +9,7 @@ use super::{
     indexing::IndexingThreadPool,
 };
 use crate::cache::expression::QueryExpression;
-use crate::cache::{CacheRecord, RecordMeta, UpsertResult};
+use crate::cache::{CacheRecord, CacheWriteOptions, RecordMeta, UpsertResult};
 use crate::errors::CacheError;
 
 mod main_environment;
@@ -83,10 +82,10 @@ impl LmdbRwCache {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
         options: &CacheOptions,
+        write_options: CacheWriteOptions,
         indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
-        conflict_resolution: ConflictResolution,
     ) -> Result<Self, CacheError> {
-        let rw_main_env = RwMainEnvironment::new(schema, options, conflict_resolution)?;
+        let rw_main_env = RwMainEnvironment::new(schema, options, write_options)?;
 
         let options = CacheOptions {
             path: Some((
