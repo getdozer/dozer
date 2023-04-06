@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 concurrency:
-  group: e2e/${{ github.head_ref }}
+  group: e2e/${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
