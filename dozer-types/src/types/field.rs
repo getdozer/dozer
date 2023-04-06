@@ -8,6 +8,7 @@ use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use std::time::Duration;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
@@ -547,9 +548,10 @@ impl Field {
         }
     }
 
-    pub fn to_duration(&self) -> Option<&DozerDuration> {
+    pub fn to_duration(&self) -> Option<DozerDuration> {
         match self {
-            Field::Duration(d) => Some(d),
+            Field::Duration(d) => Some(*d),
+            Field::Null => Some(DozerDuration::from_str("0").unwrap()),
             _ => None,
         }
     }
