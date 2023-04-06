@@ -10,7 +10,7 @@ use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
+use dozer_types::types::{DozerDuration, Field, FieldType, Schema, SourceDefinition, TimeUnit};
 use num_traits::FromPrimitive;
 
 use std::ops::Div;
@@ -76,6 +76,7 @@ impl AvgAggregator {
                 u128_state: 0_u128,
                 float_state: 0_f64,
                 decimal_state: Decimal::from_f64(0_f64).unwrap(),
+                duration_state: std::time::Duration::new(0, 0),
             },
             current_count: 0_u64,
             return_type: None,
@@ -189,6 +190,25 @@ fn get_average(
                     .unwrap();
                 Ok(Field::Decimal(d_sum.div(Decimal::from(*current_count))))
             }
+            FieldType::Duration => {
+                if *current_count == 0 {
+                    return Ok(Field::Null);
+                }
+                let str_dur = sum.to_duration().unwrap().to_string();
+                let d_sum = sum
+                    .to_duration()
+                    .ok_or(InvalidValue(str_dur.clone()))
+                    .unwrap();
+
+                Ok(Field::Duration(DozerDuration(
+                    d_sum
+                        .0
+                        .checked_div((*current_count) as u32)
+                        .ok_or(InvalidValue(str_dur))
+                        .unwrap(),
+                    TimeUnit::Nanoseconds,
+                )))
+            }
             FieldType::Boolean
             | FieldType::String
             | FieldType::Text
@@ -196,10 +216,9 @@ fn get_average(
             | FieldType::Timestamp
             | FieldType::Binary
             | FieldType::Bson
-            | FieldType::Point
-            | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(
-                format!("Not supported return type {typ} for {Avg}"),
-            ))),
+            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+                "Not supported return type {typ} for {Avg}"
+            )))),
         },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Avg}"
