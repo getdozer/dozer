@@ -2,13 +2,14 @@ use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::schema_helper::map_value_to_dozer_field;
 use crate::connectors::TableInfo;
-use crate::errors::ObjectStoreConnectorError::TableReaderError;
+use crate::errors::ObjectStoreConnectorError::{RecvError, TableReaderError};
 use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
 use crate::errors::ObjectStoreTableReaderError::{
     ColumnsSelectFailed, StreamExecutionError, TableReadFailed,
 };
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crate::ingestion::Ingestor;
+use crossbeam::channel::{unbounded, Sender};
 use deltalake::datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
@@ -18,6 +19,7 @@ use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use std::sync::Arc;
+
 use tokio::runtime::Runtime;
 
 pub struct TableReader<T: Clone + Send + Sync> {
@@ -34,15 +36,14 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         ctx: SessionContext,
         table_path: ListingTableUrl,
         listing_options: ListingOptions,
-        ingestor: &Ingestor,
         table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<(), ObjectStoreConnectorError> {
         let resolved_schema = listing_options
             .infer_schema(&ctx.state(), &table_path)
             .await
             .map_err(ObjectStoreConnectorError::InternalDataFusionError)?;
 
-        let mut idx = 0;
         let fields = resolved_schema.all_fields();
 
         let config = ListingTableConfig::new(table_path.clone())
@@ -89,23 +90,19 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                ingestor
-                    .handle_message(IngestionMessage::new_op(
-                        (id + 1) as u64,
-                        idx,
-                        Operation::Insert {
-                            new: Record {
-                                schema_id: Some(SchemaIdentifier { id, version: 0 }),
-                                values: fields,
-                                version: None,
-                            },
-                        },
-                    ))
-                    .map_err(ObjectStoreConnectorError::IngestorError)?;
+                let evt = Operation::Insert {
+                    new: Record {
+                        schema_id: Some(SchemaIdentifier { id, version: 0 }),
+                        values: fields,
+                        version: None,
+                    },
+                };
 
-                idx += 1;
+                sender.send(Ok(Some(evt))).unwrap();
             }
         }
+
+        sender.send(Ok(None)).unwrap();
 
         Ok(())
     }
@@ -120,6 +117,12 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
         ingestor
             .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
             .map_err(ObjectStoreConnectorError::IngestorError)?;
+
+        let mut left_tables_count = tables.len();
+        let (tx, rx) = unbounded();
+
+        let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
+
         for (id, table) in tables.iter().enumerate() {
             let params = self.config.table_params(&table.name)?;
 
@@ -133,8 +136,6 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
             let listing_options = map_listing_options(params.data_fusion_table)
                 .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
 
-            let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
-
             let ctx = SessionContext::new();
 
             ctx.runtime_env().register_object_store(
@@ -143,21 +144,48 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
                 Arc::new(params.object_store),
             );
 
-            rt.block_on(Self::read(
-                id as u32,
-                ctx,
-                table_path,
-                listing_options,
-                ingestor,
-                table,
-            ))?;
+            let sender = tx.clone();
+            let t = table.clone();
+
+            rt.spawn(async move {
+                let result = Self::read(
+                    id as u32,
+                    ctx,
+                    table_path,
+                    listing_options,
+                    &t,
+                    sender.clone(),
+                )
+                .await;
+                if let Err(e) = result {
+                    sender.send(Err(e)).unwrap();
+                }
+            });
+        }
+
+        let mut idx = 1;
+        loop {
+            let message = rx
+                .recv()
+                .map_err(|e| ConnectorError::ObjectStoreConnectorError(RecvError(e)))??;
+            match message {
+                None => {
+                    left_tables_count -= 1;
+                    if left_tables_count == 0 {
+                        break;
+                    }
+                }
+                Some(evt) => {
+                    ingestor
+                        .handle_message(IngestionMessage::new_op(0, idx, evt))
+                        .map_err(ConnectorError::IngestorError)?;
+                    idx += 1;
+                }
+            }
         }
 
         ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(
-                (tables.len() + 1) as u64,
-                0,
-            ))
+            .handle_message(IngestionMessage::new_snapshotting_done(0, idx))
             .map_err(ObjectStoreConnectorError::IngestorError)?;
 
         Ok(())
