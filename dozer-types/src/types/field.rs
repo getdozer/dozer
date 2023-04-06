@@ -8,7 +8,6 @@ use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
 use std::time::Duration;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
@@ -548,39 +547,10 @@ impl Field {
         }
     }
 
-    pub fn to_duration(&self) -> Result<Option<DozerDuration>, TypeError> {
+    pub fn to_duration(&self) -> Option<&DozerDuration> {
         match self {
-            Field::UInt(d) => Ok(Some(
-                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
-            )),
-            Field::U128(d) => Ok(Some(
-                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
-            )),
-            Field::Int(d) => Ok(Some(
-                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
-            )),
-            Field::I128(d) => Ok(Some(
-                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
-            )),
-            Field::Duration(d) => Ok(Some(*d)),
-            Field::String(d) | Field::Text(d) => {
-                let dur = DozerDuration::from_str(d.as_str());
-                if let Ok(..) = dur {
-                    Ok(Some(dur.unwrap()))
-                } else {
-                    Err(TypeError::InvalidFieldValue {
-                        field_type: FieldType::Duration,
-                        nullable: false,
-                        value: format!("{:?}", self),
-                    })
-                }
-            }
-            Field::Null => Ok(Some(DozerDuration::from_str("0").unwrap())),
-            _ => Err(TypeError::InvalidFieldValue {
-                field_type: FieldType::Duration,
-                nullable: false,
-                value: format!("{:?}", self),
-            }),
+            Field::Duration(d) => Some(d),
+            _ => None,
         }
     }
 

@@ -7,7 +7,7 @@ use crate::{argv, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{DozerDuration, Field, FieldType, Schema, SourceDefinition, TimeUnit};
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use num_traits::FromPrimitive;
 
 pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionType, PipelineError> {
@@ -20,7 +20,6 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         FieldType::I128 => FieldType::I128,
         FieldType::Float => FieldType::Float,
         FieldType::Decimal => FieldType::Decimal,
-        FieldType::Duration => FieldType::Duration,
         FieldType::Boolean
         | FieldType::String
         | FieldType::Text
@@ -28,7 +27,8 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         | FieldType::Timestamp
         | FieldType::Binary
         | FieldType::Bson
-        | FieldType::Point => {
+        | FieldType::Point
+        | FieldType::Duration => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Sum.to_string(),
                 arg.return_type,
@@ -39,7 +39,6 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
                     FieldType::I128,
                     FieldType::Float,
                     FieldType::Decimal,
-                    FieldType::Duration,
                 ]),
                 0,
             ));
@@ -67,7 +66,6 @@ pub struct SumState {
     pub(crate) u128_state: u128,
     pub(crate) float_state: f64,
     pub(crate) decimal_state: Decimal,
-    pub(crate) duration_state: std::time::Duration,
 }
 
 impl SumAggregator {
@@ -80,7 +78,6 @@ impl SumAggregator {
                 u128_state: 0_u128,
                 float_state: 0_f64,
                 decimal_state: Decimal::from_f64(0_f64).unwrap(),
-                duration_state: std::time::Duration::new(0, 0),
             },
             return_type: None,
         }
@@ -198,23 +195,6 @@ pub fn get_sum(
                 }
                 Ok(Field::Decimal(current_state.decimal_state))
             }
-            FieldType::Duration => {
-                if decr {
-                    for field in fields {
-                        let val = calculate_err_field!(field.to_duration()?, Sum, field);
-                        current_state.duration_state -= val.0;
-                    }
-                } else {
-                    for field in fields {
-                        let val = calculate_err_field!(field.to_duration()?, Sum, field);
-                        current_state.duration_state += val.0;
-                    }
-                }
-                Ok(Field::Duration(DozerDuration(
-                    current_state.duration_state,
-                    TimeUnit::Nanoseconds,
-                )))
-            }
             FieldType::Boolean
             | FieldType::String
             | FieldType::Text
@@ -222,9 +202,10 @@ pub fn get_sum(
             | FieldType::Timestamp
             | FieldType::Binary
             | FieldType::Bson
-            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                "Not supported return type {typ} for {Sum}"
-            )))),
+            | FieldType::Point
+            | FieldType::Duration => Err(PipelineError::InternalExecutionError(InvalidType(
+                format!("Not supported return type {typ} for {Sum}"),
+            ))),
         },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Sum}"

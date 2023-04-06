@@ -1,7 +1,6 @@
 use dozer_core::{node::PortHandle, DEFAULT_PORT_HANDLE};
 use dozer_types::types::{
-    DozerDuration, Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
-    TimeUnit, DATE_FORMAT,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, DATE_FORMAT,
 };
 use std::collections::HashMap;
 
@@ -9,7 +8,6 @@ use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
-use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
@@ -180,20 +178,6 @@ pub(crate) fn update_exp(
             None,
         ),
     }
-}
-
-pub fn get_duration_field(val: u128) -> Field {
-    Field::Duration(DozerDuration(
-        std::time::Duration::from_nanos(val as u64),
-        TimeUnit::Nanoseconds,
-    ))
-}
-
-pub fn get_duration_div_field(numerator: i128, denominator: i128) -> Field {
-    Field::Duration(DozerDuration(
-        std::time::Duration::from_nanos((numerator as u64).div_wrapping(denominator as u64)),
-        TimeUnit::Nanoseconds,
-    ))
 }
 
 pub fn get_decimal_field(val: i64) -> Field {
