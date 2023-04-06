@@ -333,7 +333,12 @@ impl FromStr for DozerDuration {
     type Err = TypeError;
 
     fn from_str(str: &str) -> Result<Self, Self::Err> {
-        let val = str.parse::<u64>().unwrap_or_default();
+        let error = || InvalidFieldValue {
+            field_type: FieldType::Duration,
+            nullable: false,
+            value: str.to_string(),
+        };
+        let val = str.parse::<u64>().map_err(|_| error())?;
         Ok(Self(
             std::time::Duration::from_nanos(val),
             TimeUnit::Nanoseconds,

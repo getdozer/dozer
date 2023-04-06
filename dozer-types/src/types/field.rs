@@ -563,8 +563,18 @@ impl Field {
                 DozerDuration::from_str(d.to_string().as_str()).unwrap(),
             )),
             Field::Duration(d) => Ok(Some(*d)),
-            Field::String(d) => Ok(Some(DozerDuration::from_str(d.as_str()).unwrap())),
-            Field::Text(d) => Ok(Some(DozerDuration::from_str(d.as_str()).unwrap())),
+            Field::String(d) | Field::Text(d) => {
+                let dur = DozerDuration::from_str(d.as_str());
+                if let Ok(..) = dur {
+                    Ok(Some(dur.unwrap()))
+                } else {
+                    Err(TypeError::InvalidFieldValue {
+                        field_type: FieldType::Duration,
+                        nullable: false,
+                        value: format!("{:?}", self),
+                    })
+                }
+            }
             Field::Null => Ok(Some(DozerDuration::from_str("0").unwrap())),
             _ => Err(TypeError::InvalidFieldValue {
                 field_type: FieldType::Duration,

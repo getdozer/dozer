@@ -429,7 +429,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_ok());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Text("".to_string());
@@ -447,7 +447,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_ok());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Binary(vec![]);
