@@ -189,6 +189,10 @@ impl<'a, C: LmdbCache> LmdbQueryHandler<'a, C> {
                         .main_env()
                         .operation_log()
                         .get_record_by_operation_id_unchecked(main_txn, id)
+                        .map(|(mut record, version)| {
+                            record.record.version = Some(version);
+                            record
+                        })
                         .map_err(Into::into)
                 })
             })

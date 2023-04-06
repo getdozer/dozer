@@ -19,8 +19,6 @@ use std::{
 };
 use tokio::task::JoinHandle;
 mod console_helper;
-#[cfg(test)]
-mod test_utils;
 mod utils;
 
 pub trait Orchestrator {

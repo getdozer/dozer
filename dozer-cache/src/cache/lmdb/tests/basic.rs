@@ -5,7 +5,7 @@ use crate::cache::{
     index,
     lmdb::{cache::LmdbRwCache, indexing::IndexingThreadPool},
     test_utils::{self, query_from_filter},
-    RoCache, RwCache,
+    RoCache, RwCache, UpsertResult,
 };
 use dozer_types::{
     parking_lot::Mutex,
@@ -46,21 +46,21 @@ fn insert_get_and_delete_record() {
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
-    let mut record = Record::new(schema.identifier, vec![Field::String(val.clone())], None);
-    cache.insert(&mut record).unwrap();
+    let record = Record::new(schema.identifier, vec![Field::String(val.clone())], Some(1));
+    let UpsertResult::Inserted { meta } = cache.insert(&record).unwrap() else {
+        panic!("Must be inserted")
+    };
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 1);
-
-    let version = record.version.unwrap();
 
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
     let get_record = cache.get(&key).unwrap().record;
     assert_eq!(get_record, record, "must be equal");
 
-    assert_eq!(cache.delete(&key).unwrap(), version);
+    assert_eq!(cache.delete(&key).unwrap().unwrap(), meta);
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
@@ -74,24 +74,29 @@ fn insert_get_and_delete_record() {
 #[test]
 fn insert_and_update_record() {
     let (mut cache, _, schema) = _setup();
-    let mut foo = Record::new(
+    let foo = Record::new(
         schema.identifier,
         vec![Field::String("foo".to_string())],
-        None,
+        Some(1),
     );
-    let mut bar = Record::new(
+    let bar = Record::new(
         schema.identifier,
         vec![Field::String("bar".to_string())],
-        None,
+        Some(1),
     );
-    cache.insert(&mut foo).unwrap();
-    let old_version = foo.version.unwrap();
-    cache.insert(&mut bar).unwrap();
+    let UpsertResult::Inserted { meta } = cache.insert(&foo).unwrap() else {
+        panic!("Must be inserted")
+    };
+    cache.insert(&bar).unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &foo.values);
 
-    assert_eq!(cache.update(&key, &mut foo).unwrap().0, Some(old_version));
-    assert_eq!(foo.version.unwrap(), old_version + 1);
+    let UpsertResult::Updated { old_meta, new_meta } = cache.update(&key, &foo).unwrap() else {
+        panic!("Must be updated")
+    };
+    assert_eq!(old_meta, meta);
+    assert_eq!(old_meta.id, new_meta.id);
+    assert_eq!(old_meta.version + 1, new_meta.version);
 }
 
 fn insert_and_query_record_impl(
@@ -100,7 +105,7 @@ fn insert_and_query_record_impl(
     schema: Schema,
 ) {
     let val = "bar".to_string();
-    let mut record = Record::new(schema.identifier, vec![Field::String(val)], None);
+    let mut record = Record::new(schema.identifier, vec![Field::String(val)], Some(1));
 
     cache.insert(&mut record).unwrap();
     cache.commit().unwrap();
