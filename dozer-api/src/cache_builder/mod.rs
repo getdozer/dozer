@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use dozer_cache::{
-    cache::{index::get_primary_key, RwCache, RwCacheManager},
+    cache::{index::get_primary_key, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
 use dozer_core::executor::ExecutorOperation;
@@ -10,7 +10,7 @@ use dozer_types::{
     indicatif::MultiProgress,
     log::error,
     models::api_endpoint::ConflictResolution,
-    types::{FieldDefinition, FieldType, IndexDefinition, Operation, Schema},
+    types::{Field, FieldDefinition, FieldType, IndexDefinition, Operation, Record, Schema},
 };
 use futures_util::{Future, StreamExt};
 use tokio::sync::broadcast::Sender;
@@ -56,39 +56,47 @@ async fn build_cache(
                 Operation::Delete { mut old } => {
                     old.schema_id = schema.identifier;
                     let key = get_primary_key(&schema.primary_index, &old.values);
-                    let version = cache.delete(&key)?;
-                    old.version = Some(version);
+                    if let Some(meta) = cache.delete(&key)? {
+                        old.version = Some(meta.version);
 
-                    if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
-                        let operation =
-                            types_helper::map_delete_operation(endpoint_name.clone(), old);
-                        send_and_log_error(operations_sender, operation);
+                        if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref()
+                        {
+                            let operation =
+                                types_helper::map_delete_operation(endpoint_name.clone(), old);
+                            send_and_log_error(operations_sender, operation);
+                        }
                     }
                 }
                 Operation::Insert { mut new } => {
                     new.schema_id = schema.identifier;
-                    let id = cache.insert(&mut new)?;
+                    let result = cache.insert(&new)?;
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
-                        let operation =
-                            types_helper::map_insert_operation(endpoint_name.clone(), new, id);
-                        send_and_log_error(operations_sender, operation);
+                        send_upsert_result(
+                            endpoint_name,
+                            operations_sender,
+                            result,
+                            &schema,
+                            None,
+                            new,
+                        );
                     }
                 }
                 Operation::Update { mut old, mut new } => {
                     old.schema_id = schema.identifier;
                     new.schema_id = schema.identifier;
                     let key = get_primary_key(&schema.primary_index, &old.values);
-                    let (version, id) = cache.update(&key, &mut new)?;
+                    let upsert_result = cache.update(&key, &new)?;
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
-                        let operation = if let Some(version) = version {
-                            old.version = Some(version);
-                            types_helper::map_update_operation(endpoint_name.clone(), old, new)
-                        } else {
-                            types_helper::map_insert_operation(endpoint_name.clone(), new, id)
-                        };
-                        send_and_log_error(operations_sender, operation);
+                        send_upsert_result(
+                            endpoint_name,
+                            operations_sender,
+                            upsert_result,
+                            &schema,
+                            Some(old),
+                            new,
+                        );
                     }
                 }
             },
@@ -138,6 +146,41 @@ fn generate_secondary_indexes(fields: &[FieldDefinition]) -> Vec<IndexDefinition
             FieldType::Binary | FieldType::Bson => vec![],
         })
         .collect()
+}
+
+fn send_upsert_result(
+    endpoint_name: &str,
+    operations_sender: &Sender<GrpcOperation>,
+    upsert_result: UpsertResult,
+    schema: &Schema,
+    old: Option<Record>,
+    mut new: Record,
+) {
+    match upsert_result {
+        UpsertResult::Inserted { meta } => {
+            new.version = Some(meta.version);
+            let op = types_helper::map_insert_operation(endpoint_name.to_string(), new, meta.id);
+            send_and_log_error(operations_sender, op);
+        }
+        UpsertResult::Updated { old_meta, new_meta } => {
+            // If `old` is `None`, it means `Updated` comes from `Insert` operation.
+            // In this case, we can't get the full old record, but the fields in the primary index must be the same with the new record.
+            // So we create the old record with only the fields in the primary index, cloned from `new`.
+            let mut old = old.unwrap_or_else(|| {
+                let mut record =
+                    Record::new(new.schema_id, vec![Field::Null; new.values.len()], None);
+                for index in schema.primary_index.iter() {
+                    record.values[*index] = new.values[*index].clone();
+                }
+                record
+            });
+            old.version = Some(old_meta.version);
+            new.version = Some(new_meta.version);
+            let op = types_helper::map_update_operation(endpoint_name.to_string(), old, new);
+            send_and_log_error(operations_sender, op);
+        }
+        UpsertResult::Ignored => {}
+    }
 }
 
 fn send_and_log_error<T: Send + Sync + 'static>(sender: &Sender<T>, msg: T) {

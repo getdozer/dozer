@@ -10,7 +10,7 @@ pub struct ApiIndex {
     pub primary_key: Vec<String>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, ::prost::Enumeration)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum OnInsertResolutionTypes {
     Nothing = 0,

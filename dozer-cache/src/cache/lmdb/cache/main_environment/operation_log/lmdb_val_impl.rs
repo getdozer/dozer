@@ -4,6 +4,8 @@ use dozer_types::{
     impl_borrow_for_clone_type,
 };
 
+use crate::cache::RecordMeta;
+
 use super::{Operation, OperationBorrow, RecordMetadata};
 
 impl_borrow_for_clone_type!(RecordMetadata);
@@ -15,8 +17,8 @@ impl BorrowEncode for RecordMetadata {
 impl<'a> Encode<'a> for &'a RecordMetadata {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
         let mut result = [0; 21];
-        result[0..8].copy_from_slice(&self.id.to_be_bytes());
-        result[8..12].copy_from_slice(&self.version.to_be_bytes());
+        result[0..8].copy_from_slice(&self.meta.id.to_be_bytes());
+        result[8..12].copy_from_slice(&self.meta.version.to_be_bytes());
         if let Some(insert_operation_id) = self.insert_operation_id {
             result[12] = 1;
             result[13..21].copy_from_slice(&insert_operation_id.to_be_bytes());
@@ -37,8 +39,7 @@ impl Decode for RecordMetadata {
             None
         };
         Ok(Cow::Owned(RecordMetadata {
-            id,
-            version,
+            meta: RecordMeta::new(id, version),
             insert_operation_id,
         }))
     }
@@ -50,8 +51,11 @@ impl<'a> IntoOwned<Operation> for OperationBorrow<'a> {
     fn into_owned(self) -> Operation {
         match self {
             Self::Delete { operation_id } => Operation::Delete { operation_id },
-            Self::Insert { record_id, record } => Operation::Insert {
-                record_id,
+            Self::Insert {
+                record_meta,
+                record,
+            } => Operation::Insert {
+                record_meta,
                 record: record.clone(),
             },
         }
@@ -66,8 +70,11 @@ impl Borrow for Operation {
             Self::Delete { operation_id } => OperationBorrow::Delete {
                 operation_id: *operation_id,
             },
-            Self::Insert { record_id, record } => OperationBorrow::Insert {
-                record_id: *record_id,
+            Self::Insert {
+                record_meta,
+                record,
+            } => OperationBorrow::Insert {
+                record_meta: *record_meta,
                 record,
             },
         }
@@ -76,9 +83,13 @@ impl Borrow for Operation {
     fn upcast<'b, 'a: 'b>(borrow: Self::Borrowed<'a>) -> Self::Borrowed<'b> {
         match borrow {
             OperationBorrow::Delete { operation_id } => OperationBorrow::Delete { operation_id },
-            OperationBorrow::Insert { record_id, record } => {
-                OperationBorrow::Insert { record_id, record }
-            }
+            OperationBorrow::Insert {
+                record_meta,
+                record,
+            } => OperationBorrow::Insert {
+                record_meta,
+                record,
+            },
         }
     }
 }
@@ -120,8 +131,7 @@ mod tests {
     #[test]
     fn test_record_metadata_encode_decode() {
         let record_metadata = RecordMetadata {
-            id: 1,
-            version: 2,
+            meta: RecordMeta::new(1, 2),
             insert_operation_id: Some(3),
         };
         let encoded = record_metadata.encode().unwrap();
@@ -131,8 +141,7 @@ mod tests {
         assert_eq!(record_metadata, decoded);
 
         let record_metadata = RecordMetadata {
-            id: 1,
-            version: 2,
+            meta: RecordMeta::new(1, 2),
             insert_operation_id: None,
         };
         let encoded = record_metadata.encode().unwrap();
@@ -150,8 +159,8 @@ mod tests {
         assert_eq!(operation, decoded);
 
         let operation = Operation::Insert {
-            record_id: 1,
-            record: Record::new(None, vec![1.into(), 2.into(), 3.into()], Some(1)),
+            record_meta: RecordMeta::new(1, 1),
+            record: Record::new(None, vec![1.into(), 2.into(), 3.into()], None),
         };
         let encoded = operation.borrow().encode().unwrap();
         let decoded = Operation::decode(encoded.as_ref()).unwrap().into_owned();

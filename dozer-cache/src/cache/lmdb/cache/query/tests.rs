@@ -13,18 +13,17 @@ use dozer_types::{
 fn query_secondary_sorted_inverted() {
     let (mut cache, indexing_thread_pool, schema, _) = create_cache(schema_1);
 
-    let mut record = Record::new(
+    let record = Record::new(
         schema.identifier,
         vec![
             Field::Int(1),
             Field::String("test".to_string()),
             Field::Int(2),
         ],
-        None,
+        Some(1),
     );
 
-    cache.insert(&mut record).unwrap();
-    assert!(record.version.is_some());
+    cache.insert(&record).unwrap();
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
@@ -50,17 +49,16 @@ fn query_secondary_sorted_inverted() {
 fn query_secondary_full_text() {
     let (mut cache, indexing_thread_pool, schema, _) = create_cache(schema_full_text);
 
-    let mut record = Record::new(
+    let record = Record::new(
         schema.identifier,
         vec![
             Field::String("today is a good day".into()),
             Field::Text("marry has a little lamb".into()),
         ],
-        None,
+        Some(1),
     );
 
-    cache.insert(&mut record).unwrap();
-    assert!(record.version.is_some());
+    cache.insert(&record).unwrap();
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
@@ -205,13 +203,12 @@ fn query_secondary_multi_indices() {
         (6, "fish glove heart igloo"),
         (7, "glove heart igloo jump"),
     ] {
-        let mut record = Record {
+        let record = Record {
             schema_id: schema.identifier,
             values: vec![Field::Int(id), Field::String(text.into())],
             version: None,
         };
-        cache.insert(&mut record).unwrap();
-        assert!(record.version.is_some());
+        cache.insert(&record).unwrap();
     }
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
