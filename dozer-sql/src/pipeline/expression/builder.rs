@@ -119,12 +119,9 @@ impl ExpressionBuilder {
                 leading_precision: _,
                 last_field: _,
                 fractional_seconds_precision: _,
-            } => self.parse_sql_interval_expression(
-                parse_aggregations,
-                value,
-                leading_field,
-                schema,
-            ),
+            } => {
+                self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema)
+            }
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
