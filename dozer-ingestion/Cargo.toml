@@ -1,15 +1,17 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dozer-utils = { path = "../dozer-utils" }
+dozer-types = { path = "../dozer-types" }
+
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.26"
-dozer-types = { path = "../dozer-types" }
 crossbeam = "0.8.2"
 # Postgres connector
 postgres = "0.19.4"
@@ -37,7 +39,6 @@ prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] }
 deltalake = { version = "0.7.0", default-features = false, features = ["s3", "datafusion"] }
 bson = "2.5.0"
-dozer-utils = { version = "0.1.0", path = "../dozer-utils" }
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }

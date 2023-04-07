@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -21,6 +21,8 @@ path = "src/sqllogictest/src/main.rs"
 [dependencies]
 dozer-types = { path = "../dozer-types" }
 dozer-api = { path = "../dozer-api" }
+dozer-utils = { path = "../dozer-utils" }
+
 reqwest = { version = "0.11.14", features = ["json", "rustls-tls"], default-features = false }
 tokio = { version = "1.25.0", features = ["full"] }
 bson = { version = "2.5.0", optional = true }
@@ -36,15 +38,15 @@ dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 tempdir = "0.3.7"
 walkdir = "2.3.2"
-dozer-utils = { version = "0.1.0", path = "../dozer-utils" }
 
 
 [dev-dependencies]
-sqlparser = "0.32.0"
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
+
+sqlparser = "0.32.0"
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
 csv = "1.2"
 tempdir = "0.3.7"
