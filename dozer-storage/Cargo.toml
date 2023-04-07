@@ -1,6 +1,6 @@
 [package]
 name = "dozer-storage"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -8,6 +8,7 @@ authors = ["getdozer/dozer-dev"]
 
 [dependencies]
 dozer-types = { path = "../dozer-types" }
+
 lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
 page_size = "0.5.0"

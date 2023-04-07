@@ -1,6 +1,6 @@
 [package]
 name = "dozer-orchestrator"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 default-run = "dozer"
 authors = ["getdozer/dozer-dev"]
@@ -17,6 +17,8 @@ dozer-cache = {path = "../dozer-cache"}
 dozer-sql = {path = "../dozer-sql"}
 dozer-types = {path = "../dozer-types"}
 dozer-tracing = {path = "../dozer-tracing"}
+dozer-storage = { path = "../dozer-storage" }
+
 dotenvy = "0.15.3"
 serde_json = "1.0.93"
 serde = "1.0.152"
@@ -33,7 +35,6 @@ rustyline = "10.1.1"
 rustyline-derive = "0.8.0"
 crossterm = "0.26.0"
 futures = "0.3.26"
-dozer-storage = { path = "../dozer-storage" }
 page_size = "0.5.0"
 
 [[bin]]
