@@ -8,6 +8,7 @@ edition = "2021"
 dozer-orchestrator = {path = "../dozer-orchestrator"}
 dozer-types = {path = "../dozer-types"}
 dozer-tracing = {path = "../dozer-tracing"}
+dozer-core = {path = "../dozer-core"}
 
 futures = "0.3.23"
 json = "0.12.4"

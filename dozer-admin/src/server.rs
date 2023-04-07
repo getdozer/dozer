@@ -5,6 +5,8 @@ use crate::{
     db::pool::establish_connection,
     services::{application_service::AppService, connection_service::ConnectionService},
 };
+use dozer_types::grpc_types::admin::ParsePipelineRequest;
+use dozer_types::grpc_types::admin::ParsePipelineResponse;
 use dozer_types::{log::info, tracing::Level};
 use tonic::{transport::Server, Request, Response, Status};
 use tower_http::trace::{self, TraceLayer};
@@ -193,6 +195,17 @@ impl DozerAdmin for GrpcService {
         request: tonic::Request<StopRequest>,
     ) -> Result<tonic::Response<StopResponse>, tonic::Status> {
         let result = self.app_service.stop_dozer(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn parse_pipeline(
+        &self,
+        request: tonic::Request<ParsePipelineRequest>,
+    ) -> Result<tonic::Response<ParsePipelineResponse>, tonic::Status> {
+        let result = self.app_service.parse_pipeline(request.into_inner()).await;
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),

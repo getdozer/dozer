@@ -6,6 +6,7 @@ service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (AppResponse);
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
+  rpc parse_pipeline(ParsePipelineRequest) returns (ParsePipelineResponse);
   rpc generate_yaml(GenerateYamlRequest) returns (GenerateYamlResponse);
   rpc generate_graph(GenerateGraphRequest) returns (GenerateGraphResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
@@ -37,6 +38,15 @@ message ParseResponse {
   repeated string output_tables = 3;
 }
 
+message ParsePipelineRequest {
+  string app_id = 1;
+  string sql = 2;
+}
+message ParsePipelineResponse {
+  repeated string used_sources = 1;
+  map<string, TableInfo> transformed_sources = 2;
+}
+
 message GenerateGraphRequest { string config = 1; }
 message GenerateGraphResponse { QueryGraph graph = 3; }
 
@@ -55,6 +65,7 @@ message GenerateYamlResponse {
 message AppResponse {
   string id = 1;
   AppConfig app = 2;
+  string config = 3;
 }
 
 message ListAppRequest {

@@ -2430,6 +2430,7 @@ dependencies = [
  "clap 4.1.11",
  "diesel",
  "diesel_migrations",
+ "dozer-core",
  "dozer-orchestrator",
  "dozer-tracing",
  "dozer-types",
