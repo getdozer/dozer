@@ -34,6 +34,12 @@ impl Processor for ProductProcessor {
             1 => &JoinBranch::Right,
             _ => return Err(ExecutionError::InvalidPort(from_port)),
         };
+
+        match op.clone() {
+            Operation::Delete { old } => println!("P{}: - {:?}", from_port, old),
+            Operation::Insert { new } => println!("P{}: + {:?}", from_port, new),
+            Operation::Update { old, new } => println!("P{}: ± {:?} {:?}", from_port, old, new),
+        }
         let records = match op {
             Operation::Delete { ref old } => self
                 .join_operator
@@ -64,9 +70,11 @@ impl Processor for ProductProcessor {
         for (action, record) in records {
             match action {
                 JoinAction::Insert => {
+                    println!("PO: + {:?}", record);
                     fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
                 }
                 JoinAction::Delete => {
+                    println!("PO: - {:?}", record);
                     fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
                 }
             }

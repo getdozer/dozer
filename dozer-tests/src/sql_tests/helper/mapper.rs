@@ -201,7 +201,6 @@ fn get_record_from_json(data: String, schema: &Schema) -> Record {
     let mut record = Record {
         values: vec![],
         schema_id: None,
-        version: None,
     };
 
     for field_definition in schema.fields.iter() {
