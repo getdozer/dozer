@@ -1,6 +1,8 @@
 use std::ops::Bound;
 
-use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
+use dozer_types::borrow::Cow;
+use lmdb::{Cursor, Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
+use lmdb_sys::{MDB_LAST_DUP, MDB_SET};
 
 use crate::{
     errors::StorageError,
@@ -59,6 +61,45 @@ impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
 
     pub fn count_data<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
         Ok(txn.stat(self.db)?.entries())
+    }
+
+    pub fn get_first<'a, T: Transaction>(
+        &self,
+        txn: &'a T,
+        key: K::Encode<'_>,
+    ) -> Result<Option<Cow<'a, V>>, StorageError> {
+        self.get(txn, key, true)
+    }
+
+    pub fn get_last<'a, T: Transaction>(
+        &self,
+        txn: &'a T,
+        key: K::Encode<'_>,
+    ) -> Result<Option<Cow<'a, V>>, StorageError> {
+        self.get(txn, key, false)
+    }
+
+    fn get<'a, T: Transaction>(
+        &self,
+        txn: &'a T,
+        key: K::Encode<'_>,
+        first: bool,
+    ) -> Result<Option<Cow<'a, V>>, StorageError> {
+        let key = key.encode()?;
+        let cursor = txn.open_ro_cursor(self.db)?;
+
+        match cursor.get(Some(key.as_ref()), None, MDB_SET) {
+            Ok((_, value)) => {
+                if first {
+                    Ok(Some(V::decode(value)?))
+                } else {
+                    let (_, value) = cursor.get(None, None, MDB_LAST_DUP)?;
+                    Ok(Some(V::decode(value)?))
+                }
+            }
+            Err(lmdb::Error::NotFound) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// Returns if the key-value pair was actually inserted.
@@ -127,6 +168,7 @@ fn database_flag<K: LmdbKey, V: LmdbKey>() -> DatabaseFlags {
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::borrow::IntoOwned;
     use tempdir::TempDir;
 
     use crate::lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions};
@@ -144,10 +186,17 @@ mod tests {
         .unwrap();
         let map = LmdbMultimap::<u64, u64>::create(&mut env, None).unwrap();
 
-        assert!(map.insert(env.txn_mut().unwrap(), &1u64, &2u64).unwrap());
-        assert!(!map.insert(env.txn_mut().unwrap(), &1u64, &2u64).unwrap());
-        assert!(map.insert(env.txn_mut().unwrap(), &1u64, &3u64).unwrap());
-        assert!(map.remove(env.txn_mut().unwrap(), &1u64, &2u64).unwrap());
-        assert!(!map.remove(env.txn_mut().unwrap(), &1u64, &2u64).unwrap());
+        let txn = env.txn_mut().unwrap();
+        assert!(map.get_first(txn, &0).unwrap().is_none());
+        assert!(map.get_last(txn, &0).unwrap().is_none());
+        assert!(map.insert(txn, &1u64, &2u64).unwrap());
+        assert!(!map.insert(txn, &1u64, &2u64).unwrap());
+        assert!(map.insert(txn, &1u64, &3u64).unwrap());
+        assert!(map.get_first(txn, &0).unwrap().is_none());
+        assert!(map.get_last(txn, &0).unwrap().is_none());
+        assert_eq!(map.get_first(txn, &1).unwrap().unwrap().into_owned(), 2);
+        assert_eq!(map.get_last(txn, &1).unwrap().unwrap().into_owned(), 3);
+        assert!(map.remove(txn, &1u64, &2u64).unwrap());
+        assert!(!map.remove(txn, &1u64, &2u64).unwrap());
     }
 }

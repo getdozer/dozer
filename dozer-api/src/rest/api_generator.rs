@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
-use dozer_cache::cache::{index, CacheRecord};
+use dozer_cache::cache::CacheRecord;
 use dozer_cache::CacheReader;
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::errors::types::TypeError;
@@ -65,7 +65,8 @@ pub async fn get(
         return Err(ApiError::MultiIndexFetch(key.to_string()));
     };
 
-    let key = index::get_primary_key(&[0], &[key]);
+    // This implementation must be consistent with `dozer_cache::cache::index::get_primary_key`
+    let key = key.encode();
     let record = get_record(
         &cache_endpoint.cache_reader(),
         &key,

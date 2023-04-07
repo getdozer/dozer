@@ -1,7 +1,7 @@
 use dozer_storage::{
     errors::StorageError,
     lmdb::{RwTransaction, Transaction},
-    BorrowEncode, Decode, Encode, Encoded, LmdbVal,
+    BorrowEncode, Decode, Encode, Encoded, LmdbKey, LmdbKeyType, LmdbVal,
 };
 use dozer_types::{
     borrow::{Borrow, Cow, IntoOwned},
@@ -19,7 +19,7 @@ pub struct RecordMetadata {
 }
 
 pub trait Metadata: Copy {
-    type Key: ?Sized;
+    type Key<'a>;
 
     /// Returns total number of metadata.
     fn count_data<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError>;
@@ -28,21 +28,21 @@ pub trait Metadata: Copy {
     fn get_present<T: Transaction>(
         &self,
         txn: &T,
-        key: &Self::Key,
+        key: Self::Key<'_>,
     ) -> Result<Option<RecordMetadata>, StorageError>;
 
     /// Tries to get metadata using `key`, returning metadata with `insert_operation_id: None` if it exists.
     fn get_deleted<T: Transaction>(
         &self,
         txn: &T,
-        key: &Self::Key,
+        key: Self::Key<'_>,
     ) -> Result<Option<RecordMetadata>, StorageError>;
 
     /// Inserts the key value entry `(key, value)`. Caller must ensure (key, value) does not exist.
     fn insert(
         &self,
         txn: &mut RwTransaction,
-        key: &Self::Key,
+        key: Self::Key<'_>,
         value: &RecordMetadata,
     ) -> Result<(), StorageError>;
 
@@ -50,7 +50,7 @@ pub trait Metadata: Copy {
     fn insert_overwrite(
         &self,
         txn: &mut RwTransaction,
-        key: &Self::Key,
+        key: Self::Key<'_>,
         old: &RecordMetadata,
         new: &RecordMetadata,
     ) -> Result<(), StorageError>;
@@ -65,27 +65,27 @@ impl BorrowEncode for RecordMetadata {
 impl<'a> Encode<'a> for &'a RecordMetadata {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
         let mut result = [0; 21];
-        result[0..8].copy_from_slice(&self.meta.id.to_be_bytes());
-        result[8..12].copy_from_slice(&self.meta.version.to_be_bytes());
         if let Some(insert_operation_id) = self.insert_operation_id {
-            result[12] = 1;
-            result[13..21].copy_from_slice(&insert_operation_id.to_be_bytes());
+            result[0] = 1;
+            result[1..9].copy_from_slice(&insert_operation_id.to_be_bytes());
         } else {
-            result[12] = 0;
+            result[0] = 0;
         }
+        result[9..17].copy_from_slice(&self.meta.id.to_be_bytes());
+        result[17..21].copy_from_slice(&self.meta.version.to_be_bytes());
         Ok(Encoded::U8x21(result))
     }
 }
 
 impl Decode for RecordMetadata {
     fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        let id = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-        let version = u32::from_be_bytes(bytes[8..12].try_into().unwrap());
-        let insert_operation_id = if bytes[12] == 1 {
-            Some(u64::from_be_bytes(bytes[13..21].try_into().unwrap()))
+        let insert_operation_id = if bytes[0] == 1 {
+            Some(u64::from_be_bytes(bytes[1..9].try_into().unwrap()))
         } else {
             None
         };
+        let id = u64::from_be_bytes(bytes[9..17].try_into().unwrap());
+        let version = u32::from_be_bytes(bytes[17..21].try_into().unwrap());
         Ok(Cow::Owned(RecordMetadata {
             meta: RecordMeta::new(id, version),
             insert_operation_id,
@@ -94,6 +94,10 @@ impl Decode for RecordMetadata {
 }
 
 unsafe impl LmdbVal for RecordMetadata {}
+
+unsafe impl LmdbKey for RecordMetadata {
+    const TYPE: LmdbKeyType = LmdbKeyType::FixedSizeOtherThanU32OrUsize;
+}
 
 #[cfg(test)]
 mod tests {

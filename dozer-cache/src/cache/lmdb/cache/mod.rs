@@ -149,12 +149,12 @@ impl RwCache for LmdbRwCache {
         self.main_env.insert(record)
     }
 
-    fn delete(&mut self, key: &[u8]) -> Result<Option<RecordMeta>, CacheError> {
-        self.main_env.delete(key)
+    fn delete(&mut self, record: &Record) -> Result<Option<RecordMeta>, CacheError> {
+        self.main_env.delete(record)
     }
 
-    fn update(&mut self, key: &[u8], record: &Record) -> Result<UpsertResult, CacheError> {
-        self.main_env.update(key, record)
+    fn update(&mut self, old: &Record, new: &Record) -> Result<UpsertResult, CacheError> {
+        self.main_env.update(old, new)
     }
 
     fn commit(&mut self) -> Result<(), CacheError> {

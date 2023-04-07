@@ -29,7 +29,7 @@ impl PrimaryKeyMetadata {
 }
 
 impl Metadata for PrimaryKeyMetadata {
-    type Key = [u8];
+    type Key<'a> = &'a [u8];
 
     fn count_data<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
         self.0.count(txn)

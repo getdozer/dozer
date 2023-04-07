@@ -1,10 +1,7 @@
 use std::{path::Path, sync::Arc};
 
 use dozer_cache::{
-    cache::{
-        index::get_primary_key, CacheRecord, CacheWriteOptions, RwCache, RwCacheManager,
-        UpsertResult,
-    },
+    cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
 use dozer_core::executor::ExecutorOperation;
@@ -74,8 +71,7 @@ fn build_cache(
             ExecutorOperation::Op { op } => match op {
                 Operation::Delete { mut old } => {
                     old.schema_id = schema.identifier;
-                    let key = get_primary_key(&schema.primary_index, &old.values);
-                    if let Some(meta) = cache.delete(&key)? {
+                    if let Some(meta) = cache.delete(&old)? {
                         if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref()
                         {
                             let operation = types_helper::map_delete_operation(
@@ -104,8 +100,7 @@ fn build_cache(
                 Operation::Update { mut old, mut new } => {
                     old.schema_id = schema.identifier;
                     new.schema_id = schema.identifier;
-                    let key = get_primary_key(&schema.primary_index, &old.values);
-                    let upsert_result = cache.update(&key, &new)?;
+                    let upsert_result = cache.update(&old, &new)?;
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(

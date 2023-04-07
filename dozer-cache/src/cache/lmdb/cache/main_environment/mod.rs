@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    hash::{Hash, Hasher},
+    path::{Path, PathBuf},
+};
 
 use dozer_storage::{
     errors::StorageError,
@@ -6,12 +9,15 @@ use dozer_storage::{
     lmdb_storage::{RoLmdbEnvironment, RwLmdbEnvironment},
     LmdbEnvironment, LmdbOption,
 };
-use dozer_types::models::api_endpoint::{
-    OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
-};
 use dozer_types::{
     borrow::IntoOwned,
     types::{Field, FieldType, Record, Schema, SchemaWithIndex},
+};
+use dozer_types::{
+    log::warn,
+    models::api_endpoint::{
+        OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
+    },
 };
 use tempdir::TempDir;
 
@@ -28,6 +34,8 @@ mod operation_log;
 
 use operation_log::RecordMetadata;
 pub use operation_log::{Operation, OperationLog};
+
+use self::operation_log::MetadataKey;
 
 use super::{CacheOptions, CacheWriteOptions};
 
@@ -171,34 +179,34 @@ impl RwMainEnvironment {
         )
     }
 
-    pub fn delete(&mut self, primary_key: &[u8]) -> Result<Option<RecordMeta>, CacheError> {
+    pub fn delete(&mut self, record: &Record) -> Result<Option<RecordMeta>, CacheError> {
         if self.schema.0.is_append_only() {
             return Err(CacheError::AppendOnlySchema);
         }
 
         let txn = self.env.txn_mut()?;
         let operation_log = self.common.operation_log;
+        let key = calculate_key(&self.schema.0, record);
 
         if let Some((meta, insert_operation_id)) =
-            get_existing_record_metadata(operation_log, txn, primary_key)?
+            get_existing_record_metadata(operation_log, txn, &key)?
         {
             // The record exists.
-            operation_log.delete(txn, primary_key, meta, insert_operation_id)?;
+            operation_log.delete(txn, key.as_ref(), meta, insert_operation_id)?;
             Ok(Some(meta))
         } else {
             // The record does not exist. Resolve the conflict.
             match self.write_options.delete_resolution {
-                OnDeleteResolutionTypes::Nothing => Ok(None),
+                OnDeleteResolutionTypes::Nothing => {
+                    warn!("Record (Key: {:?}) not found, ignoring delete", key);
+                    Ok(None)
+                }
                 OnDeleteResolutionTypes::Panic => Err(CacheError::PrimaryKeyNotFound),
             }
         }
     }
 
-    pub fn update(
-        &mut self,
-        primary_key: &[u8],
-        record: &Record,
-    ) -> Result<UpsertResult, CacheError> {
+    pub fn update(&mut self, old: &Record, new: &Record) -> Result<UpsertResult, CacheError> {
         // if old_key == new_key {
         //     match (key_exist, conflict_resolution) {
         //         (true, _) => Updated, // Case 1
@@ -223,26 +231,26 @@ impl RwMainEnvironment {
 
         let txn = self.env.txn_mut()?;
         let operation_log = self.common.operation_log;
+        let old_key = calculate_key(&self.schema.0, old);
 
         if let Some((old_meta, insert_operation_id)) =
-            get_existing_record_metadata(operation_log, txn, primary_key)?
+            get_existing_record_metadata(operation_log, txn, &old_key)?
         {
             // Case 1, 5, 6, 7, 8.
-            let new_primary_key =
-                index::get_primary_key(&self.schema.0.primary_index, &record.values);
-            if new_primary_key == primary_key {
+            let new_key = calculate_key(&self.schema.0, new);
+            if new_key.equal(&old_key) {
                 // Case 1.
                 let new_meta = operation_log.update(
                     txn,
-                    primary_key,
-                    record,
+                    old_key.as_ref(),
+                    new,
                     old_meta,
                     insert_operation_id,
                 )?;
                 Ok(UpsertResult::Updated { old_meta, new_meta })
             } else {
                 // Case 5, 6, 7, 8.
-                let new_metadata = operation_log.get_deleted_metadata(txn, &new_primary_key)?;
+                let new_metadata = operation_log.get_deleted_metadata(txn, new_key.as_ref())?;
                 match new_metadata {
                     Some(RecordMetadata {
                         insert_operation_id: Some(_),
@@ -252,6 +260,7 @@ impl RwMainEnvironment {
                         if self.write_options.update_resolution == OnUpdateResolutionTypes::Nothing
                         {
                             // Case 5.
+                            warn!("Old record (Key: {:?}) and new record (Key: {:?}) both exist, ignoring update", old_key, new_key);
                             Ok(UpsertResult::Ignored)
                         } else {
                             // Case 6, 7.
@@ -263,16 +272,26 @@ impl RwMainEnvironment {
                         insert_operation_id: None,
                     }) => {
                         // Case 8. Meta from deleted record.
-                        operation_log.delete(txn, primary_key, old_meta, insert_operation_id)?;
+                        operation_log.delete(
+                            txn,
+                            old_key.as_ref(),
+                            old_meta,
+                            insert_operation_id,
+                        )?;
                         let new_meta =
-                            operation_log.insert_deleted(txn, &new_primary_key, record, meta)?;
+                            operation_log.insert_deleted(txn, new_key.as_ref(), new, meta)?;
                         Ok(UpsertResult::Updated { old_meta, new_meta })
                     }
                     None => {
                         // Case 8. Meta from `insert_new`.
-                        operation_log.delete(txn, primary_key, old_meta, insert_operation_id)?;
+                        operation_log.delete(
+                            txn,
+                            old_key.as_ref(),
+                            old_meta,
+                            insert_operation_id,
+                        )?;
                         let new_meta =
-                            operation_log.insert_new(txn, Some(&new_primary_key), record)?;
+                            operation_log.insert_new(txn, Some(new_key.as_ref()), new)?;
                         Ok(UpsertResult::Updated { old_meta, new_meta })
                     }
                 }
@@ -282,6 +301,7 @@ impl RwMainEnvironment {
             match self.write_options.update_resolution {
                 OnUpdateResolutionTypes::Nothing => {
                     // Case 2, 9, 12.
+                    warn!("Old record (Key: {:?}) not found, ignoring update", old_key);
                     Ok(UpsertResult::Ignored)
                 }
                 OnUpdateResolutionTypes::Upsert => {
@@ -290,7 +310,7 @@ impl RwMainEnvironment {
                         operation_log,
                         txn,
                         &self.schema.0,
-                        record,
+                        new,
                         OnInsertResolutionTypes::Panic,
                     )
                 }
@@ -307,6 +327,43 @@ impl RwMainEnvironment {
     }
 }
 
+#[derive(Debug)]
+enum OwnedMetadataKey<'a> {
+    PrimaryKey(Vec<u8>),
+    Hash(&'a Record, u64),
+}
+
+impl<'a> OwnedMetadataKey<'a> {
+    fn as_ref(&self) -> MetadataKey<'_> {
+        match self {
+            OwnedMetadataKey::PrimaryKey(key) => MetadataKey::PrimaryKey(key),
+            OwnedMetadataKey::Hash(record, hash) => MetadataKey::Hash(record, *hash),
+        }
+    }
+
+    fn equal(&self, other: &OwnedMetadataKey) -> bool {
+        match (self, other) {
+            (OwnedMetadataKey::PrimaryKey(key1), OwnedMetadataKey::PrimaryKey(key2)) => {
+                key1 == key2
+            }
+            (OwnedMetadataKey::Hash(_, hash1), OwnedMetadataKey::Hash(_, hash2)) => hash1 == hash2,
+            _ => false,
+        }
+    }
+}
+
+fn calculate_key<'a>(schema: &Schema, record: &'a Record) -> OwnedMetadataKey<'a> {
+    if schema.primary_index.is_empty() {
+        let mut hasher = ahash::AHasher::default();
+        record.hash(&mut hasher);
+        let hash = hasher.finish();
+        OwnedMetadataKey::Hash(record, hash)
+    } else {
+        let key = index::get_primary_key(&schema.primary_index, &record.values);
+        OwnedMetadataKey::PrimaryKey(key)
+    }
+}
+
 fn insert_impl(
     operation_log: OperationLog,
     txn: &mut RwTransaction,
@@ -320,8 +377,8 @@ fn insert_impl(
         let meta = operation_log.insert_new(txn, None, record)?;
         Ok(UpsertResult::Inserted { meta })
     } else {
-        let primary_key = index::get_primary_key(&schema.primary_index, &record.values);
-        let metadata = operation_log.get_deleted_metadata(txn, &primary_key)?;
+        let key = calculate_key(schema, record);
+        let metadata = operation_log.get_deleted_metadata(txn, key.as_ref())?;
         match metadata {
             Some(RecordMetadata {
                 meta,
@@ -329,12 +386,15 @@ fn insert_impl(
             }) => {
                 // The record already exists. Resolve the conflict.
                 match insert_resolution {
-                    OnInsertResolutionTypes::Nothing => Ok(UpsertResult::Ignored),
+                    OnInsertResolutionTypes::Nothing => {
+                        warn!("Record (Key: {:?}) already exist, ignoring insert", key);
+                        Ok(UpsertResult::Ignored)
+                    }
                     OnInsertResolutionTypes::Panic => Err(CacheError::PrimaryKeyExists),
                     OnInsertResolutionTypes::Update => {
                         let new_meta = operation_log.update(
                             txn,
-                            &primary_key,
+                            key.as_ref(),
                             record,
                             meta,
                             insert_operation_id,
@@ -352,12 +412,12 @@ fn insert_impl(
             }) => {
                 // The record has an id but was deleted.
                 meta.version += 1;
-                operation_log.insert_deleted(txn, &primary_key, record, meta)?;
+                operation_log.insert_deleted(txn, key.as_ref(), record, meta)?;
                 Ok(UpsertResult::Inserted { meta })
             }
             None => {
                 // The record does not exist.
-                let meta = operation_log.insert_new(txn, Some(&primary_key), record)?;
+                let meta = operation_log.insert_new(txn, Some(key.as_ref()), record)?;
                 Ok(UpsertResult::Inserted { meta })
             }
         }
@@ -367,12 +427,12 @@ fn insert_impl(
 fn get_existing_record_metadata<T: Transaction>(
     operation_log: OperationLog,
     txn: &T,
-    primary_key: &[u8],
+    key: &OwnedMetadataKey,
 ) -> Result<Option<(RecordMeta, u64)>, StorageError> {
     if let Some(RecordMetadata {
         meta,
         insert_operation_id: Some(insert_operation_id),
-    }) = operation_log.get_present_metadata(txn, primary_key)?
+    }) = operation_log.get_present_metadata(txn, key.as_ref())?
     {
         Ok(Some((meta, insert_operation_id)))
     } else {

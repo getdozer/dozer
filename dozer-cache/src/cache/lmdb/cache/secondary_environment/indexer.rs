@@ -131,7 +131,11 @@ mod tests {
         );
 
         for a in [1i64, 2, 3, 4] {
-            cache.delete(&Field::Int(a).encode()).unwrap();
+            let record = Record {
+                schema_id: schema.identifier,
+                values: vec![Field::Int(a), Field::Null, Field::Null],
+            };
+            cache.delete(&record).unwrap();
         }
         cache.commit().unwrap();
         indexing_thread_pool.lock().wait_until_catchup();
@@ -177,7 +181,11 @@ mod tests {
 
         {
             let a = "another test".to_string();
-            cache.delete(&Field::String(a).encode()).unwrap();
+            let record = Record {
+                schema_id: schema.identifier,
+                values: vec![Field::String(a), Field::Null],
+            };
+            cache.delete(&record).unwrap();
         }
 
         cache.commit().unwrap();

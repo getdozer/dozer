@@ -1,5 +1,4 @@
 mod builder;
-pub mod conflict_resolver;
 pub mod connector_source;
 mod log_sink;
 pub mod source_builder;
