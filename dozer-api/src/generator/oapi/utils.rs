@@ -170,7 +170,30 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
                 max_properties: None,
             })
         }
-        FieldType::Duration => todo!(),
+        FieldType::Duration => {
+            let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
+            let required: Vec<String> = vec!["value".to_string(), "time_unit".to_string()];
+
+            for key in &required {
+                properties.insert(
+                    key.clone(),
+                    ReferenceOr::boxed_item(Schema {
+                        schema_data: Default::default(),
+                        schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(
+                            FieldType::String,
+                        )),
+                    }),
+                );
+            }
+
+            Type::Object(ObjectType {
+                properties,
+                required,
+                additional_properties: None,
+                min_properties: None,
+                max_properties: None,
+            })
+        }
     }
 }
 
