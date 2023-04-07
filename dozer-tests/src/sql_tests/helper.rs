@@ -159,7 +159,6 @@ pub fn map_sqlite_to_record(
     let record = Record {
         schema_id: schema.identifier,
         values,
-        version: None,
     };
     Ok(record)
 }

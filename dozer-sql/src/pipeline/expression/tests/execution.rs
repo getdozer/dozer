@@ -53,7 +53,6 @@ fn test_column_execution() {
             Field::String("test".to_string()),
             Field::Float(OrderedFloat(10.10)),
         ],
-        None,
     );
 
     // Column
@@ -270,7 +269,6 @@ fn test_timestamp_difference() {
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap()),
         ],
-        Some(1),
     );
 
     let result = evaluate_sub(

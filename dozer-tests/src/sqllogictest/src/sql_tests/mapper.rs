@@ -103,7 +103,7 @@ impl SqlMapper {
                         }
                     }
                 }
-                let rec = Record::new(schema.identifier, values, None);
+                let rec = Record::new(schema.identifier, values);
 
                 (name, Operation::Insert { new: rec })
             }

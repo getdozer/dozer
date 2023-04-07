@@ -19,7 +19,7 @@ use crate::{
     cache::{
         index,
         lmdb::utils::{create_env, open_env},
-        RecordMeta, RecordWithId, UpsertResult,
+        CacheRecord, RecordMeta, UpsertResult,
     },
     errors::CacheError,
 };
@@ -59,14 +59,10 @@ pub trait MainEnvironment: LmdbEnvironment {
             .map_err(Into::into)
     }
 
-    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
+    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError> {
         let txn = self.begin_txn()?;
         self.operation_log()
             .get_record(&txn, key)?
-            .map(|(mut record, version)| {
-                record.record.version = Some(version);
-                record
-            })
             .ok_or(CacheError::PrimaryKeyNotFound)
     }
 }

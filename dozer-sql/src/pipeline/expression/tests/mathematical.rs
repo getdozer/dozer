@@ -18,7 +18,7 @@ use std::num::Wrapping;
 #[test]
 fn test_uint_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(None, vec![], None);
+        let row = Record::new(None, vec![]);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
@@ -299,7 +299,7 @@ fn test_uint_math() {
 #[test]
 fn test_u128_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(None, vec![], None);
+        let row = Record::new(None, vec![]);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
@@ -611,7 +611,7 @@ fn test_u128_math() {
 #[test]
 fn test_int_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(None, vec![], None);
+        let row = Record::new(None, vec![]);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
@@ -897,7 +897,7 @@ fn test_int_math() {
 #[test]
 fn test_i128_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(None, vec![], None);
+        let row = Record::new(None, vec![]);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
@@ -1220,7 +1220,7 @@ fn test_i128_math() {
 #[test]
 fn test_float_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(None, vec![], None);
+        let row = Record::new(None, vec![]);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
@@ -1535,7 +1535,7 @@ fn test_float_math() {
 #[test]
 fn test_decimal_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(None, vec![], None);
+        let row = Record::new(None, vec![]);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));
@@ -1960,7 +1960,7 @@ fn test_decimal_math() {
 #[test]
 fn test_null_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(None, vec![], None);
+        let row = Record::new(None, vec![]);
 
         let uint1 = Box::new(Literal(Field::UInt(u_num1)));
         let uint2 = Box::new(Literal(Field::UInt(u_num2)));

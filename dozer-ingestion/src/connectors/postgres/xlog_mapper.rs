@@ -125,7 +125,6 @@ impl XlogMapper {
                             version: 0,
                         }),
                         values,
-                        None,
                     ),
                 };
 
@@ -145,7 +144,6 @@ impl XlogMapper {
                             version: 0,
                         }),
                         old_values,
-                        None,
                     ),
                     new: Record::new(
                         Some(dozer_types::types::SchemaIdentifier {
@@ -153,7 +151,6 @@ impl XlogMapper {
                             version: 0,
                         }),
                         values,
-                        None,
                     ),
                 };
 
@@ -173,7 +170,6 @@ impl XlogMapper {
                             version: 0,
                         }),
                         values,
-                        None,
                     ),
                 };
 

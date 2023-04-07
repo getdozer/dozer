@@ -28,24 +28,23 @@ fn ignore_insert_error_when_type_nothing() {
     let record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
-        version: None,
     };
     env.insert(&record).unwrap();
     env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
-    let record = env.get(&key).unwrap().record;
+    let record = env.get(&key).unwrap();
 
-    assert_eq!(initial_values, record.values);
-    assert_eq!(Some(1), record.version);
+    assert_eq!(initial_values, record.record.values);
+    assert_eq!(1, record.version);
 
-    env.insert(&record).unwrap();
+    env.insert(&record.record).unwrap();
 
-    let record = env.get(&key).unwrap().record;
+    let record = env.get(&key).unwrap();
 
     // version should remain unchanged, because insert should be ignored
-    assert_eq!(initial_values, record.values);
-    assert_eq!(Some(1), record.version);
+    assert_eq!(initial_values, record.record.values);
+    assert_eq!(1, record.version);
 }
 
 #[test]
@@ -60,16 +59,15 @@ fn update_after_insert_error_when_type_update() {
     let record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
-        version: None,
     };
     env.insert(&record).unwrap();
     env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
-    let record = env.get(&key).unwrap().record;
+    let record = env.get(&key).unwrap();
 
-    assert_eq!(initial_values, record.values);
-    assert_eq!(Some(1), record.version);
+    assert_eq!(initial_values, record.record.values);
+    assert_eq!(1, record.version);
 
     let second_insert_values = vec![
         Field::Int(1),
@@ -78,18 +76,17 @@ fn update_after_insert_error_when_type_update() {
     let second_record = Record {
         schema_id: schema.identifier,
         values: second_insert_values.clone(),
-        version: None,
     };
 
     env.insert(&second_record).unwrap();
     env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
-    let record = env.get(&key).unwrap().record;
+    let record = env.get(&key).unwrap();
 
     // version should increase, because record should be updated
-    assert_eq!(second_insert_values, record.values);
-    assert_eq!(Some(2), record.version);
+    assert_eq!(second_insert_values, record.record.values);
+    assert_eq!(2, record.version);
 
     // Check cache size. It should have only one record
     let current_count = env.count().unwrap();
@@ -108,19 +105,18 @@ fn return_insert_error_when_type_panic() {
     let record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
-        version: None,
     };
     env.insert(&record).unwrap();
     env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
-    let record = env.get(&key).unwrap().record;
+    let record = env.get(&key).unwrap();
 
-    assert_eq!(initial_values, record.values);
-    assert_eq!(Some(1), record.version);
+    assert_eq!(initial_values, record.record.values);
+    assert_eq!(1, record.version);
 
     // Try insert same data again
-    let result = env.insert(&record);
+    let result = env.insert(&record.record);
     assert!(matches!(result, Err(CacheError::PrimaryKeyExists)));
 }
 
@@ -141,7 +137,6 @@ fn ignore_update_error_when_type_nothing() {
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values,
-        version: None,
     };
     env.update(
         &index::get_primary_key(&schema.primary_index, &initial_values),
@@ -172,7 +167,6 @@ fn update_after_update_error_when_type_upsert() {
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values.clone(),
-        version: None,
     };
     env.update(
         &index::get_primary_key(&schema.primary_index, &initial_values),
@@ -182,10 +176,10 @@ fn update_after_update_error_when_type_upsert() {
     env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
-    let record = env.get(&key).unwrap().record;
+    let record = env.get(&key).unwrap();
 
-    assert_eq!(update_values, record.values);
-    assert_eq!(Some(1), record.version);
+    assert_eq!(update_values, record.record.values);
+    assert_eq!(1, record.version);
 }
 
 #[test]
@@ -205,7 +199,6 @@ fn return_update_error_when_type_panic() {
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values.clone(),
-        version: None,
     };
 
     let result = env.update(
