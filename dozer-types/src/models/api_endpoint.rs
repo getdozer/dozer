@@ -55,7 +55,7 @@ impl<'de> Deserialize<'de> for OnInsertResolutionTypes {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, ::prost::Enumeration)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, ::prost::Enumeration)]
 pub enum OnUpdateResolutionTypes {
     Nothing = 0,
     Upsert = 1,
@@ -109,7 +109,7 @@ impl<'de> Deserialize<'de> for OnUpdateResolutionTypes {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, ::prost::Enumeration)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum OnDeleteResolutionTypes {
     Nothing = 0,

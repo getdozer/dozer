@@ -5,7 +5,6 @@ use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression, Sk
 use dozer_cache::cache::{
     test_utils, CacheManagerOptions, LmdbRwCacheManager, RwCache, RwCacheManager,
 };
-use dozer_types::models::api_endpoint::ConflictResolution;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record, Schema};
@@ -58,11 +57,7 @@ fn cache(c: &mut Criterion) {
     .unwrap();
     let cache = Mutex::new(
         cache_manager
-            .create_cache(
-                schema.clone(),
-                secondary_indexes,
-                ConflictResolution::default(),
-            )
+            .create_cache(schema.clone(), secondary_indexes, Default::default())
             .unwrap(),
     );
 

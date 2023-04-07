@@ -8,7 +8,6 @@ use dozer_types::{
 };
 
 use dozer_cache::cache::{CacheRecord, LmdbRwCacheManager, RwCacheManager};
-use dozer_types::models::api_endpoint::ConflictResolution;
 
 pub fn get_schema() -> SchemaWithIndex {
     let fields = vec![
@@ -110,11 +109,7 @@ pub fn initialize_cache(
     let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     let mut cache = cache_manager
-        .create_cache(
-            schema.clone(),
-            secondary_indexes,
-            ConflictResolution::default(),
-        )
+        .create_cache(schema.clone(), secondary_indexes, Default::default())
         .unwrap();
     let records = get_sample_records(schema);
     for mut record in records {

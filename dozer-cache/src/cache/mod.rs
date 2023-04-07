@@ -3,7 +3,9 @@ use std::fmt::Debug;
 
 use self::expression::QueryExpression;
 use crate::errors::CacheError;
-use dozer_types::models::api_endpoint::ConflictResolution;
+use dozer_types::models::api_endpoint::{
+    OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
+};
 use dozer_types::{
     serde::{Deserialize, Serialize},
     types::{IndexDefinition, Record, Schema, SchemaWithIndex},
@@ -39,6 +41,13 @@ pub trait RoCacheManager: Send + Sync + Debug {
     fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError>;
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CacheWriteOptions {
+    pub insert_resolution: OnInsertResolutionTypes,
+    pub delete_resolution: OnDeleteResolutionTypes,
+    pub update_resolution: OnUpdateResolutionTypes,
+}
+
 pub trait RwCacheManager: RoCacheManager {
     /// Opens a cache in read-write mode with given name or an alias with that name.
     ///
@@ -46,7 +55,7 @@ pub trait RwCacheManager: RoCacheManager {
     fn open_rw_cache(
         &self,
         name: &str,
-        conflict_resolution: ConflictResolution,
+        write_options: CacheWriteOptions,
     ) -> Result<Option<Box<dyn RwCache>>, CacheError>;
 
     /// Creates a new cache with given `schema`s, which can also be opened in read-only mode using `open_ro_cache`.
@@ -58,7 +67,7 @@ pub trait RwCacheManager: RoCacheManager {
         &self,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
-        conflict_resolution: ConflictResolution,
+        write_options: CacheWriteOptions,
     ) -> Result<Box<dyn RwCache>, CacheError>;
 
     /// Creates an alias `alias` for a cache with name `name`.
