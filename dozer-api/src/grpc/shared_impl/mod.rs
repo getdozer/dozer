@@ -1,5 +1,5 @@
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
-use dozer_cache::cache::RecordWithId;
+use dozer_cache::cache::CacheRecord;
 use dozer_cache::CacheReader;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::log::warn;
@@ -49,7 +49,7 @@ pub fn query(
     query: Option<&str>,
     endpoint: &str,
     access: Option<Access>,
-) -> Result<Vec<RecordWithId>, Status> {
+) -> Result<Vec<CacheRecord>, Status> {
     let mut query = parse_query(query, QueryExpression::with_default_limit)?;
     if query.limit.is_none() {
         query.limit = Some(default_limit_for_query());

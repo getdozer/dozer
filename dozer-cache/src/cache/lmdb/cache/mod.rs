@@ -10,7 +10,7 @@ use super::{
     indexing::IndexingThreadPool,
 };
 use crate::cache::expression::QueryExpression;
-use crate::cache::RecordWithId;
+use crate::cache::{CacheRecord, RecordMeta, UpsertResult};
 use crate::errors::CacheError;
 
 mod main_environment;
@@ -126,7 +126,7 @@ impl<C: LmdbCache> RoCache for C {
         self.main_env().name()
     }
 
-    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
+    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError> {
         self.main_env().get(key)
     }
 
@@ -134,7 +134,7 @@ impl<C: LmdbCache> RoCache for C {
         LmdbQueryHandler::new(self, query).count()
     }
 
-    fn query(&self, query: &QueryExpression) -> Result<Vec<RecordWithId>, CacheError> {
+    fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError> {
         LmdbQueryHandler::new(self, query).query()
     }
 
@@ -144,25 +144,18 @@ impl<C: LmdbCache> RoCache for C {
 }
 
 impl RwCache for LmdbRwCache {
-    fn insert(&mut self, record: &mut Record) -> Result<u64, CacheError> {
+    fn insert(&mut self, record: &Record) -> Result<UpsertResult, CacheError> {
         let span = dozer_types::tracing::span!(dozer_types::tracing::Level::TRACE, "insert_cache");
         let _enter = span.enter();
-        let record_id = self.main_env.insert(record)?;
-        Ok(record_id)
+        self.main_env.insert(record)
     }
 
-    fn delete(&mut self, key: &[u8]) -> Result<u32, CacheError> {
-        let version = self.main_env.delete(key)?;
-        Ok(version)
+    fn delete(&mut self, key: &[u8]) -> Result<Option<RecordMeta>, CacheError> {
+        self.main_env.delete(key)
     }
 
-    fn update(
-        &mut self,
-        key: &[u8],
-        record: &mut Record,
-    ) -> Result<(Option<u32>, u64), CacheError> {
-        let version = self.main_env.update(key, record)?;
-        Ok(version)
+    fn update(&mut self, key: &[u8], record: &Record) -> Result<UpsertResult, CacheError> {
+        self.main_env.update(key, record)
     }
 
     fn commit(&mut self) -> Result<(), CacheError> {

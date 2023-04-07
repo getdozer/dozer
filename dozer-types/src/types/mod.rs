@@ -145,36 +145,24 @@ pub struct Record {
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
-    /// Records with same primary key will have increasing version.
-    pub version: Option<u32>,
 }
 
 impl Record {
-    pub fn new(
-        schema_id: Option<SchemaIdentifier>,
-        values: Vec<Field>,
-        version: Option<u32>,
-    ) -> Record {
-        Record {
-            schema_id,
-            values,
-            version,
-        }
+    pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
+        Record { schema_id, values }
     }
 
     pub fn from_schema(schema: &Schema) -> Record {
         Record {
             schema_id: schema.identifier,
             values: vec![Field::Null; schema.fields.len()],
-            version: None,
         }
     }
 
-    pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize, version: Option<u32>) -> Record {
+    pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize) -> Record {
         Record {
             schema_id,
             values: vec![Field::Null; size],
-            version,
         }
     }
 

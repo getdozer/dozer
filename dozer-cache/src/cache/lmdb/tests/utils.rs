@@ -44,7 +44,6 @@ pub fn insert_rec_1(
             b.map_or(Field::Null, Field::String),
             c.map_or(Field::Null, Field::Int),
         ],
-        None,
     );
     cache.insert(&mut record).unwrap();
 }
@@ -60,7 +59,6 @@ pub fn insert_full_text(
             a.map_or(Field::Null, Field::String),
             b.map_or(Field::Null, Field::Text),
         ],
-        None,
     );
     cache.insert(&mut record).unwrap();
 }

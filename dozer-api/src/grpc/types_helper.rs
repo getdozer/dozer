@@ -1,24 +1,24 @@
-use dozer_cache::cache::RecordWithId as CacheRecordWithId;
+use dozer_cache::cache::CacheRecord;
 use dozer_types::grpc_types::types::{
     value, DurationType, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal,
     Type, Value,
 };
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{DozerDuration, Field, FieldType, Record as DozerRecord, DATE_FORMAT};
+use dozer_types::types::{DozerDuration, Field, FieldType, DATE_FORMAT};
 use prost_reflect::prost_types::Timestamp;
 
-pub fn map_insert_operation(endpoint_name: String, record: DozerRecord, id: u64) -> Operation {
+pub fn map_insert_operation(endpoint_name: String, record: CacheRecord) -> Operation {
     Operation {
         typ: OperationType::Insert as i32,
         old: None,
+        new_id: Some(record.id),
         new: Some(record_to_internal_record(record)),
-        new_id: Some(id),
         endpoint_name,
     }
 }
 
-pub fn map_delete_operation(endpoint_name: String, record: DozerRecord) -> Operation {
+pub fn map_delete_operation(endpoint_name: String, record: CacheRecord) -> Operation {
     Operation {
         typ: OperationType::Delete as i32,
         old: None,
@@ -30,8 +30,8 @@ pub fn map_delete_operation(endpoint_name: String, record: DozerRecord) -> Opera
 
 pub fn map_update_operation(
     endpoint_name: String,
-    old: DozerRecord,
-    new: DozerRecord,
+    old: CacheRecord,
+    new: CacheRecord,
 ) -> Operation {
     Operation {
         typ: OperationType::Update as i32,
@@ -42,8 +42,9 @@ pub fn map_update_operation(
     }
 }
 
-fn record_to_internal_record(record: DozerRecord) -> Record {
+fn record_to_internal_record(record: CacheRecord) -> Record {
     let values: Vec<Value> = record
+        .record
         .values
         .into_iter()
         .map(field_to_prost_value)
@@ -51,16 +52,14 @@ fn record_to_internal_record(record: DozerRecord) -> Record {
 
     Record {
         values,
-        version: record
-            .version
-            .expect("Record from cache should always have a version"),
+        version: record.version,
     }
 }
 
-pub fn map_record(record: CacheRecordWithId) -> RecordWithId {
+pub fn map_record(record: CacheRecord) -> RecordWithId {
     RecordWithId {
         id: record.id,
-        record: Some(record_to_internal_record(record.record)),
+        record: Some(record_to_internal_record(record)),
     }
 }
 

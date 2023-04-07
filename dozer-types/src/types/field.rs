@@ -8,6 +8,7 @@ use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use std::time::Duration;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
@@ -68,7 +69,7 @@ impl Field {
             Field::Date(_) => 10,
             Field::Bson(b) => b.len(),
             Field::Point(_p) => 16,
-            Field::Duration(_) => 32,
+            Field::Duration(_) => 17,
             Field::Null => 0,
         }
     }
@@ -216,7 +217,7 @@ impl Field {
             Field::Date(_) => 11,
             Field::Bson(_) => 12,
             Field::Point(_) => 13,
-            Field::Duration(_) => 32,
+            Field::Duration(_) => 14,
             Field::Null => 15,
         }
     }
@@ -547,10 +548,39 @@ impl Field {
         }
     }
 
-    pub fn to_duration(&self) -> Option<&DozerDuration> {
+    pub fn to_duration(&self) -> Result<Option<DozerDuration>, TypeError> {
         match self {
-            Field::Duration(d) => Some(d),
-            _ => None,
+            Field::UInt(d) => Ok(Some(
+                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            )),
+            Field::U128(d) => Ok(Some(
+                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            )),
+            Field::Int(d) => Ok(Some(
+                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            )),
+            Field::I128(d) => Ok(Some(
+                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            )),
+            Field::Duration(d) => Ok(Some(*d)),
+            Field::String(d) | Field::Text(d) => {
+                let dur = DozerDuration::from_str(d.as_str());
+                if let Ok(..) = dur {
+                    Ok(Some(dur.unwrap()))
+                } else {
+                    Err(TypeError::InvalidFieldValue {
+                        field_type: FieldType::Duration,
+                        nullable: false,
+                        value: format!("{:?}", self),
+                    })
+                }
+            }
+            Field::Null => Ok(Some(DozerDuration::from_str("0").unwrap())),
+            _ => Err(TypeError::InvalidFieldValue {
+                field_type: FieldType::Duration,
+                nullable: false,
+                value: format!("{:?}", self),
+            }),
         }
     }
 

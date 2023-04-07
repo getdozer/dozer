@@ -7,7 +7,7 @@ use dozer_types::{
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
 };
 
-use dozer_cache::cache::{LmdbRwCacheManager, RecordWithId, RwCacheManager};
+use dozer_cache::cache::{CacheRecord, LmdbRwCacheManager, RwCacheManager};
 use dozer_types::models::api_endpoint::ConflictResolution;
 
 pub fn get_schema() -> SchemaWithIndex {
@@ -129,7 +129,7 @@ pub fn initialize_cache(
     Box::new(cache_manager)
 }
 
-pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {
+pub fn get_sample_records(schema: Schema) -> Vec<CacheRecord> {
     let records_value: Vec<Value> = get_films();
     let mut records = vec![];
     for (record_index, record_str) in records_value.into_iter().enumerate() {
@@ -148,9 +148,8 @@ pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {
                     Field::UInt(release_year),
                     Field::Null,
                 ],
-                Some(1),
             );
-            records.push(RecordWithId::new(record_index as _, record));
+            records.push(CacheRecord::new(record_index as _, 1, record));
         }
     }
     records

@@ -3,7 +3,7 @@ use crate::cache::expression::Skip;
 use crate::cache::lmdb::cache::main_environment::MainEnvironment;
 use crate::cache::lmdb::cache::query::secondary::build_index_scan;
 use crate::cache::lmdb::cache::LmdbCache;
-use crate::cache::RecordWithId;
+use crate::cache::CacheRecord;
 use crate::cache::{
     expression::QueryExpression,
     plan::{IndexScan, Plan, QueryPlanner},
@@ -45,7 +45,7 @@ impl<'a, C: LmdbCache> LmdbQueryHandler<'a, C> {
         }
     }
 
-    pub fn query(&self) -> Result<Vec<RecordWithId>, CacheError> {
+    pub fn query(&self) -> Result<Vec<CacheRecord>, CacheError> {
         match self.plan()? {
             Plan::IndexScans(index_scans) => {
                 let secondary_txns = self.create_secondary_txns(&index_scans)?;
@@ -181,7 +181,7 @@ impl<'a, C: LmdbCache> LmdbQueryHandler<'a, C> {
         &'txn self,
         main_txn: &'txn T,
         ids: impl Iterator<Item = Result<u64, CacheError>> + 'txn,
-    ) -> Result<Vec<RecordWithId>, CacheError> {
+    ) -> Result<Vec<CacheRecord>, CacheError> {
         self.filter_secondary_queries(main_txn, ids)
             .map(|id| {
                 id.and_then(|id| {

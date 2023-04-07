@@ -23,7 +23,7 @@ fn test_time() {
 }
 
 fn test_date_parts(datetime: ArbitraryDateTime) {
-    let row = Record::new(None, vec![], None);
+    let row = Record::new(None, vec![]);
 
     let date_parts = vec![
         (
@@ -151,7 +151,7 @@ fn test_duration() {
 }
 
 fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
-    let row = Record::new(None, vec![], None);
+    let row = Record::new(None, vec![]);
 
     let v = Expression::Literal(Field::Date(dt1.0.date_naive()));
     let dur1 = Expression::Literal(Field::Duration(DozerDuration(
@@ -234,66 +234,71 @@ fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
     assert!(result.is_err());
 }
 
-// #[test]
-// fn test_timestamp_add() {
-//     let f = run_scalar_fct(
-//         "SELECT ts1 + ts2 FROM users",
-//         Schema::empty()
-//             .field(
-//                 FieldDefinition::new(
-//                     String::from("ts1"),
-//                     FieldType::Timestamp,
-//                     false,
-//                     SourceDefinition::Dynamic,
-//                 ),
-//                 false,
-//             )
-//             .field(
-//                 FieldDefinition::new(
-//                     String::from("ts2"),
-//                     FieldType::Timestamp,
-//                     false,
-//                     SourceDefinition::Dynamic,
-//                 ),
-//                 false,
-//             )
-//             .clone(),
-//         vec![
-//             Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
-//             Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
-//         ],
-//     );
-//     assert_eq!(f, Field::Int(20000));
-// }
+#[test]
+fn test_interval() {
+    let f = run_fct(
+        "SELECT ts1 - INTERVAL '1' SECOND FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts1"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Timestamp(
+            DateTime::parse_from_rfc3339("2023-01-02T00:12:11Z").unwrap(),
+        )],
+    );
+    assert_eq!(
+        f,
+        Field::Timestamp(DateTime::parse_from_rfc3339("2023-01-02T00:12:10Z").unwrap())
+    );
 
-// #[test]
-// fn test_timestamp_mul() {
-//     let f = run_scalar_fct(
-//         "SELECT ts1 * ts2 FROM users",
-//         Schema::empty()
-//             .field(
-//                 FieldDefinition::new(
-//                     String::from("ts1"),
-//                     FieldType::Timestamp,
-//                     false,
-//                     SourceDefinition::Dynamic,
-//                 ),
-//                 false,
-//             )
-//             .field(
-//                 FieldDefinition::new(
-//                     String::from("ts2"),
-//                     FieldType::Timestamp,
-//                     false,
-//                     SourceDefinition::Dynamic,
-//                 ),
-//                 false,
-//             )
-//             .clone(),
-//         vec![
-//             Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
-//             Field::Timestamp(DateTime::parse_from_rfc3339("1970-01-01T00:00:10Z").unwrap()),
-//         ],
-//     );
-//     assert_eq!(f, Field::Int(100000000));
-// }
+    let f = run_fct(
+        "SELECT ts1 + INTERVAL '1' SECOND FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts1"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Timestamp(
+            DateTime::parse_from_rfc3339("2023-01-02T00:12:11Z").unwrap(),
+        )],
+    );
+    assert_eq!(
+        f,
+        Field::Timestamp(DateTime::parse_from_rfc3339("2023-01-02T00:12:12Z").unwrap())
+    );
+
+    let f = run_fct(
+        "SELECT INTERVAL '1' SECOND + ts1 FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts1"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Timestamp(
+            DateTime::parse_from_rfc3339("2023-01-02T00:12:11Z").unwrap(),
+        )],
+    );
+    assert_eq!(
+        f,
+        Field::Timestamp(DateTime::parse_from_rfc3339("2023-01-02T00:12:12Z").unwrap())
+    );
+}

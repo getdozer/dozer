@@ -1,6 +1,7 @@
 use dozer_core::{node::PortHandle, DEFAULT_PORT_HANDLE};
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, DATE_FORMAT,
+    DozerDuration, Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+    TimeUnit, DATE_FORMAT,
 };
 use std::collections::HashMap;
 
@@ -8,6 +9,7 @@ use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
+use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
@@ -90,7 +92,6 @@ pub(crate) fn insert_field(country: &str, insert_field: &Field) -> Operation {
                 insert_field.clone(),
                 insert_field.clone(),
             ],
-            None,
         ),
     }
 }
@@ -105,7 +106,6 @@ pub(crate) fn delete_field(country: &str, deleted_field: &Field) -> Operation {
                 deleted_field.clone(),
                 deleted_field.clone(),
             ],
-            None,
         ),
     }
 }
@@ -125,7 +125,6 @@ pub(crate) fn update_field(
                 old.clone(),
                 old.clone(),
             ],
-            None,
         ),
         new: Record::new(
             None,
@@ -135,7 +134,6 @@ pub(crate) fn update_field(
                 new.clone(),
                 new.clone(),
             ],
-            None,
         ),
     }
 }
@@ -145,7 +143,6 @@ pub(crate) fn insert_exp(country: &str, inserted_field: &Field) -> Operation {
         new: Record::new(
             None,
             vec![Field::String(country.to_string()), inserted_field.clone()],
-            None,
         ),
     }
 }
@@ -155,7 +152,6 @@ pub(crate) fn delete_exp(country: &str, deleted_field: &Field) -> Operation {
         old: Record::new(
             None,
             vec![Field::String(country.to_string()), deleted_field.clone()],
-            None,
         ),
     }
 }
@@ -170,14 +166,26 @@ pub(crate) fn update_exp(
         old: Record::new(
             None,
             vec![Field::String(old_country.to_string()), old.clone()],
-            None,
         ),
         new: Record::new(
             None,
             vec![Field::String(new_country.to_string()), new.clone()],
-            None,
         ),
     }
+}
+
+pub fn get_duration_field(val: u128) -> Field {
+    Field::Duration(DozerDuration(
+        std::time::Duration::from_nanos(val as u64),
+        TimeUnit::Nanoseconds,
+    ))
+}
+
+pub fn get_duration_div_field(numerator: i128, denominator: i128) -> Field {
+    Field::Duration(DozerDuration(
+        std::time::Duration::from_nanos((numerator as u64).div_wrapping(denominator as u64)),
+        TimeUnit::Nanoseconds,
+    ))
 }
 
 pub fn get_decimal_field(val: i64) -> Field {

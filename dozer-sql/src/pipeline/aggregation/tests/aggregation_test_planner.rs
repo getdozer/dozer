@@ -97,7 +97,6 @@ fn test_planner_with_aggregator() {
                     Field::Int(2),
                     Field::Int(1),
                 ],
-                None,
             ),
         })
         .unwrap();
@@ -113,7 +112,6 @@ fn test_planner_with_aggregator() {
                     Field::Int(2),
                     Field::Int(2),
                 ],
-                None,
             ),
         })
         .unwrap();

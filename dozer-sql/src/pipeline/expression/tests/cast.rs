@@ -779,7 +779,7 @@ fn test_decimal() {
     let uint1 = Box::new(Literal(Field::UInt(1_u64)));
     let uint2 = Box::new(Literal(Field::UInt(2_u64)));
 
-    let row = Record::new(None, vec![], None);
+    let row = Record::new(None, vec![]);
 
     // left: Int, right: Decimal
     assert_eq!(

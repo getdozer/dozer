@@ -18,7 +18,7 @@ use proptest::prelude::*;
 #[test]
 fn test_geo() {
     proptest!(ProptestConfig::with_cases(1000), move |(x1: f64, x2: f64, y1: f64, y2: f64)| {
-        let row = Record::new(None, vec![], None);
+        let row = Record::new(None, vec![]);
         let from = Field::Point(DozerPoint::from((x1, y1)));
         let to = Field::Point(DozerPoint::from((x2, y2)));
         let null = Field::Null;

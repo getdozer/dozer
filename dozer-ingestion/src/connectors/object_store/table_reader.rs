@@ -94,7 +94,6 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     new: Record {
                         schema_id: Some(SchemaIdentifier { id, version: 0 }),
                         values: fields,
-                        version: None,
                     },
                 };
 

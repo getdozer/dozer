@@ -2,7 +2,7 @@ use crate::cache::{
     expression::{FilterExpression, Operator, QueryExpression},
     lmdb::tests::utils::{create_cache, insert_rec_1},
     test_utils::{query_from_filter, schema_1, schema_full_text, schema_multi_indices},
-    RecordWithId, RoCache, RwCache,
+    CacheRecord, RoCache, RwCache,
 };
 use dozer_types::{
     serde_json::{from_value, json, Value},
@@ -13,18 +13,16 @@ use dozer_types::{
 fn query_secondary_sorted_inverted() {
     let (mut cache, indexing_thread_pool, schema, _) = create_cache(schema_1);
 
-    let mut record = Record::new(
+    let record = Record::new(
         schema.identifier,
         vec![
             Field::Int(1),
             Field::String("test".to_string()),
             Field::Int(2),
         ],
-        None,
     );
 
-    cache.insert(&mut record).unwrap();
-    assert!(record.version.is_some());
+    cache.insert(&record).unwrap();
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
@@ -50,17 +48,15 @@ fn query_secondary_sorted_inverted() {
 fn query_secondary_full_text() {
     let (mut cache, indexing_thread_pool, schema, _) = create_cache(schema_full_text);
 
-    let mut record = Record::new(
+    let record = Record::new(
         schema.identifier,
         vec![
             Field::String("today is a good day".into()),
             Field::Text("marry has a little lamb".into()),
         ],
-        None,
     );
 
-    cache.insert(&mut record).unwrap();
-    assert!(record.version.is_some());
+    cache.insert(&record).unwrap();
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
@@ -205,13 +201,11 @@ fn query_secondary_multi_indices() {
         (6, "fish glove heart igloo"),
         (7, "glove heart igloo jump"),
     ] {
-        let mut record = Record {
+        let record = Record {
             schema_id: schema.identifier,
             values: vec![Field::Int(id), Field::String(text.into())],
-            version: None,
         };
-        cache.insert(&mut record).unwrap();
-        assert!(record.version.is_some());
+        cache.insert(&record).unwrap();
     }
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
@@ -226,20 +220,20 @@ fn query_secondary_multi_indices() {
     assert_eq!(
         records,
         vec![
-            RecordWithId::new(
+            CacheRecord::new(
                 2,
+                1,
                 Record {
                     schema_id: schema.identifier,
                     values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
-                    version: Some(1)
                 }
             ),
-            RecordWithId::new(
+            CacheRecord::new(
                 3,
+                1,
                 Record {
                     schema_id: schema.identifier,
                     values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
-                    version: Some(1)
                 }
             ),
         ]
@@ -280,12 +274,12 @@ fn test_query_record(
     let expected = expected
         .into_iter()
         .map(|(id, a, b, c)| {
-            RecordWithId::new(
+            CacheRecord::new(
                 id,
+                1,
                 Record::new(
                     schema.identifier,
                     vec![Field::Int(a), Field::String(b), Field::Int(c)],
-                    Some(1),
                 ),
             )
         })

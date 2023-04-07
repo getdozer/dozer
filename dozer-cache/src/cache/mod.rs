@@ -16,14 +16,19 @@ pub mod test_utils;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
-pub struct RecordWithId {
+pub struct CacheRecord {
     pub id: u64,
+    pub version: u32,
     pub record: Record,
 }
 
-impl RecordWithId {
-    pub fn new(id: u64, record: Record) -> Self {
-        Self { id, record }
+impl CacheRecord {
+    pub fn new(id: u64, version: u32, record: Record) -> Self {
+        Self {
+            id,
+            version,
+            record,
+        }
     }
 }
 
@@ -70,22 +75,52 @@ pub trait RoCache: Send + Sync + Debug {
     fn get_schema(&self) -> &SchemaWithIndex;
 
     // Record Operations
-    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError>;
+    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError>;
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError>;
-    fn query(&self, query: &QueryExpression) -> Result<Vec<RecordWithId>, CacheError>;
+    fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
+pub struct RecordMeta {
+    pub id: u64,
+    pub version: u32,
+}
+
+impl RecordMeta {
+    pub fn new(id: u64, version: u32) -> Self {
+        Self { id, version }
+    }
+}
+
+#[derive(Debug)]
+pub enum UpsertResult {
+    Updated {
+        old_meta: RecordMeta,
+        new_meta: RecordMeta,
+    },
+    Inserted {
+        meta: RecordMeta,
+    },
+    Ignored,
 }
 
 pub trait RwCache: RoCache {
-    // Record Operations
-    /// Sets the version of the inserted record and inserts it into the cache. Returns the id of the newly inserted record.
-    fn insert(&mut self, record: &mut Record) -> Result<u64, CacheError>;
-    /// Returns version of the deleted record.
-    fn delete(&mut self, key: &[u8]) -> Result<u32, CacheError>;
-    /// Sets the version of the updated record and updates it in the cache. Returns tuple (Option<version_id>, record_id).
-    /// The version of the record before the update if record existed.
-    /// Record id is from newly inserted record if old record didnt exist
-    fn update(&mut self, key: &[u8], record: &mut Record)
-        -> Result<(Option<u32>, u64), CacheError>;
+    /// Inserts a record into the cache. Implicitly starts a transaction if there's no active transaction.
+    ///
+    /// Depending on the `ConflictResolution` strategy, it may or may not overwrite the existing record.
+    fn insert(&mut self, record: &Record) -> Result<UpsertResult, CacheError>;
+
+    /// Deletes a record. Implicitly starts a transaction if there's no active transaction.
+    ///
+    /// Returns the id and version of the deleted record if it existed.
+    fn delete(&mut self, key: &[u8]) -> Result<Option<RecordMeta>, CacheError>;
+
+    /// Updates a record in the cache. Implicitly starts a transaction if there's no active transaction.
+    ///
+    /// Depending on the `ConflictResolution` strategy, it may actually insert the record if it doesn't exist.
+    fn update(&mut self, key: &[u8], record: &Record) -> Result<UpsertResult, CacheError>;
+
     /// Commits the current transaction.
     fn commit(&mut self) -> Result<(), CacheError>;
 }

@@ -321,7 +321,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
 
     let field = Field::Int(1);
@@ -339,7 +339,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
 
     let field = Field::U128(1);
@@ -357,7 +357,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
 
     let field = Field::I128(1);
@@ -375,7 +375,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
 
     let field = Field::Float(OrderedFloat::from(1.0));
@@ -393,7 +393,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Boolean(true);
@@ -411,7 +411,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::String("".to_string());
@@ -429,7 +429,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Text("".to_string());
@@ -447,7 +447,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Binary(vec![]);
@@ -465,7 +465,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Decimal(Decimal::from(1));
@@ -483,7 +483,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(0).unwrap()));
@@ -501,7 +501,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
@@ -519,7 +519,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_some());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Bson(vec![]);
@@ -537,7 +537,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Point(DozerPoint::from((0.0, 0.0)));
@@ -555,7 +555,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_some());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
     let field = Field::Duration(DozerDuration(
@@ -576,7 +576,7 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_none());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_some());
+    assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
 
     let field = Field::Null;
@@ -594,6 +594,6 @@ fn test_to_conversion() {
     assert!(field.to_date().unwrap().is_some());
     assert!(field.to_bson().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_none());
+    assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_some());
 }

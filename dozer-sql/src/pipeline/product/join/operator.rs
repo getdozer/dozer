@@ -484,5 +484,5 @@ fn join_records(left_record: &Record, right_record: &Record) -> Record {
         right_record.values.as_slice(),
     ]
     .concat();
-    Record::new(None, concat_values, None)
+    Record::new(None, concat_values)
 }
