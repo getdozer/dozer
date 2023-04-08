@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use crate::grpc::types_helper;
+use dozer_cache::dozer_log::reader::LogReader;
 use dozer_cache::{
     cache::{
         index::get_primary_key, CacheRecord, CacheWriteOptions, RwCache, RwCacheManager,
@@ -16,12 +18,6 @@ use dozer_types::{
 };
 use futures_util::{Future, StreamExt};
 use tokio::sync::broadcast::Sender;
-
-use crate::grpc::types_helper;
-
-pub use self::log_reader::LogReader;
-
-mod log_reader;
 
 pub fn create_cache(
     cache_manager: &dyn RwCacheManager,

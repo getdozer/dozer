@@ -2,6 +2,7 @@ use crate::cache::{expression::QueryExpression, CacheRecord, RoCache};
 
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
+pub use dozer_log::reader;
 use dozer_types::{
     serde,
     types::{Record, SchemaWithIndex},
