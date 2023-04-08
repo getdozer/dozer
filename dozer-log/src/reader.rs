@@ -1,6 +1,6 @@
 use std::{io::SeekFrom, path::Path, time::Duration};
 
-use dozer_cache::errors::{CacheError, LogError};
+use super::errors::ReaderError;
 use dozer_core::executor::ExecutorOperation;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::{bincode, log::trace};
@@ -23,19 +23,19 @@ impl LogReader {
         name: &str,
         pos: u64,
         multi_pb: Option<MultiProgress>,
-    ) -> Result<Self, CacheError> {
+    ) -> Result<Self, ReaderError> {
         let file = OpenOptions::new()
             .read(true)
             .open(path)
             .await
-            .map_err(|_| CacheError::LogFileNotFound(path.to_path_buf()))?;
+            .map_err(|_| ReaderError::LogFileNotFound(path.to_path_buf()))?;
 
         let mut reader = BufReader::new(file);
 
         reader
             .seek(SeekFrom::Start(pos))
             .await
-            .map_err(|e| CacheError::LogError(LogError::SeekError(name.to_string(), pos, e)))?;
+            .map_err(|e| ReaderError::SeekError(name.to_string(), pos, e))?;
 
         let pb = attach_progress(multi_pb);
         pb.set_message(format!("reader: {}", name));
@@ -75,20 +75,20 @@ impl LogReader {
     }
 }
 
-async fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u64), LogError> {
+async fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u64), ReaderError> {
     let mut buf = [0; 8];
     reader
         .read_exact(&mut buf)
         .await
-        .map_err(LogError::ReadError)?;
+        .map_err(ReaderError::ReadError)?;
     let len = u64::from_le_bytes(buf);
 
     let mut buf = vec![0; len as usize];
     reader
         .read_exact(&mut buf)
         .await
-        .map_err(LogError::ReadError)?;
-    let msg = bincode::deserialize(&buf).map_err(LogError::DeserializationError)?;
+        .map_err(ReaderError::ReadError)?;
+    let msg = bincode::deserialize(&buf).map_err(ReaderError::DeserializationError)?;
     Ok((msg, len + 8))
 }
 

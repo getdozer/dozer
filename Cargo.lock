@@ -2496,6 +2496,7 @@ name = "dozer-cache"
 version = "0.1.16"
 dependencies = [
  "criterion",
+ "dozer-log",
  "dozer-storage",
  "dozer-types",
  "futures",
@@ -2561,6 +2562,16 @@ dependencies = [
  "tonic-web",
  "tower-http",
  "web3",
+]
+
+[[package]]
+name = "dozer-log"
+version = "0.1.16"
+dependencies = [
+ "dozer-core",
+ "dozer-types",
+ "futures-util",
+ "tokio",
 ]
 
 [[package]]

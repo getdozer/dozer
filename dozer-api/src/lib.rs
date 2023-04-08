@@ -127,7 +127,6 @@ fn open_existing_cache_reader(
 // Exports
 pub mod auth;
 mod cache_builder;
-pub use cache_builder::LogReader;
 pub mod errors;
 pub mod generator;
 pub mod grpc;

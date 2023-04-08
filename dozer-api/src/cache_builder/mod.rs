@@ -1,5 +1,7 @@
 use std::{path::Path, sync::Arc};
 
+use crate::grpc::types_helper;
+use dozer_cache::dozer_log::reader::LogReader;
 use dozer_cache::{
     cache::{
         index::get_primary_key, CacheRecord, CacheWriteOptions, RwCache, RwCacheManager,
@@ -19,12 +21,6 @@ use futures_util::{
     Future,
 };
 use tokio::{runtime::Runtime, sync::broadcast::Sender};
-
-use crate::grpc::types_helper;
-
-pub use self::log_reader::LogReader;
-
-mod log_reader;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn create_cache(
