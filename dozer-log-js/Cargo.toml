@@ -1,0 +1,18 @@
+[package]
+name = "dozer-log-js"
+version = "0.1.16"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+
+[dependencies]
+dozer-log = { path = "../dozer-log" }
+dozer-types = {path = "../dozer-types"}
+futures-util = "0.3.27"
+
+[dependencies.neon]
+version = "0.10"
+default-features = false
+features = ["napi-6", "channel-api"]

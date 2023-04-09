@@ -1,10 +1,10 @@
 use super::executor::Executor;
-use super::schemas::load_schemas;
+
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::simple::helper::validate_config;
-use crate::simple::schemas::write_schemas;
+
 use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_cache_manager_options,
     get_endpoint_log_path, get_executor_options, get_file_buffer_capacity, get_grpc_config,
@@ -16,6 +16,7 @@ use dozer_api::errors::ApiError;
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{actix_web::dev::ServerHandle, grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
+use dozer_cache::dozer_log::schemas::{load_schemas, write_schemas};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_core::errors::ExecutionError::InternalError;

@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use dozer_api::errors::{ApiError, GenerationError, GrpcError};
+use dozer_cache::dozer_log::errors::SchemasError;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
@@ -48,6 +49,8 @@ pub enum OrchestrationError {
     PipelineError(#[from] PipelineError),
     #[error(transparent)]
     CliError(#[from] CliError),
+    #[error(transparent)]
+    SchemasError(#[from] SchemasError),
     #[error("Failed to receive server handle from grpc server: {0}")]
     GrpcServerHandleError(#[source] RecvError),
     #[error("Source validation failed")]
@@ -66,14 +69,6 @@ pub enum OrchestrationError {
     SchemasNotInitializedPath(PathBuf),
     #[error("Cannot convert Schemas in Path specified {0:?}")]
     DeserializeSchemas(PathBuf),
-    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
-    MismatchPrimaryKey {
-        endpoint_name: String,
-        expected: Vec<String>,
-        actual: Vec<String>,
-    },
-    #[error("Field not found at position {0}")]
-    FieldNotFound(String),
 }
 
 #[derive(Error, Debug)]
