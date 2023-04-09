@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tracing"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -8,6 +8,7 @@ authors = ["getdozer/dozer-dev"]
 
 [dependencies]
 dozer-types = { path = "../dozer-types" }
+
 tracing-subscriber = {version = "0.3.11", features=["env-filter", "tracing-log"]}
 opentelemetry = {version = "0.18.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
 opentelemetry-jaeger = {version = "0.17.0", features = ["rt-tokio", "rt-tokio-current-thread"] }

@@ -1,8 +1,17 @@
 use arc_swap::ArcSwap;
-use dozer_cache::{cache::RwCacheManager, errors::CacheError, CacheReader};
+use dozer_cache::{
+    cache::{CacheWriteOptions, RwCacheManager},
+    errors::CacheError,
+    CacheReader,
+};
 use dozer_types::{
-    grpc_types::types::Operation, indicatif::MultiProgress, log::info,
-    models::api_endpoint::ApiEndpoint, types::Schema,
+    grpc_types::types::Operation,
+    indicatif::MultiProgress,
+    log::info,
+    models::api_endpoint::{
+        ApiEndpoint, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
+    },
+    types::Schema,
 };
 use std::{ops::Deref, path::Path, sync::Arc};
 
@@ -29,11 +38,17 @@ impl CacheEndpoint {
             (cache_reader, None)
         } else {
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
+            let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
+            let write_options = CacheWriteOptions {
+                insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
+                delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
+                update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
+            };
             let (cache_name, task) = cache_builder::create_cache(
                 cache_manager,
                 schema,
                 log_path,
-                endpoint.conflict_resolution.unwrap_or_default(),
+                write_options,
                 operations_sender,
                 mullti_pb,
             )

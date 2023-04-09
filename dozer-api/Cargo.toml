@@ -1,19 +1,21 @@
 [package]
 name = "dozer-api"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dozer-cache = {path = "../dozer-cache"}
+dozer-types = {path = "../dozer-types"}
+dozer-tracing = {path = "../dozer-tracing"}
+dozer-core = { path = "../dozer-core" }
+
 actix-cors = "0.6.3"
 actix-http = { version = "3.3.0", default-features = false, features = ["rustls"] }
 actix-web = { version = "4.2.1", default-features = false, features = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "rustls"] }
 actix-web-httpauth = "0.8.0"
-dozer-cache = {path = "../dozer-cache"}
-dozer-types = {path = "../dozer-types"}
-dozer-tracing = {path = "../dozer-tracing"}
 handlebars = "4.3.5"
 openapiv3 = "1.0.2"
 tonic-build = "0.8.2"
@@ -35,7 +37,6 @@ tower = "0.4.13"
 hyper = "0.14.24"
 tower-http = {version = "0.3.5", features = ["full"]}
 arc-swap = "1.6.0"
-dozer-core = { path = "../dozer-core" }
 
 [dev-dependencies]
 tempdir = "0.3.7"

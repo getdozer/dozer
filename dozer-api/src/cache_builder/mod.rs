@@ -1,7 +1,10 @@
 use std::path::Path;
 
 use dozer_cache::{
-    cache::{index::get_primary_key, CacheRecord, RwCache, RwCacheManager, UpsertResult},
+    cache::{
+        index::get_primary_key, CacheRecord, CacheWriteOptions, RwCache, RwCacheManager,
+        UpsertResult,
+    },
     errors::CacheError,
 };
 use dozer_core::executor::ExecutorOperation;
@@ -9,7 +12,6 @@ use dozer_types::{
     grpc_types::types::Operation as GrpcOperation,
     indicatif::MultiProgress,
     log::error,
-    models::api_endpoint::ConflictResolution,
     types::{Field, FieldDefinition, FieldType, IndexDefinition, Operation, Record, Schema},
 };
 use futures_util::{Future, StreamExt};
@@ -25,15 +27,14 @@ pub fn create_cache(
     cache_manager: &dyn RwCacheManager,
     schema: Schema,
     log_path: &Path,
-    conflict_resolution: ConflictResolution,
+    write_options: CacheWriteOptions,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     mullti_pb: Option<MultiProgress>,
 ) -> Result<(String, impl Future<Output = Result<(), CacheError>>), CacheError> {
     // Automatically create secondary indexes
     let secondary_indexes = generate_secondary_indexes(&schema.fields);
     // Create the cache.
-    let cache =
-        cache_manager.create_cache(schema.clone(), secondary_indexes, conflict_resolution)?;
+    let cache = cache_manager.create_cache(schema.clone(), secondary_indexes, write_options)?;
     let name = cache.name().to_string();
 
     // Create log reader.

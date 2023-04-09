@@ -1,12 +1,16 @@
 [package]
 name = "dozer-sql"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dozer-types = {path = "../dozer-types"}
+dozer-core = {path = "../dozer-core"}
+dozer-tracing = {path = "../dozer-tracing"}
+
 num-traits = "0.2.15"
 sqlparser = "0.32.0"
 dyn-clone = "1.0.10"
@@ -15,9 +19,6 @@ lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
 multimap = "0.8.3"
 uuid = {version = "1.3.0", features = ["v1", "v4", "fast-rng"]}
-dozer-types = {path = "../dozer-types"}
-dozer-core = {path = "../dozer-core"}
-dozer-tracing = {path = "../dozer-tracing"}
 hashbrown = "0.13"
 ahash = "0.8.3"
 bloom = "0.3.2"
