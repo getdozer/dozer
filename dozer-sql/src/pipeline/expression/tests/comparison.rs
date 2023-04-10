@@ -1,11 +1,10 @@
 use crate::pipeline::expression::comparison::{
-    evaluate_eq, evaluate_gt, evaluate_gte, evaluate_lt, evaluate_lte, evaluate_ne,
-    TIMESTAMP_FORMAT,
+    evaluate_eq, evaluate_gt, evaluate_gte, evaluate_lt, evaluate_lte, evaluate_ne, DATE_FORMAT,
 };
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_types::chrono::DateTime;
+use dozer_types::chrono::{DateTime, NaiveDate};
 use dozer_types::types::{FieldDefinition, FieldType, Record, SourceDefinition};
 use dozer_types::{
     ordered_float::OrderedFloat,
@@ -596,7 +595,7 @@ fn test_comparison_logical_int() {
 #[test]
 fn test_comparison_logical_timestamp() {
     let f = run_fct(
-        "SELECT time FROM users WHERE id = '124'",
+        "SELECT time = '2020-01-01T00:00:00Z' FROM users",
         Schema::empty()
             .field(
                 FieldDefinition::new(
@@ -609,20 +608,39 @@ fn test_comparison_logical_timestamp() {
             )
             .clone(),
         vec![Field::Timestamp(
-            DateTime::parse_from_str("2020-01-01 00:00:00", TIMESTAMP_FORMAT).unwrap(),
+            DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap(),
         )],
     );
-    assert_eq!(f, Field::Int(124));
+    assert_eq!(f, Field::Boolean(true));
+
+    let f = run_fct(
+        "SELECT time < '2020-01-01T00:00:01Z' FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("time"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Timestamp(
+            DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap(),
+        )],
+    );
+    assert_eq!(f, Field::Boolean(true));
 }
 
 #[test]
 fn test_comparison_logical_date() {
     let f = run_fct(
-        "SELECT id FROM users WHERE id = '124'",
+        "SELECT date = '2020-01-01' FROM users",
         Schema::empty()
             .field(
                 FieldDefinition::new(
-                    String::from("id"),
+                    String::from("date"),
                     FieldType::Int,
                     false,
                     SourceDefinition::Dynamic,
@@ -630,7 +648,47 @@ fn test_comparison_logical_date() {
                 false,
             )
             .clone(),
-        vec![Field::Int(124)],
+        vec![Field::Date(
+            NaiveDate::parse_from_str("2020-01-01", DATE_FORMAT).unwrap(),
+        )],
     );
-    assert_eq!(f, Field::Int(124));
+    assert_eq!(f, Field::Boolean(true));
+
+    let f = run_fct(
+        "SELECT date != '2020-01-01' FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("date"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Date(
+            NaiveDate::parse_from_str("2020-01-01", DATE_FORMAT).unwrap(),
+        )],
+    );
+    assert_eq!(f, Field::Boolean(false));
+
+    let f = run_fct(
+        "SELECT date > '2020-01-01' FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("date"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Date(
+            NaiveDate::parse_from_str("2020-01-02", DATE_FORMAT).unwrap(),
+        )],
+    );
+    assert_eq!(f, Field::Boolean(true));
 }

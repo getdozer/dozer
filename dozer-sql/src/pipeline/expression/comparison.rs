@@ -7,7 +7,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
-pub const TIMESTAMP_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 macro_rules! define_comparison {
     ($id:ident, $op:expr, $function:expr) => {
@@ -461,13 +460,12 @@ macro_rules! define_comparison {
                         Ok(Field::Boolean($function(left_val, right_v)))
                     }
                     Field::Timestamp(right_v) => {
-                        let ts =
-                            DateTime::parse_from_str(left_v, TIMESTAMP_FORMAT).map_err(|_| {
-                                PipelineError::UnableToCast(
-                                    format!("{}", left_v),
-                                    "Timestamp".to_string(),
-                                )
-                            })?;
+                        let ts = DateTime::parse_from_rfc3339(left_v).map_err(|_| {
+                            PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Timestamp".to_string(),
+                            )
+                        })?;
                         Ok(Field::Boolean($function(ts, right_v)))
                     }
                     Field::Date(right_v) => {
@@ -504,13 +502,12 @@ macro_rules! define_comparison {
                 Field::Timestamp(left_v) => match right_p {
                     Field::Timestamp(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     Field::String(ref right_v) | Field::Text(ref right_v) => {
-                        let ts =
-                            DateTime::parse_from_str(right_v, TIMESTAMP_FORMAT).map_err(|_| {
-                                PipelineError::UnableToCast(
-                                    format!("{}", right_v),
-                                    "Timestamp".to_string(),
-                                )
-                            })?;
+                        let ts = DateTime::parse_from_rfc3339(right_v).map_err(|_| {
+                            PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Timestamp".to_string(),
+                            )
+                        })?;
                         Ok(Field::Boolean($function(left_v, ts)))
                     }
                     Field::Null => Ok(Field::Null),
@@ -1025,7 +1022,7 @@ pub fn evaluate_lt(
                 Ok(Field::Boolean(left_val < right_v))
             }
             Field::Timestamp(right_v) => {
-                let ts = DateTime::parse_from_str(left_v, TIMESTAMP_FORMAT).map_err(|_| {
+                let ts = DateTime::parse_from_rfc3339(left_v).map_err(|_| {
                     PipelineError::UnableToCast(left_v.to_string(), "Timestamp".to_string())
                 })?;
                 Ok(Field::Boolean(ts < right_v))
@@ -1057,7 +1054,7 @@ pub fn evaluate_lt(
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v < right_v)),
             Field::String(ref right_v) | Field::Text(ref right_v) => {
-                let ts = DateTime::parse_from_str(right_v, TIMESTAMP_FORMAT).map_err(|_| {
+                let ts = DateTime::parse_from_rfc3339(right_v).map_err(|_| {
                     PipelineError::UnableToCast(right_v.to_string(), "Timestamp".to_string())
                 })?;
                 Ok(Field::Boolean(left_v < ts))
@@ -1559,7 +1556,7 @@ pub fn evaluate_gt(
                 Ok(Field::Boolean(left_val > right_v))
             }
             Field::Timestamp(right_v) => {
-                let ts = DateTime::parse_from_str(left_v, TIMESTAMP_FORMAT).map_err(|_| {
+                let ts = DateTime::parse_from_rfc3339(left_v).map_err(|_| {
                     PipelineError::UnableToCast(left_v.to_string(), "Timestamp".to_string())
                 })?;
                 Ok(Field::Boolean(ts > right_v))
@@ -1591,7 +1588,7 @@ pub fn evaluate_gt(
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v > right_v)),
             Field::String(ref right_v) | Field::Text(ref right_v) => {
-                let ts = DateTime::parse_from_str(right_v, TIMESTAMP_FORMAT).map_err(|_| {
+                let ts = DateTime::parse_from_rfc3339(right_v).map_err(|_| {
                     PipelineError::UnableToCast(right_v.to_string(), "Timestamp".to_string())
                 })?;
                 Ok(Field::Boolean(left_v > ts))
