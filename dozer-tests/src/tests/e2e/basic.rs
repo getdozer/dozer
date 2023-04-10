@@ -1,108 +1,55 @@
-use std::{
-    sync::{atomic::AtomicBool, Arc},
-    thread,
-};
+use dozer_types::grpc_types::{common::QueryRequest, ingest::IngestRequest, types};
 
-use dozer_api::actix_web::rt::Runtime;
-use dozer_orchestrator::{simple::SimpleOrchestrator as Dozer, Orchestrator};
-use dozer_types::grpc_types::{
-    common::{common_grpc_service_client::CommonGrpcServiceClient, QueryRequest},
-    ingest::{ingest_service_client::IngestServiceClient, IngestRequest},
-    types,
-};
-use dozer_types::{models::app_config::Config, serde_yaml};
-use tempdir::TempDir;
-fn get_config() -> Config {
-    let path = TempDir::new("tests").unwrap();
-    let mut cfg = serde_yaml::from_str::<Config>(include_str!("./fixtures/basic.yaml")).unwrap();
-    cfg.home_dir = path.path().to_str().unwrap().to_string();
-    cfg
-}
+use super::DozerE2eTest;
 
-#[test]
-fn ingest_and_test() {
-    let cfg = get_config();
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-    // Start Dozer
-    thread::spawn(move || {
-        let mut dozer = Dozer::new(cfg);
-        dozer.run_all(running).unwrap();
-    });
-    Runtime::new().unwrap().block_on(async {
-        // Query Dozer
-        let retries = 10;
-        let mut res = IngestServiceClient::connect("http://[::1]:8085").await;
-        for r in 0..retries {
-            if res.is_ok() {
-                break;
-            }
-            if r == retries - 1 {
-                panic!("failed to connect after {r} times");
-            }
-            thread::sleep(std::time::Duration::from_millis(300));
-            res = IngestServiceClient::connect("http://0.0.0.0:8085").await;
-        }
+#[tokio::test]
+async fn ingest_and_test() {
+    let mut test = DozerE2eTest::new(include_str!("./fixtures/basic.yaml")).await;
 
-        let mut ingest_client = res.unwrap();
+    let ingest_client = test.ingest_service_client.as_mut().unwrap();
 
-        // Ingest a record
-        let res = ingest_client
-            .ingest(IngestRequest {
-                schema_name: "users".to_string(),
-                new: Some(types::Record {
-                    values: vec![
-                        types::Value {
-                            value: Some(types::value::Value::IntValue(1675)),
-                        },
-                        types::Value {
-                            value: Some(types::value::Value::StringValue("dario".to_string())),
-                        },
-                    ],
-                    version: 1,
-                }),
-                seq_no: 1,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
+    // Ingest a record
+    let res = ingest_client
+        .ingest(IngestRequest {
+            schema_name: "users".to_string(),
+            new: Some(types::Record {
+                values: vec![
+                    types::Value {
+                        value: Some(types::value::Value::IntValue(1675)),
+                    },
+                    types::Value {
+                        value: Some(types::value::Value::StringValue("dario".to_string())),
+                    },
+                ],
+                version: 1,
+            }),
+            seq_no: 1,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
 
-        assert_eq!(res.into_inner().seq_no, 1);
+    assert_eq!(res.into_inner().seq_no, 1);
 
-        // wait for the record to be processed
-        thread::sleep(std::time::Duration::from_millis(300));
+    // wait for the record to be processed
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
-        // Query common service
-        let mut res = CommonGrpcServiceClient::connect("http://0.0.0.0:50051").await;
-        for r in 0..retries {
-            if res.is_ok() {
-                break;
-            }
-            if r == retries - 1 {
-                panic!("failed to connect after {r} times");
-            }
-            thread::sleep(std::time::Duration::from_millis(500));
-            res = CommonGrpcServiceClient::connect("http://0.0.0.0:500051").await;
-        }
+    // Query common service
+    let common_client = &mut test.common_service_client;
 
-        let mut common_client = res.unwrap();
+    let res = common_client
+        .query(QueryRequest {
+            endpoint: "users".to_string(),
+            query: None,
+        })
+        .await
+        .unwrap();
+    let res = res.into_inner();
+    let rec = res.records.first().unwrap().clone();
+    let val = rec.record.unwrap().values.first().unwrap().clone().value;
+    assert!(matches!(val, Some(types::value::Value::IntValue(_))));
 
-        let res = common_client
-            .query(QueryRequest {
-                endpoint: "users".to_string(),
-                query: None,
-            })
-            .await
-            .unwrap();
-        let res = res.into_inner();
-        let rec = res.records.first().unwrap().clone();
-        let val = rec.record.unwrap().values.first().unwrap().clone().value;
-        assert!(matches!(val, Some(types::value::Value::IntValue(_))));
-
-        if let Some(types::value::Value::IntValue(v)) = val {
-            assert_eq!(v, 1675);
-        }
-    });
-
-    r.store(false, std::sync::atomic::Ordering::Relaxed);
+    if let Some(types::value::Value::IntValue(v)) = val {
+        assert_eq!(v, 1675);
+    }
 }

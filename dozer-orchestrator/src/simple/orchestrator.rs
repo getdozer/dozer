@@ -18,8 +18,8 @@ use dozer_api::{actix_web::dev::ServerHandle, grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
-use dozer_core::errors::ExecutionError::InternalError;
 
+use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
@@ -238,12 +238,14 @@ impl Orchestrator for SimpleOrchestrator {
 
         // Api Path
         if !api_dir.exists() {
-            fs::create_dir_all(api_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(&api_dir)
+                .map_err(|e| ExecutionError::FileSystemError(api_dir, e))?;
         }
 
         // cache Path
         if !cache_dir.exists() {
-            fs::create_dir_all(cache_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(&cache_dir)
+                .map_err(|e| ExecutionError::FileSystemError(cache_dir, e))?;
         }
 
         // Pipeline path
@@ -304,12 +306,14 @@ impl Orchestrator for SimpleOrchestrator {
     fn clean(&mut self) -> Result<(), OrchestrationError> {
         let cache_dir = PathBuf::from(self.config.cache_dir.clone());
         if cache_dir.exists() {
-            fs::remove_dir_all(&cache_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::remove_dir_all(&cache_dir)
+                .map_err(|e| ExecutionError::FileSystemError(cache_dir, e))?;
         };
 
         let home_dir = PathBuf::from(self.config.home_dir.clone());
         if home_dir.exists() {
-            fs::remove_dir_all(&home_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::remove_dir_all(&home_dir)
+                .map_err(|e| ExecutionError::FileSystemError(home_dir, e))?;
         };
 
         Ok(())
