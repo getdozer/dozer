@@ -9,7 +9,6 @@ use dozer_types::{rust_decimal, thiserror};
 
 use base64::DecodeError;
 
-use crossbeam::channel::RecvError;
 use deltalake::datafusion::error::DataFusionError;
 use deltalake::DeltaTableError;
 #[cfg(feature = "snowflake")]
@@ -88,9 +87,6 @@ pub enum ConnectorError {
 
     #[error("Datafusion error: {0}")]
     DataFusionError(#[from] DataFusionError),
-
-    #[error("Runtime creation error")]
-    RuntimeCreationError(#[from] std::io::Error),
 
     #[error("kafka feature is not enabled")]
     KafkaFeatureNotEnabled,
@@ -392,9 +388,6 @@ pub enum ObjectStoreConnectorError {
     #[error(transparent)]
     DataFusionStorageObjectError(#[from] ObjectStoreObjectError),
 
-    #[error("Runtime creation error")]
-    RuntimeCreationError,
-
     #[error("Internal data fusion error")]
     InternalDataFusionError(#[source] DataFusionError),
 
@@ -404,8 +397,8 @@ pub enum ObjectStoreConnectorError {
     #[error(transparent)]
     IngestorError(#[from] IngestorError),
 
-    #[error("Failed to send message on data read channel. Error: {0}")]
-    RecvError(#[source] RecvError),
+    #[error("Failed to receive message on data read channel")]
+    RecvError,
 }
 
 #[derive(Error, Debug, PartialEq)]

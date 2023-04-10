@@ -5,6 +5,7 @@ use dozer_types::{
     types::Field,
 };
 use tempdir::TempDir;
+use tonic::async_trait;
 
 use crate::test_suite::{DataReadyConnectorTest, FieldsAndPk, InsertOnlyConnectorTest};
 
@@ -16,10 +17,11 @@ pub struct LocalStorageObjectStoreConnectorTest {
     _temp_dir: TempDir,
 }
 
+#[async_trait]
 impl DataReadyConnectorTest for LocalStorageObjectStoreConnectorTest {
     type Connector = ObjectStoreConnector<LocalStorage>;
 
-    fn new() -> (Self, Self::Connector) {
+    async fn new() -> (Self, Self::Connector) {
         let record_batch = record_batch_with_all_supported_data_types();
         let (temp_dir, connector) = create_connector("sample".to_string(), &record_batch);
         (
@@ -31,10 +33,11 @@ impl DataReadyConnectorTest for LocalStorageObjectStoreConnectorTest {
     }
 }
 
+#[async_trait]
 impl InsertOnlyConnectorTest for LocalStorageObjectStoreConnectorTest {
     type Connector = ObjectStoreConnector<LocalStorage>;
 
-    fn new(
+    async fn new(
         schema_name: Option<String>,
         table_name: String,
         schema: FieldsAndPk,

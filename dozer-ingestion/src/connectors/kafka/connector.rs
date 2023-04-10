@@ -4,7 +4,7 @@ use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
 
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
-use tokio::runtime::Runtime;
+use tonic::async_trait;
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
 use crate::connectors::kafka::debezium::schema_registry::SchemaRegistry;
@@ -35,6 +35,7 @@ impl KafkaConnector {
     }
 }
 
+#[async_trait]
 impl Connector for KafkaConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
@@ -43,15 +44,15 @@ impl Connector for KafkaConnector {
         todo!()
     }
 
-    fn validate_connection(&self) -> Result<(), ConnectorError> {
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
         Ok(())
     }
 
-    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
         Ok(vec![])
     }
 
-    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
         let table_names = tables
             .iter()
             .map(|table| table.name.clone())
@@ -59,7 +60,10 @@ impl Connector for KafkaConnector {
         self.get_schemas_impl(Some(&table_names)).map(|_| ())
     }
 
-    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
         let table_names = tables
             .iter()
             .map(|table| table.name.clone())
@@ -82,7 +86,7 @@ impl Connector for KafkaConnector {
         Ok(result)
     }
 
-    fn get_schemas(
+    async fn get_schemas(
         &self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
@@ -97,15 +101,17 @@ impl Connector for KafkaConnector {
             .collect())
     }
 
-    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
+    async fn start(
+        &self,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+    ) -> Result<(), ConnectorError> {
         let topic = tables
             .get(0)
             .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
 
         let broker = self.config.broker.to_owned();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(broker, topic, ingestor).await })
+        run(broker, topic, ingestor).await
     }
 }
 

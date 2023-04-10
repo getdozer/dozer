@@ -2540,7 +2540,6 @@ dependencies = [
  "object_store",
  "odbc",
  "parquet 33.0.0",
- "postgres",
  "postgres-protocol",
  "postgres-types",
  "prost",

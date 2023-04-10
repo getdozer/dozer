@@ -10,7 +10,6 @@ use dozer_types::grpc_types::admin::{
     UpdateConnectionRequest, ValidateConnectionResponse,
 };
 use dozer_types::{log::error, models::connection::Connection};
-use std::thread;
 
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
 
@@ -25,11 +24,11 @@ impl ConnectionService {
     }
 }
 
-fn get_tables(
+async fn get_tables(
     connection: Connection,
 ) -> Result<Vec<dozer_orchestrator::TableInfo>, ConnectorError> {
     let connector = get_connector(connection)?;
-    connector.list_columns(connector.list_tables()?)
+    connector.list_columns(connector.list_tables().await?).await
 }
 
 impl ConnectionService {
@@ -37,9 +36,7 @@ impl ConnectionService {
         &self,
         connection: Connection,
     ) -> Result<Vec<dozer_orchestrator::TableInfo>, ErrorResponse> {
-        let res = thread::spawn(|| get_tables(connection).map_err(|err| err.to_string()))
-            .join()
-            .unwrap();
+        let res = get_tables(connection).await.map_err(|err| err.to_string());
 
         res.map_err(|err| ErrorResponse { message: err })
     }
@@ -182,17 +179,17 @@ impl ConnectionService {
         &self,
         input: ConnectionRequest,
     ) -> Result<ValidateConnectionResponse, ErrorResponse> {
-        let c = input.connection.unwrap();
-        let validate_result = thread::spawn(|| {
-            let connector = get_connector(c).map_err(|err| err.to_string())?;
-            connector
-                .validate_connection()
-                .map_err(|err| err.to_string())
-        });
+        let validate_result = validate_connection(input.connection.unwrap()).await;
         validate_result
-            .join()
-            .unwrap()
             .map(|_op| ValidateConnectionResponse { success: true })
             .map_err(|err| ErrorResponse { message: err })
     }
+}
+
+async fn validate_connection(connection: Connection) -> Result<(), String> {
+    let connector = get_connector(connection).map_err(|err| err.to_string())?;
+    connector
+        .validate_connection()
+        .await
+        .map_err(|err| err.to_string())
 }

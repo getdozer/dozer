@@ -14,7 +14,9 @@ use dozer_types::parking_lot::Mutex;
 use dozer_types::tracing::{span, Level};
 use dozer_types::types::{Operation, Schema, SchemaIdentifier, SourceDefinition};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::thread;
+use tokio::runtime::Runtime;
 
 fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
@@ -53,6 +55,7 @@ pub struct ConnectorSourceFactory {
     tables: Vec<Table>,
     /// Will be moved to `ConnectorSource` in `build`.
     connector: Mutex<Option<Box<dyn Connector>>>,
+    runtime: Arc<Runtime>,
     progress: Option<MultiProgress>,
 }
 
@@ -65,9 +68,10 @@ fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
 }
 
 impl ConnectorSourceFactory {
-    pub fn new(
+    pub async fn new(
         table_and_ports: Vec<(TableInfo, PortHandle)>,
         connection: Connection,
+        runtime: Arc<Runtime>,
         progress: Option<MultiProgress>,
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
@@ -80,6 +84,7 @@ impl ConnectorSourceFactory {
             .collect();
         let source_schemas = connector
             .get_schemas(&tables)
+            .await
             .map_err(|e| InternalError(Box::new(e)))?;
 
         let mut tables = vec![];
@@ -109,6 +114,7 @@ impl ConnectorSourceFactory {
             connection_name,
             tables,
             connector: Mutex::new(Some(connector)),
+            runtime,
             progress,
         })
     }
@@ -193,6 +199,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             schema_port_map,
             tables,
             connector,
+            runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
             bars,
         }))
@@ -206,6 +213,7 @@ pub struct ConnectorSource {
     schema_port_map: HashMap<u32, PortHandle>,
     tables: Vec<TableInfo>,
     connector: Box<dyn Connector>,
+    runtime: Arc<Runtime>,
     connection_name: String,
     bars: HashMap<PortHandle, ProgressBar>,
 }
@@ -223,7 +231,10 @@ impl Source for ConnectorSource {
         thread::scope(|scope| {
             let mut counter = HashMap::new();
             let t = scope.spawn(|| {
-                match self.connector.start(&self.ingestor, self.tables.clone()) {
+                match self
+                    .runtime
+                    .block_on(self.connector.start(&self.ingestor, self.tables.clone()))
+                {
                     Ok(_) => {}
                     // If we get a channel error, it means the source sender thread has quit.
                     // Any error handling is done in that thread.

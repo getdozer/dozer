@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
 use dozer_types::indicatif::MultiProgress;
@@ -8,6 +10,7 @@ use dozer_core::appsource::{AppSourceId, AppSourceMappings};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::models::source::Source;
+use tokio::runtime::Runtime;
 
 fn get_default_config() -> Config {
     let schema_str = include_str!("./schemas.json");
@@ -66,10 +69,15 @@ fn load_multi_sources() {
         MultiProgress::new(),
     );
 
-    let grouped_connections = builder.get_grouped_tables(&used_sources).unwrap();
+    let runtime = Runtime::new().unwrap();
+    let grouped_connections = runtime
+        .block_on(builder.get_grouped_tables(&used_sources))
+        .unwrap();
 
     let source_builder = SourceBuilder::new(grouped_connections, None);
-    let asm = source_builder.build_source_manager().unwrap();
+    let asm = source_builder
+        .build_source_manager(Arc::new(runtime))
+        .unwrap();
 
     let conn_name_1 = config.connections.get(0).unwrap().name.clone();
     let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm

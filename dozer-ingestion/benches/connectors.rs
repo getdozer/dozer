@@ -4,28 +4,27 @@ use helper::TestConfig;
 use tokio::runtime::Runtime;
 mod helper;
 fn connectors(criter: &mut Criterion) {
+    let runtime = Runtime::new().unwrap();
     let configs = load_test_config();
 
-    Runtime::new().unwrap().block_on(async {
-        for config in configs {
-            let mut iterator = helper::get_connection_iterator(config.clone()).await;
-            let pb = helper::get_progress();
-            let mut count = 0;
-            criter.bench_with_input(
-                BenchmarkId::new(config.connection.name, config.size),
-                &config.size,
-                |b, _| {
-                    b.iter(|| {
-                        iterator.next();
-                        count += 1;
-                        if count % 100 == 0 {
-                            pb.set_position(count as u64);
-                        }
-                    })
-                },
-            );
-        }
-    });
+    for config in configs {
+        let mut iterator = runtime.block_on(helper::get_connection_iterator(config.clone()));
+        let pb = helper::get_progress();
+        let mut count = 0;
+        criter.bench_with_input(
+            BenchmarkId::new(config.connection.name, config.size),
+            &config.size,
+            |b, _| {
+                b.iter(|| {
+                    iterator.next();
+                    count += 1;
+                    if count % 100 == 0 {
+                        pb.set_position(count as u64);
+                    }
+                })
+            },
+        );
+    }
 }
 
 pub fn load_test_config() -> Vec<TestConfig> {

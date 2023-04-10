@@ -6,7 +6,6 @@ use deltalake::arrow::datatypes::SchemaRef;
 use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::ingestion_types::DeltaLakeConfig;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 
 pub struct SchemaHelper {
     config: DeltaLakeConfig,
@@ -17,15 +16,14 @@ impl SchemaHelper {
         Self { config }
     }
 
-    pub fn get_schemas(
+    pub async fn get_schemas(
         &self,
         id: u64,
         tables: &[ListOrFilterColumns],
     ) -> ConnectorResult<Vec<SourceSchemaResult>> {
         let mut schemas = vec![];
-        let runtime = Runtime::new()?;
         for table in tables.iter() {
-            schemas.push(runtime.block_on(self.get_schemas_impl(id, table)));
+            schemas.push(self.get_schemas_impl(id, table).await);
         }
         Ok(schemas)
     }

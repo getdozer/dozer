@@ -1,7 +1,8 @@
+use tokio_postgres::Client;
+
 use crate::connectors::ListOrFilterColumns;
 use crate::errors::PostgresConnectorError::{ColumnsNotFound, InvalidQueryError, TableError};
 use crate::errors::PostgresSchemaError;
-use postgres::Client;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -36,9 +37,9 @@ impl<'a> TablesValidator<'a> {
         }
     }
 
-    fn fetch_tables(
+    async fn fetch_tables(
         &self,
-        client: &mut Client,
+        client: &Client,
     ) -> Result<HashMap<PostgresTableIdentifier, Option<String>>, PostgresConnectorError> {
         let result = client
             .query(
@@ -47,6 +48,7 @@ impl<'a> TablesValidator<'a> {
             WHERE CONCAT(table_schema, '.', table_name) = ANY($1)",
                 &[&self.tables_identifiers],
             )
+            .await
             .map_err(InvalidQueryError)?;
 
         let mut tables = HashMap::new();
@@ -61,9 +63,9 @@ impl<'a> TablesValidator<'a> {
         Ok(tables)
     }
 
-    fn fetch_columns(
+    async fn fetch_columns(
         &self,
-        client: &mut Client,
+        client: &Client,
     ) -> Result<PostgresTablesColumns, PostgresConnectorError> {
         let tables_columns = client
             .query(
@@ -72,6 +74,7 @@ impl<'a> TablesValidator<'a> {
             WHERE CONCAT(table_schema, '.', table_name) = ANY($1)",
                 &[&self.tables_identifiers],
             )
+            .await
             .map_err(InvalidQueryError)?;
 
         let mut table_columns_map: HashMap<PostgresTableIdentifier, Vec<String>> = HashMap::new();
@@ -94,18 +97,18 @@ impl<'a> TablesValidator<'a> {
         Ok(table_columns_map)
     }
 
-    fn fetch_data(
+    async fn fetch_data(
         &self,
-        client: &mut Client,
+        client: &Client,
     ) -> Result<(PostgresTablesWithTypes, PostgresTablesColumns), PostgresConnectorError> {
-        let tables = self.fetch_tables(client)?;
-        let columns = self.fetch_columns(client)?;
+        let tables = self.fetch_tables(client).await?;
+        let columns = self.fetch_columns(client).await?;
 
         Ok((tables, columns))
     }
 
-    pub fn validate(&self, client: &mut Client) -> Result<(), PostgresConnectorError> {
-        let (tables, tables_columns) = self.fetch_data(client)?;
+    pub async fn validate(&self, client: &Client) -> Result<(), PostgresConnectorError> {
+        let (tables, tables_columns) = self.fetch_data(client).await?;
 
         let missing_columns = self.find_missing_columns(tables_columns)?;
         if !missing_columns.is_empty() {

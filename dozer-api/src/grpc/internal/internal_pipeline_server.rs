@@ -11,7 +11,7 @@ use dozer_types::{
     log::debug,
 };
 use std::{fmt::Debug, net::ToSocketAddrs, pin::Pin, thread};
-use tokio::{runtime::Runtime, sync::broadcast};
+use tokio::sync::broadcast;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
 
@@ -129,14 +129,7 @@ impl InternalPipelineService for InternalPipelineServer {
     }
 }
 
-pub fn start_internal_pipeline_server(
-    app_config: Config,
-    receivers: PipelineEventReceivers,
-) -> Result<(), tonic::transport::Error> {
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async { _start_internal_pipeline_server(app_config, receivers).await })
-}
-async fn _start_internal_pipeline_server(
+pub async fn start_internal_pipeline_server(
     app_config: Config,
     receivers: PipelineEventReceivers,
 ) -> Result<(), tonic::transport::Error> {

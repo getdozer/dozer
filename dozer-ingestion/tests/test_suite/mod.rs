@@ -1,14 +1,16 @@
 use dozer_ingestion::connectors::Connector;
 use dozer_types::types::{Field, FieldDefinition};
 
+#[async_trait]
 pub trait DataReadyConnectorTest: Send + Sized + 'static {
     type Connector: Connector;
 
-    fn new() -> (Self, Self::Connector);
+    async fn new() -> (Self, Self::Connector);
 }
 
 pub type FieldsAndPk = (Vec<FieldDefinition>, Vec<usize>);
 
+#[async_trait]
 pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
     type Connector: Connector;
 
@@ -20,7 +22,7 @@ pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
     /// If `schema_name` or `schema.primary_index` is not supported in this connector, `None` should be returned.
     ///
     /// The actually created schema should be returned.
-    fn new(
+    async fn new(
         schema_name: Option<String>,
         table_name: String,
         schema: FieldsAndPk,
@@ -28,9 +30,10 @@ pub trait InsertOnlyConnectorTest: Send + Sized + 'static {
     ) -> Option<(Self, Self::Connector, FieldsAndPk)>;
 }
 
+#[async_trait]
 pub trait CudConnectorTest: InsertOnlyConnectorTest {
     /// Spawns a thread to feed cud operations to connector.
-    fn start_cud(&self, operations: Vec<records::Operation>);
+    async fn start_cud(&self, operations: Vec<records::Operation>);
 }
 
 mod basic;
@@ -42,3 +45,4 @@ pub use basic::{
     run_test_suite_basic_cud, run_test_suite_basic_data_ready, run_test_suite_basic_insert_only,
 };
 pub use connectors::{LocalStorageObjectStoreConnectorTest, PostgresConnectorTest};
+use tonic::async_trait;

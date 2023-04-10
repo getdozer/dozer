@@ -1,4 +1,5 @@
 use dozer_types::{indicatif::MultiProgress, models::api_endpoint::ApiEndpoint};
+use tokio::runtime::Runtime;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -48,13 +49,13 @@ impl<'a> Executor<'a> {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn get_tables(
+    pub async fn get_tables(
         connections: &Vec<Connection>,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
         let mut schema_map = HashMap::new();
         for connection in connections {
             let connector = get_connector(connection.to_owned())?;
-            let schema_tuples = connector.list_all_schemas()?;
+            let schema_tuples = connector.list_all_schemas().await?;
             schema_map.insert(connection.name.to_owned(), schema_tuples);
         }
 
@@ -63,6 +64,7 @@ impl<'a> Executor<'a> {
 
     pub fn create_dag_executor(
         &self,
+        runtime: Arc<Runtime>,
         settings: LogSinkSettings,
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
@@ -75,7 +77,7 @@ impl<'a> Executor<'a> {
             self.multi_pb.clone(),
         );
 
-        let dag = builder.build(settings)?;
+        let dag = builder.build(runtime, settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {

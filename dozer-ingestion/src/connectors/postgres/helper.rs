@@ -8,12 +8,12 @@ use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, serde_json, types::*};
-use postgres::{Column, Row};
 use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
 use std::vec;
+use tokio_postgres::{Column, Row};
 
 use dozer_types::geo::Point as GeoPoint;
 
@@ -101,7 +101,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
     }
 }
 
-fn handle_error(e: postgres::error::Error) -> Result<Field, PostgresSchemaError> {
+fn handle_error(e: tokio_postgres::error::Error) -> Result<Field, PostgresSchemaError> {
     if let Some(e) = e.source() {
         if let Some(_e) = e.downcast_ref::<WasNull>() {
             Ok(Field::Null)

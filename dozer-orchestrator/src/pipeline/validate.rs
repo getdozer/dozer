@@ -10,7 +10,7 @@ use dozer_types::{
 
 use crate::{console_helper::get_colored_text, errors::OrchestrationError};
 
-pub fn validate_grouped_connections(
+pub async fn validate_grouped_connections(
     grouped_connections: &HashMap<&str, Vec<&Source>>,
 ) -> Result<(), OrchestrationError> {
     for sources_group in grouped_connections.values() {
@@ -32,6 +32,7 @@ pub fn validate_grouped_connections(
                 .collect::<Vec<_>>();
             connector
                 .validate_tables(&tables)
+                .await
                 .map_err(|e| {
                     error!(
                         "[{}] {} Connection validation error: {}",
@@ -57,7 +58,7 @@ pub fn validate_grouped_connections(
                     column_names: source.columns.clone(),
                 })
                 .collect::<Vec<_>>();
-            connector.get_schemas(&tables).map_or_else(
+            connector.get_schemas(&tables).await.map_or_else(
                 |e| {
                     error!(
                         "[{}] {} Schema validation error: {}",
