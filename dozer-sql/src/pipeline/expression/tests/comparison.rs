@@ -4,7 +4,7 @@ use crate::pipeline::expression::comparison::{
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_types::types::Record;
+use dozer_types::types::{FieldDefinition, FieldType, Record, SourceDefinition};
 use dozer_types::{
     ordered_float::OrderedFloat,
     rust_decimal::Decimal,
@@ -521,4 +521,24 @@ fn test_lte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<F
             ));
         }
     }
+}
+
+#[test]
+fn test_comparison_logical() {
+    let f = run_fct(
+        "SELECT id FROM users WHERE id = '124'",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("id"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(124)],
+    );
+    assert_eq!(f, Field::Int(124));
 }
