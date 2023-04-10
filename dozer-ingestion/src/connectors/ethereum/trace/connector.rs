@@ -9,7 +9,7 @@ use crate::{
 use dozer_types::ingestion_types::{EthTraceConfig, IngestionMessage};
 use dozer_types::log::{error, info, warn};
 
-use tokio::runtime::Runtime;
+use tonic::async_trait;
 
 #[derive(Debug)]
 pub struct EthTraceConnector {
@@ -30,6 +30,7 @@ impl EthTraceConnector {
     }
 }
 
+#[async_trait]
 impl Connector for EthTraceConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
@@ -38,17 +39,17 @@ impl Connector for EthTraceConnector {
         todo!()
     }
 
-    fn validate_connection(&self) -> Result<(), ConnectorError> {
-        Runtime::new()?.block_on(async { validate(&self.config).await })
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
+        validate(&self.config).await
     }
 
-    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
         Ok(vec![TableIdentifier::from_table_name(
             ETH_TRACE_TABLE.to_string(),
         )])
     }
 
-    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
         for table in tables {
             if table.name != ETH_TRACE_TABLE || table.schema.is_some() {
                 return Err(ConnectorError::TableNotFound(table_name(
@@ -60,7 +61,10 @@ impl Connector for EthTraceConnector {
         Ok(())
     }
 
-    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
         let mut result = Vec::new();
         for table in tables {
             if table.name != ETH_TRACE_TABLE || table.schema.is_some() {
@@ -83,7 +87,7 @@ impl Connector for EthTraceConnector {
         Ok(result)
     }
 
-    fn get_schemas(
+    async fn get_schemas(
         &self,
         _table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
@@ -94,12 +98,14 @@ impl Connector for EthTraceConnector {
         ))])
     }
 
-    fn start(&self, ingestor: &Ingestor, _tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
+    async fn start(
+        &self,
+        ingestor: &Ingestor,
+        _tables: Vec<TableInfo>,
+    ) -> Result<(), ConnectorError> {
         let config = self.config.clone();
         let conn_name = self.conn_name.clone();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(ingestor, config, conn_name).await })
+        run(ingestor, config, conn_name).await
     }
 }
 

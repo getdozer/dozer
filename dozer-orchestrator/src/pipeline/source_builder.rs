@@ -8,6 +8,7 @@ use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::runtime::Runtime;
 
 pub struct SourceBuilder<'a> {
     grouped_connections: HashMap<Connection, Vec<Source>>,
@@ -42,6 +43,7 @@ impl<'a> SourceBuilder<'a> {
 
     pub fn build_source_manager(
         &self,
+        runtime: Arc<Runtime>,
     ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
@@ -65,11 +67,12 @@ impl<'a> SourceBuilder<'a> {
                 port += 1;
             }
 
-            let source_factory = ConnectorSourceFactory::new(
+            let source_factory = runtime.block_on(ConnectorSourceFactory::new(
                 table_and_ports,
                 connection.clone(),
+                runtime.clone(),
                 self.progress.cloned(),
-            )?;
+            ))?;
 
             asm.add(AppSource::new(
                 connection.name.to_string(),

@@ -14,7 +14,6 @@ tokio = { version = "1", features = ["full"] }
 futures = "0.3.26"
 crossbeam = "0.8.2"
 # Postgres connector
-postgres = "0.19.4"
 postgres-protocol = "0.6.4"
 postgres-types = { version = "0.2.4", features = ["with-serde_json-1"]}
 tokio-postgres = { version = "0.7.7", features = ["with-chrono-0_4", "with-geo-types-0_7"] }

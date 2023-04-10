@@ -17,6 +17,7 @@ use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
+use tonic::async_trait;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
 
@@ -69,6 +70,7 @@ impl SourceSchema {
 /// Result of mapping one source table schema to Dozer schema.
 pub type SourceSchemaResult = Result<SourceSchema, ConnectorError>;
 
+#[async_trait]
 pub trait Connector: Send + Sync + Debug {
     /// Returns all the external types and their corresponding Dozer types.
     /// If the external type is not supported, None should be returned.
@@ -77,16 +79,19 @@ pub trait Connector: Send + Sync + Debug {
         Self: Sized;
 
     /// Validates the connector's connection level properties.
-    fn validate_connection(&self) -> Result<(), ConnectorError>;
+    async fn validate_connection(&self) -> Result<(), ConnectorError>;
 
     /// Lists all the table names in the connector.
-    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError>;
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError>;
 
     /// Validates the connector's table level properties for each table.
-    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError>;
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError>;
 
     /// Lists all the column names for each table.
-    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError>;
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError>;
 
     /// Gets the schema for each table. Only requested columns need to be mapped.
     ///
@@ -94,24 +99,31 @@ pub trait Connector: Send + Sync + Debug {
     /// Otherwise the outer level `Ok` should always contain the same number of elements as `table_infos`.
     ///
     /// If it fails at the table or column level, such as a unsupported data type, one of the elements should be `Err`.
-    fn get_schemas(
+    async fn get_schemas(
         &self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError>;
 
     /// Lists all tables and columns and gets the schema for each table.
-    fn list_all_schemas(&self) -> Result<(Vec<TableInfo>, Vec<SourceSchema>), ConnectorError> {
-        let tables = self.list_tables()?;
-        let table_infos = self.list_columns(tables)?;
+    async fn list_all_schemas(
+        &self,
+    ) -> Result<(Vec<TableInfo>, Vec<SourceSchema>), ConnectorError> {
+        let tables = self.list_tables().await?;
+        let table_infos = self.list_columns(tables).await?;
         let schemas = self
-            .get_schemas(&table_infos)?
+            .get_schemas(&table_infos)
+            .await?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
         Ok((table_infos, schemas))
     }
 
     /// Starts outputting data from `tables` to `ingestor`. This method should never return unless there is an unrecoverable error.
-    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError>;
+    async fn start(
+        &self,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+    ) -> Result<(), ConnectorError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

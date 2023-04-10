@@ -19,23 +19,23 @@ where
     a == b
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
 #[serial]
-fn test_connector_get_tables() {
-    run_connector_test("postgres", |app_config| {
-        let mut client = get_client(app_config);
+async fn test_connector_get_tables() {
+    run_connector_test("postgres", |app_config| async move {
+        let client = get_client(app_config).await;
 
         let mut rng = rand::thread_rng();
 
         let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
         let table_name = format!("products_test_{}", rng.gen::<u32>());
 
-        client.create_schema(&schema);
-        client.create_simple_table(&schema, &table_name);
+        client.create_schema(&schema).await;
+        client.create_simple_table(&schema, &table_name).await;
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone());
-        let result = schema_helper.get_tables(None).unwrap();
+        let result = schema_helper.get_tables(None).await.unwrap();
 
         let table = result.get(0).unwrap();
         assert_eq!(table_name, table.name);
@@ -49,24 +49,25 @@ fn test_connector_get_tables() {
             &table.columns
         ));
 
-        client.drop_schema(&schema);
-    });
+        client.drop_schema(&schema).await;
+    })
+    .await
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
 #[serial]
-fn test_connector_get_schema_with_selected_columns() {
-    run_connector_test("postgres", |app_config| {
-        let mut client = get_client(app_config);
+async fn test_connector_get_schema_with_selected_columns() {
+    run_connector_test("postgres", |app_config| async move {
+        let client = get_client(app_config).await;
 
         let mut rng = rand::thread_rng();
 
         let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
         let table_name = format!("products_test_{}", rng.gen::<u32>());
 
-        client.create_schema(&schema);
-        client.create_simple_table(&schema, &table_name);
+        client.create_schema(&schema).await;
+        client.create_simple_table(&schema, &table_name).await;
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone());
         let table_info = ListOrFilterColumns {
@@ -74,7 +75,7 @@ fn test_connector_get_schema_with_selected_columns() {
             name: table_name.clone(),
             columns: Some(vec!["name".to_string(), "id".to_string()]),
         };
-        let result = schema_helper.get_tables(Some(&[table_info])).unwrap();
+        let result = schema_helper.get_tables(Some(&[table_info])).await.unwrap();
 
         let table = result.get(0).unwrap();
         assert_eq!(table_name, table.name);
@@ -83,24 +84,25 @@ fn test_connector_get_schema_with_selected_columns() {
             &table.columns
         ));
 
-        client.drop_schema(&schema);
-    });
+        client.drop_schema(&schema).await;
+    })
+    .await
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
 #[serial]
-fn test_connector_get_schema_without_selected_columns() {
-    run_connector_test("postgres", |app_config| {
-        let mut client = get_client(app_config);
+async fn test_connector_get_schema_without_selected_columns() {
+    run_connector_test("postgres", |app_config| async move {
+        let client = get_client(app_config).await;
 
         let mut rng = rand::thread_rng();
 
         let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
         let table_name = format!("products_test_{}", rng.gen::<u32>());
 
-        client.create_schema(&schema);
-        client.create_simple_table(&schema, &table_name);
+        client.create_schema(&schema).await;
+        client.create_simple_table(&schema, &table_name).await;
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone());
         let table_info = ListOrFilterColumns {
@@ -108,7 +110,7 @@ fn test_connector_get_schema_without_selected_columns() {
             schema: Some(schema.clone()),
             columns: Some(vec![]),
         };
-        let result = schema_helper.get_tables(Some(&[table_info])).unwrap();
+        let result = schema_helper.get_tables(Some(&[table_info])).await.unwrap();
 
         let table = result.get(0).unwrap();
         assert_eq!(table_name, table.name.clone());
@@ -122,16 +124,17 @@ fn test_connector_get_schema_without_selected_columns() {
             &table.columns
         ));
 
-        client.drop_schema(&schema);
-    });
+        client.drop_schema(&schema).await;
+    })
+    .await
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
 #[serial]
-fn test_connector_view_cannot_be_used() {
-    run_connector_test("postgres", |app_config| {
-        let mut client = get_client(app_config);
+async fn test_connector_view_cannot_be_used() {
+    run_connector_test("postgres", |app_config| async move {
+        let client = get_client(app_config).await;
 
         let mut rng = rand::thread_rng();
 
@@ -139,9 +142,9 @@ fn test_connector_view_cannot_be_used() {
         let table_name = format!("products_test_{}", rng.gen::<u32>());
         let view_name = format!("products_view_test_{}", rng.gen::<u32>());
 
-        client.create_schema(&schema);
-        client.create_simple_table(&schema, &table_name);
-        client.create_view(&schema, &table_name, &view_name);
+        client.create_schema(&schema).await;
+        client.create_simple_table(&schema, &table_name).await;
+        client.create_view(&schema, &table_name, &view_name).await;
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone());
         let table_info = ListOrFilterColumns {
@@ -150,7 +153,7 @@ fn test_connector_view_cannot_be_used() {
             columns: Some(vec![]),
         };
 
-        let result = schema_helper.get_schemas(&[table_info]);
+        let result = schema_helper.get_schemas(&[table_info]).await;
         assert!(result.is_err());
         assert!(matches!(
             result,
@@ -162,9 +165,10 @@ fn test_connector_view_cannot_be_used() {
             schema: Some(schema.clone()),
             columns: Some(vec![]),
         };
-        let result = schema_helper.get_schemas(&[table_info]);
+        let result = schema_helper.get_schemas(&[table_info]).await;
         assert!(result.is_ok());
 
-        client.drop_schema(&schema);
-    });
+        client.drop_schema(&schema).await;
+    })
+    .await
 }

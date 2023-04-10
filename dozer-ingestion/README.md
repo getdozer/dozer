@@ -18,16 +18,16 @@ pub trait Connector: Send + Sync + Debug {
         Self: Sized;
 
     /// Validates the connector's connection level properties.
-    fn validate_connection(&self) -> Result<(), ConnectorError>;
+    async fn validate_connection(&self) -> Result<(), ConnectorError>;
 
     /// Lists all the table names in the connector.
-    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError>;
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError>;
 
     /// Validates the connector's table level properties for each table.
-    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError>;
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError>;
 
     /// Lists all the column names for each table.
-    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError>;
+    async fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError>;
 
     /// Gets the schema for each table. Only requested columns need to be mapped.
     ///
@@ -35,13 +35,13 @@ pub trait Connector: Send + Sync + Debug {
     /// Otherwise the outer level `Ok` should always contain the same number of elements as `table_infos`.
     ///
     /// If it fails at the table or column level, such as a unsupported data type, one of the elements should be `Err`.
-    fn get_schemas(
+    async fn get_schemas(
         &self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError>;
 
     /// Starts outputting data from `tables` to `ingestor`. This method should never return unless there is an unrecoverable error.
-    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError>;
+    async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError>;
 }
 ```
 

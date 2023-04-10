@@ -15,6 +15,7 @@ use dozer_types::models::source::Source;
 use dozer_types::{indicatif::MultiProgress, log::debug};
 use std::hash::Hash;
 use std::path::Path;
+use tokio::runtime::Runtime;
 
 use crate::pipeline::{LogSinkFactory, LogSinkSettings};
 
@@ -67,7 +68,7 @@ impl<'a> PipelineBuilder<'a> {
 
     // Based on used_sources, map it to the connection name and create sources
     // For not breaking current functionality, current format is to be still supported.
-    pub fn get_grouped_tables(
+    pub async fn get_grouped_tables(
         &self,
         original_sources: &[String],
     ) -> Result<HashMap<Connection, Vec<Source>>, OrchestrationError> {
@@ -82,7 +83,7 @@ impl<'a> PipelineBuilder<'a> {
                 info_table.printstd();
             }
 
-            let connector_tables = connector.list_tables()?;
+            let connector_tables = connector.list_tables().await?;
 
             // override source name if specified
             let connector_tables: Vec<Source> = connector_tables
@@ -183,12 +184,14 @@ impl<'a> PipelineBuilder<'a> {
     // This function is used by both migrate and actual execution
     pub fn build(
         &self,
+        runtime: Arc<Runtime>,
         settings: LogSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
         debug!("Used Sources: {:?}", calculated_sources.original_sources);
-        let grouped_connections = self.get_grouped_tables(&calculated_sources.original_sources)?;
+        let grouped_connections =
+            runtime.block_on(self.get_grouped_tables(&calculated_sources.original_sources))?;
 
         let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
 
@@ -278,7 +281,7 @@ impl<'a> PipelineBuilder<'a> {
 
         pipelines.push(pipeline);
 
-        let asm = source_builder.build_source_manager()?;
+        let asm = source_builder.build_source_manager(runtime)?;
         let mut app = App::new(asm);
 
         Vec::into_iter(pipelines).for_each(|p| {

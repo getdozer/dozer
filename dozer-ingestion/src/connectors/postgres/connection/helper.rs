@@ -1,8 +1,7 @@
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::error;
 use dozer_types::models::connection::ConnectionConfig;
-use postgres::{Client, Config};
-use tokio_postgres::NoTls;
+use tokio_postgres::{Client, NoTls};
 
 pub fn map_connection_config(
     auth_details: &ConnectionConfig,
@@ -21,10 +20,19 @@ pub fn map_connection_config(
     }
 }
 
-pub fn connect(config: tokio_postgres::Config) -> Result<Client, PostgresConnectorError> {
-    Config::from(config)
+pub async fn connect(config: tokio_postgres::Config) -> Result<Client, PostgresConnectorError> {
+    let (client, connection) = config
         .connect(NoTls)
-        .map_err(PostgresConnectorError::ConnectionFailure)
+        .await
+        .map_err(PostgresConnectorError::ConnectionFailure)?;
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            error!("Postgres connection error: {}", e);
+        }
+    });
+
+    Ok(client)
 }
 
 pub async fn async_connect(

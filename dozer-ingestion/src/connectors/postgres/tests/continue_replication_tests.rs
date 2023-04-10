@@ -10,20 +10,17 @@ mod tests {
     // use crate::connectors::Connector;
     // use crate::ingestion::IngestionConfig;
     use crate::test_util::run_connector_test;
-    use core::cell::RefCell;
     // use dozer_types::ingestion_types::IngestionMessage;
     // use dozer_types::node::OpIdentifier;
     use rand::Rng;
     use serial_test::serial;
-    use std::sync::Arc;
-    // use std::thread;
     use tokio_postgres::config::ReplicationMode;
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_continue_replication() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_continue_replication() {
+        run_connector_test("postgres", |app_config| async move {
             let config = app_config
                 .connections
                 .get(0)
@@ -46,32 +43,38 @@ mod tests {
             replication_conn_config.replication_mode(ReplicationMode::Logical);
 
             // Creating publication
-            let client = helper::connect(replication_conn_config.clone()).unwrap();
-            connector.create_publication(client, None).unwrap();
+            let client = helper::connect(replication_conn_config.clone())
+                .await
+                .unwrap();
+            connector.create_publication(client, None).await.unwrap();
 
             // Creating slot
-            let client = helper::connect(replication_conn_config.clone()).unwrap();
-            let client_ref = Arc::new(RefCell::new(client));
+            let client = helper::connect(replication_conn_config.clone())
+                .await
+                .unwrap();
             let slot_name = connector.get_slot_name();
-            let _parsed_lsn = create_slot(client_ref.clone(), &slot_name);
+            let _parsed_lsn = create_slot(&client, &slot_name).await;
 
             // let result = connector
             //     .can_start_from((u64::from(parsed_lsn), 0))
             //     .unwrap();
 
-            ReplicationSlotHelper::drop_replication_slot(client_ref, &slot_name).unwrap();
+            ReplicationSlotHelper::drop_replication_slot(&client, &slot_name)
+                .await
+                .unwrap();
             // assert!(
             //     result,
             //     "Replication slot is created and it should be possible to continue"
             // );
         })
+        .await
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_continue_replication_from_lsn() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_continue_replication_from_lsn() {
+        run_connector_test("postgres", |app_config| async move {
             let config = app_config
                 .connections
                 .get(0)
@@ -80,11 +83,11 @@ mod tests {
                 .as_ref()
                 .unwrap();
 
-            let mut test_client = TestPostgresClient::new(config);
+            let test_client = TestPostgresClient::new(config).await;
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
             let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
-            test_client.create_simple_table("public", &table_name);
+            test_client.create_simple_table("public", &table_name).await;
 
             let conn_config = map_connection_config(config).unwrap();
             let postgres_config = PostgresConfig {
@@ -98,26 +101,30 @@ mod tests {
             replication_conn_config.replication_mode(ReplicationMode::Logical);
 
             // Creating publication
-            let client = helper::connect(replication_conn_config.clone()).unwrap();
+            let client = helper::connect(replication_conn_config.clone())
+                .await
+                .unwrap();
             let table_identifier = TableIdentifier {
                 schema: Some("public".to_string()),
                 name: table_name.clone(),
             };
             connector
                 .create_publication(client, Some(&[table_identifier]))
+                .await
                 .unwrap();
 
             // Creating slot
-            let client = helper::connect(replication_conn_config.clone()).unwrap();
-            let client_ref = Arc::new(RefCell::new(client));
+            let client = helper::connect(replication_conn_config.clone())
+                .await
+                .unwrap();
 
             let slot_name = connector.get_slot_name();
-            let _parsed_lsn = create_slot(client_ref.clone(), &slot_name);
+            let _parsed_lsn = create_slot(&client, &slot_name).await;
 
             // let config = IngestionConfig::default();
             // let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
-            test_client.insert_rows(&table_name, 4, None);
+            test_client.insert_rows(&table_name, 4, None).await;
 
             // assume that we already received two rows
             // let last_parsed_position = 2_u64;
@@ -159,9 +166,13 @@ mod tests {
             //     }
             // }
 
-            ReplicationSlotHelper::drop_replication_slot(client_ref.clone(), &slot_name)
-                .or_else(|e| retry_drop_active_slot(e, client_ref.clone(), &slot_name))
-                .unwrap();
+            if let Err(e) = ReplicationSlotHelper::drop_replication_slot(&client, &slot_name).await
+            {
+                retry_drop_active_slot(e, &client, &slot_name)
+                    .await
+                    .unwrap();
+            }
         })
+        .await
     }
 }

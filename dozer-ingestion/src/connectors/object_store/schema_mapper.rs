@@ -10,7 +10,6 @@ use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::log::error;
 use dozer_types::types::{Schema, SchemaIdentifier};
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 
 pub fn map_schema(
     id: u32,
@@ -35,48 +34,53 @@ pub fn map_schema(
     })
 }
 
-pub fn get_schema(
+pub async fn get_schema(
     config: &impl DozerObjectStore,
     tables: &[ListOrFilterColumns],
 ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
-    let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
+    let mut result = vec![];
+    for (id, table) in tables.iter().enumerate() {
+        result.push(get_table_schema(config, table, id as u32).await);
+    }
+    Ok(result)
+}
 
-    Ok(tables
-        .iter()
-        .enumerate()
-        .map(|(id, table)| {
-            let table_name = table.name.clone();
+async fn get_table_schema(
+    config: &impl DozerObjectStore,
+    table: &ListOrFilterColumns,
+    id: u32,
+) -> SourceSchemaResult {
+    let table_name = table.name.clone();
 
-            let params = config.table_params(&table_name)?;
+    let params = config.table_params(&table_name)?;
 
-            let table_path = ListingTableUrl::parse(&params.table_path).map_err(|e| {
-                ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError(
-                    params.table_path.clone(),
-                    e,
-                ))
-            })?;
+    let table_path = ListingTableUrl::parse(&params.table_path).map_err(|e| {
+        ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError(
+            params.table_path.clone(),
+            e,
+        ))
+    })?;
 
-            let listing_options = map_listing_options(params.data_fusion_table)
-                .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
+    let listing_options = map_listing_options(params.data_fusion_table)
+        .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
 
-            let ctx = SessionContext::new();
+    let ctx = SessionContext::new();
 
-            ctx.runtime_env().register_object_store(
-                params.scheme,
-                params.host,
-                Arc::new(params.object_store),
-            );
+    ctx.runtime_env().register_object_store(
+        params.scheme,
+        params.host,
+        Arc::new(params.object_store),
+    );
 
-            let resolved_schema = rt
-                .block_on(listing_options.infer_schema(&ctx.state(), &table_path))
-                .map_err(|e| {
-                    error!("{:?}", e);
-                    ConnectorError::WrongConnectionConfiguration
-                })?;
+    let resolved_schema = listing_options
+        .infer_schema(&ctx.state(), &table_path)
+        .await
+        .map_err(|e| {
+            error!("{:?}", e);
+            ConnectorError::WrongConnectionConfiguration
+        })?;
 
-            let schema = map_schema(id as u32, resolved_schema, table)?;
+    let schema = map_schema(id, resolved_schema, table)?;
 
-            Ok(SourceSchema::new(schema, CdcType::Nothing))
-        })
-        .collect())
+    Ok(SourceSchema::new(schema, CdcType::Nothing))
 }

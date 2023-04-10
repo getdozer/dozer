@@ -1,4 +1,4 @@
-use std::{collections::HashSet, thread, time::Duration};
+use std::{collections::HashSet, time::Duration};
 
 use crate::{
     connectors::{
@@ -17,7 +17,6 @@ use dozer_types::{
     types::Operation,
 };
 
-use tokio::runtime::Runtime;
 use web3::{
     contract::{Contract, Options},
     transports::WebSocket,
@@ -47,7 +46,7 @@ pub async fn deploy_contract(wss_url: String, my_account: H160) -> Contract<WebS
     contract
 }
 
-pub fn get_eth_producer(
+pub async fn get_eth_producer(
     wss_url: String,
     ingestor: Ingestor,
     contract: Contract<WebSocket>,
@@ -74,7 +73,7 @@ pub fn get_eth_producer(
         "eth_test".to_string(),
     );
 
-    let (table_infos, schemas) = eth_connector.list_all_schemas()?;
+    let (table_infos, schemas) = eth_connector.list_all_schemas().await?;
     for (table_info, schema) in table_infos.iter().zip(schemas) {
         info!(
             "Schema: {}, Id: {}",
@@ -83,10 +82,13 @@ pub fn get_eth_producer(
         );
     }
 
-    eth_connector.start(&ingestor, table_infos)
+    eth_connector.start(&ingestor, table_infos).await
 }
 
-pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>, Vec<Operation>) {
+pub async fn run_eth_sample(
+    wss_url: String,
+    my_account: H160,
+) -> (Contract<WebSocket>, Vec<Operation>) {
     dozer_tracing::init_telemetry(None, None);
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -94,16 +96,16 @@ pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>
         orig_hook(panic_info);
     }));
 
-    let contract = Runtime::new()
-        .unwrap()
-        .block_on(async { deploy_contract(wss_url.clone(), my_account).await });
+    let contract = deploy_contract(wss_url.clone(), my_account).await;
 
     let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     let cloned_contract = contract.clone();
-    let _t = thread::spawn(move || {
+    let _t = tokio::spawn(async move {
         info!("Initializing with WSS: {}", wss_url);
-        get_eth_producer(wss_url, ingestor, cloned_contract).unwrap();
+        get_eth_producer(wss_url, ingestor, cloned_contract)
+            .await
+            .unwrap();
     });
 
     let mut msgs = vec![];

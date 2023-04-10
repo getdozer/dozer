@@ -97,11 +97,11 @@ impl SchemaHelper {
         Self { conn_config }
     }
 
-    pub fn get_tables(
+    pub async fn get_tables(
         &self,
         tables: Option<&[ListOrFilterColumns]>,
     ) -> Result<Vec<PostgresTableInfo>, ConnectorError> {
-        let (results, tables_columns_map) = self.get_columns(tables)?;
+        let (results, tables_columns_map) = self.get_columns(tables).await?;
 
         let mut table_columns_nap: HashMap<SchemaTableIdentifier, (u32, Vec<String>)> =
             HashMap::new();
@@ -148,12 +148,12 @@ impl SchemaHelper {
             .collect())
     }
 
-    fn get_columns(
+    async fn get_columns(
         &self,
         tables: Option<&[ListOrFilterColumns]>,
     ) -> Result<RowsWithColumnsMap, PostgresConnectorError> {
         let mut tables_columns_map: HashMap<SchemaTableIdentifier, Vec<String>> = HashMap::new();
-        let mut client = helper::connect(self.conn_config.clone())?;
+        let client = helper::connect(self.conn_config.clone()).await?;
         let query = if let Some(tables) = tables {
             tables.iter().for_each(|t| {
                 if let Some(columns) = t.columns.clone() {
@@ -183,10 +183,10 @@ impl SchemaHelper {
                 ":tables_name_condition",
                 "t.table_schema = ANY($1) AND t.table_name = ANY($2)",
             );
-            client.query(&sql, &[&schemas, &table_names])
+            client.query(&sql, &[&schemas, &table_names]).await
         } else {
             let sql = str::replace(SQL, ":tables_name_condition", "t.table_type = 'BASE TABLE'");
-            client.query(&sql, &[])
+            client.query(&sql, &[]).await
         };
 
         query
@@ -194,11 +194,11 @@ impl SchemaHelper {
             .map(|rows| (rows, tables_columns_map))
     }
 
-    pub fn get_schemas(
+    pub async fn get_schemas(
         &self,
         tables: &[ListOrFilterColumns],
     ) -> Result<Vec<SourceSchemaResult>, PostgresConnectorError> {
-        let (results, tables_columns_map) = self.get_columns(Some(tables))?;
+        let (results, tables_columns_map) = self.get_columns(Some(tables)).await?;
 
         let mut columns_map: HashMap<SchemaTableIdentifier, PostgresTable> = HashMap::new();
         results

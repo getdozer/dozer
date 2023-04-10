@@ -1,3 +1,5 @@
+use tonic::async_trait;
+
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::schema_mapper;
 use crate::connectors::object_store::table_reader::{Reader, TableReader};
@@ -23,6 +25,7 @@ impl<T: DozerObjectStore> ObjectStoreConnector<T> {
     }
 }
 
+#[async_trait]
 impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
@@ -31,11 +34,11 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         todo!()
     }
 
-    fn validate_connection(&self) -> Result<(), ConnectorError> {
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
         validate_connection("object_store", None, self.config.clone())
     }
 
-    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
         Ok(self
             .config
             .tables()
@@ -44,12 +47,15 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             .collect())
     }
 
-    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
         validate_connection("object_store", Some(tables), self.config.clone())
     }
 
-    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
-        let schemas = get_schema_from_tables(&self.config, &tables)?;
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        let schemas = get_schema_from_tables(&self.config, &tables).await?;
         let mut result = vec![];
         for (table, schema) in tables.into_iter().zip(schemas) {
             let schema = schema?;
@@ -69,7 +75,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         Ok(result)
     }
 
-    fn get_schemas(&self, table_infos: &[TableInfo]) -> ConnectorResult<Vec<SourceSchemaResult>> {
+    async fn get_schemas(
+        &self,
+        table_infos: &[TableInfo],
+    ) -> ConnectorResult<Vec<SourceSchemaResult>> {
         let table_infos = table_infos
             .iter()
             .map(|table_info| ListOrFilterColumns {
@@ -78,15 +87,17 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                 columns: Some(table_info.column_names.clone()),
             })
             .collect::<Vec<_>>();
-        schema_mapper::get_schema(&self.config, &table_infos)
+        schema_mapper::get_schema(&self.config, &table_infos).await
     }
 
-    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
-        TableReader::new(self.config.clone()).read_tables(&tables, ingestor)
+    async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
+        TableReader::new(self.config.clone())
+            .read_tables(&tables, ingestor)
+            .await
     }
 }
 
-fn get_schema_from_tables(
+async fn get_schema_from_tables(
     config: &impl DozerObjectStore,
     tables: &[TableIdentifier],
 ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
@@ -98,5 +109,5 @@ fn get_schema_from_tables(
             columns: None,
         })
         .collect::<Vec<_>>();
-    schema_mapper::get_schema(config, &table_infos)
+    schema_mapper::get_schema(config, &table_infos).await
 }
