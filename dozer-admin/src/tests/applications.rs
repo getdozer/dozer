@@ -22,7 +22,7 @@ mod grpc_service {
         let config = Config {
             app_name: "new_app_name".to_owned(),
             home_dir: "dozer".to_owned(),
-            cache_dir: "dozer".to_owned(),
+            cache_dir: "dozer/cache".to_owned(),
             connections: vec![postgres_config],
             ..Default::default()
         };
