@@ -203,7 +203,7 @@ fn return_update_error_when_type_panic() {
 
     let update_record = Record {
         schema_id: schema.identifier,
-        values: update_values.clone(),
+        values: update_values,
     };
 
     let result = env.update(
