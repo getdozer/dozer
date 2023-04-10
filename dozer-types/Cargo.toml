@@ -30,7 +30,7 @@ pyo3 = {version = "0.18.1", features = ["auto-initialize"],  optional = true}
 tonic = {version = "0.8.3"}
 prost-types = "0.11.1"
 prost = "0.11.8"
-arrow = { version = "33.0.0"}
+arrow = { version = "37.0.0"}
 arrow-schema = { version = "33.0.0", features=["serde"]}
 
 
