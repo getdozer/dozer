@@ -60,6 +60,7 @@ pub fn json_value_to_field(
             .map(Field::Binary),
         FieldType::Decimal => match value {
             Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
+            Value::Number(number) => return Field::from_str(&number.to_string(), typ, nullable),
             _ => Err(DeserializationError::Custom(
                 "Json value type does not match field type"
                     .to_string()

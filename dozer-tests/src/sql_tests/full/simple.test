@@ -1,0 +1,226 @@
+control sortmode rowsort
+
+
+# actor
+statement ok
+CREATE TABLE actor(
+    actor_id integer NOT NULL,
+    first_name text NOT NULL,
+    last_name text,
+    last_update text
+)
+
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (2, 'jack', 'nicholson', '2020-03-01 10:00:00+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (3, 'angelina', 'jolie', '2020-03-10 11:11:11+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (4, 'tom', 'hanks', '2020-03-15 14:44:44+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (5, 'brad', 'pitt', '2020-03-20 17:17:17+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (6, 'jennifer', 'aniston', '2020-03-25 20:20:20+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (7, 'robert', 'downey jr.', '2020-03-30 23:23:23+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (8, 'scarlett', 'johansson', '2020-04-05 02:02:02+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (9, 'meryl', 'streep', '2020-04-10 05:05:05+00');
+
+statement ok
+INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (10, 'leonardo', 'dicaprio', '2020-04-15 08:08:08+00');
+
+
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor
+----
+1 penelope guiness 2020-02-15 09:34:33+00
+10 leonardo dicaprio 2020-04-15 08:08:08+00
+2 jack nicholson 2020-03-01 10:00:00+00
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+5 brad pitt 2020-03-20 17:17:17+00
+6 jennifer aniston 2020-03-25 20:20:20+00
+7 robert downey jr. 2020-03-30 23:23:23+00
+8 scarlett johansson 2020-04-05 02:02:02+00
+9 meryl streep 2020-04-10 05:05:05+00
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where actor_id<=5
+----
+1 penelope guiness 2020-02-15 09:34:33+00
+2 jack nicholson 2020-03-01 10:00:00+00
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+5 brad pitt 2020-03-20 17:17:17+00
+
+query IT
+select actor_id, TRIM(first_name) from actor where actor_id<=5
+----
+1 penelope
+2 jack
+3 angelina
+4 tom
+5 brad
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where last_name = 'PIPPO'
+----
+
+query ITTT
+select actor_id, first_name as fn, last_name as ln,last_update from actor where last_name = 'PIPPO'
+----
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'
+----
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2
+----
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>50)
+----
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+
+query II
+select actor_id, count(actor_id) from actor group by actor_id
+----
+1 1
+10 1
+2 1
+3 1
+4 1
+5 1
+6 1
+7 1
+8 1
+9 1
+
+query II
+select actor_id, count(actor_id) as counts from actor group by actor_id
+----
+1 1
+10 1
+2 1
+3 1
+4 1
+5 1
+6 1
+7 1
+8 1
+9 1
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor
+----
+1 penelope guiness 2020-02-15 09:34:33+00
+10 leonardo dicaprio 2020-04-15 08:08:08+00
+2 jack nicholson 2020-03-01 10:00:00+00
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+5 brad pitt 2020-03-20 17:17:17+00
+6 jennifer aniston 2020-03-25 20:20:20+00
+7 robert downey jr. 2020-03-30 23:23:23+00
+8 scarlett johansson 2020-04-05 02:02:02+00
+9 meryl streep 2020-04-10 05:05:05+00
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor
+----
+1 penelope guiness 2020-02-15 09:34:33+00
+10 leonardo dicaprio 2020-04-15 08:08:08+00
+2 jack nicholson 2020-03-01 10:00:00+00
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+5 brad pitt 2020-03-20 17:17:17+00
+6 jennifer aniston 2020-03-25 20:20:20+00
+7 robert downey jr. 2020-03-30 23:23:23+00
+8 scarlett johansson 2020-04-05 02:02:02+00
+9 meryl streep 2020-04-10 05:05:05+00
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where actor_id<=5
+----
+1 penelope guiness 2020-02-15 09:34:33+00
+2 jack nicholson 2020-03-01 10:00:00+00
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+5 brad pitt 2020-03-20 17:17:17+00
+
+query IT
+select actor_id, TRIM(first_name) from actor where actor_id<=5
+----
+1 penelope
+2 jack
+3 angelina
+4 tom
+5 brad
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where last_name = 'PIPPO'
+----
+
+query ITTT
+select actor_id, first_name as fn, last_name as ln,last_update from actor where last_name = 'PIPPO'
+----
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'
+----
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2
+----
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+
+query ITTT
+select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>50)
+----
+3 angelina jolie 2020-03-10 11:11:11+00
+4 tom hanks 2020-03-15 14:44:44+00
+
+query II
+select actor_id, count(actor_id) from actor group by actor_id
+----
+1 1
+10 1
+2 1
+3 1
+4 1
+5 1
+6 1
+7 1
+8 1
+9 1
+
+query II
+select actor_id, count(actor_id) as counts from actor group by actor_id
+----
+1 1
+10 1
+2 1
+3 1
+4 1
+5 1
+6 1
+7 1
+8 1
+9 1

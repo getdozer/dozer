@@ -91,8 +91,7 @@ jobs:
           SN_DRIVER: ${{ secrets.SN_DRIVER }}
         shell: bash
         run: |
-          source ./dozer-tests/python_udf/virtualenv.sh
-          cargo test test_connector_ --all-features --no-fail-fast -- --ignored
+          cargo test test_connector_ --lib --all-features --no-fail-fast -- --ignored
 
       - name: Run tests
         env:

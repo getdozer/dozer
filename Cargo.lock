@@ -2628,6 +2628,7 @@ dependencies = [
 name = "dozer-tests"
 version = "0.1.16"
 dependencies = [
+ "ahash 0.8.3",
  "async-trait",
  "bson",
  "clap 4.1.11",
@@ -2642,7 +2643,9 @@ dependencies = [
  "dozer-utils",
  "env_logger",
  "futures",
+ "hashbrown 0.13.2",
  "mongodb",
+ "multimap",
  "reqwest",
  "rusqlite",
  "sqllogictest",
