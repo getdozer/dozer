@@ -10,6 +10,7 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext, SchemaSQLContext};
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
@@ -46,6 +47,7 @@ pub struct PipelineBuilder<'a> {
     sql: Option<&'a str>,
     api_endpoints: &'a [ApiEndpoint],
     pipeline_dir: &'a Path,
+    progress: MultiProgress,
 }
 impl<'a> PipelineBuilder<'a> {
     pub fn new(
@@ -54,6 +56,7 @@ impl<'a> PipelineBuilder<'a> {
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
         pipeline_dir: &'a Path,
+        progress: MultiProgress,
     ) -> Self {
         Self {
             connections,
@@ -61,6 +64,7 @@ impl<'a> PipelineBuilder<'a> {
             sql,
             api_endpoints,
             pipeline_dir,
+            progress,
         }
     }
 
@@ -224,7 +228,8 @@ impl<'a> PipelineBuilder<'a> {
             }
         }
 
-        let source_builder = SourceBuilder::new(grouped_connections, notifier.clone());
+        let source_builder =
+            SourceBuilder::new(grouped_connections, Some(&self.progress), notifier.clone());
 
         let conn_ports = source_builder.get_ports();
 
@@ -238,6 +243,7 @@ impl<'a> PipelineBuilder<'a> {
             let snk_factory = Arc::new(LogSinkFactory::new(
                 settings.clone(),
                 api_endpoint.clone(),
+                self.progress.clone(),
                 notifier.clone(),
             ));
 

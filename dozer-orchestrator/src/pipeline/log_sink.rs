@@ -15,6 +15,7 @@ use dozer_core::{
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::grpc_types::internal::StatusUpdate;
+use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::{
     bytes::{BufMut, BytesMut},
     models::api_endpoint::ApiEndpoint,
@@ -34,6 +35,7 @@ pub struct LogSinkSettings {
 pub struct LogSinkFactory {
     settings: LogSinkSettings,
     api_endpoint: ApiEndpoint,
+    multi_pb: MultiProgress,
     notifier: Option<PipelineEventSenders>,
 }
 
@@ -41,11 +43,13 @@ impl LogSinkFactory {
     pub fn new(
         settings: LogSinkSettings,
         api_endpoint: ApiEndpoint,
+        multi_pb: MultiProgress,
         notifier: Option<PipelineEventSenders>,
     ) -> Self {
         Self {
             settings,
             api_endpoint,
+            multi_pb,
             notifier,
         }
     }
@@ -76,7 +80,9 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
         }
 
         Ok(Box::new(LogSink::new(
+            Some(self.multi_pb.clone()),
             log_path,
+            &self.api_endpoint.name,
             self.settings.file_buffer_capacity,
             self.api_endpoint.name.clone(),
             self.notifier.clone(),
@@ -86,6 +92,7 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
 
 #[derive(Debug)]
 pub struct LogSink {
+    pb: ProgressBar,
     buffered_file: BufWriter<File>,
     counter: usize,
     notifier: Option<PipelineEventSenders>,
@@ -94,7 +101,9 @@ pub struct LogSink {
 
 impl LogSink {
     pub fn new(
+        multi_pb: Option<MultiProgress>,
         log_path: PathBuf,
+        name: &str,
         file_buffer_capacity: u64,
         endpoint_name: String,
         notifier: Option<PipelineEventSenders>,
@@ -108,7 +117,11 @@ impl LogSink {
 
         let buffered_file = std::io::BufWriter::with_capacity(file_buffer_capacity as usize, file);
 
+        let pb = attach_progress(multi_pb);
+        pb.set_message(name.to_string());
+
         Ok(Self {
+            pb,
             buffered_file,
             counter: 0,
             notifier,
@@ -121,6 +134,7 @@ impl Sink for LogSink {
     fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
         let msg = ExecutorOperation::Op { op };
         self.counter += 1;
+        self.pb.set_position(self.counter as u64);
         if self.counter % 1000 == 0 {
             try_send(&self.notifier, self.counter, &self.endpoint_name);
         }
@@ -157,6 +171,27 @@ fn write_msg_to_file(
 
     file.write_all(&buf)
         .map_err(|e| ExecutionError::InternalError(Box::new(e)))
+}
+
+fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
+    let pb = ProgressBar::new_spinner();
+    multi_pb.as_ref().map(|m| m.add(pb.clone()));
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.blue} {msg}: {pos}: {per_sec}")
+            .unwrap()
+            // For more spinners check out the cli-spinners project:
+            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+            .tick_strings(&[
+                "▹▹▹▹▹",
+                "▸▹▹▹▹",
+                "▹▸▹▹▹",
+                "▹▹▸▹▹",
+                "▹▹▹▸▹",
+                "▹▹▹▹▸",
+                "▪▪▪▪▪",
+            ]),
+    );
+    pb
 }
 
 fn try_send(notifier: &Option<PipelineEventSenders>, progress: usize, endpoint_name: &str) {

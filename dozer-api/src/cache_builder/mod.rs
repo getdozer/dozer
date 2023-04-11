@@ -8,6 +8,7 @@ use dozer_cache::{
     errors::CacheError,
 };
 use dozer_core::executor::ExecutorOperation;
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::{
     grpc_types::types::Operation as GrpcOperation,
     log::error,
@@ -28,6 +29,7 @@ pub async fn create_cache(
     log_path: &Path,
     write_options: CacheWriteOptions,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
+    multi_pb: Option<MultiProgress>,
 ) -> Result<(String, impl FnOnce() -> Result<(), CacheError>), CacheError> {
     // Automatically create secondary indexes
     let secondary_indexes = generate_secondary_indexes(&schema.fields);
@@ -36,7 +38,7 @@ pub async fn create_cache(
     let name = cache.name().to_string();
 
     // Create log reader.
-    let log_reader = LogReader::new(log_path, &name, 0).await?;
+    let log_reader = LogReader::new(log_path, &name, 0, multi_pb).await?;
 
     // Spawn a task to write to cache.
     let task = move || build_cache(cache, runtime, log_reader, schema, operations_sender);

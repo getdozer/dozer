@@ -36,6 +36,7 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};
 
+use dozer_types::indicatif::MultiProgress;
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
 use tokio::sync::oneshot;
@@ -43,11 +44,15 @@ use tokio::sync::oneshot;
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
+    pub multi_pb: MultiProgress,
 }
 
 impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
-        Self { config }
+        Self {
+            config,
+            multi_pb: MultiProgress::new(),
+        }
     }
 }
 
@@ -93,6 +98,7 @@ impl Orchestrator for SimpleOrchestrator {
                     rt.clone(),
                     &log_path,
                     operations_sender.clone(),
+                    Some(self.multi_pb.clone()),
                 )
                 .await?;
                 if let Some(task) = task {
@@ -184,6 +190,7 @@ impl Orchestrator for SimpleOrchestrator {
             &self.config.endpoints,
             &pipeline_dir,
             running,
+            self.multi_pb.clone(),
         );
         let settings = LogSinkSettings {
             pipeline_dir: pipeline_dir.clone(),
@@ -262,6 +269,7 @@ impl Orchestrator for SimpleOrchestrator {
             self.config.sql.as_deref(),
             &self.config.endpoints,
             &pipeline_home_dir,
+            self.multi_pb.clone(),
         );
 
         // Api Path

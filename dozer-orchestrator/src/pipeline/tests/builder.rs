@@ -7,6 +7,7 @@ use dozer_types::models::app_config::Config;
 
 use dozer_core::appsource::{AppSourceId, AppSourceMappings};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::models::source::Source;
 use tokio::runtime::Runtime;
@@ -65,6 +66,7 @@ fn load_multi_sources() {
         config.sql.as_deref(),
         &config.endpoints,
         tmpdir.path(),
+        MultiProgress::new(),
     );
 
     let runtime = Runtime::new().unwrap();

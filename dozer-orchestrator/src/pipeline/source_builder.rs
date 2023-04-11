@@ -5,26 +5,30 @@ use dozer_ingestion::connectors::TableInfo;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-pub struct SourceBuilder {
+pub struct SourceBuilder<'a> {
     grouped_connections: HashMap<Connection, Vec<Source>>,
+    progress: Option<&'a MultiProgress>,
     notifier: Option<PipelineEventSenders>,
 }
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
-impl SourceBuilder {
+impl<'a> SourceBuilder<'a> {
     pub fn new(
         grouped_connections: HashMap<Connection, Vec<Source>>,
+        progress: Option<&'a MultiProgress>,
         notifier: Option<PipelineEventSenders>,
     ) -> Self {
         Self {
             grouped_connections,
+            progress,
             notifier,
         }
     }
@@ -72,6 +76,7 @@ impl SourceBuilder {
                 table_and_ports,
                 connection.clone(),
                 runtime.clone(),
+                self.progress.cloned(),
                 self.notifier.clone(),
             ))?;
 
