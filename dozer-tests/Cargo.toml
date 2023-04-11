@@ -22,6 +22,8 @@ path = "src/sql_tests/logic_test.rs"
 dozer-types = { path = "../dozer-types" }
 dozer-api = { path = "../dozer-api" }
 dozer-utils = { path = "../dozer-utils" }
+dozer-orchestrator = { path = "../dozer-orchestrator" }
+dozer-tracing = { path = "../dozer-tracing" }
 
 reqwest = { version = "0.11.14", features = ["json", "rustls-tls"], default-features = false }
 tokio = { version = "1.25.0", features = ["full"] }
@@ -30,7 +32,6 @@ mongodb = { version = "2.3.1", optional = true }
 futures = { version = "0.3.26", optional = true }
 env_logger = "0.10.0"
 clap = { version = "4.1.11", features = ["derive"] }
-dozer-orchestrator = { path = "../dozer-orchestrator" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype", "hooks"] }
 sqllogictest = "0.11.1"
 async-trait = "0.1.53"
@@ -44,7 +45,6 @@ ahash = "0.8.3"
 csv = "1.2"
 
 [dev-dependencies]
-dozer-tracing = { path = "../dozer-tracing" }
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
