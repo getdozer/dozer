@@ -40,9 +40,6 @@ statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
 
 statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
-
-statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (2, 'jack', 'nicholson', '2020-03-01 10:00:00+00');
 
 statement ok
@@ -143,16 +140,10 @@ INSERT INTO film_actor (actor_id, film_id, last_update) VALUES (3, 9, '2022-03-1
 statement ok
 INSERT INTO film_actor (actor_id, film_id, last_update) VALUES (4, 10, '2022-03-16 10:00:00');
 
-# insert more data to actor
+
 
 statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', 'guiness','2020-02-15 09:34:33+00')
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', 'guiness','2020-02-15 09:34:33+00')
-
-# statement ok
-# DELETE FROM film_actor WHERE actor_id = 2;
+DELETE FROM film_actor WHERE actor_id = 2;
 
 
 
@@ -161,18 +152,9 @@ SELECT a.actor_id, b.first_name from actor a
         JOIN actor b on a.actor_id = b.actor_id
 ----
 1 penelope
-1 penelope
-1 penelope
-1 penelope
 10 leonardo
-2 dario
-2 dario
-2 jack
 2 jack
 3 angelina
-3 angelina
-3 luigi
-3 luigi
 4 tom
 5 brad
 6 jennifer
@@ -187,21 +169,9 @@ SELECT actor.actor_id, first_name, last_name from actor
 1 penelope guiness
 1 penelope guiness
 1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-2 dario guiness
-2 dario guiness
-2 dario guiness
-2 jack nicholson
-2 jack nicholson
-2 jack nicholson
 3 angelina jolie
 3 angelina jolie
 3 angelina jolie
-3 luigi guiness
-3 luigi guiness
-3 luigi guiness
 4 tom hanks
 
 
@@ -212,21 +182,9 @@ SELECT actor.actor_id, first_name, last_name from actor
 1 penelope guiness
 1 penelope guiness
 1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-2 dario guiness
-2 dario guiness
-2 dario guiness
-2 jack nicholson
-2 jack nicholson
-2 jack nicholson
 3 angelina jolie
 3 angelina jolie
 3 angelina jolie
-3 luigi guiness
-3 luigi guiness
-3 luigi guiness
 4 tom hanks
 
 query I
@@ -237,18 +195,6 @@ SELECT a.actor_id from actor a
 1
 1
 1
-1
-1
-1
-2
-2
-2
-2
-2
-2
-3
-3
-3
 3
 3
 3
@@ -261,21 +207,9 @@ SELECT a.actor_id, a.first_name, a.last_name from actor a
 1 penelope guiness
 1 penelope guiness
 1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-2 dario guiness
-2 dario guiness
-2 dario guiness
-2 jack nicholson
-2 jack nicholson
-2 jack nicholson
 3 angelina jolie
 3 angelina jolie
 3 angelina jolie
-3 luigi guiness
-3 luigi guiness
-3 luigi guiness
 4 tom hanks
 
 query ITT
@@ -287,21 +221,9 @@ WITH tbl AS (SELECT actor_id, first_name, last_name FROM actor)
 1 penelope guiness
 1 penelope guiness
 1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-2 dario guiness
-2 dario guiness
-2 dario guiness
-2 jack nicholson
-2 jack nicholson
-2 jack nicholson
 3 angelina jolie
 3 angelina jolie
 3 angelina jolie
-3 luigi guiness
-3 luigi guiness
-3 luigi guiness
 4 tom hanks
 
 
@@ -312,22 +234,11 @@ SELECT a.actor_id, a.first_name, a.last_name from actor a
 1 penelope guiness
 1 penelope guiness
 1 penelope guiness
-1 penelope guiness
-1 penelope guiness
-1 penelope guiness
 10 leonardo dicaprio
-2 dario guiness
-2 dario guiness
-2 dario guiness
-2 jack nicholson
-2 jack nicholson
 2 jack nicholson
 3 angelina jolie
 3 angelina jolie
 3 angelina jolie
-3 luigi guiness
-3 luigi guiness
-3 luigi guiness
 4 tom hanks
 5 brad pitt
 6 jennifer aniston
@@ -341,7 +252,6 @@ SELECT a.actor_id, a.first_name, a.last_name from actor a
         LEFT JOIN film f on fa.film_id=f.film_id
         WHERE f.film_id = 1;
 ----
-1 penelope guiness
 1 penelope guiness
 
 
@@ -367,12 +277,8 @@ SELECT f.title from actor a
         WHERE f.film_id < 5;
 ----
 Schindler's List
-Schindler's List
-The Dark Knight
 The Dark Knight
 The Godfather
-The Godfather
-The Shawshank Redemption
 The Shawshank Redemption
 
 query TT
@@ -386,9 +292,5 @@ INNER JOIN (
 ) fa ON a.actor_id = fa.actor_id;
 ----
 angelina jolie
-dario guiness
-jack nicholson
-luigi guiness
-penelope guiness
 penelope guiness
 tom hanks

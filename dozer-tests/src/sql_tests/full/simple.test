@@ -12,18 +12,6 @@ CREATE TABLE actor(
 
 
 statement ok
-INSERT INTO actor(actor_id,first_name) values (1, 'mario')
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', null, null)
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', null, null)
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
-
-statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
 
 statement ok
@@ -58,14 +46,10 @@ INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (10, 'leon
 query ITTT
 select actor_id, first_name, last_name,last_update from actor
 ----
-1 mario NULL NULL
-1 penelope guiness 2020-02-15 09:34:33+00
 1 penelope guiness 2020-02-15 09:34:33+00
 10 leonardo dicaprio 2020-04-15 08:08:08+00
-2 dario NULL NULL
 2 jack nicholson 2020-03-01 10:00:00+00
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 5 brad pitt 2020-03-20 17:17:17+00
 6 jennifer aniston 2020-03-25 20:20:20+00
@@ -76,26 +60,18 @@ select actor_id, first_name, last_name,last_update from actor
 query ITTT
 select actor_id, first_name, last_name,last_update from actor where actor_id<=5
 ----
-1 mario NULL NULL
 1 penelope guiness 2020-02-15 09:34:33+00
-1 penelope guiness 2020-02-15 09:34:33+00
-2 dario NULL NULL
 2 jack nicholson 2020-03-01 10:00:00+00
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 5 brad pitt 2020-03-20 17:17:17+00
 
 query IT
 select actor_id, TRIM(first_name) from actor where actor_id<=5
 ----
-1 mario
 1 penelope
-1 penelope
-2 dario
 2 jack
 3 angelina
-3 luigi
 4 tom
 5 brad
 
@@ -115,23 +91,21 @@ query ITTT
 select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2
 ----
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 
 query ITTT
 select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>50)
 ----
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 
 query II
 select actor_id, count(actor_id) from actor group by actor_id
 ----
-1 3
+1 1
 10 1
-2 2
-3 2
+2 1
+3 1
 4 1
 5 1
 6 1
@@ -142,10 +116,10 @@ select actor_id, count(actor_id) from actor group by actor_id
 query II
 select actor_id, count(actor_id) as counts from actor group by actor_id
 ----
-1 3
+1 1
 10 1
-2 2
-3 2
+2 1
+3 1
 4 1
 5 1
 6 1
@@ -156,14 +130,10 @@ select actor_id, count(actor_id) as counts from actor group by actor_id
 query ITTT
 select actor_id, first_name, last_name,last_update from actor
 ----
-1 mario NULL NULL
-1 penelope guiness 2020-02-15 09:34:33+00
 1 penelope guiness 2020-02-15 09:34:33+00
 10 leonardo dicaprio 2020-04-15 08:08:08+00
-2 dario NULL NULL
 2 jack nicholson 2020-03-01 10:00:00+00
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 5 brad pitt 2020-03-20 17:17:17+00
 6 jennifer aniston 2020-03-25 20:20:20+00
@@ -174,14 +144,10 @@ select actor_id, first_name, last_name,last_update from actor
 query ITTT
 select actor_id, first_name, last_name,last_update from actor
 ----
-1 mario NULL NULL
-1 penelope guiness 2020-02-15 09:34:33+00
 1 penelope guiness 2020-02-15 09:34:33+00
 10 leonardo dicaprio 2020-04-15 08:08:08+00
-2 dario NULL NULL
 2 jack nicholson 2020-03-01 10:00:00+00
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 5 brad pitt 2020-03-20 17:17:17+00
 6 jennifer aniston 2020-03-25 20:20:20+00
@@ -192,26 +158,18 @@ select actor_id, first_name, last_name,last_update from actor
 query ITTT
 select actor_id, first_name, last_name,last_update from actor where actor_id<=5
 ----
-1 mario NULL NULL
 1 penelope guiness 2020-02-15 09:34:33+00
-1 penelope guiness 2020-02-15 09:34:33+00
-2 dario NULL NULL
 2 jack nicholson 2020-03-01 10:00:00+00
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 5 brad pitt 2020-03-20 17:17:17+00
 
 query IT
 select actor_id, TRIM(first_name) from actor where actor_id<=5
 ----
-1 mario
 1 penelope
-1 penelope
-2 dario
 2 jack
 3 angelina
-3 luigi
 4 tom
 5 brad
 
@@ -231,23 +189,21 @@ query ITTT
 select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2
 ----
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 
 query ITTT
 select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>50)
 ----
 3 angelina jolie 2020-03-10 11:11:11+00
-3 luigi NULL NULL
 4 tom hanks 2020-03-15 14:44:44+00
 
 query II
 select actor_id, count(actor_id) from actor group by actor_id
 ----
-1 3
+1 1
 10 1
-2 2
-3 2
+2 1
+3 1
 4 1
 5 1
 6 1
@@ -258,10 +214,10 @@ select actor_id, count(actor_id) from actor group by actor_id
 query II
 select actor_id, count(actor_id) as counts from actor group by actor_id
 ----
-1 3
+1 1
 10 1
-2 2
-3 2
+2 1
+3 1
 4 1
 5 1
 6 1

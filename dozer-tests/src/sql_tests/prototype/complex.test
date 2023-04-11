@@ -37,8 +37,6 @@ CREATE TABLE film_actor (
 );
 
 # insert data to actor
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
 
 statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');

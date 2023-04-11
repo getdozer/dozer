@@ -37,8 +37,6 @@ CREATE TABLE film_actor (
 );
 
 # insert data to actor
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
 
 statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
@@ -190,7 +188,6 @@ INNER JOIN film f ON fa.film_id = f.film_id
 WHERE f.title LIKE '%Redemption%';
 ----
 penelope guiness
-penelope guiness
 
 
 query TTI rowsort
@@ -201,7 +198,7 @@ GROUP BY a.actor_id;
 ----
 angelina jolie 3
 jack nicholson 3
-penelope guiness 6
+penelope guiness 3
 tom hanks 1
 
 
@@ -214,7 +211,7 @@ GROUP BY a.actor_id;
 ----
 angelina jolie 324
 jack nicholson 567
-penelope guiness 938
+penelope guiness 469
 tom hanks 143
 
 
@@ -243,7 +240,7 @@ FROM actor a
 INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
 GROUP BY a.actor_id;
 ----
-1 penelope guiness 6
+1 penelope guiness 3
 2 jack nicholson 3
 3 angelina jolie 3
 4 tom hanks 1
@@ -256,7 +253,7 @@ INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
 INNER JOIN film f ON fa.film_id = f.film_id
 GROUP BY a.actor_id;
 ----
-1 penelope guiness 149.94
+1 penelope guiness 74.97
 2 jack nicholson 63.97
 3 angelina jolie 59.97
 4 tom hanks 19.99
@@ -268,5 +265,4 @@ INNER JOIN film_actor ON actor.actor_id = film_actor.actor_id
 INNER JOIN film ON film_actor.film_id = film.film_id
 WHERE film.title LIKE '%Red%';
 ----
-penelope guiness
 penelope guiness

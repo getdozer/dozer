@@ -2,14 +2,12 @@ use ahash::AHasher;
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::petgraph::visit::{IntoEdgesDirected, IntoNodeReferences};
-use dozer_core::petgraph::Direction;
-use dozer_core::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
+
+use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
@@ -18,7 +16,6 @@ use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
-use multimap::MultiMap;
 use std::collections::HashMap;
 
 use std::hash::{Hash, Hasher};
@@ -33,7 +30,6 @@ use tempdir::TempDir;
 pub(crate) struct TestSourceFactory {
     schemas: HashMap<u16, Schema>,
     name_to_port: HashMap<String, u16>,
-    running: Arc<AtomicBool>,
     receiver: Receiver<Option<(String, Operation)>>,
 }
 
@@ -41,13 +37,11 @@ impl TestSourceFactory {
     pub fn new(
         schemas: HashMap<u16, Schema>,
         name_to_port: HashMap<String, u16>,
-        running: Arc<AtomicBool>,
         receiver: Receiver<Option<(String, Operation)>>,
     ) -> Self {
         Self {
             schemas,
             name_to_port,
-            running,
             receiver,
         }
     }
@@ -102,7 +96,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {
             name_to_port: self.name_to_port.to_owned(),
-            running: self.running.clone(),
             receiver: self.receiver.clone(),
         }))
     }
@@ -111,7 +104,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
 #[derive(Debug)]
 pub struct TestSource {
     name_to_port: HashMap<String, u16>,
-    running: Arc<AtomicBool>,
     receiver: Receiver<Option<(String, Operation)>>,
 }
 
@@ -133,10 +125,10 @@ impl Source for TestSource {
             fw.send(IngestionMessage::new_op(idx, 0, op), *port)
                 .unwrap();
         }
-        thread::sleep(Duration::from_millis(1000));
+        thread::sleep(Duration::from_millis(200));
 
-        self.running
-            .store(false, std::sync::atomic::Ordering::Relaxed);
+        //self.running
+        //    .store(false, std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 }
@@ -148,12 +140,12 @@ pub struct SchemaHolder {
 
 #[derive(Debug)]
 pub struct TestSinkFactory {
-    output: Arc<Mutex<MultiMap<Vec<u8>, Record>>>,
+    output: Arc<Mutex<HashMap<Vec<u8>, Vec<Record>>>>,
     input_ports: Vec<PortHandle>,
 }
 
 impl TestSinkFactory {
-    pub fn new(output: Arc<Mutex<MultiMap<Vec<u8>, Record>>>) -> Self {
+    pub fn new(output: Arc<Mutex<HashMap<Vec<u8>, Vec<Record>>>>) -> Self {
         Self {
             output,
             input_ports: vec![DEFAULT_PORT_HANDLE],
@@ -183,33 +175,47 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 
 #[derive(Debug)]
 pub struct TestSink {
-    output: Arc<Mutex<MultiMap<Vec<u8>, Record>>>,
+    output: Arc<Mutex<HashMap<Vec<u8>, Vec<Record>>>>,
 }
 
 impl TestSink {
-    pub fn new(output: Arc<Mutex<MultiMap<Vec<u8>, Record>>>) -> Self {
+    pub fn new(output: Arc<Mutex<HashMap<Vec<u8>, Vec<Record>>>>) -> Self {
         Self { output }
     }
 
     fn update_result(&mut self, op: Operation) {
+        let mut records_map = self.output.lock().expect("Unable to lock the result map");
         match op {
             Operation::Insert { new } => {
-                self.output.lock().unwrap().insert(get_key(&new), new);
+                let records_item = records_map.get_mut(&get_key(&new));
+
+                if let Some(records) = records_item {
+                    records.push(new);
+                } else {
+                    records_map.insert(get_key(&new), vec![new]);
+                }
             }
             Operation::Delete { ref old } => {
-                if let Some(map_records) = self.output.lock().unwrap().get_vec_mut(&get_key(old)) {
+                if let Some(map_records) = records_map.get_mut(&get_key(old)) {
                     if let Some(index) = map_records.iter().position(|x| x == old) {
                         map_records.remove(index);
                     }
                 }
             }
             Operation::Update { ref old, new } => {
-                if let Some(map_records) = self.output.lock().unwrap().get_vec_mut(&get_key(old)) {
+                if let Some(map_records) = records_map.get_mut(&get_key(old)) {
                     if let Some(index) = map_records.iter().position(|x| x == old) {
                         map_records.remove(index);
                     }
                 }
-                self.output.lock().unwrap().insert(get_key(&new), new);
+
+                let records_item = records_map.get_mut(&get_key(&new));
+
+                if let Some(records) = records_item {
+                    records.push(new);
+                } else {
+                    records_map.insert(get_key(&new), vec![new]);
+                }
             }
         }
     }
@@ -234,10 +240,9 @@ pub struct TestPipeline {
     pub schema: Schema,
     pub dag: Dag<SchemaSQLContext>,
     pub used_schemas: Vec<String>,
-    pub running: Arc<AtomicBool>,
     pub sender: Sender<Option<(String, Operation)>>,
     pub ops: Vec<(String, Operation)>,
-    pub result: Arc<Mutex<MultiMap<Vec<u8>, Record>>>,
+    pub result: Arc<Mutex<HashMap<Vec<u8>, Vec<Record>>>>,
 }
 
 impl TestPipeline {
@@ -262,31 +267,31 @@ impl TestPipeline {
         let output_table = transform_response.output_tables_map.get("results").unwrap();
         let (sender, receiver) =
             dozer_types::crossbeam::channel::bounded::<Option<(String, Operation)>>(1000);
+
         let mut port_to_schemas = HashMap::new();
         let mut mappings = HashMap::new();
 
-        let running = Arc::new(AtomicBool::new(true));
-
-        for (idx, (name, schema)) in schemas.iter().enumerate() {
-            mappings.insert(name.clone(), idx as u16);
-            port_to_schemas.insert(idx as u16, schema.clone());
+        for (port, name) in transform_response.used_sources.iter().enumerate() {
+            if !mappings.contains_key(name) {
+                mappings.insert(name.to_string(), port as u16);
+                port_to_schemas.insert(port as u16, schemas.get(name).unwrap().clone());
+            }
         }
 
         let mut asm = AppSourceManager::new();
 
         asm.add(AppSource::new(
-            "mem".to_string(),
+            "test_connection".to_string(),
             Arc::new(TestSourceFactory::new(
                 port_to_schemas,
                 mappings.clone(),
-                running.clone(),
                 receiver,
             )),
             mappings,
         ))
         .unwrap();
 
-        let output = Arc::new(Mutex::new(MultiMap::new()));
+        let output = Arc::new(Mutex::new(HashMap::new()));
         pipeline.add_sink(Arc::new(TestSinkFactory::new(output.clone())), "sink");
 
         pipeline
@@ -304,30 +309,13 @@ impl TestPipeline {
 
         let dag = app.get_dag().unwrap();
 
-        let dag_schemas = DagSchemas::new(dag.clone())?;
+        // dag.print_dot();
 
-        let sink_index = (|| {
-            for (node_index, node) in dag_schemas.graph().node_references() {
-                if matches!(node.kind, NodeKind::Sink(_)) {
-                    return node_index;
-                }
-            }
-            panic!("Sink is expected");
-        })();
-
-        let schema = dag_schemas
-            .graph()
-            .edges_directed(sink_index, Direction::Incoming)
-            .next()
-            .expect("Sink must have incoming edge")
-            .weight()
-            .schema
-            .clone();
         Ok(TestPipeline {
-            schema,
+            schema: Schema::empty(),
             dag,
             used_schemas,
-            running,
+
             sender,
             ops,
             result: output,
@@ -343,7 +331,7 @@ impl TestPipeline {
             ExecutorOptions::default(),
         )
         .unwrap_or_else(|e| panic!("Unable to create exec: {e}"));
-        let join_handle = executor.start(self.running.clone())?;
+        let join_handle = executor.start(Arc::new(AtomicBool::new(true)))?;
 
         for (schema_name, op) in &self.ops {
             if self.used_schemas.contains(&schema_name.to_string()) {
@@ -357,8 +345,10 @@ impl TestPipeline {
         join_handle.join()?;
 
         let mut output = vec![];
+
+        let result_map = self.result.lock().expect("Unable to lock the result map");
         // iterate over all keys and the key's vector.
-        for (_, values) in self.result.lock().unwrap().iter_all() {
+        for (_, values) in result_map.iter() {
             for value in values {
                 let mut row = vec![];
                 for field in &value.values {

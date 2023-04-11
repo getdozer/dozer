@@ -12,18 +12,6 @@ CREATE TABLE actor(
 
 
 statement ok
-INSERT INTO actor(actor_id,first_name) values (1, 'mario')
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', null, null)
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', null, null)
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
-
-statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
 
 statement ok

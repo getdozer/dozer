@@ -46,9 +46,6 @@ statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
 
 statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
-
-statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (2, 'jack', 'nicholson', '2020-03-01 10:00:00+00');
 
 statement ok
@@ -148,14 +145,6 @@ INSERT INTO film_actor (actor_id, film_id, last_update) VALUES (3, 9, '2022-03-1
 
 statement ok
 INSERT INTO film_actor (actor_id, film_id, last_update) VALUES (4, 10, '2022-03-16 10:00:00');
-
-# insert more data to actor
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', 'guiness','2020-02-15 09:34:33+00')
-
-statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', 'guiness','2020-02-15 09:34:33+00')
 
 
 # Queries

@@ -40,9 +40,6 @@ statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
 
 statement ok
-INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (1, 'penelope', 'guiness', '2020-02-15 09:34:33+00');
-
-statement ok
 INSERT INTO actor(actor_id,first_name, last_name, last_update) VALUES (2, 'jack', 'nicholson', '2020-03-01 10:00:00+00');
 
 statement ok
