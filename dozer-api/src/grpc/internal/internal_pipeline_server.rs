@@ -154,8 +154,8 @@ impl InternalPipelineService for InternalPipelineServer {
             loop {
                 let result = receiver.try_recv();
                 match result {
-                    Ok(alias_redirected) => {
-                        let result = status_updates_sender.send(Ok(alias_redirected)).await;
+                    Ok(status_update) => {
+                        let result = status_updates_sender.send(Ok(status_update)).await;
                         if let Err(e) = result {
                             warn!("Error sending message to mpsc channel: {:?}", e);
                             break;

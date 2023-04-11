@@ -32,6 +32,9 @@ use dozer_types::grpc_types::admin::SaveFilesResponse;
 use dozer_types::log::warn;
 use dozer_types::models::api_config::GrpcApiOptions;
 use glob::glob;
+use notify::event::ModifyKind::Data;
+use notify::EventKind::Modify;
+use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -39,7 +42,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fs, thread};
 use tokio::time::interval;
-use tonic::Status;
+use tonic::{Code, Status};
 
 #[derive(Clone)]
 pub struct AppService {
@@ -362,37 +365,60 @@ impl AppService {
         Ok(SaveFilesResponse {})
     }
 
-    pub async fn read_logs(tx: tokio::sync::mpsc::Sender<Result<LogMessage, Status>>) {
-        let mut interval = interval(Duration::from_millis(1000));
+    pub async fn read_logs(log_tx: tokio::sync::mpsc::Sender<Result<LogMessage, Status>>) {
         let mut position = 0;
 
-        loop {
-            let file_result = fs::File::open("./log/dozer.log");
-            if let Ok(mut file) = file_result {
-                let seek_result = file.seek(SeekFrom::Start(position));
+        let (tx, rx) = std::sync::mpsc::channel();
 
-                match seek_result {
-                    Ok(_) => {
-                        if let Ok(metadata) = file.metadata() {
-                            position = metadata.len();
-                            let reader = BufReader::new(file);
-                            for message in reader.lines().flatten() {
-                                let log_message = LogMessage { message };
+        match RecommendedWatcher::new(tx, Config::default()) {
+            Ok(mut watcher) => {
+                let p = std::path::Path::new("./log/dozer.log");
+                let start_watch_result = watcher.watch(p.as_ref(), RecursiveMode::Recursive);
 
-                                if (tx.send(Ok(log_message)).await).is_err() {
-                                    // receiver dropped
-                                    break;
+                if start_watch_result.is_err() {
+                    let _ = log_tx
+                        .send(Err(Status::new(Code::Internal, "Failed to start watch")))
+                        .await;
+                    return;
+                }
+
+                for res in rx.into_iter().flatten() {
+                    if let Event {
+                        kind: Modify(Data(_)),
+                        ..
+                    } = res
+                    {
+                        let file_result = fs::File::open("./log/dozer.log");
+                        if let Ok(mut file) = file_result {
+                            let seek_result = file.seek(SeekFrom::Start(position));
+                            match seek_result {
+                                Ok(_) => {
+                                    if let Ok(metadata) = file.metadata() {
+                                        position = metadata.len();
+                                        let reader = BufReader::new(file);
+                                        for message in reader.lines().flatten() {
+                                            let log_message = LogMessage { message };
+
+                                            if (log_tx.send(Ok(log_message)).await).is_err() {
+                                                // receiver dropped
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!("Seek error: {:?}", e);
                                 }
                             }
                         }
                     }
-                    Err(e) => {
-                        warn!("Seek error: {:?}", e);
-                    }
                 }
             }
-
-            interval.tick().await;
+            Err(e) => {
+                let _ = log_tx
+                    .send(Err(Status::new(Code::Internal, e.to_string())))
+                    .await;
+            }
         }
     }
 
