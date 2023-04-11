@@ -4,14 +4,11 @@ use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, Co
 use dozer_orchestrator::cli::{init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::{CliError, OrchestrationError};
 use dozer_orchestrator::simple::SimpleOrchestrator;
-use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, Orchestrator};
+use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use std::{process, thread};
+use std::process;
 
 fn main() {
     set_panic_hook();
@@ -37,8 +34,8 @@ fn run() -> Result<(), OrchestrationError> {
     let cli = parse_and_generate()?;
     let mut dozer = init_orchestrator(&cli)?;
 
-    let running = Arc::new(AtomicBool::new(true));
-    set_ctrl_handler(running.clone());
+    let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
+    set_ctrl_handler(shutdown_sender);
 
     // Now we have access to telemetry configuration
     let _telemetry = Telemetry::new(Some(&dozer.config.app_name), dozer.config.telemetry.clone());
@@ -49,17 +46,8 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Api(api) => match api.command {
                 ApiCommands::Run => {
                     render_logo();
-                    let running_api = running.clone();
-                    let _api_thread = thread::spawn(move || {
-                        if let Err(e) = dozer.run_api(running_api) {
-                            std::panic::panic_any(e);
-                        }
-                    });
-                    // HACK: until we do api thread graceful shutdown, spin on the running flag.
-                    while running.load(Ordering::SeqCst) {
-                        std::thread::sleep(Duration::from_millis(50));
-                    }
-                    Ok(())
+
+                    dozer.run_api(shutdown_receiver)
                 }
                 ApiCommands::GenerateToken => {
                     let token = dozer.generate_token()?;
@@ -71,7 +59,7 @@ fn run() -> Result<(), OrchestrationError> {
                 AppCommands::Run => {
                     render_logo();
 
-                    dozer.run_apps(running, None)
+                    dozer.run_apps(shutdown_receiver, None)
                 }
             },
             Commands::Connector(sources) => match sources.command {
@@ -90,7 +78,7 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
-        dozer.run_all(running)
+        dozer.run_all(shutdown_receiver)
     }
 }
 

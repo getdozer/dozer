@@ -3,6 +3,7 @@ use super::schemas::load_schemas;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
+use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
 use crate::simple::schemas::write_schemas;
 use crate::utils::{
@@ -13,7 +14,7 @@ use crate::utils::{
 use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
-use dozer_api::{actix_web::dev::ServerHandle, grpc, rest, CacheEndpoint};
+use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
@@ -22,7 +23,8 @@ use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::crossbeam::channel::{self, Sender};
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
@@ -33,18 +35,15 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
-
-use dozer_types::indicatif::MultiProgress;
-use std::{sync::Arc, thread};
+use std::sync::Arc;
+use std::thread;
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
-use tokio::sync::oneshot;
 
 #[derive(Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
-    runtime: Arc<Runtime>,
+    pub runtime: Arc<Runtime>,
     pub multi_pb: MultiProgress,
 }
 
@@ -60,11 +59,7 @@ impl SimpleOrchestrator {
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn run_api(&mut self, _running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-        // Channel to communicate CtrlC with API Server
-        let (tx, rx) = unbounded::<ServerHandle>();
-
-        let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
+    fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async {
             let mut futures = FuturesUnordered::new();
 
@@ -97,6 +92,7 @@ impl Orchestrator for SimpleOrchestrator {
                     schema.clone(),
                     endpoint.clone(),
                     self.runtime.clone(),
+                    Box::pin(shutdown.create_shutdown_future()),
                     &log_path,
                     operations_sender.clone(),
                     Some(self.multi_pb.clone()),
@@ -114,10 +110,11 @@ impl Orchestrator for SimpleOrchestrator {
             let rest_config = get_rest_config(self.config.to_owned());
             let security = get_api_security_config(self.config.to_owned());
             let cache_endpoints_for_rest = cache_endpoints.clone();
+            let shutdown_for_rest = shutdown.create_shutdown_future();
             let rest_handle = tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
-                    .run(cache_endpoints_for_rest, tx)
+                    .run(cache_endpoints_for_rest, shutdown_for_rest)
                     .await
                     .map_err(OrchestrationError::ApiServerFailed)
             });
@@ -127,9 +124,10 @@ impl Orchestrator for SimpleOrchestrator {
             let grpc_config = get_grpc_config(self.config.to_owned());
             let api_security = get_api_security_config(self.config.to_owned());
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
+            let shutdown = shutdown.create_shutdown_future();
             let grpc_handle = tokio::spawn(async move {
                 grpc_server
-                    .run(cache_endpoints, receiver_shutdown, operations_receiver)
+                    .run(cache_endpoints, shutdown, operations_receiver)
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
@@ -140,12 +138,6 @@ impl Orchestrator for SimpleOrchestrator {
             while let Some(result) = futures.next().await {
                 result?;
             }
-            let server_handle = rx
-                .recv()
-                .map_err(OrchestrationError::GrpcServerHandleError)?;
-
-            sender_shutdown.send(()).unwrap();
-            rest::ApiServer::stop(server_handle);
 
             Ok::<(), OrchestrationError>(())
         })?;
@@ -155,7 +147,7 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_apps(
         &mut self,
-        running: Arc<AtomicBool>,
+        shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
         let runtime = Runtime::new().expect("Failed to create runtime for running apps");
@@ -190,7 +182,7 @@ impl Orchestrator for SimpleOrchestrator {
             self.config.sql.as_deref(),
             &self.config.endpoints,
             &pipeline_dir,
-            running,
+            shutdown.get_running_flag(),
             self.multi_pb.clone(),
         );
         let settings = LogSinkSettings {
@@ -355,8 +347,8 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-        let running_api = running.clone();
+    fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+        let shutdown_api = shutdown.clone();
         // TODO: remove this after checkpointing
         self.clean()?;
 
@@ -376,24 +368,15 @@ impl Orchestrator for SimpleOrchestrator {
         }
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer_pipeline.run_apps(running, Some(tx)) {
-                std::panic::panic_any(e);
-            }
-        });
+        let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx)));
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
 
-        let _api_thread = thread::spawn(move || {
-            if let Err(e) = dozer_api.run_api(running_api) {
-                std::panic::panic_any(e);
-            }
-        });
+        dozer_api.run_api(shutdown_api)?;
 
-        // wait for threads to shutdown gracefully
-        pipeline_thread.join().unwrap();
-        Ok(())
+        // wait for pipeline thread to shutdown gracefully
+        pipeline_thread.join().unwrap()
     }
 }
 

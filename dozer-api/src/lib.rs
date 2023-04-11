@@ -12,6 +12,7 @@ use dozer_types::{
     },
     types::Schema,
 };
+use futures_util::Future;
 use std::{ops::Deref, path::Path, sync::Arc};
 
 mod api_helper;
@@ -23,11 +24,13 @@ pub struct CacheEndpoint {
 }
 
 impl CacheEndpoint {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         cache_manager: &dyn RwCacheManager,
         schema: Schema,
         endpoint: ApiEndpoint,
         runtime: Arc<Runtime>,
+        cancel: impl Future<Output = ()> + Unpin,
         log_path: &Path,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
@@ -48,6 +51,7 @@ impl CacheEndpoint {
                 cache_manager,
                 schema,
                 runtime,
+                cancel,
                 log_path,
                 write_options,
                 operations_sender,

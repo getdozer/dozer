@@ -15,7 +15,8 @@ use dozer_types::{
     log::info,
     models::{api_config::GrpcApiOptions, api_security::ApiSecurity, flags::Flags},
 };
-use futures_util::FutureExt;
+use futures_util::stream::{AbortHandle, Abortable, Aborted};
+use futures_util::Future;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::broadcast::{self, Receiver};
 use tonic::transport::Server;
@@ -95,7 +96,7 @@ impl ApiServer {
     pub async fn run(
         &self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
-        receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
+        shutdown: impl Future<Output = ()> + Send + 'static,
         operations_receiver: Option<Receiver<Operation>>,
     ) -> Result<(), GrpcError> {
         // Create our services.
@@ -174,11 +175,19 @@ impl ApiServer {
         grpc_router = grpc_router.add_service(health_service);
         grpc_router = grpc_router.add_optional_service(auth_service);
 
+        // Tonic graceful shutdown doesn't allow us to set a timeout, resulting in hanging if a client doesn't close the connection.
+        // So we just abort the server when the shutdown signal is received.
+        let (abort_handle, abort_registration) = AbortHandle::new_pair();
+        tokio::spawn(async move {
+            shutdown.await;
+            abort_handle.abort();
+        });
+
         // Run server.
         let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();
-        grpc_router
-            .serve_with_shutdown(addr, receiver_shutdown.map(drop))
-            .await?;
-        Ok(())
+        match Abortable::new(grpc_router.serve(addr), abort_registration).await {
+            Ok(result) => result.map_err(GrpcError::Transport),
+            Err(Aborted) => Ok(()),
+        }
     }
 }

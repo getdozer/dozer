@@ -9,6 +9,8 @@ use crate::db::{
 use diesel::prelude::*;
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
 use dozer_api::grpc::internal::internal_pipeline_client::InternalPipelineClient;
+use dozer_orchestrator::shutdown;
+use dozer_orchestrator::shutdown::ShutdownSender;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::wrapped_statement_to_pipeline;
 use dozer_orchestrator::Orchestrator;
@@ -36,8 +38,6 @@ use notify::event::ModifyKind::Data;
 use notify::EventKind::Modify;
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fs, thread};
@@ -47,7 +47,7 @@ use tonic::{Code, Status};
 #[derive(Clone)]
 pub struct AppService {
     db_pool: DbPool,
-    pub apps: Arc<RwLock<HashMap<String, Arc<AtomicBool>>>>,
+    pub apps: Arc<RwLock<HashMap<String, ShutdownSender>>>,
 }
 impl AppService {
     pub fn new(db_pool: DbPool) -> Self {
@@ -292,21 +292,22 @@ impl AppService {
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
-        let running = Arc::new(AtomicBool::new(true));
-        let r = running.clone();
+        let mut dozer = Dozer::new(c);
+        let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         thread::spawn(move || {
             let _guard = dozer_tracing::init_telemetry_closure(
-                Some(&c.app_name.clone()),
+                Some(&dozer.config.app_name.clone()),
                 None,
                 || -> Result<(), ErrorResponse> {
-                    let mut dozer = Dozer::new(c);
-                    dozer.run_all(running).unwrap();
+                    dozer.run_all(shutdown_receiver).unwrap();
 
                     Ok(())
                 },
             );
         });
-        self.apps.write().insert(generated_id.clone(), r);
+        self.apps
+            .write()
+            .insert(generated_id.clone(), shutdown_sender);
         Ok(StartResponse {
             success: true,
             id: generated_id,
@@ -315,12 +316,12 @@ impl AppService {
 
     pub fn stop_dozer(&self, input: StopRequest) -> Result<StopResponse, ErrorResponse> {
         let i = input.id;
-        self.apps.read().get(&i).map_or(
+        self.apps.write().remove(&i).map_or(
             Err(ErrorResponse {
                 message: "Cannot find dozer with id : {i}".to_string(),
             }),
-            |r| {
-                r.store(false, Ordering::Relaxed);
+            |shutdown| {
+                shutdown.shutdown();
                 Ok(StopResponse { success: true })
             },
         )
