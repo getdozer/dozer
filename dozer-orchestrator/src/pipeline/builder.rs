@@ -56,7 +56,6 @@ impl<'a> PipelineBuilder<'a> {
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
         pipeline_dir: &'a Path,
-        progress: MultiProgress,
     ) -> Self {
         Self {
             connections,
@@ -243,7 +242,7 @@ impl<'a> PipelineBuilder<'a> {
             let snk_factory = Arc::new(LogSinkFactory::new(
                 settings.clone(),
                 api_endpoint.clone(),
-                self.progress.clone(),
+                notifier.clone(),
                 notifier.clone(),
             ));
 
