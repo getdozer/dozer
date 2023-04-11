@@ -8,7 +8,6 @@ use dozer_types::ingestion_types::{DeltaLakeConfig, IngestionMessage};
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 
 pub struct DeltaLakeReader {
     config: DeltaLakeConfig,
@@ -19,11 +18,11 @@ impl DeltaLakeReader {
         Self { config }
     }
 
-    pub fn read(&self, table: &[TableInfo], ingestor: &Ingestor) -> ConnectorResult<()> {
+    pub async fn read(&self, table: &[TableInfo], ingestor: &Ingestor) -> ConnectorResult<()> {
         let mut seq_no = 0;
-        let runtime = Runtime::new()?;
         for (id, table) in table.iter().enumerate() {
-            runtime.block_on(self.read_impl(id as u32, &mut seq_no, table, ingestor))?;
+            self.read_impl(id as u32, &mut seq_no, table, ingestor)
+                .await?;
         }
         Ok(())
     }

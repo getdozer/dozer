@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::appsource::AppSourceId;
 use crate::node::PortHandle;
 use dozer_types::errors::internal::BoxedError;
@@ -56,6 +58,8 @@ pub enum ExecutionError {
     FailedToGetPrimaryKey(String),
 
     // Error forwarders
+    #[error("File system error {0:?}: {1}")]
+    FileSystemError(PathBuf, #[source] std::io::Error),
     #[error("Internal type error: {0}")]
     InternalTypeError(#[from] TypeError),
     #[error("Internal error: {0}")]

@@ -5,6 +5,7 @@ use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInf
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::SnowflakeConfig;
+use tonic::async_trait;
 
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
@@ -12,7 +13,6 @@ use dozer_types::log::{info, warn};
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 
-use tokio::runtime::Runtime;
 use tokio::time;
 
 use crate::errors::{SnowflakeError, SnowflakeStreamError};
@@ -29,6 +29,7 @@ impl SnowflakeConnector {
     }
 }
 
+#[async_trait]
 impl Connector for SnowflakeConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
@@ -37,11 +38,11 @@ impl Connector for SnowflakeConnector {
         todo!()
     }
 
-    fn validate_connection(&self) -> Result<(), ConnectorError> {
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
         SchemaHelper::get_schema(&self.config, None).map(|_| ())
     }
 
-    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
         let schemas = SchemaHelper::get_schema(&self.config, None)?;
         let mut tables = vec![];
         for schema in schemas {
@@ -50,7 +51,7 @@ impl Connector for SnowflakeConnector {
         Ok(tables)
     }
 
-    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
         let table_names = tables
             .iter()
             .map(|table| table.name.clone())
@@ -62,7 +63,10 @@ impl Connector for SnowflakeConnector {
         Ok(())
     }
 
-    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
         let table_names = tables
             .iter()
             .map(|table| table.name.clone())
@@ -86,7 +90,7 @@ impl Connector for SnowflakeConnector {
         Ok(result)
     }
 
-    fn get_schemas(
+    async fn get_schemas(
         &self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
@@ -101,17 +105,19 @@ impl Connector for SnowflakeConnector {
             .collect())
     }
 
-    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
-        Runtime::new().unwrap().block_on(async {
-            run(
-                self.name.clone(),
-                self.config.clone(),
-                tables,
-                ingestor,
-                None,
-            )
-            .await
-        })
+    async fn start(
+        &self,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+    ) -> Result<(), ConnectorError> {
+        run(
+            self.name.clone(),
+            self.config.clone(),
+            tables,
+            ingestor,
+            None,
+        )
+        .await
     }
 }
 

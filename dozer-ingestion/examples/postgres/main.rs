@@ -1,13 +1,12 @@
 use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use dozer_ingestion::connectors::{Connector, TableIdentifier};
-use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
 use dozer_types::log::debug;
-use std::thread;
 use std::time::Instant;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     dozer_tracing::init_telemetry(None, None);
 
     let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
@@ -24,8 +23,9 @@ fn main() {
     let connector = PostgresConnector::new(postgres_config);
     let tables = connector
         .list_columns(vec![TableIdentifier::from_table_name("users".to_string())])
+        .await
         .unwrap();
-    thread::spawn(move || -> Result<(), ConnectorError> { connector.start(&ingestor, tables) });
+    tokio::spawn(async move { connector.start(&ingestor, tables).await });
 
     let before = Instant::now();
     const BACKSPACE: char = 8u8 as char;

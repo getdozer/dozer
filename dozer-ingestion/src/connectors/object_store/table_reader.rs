@@ -9,7 +9,6 @@ use crate::errors::ObjectStoreTableReaderError::{
 };
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crate::ingestion::Ingestor;
-use crossbeam::channel::{unbounded, Sender};
 use deltalake::datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
@@ -19,8 +18,8 @@ use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use std::sync::Arc;
-
-use tokio::runtime::Runtime;
+use tokio::sync::mpsc::{channel, Sender};
+use tonic::async_trait;
 
 pub struct TableReader<T: Clone + Send + Sync> {
     config: T,
@@ -97,30 +96,38 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     },
                 };
 
-                sender.send(Ok(Some(evt))).unwrap();
+                sender.send(Ok(Some(evt))).await.unwrap();
             }
         }
 
-        sender.send(Ok(None)).unwrap();
+        sender.send(Ok(None)).await.unwrap();
 
         Ok(())
     }
 }
 
+#[async_trait]
 pub trait Reader<T> {
-    fn read_tables(&self, tables: &[TableInfo], ingestor: &Ingestor) -> Result<(), ConnectorError>;
+    async fn read_tables(
+        &self,
+        tables: &[TableInfo],
+        ingestor: &Ingestor,
+    ) -> Result<(), ConnectorError>;
 }
 
+#[async_trait]
 impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
-    fn read_tables(&self, tables: &[TableInfo], ingestor: &Ingestor) -> Result<(), ConnectorError> {
+    async fn read_tables(
+        &self,
+        tables: &[TableInfo],
+        ingestor: &Ingestor,
+    ) -> Result<(), ConnectorError> {
         ingestor
             .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
             .map_err(ObjectStoreConnectorError::IngestorError)?;
 
         let mut left_tables_count = tables.len();
-        let (tx, rx) = unbounded();
-
-        let rt = Runtime::new().map_err(|_| ObjectStoreConnectorError::RuntimeCreationError)?;
+        let (tx, mut rx) = channel(16);
 
         for (id, table) in tables.iter().enumerate() {
             let params = self.config.table_params(&table.name)?;
@@ -146,7 +153,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
             let sender = tx.clone();
             let t = table.clone();
 
-            rt.spawn(async move {
+            tokio::spawn(async move {
                 let result = Self::read(
                     id as u32,
                     ctx,
@@ -157,7 +164,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
                 )
                 .await;
                 if let Err(e) = result {
-                    sender.send(Err(e)).unwrap();
+                    sender.send(Err(e)).await.unwrap();
                 }
             });
         }
@@ -166,7 +173,8 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
         loop {
             let message = rx
                 .recv()
-                .map_err(|e| ConnectorError::ObjectStoreConnectorError(RecvError(e)))??;
+                .await
+                .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))??;
             match message {
                 None => {
                     left_tables_count -= 1;

@@ -13,6 +13,7 @@ use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::{info, warn};
 use dozer_types::tracing::Level;
+use tonic::async_trait;
 use tonic::transport::Server;
 use tower_http::trace::{self, TraceLayer};
 
@@ -77,49 +78,45 @@ where
         Ok(schemas_str)
     }
 
-    pub fn serve(&self, ingestor: &Ingestor) -> Result<(), ConnectorError> {
+    pub async fn serve(&self, ingestor: &Ingestor) -> Result<(), ConnectorError> {
         let host = &self.config.host;
         let port = self.config.port;
 
         let addr = format!("{host:}:{port:}").parse().map_err(|e| {
             ConnectorError::InitializationError(format!("Failed to parse address: {e}"))
         })?;
-        let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
 
         let schemas_str = Self::parse_config(&self.config)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
 
-        rt.block_on(async {
-            // Ingestor will live as long as the server
-            // Refactor to use Arc
-            let ingestor =
-                unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
+        // Ingestor will live as long as the server
+        // Refactor to use Arc
+        let ingestor = unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
 
-            let ingest_service = IngestorServiceImpl::new(adapter, ingestor);
-            let ingest_service = tonic_web::config()
-                .allow_all_origins()
-                .enable(IngestServiceServer::new(ingest_service));
+        let ingest_service = IngestorServiceImpl::new(adapter, ingestor);
+        let ingest_service = tonic_web::config()
+            .allow_all_origins()
+            .enable(IngestServiceServer::new(ingest_service));
 
-            let reflection_service = tonic_reflection::server::Builder::configure()
-                .register_encoded_file_descriptor_set(
-                    dozer_types::grpc_types::ingest::FILE_DESCRIPTOR_SET,
-                )
-                .build()
-                .unwrap();
-            info!("Starting Dozer GRPC Ingestor  on http://{}:{} ", host, port,);
-            Server::builder()
-                .layer(
-                    TraceLayer::new_for_http()
-                        .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
-                        .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
-                )
-                .accept_http1(true)
-                .add_service(ingest_service)
-                .add_service(reflection_service)
-                .serve(addr)
-                .await
-        })
-        .map_err(|e| ConnectorError::InitializationError(e.to_string()))
+        let reflection_service = tonic_reflection::server::Builder::configure()
+            .register_encoded_file_descriptor_set(
+                dozer_types::grpc_types::ingest::FILE_DESCRIPTOR_SET,
+            )
+            .build()
+            .unwrap();
+        info!("Starting Dozer GRPC Ingestor  on http://{}:{} ", host, port,);
+        Server::builder()
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                    .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+            )
+            .accept_http1(true)
+            .add_service(ingest_service)
+            .add_service(reflection_service)
+            .serve(addr)
+            .await
+            .map_err(|e| ConnectorError::InitializationError(e.to_string()))
     }
 }
 
@@ -131,6 +128,7 @@ impl<T: IngestAdapter> GrpcConnector<T> {
     }
 }
 
+#[async_trait]
 impl<T> Connector for GrpcConnector<T>
 where
     T: IngestAdapter,
@@ -142,11 +140,11 @@ where
         todo!()
     }
 
-    fn validate_connection(&self) -> Result<(), ConnectorError> {
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
         self.get_all_schemas().map(|_| ())
     }
 
-    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
         Ok(self
             .get_all_schemas()?
             .into_iter()
@@ -154,7 +152,7 @@ where
             .collect())
     }
 
-    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
         let schemas = self.get_all_schemas()?;
         for table in tables {
             if !schemas
@@ -170,7 +168,10 @@ where
         Ok(())
     }
 
-    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
         let schemas = self.get_all_schemas()?;
         let mut result = vec![];
         for table in tables {
@@ -199,7 +200,7 @@ where
         Ok(result)
     }
 
-    fn get_schemas(
+    async fn get_schemas(
         &self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
@@ -227,11 +228,11 @@ where
         Ok(result)
     }
 
-    fn start(
+    async fn start(
         &self,
         ingestor: &Ingestor,
         _table_names: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
-        self.serve(ingestor)
+        self.serve(ingestor).await
     }
 }

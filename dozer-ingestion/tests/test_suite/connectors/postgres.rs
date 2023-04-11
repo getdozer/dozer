@@ -1,7 +1,11 @@
-use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+use dozer_ingestion::connectors::postgres::{
+    connection::helper::connect,
+    connector::{PostgresConfig, PostgresConnector},
+};
 use dozer_types::types::Field;
 use dozer_utils::{process::run_docker_compose, Cleanup};
 use tempdir::TempDir;
+use tonic::async_trait;
 
 use crate::test_suite::{
     records::Operation, CudConnectorTest, DataReadyConnectorTest, FieldsAndPk,
@@ -14,7 +18,7 @@ use super::sql::{
 };
 
 pub struct PostgresConnectorTest {
-    config: postgres::Config,
+    config: tokio_postgres::Config,
     schema_name: Option<String>,
     table_name: String,
     schema: FieldsAndPk,
@@ -22,47 +26,53 @@ pub struct PostgresConnectorTest {
     _temp_dir: TempDir,
 }
 
+#[async_trait]
 impl DataReadyConnectorTest for PostgresConnectorTest {
     type Connector = PostgresConnector;
 
-    fn new() -> (Self, Self::Connector) {
-        let (mut client, connector_test, connector) = create_postgres_server();
+    async fn new() -> (Self, Self::Connector) {
+        let (client, connector_test, connector) = create_postgres_server().await;
         client
             .batch_execute(&create_table_with_all_supported_data_types("test_table"))
+            .await
             .unwrap();
 
         (connector_test, connector)
     }
 }
 
+#[async_trait]
 impl InsertOnlyConnectorTest for PostgresConnectorTest {
     type Connector = PostgresConnector;
 
-    fn new(
+    async fn new(
         schema_name: Option<String>,
         table_name: String,
         schema: FieldsAndPk,
         records: Vec<Vec<Field>>,
     ) -> Option<(Self, Self::Connector, FieldsAndPk)> {
-        let (mut client, mut connector_test, connector) = create_postgres_server();
+        let (client, mut connector_test, connector) = create_postgres_server().await;
 
         let (actual_schema, _) = schema_to_sql(schema.clone());
 
         if let Some(schema_name) = &schema_name {
             client
                 .batch_execute(&create_schema(schema_name))
+                .await
                 .expect("Failed to create schema");
         }
 
         let query = create_table(schema_name.as_deref(), &table_name, &actual_schema);
         client
             .batch_execute(&query)
+            .await
             .expect("Failed to create table");
 
         for record in records {
             let query = insert_record(schema_name.as_deref(), &table_name, &record, &schema.0);
             client
                 .batch_execute(&query)
+                .await
                 .expect("Failed to insert record");
         }
 
@@ -74,13 +84,14 @@ impl InsertOnlyConnectorTest for PostgresConnectorTest {
     }
 }
 
+#[async_trait]
 impl CudConnectorTest for PostgresConnectorTest {
-    fn start_cud(&self, operations: Vec<Operation>) {
-        let mut client = self.config.connect(postgres::NoTls).unwrap();
+    async fn start_cud(&self, operations: Vec<Operation>) {
+        let client = connect(self.config.clone()).await.unwrap();
         let schema_name = self.schema_name.clone();
         let table_name = self.table_name.clone();
         let schema = self.schema.clone();
-        std::thread::spawn(move || {
+        tokio::spawn(async move {
             for operation in operations {
                 client
                     .batch_execute(&operation_to_sql(
@@ -89,13 +100,18 @@ impl CudConnectorTest for PostgresConnectorTest {
                         &operation,
                         &schema,
                     ))
+                    .await
                     .unwrap();
             }
         });
     }
 }
 
-fn create_postgres_server() -> (postgres::Client, PostgresConnectorTest, PostgresConnector) {
+async fn create_postgres_server() -> (
+    tokio_postgres::Client,
+    PostgresConnectorTest,
+    PostgresConnector,
+) {
     let host = "localhost";
     let port = 5432;
     let user = "postgres";
@@ -121,9 +137,7 @@ fn create_postgres_server() -> (postgres::Client, PostgresConnectorTest, Postgre
         config: config.clone(),
     });
 
-    let config = postgres::Config::from(config);
-
-    let client = config.connect(postgres::NoTls).unwrap();
+    let client = connect(config.clone()).await.unwrap();
 
     (
         client,

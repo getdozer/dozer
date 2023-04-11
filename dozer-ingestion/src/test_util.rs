@@ -5,8 +5,9 @@ use std::path::PathBuf;
 use crate::connectors::postgres::tests::client::TestPostgresClient;
 use dozer_types::models::app_config::Config;
 use dozer_types::models::connection::ConnectionConfig;
+use futures::Future;
 
-fn warm_up(app_config: &Config) {
+async fn warm_up(app_config: &Config) {
     let connection = app_config.connections.get(0).unwrap();
     if let Some(ConnectionConfig::Postgres(connection_config)) = connection.config.clone() {
         let mut config = tokio_postgres::Config::new();
@@ -16,28 +17,31 @@ fn warm_up(app_config: &Config) {
             .password(&connection_config.password)
             .port(connection_config.port as u16);
 
-        let mut client = TestPostgresClient::new_with_postgres_config(config);
-        client.execute_query(&format!(
-            "DROP DATABASE IF EXISTS {}",
-            connection_config.database
-        ));
-        client.execute_query(&format!("CREATE DATABASE {}", connection_config.database));
+        let client = TestPostgresClient::new_with_postgres_config(config).await;
+        client
+            .execute_query(&format!(
+                "DROP DATABASE IF EXISTS {}",
+                connection_config.database
+            ))
+            .await;
+        client
+            .execute_query(&format!("CREATE DATABASE {}", connection_config.database))
+            .await;
     }
 }
 
-pub fn run_connector_test<T: FnOnce(Config) + panic::UnwindSafe>(db_type: &str, test: T) {
+pub async fn run_connector_test<F: Future, T: (FnOnce(Config) -> F) + panic::UnwindSafe>(
+    db_type: &str,
+    test: T,
+) {
     let dozer_config_path = PathBuf::from(format!("src/tests/cases/{db_type}/dozer-config.yaml"));
 
     let dozer_config = std::fs::read_to_string(dozer_config_path).unwrap();
     let dozer_config = dozer_types::serde_yaml::from_str::<Config>(&dozer_config).unwrap();
 
-    warm_up(&dozer_config);
+    warm_up(&dozer_config).await;
 
-    let result = panic::catch_unwind(|| {
-        test(dozer_config);
-    });
-
-    assert!(result.is_ok())
+    test(dozer_config).await;
 }
 
 pub fn get_config(app_config: Config) -> tokio_postgres::Config {

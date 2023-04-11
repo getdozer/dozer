@@ -399,6 +399,34 @@ fn get_binary_operator_type(
                     SourceDefinition::Dynamic,
                     false,
                 )),
+                (
+                    FieldType::Boolean,
+                    FieldType::UInt
+                    | FieldType::U128
+                    | FieldType::Int
+                    | FieldType::I128
+                    | FieldType::String
+                    | FieldType::Text,
+                ) => Ok(ExpressionType::new(
+                    FieldType::Boolean,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
+                (
+                    FieldType::UInt
+                    | FieldType::U128
+                    | FieldType::Int
+                    | FieldType::I128
+                    | FieldType::String
+                    | FieldType::Text,
+                    FieldType::Boolean,
+                ) => Ok(ExpressionType::new(
+                    FieldType::Boolean,
+                    false,
+                    SourceDefinition::Dynamic,
+                    false,
+                )),
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
                         "cannot apply {operator:?} to {left_field_type:?} and {right_field_type:?}"

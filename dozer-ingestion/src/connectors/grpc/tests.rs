@@ -30,7 +30,7 @@ async fn ingest_grpc(
 ) -> (IngestServiceClient<Channel>, IngestionIterator) {
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
-    std::thread::spawn(move || {
+    tokio::spawn(async move {
         let grpc_connector = crate::connectors::get_connector(Connection {
             config: Some(ConnectionConfig::Grpc(GrpcConfig {
                 schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
@@ -43,9 +43,10 @@ async fn ingest_grpc(
         .unwrap();
 
         let tables = grpc_connector
-            .list_columns(grpc_connector.list_tables().unwrap())
+            .list_columns(grpc_connector.list_tables().await.unwrap())
+            .await
             .unwrap();
-        grpc_connector.start(&ingestor, tables).unwrap();
+        grpc_connector.start(&ingestor, tables).await.unwrap();
     });
 
     let retries = 10;
@@ -65,7 +66,7 @@ async fn ingest_grpc(
     (res.unwrap(), iterator)
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn ingest_grpc_default() {
     let schemas = json!({
       "users": {
@@ -145,7 +146,7 @@ async fn test_serialize_arrow_schema() {
     info!("{str}");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn ingest_grpc_arrow() {
     let schemas = json!([{
       "name": "users",

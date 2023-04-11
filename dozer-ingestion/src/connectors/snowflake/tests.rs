@@ -10,7 +10,6 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::models::connection::ConnectionConfig;
 use odbc::create_environment_v3;
 use rand::Rng;
-use std::thread;
 
 use crate::errors::ConnectorError::TableNotFound;
 use crate::test_util::run_connector_test;
@@ -18,10 +17,10 @@ use crate::test_util::run_connector_test;
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
-#[test]
+#[tokio::test]
 #[ignore]
-fn test_disabled_connector_and_read_from_stream() {
-    run_connector_test("snowflake", |config| {
+async fn test_disabled_connector_and_read_from_stream() {
+    run_connector_test("snowflake", |config| async move {
         let connection = config.connections.get(0).unwrap();
         let source = config.sources.get(0).unwrap().clone();
 
@@ -56,11 +55,10 @@ fn test_disabled_connector_and_read_from_stream() {
         let connector = get_connector(connection_config).unwrap();
         let tables = connector
             .list_columns(vec![TableIdentifier::from_table_name(table_name.clone())])
+            .await
             .unwrap();
 
-        thread::spawn(move || {
-            let _ = connector.start(&ingestor, tables);
-        });
+        tokio::spawn(async move { connector.start(&ingestor, tables).await });
 
         let mut i = 0;
         while i < 100 {
@@ -93,13 +91,13 @@ fn test_disabled_connector_and_read_from_stream() {
         }
 
         assert_eq!(100, i);
-    });
+    }).await
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
-fn test_disabled_connector_get_schemas_test() {
-    run_connector_test("snowflake", |config| {
+async fn test_disabled_connector_get_schemas_test() {
+    run_connector_test("snowflake", |config| async move {
         let connection = config.connections.get(0).unwrap();
         let connector = get_connector(connection.clone()).unwrap();
         let client = get_client(connection);
@@ -136,8 +134,9 @@ fn test_disabled_connector_get_schemas_test() {
 
         let table_infos = connector
             .list_columns(vec![TableIdentifier::from_table_name(table_name.clone())])
+            .await
             .unwrap();
-        let schemas = connector.as_ref().get_schemas(&table_infos).unwrap();
+        let schemas = connector.as_ref().get_schemas(&table_infos).await.unwrap();
 
         let source_schema = schemas.get(0).unwrap().as_ref().unwrap();
 
@@ -162,19 +161,21 @@ fn test_disabled_connector_get_schemas_test() {
         client
             .execute_query(&conn, &format!("DROP TABLE {table_name};"))
             .unwrap();
-    });
+    })
+    .await
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
-fn test_disabled_connector_missing_table_validator() {
-    run_connector_test("snowflake", |config| {
+async fn test_disabled_connector_missing_table_validator() {
+    run_connector_test("snowflake", |config| async move {
         let connection = config.connections.get(0).unwrap();
         let connector = get_connector(connection.clone()).unwrap();
 
         let not_existing_table = "not_existing_table".to_string();
-        let result =
-            connector.list_columns(vec![TableIdentifier::from_table_name(not_existing_table)]);
+        let result = connector
+            .list_columns(vec![TableIdentifier::from_table_name(not_existing_table)])
+            .await;
 
         assert!(matches!(result.unwrap_err(), TableNotFound(_)));
 
@@ -183,17 +184,19 @@ fn test_disabled_connector_missing_table_validator() {
             .list_columns(vec![TableIdentifier::from_table_name(
                 existing_table.clone(),
             )])
+            .await
             .unwrap();
-        let result = connector.get_schemas(&table_infos).unwrap();
+        let result = connector.get_schemas(&table_infos).await.unwrap();
 
         assert!(result.get(0).unwrap().is_ok());
-    });
+    })
+    .await
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
-fn test_disabled_connector_is_stream_created() {
-    run_connector_test("snowflake", |config| {
+async fn test_disabled_connector_is_stream_created() {
+    run_connector_test("snowflake", |config| async move {
         let connection = config.connections.get(0).unwrap();
         let snowflake_config = match connection.config.as_ref().unwrap() {
             ConnectionConfig::Snowflake(snowflake_config) => snowflake_config.clone(),
@@ -240,5 +243,6 @@ fn test_disabled_connector_is_stream_created() {
             !result,
             "Stream was dropped, so result of check should be false"
         );
-    });
+    })
+    .await
 }

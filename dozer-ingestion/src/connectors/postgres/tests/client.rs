@@ -1,8 +1,8 @@
 use crate::connectors::postgres::connection::helper::{connect, map_connection_config};
 use dozer_types::models::connection::ConnectionConfig;
 use dozer_types::rust_decimal::Decimal;
-use postgres::Client;
 use std::fmt::Write;
+use tokio_postgres::Client;
 
 pub struct TestPostgresClient {
     client: Client,
@@ -10,10 +10,10 @@ pub struct TestPostgresClient {
 }
 
 impl TestPostgresClient {
-    pub fn new(auth: &ConnectionConfig) -> Self {
+    pub async fn new(auth: &ConnectionConfig) -> Self {
         let postgres_config = map_connection_config(auth).unwrap();
 
-        let client = connect(postgres_config.clone()).unwrap();
+        let client = connect(postgres_config.clone()).await.unwrap();
 
         Self {
             client,
@@ -21,8 +21,8 @@ impl TestPostgresClient {
         }
     }
 
-    pub fn new_with_postgres_config(postgres_config: tokio_postgres::Config) -> Self {
-        let client = connect(postgres_config.clone()).unwrap();
+    pub async fn new_with_postgres_config(postgres_config: tokio_postgres::Config) -> Self {
+        let client = connect(postgres_config.clone()).await.unwrap();
 
         Self {
             client,
@@ -30,11 +30,11 @@ impl TestPostgresClient {
         }
     }
 
-    pub fn execute_query(&mut self, query: &str) {
-        self.client.query(query, &[]).unwrap();
+    pub async fn execute_query(&self, query: &str) {
+        self.client.query(query, &[]).await.unwrap();
     }
 
-    pub fn create_simple_table(&mut self, schema: &str, table_name: &str) {
+    pub async fn create_simple_table(&self, schema: &str, table_name: &str) {
         self.execute_query(&format!(
             "CREATE TABLE {schema}.{table_name}
             (   
@@ -43,31 +43,35 @@ impl TestPostgresClient {
                 description VARCHAR(512),
                 weight DOUBLE PRECISION
             );"
-        ));
+        ))
+        .await;
     }
 
-    pub fn create_view(&mut self, schema: &str, table_name: &str, view_name: &str) {
+    pub async fn create_view(&self, schema: &str, table_name: &str, view_name: &str) {
         self.execute_query(&format!(
             "CREATE VIEW {schema}.{view_name} AS
             SELECT id, name
             FROM {schema}.{table_name}"
-        ));
+        ))
+        .await;
     }
 
-    pub fn drop_schema(&mut self, schema: &str) {
-        self.execute_query(&format!("DROP SCHEMA IF EXISTS {schema} CASCADE"));
+    pub async fn drop_schema(&self, schema: &str) {
+        self.execute_query(&format!("DROP SCHEMA IF EXISTS {schema} CASCADE"))
+            .await;
     }
 
-    pub fn drop_table(&mut self, schema: &str, table_name: &str) {
-        self.execute_query(&format!("DROP TABLE IF EXISTS {schema}.{table_name}"));
+    pub async fn drop_table(&self, schema: &str, table_name: &str) {
+        self.execute_query(&format!("DROP TABLE IF EXISTS {schema}.{table_name}"))
+            .await;
     }
 
-    pub fn create_schema(&mut self, schema: &str) {
-        self.drop_schema(schema);
-        self.execute_query(&format!("CREATE SCHEMA {schema}"));
+    pub async fn create_schema(&self, schema: &str) {
+        self.drop_schema(schema).await;
+        self.execute_query(&format!("CREATE SCHEMA {schema}")).await;
     }
 
-    pub fn insert_rows(&mut self, table_name: &str, count: u64, offset: Option<u64>) {
+    pub async fn insert_rows(&self, table_name: &str, count: u64, offset: Option<u64>) {
         let offset = offset.map_or(0, |o| o);
         let mut buf = String::new();
         for i in 0..count {
@@ -85,6 +89,6 @@ impl TestPostgresClient {
 
         let query = format!("insert into {table_name}(name, description, weight) values {buf}",);
 
-        self.execute_query(&query);
+        self.execute_query(&query).await;
     }
 }

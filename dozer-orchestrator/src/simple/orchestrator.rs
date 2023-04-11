@@ -18,8 +18,8 @@ use dozer_api::{actix_web::dev::ServerHandle, grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
-use dozer_core::errors::ExecutionError::InternalError;
 
+use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
@@ -36,6 +36,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};
+use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 
@@ -166,12 +167,16 @@ impl Orchestrator for SimpleOrchestrator {
             running,
             self.multi_pb.clone(),
         );
+        let runtime = Runtime::new().expect("Failed to create runtime for running apps");
         let settings = LogSinkSettings {
             pipeline_dir: pipeline_dir.clone(),
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
-        let dag_executor =
-            executor.create_dag_executor(settings, get_executor_options(&self.config))?;
+        let dag_executor = executor.create_dag_executor(
+            Arc::new(runtime),
+            settings,
+            get_executor_options(&self.config),
+        )?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -185,7 +190,9 @@ impl Orchestrator for SimpleOrchestrator {
     fn list_connectors(
         &self,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
-        Executor::get_tables(&self.config.connections)
+        Runtime::new()
+            .expect("Failed to create runtime for listing connectors")
+            .block_on(Executor::get_tables(&self.config.connections))
     }
 
     fn generate_token(&self) -> Result<String, OrchestrationError> {
@@ -238,12 +245,14 @@ impl Orchestrator for SimpleOrchestrator {
 
         // Api Path
         if !api_dir.exists() {
-            fs::create_dir_all(api_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(&api_dir)
+                .map_err(|e| ExecutionError::FileSystemError(api_dir, e))?;
         }
 
         // cache Path
         if !cache_dir.exists() {
-            fs::create_dir_all(cache_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(&cache_dir)
+                .map_err(|e| ExecutionError::FileSystemError(cache_dir, e))?;
         }
 
         // Pipeline path
@@ -254,11 +263,12 @@ impl Orchestrator for SimpleOrchestrator {
             )
         })?;
 
+        let runtime = Runtime::new().expect("Failed to create runtime for migration");
         let settings = LogSinkSettings {
             pipeline_dir: pipeline_home_dir.clone(),
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
-        let dag = builder.build(settings)?;
+        let dag = builder.build(Arc::new(runtime), settings)?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
@@ -304,12 +314,14 @@ impl Orchestrator for SimpleOrchestrator {
     fn clean(&mut self) -> Result<(), OrchestrationError> {
         let cache_dir = PathBuf::from(self.config.cache_dir.clone());
         if cache_dir.exists() {
-            fs::remove_dir_all(&cache_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::remove_dir_all(&cache_dir)
+                .map_err(|e| ExecutionError::FileSystemError(cache_dir, e))?;
         };
 
         let home_dir = PathBuf::from(self.config.home_dir.clone());
         if home_dir.exists() {
-            fs::remove_dir_all(&home_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::remove_dir_all(&home_dir)
+                .map_err(|e| ExecutionError::FileSystemError(home_dir, e))?;
         };
 
         Ok(())

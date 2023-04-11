@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, flags::Flags,
     source::Source, telemetry::TelemetryConfig,
@@ -17,12 +19,12 @@ pub struct Config {
 
     #[prost(string, tag = "3")]
     #[serde(default = "default_home_dir")]
-    ///directory for all process; Default: ~/.dozer
+    ///directory for all process; Default: ./.dozer
     pub home_dir: String,
 
     #[prost(string, tag = "4")]
     #[serde(default = "default_cache_dir")]
-    ///directory for cache. Default: ~/.dozer/cache
+    ///directory for cache. Default: ./.dozer/cache
     pub cache_dir: String,
 
     #[prost(message, repeated, tag = "5")]
@@ -88,7 +90,11 @@ pub fn default_home_dir() -> String {
 }
 
 pub fn default_cache_dir() -> String {
-    format!("{}/cache", DEFAULT_HOME_DIR)
+    AsRef::<Path>::as_ref(DEFAULT_HOME_DIR)
+        .join("cache")
+        .to_str()
+        .unwrap()
+        .to_string()
 }
 
 pub fn default_file_buffer_capacity() -> u64 {

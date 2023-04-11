@@ -20,50 +20,44 @@ const ARROW_PORT: u32 = 60056;
 const BATCH_SIZE: usize = 100;
 
 fn grpc(criter: &mut Criterion) {
+    let runtime = Runtime::new().unwrap();
     let configs = load_test_config();
 
-    Runtime::new().unwrap().block_on(async {
-        let multi_pb = MultiProgress::new();
-        for config in configs {
-            let mut iterator = helper::get_connection_iterator(config.clone()).await;
-            let pb = helper::get_progress();
-            pb.set_message("consumer");
+    let multi_pb = MultiProgress::new();
+    for config in configs {
+        let mut iterator = runtime.block_on(helper::get_connection_iterator(config.clone()));
+        let pb = helper::get_progress();
+        pb.set_message("consumer");
 
-            let pb2 = helper::get_progress();
-            pb2.set_message("producer");
+        let pb2 = helper::get_progress();
+        pb2.set_message("producer");
 
-            multi_pb.add(pb.clone());
-            multi_pb.add(pb2.clone());
-            let mut count = 0;
+        multi_pb.add(pb.clone());
+        multi_pb.add(pb2.clone());
+        let mut count = 0;
 
-            // Start ingesting using arrow df
-            if config.connection.name == "users_arrow" {
-                thread::spawn(move || {
-                    let rt = Runtime::new().unwrap();
-                    rt.block_on(async move {
-                        ingest_arrow(BATCH_SIZE, config.size, pb2).await;
-                    });
-                });
-            }
-            let mut n_count = 0;
-            criter.bench_with_input(
-                BenchmarkId::new(config.connection.name, config.size),
-                &config.size,
-                |b, _| {
-                    b.iter(|| {
-                        let r = iterator.next();
-                        if r.is_none() {
-                            n_count += 1;
-                        }
-                        count += 1;
-                        if count % 100 == 0 {
-                            pb.set_position(count as u64);
-                        }
-                    })
-                },
-            );
+        // Start ingesting using arrow df
+        if config.connection.name == "users_arrow" {
+            runtime.spawn(ingest_arrow(BATCH_SIZE, config.size, pb2));
         }
-    });
+        let mut n_count = 0;
+        criter.bench_with_input(
+            BenchmarkId::new(config.connection.name, config.size),
+            &config.size,
+            |b, _| {
+                b.iter(|| {
+                    let r = iterator.next();
+                    if r.is_none() {
+                        n_count += 1;
+                    }
+                    count += 1;
+                    if count % 100 == 0 {
+                        pb.set_position(count as u64);
+                    }
+                })
+            },
+        );
+    }
 }
 
 async fn ingest_arrow(batch_size: usize, total: usize, pb: ProgressBar) {

@@ -7,6 +7,7 @@ use crate::connectors::{
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::DeltaLakeConfig;
+use tonic::async_trait;
 
 #[derive(Debug)]
 pub struct DeltaLakeConnector {
@@ -20,6 +21,7 @@ impl DeltaLakeConnector {
     }
 }
 
+#[async_trait]
 impl Connector for DeltaLakeConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
@@ -28,11 +30,11 @@ impl Connector for DeltaLakeConnector {
         todo!()
     }
 
-    fn validate_connection(&self) -> Result<(), ConnectorError> {
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
         Ok(())
     }
 
-    fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
         Ok(self
             .config
             .tables
@@ -41,7 +43,7 @@ impl Connector for DeltaLakeConnector {
             .collect())
     }
 
-    fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
         let mut delta_table_names = vec![];
         // Collect delta table names in config, the validate table info
         for delta_table in self.config.tables.iter() {
@@ -58,7 +60,10 @@ impl Connector for DeltaLakeConnector {
         Ok(())
     }
 
-    fn list_columns(&self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, ConnectorError> {
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
         let table_infos = tables
             .into_iter()
             .map(|table| ListOrFilterColumns {
@@ -68,7 +73,7 @@ impl Connector for DeltaLakeConnector {
             })
             .collect::<Vec<_>>();
         let schema_helper = SchemaHelper::new(self.config.clone());
-        let source_schemas = schema_helper.get_schemas(self.id, &table_infos)?;
+        let source_schemas = schema_helper.get_schemas(self.id, &table_infos).await?;
 
         let mut result = vec![];
         for (source_schema, table_info) in source_schemas.into_iter().zip(table_infos) {
@@ -87,7 +92,10 @@ impl Connector for DeltaLakeConnector {
         Ok(result)
     }
 
-    fn get_schemas(&self, table_infos: &[TableInfo]) -> ConnectorResult<Vec<SourceSchemaResult>> {
+    async fn get_schemas(
+        &self,
+        table_infos: &[TableInfo],
+    ) -> ConnectorResult<Vec<SourceSchemaResult>> {
         let table_infos = table_infos
             .iter()
             .map(|table_info| ListOrFilterColumns {
@@ -97,11 +105,11 @@ impl Connector for DeltaLakeConnector {
             })
             .collect::<Vec<_>>();
         let schema_helper = SchemaHelper::new(self.config.clone());
-        schema_helper.get_schemas(self.id, &table_infos)
+        schema_helper.get_schemas(self.id, &table_infos).await
     }
 
-    fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
+    async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
         let reader = DeltaLakeReader::new(self.config.clone());
-        reader.read(&tables, ingestor)
+        reader.read(&tables, ingestor).await
     }
 }

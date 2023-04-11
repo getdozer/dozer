@@ -16,18 +16,18 @@ use super::{
     CudConnectorTest, DataReadyConnectorTest, InsertOnlyConnectorTest,
 };
 
-pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
-    let (_connector_test, connector) = T::new();
+pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
+    let (_connector_test, connector) = T::new().await;
 
     // List tables.
-    let tables = connector.list_tables().unwrap();
-    connector.validate_tables(&tables).unwrap();
+    let tables = connector.list_tables().await.unwrap();
+    connector.validate_tables(&tables).await.unwrap();
 
     // List columns.
-    let tables = connector.list_columns(tables).unwrap();
+    let tables = connector.list_columns(tables).await.unwrap();
 
     // Get schemas.
-    let schemas = connector.get_schemas(&tables).unwrap();
+    let schemas = connector.get_schemas(&tables).await.unwrap();
     let schemas = schemas
         .into_iter()
         .map(|schema| {
@@ -39,8 +39,8 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
 
     // Run connector.
     let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
-    std::thread::spawn(move || {
-        if let Err(e) = connector.start(&ingestor, tables) {
+    tokio::spawn(async move {
+        if let Err(e) = connector.start(&ingestor, tables).await {
             error!("Connector `start` returned error: {e}");
         }
     });
@@ -77,7 +77,7 @@ pub fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     assert!(num_operations > 0);
 }
 
-pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
+pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
     let table_name = "test_table".to_string();
     for data_fn in [
         data::records_with_primary_key,
@@ -93,7 +93,7 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             table_name.clone(),
             (fields.clone(), primary_index.clone()),
             records.clone(),
-        ) else {
+        ).await else {
             warn!("Connector does not support schema name {schema_name:?} or primary index {primary_index:?}.");
             continue;
         };
@@ -107,7 +107,7 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         }
 
         // Validate connection.
-        connector.validate_connection().unwrap();
+        connector.validate_connection().await.unwrap();
 
         // Validate tables.
         connector
@@ -115,11 +115,13 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
                 schema_name.clone(),
                 table_name.clone(),
             )])
+            .await
             .unwrap();
 
         // List columns.
         let tables = connector
             .list_columns(vec![TableIdentifier::new(schema_name, table_name.clone())])
+            .await
             .unwrap();
         assert_eq!(tables.len(), 1);
         assert_eq!(tables[0].name, table_name);
@@ -132,7 +134,7 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         );
 
         // Validate schemas.
-        let schemas = connector.get_schemas(&tables).unwrap();
+        let schemas = connector.get_schemas(&tables).await.unwrap();
         assert_eq!(schemas.len(), 1);
         let actual_schema = &schemas[0].as_ref().unwrap().schema;
         assert_eq!(actual_schema.fields, actual_fields);
@@ -140,8 +142,8 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
 
         // Run the connector and check data is ingested.
         let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
-        std::thread::spawn(move || {
-            if let Err(e) = connector.start(&ingestor, tables) {
+        tokio::spawn(async move {
+            if let Err(e) = connector.start(&ingestor, tables).await {
                 error!("Connector `start` returned error: {e}")
             }
         });
@@ -189,7 +191,7 @@ pub fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
     }
 }
 
-pub fn run_test_suite_basic_cud<T: CudConnectorTest>() {
+pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
     // Load test data.
     let ((fields, primary_index), operations) = data::cud_operations();
 
@@ -202,22 +204,24 @@ pub fn run_test_suite_basic_cud<T: CudConnectorTest>() {
         (fields, primary_index),
         vec![],
     )
+    .await
     .unwrap();
 
     // Get schema.
     let tables = connector
         .list_columns(vec![TableIdentifier::new(schema_name, table_name)])
+        .await
         .unwrap();
-    let mut schemas = connector.get_schemas(&tables).unwrap();
+    let mut schemas = connector.get_schemas(&tables).await.unwrap();
     let actual_schema = schemas.remove(0).unwrap().schema;
 
     // Feed data to connector.
-    connector_test.start_cud(operations.clone());
+    connector_test.start_cud(operations.clone()).await;
 
     // Run the connector.
     let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
-    std::thread::spawn(move || {
-        if let Err(e) = connector.start(&ingestor, vec![]) {
+    tokio::spawn(async move {
+        if let Err(e) = connector.start(&ingestor, vec![]).await {
             error!("Connector `start` returned error: {e}")
         }
     });

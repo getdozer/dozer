@@ -40,21 +40,21 @@ pub fn get_progress() -> ProgressBar {
 
 pub async fn get_connection_iterator(config: TestConfig) -> IngestionIterator {
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-    std::thread::spawn(move || {
+    tokio::spawn(async move {
         let grpc_connector = dozer_ingestion::connectors::get_connector(config.connection).unwrap();
 
-        let tables = config
-            .tables_filter
-            .map(|table_names| {
-                table_names
-                    .into_iter()
-                    .map(TableIdentifier::from_table_name)
-                    .collect()
-            })
-            .unwrap_or_else(|| grpc_connector.list_tables().unwrap());
-        let tables = grpc_connector.list_columns(tables).unwrap();
+        let tables = match config.tables_filter.map(|table_names| {
+            table_names
+                .into_iter()
+                .map(TableIdentifier::from_table_name)
+                .collect()
+        }) {
+            Some(tables) => tables,
+            None => grpc_connector.list_tables().await.unwrap(),
+        };
+        let tables = grpc_connector.list_columns(tables).await.unwrap();
 
-        let res = grpc_connector.start(&ingestor, tables);
+        let res = grpc_connector.start(&ingestor, tables).await;
         if let Err(e) = res {
             error!("Error: {:?}", e);
         }
