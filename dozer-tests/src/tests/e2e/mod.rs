@@ -18,6 +18,7 @@ use tempdir::TempDir;
 
 mod basic;
 mod basic_sql;
+mod left_join;
 
 struct DozerE2eTest {
     _home_dir: TempDir,
