@@ -35,6 +35,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};
+
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
 use tokio::sync::oneshot;
@@ -150,20 +151,25 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
+        let runtime = Runtime::new().expect("Failed to create runtime for running apps");
+
         // gRPC notifier channel
         let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
         let (operation_sender, operation_receiver) = channel::unbounded();
         let (status_update_sender, status_update_receiver) = channel::unbounded();
         let internal_app_config = self.config.clone();
-        let _intern_pipeline_thread = thread::spawn(move || {
-            if let Err(e) = start_internal_pipeline_server(
+        let _intern_pipeline_thread = runtime.spawn(async move {
+            let result = start_internal_pipeline_server(
                 internal_app_config,
                 (
                     alias_redirected_receiver,
                     operation_receiver,
                     status_update_receiver,
                 ),
-            ) {
+            )
+            .await;
+
+            if let Err(e) = result {
                 std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
             }
 
@@ -179,7 +185,6 @@ impl Orchestrator for SimpleOrchestrator {
             &pipeline_dir,
             running,
         );
-        let runtime = Runtime::new().expect("Failed to create runtime for running apps");
         let settings = LogSinkSettings {
             pipeline_dir: pipeline_dir.clone(),
             file_buffer_capacity: get_file_buffer_capacity(&self.config),

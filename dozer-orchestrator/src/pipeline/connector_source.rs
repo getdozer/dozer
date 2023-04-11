@@ -18,8 +18,6 @@ use dozer_types::types::{Operation, Schema, SchemaIdentifier, SourceDefinition};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_types::grpc_types::internal::StatusUpdate;
 use tokio::runtime::Runtime;
 
 #[derive(Debug)]
@@ -98,7 +96,7 @@ impl ConnectorSourceFactory {
             tables,
             connector: Mutex::new(Some(connector)),
             runtime,
-            notifier
+            notifier,
         })
     }
 }
