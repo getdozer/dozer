@@ -12,7 +12,6 @@ use crate::utils::{
 };
 use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
-use dozer_api::errors::ApiError;
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{actix_web::dev::ServerHandle, grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
@@ -30,7 +29,7 @@ use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
 use futures::stream::FuturesUnordered;
-use futures::{StreamExt, TryFutureExt};
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -60,7 +59,8 @@ impl Orchestrator for SimpleOrchestrator {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
 
-        let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
+        let rt =
+            Arc::new(tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime"));
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
             let mut futures = FuturesUnordered::new();
@@ -83,31 +83,29 @@ impl Orchestrator for SimpleOrchestrator {
                     .map_err(OrchestrationError::RoCacheInitFailed)?,
             );
             let pipeline_dir = get_pipeline_dir(&self.config);
-            let cache_endpoints = self
-                .config
-                .endpoints
-                .iter()
-                .map(|endpoint| -> Result<Arc<CacheEndpoint>, ApiError> {
-                    let schema = schemas
-                        .get(&endpoint.name)
-                        .expect("schema is expected to exist");
-                    let log_path = get_endpoint_log_path(&pipeline_dir, &endpoint.name);
-                    let (cache_endpoint, task) = CacheEndpoint::new(
-                        &*cache_manager,
-                        schema.clone(),
-                        endpoint.clone(),
-                        &log_path,
-                        operations_sender.clone(),
-                        Some(self.multi_pb.clone()),
-                    )?;
-                    if let Some(task) = task {
-                        futures.push(flatten_join_handle(tokio::spawn(
-                            task.map_err(OrchestrationError::CacheBuildFailed),
-                        )));
-                    }
-                    Ok(Arc::new(cache_endpoint))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let mut cache_endpoints = vec![];
+            for endpoint in &self.config.endpoints {
+                let schema = schemas
+                    .get(&endpoint.name)
+                    .expect("schema is expected to exist");
+                let log_path = get_endpoint_log_path(&pipeline_dir, &endpoint.name);
+                let (cache_endpoint, task) = CacheEndpoint::new(
+                    &*cache_manager,
+                    schema.clone(),
+                    endpoint.clone(),
+                    rt.clone(),
+                    &log_path,
+                    operations_sender.clone(),
+                    Some(self.multi_pb.clone()),
+                )
+                .await?;
+                if let Some(task) = task {
+                    futures.push(flatten_join_handle(rt.spawn_blocking(move || {
+                        task().map_err(OrchestrationError::CacheBuildFailed)
+                    })));
+                }
+                cache_endpoints.push(Arc::new(cache_endpoint));
+            }
 
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());

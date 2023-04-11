@@ -1,10 +1,4 @@
-use std::{
-    fs::{File, OpenOptions},
-    io::{BufReader, Read},
-    path::Path,
-    thread::sleep,
-    time::Duration,
-};
+use std::{io::SeekFrom, path::Path, time::Duration};
 
 use dozer_cache::errors::{CacheError, LogError};
 use dozer_core::executor::ExecutorOperation;
@@ -13,7 +7,10 @@ use dozer_types::{
     indicatif::{MultiProgress, ProgressBar, ProgressStyle},
     log::trace,
 };
-use futures_util::{FutureExt, Stream};
+use tokio::{
+    fs::{File, OpenOptions},
+    io::{AsyncReadExt, AsyncSeekExt, BufReader},
+};
 
 pub struct LogReader {
     reader: BufReader<File>,
@@ -24,7 +21,7 @@ pub struct LogReader {
 }
 const SLEEP_TIME_MS: u16 = 300;
 impl LogReader {
-    pub fn new(
+    pub async fn new(
         path: &Path,
         name: &str,
         pos: u64,
@@ -33,12 +30,14 @@ impl LogReader {
         let file = OpenOptions::new()
             .read(true)
             .open(path)
+            .await
             .map_err(|_| CacheError::LogFileNotFound(path.to_path_buf()))?;
 
         let mut reader = BufReader::new(file);
 
         reader
-            .seek_relative(pos as i64)
+            .seek(SeekFrom::Start(pos))
+            .await
             .map_err(|e| CacheError::LogError(LogError::SeekError(name.to_string(), pos, e)))?;
 
         let pb = attach_progress(multi_pb);
@@ -51,9 +50,10 @@ impl LogReader {
             count: 0,
         })
     }
-    async fn next_op(&mut self) -> ExecutorOperation {
+
+    pub async fn next_op(&mut self) -> ExecutorOperation {
         loop {
-            let msg = read_msg(&mut self.reader);
+            let msg = read_msg(&mut self.reader).await;
             match msg {
                 Ok((msg, len)) => {
                     self.pos += len;
@@ -70,47 +70,28 @@ impl LogReader {
                     );
 
                     //  go to sleep for a bit
-                    sleep(Duration::from_millis(SLEEP_TIME_MS.into()));
+                    tokio::time::sleep(Duration::from_millis(SLEEP_TIME_MS.into())).await;
                 }
             }
         }
     }
 }
 
-impl Stream for LogReader {
-    type Item = ExecutorOperation;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-        match Box::pin(this.next_op()).poll_unpin(cx) {
-            std::task::Poll::Ready(msg) => std::task::Poll::Ready(Some(msg)),
-            std::task::Poll::Pending => std::task::Poll::Pending,
-        }
-    }
-}
-
-fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u64), LogError> {
+async fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u64), LogError> {
     let mut buf = [0; 8];
-    reader.read_exact(&mut buf).map_err(LogError::ReadError)?;
+    reader
+        .read_exact(&mut buf)
+        .await
+        .map_err(LogError::ReadError)?;
     let len = u64::from_le_bytes(buf);
 
-    let buf = read_n(reader, len);
+    let mut buf = vec![0; len as usize];
+    reader
+        .read_exact(&mut buf)
+        .await
+        .map_err(LogError::ReadError)?;
     let msg = bincode::deserialize(&buf).map_err(LogError::DeserializationError)?;
     Ok((msg, len + 8))
-}
-fn read_n<R>(reader: R, bytes_to_read: u64) -> Vec<u8>
-where
-    R: Read,
-{
-    let mut buf = vec![];
-    let mut chunk = reader.take(bytes_to_read);
-
-    let n = chunk.read_to_end(&mut buf).expect("Didn't read enough");
-    assert_eq!(bytes_to_read as usize, n);
-    buf
 }
 
 fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {

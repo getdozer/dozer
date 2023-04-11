@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Record, SchemaWithIndex, SourceDefinition};
 use dozer_types::{
@@ -148,8 +146,4 @@ pub fn get_sample_records(schema: Schema) -> Vec<CacheRecord> {
         }
     }
     records
-}
-
-pub fn get_log_path() -> PathBuf {
-    Path::new("./.dozer/pipeline/films").to_path_buf()
 }
