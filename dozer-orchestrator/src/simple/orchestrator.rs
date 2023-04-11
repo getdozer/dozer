@@ -95,9 +95,9 @@ impl Orchestrator for SimpleOrchestrator {
                     schema.clone(),
                     endpoint.clone(),
                     self.runtime.clone(),
-                        &log_path,
-                        operations_sender.clone(),
-                    )
+                    &log_path,
+                    operations_sender.clone(),
+                )
                 .await?;
                 if let Some(task) = task {
                     futures.push(flatten_join_handle(tokio::task::spawn_blocking(

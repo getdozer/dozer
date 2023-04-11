@@ -37,7 +37,7 @@ pub async fn create_cache(
     let name = cache.name().to_string();
 
     // Create log reader.
-    let log_reader = LogReader::new(log_path, &name, 0)?;
+    let log_reader = LogReader::new(log_path, &name, 0).await?;
 
     // Spawn a task to write to cache.
     let task = move || build_cache(cache, runtime, log_reader, schema, operations_sender);
