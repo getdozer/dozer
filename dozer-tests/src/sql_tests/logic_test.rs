@@ -113,6 +113,37 @@ fn create_dozer() -> Result<Dozer> {
 
 const BASE_PATH: &str = "dozer-tests/src/sql_tests";
 
+#[tokio::test]
+async fn logic_test() -> Result<()> {
+    env_logger::init();
+
+    let suits = std::fs::read_dir("src/sql_tests/full").unwrap();
+    let mut files = vec![];
+    for suit in suits {
+        let suit = suit.unwrap().path();
+        for entry in WalkDir::new(suit)
+            .min_depth(0)
+            .max_depth(100)
+            .sort_by(|a, b| a.file_name().cmp(b.file_name()))
+            .into_iter()
+            .filter(|e| !e.as_ref().unwrap().file_type().is_dir())
+        {
+            files.push(entry)
+        }
+    }
+    for file in files.into_iter() {
+        let file_path = file.as_ref().unwrap().path();
+
+        let mut runner = Runner::new(create_dozer()?);
+        let records = parse_file(file_path).unwrap();
+        // Run dozer to check if dozer's outputs satisfy expected results
+        for record in records.iter() {
+            runner.run_async(record.clone()).await.unwrap();
+        }
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();

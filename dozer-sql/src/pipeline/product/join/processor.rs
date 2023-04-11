@@ -34,7 +34,6 @@ impl Processor for ProductProcessor {
             1 => &JoinBranch::Right,
             _ => return Err(ExecutionError::InvalidPort(from_port)),
         };
-
         let records = match op {
             Operation::Delete { ref old } => self
                 .join_operator
