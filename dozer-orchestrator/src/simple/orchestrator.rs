@@ -23,6 +23,7 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
@@ -31,26 +32,26 @@ use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};
-
-use dozer_types::indicatif::MultiProgress;
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
+    runtime: Arc<Runtime>,
     pub multi_pb: MultiProgress,
 }
 
 impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
+        let runtime = Arc::new(Runtime::new().expect("Failed to initialize tokio runtime"));
         Self {
             config,
+            runtime,
             multi_pb: MultiProgress::new(),
         }
     }
@@ -61,10 +62,8 @@ impl Orchestrator for SimpleOrchestrator {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
 
-        let rt =
-            Arc::new(tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime"));
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
-        rt.block_on(async {
+        self.runtime.block_on(async {
             let mut futures = FuturesUnordered::new();
 
             // Load schemas.
@@ -95,16 +94,16 @@ impl Orchestrator for SimpleOrchestrator {
                     &*cache_manager,
                     schema.clone(),
                     endpoint.clone(),
-                    rt.clone(),
+                    self.runtime.clone(),
                     &log_path,
                     operations_sender.clone(),
                     Some(self.multi_pb.clone()),
                 )
                 .await?;
                 if let Some(task) = task {
-                    futures.push(flatten_join_handle(rt.spawn_blocking(move || {
-                        task().map_err(OrchestrationError::CacheBuildFailed)
-                    })));
+                    futures.push(flatten_join_handle(tokio::task::spawn_blocking(
+                        move || task().map_err(OrchestrationError::CacheBuildFailed),
+                    )));
                 }
                 cache_endpoints.push(Arc::new(cache_endpoint));
             }
@@ -197,7 +196,7 @@ impl Orchestrator for SimpleOrchestrator {
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
         let dag_executor = executor.create_dag_executor(
-            Arc::new(runtime),
+            self.runtime.clone(),
             settings,
             get_executor_options(&self.config),
             Some((
@@ -219,8 +218,7 @@ impl Orchestrator for SimpleOrchestrator {
     fn list_connectors(
         &self,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
-        Runtime::new()
-            .expect("Failed to create runtime for listing connectors")
+        self.runtime
             .block_on(Executor::get_tables(&self.config.connections))
     }
 
@@ -292,12 +290,11 @@ impl Orchestrator for SimpleOrchestrator {
             )
         })?;
 
-        let runtime = Runtime::new().expect("Failed to create runtime for migration");
         let settings = LogSinkSettings {
             pipeline_dir: pipeline_home_dir.clone(),
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
-        let dag = builder.build(Arc::new(runtime), settings, None)?;
+        let dag = builder.build(self.runtime.clone(), settings, None)?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
