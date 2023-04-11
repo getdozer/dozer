@@ -32,6 +32,7 @@ use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, thread};

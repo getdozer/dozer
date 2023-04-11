@@ -128,11 +128,11 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
     })
 }
 
-struct Telemetry(dozer_tracing::WorderGuard);
+struct Telemetry(dozer_tracing::WorkerGuard);
 
 impl Telemetry {
     fn new(app_name: Option<&str>, config: Option<TelemetryConfig>) -> Self {
-        Self(dozer_tracing::init_telemetry(app_name, config)
+        Self(dozer_tracing::init_telemetry(app_name, config))
     }
 }
 
