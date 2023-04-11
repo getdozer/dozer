@@ -5,6 +5,7 @@ use dozer_orchestrator::cli::{init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::{CliError, OrchestrationError};
 use dozer_orchestrator::simple::SimpleOrchestrator;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, Orchestrator};
+use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -39,29 +40,8 @@ fn run() -> Result<(), OrchestrationError> {
     let running = Arc::new(AtomicBool::new(true));
     set_ctrl_handler(running.clone());
 
-    let tel_running = running.clone();
-
-    // Now we have acces to telemetry configuration
-    let telemetry_config = dozer.config.telemetry.clone();
-
-    // start tracing in a different thread as it needs a tokio runtime.
-
-    let _tracing_thread = std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("cannot start runtime");
-        runtime.block_on(async {
-            dozer_tracing::init_telemetry(None, telemetry_config);
-
-            // Keep thread running until the main thread is running
-            while tel_running.load(std::sync::atomic::Ordering::Relaxed) {
-                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-            }
-
-            dozer_tracing::shutdown_telemetry();
-        });
-    });
+    // Now we have access to telemetry configuration
+    let _telemetry = Telemetry::new(Some(&dozer.config.app_name), dozer.config.telemetry.clone());
 
     if let Some(cmd) = cli.cmd {
         // run individual servers
@@ -146,4 +126,19 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
             }
         }
     })
+}
+
+struct Telemetry;
+
+impl Telemetry {
+    fn new(app_name: Option<&str>, config: Option<TelemetryConfig>) -> Self {
+        dozer_tracing::init_telemetry(app_name, config);
+        Self {}
+    }
+}
+
+impl Drop for Telemetry {
+    fn drop(&mut self) {
+        dozer_tracing::shutdown_telemetry();
+    }
 }
