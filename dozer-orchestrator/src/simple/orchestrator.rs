@@ -23,11 +23,11 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
+use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -42,15 +42,11 @@ use tokio::sync::oneshot;
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
-    pub multi_pb: MultiProgress,
 }
 
 impl SimpleOrchestrator {
     pub fn new(config: Config) -> Self {
-        Self {
-            config,
-            multi_pb: MultiProgress::new(),
-        }
+        Self { config }
     }
 }
 
@@ -94,10 +90,9 @@ impl Orchestrator for SimpleOrchestrator {
                     schema.clone(),
                     endpoint.clone(),
                     rt.clone(),
-                    &log_path,
-                    operations_sender.clone(),
-                    Some(self.multi_pb.clone()),
-                )
+                        &log_path,
+                        operations_sender.clone(),
+                    )
                 .await?;
                 if let Some(task) = task {
                     futures.push(flatten_join_handle(rt.spawn_blocking(move || {
@@ -171,6 +166,7 @@ impl Orchestrator for SimpleOrchestrator {
             ) {
                 std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
             }
+
             warn!("Shutting down internal pipeline server");
         });
 
@@ -182,7 +178,6 @@ impl Orchestrator for SimpleOrchestrator {
             &self.config.endpoints,
             &pipeline_dir,
             running,
-            self.multi_pb.clone(),
         );
         let runtime = Runtime::new().expect("Failed to create runtime for running apps");
         let settings = LogSinkSettings {
@@ -193,6 +188,11 @@ impl Orchestrator for SimpleOrchestrator {
             Arc::new(runtime),
             settings,
             get_executor_options(&self.config),
+            Some((
+                alias_redirected_sender,
+                operation_sender,
+                status_update_sender,
+            )),
         )?;
 
         if let Some(api_notifier) = api_notifier {
@@ -257,7 +257,6 @@ impl Orchestrator for SimpleOrchestrator {
             self.config.sql.as_deref(),
             &self.config.endpoints,
             &pipeline_home_dir,
-            self.multi_pb.clone(),
         );
 
         // Api Path
@@ -285,7 +284,7 @@ impl Orchestrator for SimpleOrchestrator {
             pipeline_dir: pipeline_home_dir.clone(),
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
-        let dag = builder.build(Arc::new(runtime), settings)?;
+        let dag = builder.build(Arc::new(runtime), settings, None)?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
