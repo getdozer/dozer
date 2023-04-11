@@ -24,14 +24,15 @@ pub struct CacheEndpoint {
 }
 
 impl CacheEndpoint {
-    pub fn new(
+    pub async fn new(
         cache_manager: &dyn RwCacheManager,
         schema: Schema,
         endpoint: ApiEndpoint,
+        runtime: Arc<Runtime>,
         log_path: &Path,
         operations_sender: Option<Sender<Operation>>,
-        mullti_pb: Option<MultiProgress>,
-    ) -> Result<(Self, Option<impl Future<Output = Result<(), CacheError>>>), ApiError> {
+        multi_pb: Option<MultiProgress>,
+    ) -> Result<(Self, Option<impl FnOnce() -> Result<(), CacheError>>), ApiError> {
         let (cache_reader, task) = if let Some(cache_reader) =
             open_cache_reader(cache_manager, &endpoint.name)?
         {
@@ -47,11 +48,13 @@ impl CacheEndpoint {
             let (cache_name, task) = cache_builder::create_cache(
                 cache_manager,
                 schema,
+                runtime,
                 log_path,
                 write_options,
                 operations_sender,
-                mullti_pb,
+                multi_pb,
             )
+            .await
             .map_err(ApiError::CreateCache)?;
             // TODO: We intentionally don't create alias endpoint.name -> cache_name here.
             (
@@ -68,6 +71,19 @@ impl CacheEndpoint {
         ))
     }
 
+    pub fn open(
+        cache_manager: &dyn RwCacheManager,
+        endpoint: ApiEndpoint,
+    ) -> Result<Self, ApiError> {
+        Ok(Self {
+            cache_reader: ArcSwap::from_pointee(open_existing_cache_reader(
+                cache_manager,
+                &endpoint.name,
+            )?),
+            endpoint,
+        })
+    }
+
     pub fn cache_reader(&self) -> impl Deref<Target = Arc<CacheReader>> + '_ {
         self.cache_reader.load()
     }
@@ -77,10 +93,10 @@ impl CacheEndpoint {
     }
 
     pub fn redirect_cache(&self, cache_manager: &dyn RwCacheManager) -> Result<(), ApiError> {
-        let cache_reader = open_cache_reader(cache_manager, &self.endpoint.name)?;
-        let cache_reader =
-            cache_reader.ok_or_else(|| ApiError::CacheNotFound(self.endpoint.name.clone()))?;
-        self.cache_reader.store(Arc::new(cache_reader));
+        self.cache_reader.store(Arc::new(open_existing_cache_reader(
+            cache_manager,
+            &self.endpoint.name,
+        )?));
         Ok(())
     }
 }
@@ -98,6 +114,13 @@ fn open_cache_reader(
     }))
 }
 
+fn open_existing_cache_reader(
+    cache_manager: &dyn RwCacheManager,
+    name: &str,
+) -> Result<CacheReader, ApiError> {
+    open_cache_reader(cache_manager, name)?.ok_or_else(|| ApiError::CacheNotFound(name.to_string()))
+}
+
 // Exports
 pub mod auth;
 mod cache_builder;
@@ -110,10 +133,9 @@ pub mod rest;
 pub use actix_web;
 pub use async_trait;
 use errors::ApiError;
-use futures_util::Future;
 pub use openapiv3;
 pub use tokio;
-use tokio::sync::broadcast::Sender;
+use tokio::{runtime::Runtime, sync::broadcast::Sender};
 pub use tonic;
 
 #[cfg(test)]

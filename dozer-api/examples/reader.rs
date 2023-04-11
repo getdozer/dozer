@@ -1,7 +1,6 @@
 use std::{env, path::Path};
 
 use dozer_api::LogReader;
-use futures_util::StreamExt;
 
 #[tokio::main]
 async fn main() {
@@ -11,12 +10,13 @@ async fn main() {
     if args.len() == 2 {
         path = &args[1];
     };
-    let log_reader = LogReader::new(Path::new(path), "logs", 0, None).unwrap();
-
-    tokio::pin!(log_reader);
+    let mut log_reader = LogReader::new(Path::new(path), "logs", 0, None)
+        .await
+        .unwrap();
 
     let mut counter = 0;
-    while let Some(_op) = log_reader.next().await {
+    loop {
+        log_reader.next_op().await;
         counter += 1;
 
         if counter > 100000 {

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use dozer_cache::{
     cache::{
@@ -14,8 +14,7 @@ use dozer_types::{
     log::error,
     types::{Field, FieldDefinition, FieldType, IndexDefinition, Operation, Record, Schema},
 };
-use futures_util::{Future, StreamExt};
-use tokio::sync::broadcast::Sender;
+use tokio::{runtime::Runtime, sync::broadcast::Sender};
 
 use crate::grpc::types_helper;
 
@@ -23,14 +22,15 @@ pub use self::log_reader::LogReader;
 
 mod log_reader;
 
-pub fn create_cache(
+pub async fn create_cache(
     cache_manager: &dyn RwCacheManager,
     schema: Schema,
+    runtime: Arc<Runtime>,
     log_path: &Path,
     write_options: CacheWriteOptions,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
-    mullti_pb: Option<MultiProgress>,
-) -> Result<(String, impl Future<Output = Result<(), CacheError>>), CacheError> {
+    multi_pb: Option<MultiProgress>,
+) -> Result<(String, impl FnOnce() -> Result<(), CacheError>), CacheError> {
     // Automatically create secondary indexes
     let secondary_indexes = generate_secondary_indexes(&schema.fields);
     // Create the cache.
@@ -38,20 +38,22 @@ pub fn create_cache(
     let name = cache.name().to_string();
 
     // Create log reader.
-    let log_reader = LogReader::new(log_path, &name, 0, mullti_pb)?;
+    let log_reader = LogReader::new(log_path, &name, 0, multi_pb).await?;
 
     // Spawn a task to write to cache.
-    let task = build_cache(cache, log_reader, schema, operations_sender);
+    let task = move || build_cache(cache, runtime, log_reader, schema, operations_sender);
     Ok((name, task))
 }
 
-async fn build_cache(
+fn build_cache(
     mut cache: Box<dyn RwCache>,
+    runtime: Arc<Runtime>,
     mut log_reader: LogReader,
     schema: Schema,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
 ) -> Result<(), CacheError> {
-    while let Some(executor_operation) = log_reader.next().await {
+    loop {
+        let executor_operation = runtime.block_on(log_reader.next_op());
         match executor_operation {
             ExecutorOperation::Op { op } => match op {
                 Operation::Delete { mut old } => {
@@ -108,11 +110,10 @@ async fn build_cache(
                 cache.commit()?;
             }
             ExecutorOperation::Terminate => {
-                break;
+                return Ok(());
             }
         }
     }
-    Ok(())
 }
 
 fn generate_secondary_indexes(fields: &[FieldDefinition]) -> Vec<IndexDefinition> {
