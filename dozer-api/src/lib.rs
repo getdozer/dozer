@@ -30,6 +30,7 @@ impl CacheEndpoint {
         runtime: Arc<Runtime>,
         log_path: &Path,
         operations_sender: Option<Sender<Operation>>,
+        multi_pb: Option<MultiProgress>,
     ) -> Result<(Self, Option<impl FnOnce() -> Result<(), CacheError>>), ApiError> {
         let (cache_reader, task) = if let Some(cache_reader) =
             open_cache_reader(cache_manager, &endpoint.name)?
@@ -50,6 +51,7 @@ impl CacheEndpoint {
                 log_path,
                 write_options,
                 operations_sender,
+                multi_pb,
             )
             .await
             .map_err(ApiError::CreateCache)?;

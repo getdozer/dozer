@@ -13,11 +13,17 @@ pub struct LogReader {
     reader: BufReader<File>,
     name: String,
     pos: u64,
+    pb: ProgressBar,
     count: u64,
 }
 const SLEEP_TIME_MS: u16 = 300;
 impl LogReader {
-    pub async fn new(path: &Path, name: &str, pos: u64) -> Result<Self, CacheError> {
+    pub async fn new(
+        path: &Path,
+        name: &str,
+        pos: u64,
+        multi_pb: Option<MultiProgress>,
+    ) -> Result<Self, CacheError> {
         let file = OpenOptions::new()
             .read(true)
             .open(path)
@@ -38,6 +44,7 @@ impl LogReader {
             reader,
             name: name.to_string(),
             pos,
+            pb,
             count: 0,
         })
     }
@@ -49,6 +56,7 @@ impl LogReader {
                 Ok((msg, len)) => {
                     self.pos += len;
                     self.count += 1;
+                    self.pb.set_position(self.count);
                     return msg;
                 }
                 Err(e) => {
@@ -82,4 +90,25 @@ async fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u6
         .map_err(LogError::ReadError)?;
     let msg = bincode::deserialize(&buf).map_err(LogError::DeserializationError)?;
     Ok((msg, len + 8))
+}
+
+fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
+    let pb = ProgressBar::new_spinner();
+    multi_pb.as_ref().map(|m| m.add(pb.clone()));
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.blue} {msg}: {pos}: {per_sec}")
+            .unwrap()
+            // For more spinners check out the cli-spinners project:
+            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+            .tick_strings(&[
+                "▹▹▹▹▹",
+                "▸▹▹▹▹",
+                "▹▸▹▹▹",
+                "▹▹▸▹▹",
+                "▹▹▹▸▹",
+                "▹▹▹▹▸",
+                "▪▪▪▪▪",
+            ]),
+    );
+    pb
 }

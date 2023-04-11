@@ -27,6 +27,7 @@ pub struct Executor<'a> {
     api_endpoints: &'a [ApiEndpoint],
     pipeline_dir: &'a Path,
     running: Arc<AtomicBool>,
+    multi_pb: MultiProgress,
 }
 impl<'a> Executor<'a> {
     pub fn new(
@@ -36,6 +37,7 @@ impl<'a> Executor<'a> {
         api_endpoints: &'a [ApiEndpoint],
         pipeline_dir: &'a Path,
         running: Arc<AtomicBool>,
+        multi_pb: MultiProgress,
     ) -> Self {
         Self {
             connections,
@@ -44,6 +46,7 @@ impl<'a> Executor<'a> {
             api_endpoints,
             pipeline_dir,
             running,
+            multi_pb,
         }
     }
 
@@ -74,6 +77,7 @@ impl<'a> Executor<'a> {
             self.sql,
             self.api_endpoints,
             self.pipeline_dir,
+            self.multi_pb.clone(),
         );
 
         let dag = builder.build(runtime, settings, notifier)?;

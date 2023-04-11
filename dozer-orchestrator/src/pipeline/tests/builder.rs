@@ -66,6 +66,7 @@ fn load_multi_sources() {
         config.sql.as_deref(),
         &config.endpoints,
         tmpdir.path(),
+        MultiProgress::new(),
     );
 
     let runtime = Runtime::new().unwrap();
