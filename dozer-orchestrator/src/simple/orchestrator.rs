@@ -62,7 +62,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
-        rt.block_on(async {
+        let result = rt.block_on(async {
             let mut futures = FuturesUnordered::new();
 
             // Load schemas.
@@ -101,9 +101,9 @@ impl Orchestrator for SimpleOrchestrator {
                         Some(self.multi_pb.clone()),
                     )?;
                     if let Some(task) = task {
-                        futures.push(flatten_join_handle(tokio::spawn(
-                            task.map_err(OrchestrationError::CacheBuildFailed),
-                        )));
+                        futures.push(flatten_join_handle(
+                            rt.spawn(task.map_err(OrchestrationError::CacheBuildFailed)),
+                        ));
                     }
                     Ok(Arc::new(cache_endpoint))
                 })
@@ -113,7 +113,7 @@ impl Orchestrator for SimpleOrchestrator {
             let rest_config = get_rest_config(self.config.to_owned());
             let security = get_api_security_config(self.config.to_owned());
             let cache_endpoints_for_rest = cache_endpoints.clone();
-            let rest_handle = tokio::spawn(async move {
+            let rest_handle = rt.spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
                     .run(cache_endpoints_for_rest, tx)
@@ -126,7 +126,7 @@ impl Orchestrator for SimpleOrchestrator {
             let grpc_config = get_grpc_config(self.config.to_owned());
             let api_security = get_api_security_config(self.config.to_owned());
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
-            let grpc_handle = tokio::spawn(async move {
+            let grpc_handle = rt.spawn(async move {
                 grpc_server
                     .run(cache_endpoints, receiver_shutdown, operations_receiver)
                     .await
@@ -147,9 +147,11 @@ impl Orchestrator for SimpleOrchestrator {
             rest::ApiServer::stop(server_handle);
 
             Ok::<(), OrchestrationError>(())
-        })?;
+        });
 
-        Ok(())
+        // TODO: remove this when we have a better way to handle shutdown
+        rt.shutdown_background();
+        result
     }
 
     fn run_apps(
