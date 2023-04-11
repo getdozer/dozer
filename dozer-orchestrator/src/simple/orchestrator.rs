@@ -34,7 +34,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::{sync::Arc, thread};
 
 use dozer_types::indicatif::MultiProgress;
 use std::{sync::Arc, thread};
