@@ -6,6 +6,9 @@ use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
+use dozer_types::grpc_types::internal::StatusUpdate;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, IngestorError};
 use dozer_types::log::info;
@@ -57,6 +60,7 @@ pub struct ConnectorSourceFactory {
     connector: Mutex<Option<Box<dyn Connector>>>,
     runtime: Arc<Runtime>,
     progress: Option<MultiProgress>,
+    notifier: Option<PipelineEventSenders>,
 }
 
 fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
@@ -73,6 +77,7 @@ impl ConnectorSourceFactory {
         connection: Connection,
         runtime: Arc<Runtime>,
         progress: Option<MultiProgress>,
+        notifier: Option<PipelineEventSenders>,
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
 
@@ -116,6 +121,7 @@ impl ConnectorSourceFactory {
             connector: Mutex::new(Some(connector)),
             runtime,
             progress,
+            notifier,
         })
     }
 }
@@ -167,7 +173,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         let mut schema_port_map = HashMap::new();
         for table in &self.tables {
             let schema_id = get_schema_id(table.schema.identifier)?;
-            schema_port_map.insert(schema_id, table.port);
+            schema_port_map.insert(schema_id, (table.port, table.name.clone()));
         }
 
         let tables = self
@@ -202,6 +208,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
             bars,
+            notifier: self.notifier.clone(),
         }))
     }
 }
@@ -210,12 +217,13 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
 pub struct ConnectorSource {
     ingestor: Ingestor,
     iterator: Mutex<IngestionIterator>,
-    schema_port_map: HashMap<u32, PortHandle>,
+    schema_port_map: HashMap<u32, (PortHandle, String)>,
     tables: Vec<TableInfo>,
     connector: Box<dyn Connector>,
     runtime: Arc<Runtime>,
     connection_name: String,
     bars: HashMap<PortHandle, ProgressBar>,
+    notifier: Option<PipelineEventSenders>,
 }
 
 impl Source for ConnectorSource {
@@ -269,7 +277,7 @@ impl Source for ConnectorSource {
                     | IngestionMessageKind::SnapshottingStarted => None,
                 };
                 if let Some(schema_id) = schema_id {
-                    let port =
+                    let (port, table_name) =
                         self.schema_port_map
                             .get(&schema_id)
                             .ok_or(ExecutionError::SourceError(SourceError::PortError(
@@ -287,10 +295,19 @@ impl Source for ConnectorSource {
                         if let Some(pb) = pb {
                             pb.set_position(*schema_counter);
                         }
+
+                        if let Some(notifier) = &self.notifier {
+                            let status_update = StatusUpdate {
+                                source: table_name.clone(),
+                                r#type: "source".to_string(),
+                                count: *schema_counter as i64,
+                            };
+                            let _ = notifier.2.try_send(status_update);
+                        }
                     }
                     fw.send(IngestionMessage { identifier, kind }, *port)?
                 } else {
-                    for port in self.schema_port_map.values() {
+                    for (port, _) in self.schema_port_map.values() {
                         fw.send(
                             IngestionMessage::new_snapshotting_done(
                                 identifier.txid,

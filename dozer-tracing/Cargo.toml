@@ -14,3 +14,4 @@ opentelemetry = {version = "0.18.0", features = ["rt-tokio", "rt-tokio-current-t
 opentelemetry-jaeger = {version = "0.17.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
 tracing-opentelemetry = "0.18.0"
 tokio = { version = "1", features = ["full"] }
+tracing-appender = "0.2.2"

@@ -8,9 +8,9 @@ use dozer_cache::{
     errors::CacheError,
 };
 use dozer_core::executor::ExecutorOperation;
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::{
     grpc_types::types::Operation as GrpcOperation,
-    indicatif::MultiProgress,
     log::error,
     types::{Field, FieldDefinition, FieldType, IndexDefinition, Operation, Record, Schema},
 };

@@ -5,7 +5,7 @@ use dozer_types::thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AdminError {
-    #[error("Couldnt read file")]
+    #[error("Couldnt read file: {0:?}")]
     FailedToLoadFile(#[source] std::io::Error),
     #[error("Failed to parse admin-dozer config: {0:?}")]
     FailedToParseYaml(#[source] BoxedError),

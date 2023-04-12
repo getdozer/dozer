@@ -2,11 +2,8 @@ use std::{io::SeekFrom, path::Path, time::Duration};
 
 use dozer_cache::errors::{CacheError, LogError};
 use dozer_core::executor::ExecutorOperation;
-use dozer_types::{
-    bincode,
-    indicatif::{MultiProgress, ProgressBar, ProgressStyle},
-    log::trace,
-};
+use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use dozer_types::{bincode, log::trace};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncReadExt, AsyncSeekExt, BufReader},
@@ -42,6 +39,7 @@ impl LogReader {
 
         let pb = attach_progress(multi_pb);
         pb.set_message(format!("reader: {}", name));
+
         Ok(Self {
             reader,
             name: name.to_string(),

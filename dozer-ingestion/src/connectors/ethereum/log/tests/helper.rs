@@ -89,7 +89,7 @@ pub async fn run_eth_sample(
     wss_url: String,
     my_account: H160,
 ) -> (Contract<WebSocket>, Vec<Operation>) {
-    dozer_tracing::init_telemetry(None, None);
+    let _ = dozer_tracing::init_telemetry(None, None);
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         // invoke the default handler and exit the process

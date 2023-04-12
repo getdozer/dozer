@@ -157,3 +157,18 @@ message RefreshConfigHour { uint32 minute = 1; }
 message RefreshConfigDay { string time = 1; }
 message RefreshConfigCronExpression { string expression = 1; }
 message RefreshConfigRealTime {}
+
+message File {
+  string name = 1;
+  string content = 2;
+}
+
+message LogMessage {
+  string message = 1;
+}
+
+message StatusUpdate {
+  string source = 1;
+  string type = 2;
+  int64 count = 3;
+}

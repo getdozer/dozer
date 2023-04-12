@@ -8,25 +8,41 @@ use crate::db::{
 };
 use diesel::prelude::*;
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
+use dozer_api::grpc::internal::internal_pipeline_client::InternalPipelineClient;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::wrapped_statement_to_pipeline;
 use dozer_orchestrator::Orchestrator;
-use dozer_types::grpc_types::admin::StopRequest;
-use dozer_types::grpc_types::admin::StopResponse;
 use dozer_types::grpc_types::admin::{
     AppResponse, CreateAppRequest, ErrorResponse, GenerateGraphRequest, GenerateGraphResponse,
     GenerateYamlRequest, GenerateYamlResponse, GetAppRequest, ListAppRequest, ListAppResponse,
     Pagination, ParseRequest, ParseResponse, ParseYamlRequest, ParseYamlResponse, StartRequest,
     StartResponse, UpdateAppRequest,
 };
+use dozer_types::grpc_types::admin::{
+    File, ListFilesResponse, LogMessage, StatusUpdate, StopRequest,
+};
+use dozer_types::grpc_types::admin::{StatusUpdateRequest, StopResponse};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_yaml;
+
 use std::collections::HashMap;
 
+use dozer_types::grpc_types::admin::SaveFilesRequest;
+use dozer_types::grpc_types::admin::SaveFilesResponse;
+use dozer_types::log::warn;
+use dozer_types::models::api_config::GrpcApiOptions;
+use glob::glob;
+use notify::event::ModifyKind::Data;
+use notify::EventKind::Modify;
+use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::thread;
+use std::time::Duration;
+use std::{fs, thread};
+use tokio::time::interval;
+use tonic::{Code, Status};
 
 #[derive(Clone)]
 pub struct AppService {
@@ -279,8 +295,16 @@ impl AppService {
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
         thread::spawn(move || {
-            let mut dozer = Dozer::new(c);
-            dozer.run_all(running).unwrap();
+            let _guard = dozer_tracing::init_telemetry_closure(
+                Some(&c.app_name.clone()),
+                None,
+                || -> Result<(), ErrorResponse> {
+                    let mut dozer = Dozer::new(c);
+                    dozer.run_all(running).unwrap();
+
+                    Ok(())
+                },
+            );
         });
         self.apps.write().insert(generated_id.clone(), r);
         Ok(StartResponse {
@@ -300,5 +324,144 @@ impl AppService {
                 Ok(StopResponse { success: true })
             },
         )
+    }
+
+    pub fn list_files(&self) -> Result<ListFilesResponse, ErrorResponse> {
+        let mut files = vec![];
+        let files_glob = glob("*.yaml").map_err(|e| ErrorResponse {
+            message: e.to_string(),
+        })?;
+
+        for entry in files_glob {
+            match entry {
+                Ok(path) => {
+                    files.push(File {
+                        name: format!("{:?}", path.display()),
+                        content: fs::read_to_string(path).map_err(|e| ErrorResponse {
+                            message: e.to_string(),
+                        })?,
+                    });
+                }
+                Err(e) => {
+                    return Err(ErrorResponse {
+                        message: e.to_string(),
+                    })
+                }
+            }
+        }
+
+        Ok(ListFilesResponse { files })
+    }
+
+    pub fn save_files(
+        &self,
+        request: SaveFilesRequest,
+    ) -> Result<SaveFilesResponse, ErrorResponse> {
+        for file in request.files {
+            let mut fs_file = fs::File::create(file.name).unwrap();
+            fs_file.write_all(file.content.as_bytes()).unwrap();
+        }
+
+        Ok(SaveFilesResponse {})
+    }
+
+    pub async fn read_logs(log_tx: tokio::sync::mpsc::Sender<Result<LogMessage, Status>>) {
+        let mut position = 0;
+
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        match RecommendedWatcher::new(tx, Config::default()) {
+            Ok(mut watcher) => {
+                let p = std::path::Path::new("./log/dozer.log");
+                let start_watch_result = watcher.watch(p.as_ref(), RecursiveMode::Recursive);
+
+                if start_watch_result.is_err() {
+                    let _ = log_tx
+                        .send(Err(Status::new(Code::Internal, "Failed to start watch")))
+                        .await;
+                    return;
+                }
+
+                for res in rx.into_iter().flatten() {
+                    if let Event {
+                        kind: Modify(Data(_)),
+                        ..
+                    } = res
+                    {
+                        let file_result = fs::File::open("./log/dozer.log");
+                        if let Ok(mut file) = file_result {
+                            let seek_result = file.seek(SeekFrom::Start(position));
+                            match seek_result {
+                                Ok(_) => {
+                                    if let Ok(metadata) = file.metadata() {
+                                        position = metadata.len();
+                                        let reader = BufReader::new(file);
+                                        for message in reader.lines().flatten() {
+                                            let log_message = LogMessage { message };
+
+                                            if (log_tx.send(Ok(log_message)).await).is_err() {
+                                                // receiver dropped
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!("Seek error: {:?}", e);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = log_tx
+                    .send(Err(Status::new(Code::Internal, e.to_string())))
+                    .await;
+            }
+        }
+    }
+
+    pub async fn stream_status_update(
+        request: StatusUpdateRequest,
+        tx: tokio::sync::mpsc::Sender<Result<StatusUpdate, Status>>,
+    ) {
+        let mut retries_left = 100;
+        let mut retry_interval = interval(Duration::from_millis(1000));
+
+        let grpc_options = GrpcApiOptions {
+            host: request.host.unwrap_or("0.0.0.0".to_string()),
+            port: request.port.unwrap_or(50053),
+            ..Default::default()
+        };
+
+        while retries_left > 0 {
+            if let Ok(mut internal_pipeline_client) =
+                InternalPipelineClient::new(&grpc_options).await
+            {
+                if let Ok((mut status_updates_receiver, future)) =
+                    internal_pipeline_client.stream_status_update().await
+                {
+                    tokio::spawn(future);
+
+                    while let Ok(msg) = status_updates_receiver.recv().await {
+                        let status_msg = StatusUpdate {
+                            source: msg.source,
+                            r#type: msg.r#type,
+                            count: msg.count,
+                        };
+                        if (tx.send(Ok(status_msg)).await).is_err() {
+                            // receiver dropped
+                            retries_left = 0;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                retries_left -= 1;
+
+                retry_interval.tick().await;
+            }
+        }
     }
 }

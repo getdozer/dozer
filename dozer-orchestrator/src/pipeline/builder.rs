@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -9,10 +10,11 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext, SchemaSQLContext};
+use dozer_types::indicatif::MultiProgress;
+use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
-use dozer_types::{indicatif::MultiProgress, log::debug};
 use std::hash::Hash;
 use std::path::Path;
 use tokio::runtime::Runtime;
@@ -186,6 +188,7 @@ impl<'a> PipelineBuilder<'a> {
         &self,
         runtime: Arc<Runtime>,
         settings: LogSinkSettings,
+        notifier: Option<PipelineEventSenders>,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
@@ -225,7 +228,8 @@ impl<'a> PipelineBuilder<'a> {
             }
         }
 
-        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
+        let source_builder =
+            SourceBuilder::new(grouped_connections, Some(&self.progress), notifier.clone());
 
         let conn_ports = source_builder.get_ports();
 
@@ -240,6 +244,7 @@ impl<'a> PipelineBuilder<'a> {
                 settings.clone(),
                 api_endpoint.clone(),
                 self.progress.clone(),
+                notifier.clone(),
             ));
 
             match table_info {

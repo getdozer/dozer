@@ -5,6 +5,7 @@ use std::{
     path::PathBuf,
 };
 
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_core::{
     epoch::Epoch,
     errors::ExecutionError,
@@ -13,9 +14,10 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_types::grpc_types::internal::StatusUpdate;
+use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::{
     bytes::{BufMut, BytesMut},
-    indicatif::{MultiProgress, ProgressBar, ProgressStyle},
     models::api_endpoint::ApiEndpoint,
     types::{Operation, Schema},
 };
@@ -34,6 +36,7 @@ pub struct LogSinkFactory {
     settings: LogSinkSettings,
     api_endpoint: ApiEndpoint,
     multi_pb: MultiProgress,
+    notifier: Option<PipelineEventSenders>,
 }
 
 impl LogSinkFactory {
@@ -41,11 +44,13 @@ impl LogSinkFactory {
         settings: LogSinkSettings,
         api_endpoint: ApiEndpoint,
         multi_pb: MultiProgress,
+        notifier: Option<PipelineEventSenders>,
     ) -> Self {
         Self {
             settings,
             api_endpoint,
             multi_pb,
+            notifier,
         }
     }
 }
@@ -79,6 +84,8 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
             log_path,
             &self.api_endpoint.name,
             self.settings.file_buffer_capacity,
+            self.api_endpoint.name.clone(),
+            self.notifier.clone(),
         )?))
     }
 }
@@ -88,6 +95,8 @@ pub struct LogSink {
     pb: ProgressBar,
     buffered_file: BufWriter<File>,
     counter: usize,
+    notifier: Option<PipelineEventSenders>,
+    endpoint_name: String,
 }
 
 impl LogSink {
@@ -96,6 +105,8 @@ impl LogSink {
         log_path: PathBuf,
         name: &str,
         file_buffer_capacity: u64,
+        endpoint_name: String,
+        notifier: Option<PipelineEventSenders>,
     ) -> Result<Self, ExecutionError> {
         let file = OpenOptions::new()
             .write(true)
@@ -113,6 +124,8 @@ impl LogSink {
             pb,
             buffered_file,
             counter: 0,
+            notifier,
+            endpoint_name,
         })
     }
 }
@@ -122,6 +135,9 @@ impl Sink for LogSink {
         let msg = ExecutorOperation::Op { op };
         self.counter += 1;
         self.pb.set_position(self.counter as u64);
+        if self.counter % 1000 == 0 {
+            try_send(&self.notifier, self.counter, &self.endpoint_name);
+        }
         write_msg_to_file(&mut self.buffered_file, &msg)
     }
 
@@ -130,6 +146,7 @@ impl Sink for LogSink {
             epoch: Epoch::new(0, Default::default()),
         };
 
+        try_send(&self.notifier, self.counter, &self.endpoint_name);
         write_msg_to_file(&mut self.buffered_file, &msg)?;
         self.buffered_file.flush()?;
         Ok(())
@@ -175,4 +192,16 @@ fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
             ]),
     );
     pb
+}
+
+fn try_send(notifier: &Option<PipelineEventSenders>, progress: usize, endpoint_name: &str) {
+    if let Some(n) = notifier {
+        let status_update = StatusUpdate {
+            source: endpoint_name.to_string(),
+            r#type: "sink".to_string(),
+            count: progress as i64,
+        };
+
+        let _ = n.2.try_send(status_update);
+    }
 }

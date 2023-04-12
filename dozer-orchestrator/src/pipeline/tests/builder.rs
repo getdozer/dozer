@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
-use dozer_types::indicatif::MultiProgress;
 use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 use dozer_types::models::app_config::Config;
 
 use dozer_core::appsource::{AppSourceId, AppSourceMappings};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::models::source::Source;
 use tokio::runtime::Runtime;
@@ -74,7 +74,7 @@ fn load_multi_sources() {
         .block_on(builder.get_grouped_tables(&used_sources))
         .unwrap();
 
-    let source_builder = SourceBuilder::new(grouped_connections, None);
+    let source_builder = SourceBuilder::new(grouped_connections, None, None);
     let asm = source_builder
         .build_source_manager(Arc::new(runtime))
         .unwrap();

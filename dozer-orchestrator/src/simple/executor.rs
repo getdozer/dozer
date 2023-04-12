@@ -1,6 +1,7 @@
-use dozer_types::{indicatif::MultiProgress, models::api_endpoint::ApiEndpoint};
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
 
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -12,6 +13,7 @@ use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
+use dozer_types::indicatif::MultiProgress;
 
 use dozer_types::models::connection::Connection;
 use OrchestrationError::ExecutionError;
@@ -67,6 +69,7 @@ impl<'a> Executor<'a> {
         runtime: Arc<Runtime>,
         settings: LogSinkSettings,
         executor_options: ExecutorOptions,
+        notifier: Option<PipelineEventSenders>,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.connections,
@@ -77,7 +80,7 @@ impl<'a> Executor<'a> {
             self.multi_pb.clone(),
         );
 
-        let dag = builder.build(runtime, settings)?;
+        let dag = builder.build(runtime, settings, notifier)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {

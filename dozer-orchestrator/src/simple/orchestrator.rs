@@ -23,18 +23,20 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
+use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use std::{fs, thread};
+
+use dozer_types::indicatif::MultiProgress;
+use std::{sync::Arc, thread};
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
 use tokio::sync::oneshot;
@@ -156,6 +158,31 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
+        let runtime = Runtime::new().expect("Failed to create runtime for running apps");
+
+        // gRPC notifier channel
+        let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
+        let (operation_sender, operation_receiver) = channel::unbounded();
+        let (status_update_sender, status_update_receiver) = channel::unbounded();
+        let internal_app_config = self.config.clone();
+        let _intern_pipeline_thread = runtime.spawn(async move {
+            let result = start_internal_pipeline_server(
+                internal_app_config,
+                (
+                    alias_redirected_receiver,
+                    operation_receiver,
+                    status_update_receiver,
+                ),
+            )
+            .await;
+
+            if let Err(e) = result {
+                std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
+            }
+
+            warn!("Shutting down internal pipeline server");
+        });
+
         let pipeline_dir = get_pipeline_dir(&self.config);
         let executor = Executor::new(
             &self.config.connections,
@@ -174,6 +201,11 @@ impl Orchestrator for SimpleOrchestrator {
             self.runtime.clone(),
             settings,
             get_executor_options(&self.config),
+            Some((
+                alias_redirected_sender,
+                operation_sender,
+                status_update_sender,
+            )),
         )?;
 
         if let Some(api_notifier) = api_notifier {
@@ -264,7 +296,7 @@ impl Orchestrator for SimpleOrchestrator {
             pipeline_dir: pipeline_home_dir.clone(),
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
-        let dag = builder.build(self.runtime.clone(), settings)?;
+        let dag = builder.build(self.runtime.clone(), settings, None)?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 

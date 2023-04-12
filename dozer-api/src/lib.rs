@@ -6,7 +6,6 @@ use dozer_cache::{
 };
 use dozer_types::{
     grpc_types::types::Operation,
-    indicatif::MultiProgress,
     log::info,
     models::api_endpoint::{
         ApiEndpoint, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
@@ -132,6 +131,7 @@ pub mod rest;
 // Re-exports
 pub use actix_web;
 pub use async_trait;
+use dozer_types::indicatif::MultiProgress;
 use errors::ApiError;
 pub use openapiv3;
 pub use tokio;

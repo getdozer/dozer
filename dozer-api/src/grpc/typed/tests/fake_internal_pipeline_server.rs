@@ -2,16 +2,20 @@ use core::time;
 use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
 };
-use dozer_types::grpc_types::internal::{AliasEventsRequest, AliasRedirected, OperationsRequest};
+use dozer_types::grpc_types::internal::StatusUpdate;
+use dozer_types::grpc_types::internal::{
+    AliasEventsRequest, AliasRedirected, OperationsRequest, StatusUpdateRequest,
+};
 use dozer_types::grpc_types::types::{value, Operation, OperationType, Record, Value};
 use futures_util::FutureExt;
 use std::{net::ToSocketAddrs, pin::Pin, thread};
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
+use tonic::{codegen::futures_core::Stream, transport::Server, Request, Response, Status};
 pub struct FakeInternalPipelineServer {}
 
 type OperationsStream = Pin<Box<dyn Stream<Item = Result<Operation, Status>> + Send>>;
 type AliasEventsStream = Pin<Box<dyn Stream<Item = Result<AliasRedirected, Status>> + Send>>;
+type StatusUpdatesStream = Pin<Box<dyn Stream<Item = Result<StatusUpdate, Status>> + Send>>;
 
 #[tonic::async_trait]
 impl InternalPipelineService for FakeInternalPipelineServer {
@@ -57,6 +61,15 @@ impl InternalPipelineService for FakeInternalPipelineServer {
         let (_, alias_redirected_receiver) = tokio::sync::mpsc::channel(1000);
         let output_stream = ReceiverStream::new(alias_redirected_receiver);
         Ok(Response::new(Box::pin(output_stream)))
+    }
+
+    type StreamStatusUpdatesStream = StatusUpdatesStream;
+
+    async fn stream_status_updates(
+        &self,
+        _request: Request<StatusUpdateRequest>,
+    ) -> Result<Response<Self::StreamStatusUpdatesStream>, Status> {
+        todo!()
     }
 }
 
