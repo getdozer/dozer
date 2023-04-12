@@ -202,7 +202,7 @@ fn convert_duration_to_object(d: &DozerDuration) -> Value {
 /// Used in REST APIs for converting raw value back and forth.
 ///
 /// Should be consistent with `convert_cache_type_to_schema_type`.
-fn field_to_json_value(field: Field) -> Value {
+pub fn field_to_json_value(field: Field) -> Value {
     match field {
         Field::UInt(n) => Value::from(n),
         Field::U128(n) => Value::String(n.to_string()),

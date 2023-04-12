@@ -18,7 +18,7 @@ use std::{
 };
 use tokio::task::JoinHandle;
 mod console_helper;
-mod utils;
+pub mod utils;
 
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
