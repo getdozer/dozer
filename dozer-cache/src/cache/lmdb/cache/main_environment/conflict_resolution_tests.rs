@@ -204,7 +204,7 @@ fn return_update_error_when_type_panic() {
 
     let initial_record = Record {
         schema_id: schema.identifier,
-        values: initial_values.clone(),
+        values: initial_values,
     };
     let update_record = Record {
         schema_id: schema.identifier,
@@ -227,7 +227,7 @@ fn ignore_delete_error_when_type_nothing() {
     let initial_values = vec![Field::Int(1), Field::Null];
     let initial_record = Record {
         schema_id: schema.identifier,
-        values: initial_values.clone(),
+        values: initial_values,
     };
 
     // Check is cache empty
@@ -250,7 +250,7 @@ fn return_delete_error_when_type_panic() {
     let initial_values = vec![Field::Int(1), Field::Null];
     let initial_record = Record {
         schema_id: schema.identifier,
-        values: initial_values.clone(),
+        values: initial_values,
     };
 
     let result = env.delete(&initial_record);
