@@ -137,7 +137,7 @@ pub enum PostgresConnectorError {
     #[error("Cannot find columns {0}")]
     ColumnsNotFound(String),
 
-    #[error("Failed to create a replication slot : {0}")]
+    #[error("Failed to create a replication slot \"{0}\". Error: {1}")]
     CreateSlotError(String, #[source] Error),
 
     #[error("Failed to create publication: {0}")]
@@ -152,7 +152,7 @@ pub enum PostgresConnectorError {
     #[error("Failed to begin txn for replication")]
     CommitReplication,
 
-    #[error("fetch of replication slot info failed")]
+    #[error("Fetch of replication slot info failed. Error: {0}")]
     FetchReplicationSlotError(#[source] tokio_postgres::Error),
 
     #[error("No slots available or all available slots are used")]
