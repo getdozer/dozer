@@ -411,8 +411,8 @@ fn insert_impl(
                 insert_operation_id: None,
             }) => {
                 // The record has an id but was deleted.
-                operation_log.insert_deleted(txn, key.as_ref(), record, meta)?;
-                Ok(UpsertResult::Inserted { meta })
+                let new_meta = operation_log.insert_deleted(txn, key.as_ref(), record, meta)?;
+                Ok(UpsertResult::Inserted { meta: new_meta })
             }
             None => {
                 // The record does not exist.
