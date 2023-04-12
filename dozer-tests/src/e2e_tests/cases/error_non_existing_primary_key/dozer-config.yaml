@@ -1,0 +1,30 @@
+app_name: working_app
+connections:
+  - config: !Ethereum
+      provider: !Log
+        filter:
+          from_block: 0
+          addresses: []
+          topics: []
+        wss_url: "{{ETH_WSS_URL}}"
+    name: eth_logs
+sql: |
+  select block_number, sum(id) 
+  into eth_stats
+  from eth_logs 
+  group by block_number;
+sources:
+  - name: eth_logs
+    table_name: eth_logs
+    columns:
+      - block_number
+      - id
+    connection: !Ref eth_logs
+endpoints:
+  - id: 1b44cca2-7631-4f0c-8b6e-254c08d28dae
+    name: eth_stats
+    path: /eth/stats
+    table_name: eth_stats
+    index:
+      primary_key:
+        - id
