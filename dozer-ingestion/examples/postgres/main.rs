@@ -7,7 +7,7 @@ use std::time::Instant;
 
 #[tokio::main]
 async fn main() {
-    dozer_tracing::init_telemetry(None, None);
+    let _ = dozer_tracing::init_telemetry(None, None);
 
     let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
     let postgres_config = PostgresConfig {

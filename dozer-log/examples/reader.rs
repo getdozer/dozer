@@ -1,6 +1,6 @@
 use std::{env, path::Path};
 
-use dozer_api::LogReader;
+use dozer_log::reader::LogReader;
 
 #[tokio::main]
 async fn main() {

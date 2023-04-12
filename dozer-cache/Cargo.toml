@@ -9,6 +9,7 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-types = {path = "../dozer-types"}
 dozer-storage = { path = "../dozer-storage" }
+dozer-log = { path = "../dozer-log" }
 
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 tempdir = "0.3.7"
