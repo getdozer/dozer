@@ -158,14 +158,12 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        let runtime = Runtime::new().expect("Failed to create runtime for running apps");
-
         // gRPC notifier channel
         let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
         let (operation_sender, operation_receiver) = channel::unbounded();
         let (status_update_sender, status_update_receiver) = channel::unbounded();
         let internal_app_config = self.config.clone();
-        let _intern_pipeline_thread = runtime.spawn(async move {
+        let _intern_pipeline_thread = self.runtime.spawn(async move {
             let result = start_internal_pipeline_server(
                 internal_app_config,
                 (
