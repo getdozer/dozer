@@ -1,15 +1,11 @@
-use std::{
-    future::Future,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread::JoinHandle,
-    time::Duration,
-};
+use std::{future::Future, thread::JoinHandle, time::Duration};
 
 use dozer_api::tonic::transport::Channel;
-use dozer_orchestrator::{simple::SimpleOrchestrator, Orchestrator};
+use dozer_orchestrator::{
+    shutdown::{self, ShutdownSender},
+    simple::SimpleOrchestrator,
+    Orchestrator,
+};
 use dozer_types::{
     grpc_types::{
         common::common_grpc_service_client::CommonGrpcServiceClient,
@@ -25,8 +21,7 @@ mod basic_sql;
 
 struct DozerE2eTest {
     _home_dir: TempDir,
-    dozer_thread: Option<JoinHandle<()>>,
-    running: Arc<AtomicBool>,
+    dozer_thread: Option<(ShutdownSender, JoinHandle<()>)>,
 
     common_service_client: CommonGrpcServiceClient<Channel>,
     ingest_service_client: Option<IngestServiceClient<Channel>>,
@@ -53,11 +48,10 @@ impl DozerE2eTest {
             }
         }
 
-        let running = Arc::new(AtomicBool::new(true));
-        let r = running.clone();
+        let mut dozer = SimpleOrchestrator::new(config);
+        let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let dozer_thread = std::thread::spawn(move || {
-            let mut dozer = SimpleOrchestrator::new(config);
-            dozer.run_all(r).unwrap();
+            dozer.run_all(shutdown_receiver).unwrap();
         });
 
         let num_retries = 10;
@@ -79,8 +73,7 @@ impl DozerE2eTest {
 
         Self {
             _home_dir: temp_dir,
-            dozer_thread: Some(dozer_thread),
-            running,
+            dozer_thread: Some((shutdown_sender, dozer_thread)),
             common_service_client,
             ingest_service_client,
         }
@@ -89,8 +82,9 @@ impl DozerE2eTest {
 
 impl Drop for DozerE2eTest {
     fn drop(&mut self) {
-        self.running.store(false, Ordering::SeqCst);
-        self.dozer_thread.take().unwrap().join().unwrap();
+        let (shutdown, join_handle) = self.dozer_thread.take().unwrap();
+        shutdown.shutdown();
+        join_handle.join().unwrap();
     }
 }
 

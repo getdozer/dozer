@@ -1,5 +1,3 @@
-use std::sync::atomic::Ordering;
-
 use crate::{
     cli::{utils::get_db_path, AdminCliConfig},
     db::pool::establish_connection,
@@ -291,8 +289,8 @@ pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::tra
         .serve(addr)
         .await?;
 
-    for (_, r) in app_service.apps.write().iter_mut() {
-        r.store(false, Ordering::Relaxed);
+    for (_, shutdown) in app_service.apps.write().drain() {
+        shutdown.shutdown();
     }
     Ok(())
 }

@@ -1,20 +1,19 @@
 pub mod cli;
 pub mod errors;
 pub mod pipeline;
+pub mod shutdown;
 pub mod simple;
+
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_ingestion::connectors::SourceSchema;
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
 use dozer_types::{crossbeam::channel::Sender, log::debug};
 use errors::OrchestrationError;
+use shutdown::{ShutdownReceiver, ShutdownSender};
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     collections::HashMap,
     panic, process,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
     thread::current,
 };
 use tokio::task::JoinHandle;
@@ -24,11 +23,11 @@ mod utils;
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
-    fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
-    fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
+    fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
+    fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
-        running: Arc<AtomicBool>,
+        shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError>;
     #[allow(clippy::type_complexity)]
@@ -104,9 +103,12 @@ pub fn set_panic_hook() {
     }));
 }
 
-pub fn set_ctrl_handler(r: Arc<AtomicBool>) {
+pub fn set_ctrl_handler(shutdown_sender: ShutdownSender) {
+    let mut shutdown = Some(shutdown_sender);
     ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
+        if let Some(shutdown) = shutdown.take() {
+            shutdown.shutdown()
+        }
     })
     .expect("Error setting Ctrl-C handler");
 }

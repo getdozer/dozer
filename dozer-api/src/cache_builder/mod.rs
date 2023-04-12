@@ -14,6 +14,10 @@ use dozer_types::{
     log::error,
     types::{Field, FieldDefinition, FieldType, IndexDefinition, Operation, Record, Schema},
 };
+use futures_util::{
+    future::{select, Either},
+    Future,
+};
 use tokio::{runtime::Runtime, sync::broadcast::Sender};
 
 use crate::grpc::types_helper;
@@ -22,10 +26,12 @@ pub use self::log_reader::LogReader;
 
 mod log_reader;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn create_cache(
     cache_manager: &dyn RwCacheManager,
     schema: Schema,
     runtime: Arc<Runtime>,
+    cancel: impl Future<Output = ()> + Unpin,
     log_path: &Path,
     write_options: CacheWriteOptions,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
@@ -41,20 +47,30 @@ pub async fn create_cache(
     let log_reader = LogReader::new(log_path, &name, 0, multi_pb).await?;
 
     // Spawn a task to write to cache.
-    let task = move || build_cache(cache, runtime, log_reader, schema, operations_sender);
+    let task = move || {
+        build_cache(
+            cache,
+            runtime,
+            cancel,
+            log_reader,
+            schema,
+            operations_sender,
+        )
+    };
     Ok((name, task))
 }
 
 fn build_cache(
     mut cache: Box<dyn RwCache>,
     runtime: Arc<Runtime>,
+    mut cancel: impl Future<Output = ()> + Unpin,
     mut log_reader: LogReader,
     schema: Schema,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
 ) -> Result<(), CacheError> {
-    loop {
-        let executor_operation = runtime.block_on(log_reader.next_op());
-        match executor_operation {
+    while let Some(op) = runtime.block_on(next_op_with_cancel(&mut log_reader, cancel)) {
+        cancel = op.1;
+        match op.0 {
             ExecutorOperation::Op { op } => match op {
                 Operation::Delete { mut old } => {
                     old.schema_id = schema.identifier;
@@ -110,10 +126,12 @@ fn build_cache(
                 cache.commit()?;
             }
             ExecutorOperation::Terminate => {
-                return Ok(());
+                break;
             }
         }
     }
+
+    Ok(())
 }
 
 fn generate_secondary_indexes(fields: &[FieldDefinition]) -> Vec<IndexDefinition> {
@@ -148,6 +166,17 @@ fn generate_secondary_indexes(fields: &[FieldDefinition]) -> Vec<IndexDefinition
             FieldType::Binary | FieldType::Bson => vec![],
         })
         .collect()
+}
+
+async fn next_op_with_cancel<F: Future<Output = ()> + Unpin>(
+    log_reader: &mut LogReader,
+    cancel: F,
+) -> Option<(ExecutorOperation, F)> {
+    let next_op = Box::pin(log_reader.next_op());
+    match select(next_op, cancel).await {
+        Either::Left((op, cancel)) => Some((op, cancel)),
+        Either::Right(_) => None,
+    }
 }
 
 fn send_upsert_result(
