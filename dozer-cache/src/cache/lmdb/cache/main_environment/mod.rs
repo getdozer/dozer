@@ -407,11 +407,10 @@ fn insert_impl(
                 }
             }
             Some(RecordMetadata {
-                mut meta,
+                meta,
                 insert_operation_id: None,
             }) => {
                 // The record has an id but was deleted.
-                meta.version += 1;
                 operation_log.insert_deleted(txn, key.as_ref(), record, meta)?;
                 Ok(UpsertResult::Inserted { meta })
             }
@@ -527,3 +526,6 @@ fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
 
 #[cfg(test)]
 mod conflict_resolution_tests;
+
+#[cfg(test)]
+mod hash_tests;
