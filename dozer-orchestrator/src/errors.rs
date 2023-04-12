@@ -64,8 +64,8 @@ pub enum OrchestrationError {
     SchemaLoadFailed(#[source] CacheError),
     #[error("Schemas not found in Path specified {0:?}")]
     SchemasNotInitializedPath(PathBuf),
-    #[error("Cannot convert Schemas in Path specified {0:?}")]
-    DeserializeSchemas(PathBuf),
+    #[error("Cannot convert Schema in Path specified {0:?}")]
+    DeserializeSchema(PathBuf),
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,

@@ -12,23 +12,13 @@ use dozer_types::{
 };
 use std::io::Write;
 
-use crate::errors::OrchestrationError;
-
-pub const SCHEMA_FILE_NAME: &str = "schemas.json";
+use crate::{errors::OrchestrationError, utils::get_endpoint_schema_path};
 
 pub fn write_schemas(
     dag_schemas: &DagSchemas<SchemaSQLContext>,
     pipeline_dir: PathBuf,
     api_endpoints: &[ApiEndpoint],
 ) -> Result<HashMap<String, Schema>, OrchestrationError> {
-    let path = pipeline_dir.join(SCHEMA_FILE_NAME);
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .append(true)
-        .open(path)
-        .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-
     let mut schemas = dag_schemas.get_sink_schemas();
 
     for api_endpoint in api_endpoints {
@@ -37,21 +27,33 @@ pub fn write_schemas(
             .unwrap_or_else(|| panic!("Schema not found for a sink {}", api_endpoint.name));
         let schema = modify_schema(schema, api_endpoint)?;
 
+        let schema_path = get_endpoint_schema_path(&pipeline_dir, &api_endpoint.name);
+        if let Some(schema_dir) = schema_path.parent() {
+            std::fs::create_dir_all(schema_dir)
+                .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+        }
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&schema_path)
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+        writeln!(file, "{}", serde_json::to_string(&schema).unwrap())
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+
         schemas.insert(api_endpoint.name.clone(), schema);
     }
-    writeln!(file, "{}", serde_json::to_string(&schemas).unwrap())
-        .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+
     Ok(schemas)
 }
 
-pub fn load_schemas(path: &Path) -> Result<HashMap<String, Schema>, OrchestrationError> {
-    let path = path.join(SCHEMA_FILE_NAME);
+pub fn load_schema(pipeline_dir: &Path, endpoint_name: &str) -> Result<Schema, OrchestrationError> {
+    let path = get_endpoint_schema_path(pipeline_dir, endpoint_name);
 
     let schema_str = std::fs::read_to_string(&path)
         .map_err(|_| OrchestrationError::SchemasNotInitializedPath(path.clone()))?;
 
-    serde_json::from_str::<HashMap<String, Schema>>(&schema_str)
-        .map_err(|_| OrchestrationError::DeserializeSchemas(path))
+    serde_json::from_str(&schema_str).map_err(|_| OrchestrationError::DeserializeSchema(path))
 }
 
 fn modify_schema(
