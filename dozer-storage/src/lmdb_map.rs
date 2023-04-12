@@ -91,6 +91,7 @@ impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
         }
     }
 
+    /// Inserts or overwrites the value.
     pub fn insert_overwrite(
         &self,
         txn: &mut RwTransaction,

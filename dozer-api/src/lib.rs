@@ -46,6 +46,7 @@ impl CacheEndpoint {
                 insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
                 delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
                 update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
+                ..Default::default()
             };
             let (cache_name, task) = cache_builder::create_cache(
                 cache_manager,

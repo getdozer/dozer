@@ -1,51 +1,7 @@
 use dozer_storage::{errors::StorageError, BorrowEncode, Decode, Encode, Encoded, LmdbVal};
-use dozer_types::{
-    borrow::{Borrow, Cow, IntoOwned},
-    impl_borrow_for_clone_type,
-};
+use dozer_types::borrow::{Borrow, Cow, IntoOwned};
 
-use crate::cache::RecordMeta;
-
-use super::{Operation, OperationBorrow, RecordMetadata};
-
-impl_borrow_for_clone_type!(RecordMetadata);
-
-impl BorrowEncode for RecordMetadata {
-    type Encode<'a> = &'a RecordMetadata;
-}
-
-impl<'a> Encode<'a> for &'a RecordMetadata {
-    fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        let mut result = [0; 21];
-        result[0..8].copy_from_slice(&self.meta.id.to_be_bytes());
-        result[8..12].copy_from_slice(&self.meta.version.to_be_bytes());
-        if let Some(insert_operation_id) = self.insert_operation_id {
-            result[12] = 1;
-            result[13..21].copy_from_slice(&insert_operation_id.to_be_bytes());
-        } else {
-            result[12] = 0;
-        }
-        Ok(Encoded::U8x21(result))
-    }
-}
-
-impl Decode for RecordMetadata {
-    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        let id = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-        let version = u32::from_be_bytes(bytes[8..12].try_into().unwrap());
-        let insert_operation_id = if bytes[12] == 1 {
-            Some(u64::from_be_bytes(bytes[13..21].try_into().unwrap()))
-        } else {
-            None
-        };
-        Ok(Cow::Owned(RecordMetadata {
-            meta: RecordMeta::new(id, version),
-            insert_operation_id,
-        }))
-    }
-}
-
-unsafe impl LmdbVal for RecordMetadata {}
+use super::{Operation, OperationBorrow};
 
 impl<'a> IntoOwned<Operation> for OperationBorrow<'a> {
     fn into_owned(self) -> Operation {
@@ -126,30 +82,9 @@ unsafe impl LmdbVal for Operation {}
 mod tests {
     use dozer_types::types::Record;
 
+    use crate::cache::RecordMeta;
+
     use super::*;
-
-    #[test]
-    fn test_record_metadata_encode_decode() {
-        let record_metadata = RecordMetadata {
-            meta: RecordMeta::new(1, 2),
-            insert_operation_id: Some(3),
-        };
-        let encoded = record_metadata.encode().unwrap();
-        let decoded = RecordMetadata::decode(encoded.as_ref())
-            .unwrap()
-            .into_owned();
-        assert_eq!(record_metadata, decoded);
-
-        let record_metadata = RecordMetadata {
-            meta: RecordMeta::new(1, 2),
-            insert_operation_id: None,
-        };
-        let encoded = record_metadata.encode().unwrap();
-        let decoded = RecordMetadata::decode(encoded.as_ref())
-            .unwrap()
-            .into_owned();
-        assert_eq!(record_metadata, decoded);
-    }
 
     #[test]
     fn test_operation_encode_decode() {

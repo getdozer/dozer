@@ -15,6 +15,7 @@ fn init_env(conflict_resolution: ConflictResolution) -> (RwMainEnvironment, Sche
         insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
         delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
         update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
+        ..Default::default()
     };
     let main_env =
         RwMainEnvironment::new(Some(&schema), &Default::default(), write_options).unwrap();
@@ -139,15 +140,15 @@ fn ignore_update_error_when_type_nothing() {
         Field::String("Film name updated".to_string()),
     ];
 
+    let initial_record = Record {
+        schema_id: schema.identifier,
+        values: initial_values.clone(),
+    };
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values,
     };
-    env.update(
-        &index::get_primary_key(&schema.primary_index, &initial_values),
-        &update_record,
-    )
-    .unwrap();
+    env.update(&initial_record, &update_record).unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
     let record = env.get(&key);
@@ -169,15 +170,15 @@ fn update_after_update_error_when_type_upsert() {
         Field::String("Film name updated".to_string()),
     ];
 
+    let initial_record = Record {
+        schema_id: schema.identifier,
+        values: initial_values.clone(),
+    };
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values.clone(),
     };
-    env.update(
-        &index::get_primary_key(&schema.primary_index, &initial_values),
-        &update_record,
-    )
-    .unwrap();
+    env.update(&initial_record, &update_record).unwrap();
     env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
@@ -201,15 +202,16 @@ fn return_update_error_when_type_panic() {
         Field::String("Film name updated".to_string()),
     ];
 
+    let initial_record = Record {
+        schema_id: schema.identifier,
+        values: initial_values.clone(),
+    };
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values,
     };
 
-    let result = env.update(
-        &index::get_primary_key(&schema.primary_index, &initial_values),
-        &update_record,
-    );
+    let result = env.update(&initial_record, &update_record);
 
     assert!(matches!(result, Err(CacheError::PrimaryKeyNotFound)));
 }
@@ -223,16 +225,17 @@ fn ignore_delete_error_when_type_nothing() {
     });
 
     let initial_values = vec![Field::Int(1), Field::Null];
+    let initial_record = Record {
+        schema_id: schema.identifier,
+        values: initial_values.clone(),
+    };
 
     // Check is cache empty
     let current_count = env.count().unwrap();
     assert_eq!(current_count, 0_usize);
 
     // Trying delete not existing record should be ignored
-    let result = env.delete(&index::get_primary_key(
-        &schema.primary_index,
-        &initial_values,
-    ));
+    let result = env.delete(&initial_record);
     assert!(result.is_ok());
 }
 
@@ -245,10 +248,11 @@ fn return_delete_error_when_type_panic() {
     });
 
     let initial_values = vec![Field::Int(1), Field::Null];
+    let initial_record = Record {
+        schema_id: schema.identifier,
+        values: initial_values.clone(),
+    };
 
-    let result = env.delete(&index::get_primary_key(
-        &schema.primary_index,
-        &initial_values,
-    ));
+    let result = env.delete(&initial_record);
     assert!(matches!(result, Err(CacheError::PrimaryKeyNotFound)));
 }

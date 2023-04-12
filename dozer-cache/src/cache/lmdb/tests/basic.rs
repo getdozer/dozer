@@ -55,12 +55,21 @@ fn insert_get_and_delete_record() {
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 1);
 
-    let key = index::get_primary_key(&[0], &[Field::String(val)]);
+    let key = index::get_primary_key(&[0], &[Field::String(val.clone())]);
 
     let get_record = cache.get(&key).unwrap().record;
     assert_eq!(get_record, record, "must be equal");
 
-    assert_eq!(cache.delete(&key).unwrap().unwrap(), meta);
+    assert_eq!(
+        cache
+            .delete(&Record {
+                schema_id: schema.identifier,
+                values: vec![Field::String(val)]
+            })
+            .unwrap()
+            .unwrap(),
+        meta
+    );
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
@@ -81,9 +90,7 @@ fn insert_and_update_record() {
     };
     cache.insert(&bar).unwrap();
 
-    let key = index::get_primary_key(&schema.primary_index, &foo.values);
-
-    let UpsertResult::Updated { old_meta, new_meta } = cache.update(&key, &foo).unwrap() else {
+    let UpsertResult::Updated { old_meta, new_meta } = cache.update(&foo, &foo).unwrap() else {
         panic!("Must be updated")
     };
     assert_eq!(old_meta, meta);

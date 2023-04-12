@@ -12,7 +12,7 @@ use dozer_types::{
 };
 pub use lmdb::cache_manager::{CacheManagerOptions, LmdbRoCacheManager, LmdbRwCacheManager};
 pub mod expression;
-pub mod index;
+mod index;
 mod plan;
 pub mod test_utils;
 
@@ -46,6 +46,7 @@ pub struct CacheWriteOptions {
     pub insert_resolution: OnInsertResolutionTypes,
     pub delete_resolution: OnDeleteResolutionTypes,
     pub update_resolution: OnUpdateResolutionTypes,
+    pub detect_hash_collision: bool,
 }
 
 pub trait RwCacheManager: RoCacheManager {
@@ -123,12 +124,16 @@ pub trait RwCache: RoCache {
     /// Deletes a record. Implicitly starts a transaction if there's no active transaction.
     ///
     /// Returns the id and version of the deleted record if it existed.
-    fn delete(&mut self, key: &[u8]) -> Result<Option<RecordMeta>, CacheError>;
+    ///
+    /// If the schema has primary index, only fields that are part of the primary index are used to identify the record.
+    fn delete(&mut self, record: &Record) -> Result<Option<RecordMeta>, CacheError>;
 
     /// Updates a record in the cache. Implicitly starts a transaction if there's no active transaction.
     ///
     /// Depending on the `ConflictResolution` strategy, it may actually insert the record if it doesn't exist.
-    fn update(&mut self, key: &[u8], record: &Record) -> Result<UpsertResult, CacheError>;
+    ///
+    /// If the schema has primary index, only fields that are part of the primary index are used to identify the old record.
+    fn update(&mut self, old: &Record, record: &Record) -> Result<UpsertResult, CacheError>;
 
     /// Commits the current transaction.
     fn commit(&mut self) -> Result<(), CacheError>;

@@ -116,9 +116,9 @@ impl Schema {
 
     /// Returns if this schema is append only.
     ///
-    /// Currently schema is append only if it does not have a primary key. We'll support append only schema with primary key in the future.
+    /// Append only schemas enable additional optimizations, however, the connectors and processors haven't properly implemented this yet.
     pub fn is_append_only(&self) -> bool {
-        self.primary_index.is_empty()
+        false
     }
 }
 

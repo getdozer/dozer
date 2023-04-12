@@ -5,6 +5,7 @@ use dozer_types::{
 
 use crate::errors::StorageError;
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Encoded<'a> {
     U8([u8; 1]),
     U8x4([u8; 4]),
