@@ -245,7 +245,6 @@ impl<'a> PipelineBuilder<'a> {
                 api_endpoint.clone(),
                 self.progress.clone(),
                 notifier.clone(),
-                notifier.clone(),
             ));
 
             match table_info {

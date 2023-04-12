@@ -37,7 +37,6 @@ pub struct LogSinkFactory {
     api_endpoint: ApiEndpoint,
     multi_pb: MultiProgress,
     notifier: Option<PipelineEventSenders>,
-    notifier: Option<PipelineEventSenders>,
 }
 
 impl LogSinkFactory {
@@ -46,13 +45,11 @@ impl LogSinkFactory {
         api_endpoint: ApiEndpoint,
         multi_pb: MultiProgress,
         notifier: Option<PipelineEventSenders>,
-        notifier: Option<PipelineEventSenders>,
     ) -> Self {
         Self {
             settings,
             api_endpoint,
             multi_pb,
-            notifier,
             notifier,
         }
     }
@@ -195,18 +192,6 @@ fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
             ]),
     );
     pb
-}
-
-fn try_send(notifier: &Option<PipelineEventSenders>, progress: usize, endpoint_name: &str) {
-    if let Some(n) = notifier {
-        let status_update = StatusUpdate {
-            source: endpoint_name.to_string(),
-            r#type: "sink".to_string(),
-            count: progress as i64,
-        };
-
-        let _ = n.2.try_send(status_update);
-    }
 }
 
 fn try_send(notifier: &Option<PipelineEventSenders>, progress: usize, endpoint_name: &str) {
