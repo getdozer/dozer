@@ -1,0 +1,16 @@
+container_name: flights_conn
+image: debezium/postgres:13
+command: postgres -c hba_file=/var/lib/foo/pg_hba.conf
+environment:
+  - POSTGRES_DB=flights
+  - POSTGRES_USER=postgres
+  - POSTGRES_PASSWORD=postgres
+  - ALLOW_IP_RANGE=0.0.0.0/0
+ports:
+  - target: 5432
+    published: 5437
+healthcheck:
+  test: [ "CMD-SHELL", "pg_isready -U postgres -d flights" ]
+  interval: 5s
+  timeout: 5s
+  retries: 5
