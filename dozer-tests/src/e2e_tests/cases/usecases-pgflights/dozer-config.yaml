@@ -81,7 +81,7 @@ sources:
   - name: b_bookings
     table_name: bookings
     columns:
-    connection: !Ref bookings_conn
+    connection: !Ref flights_conn
 
   - name: b_ticket_flights
     table_name: ticket_flights
