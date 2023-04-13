@@ -6,7 +6,7 @@ connections:
       password: postgres
       host: localhost
       port: 5437
-      database: bookings
+      database: flights
     name: bookings_conn
 
 sql: |
