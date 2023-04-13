@@ -39,4 +39,5 @@ tonic-build = "0.8.2"
 
 [features]
 python = ["dep:pyo3"]
+python-extension-module = ["python", "pyo3?/extension-module"]
 snowflake=[]
