@@ -4,14 +4,7 @@ connections:
   - config: !Postgres
       user: postgres
       password: postgres
-      host: 0.0.0.0
-      port: 5437
-      database: flights
-    name: bookings_conn
-  - config: !Postgres
-      user: postgres
-      password: postgres
-      host: 0.0.0.0
+      host: localhost
       port: 5437
       database: flights
     name: flights_conn
@@ -83,7 +76,7 @@ sources:
   - name: b_tickets
     table_name: tickets
     columns:
-    connection: !Ref bookings_conn
+    connection: !Ref flights_conn
 
   - name: b_bookings
     table_name: bookings
@@ -93,7 +86,7 @@ sources:
   - name: b_ticket_flights
     table_name: ticket_flights
     columns:
-    connection: !Ref bookings_conn
+    connection: !Ref flights_conn
 
   - name: f_airports
     table_name: airports
