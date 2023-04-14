@@ -363,7 +363,7 @@ jobs:
           tar -czvf ${{matrix.asset_name}}.tar.gz \
               ${{matrix.asset_name}}/
 
-          cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/
+          cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/ 2>/dev/null || :
           
           ls -l ${{matrix.asset_name}}
 
