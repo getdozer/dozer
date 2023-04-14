@@ -1,6 +1,6 @@
 [package]
 name = "dozer-log-python"
-version = "0.1.16"
+version = "0.1.17"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,10 +9,10 @@ edition = "2021"
 name = "dozer_log"
 
 [dependencies]
-dozer-core = { version = "0.1.16", path = "../dozer-core", optional = true }
-dozer-log = { version = "0.1.16", optional = true, path = "../dozer-log" }
-dozer-orchestrator = { version = "0.1.16", path = "../dozer-orchestrator", optional = true }
-dozer-types = { version = "0.1.16", path = "../dozer-types", features = ["python-extension-module"], optional = true }
+dozer-core = { path = "../dozer-core", optional = true }
+dozer-log = { path = "../dozer-log", optional = true }
+dozer-orchestrator = { path = "../dozer-orchestrator", optional = true }
+dozer-types = { path = "../dozer-types", features = ["python-extension-module"], optional = true }
 pyo3-asyncio = { version = "0.18.0", optional = true, features = ["tokio-runtime"] }
 
 [features]
