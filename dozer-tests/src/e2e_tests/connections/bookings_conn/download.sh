@@ -8,10 +8,11 @@ mkdir -p data
 # curl https://edu.postgrespro.com/demo-big-en.zip --output ./demo-big-en.zip
 # unzip demo-big-en.zip 
 
-curl https://edu.postgrespro.com/demo-small-en.zip --output ./demo-small-en.zip
 
-unzip demo-small-en.zip
+curl https://edu.postgrespro.com/demo-small-en.zip --output ./data/demo-small-en.zip
 
-cat ./demo-small-en-20170815.sql > ./data/init.sql
+unzip ./data/demo-small-en.zip -d data
 
-rm -f ./demo-small-en-20170815.sql
+cat ./data/demo-small-en-20170815.sql > ./data/init.sql
+
+rm -f ./data/demo-small-en-20170815.sql
