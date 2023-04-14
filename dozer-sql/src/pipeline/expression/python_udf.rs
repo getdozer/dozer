@@ -4,7 +4,7 @@ use crate::pipeline::errors::UnsupportedSqlError::GenericError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::pyo3::types::PyTuple;
-use dozer_types::pyo3::Python;
+use dozer_types::pyo3::{prepare_freethreaded_python, Python};
 use dozer_types::types::{Field, FieldType, Record, Schema};
 use std::env;
 use std::path::PathBuf;
@@ -32,6 +32,7 @@ pub fn evaluate_py_udf(
     // Set the `PYTHON_SYS_EXECUTABLE` environment variable
     env::set_var("PYTHON_SYS_EXECUTABLE", py_path);
 
+    prepare_freethreaded_python();
     Python::with_gil(|py| -> Result<Field, PipelineError> {
         // Get the directory containing the module
         let module_dir = PathBuf::from(env_path);
