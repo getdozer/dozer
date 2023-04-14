@@ -2588,6 +2588,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-log-python"
+version = "0.1.16"
+dependencies = [
+ "dozer-core",
+ "dozer-log",
+ "dozer-orchestrator",
+ "dozer-types",
+ "pyo3-asyncio",
+]
+
+[[package]]
 name = "dozer-orchestrator"
 version = "0.1.16"
 dependencies = [
@@ -5539,6 +5550,19 @@ dependencies = [
  "pyo3-ffi",
  "pyo3-macros",
  "unindent",
+]
+
+[[package]]
+name = "pyo3-asyncio"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3564762e37035cfc486228e10b0528460fa026d681b5763873c693aa0d5c260"
+dependencies = [
+ "futures",
+ "once_cell",
+ "pin-project-lite",
+ "pyo3",
+ "tokio",
 ]
 
 [[package]]
