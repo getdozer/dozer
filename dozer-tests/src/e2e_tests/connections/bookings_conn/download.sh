@@ -9,7 +9,8 @@ mkdir -p data
 # unzip demo-big-en.zip 
 
 curl https://edu.postgrespro.com/demo-small-en.zip --output ./demo-small-en.zip
-unzip -f demo-small-en.zip
+
+unzip demo-small-en.zip
 
 cat ./demo-small-en-20170815.sql > ./data/init.sql
 
