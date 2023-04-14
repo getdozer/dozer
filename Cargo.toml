@@ -11,6 +11,7 @@ members = [
   "dozer-tracing",
   "dozer-tests",
   "dozer-log",
+  "dozer-log-js",
   "dozer-utils",
   "dozer-admin"
 ]
