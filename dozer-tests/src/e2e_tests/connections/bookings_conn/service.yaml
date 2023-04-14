@@ -11,6 +11,6 @@ ports:
     published: 5437
 healthcheck:
   test: [ "CMD-SHELL", "pg_isready -U postgres -d flights" ]
-  interval: 5s
-  timeout: 5s
+  interval: 10s
+  timeout: 10s
   retries: 5
