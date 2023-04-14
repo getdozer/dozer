@@ -363,7 +363,7 @@ jobs:
           tar -czvf ${{matrix.asset_name}}.tar.gz \
               ${{matrix.asset_name}}/
 
-          cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/
+          cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/ 2>/dev/null || :
           
           ls -l ${{matrix.asset_name}}
 
@@ -404,8 +404,8 @@ jobs:
           aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
 
       - name: Upload release deb to S3
-        if: matrix.os == 'ubuntu-20-16-cores'
         id: upload_s3_deb
+        if: matrix.os == 'ubuntu-20-16-cores'
         run: |
           aws s3 cp deb/$DEB_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$DEB_NAME
 
@@ -443,7 +443,3 @@ jobs:
           "color": 990099
           }]'
         uses: Ilshidur/action-discord@master
-
-
-  
-          
