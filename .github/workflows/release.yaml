@@ -340,9 +340,11 @@ jobs:
         run: cargo build --release
 
       - name: Install cargo-deb
+        if: matrix.os == 'ubuntu-20-16-cores'
         run: cargo install cargo-deb
 
       - name: Compile deb file
+        if: matrix.os == 'ubuntu-20-16-cores'
         run: cargo-deb -p dozer-orchestrator  --output ./deb/${{matrix.asset_name}}.deb
 
       # - name: Build Linux binary
@@ -403,6 +405,7 @@ jobs:
 
       - name: Upload release deb to S3
         id: upload_s3_deb
+        if: matrix.os == 'ubuntu-20-16-cores'
         run: |
           aws s3 cp deb/$DEB_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$DEB_NAME
 
