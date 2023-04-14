@@ -1,5 +1,5 @@
 use super::executor::Executor;
-use super::schemas::load_schemas;
+use super::schemas::load_schema;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
@@ -63,10 +63,6 @@ impl Orchestrator for SimpleOrchestrator {
         self.runtime.block_on(async {
             let mut futures = FuturesUnordered::new();
 
-            // Load schemas.
-            let pipeline_path = get_pipeline_dir(&self.config);
-            let schemas = load_schemas(&pipeline_path)?;
-
             // Open `RoCacheEndpoint`s. Streaming operations if necessary.
             let flags = self.config.flags.clone().unwrap_or_default();
             let (operations_sender, operations_receiver) = if flags.dynamic {
@@ -83,9 +79,7 @@ impl Orchestrator for SimpleOrchestrator {
             let pipeline_dir = get_pipeline_dir(&self.config);
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
-                let schema = schemas
-                    .get(&endpoint.name)
-                    .expect("schema is expected to exist");
+                let schema = load_schema(&pipeline_dir, &endpoint.name)?;
                 let log_path = get_endpoint_log_path(&pipeline_dir, &endpoint.name);
                 let (cache_endpoint, task) = CacheEndpoint::new(
                     &*cache_manager,
