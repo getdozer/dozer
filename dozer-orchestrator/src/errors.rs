@@ -26,6 +26,8 @@ pub enum OrchestrationError {
     PipelineDirectoryNotFound(String),
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
+    #[error("Failed to deploy dozer application: {0:?}")]
+    DeployFailed(DeployError),
     #[error("Failed to initialize api server: {0}")]
     ApiServerFailed(#[from] ApiError),
     #[error("Failed to initialize grpc server: {0}")]
@@ -92,4 +94,10 @@ pub enum CliError {
     InternalError(#[from] BoxedError),
     #[error(transparent)]
     TerminalError(#[from] crossterm::ErrorKind),
+}
+
+#[derive(Error, Debug)]
+pub enum DeployError {
+    #[error("Invalid deployment target url")]
+    InvalidTargetUrl,
 }

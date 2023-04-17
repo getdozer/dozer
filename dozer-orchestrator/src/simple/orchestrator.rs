@@ -1,7 +1,7 @@
 use super::executor::Executor;
 use super::schemas::load_schema;
 use crate::console_helper::get_colored_text;
-use crate::errors::OrchestrationError;
+use crate::errors::{DeployError, OrchestrationError};
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
@@ -345,18 +345,18 @@ impl Orchestrator for SimpleOrchestrator {
     fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError> {
         let target_url = match deploy.target_url {
             Some(v) => v,
-            None => String::from("cloud.getdozer.io"),
+            None => return Err(OrchestrationError::DeployFailed(DeployError::InvalidTargetUrl)),
         };
         let username = match deploy.username {
             Some(u) => u,
             None => String::new(),
         };
-        let password = match deploy.password {
+        let _password = match deploy.password {
             Some(p) => p,
             None => String::new(),
         };
         info!("dozer deploy is called for url: {:?}", target_url);
-        info!("username: {:?}, password: {:?}", username, password);
+        info!("logging in for username: {:?}", username);
         info!("local dozer config path: {:?}", config_path);
         // getting local dozer config file
         let _config = load_config(config_path)?;
