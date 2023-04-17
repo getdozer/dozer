@@ -39,6 +39,7 @@ use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
+use crate::cli::load_config;
 
 #[derive(Clone)]
 pub struct SimpleOrchestrator {
@@ -351,6 +352,7 @@ impl Orchestrator for SimpleOrchestrator {
         info!("username: {:?}, password: {:?}", username, password);
         info!("local dozer config path: {:?}", config_path);
         // getting local dozer config file
+        let _config = load_config(config_path)?;
         // calling the target url with the config fetched
         // 1. CREATE application
         // 2. START application
