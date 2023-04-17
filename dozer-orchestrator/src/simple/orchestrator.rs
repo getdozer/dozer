@@ -29,6 +29,7 @@ use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
+use crate::cli::load_config;
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -39,7 +40,6 @@ use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
-use crate::cli::load_config;
 
 #[derive(Clone)]
 pub struct SimpleOrchestrator {
