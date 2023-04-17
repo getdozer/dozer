@@ -28,6 +28,7 @@ pub trait Orchestrator {
         target_url: String,
         username: String,
         password: String,
+        config_path: String,
     ) -> Result<(), OrchestrationError>;
     fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;

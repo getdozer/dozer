@@ -345,9 +345,11 @@ impl Orchestrator for SimpleOrchestrator {
         target_url: String,
         username: String,
         password: String,
+        config_path: String,
     ) -> Result<(), OrchestrationError> {
         info!("dozer deploy is called for url: {:?}", target_url);
         info!("username: {:?}, password: {:?}", username, password);
+        info!("local dozer config path: {:?}", config_path);
         // getting local dozer config file
         // calling the target url with the config fetched
         // 1. CREATE application

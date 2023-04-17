@@ -91,7 +91,7 @@ fn run() -> Result<(), OrchestrationError> {
                         String::new()
                     }
                 };
-                dozer.deploy(target_url, username, password)
+                dozer.deploy(target_url, username, password, cli.config_path)
             }
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
