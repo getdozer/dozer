@@ -345,7 +345,7 @@ impl Orchestrator for SimpleOrchestrator {
     fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError> {
         let target_url = match deploy.target_url {
             Some(v) => v,
-            None => String::from("dozer.cloud.io"),
+            None => String::from("cloud.getdozer.io"),
         };
         let username = match deploy.username {
             Some(u) => u,
