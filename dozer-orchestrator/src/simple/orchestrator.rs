@@ -339,6 +339,22 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
+    // TODO: Deploy Dozer application using local Dozer configuration
+    fn deploy(
+        &mut self,
+        target_url: String,
+        username: String,
+        password: String,
+    ) -> Result<(), OrchestrationError> {
+        info!("dozer deploy is called for url: {:?}", target_url);
+        info!("username: {:?}, password: {:?}", username, password);
+        // getting local dozer config file
+        // calling the target url with the config fetched
+        // 1. CREATE application
+        // 2. START application
+        Ok(())
+    }
+
     fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         let shutdown_api = shutdown.clone();
         // TODO: remove this after checkpointing

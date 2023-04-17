@@ -23,6 +23,12 @@ pub mod utils;
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
+    fn deploy(
+        &mut self,
+        target_url: String,
+        username: String,
+        password: String,
+    ) -> Result<(), OrchestrationError>;
     fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_apps(

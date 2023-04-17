@@ -8,6 +8,7 @@ use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrato
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 
+use dozer_types::log::warn;
 use std::process;
 
 fn main() {
@@ -71,6 +72,27 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.migrate(force)
             }
             Commands::Clean => dozer.clean(),
+            Commands::Deploy(deploy) => {
+                let target_url = match deploy.target_url {
+                    Some(v) => v,
+                    None => String::from("dozer.cloud.io"),
+                };
+                let username = match deploy.username {
+                    Some(u) => u,
+                    _ => {
+                        warn!("Please provide correct username");
+                        String::new()
+                    }
+                };
+                let password = match deploy.password {
+                    Some(p) => p,
+                    _ => {
+                        warn!("Please provide correct password");
+                        String::new()
+                    }
+                };
+                dozer.deploy(target_url, username, password)
+            }
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }
