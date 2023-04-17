@@ -345,7 +345,11 @@ impl Orchestrator for SimpleOrchestrator {
     fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError> {
         let target_url = match deploy.target_url {
             Some(v) => v,
-            None => return Err(OrchestrationError::DeployFailed(DeployError::InvalidTargetUrl)),
+            None => {
+                return Err(OrchestrationError::DeployFailed(
+                    DeployError::InvalidTargetUrl,
+                ))
+            }
         };
         let username = match deploy.username {
             Some(u) => u,
@@ -355,9 +359,9 @@ impl Orchestrator for SimpleOrchestrator {
             Some(p) => p,
             None => String::new(),
         };
-        info!("dozer deploy is called for url: {:?}", target_url);
-        info!("logging in for username: {:?}", username);
-        info!("local dozer config path: {:?}", config_path);
+        info!("Deployment target url: {:?}", target_url);
+        info!("Authenticating for username: {:?}", username);
+        info!("Local dozer configuration path: {:?}", config_path);
         // getting local dozer config file
         let _config = load_config(config_path)?;
         // calling the target url with the config fetched
