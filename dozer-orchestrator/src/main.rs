@@ -8,7 +8,6 @@ use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrato
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 
-
 use std::process;
 
 fn main() {
