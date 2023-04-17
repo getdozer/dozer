@@ -23,13 +23,7 @@ pub mod utils;
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
-    fn deploy(
-        &mut self,
-        target_url: String,
-        username: String,
-        password: String,
-        config_path: String,
-    ) -> Result<(), OrchestrationError>;
+    fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError>;
     fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_apps(
@@ -56,6 +50,7 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
     statement_to_pipeline(sql, &mut pipeline, None)
 }
 
+use crate::cli::types::Deploy;
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 

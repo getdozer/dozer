@@ -72,27 +72,7 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.migrate(force)
             }
             Commands::Clean => dozer.clean(),
-            Commands::Deploy(deploy) => {
-                let target_url = match deploy.target_url {
-                    Some(v) => v,
-                    None => String::from("dozer.cloud.io"),
-                };
-                let username = match deploy.username {
-                    Some(u) => u,
-                    _ => {
-                        warn!("Please provide correct username");
-                        String::new()
-                    }
-                };
-                let password = match deploy.password {
-                    Some(p) => p,
-                    _ => {
-                        warn!("Please provide correct password");
-                        String::new()
-                    }
-                };
-                dozer.deploy(target_url, username, password, cli.config_path)
-            }
+            Commands::Deploy(deploy) => dozer.deploy(deploy, cli.config_path),
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }

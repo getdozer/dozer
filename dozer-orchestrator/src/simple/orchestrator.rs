@@ -30,6 +30,7 @@ use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
 use crate::cli::load_config;
+use crate::cli::types::Deploy;
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -341,13 +342,19 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     // TODO: Deploy Dozer application using local Dozer configuration
-    fn deploy(
-        &mut self,
-        target_url: String,
-        username: String,
-        password: String,
-        config_path: String,
-    ) -> Result<(), OrchestrationError> {
+    fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError> {
+        let target_url = match deploy.target_url {
+            Some(v) => v,
+            None => String::from("dozer.cloud.io"),
+        };
+        let username = match deploy.username {
+            Some(u) => u,
+            None => String::new(),
+        };
+        let password = match deploy.password {
+            Some(p) => p,
+            None => String::new(),
+        };
         info!("dozer deploy is called for url: {:?}", target_url);
         info!("username: {:?}, password: {:?}", username, password);
         info!("local dozer config path: {:?}", config_path);
