@@ -1,6 +1,6 @@
 use super::schema::connections;
 use diesel::prelude::*;
-use dozer_types::{models::connection::ConnectionConfig, serde};
+use dozer_types::{chrono::NaiveDateTime, models::connection::ConnectionConfig, serde};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 #[derive(Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize, Default)]
@@ -9,8 +9,8 @@ pub struct DbConnection {
     pub(crate) id: String,
     pub(crate) config: String,
     pub(crate) name: String,
-    pub(crate) created_at: String,
-    pub(crate) updated_at: String,
+    pub(crate) created_at: NaiveDateTime,
+    pub(crate) updated_at: NaiveDateTime,
 }
 #[derive(Insertable, AsChangeset, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[diesel(table_name = connections)]

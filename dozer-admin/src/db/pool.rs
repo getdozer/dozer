@@ -1,10 +1,11 @@
 use diesel::r2d2::ConnectionManager;
-use diesel::sqlite::SqliteConnection;
 use r2d2::Pool;
 
-pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
+use super::Connection;
+
+pub type DbPool = Pool<ConnectionManager<Connection>>;
 pub fn establish_connection(database_url: String) -> DbPool {
-    let manager = ConnectionManager::<SqliteConnection>::new(database_url);
+    let manager = ConnectionManager::new(database_url);
     r2d2::Pool::builder()
         .build(manager)
         .expect("Failed to create DB pool.")
