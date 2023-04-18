@@ -4,7 +4,7 @@ connections:
   - config: !Postgres
       user: postgres
       password: postgres
-      host: localhost
+      host: 0.0.0.0
       port: 5437
       database: flights
     name: bookings_conn
