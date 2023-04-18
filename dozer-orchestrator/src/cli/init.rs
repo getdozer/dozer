@@ -172,7 +172,10 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
                     .write(true)
                     .open(yaml_path)
                     .map_err(|e| {
-                        OrchestrationError::CliError(CliError::InternalError(Box::new(e)))
+                        OrchestrationError::CliError(CliError::FileSystem(
+                            yaml_path.to_string().into(),
+                            e,
+                        ))
                     })?;
                 serde_yaml::to_writer(f, &config)
                     .map_err(OrchestrationError::FailedToWriteConfigYaml)?;

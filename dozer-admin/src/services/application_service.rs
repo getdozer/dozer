@@ -26,6 +26,7 @@ use dozer_types::grpc_types::admin::{
 use dozer_types::grpc_types::admin::{StatusUpdateRequest, StopResponse};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_yaml;
+use tokio::runtime::Runtime;
 
 use std::collections::HashMap;
 
@@ -48,12 +49,15 @@ use tonic::{Code, Status};
 pub struct AppService {
     db_pool: DbPool,
     pub apps: Arc<RwLock<HashMap<String, ShutdownSender>>>,
+    runtime: Arc<Runtime>,
 }
 impl AppService {
     pub fn new(db_pool: DbPool) -> Self {
+        let runtime = Runtime::new().expect("Failed to create runtime");
         Self {
             db_pool,
             apps: Arc::new(RwLock::new(HashMap::new())),
+            runtime: Arc::new(runtime),
         }
     }
 }
@@ -292,7 +296,7 @@ impl AppService {
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
-        let mut dozer = Dozer::new(c);
+        let mut dozer = Dozer::new(c, self.runtime.clone());
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         thread::spawn(move || {
             let _guard = dozer_tracing::init_telemetry_closure(

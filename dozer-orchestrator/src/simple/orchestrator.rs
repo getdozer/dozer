@@ -48,8 +48,7 @@ pub struct SimpleOrchestrator {
 }
 
 impl SimpleOrchestrator {
-    pub fn new(config: Config) -> Self {
-        let runtime = Arc::new(Runtime::new().expect("Failed to initialize tokio runtime"));
+    pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
         Self {
             config,
             runtime,

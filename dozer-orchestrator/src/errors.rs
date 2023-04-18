@@ -86,10 +86,12 @@ pub enum CliError {
     FailedToParseYaml(#[source] BoxedError),
     #[error("Failed to validate dozer config: {0:?}")]
     FailedToParseValidateYaml(#[source] BoxedError),
-    #[error(transparent)]
+    #[error("Failed to read line: {0}")]
     ReadlineError(#[from] rustyline::error::ReadlineError),
-    #[error(transparent)]
-    InternalError(#[from] BoxedError),
-    #[error(transparent)]
-    TerminalError(#[from] crossterm::ErrorKind),
+    #[error("File system error {0:?}: {1}")]
+    FileSystem(PathBuf, #[source] std::io::Error),
+    #[error("Failed to create tokio runtime: {0}")]
+    FailedToCreateTokioRuntime(#[source] std::io::Error),
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] reqwest::Error),
 }

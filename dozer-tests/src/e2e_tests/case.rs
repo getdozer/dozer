@@ -1,4 +1,4 @@
-use dozer_orchestrator::cli::load_config;
+use dozer_orchestrator::cli::load_config_from_file;
 use std::{
     collections::HashMap,
     fs::read_to_string,
@@ -36,7 +36,7 @@ pub struct Case {
 impl Case {
     pub fn load_from_case_dir(case_dir: PathBuf, connections_dir: PathBuf) -> Self {
         let dozer_config_path = find_dozer_config_path(&case_dir);
-        let dozer_config = load_config(dozer_config_path.clone())
+        let dozer_config = load_config_from_file(&dozer_config_path)
             .unwrap_or_else(|e| panic!("Cannot read file: {}: {:?}", &dozer_config_path, e));
         let mut connections = HashMap::new();
         for connection in &dozer_config.connections {
