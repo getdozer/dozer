@@ -17,6 +17,7 @@ pub struct AccessFilter {
     pub filter: Option<FilterExpression>,
 
     /// Fields to be restricted
+    #[serde(default)]
     pub fields: Vec<String>,
 }
 
