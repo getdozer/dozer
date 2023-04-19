@@ -1,4 +1,4 @@
-use std::{future::Future, thread::JoinHandle, time::Duration};
+use std::{future::Future, sync::Arc, thread::JoinHandle, time::Duration};
 
 use dozer_api::tonic::transport::Channel;
 use dozer_orchestrator::{
@@ -15,6 +15,7 @@ use dozer_types::{
     serde_yaml,
 };
 use tempdir::TempDir;
+use tokio::runtime::Runtime;
 
 mod basic;
 mod basic_sql;
@@ -49,7 +50,8 @@ impl DozerE2eTest {
             }
         }
 
-        let mut dozer = SimpleOrchestrator::new(config);
+        let runtime = Runtime::new().expect("Failed to create runtime");
+        let mut dozer = SimpleOrchestrator::new(config, Arc::new(runtime));
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let dozer_thread = std::thread::spawn(move || {
             dozer.run_all(shutdown_receiver).unwrap();
