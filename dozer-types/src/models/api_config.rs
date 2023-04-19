@@ -74,7 +74,7 @@ pub(crate) fn default_api_rest() -> Option<RestApiOptions> {
         port: default_rest_port(),
         host: default_host(),
         cors: default_cors(),
-        enabled: true
+        enabled: true,
     })
 }
 pub(crate) fn default_api_grpc() -> Option<GrpcApiOptions> {
