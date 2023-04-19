@@ -35,7 +35,7 @@ rustyline = "10.1.1"
 rustyline-derive = "0.8.0"
 futures = "0.3.26"
 page_size = "0.5.0"
-reqwest = "0.11.16"
+reqwest = { version = "0.11.16", features = ["blocking", "rustls-tls"], default-features = false }
 
 [[bin]]
 edition = "2021"
