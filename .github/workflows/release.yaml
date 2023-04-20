@@ -127,7 +127,7 @@ jobs:
         with:
           command: build
           use-cross: false
-          args: --release --target ${{ matrix.target }}
+          args: --release --target ${{ matrix.target }} --bin ${{ matrix.file_name }}
       - name: List target output files
         run: ls -lR ./target
 
@@ -240,7 +240,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target ${{ matrix.target }}
+          args: --release --target ${{ matrix.target }} --bin ${{ matrix.file_name }}
 
       - name: List target output files
         run: ls -lR ./target
@@ -337,7 +337,7 @@ jobs:
             ${{ runner.os }}-cargo-release-
 
       - name: Build package
-        run: cargo build --release
+        run: cargo build --release --bin ${{ matrix.file_name }}
 
       - name: Install cargo-deb
         if: matrix.os == 'ubuntu-20-16-cores'

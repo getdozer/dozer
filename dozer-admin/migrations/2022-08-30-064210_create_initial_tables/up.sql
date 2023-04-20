@@ -1,5 +1,4 @@
 -- Your SQL goes here
-PRAGMA foreign_keys = ON;
 create table apps (
     id TEXT NOT NULL PRIMARY KEY,
     name TEXT not null,
