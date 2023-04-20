@@ -16,11 +16,9 @@ const ARG_SOURCE: usize = 0;
 const ARG_COLUMN: usize = 1;
 
 const ARG_TUMBLE_INTERVAL: usize = 2;
-const ARG_TUMBLE_TTL: usize = 3;
 
 const ARG_HOP_SIZE: usize = 2;
 const ARG_HOP_INTERVAL: usize = 3;
-const ARG_HOP_TTL: usize = 4;
 
 pub(crate) fn window_from_table_operator(
     operator: &TableOperator,

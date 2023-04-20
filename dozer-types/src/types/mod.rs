@@ -148,7 +148,7 @@ pub struct Record {
     pub values: Vec<Field>,
 
     /// Time To Live for this record. If the value is None, the record will never expire.
-    pub lifetime: Option<(usize, Field)>,
+    pub lifetime: Option<DozerDuration>,
 }
 
 impl Record {
