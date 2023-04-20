@@ -32,6 +32,7 @@ fn override_rest_port() {
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
     assert_eq!(api_config.grpc.unwrap(), default_api_grpc);
 }
+
 #[test]
 fn override_rest_host() {
     let input_config = r#"
@@ -58,6 +59,7 @@ fn override_rest_host() {
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
     assert_eq!(api_config.grpc.unwrap(), default_api_grpc);
 }
+
 #[test]
 fn override_rest_enabled() {
     let input_config = r#"
@@ -84,6 +86,7 @@ fn override_rest_enabled() {
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
     assert_eq!(api_config.grpc.unwrap(), default_api_grpc);
 }
+
 #[test]
 fn override_grpc_port() {
     let input_config = r#"
@@ -219,6 +222,7 @@ fn override_grpc_and_rest_port_jwt() {
     let expected_api_security = ApiSecurity::Jwt("Vv44T1GugX".to_owned());
     assert_eq!(api_security, expected_api_security);
 }
+
 #[test]
 fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
     let input_config = r#"
