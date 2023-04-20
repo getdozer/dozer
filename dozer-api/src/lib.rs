@@ -133,6 +133,7 @@ pub mod generator;
 pub mod grpc;
 pub mod rest;
 // Re-exports
+pub use actix_cors;
 pub use actix_web;
 pub use async_trait;
 use dozer_types::indicatif::MultiProgress;
@@ -141,6 +142,7 @@ pub use openapiv3;
 pub use tokio;
 use tokio::{runtime::Runtime, sync::broadcast::Sender};
 pub use tonic;
+pub use tracing_actix_web;
 
 #[cfg(test)]
 mod test_utils;
