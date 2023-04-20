@@ -1,10 +1,11 @@
-use diesel::{r2d2::ConnectionManager, SqliteConnection};
+use diesel::r2d2::ConnectionManager;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
 use dozer_orchestrator::cli::generate_connection;
 use dozer_types::models::app_config::Config;
 use r2d2::{CustomizeConnection, Pool};
 use std::error::Error;
-type DB = diesel::sqlite::Sqlite;
+
+use crate::db::{Connection, DB};
 
 #[derive(Debug, Clone)]
 pub struct TestConfigId {
@@ -16,18 +17,18 @@ pub struct TestConfigId {
 #[derive(Debug)]
 struct TestConnectionCustomizer;
 
-impl<E> CustomizeConnection<SqliteConnection, E> for TestConnectionCustomizer {
-    fn on_acquire(&self, conn: &mut SqliteConnection) -> Result<(), E> {
+impl<E> CustomizeConnection<Connection, E> for TestConnectionCustomizer {
+    fn on_acquire(&self, conn: &mut Connection) -> Result<(), E> {
         prepare_test_db(conn);
         Ok(())
     }
-    fn on_release(&self, conn: SqliteConnection) {
+    fn on_release(&self, conn: Connection) {
         std::mem::drop(conn);
     }
 }
-pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
+pub type DbPool = Pool<ConnectionManager<Connection>>;
 pub fn establish_test_connection(database_url: String) -> DbPool {
-    let manager = ConnectionManager::<SqliteConnection>::new(database_url);
+    let manager = ConnectionManager::<Connection>::new(database_url);
     r2d2::Pool::builder()
         .max_size(10)
         .connection_customizer(Box::new(TestConnectionCustomizer))
@@ -35,7 +36,7 @@ pub fn establish_test_connection(database_url: String) -> DbPool {
         .expect("Failed to create DB pool.")
 }
 
-fn prepare_test_db(connection: &mut SqliteConnection) {
+fn prepare_test_db(connection: &mut Connection) {
     run_migrations(connection).unwrap();
 }
 

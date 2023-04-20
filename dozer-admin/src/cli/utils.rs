@@ -1,8 +1,7 @@
-use crate::db::pool::establish_connection;
+use crate::db::{pool::establish_connection, DB};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
-use std::{error::Error, path::Path};
+use std::{env, error::Error, path::Path};
 
-type DB = diesel::sqlite::Sqlite;
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 fn run_migrations(
     connection: &mut impl MigrationHarness<DB>,
@@ -13,7 +12,7 @@ fn run_migrations(
 }
 
 pub fn get_db_path() -> String {
-    "dozer.db".to_string()
+    env::var("DATABASE_URL").unwrap_or("dozer.db".to_string())
 }
 
 pub fn init_db() {

@@ -2304,8 +2304,13 @@ version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4391a22b19c916e50bec4d6140f29bdda3e3bb187223fe6e3ea0b6e4d1021c04"
 dependencies = [
+ "bitflags 1.3.2",
+ "byteorder",
+ "chrono",
  "diesel_derives",
+ "itoa",
  "libsqlite3-sys",
+ "pq-sys",
  "r2d2",
  "serde_json",
 ]
@@ -2385,12 +2390,6 @@ name = "doc-comment"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
-
-[[package]]
-name = "dotenvy"
-version = "0.15.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03d8c417d7a8cb362e0c37e5d815f5eb7c37f79ff93707329d5a194e42e54ca0"
 
 [[package]]
 name = "downcast"
@@ -2578,7 +2577,6 @@ version = "0.1.17"
 dependencies = [
  "clap 4.1.11",
  "ctrlc",
- "dotenvy",
  "dozer-api",
  "dozer-cache",
  "dozer-core",
@@ -5273,6 +5271,15 @@ name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
+
+[[package]]
+name = "pq-sys"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31c0052426df997c0cbd30789eb44ca097e3541717a7b8fa36b1c464ee7edebd"
+dependencies = [
+ "vcpkg",
+]
 
 [[package]]
 name = "predicates"
