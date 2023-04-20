@@ -103,6 +103,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 password: "postgres".to_owned(),
                 host: "localhost".to_owned(),
                 port: 5432,
+                ssl_verify: false,
                 database: "users".to_owned(),
             };
             let connection: Connection = Connection {

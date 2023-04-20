@@ -24,7 +24,9 @@ pub struct PostgresConfig {
     pub host: String,
     #[prost(uint32, tag = "4")]
     pub port: u32,
-    #[prost(string, tag = "5")]
+    #[prost(bool, tag = "5")]
+    pub ssl_verify: bool,
+    #[prost(string, tag = "6")]
     pub database: String,
 }
 
@@ -35,6 +37,7 @@ impl PostgresConfig {
             ["password", "*************"],
             ["host", self.host],
             ["port", self.port],
+            ["ssl_verify", self.ssl_verify],
             ["database", self.database]
         )
     }

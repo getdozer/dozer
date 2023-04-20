@@ -1,7 +1,7 @@
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::error;
 use dozer_types::models::connection::ConnectionConfig;
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::{Client, NoTls, config::SslMode};
 
 pub fn map_connection_config(
     auth_details: &ConnectionConfig,
@@ -13,6 +13,7 @@ pub fn map_connection_config(
             .port(postgres.port as u16)
             .user(&postgres.user)
             .dbname(&postgres.database)
+            .ssl_mode(if postgres.ssl_verify { SslMode::Require } else { SslMode::Disable })
             .password(&postgres.password);
         Ok(config)
     } else {
