@@ -34,6 +34,7 @@ fn ignore_insert_error_when_type_nothing() {
     let record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
+        lifetime: None,
     };
     env.insert(&record).unwrap();
     env.commit().unwrap();
@@ -65,6 +66,7 @@ fn update_after_insert_error_when_type_update() {
     let record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
+        lifetime: None,
     };
     env.insert(&record).unwrap();
     env.commit().unwrap();
@@ -82,6 +84,7 @@ fn update_after_insert_error_when_type_update() {
     let second_record = Record {
         schema_id: schema.identifier,
         values: second_insert_values.clone(),
+        lifetime: None,
     };
 
     env.insert(&second_record).unwrap();
@@ -111,6 +114,7 @@ fn return_insert_error_when_type_panic() {
     let record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
+        lifetime: None,
     };
     env.insert(&record).unwrap();
     env.commit().unwrap();
@@ -143,10 +147,12 @@ fn ignore_update_error_when_type_nothing() {
     let initial_record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
+        lifetime: None,
     };
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values,
+        lifetime: None,
     };
     env.update(&initial_record, &update_record).unwrap();
 
@@ -173,10 +179,12 @@ fn update_after_update_error_when_type_upsert() {
     let initial_record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
+        lifetime: None,
     };
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values.clone(),
+        lifetime: None,
     };
     env.update(&initial_record, &update_record).unwrap();
     env.commit().unwrap();
@@ -205,10 +213,12 @@ fn return_update_error_when_type_panic() {
     let initial_record = Record {
         schema_id: schema.identifier,
         values: initial_values,
+        lifetime: None,
     };
     let update_record = Record {
         schema_id: schema.identifier,
         values: update_values,
+        lifetime: None,
     };
 
     let result = env.update(&initial_record, &update_record);
@@ -228,6 +238,7 @@ fn ignore_delete_error_when_type_nothing() {
     let initial_record = Record {
         schema_id: schema.identifier,
         values: initial_values,
+        lifetime: None,
     };
 
     // Check is cache empty
@@ -251,6 +262,7 @@ fn return_delete_error_when_type_panic() {
     let initial_record = Record {
         schema_id: schema.identifier,
         values: initial_values,
+        lifetime: None,
     };
 
     let result = env.delete(&initial_record);

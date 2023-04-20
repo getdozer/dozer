@@ -134,6 +134,7 @@ mod tests {
             let record = Record {
                 schema_id: schema.identifier,
                 values: vec![Field::Int(a), Field::Null, Field::Null],
+                lifetime: None,
             };
             cache.delete(&record).unwrap();
         }
@@ -184,6 +185,7 @@ mod tests {
             let record = Record {
                 schema_id: schema.identifier,
                 values: vec![Field::String(a), Field::Null],
+                lifetime: None,
             };
             cache.delete(&record).unwrap();
         }

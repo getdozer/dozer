@@ -18,6 +18,7 @@ pub(crate) fn map_span_data(span_data: SpanData) -> (Record, Vec<Record>) {
             Field::Timestamp(start_time.into()),
             Field::Timestamp(end_time.into()),
         ],
+        lifetime: None,
     };
 
     let mut events = vec![];
@@ -30,6 +31,7 @@ pub(crate) fn map_span_data(span_data: SpanData) -> (Record, Vec<Record>) {
                 Field::Text(evt.name.to_string()),
                 Field::Timestamp(ts.into()),
             ],
+            lifetime: None,
         };
 
         events.push(record);

@@ -204,6 +204,7 @@ fn query_secondary_multi_indices() {
         let record = Record {
             schema_id: schema.identifier,
             values: vec![Field::Int(id), Field::String(text.into())],
+            lifetime: None,
         };
         cache.insert(&record).unwrap();
     }
@@ -226,6 +227,7 @@ fn query_secondary_multi_indices() {
                 Record {
                     schema_id: schema.identifier,
                     values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
+                    lifetime: None,
                 }
             ),
             CacheRecord::new(
@@ -234,6 +236,7 @@ fn query_secondary_multi_indices() {
                 Record {
                     schema_id: schema.identifier,
                     values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
+                    lifetime: None,
                 }
             ),
         ]
