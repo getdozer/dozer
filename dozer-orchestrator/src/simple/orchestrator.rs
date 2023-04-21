@@ -104,29 +104,37 @@ impl Orchestrator for SimpleOrchestrator {
 
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
-            let security = get_api_security_config(self.config.to_owned());
-            let cache_endpoints_for_rest = cache_endpoints.clone();
-            let shutdown_for_rest = shutdown.create_shutdown_future();
-            let rest_handle = tokio::spawn(async move {
-                let api_server = rest::ApiServer::new(rest_config, security);
-                api_server
-                    .run(cache_endpoints_for_rest, shutdown_for_rest)
-                    .await
-                    .map_err(OrchestrationError::ApiServerFailed)
-            });
+            let rest_handle = if rest_config.enabled {
+                let security = get_api_security_config(self.config.to_owned());
+                let cache_endpoints_for_rest = cache_endpoints.clone();
+                let shutdown_for_rest = shutdown.create_shutdown_future();
+                tokio::spawn(async move {
+                    let api_server = rest::ApiServer::new(rest_config, security);
+                    api_server
+                        .run(cache_endpoints_for_rest, shutdown_for_rest)
+                        .await
+                        .map_err(OrchestrationError::ApiServerFailed)
+                })
+            } else {
+                tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
+            };
 
             // Initialize gRPC Server
-            let api_dir = get_api_dir(&self.config);
             let grpc_config = get_grpc_config(self.config.to_owned());
-            let api_security = get_api_security_config(self.config.to_owned());
-            let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
-            let shutdown = shutdown.create_shutdown_future();
-            let grpc_handle = tokio::spawn(async move {
-                grpc_server
-                    .run(cache_endpoints, shutdown, operations_receiver)
-                    .await
-                    .map_err(OrchestrationError::GrpcServerFailed)
-            });
+            let grpc_handle = if grpc_config.enabled {
+                let api_dir = get_api_dir(&self.config);
+                let api_security = get_api_security_config(self.config.to_owned());
+                let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
+                let shutdown = shutdown.create_shutdown_future();
+                tokio::spawn(async move {
+                    grpc_server
+                        .run(cache_endpoints, shutdown, operations_receiver)
+                        .await
+                        .map_err(OrchestrationError::GrpcServerFailed)
+                })
+            } else {
+                tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
+            };
 
             futures.push(flatten_join_handle(rest_handle));
             futures.push(flatten_join_handle(grpc_handle));
