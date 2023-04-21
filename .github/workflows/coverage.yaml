@@ -101,7 +101,7 @@ jobs:
         shell: bash
         run: |
           source ./dozer-tests/python_udf/virtualenv.sh
-          cargo test --features admin-sqlite,snowflake,ethereum,kafka,python --no-fail-fast
+          cargo test --features snowflake,ethereum,kafka,python --no-fail-fast
 
       - name: Get current date
         id: date
