@@ -7,6 +7,7 @@ use dozer_types::thiserror::Error;
 use dozer_log::errors::ReaderError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::types::{IndexDefinition, SchemaWithIndex};
+
 #[derive(Error, Debug)]
 pub enum CacheError {
     #[error("Io error on {0:?}: {1}")]
@@ -115,6 +116,8 @@ pub enum IndexError {
     UnsupportedMultiRangeIndex,
     #[error("Compound_index is required for fields: {0}")]
     MissingCompoundIndex(String),
+    #[error("Unknown filed name {0} in secondary index config")]
+    UnknownFieldName(String),
 }
 
 #[derive(Error, Debug)]
@@ -129,6 +132,6 @@ pub enum PlanError {
     ConflictingSortOptions,
     #[error("Cannot have more than one range query")]
     RangeQueryLimit,
-    #[error("Matching index not found")]
-    MatchingIndexNotFound,
+    #[error("Matching index not found. Try to add following secondary index configuration:\n{0}")]
+    MatchingIndexNotFound(String),
 }
