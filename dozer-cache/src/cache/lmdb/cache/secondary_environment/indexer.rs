@@ -122,7 +122,7 @@ mod tests {
         // No of index dbs
         let index_counts = lmdb_utils::get_index_counts(&cache);
         let expected_count = secondary_indexes.len();
-        assert_eq!(index_counts.len(), expected_count,);
+        assert_eq!(index_counts.len(), expected_count);
 
         // 3 columns, 1 compound, 1 descending
         assert_eq!(
