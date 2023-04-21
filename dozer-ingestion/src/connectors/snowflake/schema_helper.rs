@@ -36,7 +36,7 @@ impl SchemaHelper {
         });
 
         client
-            .fetch_tables(tables_indexes, keys, &conn)
+            .fetch_tables(tables_indexes, keys, &conn, config.schema.to_string())
             .map_err(ConnectorError::SnowflakeError)
     }
 
@@ -58,6 +58,9 @@ impl SchemaHelper {
             "BOOLEAN" => Ok(FieldType::Boolean),
             "DATE" => Ok(FieldType::Date),
             "TIMESTAMP_LTZ" | "TIMESTAMP_NTZ" | "TIMESTAMP_TZ" => Ok(FieldType::Timestamp),
+// TODO: proper type handling for VARIANT and TIME
+            "VARIANT" => Ok(FieldType::String),
+            "TIME" => Ok(FieldType::String),
             _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
                 "{type_name:?}"
             ))),

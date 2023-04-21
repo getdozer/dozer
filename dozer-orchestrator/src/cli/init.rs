@@ -64,7 +64,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
     match connection_name {
         "Snowflake" | "snowflake" | "S" | "s" => {
             let snowflake_config = SnowflakeConfig {
-                server: "server".to_owned(),
+                server: "<account_name>.<region_id>.snowflakecomputing.com".to_owned(),
                 port: "443".to_owned(),
                 user: "bob".to_owned(),
                 password: "password".to_owned(),
@@ -72,6 +72,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 schema: "schema".to_owned(),
                 warehouse: "warehouse".to_owned(),
                 driver: Some("SnowflakeDSIIDriver".to_owned()),
+                role: "role".to_owned(),
             };
             let connection: Connection = Connection {
                 name: "snowflake".to_owned(),
