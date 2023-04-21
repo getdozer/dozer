@@ -136,7 +136,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            "question: Home directior (./dozer): ",
+            "question: Home directory (./dozer): ",
             Box::new(move |(home_dir, config)| {
                 if home_dir.is_empty() {
                     config.home_dir = "./dozer".to_string();
