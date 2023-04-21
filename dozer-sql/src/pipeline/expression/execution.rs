@@ -68,6 +68,9 @@ pub enum Expression {
         pattern: Box<Expression>,
         escape: Option<char>,
     },
+    Now {
+        fun: DateTimeFunctionType,
+    },
     #[cfg(feature = "python")]
     PythonUDF {
         name: String,
@@ -184,6 +187,7 @@ impl Expression {
             Expression::DateTimeFunction { fun, arg } => {
                 fun.to_string() + "(" + arg.to_string(schema).as_str() + ")"
             }
+            Expression::Now { fun } => fun.to_string() + "()",
         }
     }
 }
@@ -261,6 +265,7 @@ impl ExpressionExecutor for Expression {
             Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
             Expression::ConditionalExpression { fun, args } => fun.evaluate(schema, args, record),
             Expression::DateTimeFunction { fun, arg } => fun.evaluate(schema, arg, record),
+            Expression::Now { fun } => fun.evaluate_now(),
         }
     }
 
@@ -320,6 +325,12 @@ impl ExpressionExecutor for Expression {
             Expression::DateTimeFunction { fun, arg } => {
                 get_datetime_function_type(fun, arg, schema)
             }
+            Expression::Now { fun: _ } => Ok(ExpressionType::new(
+                FieldType::Timestamp,
+                false,
+                dozer_types::types::SourceDefinition::Dynamic,
+                false,
+            )),
             #[cfg(feature = "python")]
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,

@@ -302,3 +302,23 @@ fn test_interval() {
         Field::Timestamp(DateTime::parse_from_rfc3339("2023-01-02T00:12:12Z").unwrap())
     );
 }
+
+#[test]
+fn test_now() {
+    let f = run_fct(
+        "SELECT NOW() FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts1"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![],
+    );
+    assert!(f.to_timestamp().is_ok())
+}
