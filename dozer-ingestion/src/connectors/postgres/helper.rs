@@ -157,7 +157,7 @@ pub fn value_to_field(
             if col_type.schema() == "pg_catalog" {
                 Err(ColumnTypeNotSupported(col_type.name().to_string()))
             } else {
-                Err(CustomTypeNotSupported)
+                Err(CustomTypeNotSupported(col_type.name().to_string()))
             }
         }
     }

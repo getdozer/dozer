@@ -218,8 +218,8 @@ pub enum PostgresSchemaError {
     #[error("Column type {0} not supported")]
     ColumnTypeNotSupported(String),
 
-    #[error("Custom type is not supported yet. Join our Discord at https://discord.com/invite/3eWXBgJaEQ - we're here to help with your use case!")]
-    CustomTypeNotSupported,
+    #[error("Custom type {0:?} is not supported yet. Join our Discord at https://discord.com/invite/3eWXBgJaEQ - we're here to help with your use case!")]
+    CustomTypeNotSupported(String),
 
     #[error("ColumnTypeNotFound")]
     ColumnTypeNotFound,
