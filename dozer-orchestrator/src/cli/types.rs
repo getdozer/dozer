@@ -23,14 +23,16 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(about = "Initalize an app using a template.")]
+    #[command(about = "Initialize an app using a template")]
     Init,
     #[command(about = "Clean home directory")]
     Clean,
     #[command(
-        about = "Initialize and lock schema definitions. Once intiialized, schemas cannot be changed."
+        about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed"
     )]
     Migrate(Migrate),
+    #[command(about = "Deploy Dozer application")]
+    Deploy(Deploy),
 
     #[command(about = "Run Api Server")]
     Api(Api),
@@ -52,6 +54,16 @@ pub struct Api {
 pub struct Migrate {
     #[arg(short = 'f')]
     pub force: Option<Option<String>>,
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct Deploy {
+    pub target_url: String,
+    #[arg(short = 'u')]
+    pub username: Option<String>,
+    #[arg(short = 'p')]
+    pub password: Option<String>,
 }
 
 #[derive(Debug, Args)]
