@@ -24,12 +24,13 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
+use dozer_types::grpc_types::admin::dozer_admin_client::DozerAdminClient;
+use dozer_types::grpc_types::admin::{CreateAppRequest, StartRequest};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
-use crate::cli::load_config;
 use crate::cli::types::Deploy;
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use futures::stream::FuturesUnordered;
@@ -363,10 +364,29 @@ impl Orchestrator for SimpleOrchestrator {
         info!("Authenticating for username: {:?}", username);
         info!("Local dozer configuration path: {:?}", config_path);
         // getting local dozer config file
-        let _config = load_config(config_path)?;
+        let config_content = std::fs::read_to_string(&config_path)
+            .map_err(|e| DeployError::CannotReadConfig(config_path.into(), e))?;
         // calling the target url with the config fetched
-        // 1. CREATE application
-        // 2. START application
+        self.runtime.block_on(async move {
+            // 1. CREATE application
+            let mut client: DozerAdminClient<tonic::transport::Channel> =
+                DozerAdminClient::connect(target_url).await?;
+            let response = client
+                .create_application(CreateAppRequest {
+                    config: config_content,
+                })
+                .await?
+                .into_inner();
+            info!("Application created with id: {:?}", response.id);
+            // 2. START application
+            client
+                .start_dozer(StartRequest {
+                    config: response.id,
+                })
+                .await?;
+            info!("Deployed");
+            Ok::<(), DeployError>(())
+        })?;
         Ok(())
     }
 

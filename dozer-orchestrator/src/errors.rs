@@ -27,7 +27,7 @@ pub enum OrchestrationError {
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
     #[error("Failed to deploy dozer application: {0:?}")]
-    DeployFailed(DeployError),
+    DeployFailed(#[from] DeployError),
     #[error("Failed to initialize api server: {0}")]
     ApiServerFailed(#[from] ApiError),
     #[error("Failed to initialize grpc server: {0}")]
@@ -100,4 +100,10 @@ pub enum CliError {
 pub enum DeployError {
     #[error("Invalid deployment target url")]
     InvalidTargetUrl,
+    #[error("Cannot read configuration: {0}")]
+    CannotReadConfig(PathBuf, #[source] std::io::Error),
+    #[error("Transport error: {0}")]
+    Transport(#[from] tonic::transport::Error),
+    #[error("Server error: {0}")]
+    Server(#[from] tonic::Status),
 }
