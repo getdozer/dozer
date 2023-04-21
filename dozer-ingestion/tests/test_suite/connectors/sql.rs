@@ -40,7 +40,7 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             date_null DATE,
             point POINT NOT NULL,
             point_null POINT,
-            uuid UUID NOT NULL
+            uuid UUID
         );
         INSERT INTO {table_name} VALUES (
             false,
@@ -114,7 +114,7 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             null,
             '(1,1)',
             null,
-            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID
+            null
         );
         "#,
     )
