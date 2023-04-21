@@ -98,8 +98,6 @@ pub enum CliError {
 
 #[derive(Error, Debug)]
 pub enum DeployError {
-    #[error("Invalid deployment target url")]
-    InvalidTargetUrl,
     #[error("Cannot read configuration: {0}")]
     CannotReadConfig(PathBuf, #[source] std::io::Error),
     #[error("Transport error: {0}")]

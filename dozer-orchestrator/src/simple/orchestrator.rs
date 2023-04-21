@@ -344,14 +344,7 @@ impl Orchestrator for SimpleOrchestrator {
 
     // TODO: Deploy Dozer application using local Dozer configuration
     fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError> {
-        let target_url = match deploy.target_url {
-            Some(v) => v,
-            None => {
-                return Err(OrchestrationError::DeployFailed(
-                    DeployError::InvalidTargetUrl,
-                ))
-            }
-        };
+        let target_url = deploy.target_url;
         let username = match deploy.username {
             Some(u) => u,
             None => String::new(),

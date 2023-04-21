@@ -59,7 +59,7 @@ pub struct Migrate {
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Deploy {
-    pub target_url: Option<String>,
+    pub target_url: String,
     #[arg(short = 'u')]
     pub username: Option<String>,
     #[arg(short = 'p')]
