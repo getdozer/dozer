@@ -77,7 +77,7 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             '1970-01-01',
             '(0,0)',
             '(0,0)',
-            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
+            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID
         );
         INSERT INTO {table_name} VALUES (
             true,
@@ -114,7 +114,7 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             null,
             '(1,1)',
             null,
-            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
+            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID
         );
         "#,
     )
