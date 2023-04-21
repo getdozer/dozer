@@ -6,6 +6,7 @@ pub mod helper;
 pub mod ingestion_types;
 pub mod models;
 pub mod node;
+#[cfg(test)]
 mod tests;
 pub mod types;
 
