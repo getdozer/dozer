@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
 use dozer_types::{
     log::info,
     models::{app_config::Config, connection::ConnectionConfig},
@@ -352,7 +353,7 @@ fn write_dozer_config_for_running_in_docker_compose(
         }
     }
 
-    let config_path = dir.join("dozer-config.yaml");
+    let config_path = dir.join(DEFAULT_CONFIG_PATH);
     let file = File::create(&config_path)
         .unwrap_or_else(|e| panic!("Failed to create file {config_path:?}: {e}"));
     dozer_types::serde_yaml::to_writer(file, &config)

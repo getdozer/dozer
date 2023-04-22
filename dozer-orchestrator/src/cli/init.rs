@@ -1,5 +1,7 @@
 use crate::errors::{CliError, OrchestrationError};
+use dozer_types::models::app_config::{default_cache_dir, default_home_dir, get_cache_dir};
 use dozer_types::{
+    constants::DEFAULT_CONFIG_PATH,
     ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig},
     log::info,
     models::{
@@ -114,7 +116,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
     }
 }
 type Question = (
-    &'static str,
+    String,
     Box<dyn Fn((String, &mut Config)) -> Result<(), OrchestrationError>>,
 );
 pub fn generate_config_repl() -> Result<(), OrchestrationError> {
@@ -122,13 +124,14 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
     rl.set_helper(Some(InitHelper {}));
     let mut default_config = Config::default();
+    let default_app_name = "quick-start-app";
     let questions: Vec<Question> = vec![
         (
-            "question: App name (quick-start-app): ",
+            format!("question: App name ({:}): ", default_app_name),
             Box::new(move |(app_name, config)| {
                 let app_name = app_name.trim();
                 if app_name.is_empty() {
-                    config.app_name = "quick-start-app".to_string();
+                    config.app_name = default_app_name.to_string();
                 } else {
                     config.app_name = app_name.to_string();
                 }
@@ -136,18 +139,21 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            "question: Home directory (./dozer): ",
+            format!("question: Home directory ({:}): ", default_home_dir()),
             Box::new(move |(home_dir, config)| {
                 if home_dir.is_empty() {
-                    config.home_dir = "./dozer".to_string();
+                    config.home_dir = default_home_dir();
+                    config.cache_dir = default_cache_dir();
                 } else {
                     config.home_dir = home_dir;
+                    config.cache_dir = get_cache_dir(&config.home_dir);
                 }
                 Ok(())
             }),
         ),
         (
-            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): ",
+            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): "
+                .to_string(),
             Box::new(move |(connection, config)| {
                 let connections_available = vec!["Postgres", "Ethereum", "Snowflake"];
                 if connections_available.contains(&connection.as_str()) {
@@ -161,11 +167,11 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            "question: Config path (dozer-config.yaml): ",
+            format!("question: Config path ({:}): ", DEFAULT_CONFIG_PATH),
             Box::new(move |(yaml_path, config)| {
                 let mut yaml_path = yaml_path.trim();
                 if yaml_path.is_empty() {
-                    yaml_path = "dozer-config.yaml";
+                    yaml_path = DEFAULT_CONFIG_PATH;
                 }
                 let f = std::fs::OpenOptions::new()
                     .create(true)
