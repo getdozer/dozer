@@ -1,5 +1,7 @@
 use crate::errors::{CliError, OrchestrationError};
+use dozer_types::models::app_config::{default_cache_dir, default_home_dir, get_cache_dir};
 use dozer_types::{
+    constants::DEFAULT_CONFIG_PATH,
     ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig},
     log::info,
     models::{
@@ -7,8 +9,6 @@ use dozer_types::{
         connection::{Connection, ConnectionConfig, PostgresConfig},
     },
     serde_yaml,
-    constants::{DEFAULT_CONFIG_PATH}
-
 };
 use rustyline::{
     completion::{Completer, Pair},
@@ -16,7 +16,6 @@ use rustyline::{
 };
 use rustyline::{error::ReadlineError, Editor};
 use rustyline_derive::{Helper, Highlighter, Hinter, Validator};
-use dozer_types::models::app_config::{default_cache_dir, default_home_dir, get_cache_dir};
 
 #[derive(Helper, Highlighter, Hinter, Validator)]
 pub struct InitHelper {}
@@ -153,7 +152,8 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): ".to_string(),
+            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): "
+                .to_string(),
             Box::new(move |(connection, config)| {
                 let connections_available = vec!["Postgres", "Ethereum", "Snowflake"];
                 if connections_available.contains(&connection.as_str()) {

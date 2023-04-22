@@ -1,10 +1,10 @@
 use dozer_orchestrator::cli::load_config_from_file;
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
 use std::{
     collections::HashMap,
     fs::read_to_string,
     path::{Path, PathBuf},
 };
-use dozer_types::constants::DEFAULT_CONFIG_PATH;
 
 use dozer_types::models::app_config::Config;
 

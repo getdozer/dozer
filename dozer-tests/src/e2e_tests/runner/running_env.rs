@@ -5,11 +5,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
 use dozer_types::{
     log::info,
     models::{app_config::Config, connection::ConnectionConfig},
 };
-use dozer_types::constants::DEFAULT_CONFIG_PATH;
 
 use crate::e2e_tests::{
     docker_compose::{Build, Condition, DependsOn, DockerCompose, Service},

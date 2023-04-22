@@ -89,8 +89,8 @@ pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
 }
 
-pub fn get_cache_dir(home_dir: &str) -> String{
-      AsRef::<Path>::as_ref(home_dir)
+pub fn get_cache_dir(home_dir: &str) -> String {
+    AsRef::<Path>::as_ref(home_dir)
         .join("cache")
         .to_str()
         .unwrap()
