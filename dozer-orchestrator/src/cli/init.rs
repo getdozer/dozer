@@ -128,7 +128,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
     let default_app_name = "quick-start-app";
     let questions: Vec<Question> = vec![
         (
-            format!("question: App name ({:}): ", default_app_name).to_string(),
+            format!("question: App name ({:}): ", default_app_name),
             Box::new(move |(app_name, config)| {
                 let app_name = app_name.trim();
                 if app_name.is_empty() {
@@ -140,7 +140,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            format!("question: Home directory ({:}): ", default_home_dir()).to_string(),
+            format!("question: Home directory ({:}): ", default_home_dir()),
             Box::new(move |(home_dir, config)| {
                 if home_dir.is_empty() {
                     config.home_dir = default_home_dir();
@@ -167,7 +167,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            format!("question: Config path ({:}): ", DEFAULT_CONFIG_PATH).to_string(),
+            format!("question: Config path ({:}): ", DEFAULT_CONFIG_PATH),
             Box::new(move |(yaml_path, config)| {
                 let mut yaml_path = yaml_path.trim();
                 if yaml_path.is_empty() {
