@@ -89,12 +89,15 @@ pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
 }
 
-pub fn default_cache_dir() -> String {
-    AsRef::<Path>::as_ref(DEFAULT_HOME_DIR)
+pub fn get_cache_dir(home_dir: &str) -> String{
+      AsRef::<Path>::as_ref(home_dir)
         .join("cache")
         .to_str()
         .unwrap()
         .to_string()
+}
+pub fn default_cache_dir() -> String {
+    get_cache_dir(DEFAULT_HOME_DIR)
 }
 
 pub fn default_file_buffer_capacity() -> u64 {

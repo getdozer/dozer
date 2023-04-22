@@ -4,6 +4,7 @@ use std::{
     fs::read_to_string,
     path::{Path, PathBuf},
 };
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
 
 use dozer_types::models::app_config::Config;
 
@@ -112,8 +113,7 @@ impl Case {
 
 fn find_dozer_config_path(case_dir: &Path) -> String {
     {
-        let file_name = "dozer-config.yaml";
-        let config_path = case_dir.join(file_name);
+        let config_path = case_dir.join(DEFAULT_CONFIG_PATH);
         if config_path.exists() {
             return config_path
                 .to_str()

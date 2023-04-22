@@ -2,6 +2,8 @@ use clap::{Args, Parser, Subcommand};
 
 use super::helper::{DESCRIPTION, LOGO};
 
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
+
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
 #[command(
@@ -13,7 +15,7 @@ pub struct Cli {
         global = true,
         short = 'c',
         long,
-        default_value = "./dozer-config.yaml"
+        default_value = DEFAULT_CONFIG_PATH
     )]
     pub config_path: String,
 

@@ -6,6 +6,7 @@ use crate::connectors::postgres::tests::client::TestPostgresClient;
 use dozer_types::models::app_config::Config;
 use dozer_types::models::connection::ConnectionConfig;
 use futures::Future;
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
 
 async fn warm_up(app_config: &Config) {
     let connection = app_config.connections.get(0).unwrap();
@@ -34,7 +35,7 @@ pub async fn run_connector_test<F: Future, T: (FnOnce(Config) -> F) + panic::Unw
     db_type: &str,
     test: T,
 ) {
-    let dozer_config_path = PathBuf::from(format!("src/tests/cases/{db_type}/dozer-config.yaml"));
+    let dozer_config_path = PathBuf::from(format!("src/tests/cases/{db_type}/{DEFAULT_CONFIG_PATH}"));
 
     let dozer_config = std::fs::read_to_string(dozer_config_path).unwrap();
     let dozer_config = dozer_types::serde_yaml::from_str::<Config>(&dozer_config).unwrap();
