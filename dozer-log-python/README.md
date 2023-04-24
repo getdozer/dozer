@@ -4,6 +4,21 @@ This is the Python binding for reading Dozer logs.
 
 ## Installation
 
+`pip install dozer_log`
+
+## Usage
+
+Assume your Dozer home directory is `.dozer` and you have an endpoint named `trips`. You can read the Dozer logs in Python as follows:
+
+```python
+import dozer_log
+
+reader = await dozer_log.LogReader.new('.dozer/pipeline', 'trips')
+print(await reader.next_op())
+```
+
+## Develop
+
 Install `maturin` in your Python environment:
 
 ```bash
