@@ -1,7 +1,7 @@
 use super::executor::Executor;
 use super::schemas::load_schema;
 use crate::console_helper::get_colored_text;
-use crate::errors::OrchestrationError;
+use crate::errors::{DeployError, OrchestrationError};
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
@@ -24,11 +24,14 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
+use dozer_types::grpc_types::admin::dozer_admin_client::DozerAdminClient;
+use dozer_types::grpc_types::admin::{CreateAppRequest, StartRequest};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
+use crate::cli::types::Deploy;
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -101,29 +104,37 @@ impl Orchestrator for SimpleOrchestrator {
 
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
-            let security = get_api_security_config(self.config.to_owned());
-            let cache_endpoints_for_rest = cache_endpoints.clone();
-            let shutdown_for_rest = shutdown.create_shutdown_future();
-            let rest_handle = tokio::spawn(async move {
-                let api_server = rest::ApiServer::new(rest_config, security);
-                api_server
-                    .run(cache_endpoints_for_rest, shutdown_for_rest)
-                    .await
-                    .map_err(OrchestrationError::ApiServerFailed)
-            });
+            let rest_handle = if rest_config.enabled {
+                let security = get_api_security_config(self.config.to_owned());
+                let cache_endpoints_for_rest = cache_endpoints.clone();
+                let shutdown_for_rest = shutdown.create_shutdown_future();
+                tokio::spawn(async move {
+                    let api_server = rest::ApiServer::new(rest_config, security);
+                    api_server
+                        .run(cache_endpoints_for_rest, shutdown_for_rest)
+                        .await
+                        .map_err(OrchestrationError::ApiServerFailed)
+                })
+            } else {
+                tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
+            };
 
             // Initialize gRPC Server
-            let api_dir = get_api_dir(&self.config);
             let grpc_config = get_grpc_config(self.config.to_owned());
-            let api_security = get_api_security_config(self.config.to_owned());
-            let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
-            let shutdown = shutdown.create_shutdown_future();
-            let grpc_handle = tokio::spawn(async move {
-                grpc_server
-                    .run(cache_endpoints, shutdown, operations_receiver)
-                    .await
-                    .map_err(OrchestrationError::GrpcServerFailed)
-            });
+            let grpc_handle = if grpc_config.enabled {
+                let api_dir = get_api_dir(&self.config);
+                let api_security = get_api_security_config(self.config.to_owned());
+                let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
+                let shutdown = shutdown.create_shutdown_future();
+                tokio::spawn(async move {
+                    grpc_server
+                        .run(cache_endpoints, shutdown, operations_receiver)
+                        .await
+                        .map_err(OrchestrationError::GrpcServerFailed)
+                })
+            } else {
+                tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
+            };
 
             futures.push(flatten_join_handle(rest_handle));
             futures.push(flatten_join_handle(grpc_handle));
@@ -335,6 +346,47 @@ impl Orchestrator for SimpleOrchestrator {
                 .map_err(|e| ExecutionError::FileSystemError(home_dir, e))?;
         };
 
+        Ok(())
+    }
+
+    // TODO: Deploy Dozer application using local Dozer configuration
+    fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError> {
+        let target_url = deploy.target_url;
+        let username = match deploy.username {
+            Some(u) => u,
+            None => String::new(),
+        };
+        let _password = match deploy.password {
+            Some(p) => p,
+            None => String::new(),
+        };
+        info!("Deployment target url: {:?}", target_url);
+        info!("Authenticating for username: {:?}", username);
+        info!("Local dozer configuration path: {:?}", config_path);
+        // getting local dozer config file
+        let config_content = std::fs::read_to_string(&config_path)
+            .map_err(|e| DeployError::CannotReadConfig(config_path.into(), e))?;
+        // calling the target url with the config fetched
+        self.runtime.block_on(async move {
+            // 1. CREATE application
+            let mut client: DozerAdminClient<tonic::transport::Channel> =
+                DozerAdminClient::connect(target_url).await?;
+            let response = client
+                .create_application(CreateAppRequest {
+                    config: config_content,
+                })
+                .await?
+                .into_inner();
+            info!("Application created with id: {:?}", response.id);
+            // 2. START application
+            client
+                .start_dozer(StartRequest {
+                    config: response.id,
+                })
+                .await?;
+            info!("Deployed");
+            Ok::<(), DeployError>(())
+        })?;
         Ok(())
     }
 

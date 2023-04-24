@@ -9,11 +9,17 @@ use dozer_types::{
     log::info,
     models::api_endpoint::{
         ApiEndpoint, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
+        SecondaryIndexConfig,
     },
     types::Schema,
 };
 use futures_util::Future;
-use std::{ops::Deref, path::Path, sync::Arc};
+use std::{
+    borrow::{Borrow, Cow},
+    ops::Deref,
+    path::Path,
+    sync::Arc,
+};
 
 mod api_helper;
 
@@ -51,6 +57,7 @@ impl CacheEndpoint {
             let (cache_name, task) = cache_builder::create_cache(
                 cache_manager,
                 schema,
+                get_secondary_index_config(&endpoint).borrow(),
                 runtime,
                 cancel,
                 log_path,
@@ -125,6 +132,18 @@ fn open_existing_cache_reader(
     open_cache_reader(cache_manager, name)?.ok_or_else(|| ApiError::CacheNotFound(name.to_string()))
 }
 
+fn get_secondary_index_config(api_endpoint: &ApiEndpoint) -> Cow<SecondaryIndexConfig> {
+    if let Some(config) = api_endpoint
+        .index
+        .as_ref()
+        .and_then(|index| index.secondary.as_ref())
+    {
+        Cow::Borrowed(config)
+    } else {
+        Cow::Owned(SecondaryIndexConfig::default())
+    }
+}
+
 // Exports
 pub mod auth;
 mod cache_builder;
@@ -133,6 +152,7 @@ pub mod generator;
 pub mod grpc;
 pub mod rest;
 // Re-exports
+pub use actix_cors;
 pub use actix_web;
 pub use async_trait;
 use dozer_types::indicatif::MultiProgress;
@@ -141,6 +161,7 @@ pub use openapiv3;
 pub use tokio;
 use tokio::{runtime::Runtime, sync::broadcast::Sender};
 pub use tonic;
+pub use tracing_actix_web;
 
 #[cfg(test)]
 mod test_utils;

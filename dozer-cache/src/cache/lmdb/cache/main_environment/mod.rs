@@ -384,25 +384,32 @@ fn insert_impl(
                 meta,
                 insert_operation_id: Some(insert_operation_id),
             }) => {
-                // The record already exists. Resolve the conflict.
-                match insert_resolution {
-                    OnInsertResolutionTypes::Nothing => {
-                        warn!("Record (Key: {:?}) already exist, ignoring insert", key);
-                        Ok(UpsertResult::Ignored)
-                    }
-                    OnInsertResolutionTypes::Panic => Err(CacheError::PrimaryKeyExists),
-                    OnInsertResolutionTypes::Update => {
-                        let new_meta = operation_log.update(
-                            txn,
-                            key.as_ref(),
-                            record,
-                            meta,
-                            insert_operation_id,
-                        )?;
-                        Ok(UpsertResult::Updated {
-                            old_meta: meta,
-                            new_meta,
-                        })
+                // The record already exists.
+                if schema.primary_index.is_empty() {
+                    // Insert anyway.
+                    let meta = operation_log.insert_new(txn, Some(key.as_ref()), record)?;
+                    Ok(UpsertResult::Inserted { meta })
+                } else {
+                    // Resolve the conflict.
+                    match insert_resolution {
+                        OnInsertResolutionTypes::Nothing => {
+                            warn!("Record (Key: {:?}) already exist, ignoring insert", key);
+                            Ok(UpsertResult::Ignored)
+                        }
+                        OnInsertResolutionTypes::Panic => Err(CacheError::PrimaryKeyExists),
+                        OnInsertResolutionTypes::Update => {
+                            let new_meta = operation_log.update(
+                                txn,
+                                key.as_ref(),
+                                record,
+                                meta,
+                                insert_operation_id,
+                            )?;
+                            Ok(UpsertResult::Updated {
+                                old_meta: meta,
+                                new_meta,
+                            })
+                        }
                     }
                 }
             }

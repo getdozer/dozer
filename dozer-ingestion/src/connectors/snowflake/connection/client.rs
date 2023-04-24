@@ -207,7 +207,7 @@ impl Client {
         conn_hashmap.insert("Schema".to_string(), config.clone().schema);
         conn_hashmap.insert("Warehouse".to_string(), config.clone().warehouse);
         conn_hashmap.insert("Database".to_string(), config.clone().database);
-        conn_hashmap.insert("Role".to_string(), "ACCOUNTADMIN".to_string());
+        conn_hashmap.insert("Role".to_string(), config.clone().role);
 
         let mut parts = vec![];
         conn_hashmap.keys().for_each(|k| {
@@ -391,6 +391,7 @@ impl Client {
         tables_indexes: Option<HashMap<String, usize>>,
         keys: HashMap<String, Vec<String>>,
         conn: &Connection<AutocommitOn>,
+        schema_name: String,
     ) -> Result<Vec<Result<(String, SourceSchema), ConnectorError>>, SnowflakeError> {
         let tables_condition = tables_indexes.as_ref().map_or("".to_string(), |tables| {
             let mut buf = String::new();
@@ -408,7 +409,7 @@ impl Client {
         let query = format!(
             "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, NUMERIC_SCALE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'PUBLIC' {tables_condition}
+            WHERE TABLE_SCHEMA = '{schema_name}' {tables_condition}
             ORDER BY TABLE_NAME, ORDINAL_POSITION"
         );
 

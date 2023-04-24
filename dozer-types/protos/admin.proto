@@ -21,6 +21,8 @@ service DozerAdmin {
 
   rpc start_dozer(StartRequest) returns (StartResponse);
   rpc stop_dozer(StopRequest) returns (StopResponse);
+  rpc get_status(GetStatusRequest) returns (GetStatusResponse);
+
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
@@ -34,6 +36,15 @@ message StartResponse {
 }
 message StopRequest { string id = 1; }
 message StopResponse { bool success = 1; }
+
+message GetStatusRequest { string id = 1; }
+message GetStatusResponse {
+  string state = 1;
+  optional string api_endpoint = 2;
+  optional uint32 rest_port = 3;
+  optional string grpc_port = 4;
+}
+
 message CreateAppRequest { string config = 2; }
 message ParseRequest { string sql = 1; }
 message ParseResponse {
