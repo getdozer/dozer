@@ -335,3 +335,9 @@ pub enum WindowError {
     #[error("WINDOW functions require alias")]
     NoAlias,
 }
+
+#[derive(Error, Debug)]
+pub enum TableOperatorError {
+    #[error("Internal error: {0}")]
+    InternalError(#[from] BoxedError),
+}

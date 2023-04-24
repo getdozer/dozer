@@ -7,6 +7,7 @@ mod planner;
 mod product;
 mod projection;
 mod selection;
+mod table_operator;
 mod window;
 
 #[cfg(test)]

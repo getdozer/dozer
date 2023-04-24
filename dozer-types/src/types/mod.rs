@@ -226,6 +226,10 @@ impl Record {
         }
         res_buffer
     }
+
+    pub fn set_lifetime(&mut self, duration: DozerDuration) {
+        self.lifetime = Some(duration);
+    }
 }
 
 impl Display for Record {
