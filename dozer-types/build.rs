@@ -74,7 +74,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ".dozer.admin.PostgresConfig",
             "crate::models::connection::PostgresConfig",
         )
-        .build_client(false)
         .file_descriptor_set_path(out_dir.join("admin.bin"))
         .compile(&["protos/admin.proto"], &["protos"])
         .unwrap();

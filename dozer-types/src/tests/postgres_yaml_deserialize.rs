@@ -20,6 +20,7 @@ fn standard() {
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
 }
+
 #[test]
 fn error_missing_field() {
     let posgres_config = r#"

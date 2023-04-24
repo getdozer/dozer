@@ -71,6 +71,7 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.migrate(force)
             }
             Commands::Clean => dozer.clean(),
+            Commands::Deploy(deploy) => dozer.deploy(deploy, cli.config_path),
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }

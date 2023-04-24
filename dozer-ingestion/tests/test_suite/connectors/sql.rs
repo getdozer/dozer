@@ -39,7 +39,9 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             date DATE NOT NULL,
             date_null DATE,
             point POINT NOT NULL,
-            point_null POINT
+            point_null POINT,
+            uuid UUID NOT NULL,
+            uuid_null UUID
         );
         INSERT INTO {table_name} VALUES (
             false,
@@ -75,7 +77,9 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             '1970-01-01',
             '1970-01-01',
             '(0,0)',
-            '(0,0)'
+            '(0,0)',
+            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID,
+            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID
         );
         INSERT INTO {table_name} VALUES (
             true,
@@ -111,6 +115,8 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             '1970-01-01',
             null,
             '(1,1)',
+            null,
+            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID,
             null
         );
         "#,

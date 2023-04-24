@@ -229,6 +229,8 @@ pub struct SnowflakeConfig {
     pub warehouse: String,
     #[prost(string, optional, tag = "8")]
     pub driver: Option<String>,
+    #[prost(string, default = "PUBLIC", tag = "9")]
+    pub role: String,
 }
 
 impl SnowflakeConfig {
@@ -238,6 +240,7 @@ impl SnowflakeConfig {
             ["port", self.port],
             ["user", self.user],
             ["password", "************"],
+            ["role", self.role],
             ["database", self.database],
             ["schema", self.schema],
             ["warehouse", self.warehouse],
