@@ -9,11 +9,9 @@ edition = "2021"
 name = "dozer_log"
 
 [dependencies]
-dozer-core = { path = "../dozer-core", optional = true }
 dozer-log = { path = "../dozer-log", optional = true }
-dozer-orchestrator = { path = "../dozer-orchestrator", optional = true }
 dozer-types = { path = "../dozer-types", features = ["python-extension-module"], optional = true }
 pyo3-asyncio = { version = "0.18.0", optional = true, features = ["tokio-runtime"] }
 
 [features]
-python-extension-module = ["dozer-core", "dozer-log", "dozer-orchestrator", "dozer-types", "pyo3-asyncio"]
+python-extension-module = ["dozer-log", "dozer-types", "pyo3-asyncio"]

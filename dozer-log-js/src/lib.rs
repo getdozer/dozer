@@ -1,10 +1,11 @@
 use std::{path::Path, sync::Arc};
 
 use dozer_log::{
+    get_endpoint_log_path,
     reader::LogReader as RustLogReader,
+    schemas::load_schema,
     tokio::{runtime::Runtime as TokioRuntime, sync::Mutex},
 };
-use dozer_orchestrator::{simple::load_schema, utils::get_endpoint_log_path};
 use dozer_types::types::Schema;
 use neon::prelude::*;
 

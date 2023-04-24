@@ -17,24 +17,8 @@ pub fn get_pipeline_dir(config: &Config) -> PathBuf {
     AsRef::<Path>::as_ref(&config.home_dir).join("pipeline")
 }
 
-fn get_endpoint_log_dir(pipeline_dir: &Path, endpoint_name: &str) -> PathBuf {
-    get_logs_path(pipeline_dir).join(endpoint_name.to_lowercase())
-}
-
-pub fn get_endpoint_log_path(pipeline_dir: &Path, endpoint_name: &str) -> PathBuf {
-    get_endpoint_log_dir(pipeline_dir, endpoint_name).join("log")
-}
-
-pub fn get_endpoint_schema_path(pipeline_dir: &Path, endpoint_name: &str) -> PathBuf {
-    get_endpoint_log_dir(pipeline_dir, endpoint_name).join("schema.json")
-}
-
 pub fn get_cache_dir(config: &Config) -> PathBuf {
     config.cache_dir.clone().into()
-}
-
-fn get_logs_path(pipeline_dir: &Path) -> PathBuf {
-    pipeline_dir.join("logs")
 }
 
 fn get_cache_max_map_size(config: &Config) -> u64 {

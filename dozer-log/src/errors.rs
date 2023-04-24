@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use dozer_types::thiserror::Error;
-use dozer_types::{bincode, thiserror};
+use dozer_types::{bincode, serde_json, thiserror};
 
 #[derive(Error, Debug)]
 pub enum ReaderError {
@@ -15,4 +15,20 @@ pub enum ReaderError {
     SeekError(String, u64, #[source] std::io::Error),
     #[error("Error deserializing log: {0}")]
     DeserializationError(#[from] bincode::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum SchemaError {
+    #[error("Filesystem error: {0:?} - {1:?}")]
+    Filesystem(PathBuf, #[source] std::io::Error),
+    #[error("Error deserializing schema: {0:?}")]
+    Json(#[from] serde_json::Error),
+    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
+    MismatchPrimaryKey {
+        endpoint_name: String,
+        expected: Vec<String>,
+        actual: Vec<String>,
+    },
+    #[error("Field not found at position {0}")]
+    FieldNotFound(String),
 }

@@ -11,6 +11,7 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_types::epoch::Epoch;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{Operation, Schema};
 
@@ -20,7 +21,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::epoch::Epoch;
 use crate::tests::app::NoneContext;
 use tempdir::TempDir;
 

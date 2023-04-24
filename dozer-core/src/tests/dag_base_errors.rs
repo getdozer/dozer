@@ -10,6 +10,7 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_types::epoch::Epoch;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{
@@ -21,8 +22,6 @@ use std::panic;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-
-use crate::epoch::Epoch;
 
 use crate::tests::app::NoneContext;
 use tempdir::TempDir;
