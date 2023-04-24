@@ -1,7 +1,7 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::epoch::Epoch;
 use crate::errors::ExecutionError;
 
+use dozer_types::epoch::Epoch;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};

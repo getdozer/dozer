@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use dozer_api::errors::{ApiError, GenerationError, GrpcError};
+use dozer_cache::dozer_log::errors::SchemaError;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
@@ -62,20 +63,8 @@ pub enum OrchestrationError {
     DuplicateTable(String),
     #[error("Configuration Error: {0:?}")]
     ConfigError(String),
-    #[error("Loading Schema failed: {0:?}")]
-    SchemaLoadFailed(#[source] CacheError),
-    #[error("Schemas not found in Path specified {0:?}")]
-    SchemasNotInitializedPath(PathBuf),
-    #[error("Cannot convert Schema in Path specified {0:?}")]
-    DeserializeSchema(PathBuf),
-    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
-    MismatchPrimaryKey {
-        endpoint_name: String,
-        expected: Vec<String>,
-        actual: Vec<String>,
-    },
-    #[error("Field not found at position {0}")]
-    FieldNotFound(String),
+    #[error("Schema IO Error: {0}")]
+    SchemaIOError(#[from] SchemaError),
 }
 
 #[derive(Error, Debug)]

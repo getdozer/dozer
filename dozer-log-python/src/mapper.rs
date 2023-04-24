@@ -1,5 +1,5 @@
-use dozer_core::executor::ExecutorOperation;
 use dozer_types::{
+    epoch::ExecutorOperation,
     pyo3::{types::PyDict, Py, PyAny, PyResult, Python, ToPyObject},
     types::{DozerPoint, Field, Operation, Record, Schema},
 };

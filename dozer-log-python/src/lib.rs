@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
-use ::dozer_log::{reader::LogReader as DozerLogReader, tokio::sync::Mutex};
-use dozer_orchestrator::{simple::load_schema, utils::get_endpoint_log_path};
+use ::dozer_log::{
+    get_endpoint_log_path, reader::LogReader as DozerLogReader, schemas::load_schema,
+    tokio::sync::Mutex,
+};
 use dozer_types::{
     pyo3::{exceptions::PyException, prelude::*},
     types::Schema,
