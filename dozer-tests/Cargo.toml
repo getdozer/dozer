@@ -56,5 +56,4 @@ tempdir = "0.3.7"
 
 [features]
 mongodb = ["dep:bson", "dep:mongodb", "dep:futures"]
-python=["dozer-types/python", "dozer-sql/python"]
-
+python=["dozer-sql/python"]
