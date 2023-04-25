@@ -5,9 +5,6 @@ use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::NodeHandle;
-use dozer_types::types::Operation;
-
-use crate::epoch::Epoch;
 
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::collections::hash_map::Entry;
@@ -43,15 +40,6 @@ impl Default for ExecutorOptions {
 pub(crate) enum InputPortState {
     Open,
     Terminated,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(crate = "self::serde")]
-pub enum ExecutorOperation {
-    Op { op: Operation },
-    Commit { epoch: Epoch },
-    Terminate,
-    SnapshottingDone {},
 }
 
 mod execution_dag;

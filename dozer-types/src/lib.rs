@@ -1,9 +1,11 @@
 pub mod borrow;
 pub mod constants;
+pub mod epoch;
 pub mod errors;
 pub mod field_type;
 pub mod helper;
 pub mod ingestion_types;
+pub mod json_types;
 pub mod models;
 pub mod node;
 #[cfg(test)]
@@ -34,7 +36,10 @@ pub use tonic;
 #[macro_use]
 pub extern crate prettytable;
 
-#[cfg(feature = "python")]
+#[cfg(any(
+    feature = "python-auto-initialize",
+    feature = "python-extension-module"
+))]
 pub use pyo3;
 pub use rust_decimal;
 pub use serde;

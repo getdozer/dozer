@@ -8,6 +8,5 @@ edition = "2021"
 
 [dependencies]
 dozer-types = {path = "../dozer-types"}
-dozer-core = {path = "../dozer-core"}
 futures-util = "0.3.27"
 tokio = { version = "1", features = ["full"] }

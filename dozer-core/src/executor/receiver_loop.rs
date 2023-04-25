@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 
 use crossbeam::channel::{Receiver, Select};
-use dozer_types::log::debug;
+use dozer_types::epoch::Epoch;
 use dozer_types::types::Operation;
+use dozer_types::{epoch::ExecutorOperation, log::debug};
 
-use crate::{epoch::Epoch, errors::ExecutionError};
+use crate::errors::ExecutionError;
 
-use super::{name::Name, ExecutorOperation, InputPortState};
+use super::{name::Name, InputPortState};
 
 /// Common code for processor and sink nodes.
 ///

@@ -7,7 +7,7 @@ use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
-use dozer_core::executor::ExecutorOperation;
+use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::api_endpoint::{
     FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,

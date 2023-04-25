@@ -764,7 +764,10 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
     .into_iter()
 }
 
-#[cfg(feature = "python")]
+#[cfg(any(
+    feature = "python-auto-initialize",
+    feature = "python-extension-module"
+))]
 impl pyo3::ToPyObject for Field {
     fn to_object(&self, py: pyo3::Python<'_>) -> pyo3::PyObject {
         match self {

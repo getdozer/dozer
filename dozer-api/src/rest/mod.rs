@@ -25,8 +25,6 @@ use tracing_actix_web::TracingLogger;
 
 mod api_generator;
 
-pub use api_generator::field_to_json_value;
-
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]
 enum CorsOptions {

@@ -1,5 +1,5 @@
 syntax = "proto3";
-package dozer.admin;
+package dozer.cloud;
 
 message AppConfig {
   string app_name = 2;
