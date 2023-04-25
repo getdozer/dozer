@@ -165,7 +165,7 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Binary => Type::Binary,
         FieldType::Decimal => Type::Decimal,
         FieldType::Timestamp => Type::Timestamp,
-        FieldType::Json => Type::Bson,
+        FieldType::Json => Type::Json,
         FieldType::Date => Type::String,
         FieldType::Point => Type::Point,
         FieldType::Duration => Type::Duration,
