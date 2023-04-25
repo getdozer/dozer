@@ -24,7 +24,7 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
-use dozer_types::grpc_types::cloud::dozer_admin_client::DozerAdminClient;
+use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::{CreateAppRequest, StartRequest};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
@@ -364,13 +364,13 @@ impl Orchestrator for SimpleOrchestrator {
         info!("Authenticating for username: {:?}", username);
         info!("Local dozer configuration path: {:?}", config_path);
         // getting local dozer config file
-        let config_content = std::fs::read_to_string(&config_path)
+        let config_content = fs::read_to_string(&config_path)
             .map_err(|e| DeployError::CannotReadConfig(config_path.into(), e))?;
         // calling the target url with the config fetched
         self.runtime.block_on(async move {
             // 1. CREATE application
-            let mut client: DozerAdminClient<tonic::transport::Channel> =
-                DozerAdminClient::connect(target_url).await?;
+            let mut client: DozerCloudClient<tonic::transport::Channel> =
+                DozerCloudClient::connect(target_url).await?;
             let response = client
                 .create_application(CreateAppRequest {
                     config: config_content,

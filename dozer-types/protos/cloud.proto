@@ -2,7 +2,7 @@ syntax = "proto3";
 package dozer.cloud;
 import "cloud_types.proto";
 
-service DozerAdmin {
+service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
