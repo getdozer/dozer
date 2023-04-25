@@ -10,7 +10,6 @@ use dozer_types::types::{DozerDuration, Schema, TimeUnit};
 use crate::pipeline::{
     builder::SchemaSQLContext, errors::TableOperatorError,
     pipeline_builder::from_builder::TableOperatorDescriptor,
-    window::builder::string_from_sql_object_name,
 };
 
 use super::{
@@ -97,9 +96,7 @@ pub(crate) fn operator_from_descriptor(
     descriptor: &TableOperatorDescriptor,
     _schema: &Schema,
 ) -> Result<Option<TableOperatorType>, ExecutionError> {
-    let function_name = string_from_sql_object_name(&descriptor.name);
-
-    if function_name.to_uppercase() == "TTL" {
+    if &descriptor.name.to_uppercase() == "TTL" {
         let operator = LifetimeTableOperator::new(
             None,
             DozerDuration(
@@ -110,6 +107,8 @@ pub(crate) fn operator_from_descriptor(
 
         Ok(Some(operator.into()))
     } else {
-        Err(ExecutionError::InternalError(function_name.into()))
+        Err(ExecutionError::InternalError(
+            descriptor.name.clone().into(),
+        ))
     }
 }

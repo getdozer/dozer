@@ -1,4 +1,4 @@
-mod factory;
-pub(crate) mod lifetime;
-pub(crate) mod operator;
+pub(crate) mod factory;
+mod lifetime;
+mod operator;
 mod processor;

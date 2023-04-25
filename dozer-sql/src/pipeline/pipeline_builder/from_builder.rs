@@ -11,8 +11,9 @@ use sqlparser::ast::{FunctionArg, ObjectName, TableFactor, TableWithJoins};
 use crate::pipeline::{
     builder::{get_from_source, OutputNodeInfo, QueryContext, SchemaSQLContext},
     errors::PipelineError,
+    expression::builder::ExpressionBuilder,
     product::table::factory::TableProcessorFactory,
-    window::{builder::string_from_sql_object_name, factory::WindowProcessorFactory},
+    window::factory::WindowProcessorFactory,
 };
 
 use super::join_builder::insert_join_to_pipeline;
@@ -25,7 +26,7 @@ pub struct ConnectionInfo {
 
 #[derive(Clone, Debug)]
 pub struct TableOperatorDescriptor {
-    pub name: ObjectName,
+    pub name: String,
     pub args: Vec<FunctionArg>,
 }
 
@@ -127,9 +128,7 @@ fn insert_function_processor_to_pipeline(
 
     pipeline.add_processor(Arc::new(product_processor), &product_processor_name, vec![]);
 
-    let function_name = string_from_sql_object_name(&operator.name.clone());
-
-    if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP" {
+    if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
         let window_processor = WindowProcessorFactory::new(operator.clone());
         let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
         let window_source_name = window_processor.get_source_name()?;
@@ -174,7 +173,9 @@ fn insert_function_processor_to_pipeline(
             output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
         })
     } else {
-        Err(PipelineError::UnsupportedTableOperator(function_name))
+        Err(PipelineError::UnsupportedTableOperator(
+            operator.name.clone(),
+        ))
     }
 }
 
@@ -185,7 +186,7 @@ pub fn is_table_operator(
         TableFactor::Table { name, args, .. } => {
             if args.is_some() {
                 Ok(Some(TableOperatorDescriptor {
-                    name: name.clone(),
+                    name: string_from_sql_object_name(name),
                     args: args.clone().unwrap(),
                 }))
             } else {
@@ -208,4 +209,12 @@ pub fn is_an_entry_point(
         return true;
     }
     false
+}
+
+pub fn string_from_sql_object_name(name: &ObjectName) -> String {
+    name.0
+        .iter()
+        .map(ExpressionBuilder::normalize_ident)
+        .collect::<Vec<String>>()
+        .join(".")
 }

@@ -24,9 +24,7 @@ pub(crate) fn window_from_table_operator(
     operator: &TableOperatorDescriptor,
     schema: &Schema,
 ) -> Result<Option<WindowType>, WindowError> {
-    let function_name = string_from_sql_object_name(&operator.name);
-
-    if function_name.to_uppercase() == "TUMBLE" {
+    if operator.name.to_uppercase() == "TUMBLE" {
         let column_index = get_window_column_index(&operator.args, schema)?;
         let interval_arg = operator
             .args
@@ -38,7 +36,7 @@ pub(crate) fn window_from_table_operator(
             column_index,
             interval,
         }))
-    } else if function_name.to_uppercase() == "HOP" {
+    } else if operator.name.to_uppercase() == "HOP" {
         let column_index = get_window_column_index(&operator.args, schema)?;
         let hop_arg = operator
             .args
@@ -57,16 +55,16 @@ pub(crate) fn window_from_table_operator(
             interval,
         }));
     } else {
-        return Err(WindowError::UnsupportedRelationFunction(function_name));
+        return Err(WindowError::UnsupportedRelationFunction(
+            operator.name.clone(),
+        ));
     }
 }
 
 pub(crate) fn window_source_name(
     operator: &TableOperatorDescriptor,
 ) -> Result<String, WindowError> {
-    let function_name = string_from_sql_object_name(&operator.name);
-
-    if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP" {
+    if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
         let source_arg = operator
             .args
             .get(ARG_SOURCE)
@@ -75,7 +73,9 @@ pub(crate) fn window_source_name(
 
         Ok(source_name)
     } else {
-        Err(WindowError::UnsupportedRelationFunction(function_name))
+        Err(WindowError::UnsupportedRelationFunction(
+            operator.name.clone(),
+        ))
     }
 }
 
@@ -214,13 +214,11 @@ fn parse_duration_string(duration_string: &str) -> Result<Duration, WindowError>
 }
 
 pub fn string_from_sql_object_name(name: &ObjectName) -> String {
-    let function_name = name
-        .0
+    name.0
         .iter()
         .map(ExpressionBuilder::normalize_ident)
         .collect::<Vec<String>>()
-        .join(".");
-    function_name
+        .join(".")
 }
 
 pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>, PipelineError> {
