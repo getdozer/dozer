@@ -35,47 +35,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .protoc_arg("--experimental_allow_proto3_optional")
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .extern_path(
-            ".dozer.admin.AppConfig",
+            ".dozer.cloud.AppConfig",
             "crate::models::app_config::Config",
         )
         .extern_path(
-            ".dozer.admin.ConnectionConfig",
+            ".dozer.cloud.ConnectionConfig",
             "crate::models::connection::ConnectionConfig",
         )
         .extern_path(
-            ".dozer.admin.Connection",
+            ".dozer.cloud.Connection",
             "crate::models::connection::Connection",
         )
         .extern_path(
-            ".dozer.admin.EthContract",
+            ".dozer.cloud.EthContract",
             "crate::ingestion_types::EthContract",
         )
         .extern_path(
-            ".dozer.admin.EthereumFilter",
+            ".dozer.cloud.EthereumFilter",
             "crate::ingestion_types::EthereumFilter",
         )
         .extern_path(
-            ".dozer.admin.KafkaConfig",
+            ".dozer.cloud.KafkaConfig",
             "crate::ingestion_types::KafkaConfig",
         )
         .extern_path(
-            ".dozer.admin.SnowflakeConfig",
+            ".dozer.cloud.SnowflakeConfig",
             "crate::ingestion_types::SnowflakeConfig",
         )
         .extern_path(
-            ".dozer.admin.GrpcConfig",
+            ".dozer.cloud.GrpcConfig",
             "crate::models::connection::GrpcConfig",
         )
         .extern_path(
-            ".dozer.admin.EthereumConfig",
+            ".dozer.cloud.EthereumConfig",
             "crate::ingestion_types::EthConfig",
         )
         .extern_path(
-            ".dozer.admin.PostgresConfig",
+            ".dozer.cloud.PostgresConfig",
             "crate::models::connection::PostgresConfig",
         )
-        .file_descriptor_set_path(out_dir.join("admin.bin"))
-        .compile(&["protos/admin.proto"], &["protos"])
+        .file_descriptor_set_path(out_dir.join("cloud.bin"))
+        .compile(&["protos/cloud.proto"], &["protos"])
         .unwrap();
 
     Ok(())

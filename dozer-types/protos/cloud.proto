@@ -1,6 +1,6 @@
 syntax = "proto3";
-package dozer.admin;
-import "admin_types.proto";
+package dozer.cloud;
+import "cloud_types.proto";
 
 service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (AppResponse);
