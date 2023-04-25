@@ -8,7 +8,7 @@ use dozer_types::chrono::{NaiveDate, NaiveDateTime};
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::serde_json::Value;
+use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Schema};
 use std::collections::HashMap;
 
@@ -116,7 +116,7 @@ fn convert_value(
                 "io.debezium.time.MicroTime" => Ok(Field::Null),
                 "io.debezium.data.Json" => value
                     .as_str()
-                    .map_or(Ok(Field::Null), |s| Ok(Field::Json(s.as_bytes().to_vec()))),
+                    .map_or(Ok(Field::Null), |s| Ok(Field::Json(json!(s.as_bytes().to_vec())))),
                 // | "io.debezium.time.MicroTime" | "org.apache.kafka.connect.data.Time" => Ok(FieldType::Timestamp),
                 _ => Err(TypeNotSupported(name)),
             }
