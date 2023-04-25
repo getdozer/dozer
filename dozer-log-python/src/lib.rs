@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use ::dozer_log::{
+use dozer_log::{
     get_endpoint_log_path, reader::LogReader as DozerLogReader, schemas::load_schema,
     tokio::sync::Mutex,
 };
@@ -53,7 +53,7 @@ impl LogReader {
 /// Python binding for reading Dozer logs
 #[pymodule]
 #[pyo3(crate = "dozer_types::pyo3")]
-fn dozer_log(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pydozer_log(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<LogReader>()?;
     Ok(())
 }
