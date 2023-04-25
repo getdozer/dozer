@@ -7,7 +7,7 @@ use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, Valu
 use crate::pipeline::{
     errors::{JoinError, PipelineError, WindowError},
     expression::builder::ExpressionBuilder,
-    pipeline_builder::from_builder::TableOperator,
+    pipeline_builder::from_builder::TableOperatorDescriptor,
 };
 
 use super::operator::WindowType;
@@ -21,7 +21,7 @@ const ARG_HOP_SIZE: usize = 2;
 const ARG_HOP_INTERVAL: usize = 3;
 
 pub(crate) fn window_from_table_operator(
-    operator: &TableOperator,
+    operator: &TableOperatorDescriptor,
     schema: &Schema,
 ) -> Result<Option<WindowType>, WindowError> {
     let function_name = string_from_sql_object_name(&operator.name);
@@ -61,7 +61,9 @@ pub(crate) fn window_from_table_operator(
     }
 }
 
-pub(crate) fn window_source_name(operator: &TableOperator) -> Result<String, WindowError> {
+pub(crate) fn window_source_name(
+    operator: &TableOperatorDescriptor,
+) -> Result<String, WindowError> {
     let function_name = string_from_sql_object_name(&operator.name);
 
     if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP" {

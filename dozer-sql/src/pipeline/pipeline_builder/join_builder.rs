@@ -17,7 +17,9 @@ use crate::pipeline::{
     window::factory::WindowProcessorFactory,
 };
 
-use super::from_builder::{is_an_entry_point, is_table_operator, ConnectionInfo, TableOperator};
+use super::from_builder::{
+    is_an_entry_point, is_table_operator, ConnectionInfo, TableOperatorDescriptor,
+};
 
 #[derive(Clone, Debug)]
 enum JoinSource {
@@ -189,7 +191,7 @@ fn insert_join_source_to_pipeline(
 }
 
 fn insert_table_operator_to_pipeline(
-    table_operator: &TableOperator,
+    table_operator: &TableOperatorDescriptor,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,

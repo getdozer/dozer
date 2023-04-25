@@ -16,9 +16,10 @@ impl LifetimeTableOperator {
 }
 
 impl TableOperator for LifetimeTableOperator {
-    fn execute(&self, record: &mut Record) -> Result<Vec<Record>, TableOperatorError> {
-        record.set_lifetime(self.duration);
-        Ok(vec![record.clone()])
+    fn execute(&self, record: &Record) -> Result<Vec<Record>, TableOperatorError> {
+        let mut ttl_record = record.clone();
+        ttl_record.set_lifetime(self.duration);
+        Ok(vec![ttl_record])
     }
 
     fn get_output_schema(&self, schema: &Schema) -> Result<Schema, TableOperatorError> {

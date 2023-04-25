@@ -24,7 +24,7 @@ pub struct ConnectionInfo {
 }
 
 #[derive(Clone, Debug)]
-pub struct TableOperator {
+pub struct TableOperatorDescriptor {
     pub name: ObjectName,
     pub args: Vec<FunctionArg>,
 }
@@ -114,7 +114,7 @@ fn insert_table_to_pipeline(
 
 fn insert_function_processor_to_pipeline(
     relation: &TableFactor,
-    operator: &TableOperator,
+    operator: &TableOperatorDescriptor,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
@@ -178,11 +178,13 @@ fn insert_function_processor_to_pipeline(
     }
 }
 
-pub fn is_table_operator(relation: &TableFactor) -> Result<Option<TableOperator>, PipelineError> {
+pub fn is_table_operator(
+    relation: &TableFactor,
+) -> Result<Option<TableOperatorDescriptor>, PipelineError> {
     match relation {
         TableFactor::Table { name, args, .. } => {
             if args.is_some() {
-                Ok(Some(TableOperator {
+                Ok(Some(TableOperatorDescriptor {
                     name: name.clone(),
                     args: args.clone().unwrap(),
                 }))
