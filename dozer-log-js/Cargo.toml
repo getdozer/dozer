@@ -8,6 +8,7 @@ edition = "2018"
 exclude = ["index.node"]
 
 [lib]
+name = "log"
 crate-type = ["cdylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

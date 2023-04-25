@@ -1,13 +1,12 @@
 {
-  "name": "dozer-log-js",
+  "name": "@dozerjs/log",
   "version": "0.1.18",
   "description": "Node.js binding for reading Dozer logs",
-  "main": "index.node",
+  "main": "build/log.node",
   "scripts": {
-    "build": "cargo-cp-artifact -nc index.node -- cargo build --message-format=json-render-diagnostics",
+    "build": "cargo-cp-artifact -nc build/log.node -- cargo build --message-format=json-render-diagnostics",
     "build-debug": "npm run build --",
     "build-release": "npm run build -- --release",
-    "install": "npm run build-release",
     "test": "cargo test"
   },
   "author": "getdozer/dozer-dev",
@@ -26,5 +25,15 @@
   "bugs": {
     "url": "https://github.com/getdozer/dozer/issues"
   },
-  "homepage": "https://github.com/getdozer/dozer#readme"
+  "homepage": "https://github.com/getdozer/dozer#readme",
+  "binary": {
+    "module_name": "log",
+    "module_path": "build",
+    "host": "https://github.com/getdozer/dozer/releases/download/",
+    "remote_path": "v{version}"
+  },
+  "dependencies": {
+    "@mapbox/node-pre-gyp": "^1.0.10"
+  },
+  "files": []
 }

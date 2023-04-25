@@ -1,0 +1,190 @@
+name: CI for dozer-log-js
+
+on:
+  push:
+    branches:
+      - dozer-log-js-ci-dev
+    tags:
+      - '*'
+  workflow_dispatch:
+
+concurrency:
+  group: dozer-log-js/${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v2
+
+      - id: get-version
+        working-directory: dozer-log-js
+        run: |
+          echo "::set-output name=version::$(node --print 'require("./package.json").version')"
+
+  linux:
+    needs: get-version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, x86, aarch64, armv7, s390x]
+        node_version: [12, 14, 16]
+        include:
+          - target: x86_64
+            rustup_target: x86_64-unknown-linux-gnu
+            node_arch: x64
+            gcc: gcc-x86-64-linux-gnu
+          - target: x86
+            rustup_target: i686-unknown-linux-gnu
+            node_arch: ia32
+            gcc: gcc-multilib
+          - target: aarch64
+            rustup_target: aarch64-unknown-linux-gnu
+            node_arch: arm64
+            gcc: gcc-aarch64-linux-gnu
+          - target: armv7
+            rustup_target: armv7-unknown-linux-gnueabihf
+            node_arch: arm
+            gcc: gcc-arm-linux-gnueabihf
+          - target: s390x
+            rustup_target: s390x-unknown-linux-gnu
+            node_arch: s390x
+            gcc: gcc-s390x-linux-gnu
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install target specific tools
+        run: |
+          sudo apt update
+          sudo apt install -y ${{ matrix.gcc }}
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node_version }}
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: ${{ matrix.rustup_target }}
+
+      - uses: ./.github/actions/release-dozer-log-js
+        with:
+          version: ${{ needs.get-version.outputs.version }}
+          rustup_target: ${{ matrix.rustup_target }}
+          node_arch: ${{ matrix.node_arch }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  windows:
+    needs: get-version
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x64, x86]
+        node_version: [12, 14, 16]
+        include:
+          - target: x64
+            rustup_target: x86_64-pc-windows-msvc
+            node_arch: x64
+          - target: x86
+            rustup_target: i686-pc-windows-msvc
+            node_arch: ia32
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node_version }}
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: ${{ matrix.rustup_target }}
+
+      - uses: ./.github/actions/release-dozer-log-js
+        with:
+          version: ${{ needs.get-version.outputs.version }}
+          rustup_target: ${{ matrix.rustup_target }}
+          node_arch: ${{ matrix.node_arch }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  macos:
+    needs: get-version
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+        node_version: [12, 14, 16]
+        include:
+          - target: x86_64
+            rustup_target: x86_64-apple-darwin
+            node_arch: x64
+          - target: aarch64
+            rustup_target: aarch64-apple-darwin
+            node_arch: arm64
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node_version }}
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: ${{ matrix.rustup_target }}
+
+      - uses: ./.github/actions/release-dozer-log-js
+        with:
+          version: ${{ needs.get-version.outputs.version }}
+          rustup_target: ${{ matrix.rustup_target }}
+          node_arch: ${{ matrix.node_arch }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: [linux, windows, macos]
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v2
+        with:
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Apply prerelease patch
+        # This is for adding `install` script which calls `node-pre-gyp`.
+        run: git apply dozer-log-js/prerelease.patch
+
+      - name: Publish to npm
+        working-directory: dozer-log-js
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
