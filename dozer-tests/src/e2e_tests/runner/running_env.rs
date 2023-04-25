@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
 use dozer_types::{
     log::info,
     models::{app_config::Config, connection::ConnectionConfig},
@@ -57,40 +58,34 @@ pub fn create_buildkite_runner_envs(case: &Case) -> Vec<RunningEnv> {
 }
 
 fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> RunningEnv {
-    let buildkite_dir = case.case_dir.join("buildkite_runner");
-    create_dir_if_not_existing(&buildkite_dir);
+    let docker_compose_dir = case.case_dir.join(if single_dozer_container {
+        "builkite_runner_dozer_single_container"
+    } else {
+        "buildkite_runner_dozer_multi_container"
+    });
+    create_dir_if_not_existing(&docker_compose_dir);
 
     let dozer_config_path = write_dozer_config_for_running_in_docker_compose(
         case.dozer_config.clone(),
         &case.connections,
-        &buildkite_dir,
+        &docker_compose_dir,
     );
-
-    let docker_compose_dir = buildkite_dir.join(if single_dozer_container {
-        "dozer_single_container"
-    } else {
-        "dozer_multi_container"
-    });
-    create_dir_if_not_existing(&docker_compose_dir);
 
     let mut services = HashMap::new();
 
     let connections_healthy_service_name =
         add_connection_services(&case.connections, &mut services);
 
-    let (
-        dozer_api_service_name,
-        dozer_service_name_for_error_expectation,
-        dozer_config_path_in_container,
-    ) = if single_dozer_container {
-        add_dozer_service(
-            &dozer_config_path,
-            connections_healthy_service_name,
-            &mut services,
-        )
-    } else {
-        todo!()
-    };
+    let (dozer_api_service_name, dozer_service_name_for_error_expectation) =
+        if single_dozer_container {
+            add_dozer_service(
+                &dozer_config_path,
+                connections_healthy_service_name,
+                &mut services,
+            )
+        } else {
+            todo!()
+        };
 
     let dozer_test_client_service_name = if let CaseKind::Expectations(_) = &case.kind {
         Some(add_dozer_test_client_service(
@@ -115,7 +110,7 @@ fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> Run
         RunningEnv::WithErrorExpectation {
             docker_compose_path,
             dozer_service_name: dozer_service_name_for_error_expectation,
-            dozer_config_path: dozer_config_path_in_container,
+            dozer_config_path,
         }
     }
 }
@@ -124,7 +119,7 @@ fn add_dozer_service(
     dozer_config_path: &str,
     depends_on_service_name: Option<String>,
     services: &mut HashMap<String, Service>,
-) -> (String, String, String) {
+) -> (String, String) {
     let mut depends_on = HashMap::new();
     if let Some(depends_on_service_name) = depends_on_service_name {
         depends_on.insert(
@@ -136,7 +131,8 @@ fn add_dozer_service(
     }
 
     let dozer_service_name = "dozer";
-    let dozer_config_path_in_container = "/dozer/dozer-config.yaml";
+    let current_dir = current_dir().expect("Cannot get current dir");
+    let current_dir = current_dir.to_str().expect("Non-UTF8 path {current_dir:?}");
     services.insert(
         dozer_service_name.to_string(),
         Service {
@@ -145,12 +141,10 @@ fn add_dozer_service(
             build: None,
             ports: vec![],
             environment: vec!["ETH_WSS_URL".to_string(), "ETH_HTTPS_URL".to_string()],
-            volumes: vec![format!(
-                "{dozer_config_path}:{dozer_config_path_in_container}"
-            )],
-            command: Some(format!(
-                "dozer --config-path {dozer_config_path_in_container}"
-            )),
+            volumes: vec![format!("{current_dir}:{current_dir}")],
+            user: None,
+            working_dir: Some(current_dir.to_string()),
+            command: Some(format!("dozer --config-path {dozer_config_path}")),
             depends_on,
             healthcheck: None,
         },
@@ -159,7 +153,6 @@ fn add_dozer_service(
     (
         dozer_service_name.to_string(),
         dozer_service_name.to_string(),
-        dozer_config_path_in_container.to_string(),
     )
 }
 
@@ -205,6 +198,8 @@ fn add_dozer_test_client_service(
                 format!("{case_dir}:{case_dir_in_container}"),
                 format!("{connections_dir}:{connections_dir_in_container}"),
             ],
+            user: None,
+            working_dir: None,
             command: Some(format!(
                 "{dozer_test_client_path_in_container} --wait-in-millis 10000 --dozer-api-host {dozer_api_service_name} --case-dir {case_dir_in_container} --connections-dir {connections_dir_in_container}"
             )),
@@ -247,7 +242,9 @@ fn add_connection_services(
         depends_on.insert(
             name.clone(),
             DependsOn {
-                condition: if service.healthcheck.is_some() {
+                condition: if connection.has_oneshot_file {
+                    Condition::ServiceCompletedSuccessfully
+                } else if service.healthcheck.is_some() {
                     Condition::ServiceHealthy
                 } else {
                     Condition::ServiceStarted
@@ -271,7 +268,10 @@ fn add_connection_services(
             ports: vec![],
             environment: vec![],
             volumes: vec![],
-            command: Some("echo 'All connections are healthy'".to_string()),
+            user: None,
+            working_dir: None,
+            // Give the connection some time to start.
+            command: Some("sleep 10".to_string()),
             depends_on,
             healthcheck: None,
         },
@@ -353,7 +353,7 @@ fn write_dozer_config_for_running_in_docker_compose(
         }
     }
 
-    let config_path = dir.join("dozer-config.yaml");
+    let config_path = dir.join(DEFAULT_CONFIG_PATH);
     let file = File::create(&config_path)
         .unwrap_or_else(|e| panic!("Failed to create file {config_path:?}: {e}"));
     dozer_types::serde_yaml::to_writer(file, &config)

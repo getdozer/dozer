@@ -1,0 +1,30 @@
+connections:    
+  - config : !LocalStorage
+      details:
+        path: data
+      tables:
+        - !Table
+          name: yellow_trips
+          prefix: /yellow_trips
+          file_type: parquet
+          extension: .parquet
+    name: yellow_taxi
+
+sql: |
+  SELECT t.VendorID AS vendor, ROUND(SUM(t.trip_distance), 2) AS total_distance
+  INTO total_distance
+  FROM yellow_trips t
+  GROUP BY t.VendorID;
+
+sources:
+  - name: yellow_trips
+    table_name: yellow_trips
+    connection: !Ref yellow_taxi
+    columns:
+
+endpoints:
+  - name: total_distance
+    path: /total_distance
+    table_name: total_distance
+    index:
+      primary_key: 

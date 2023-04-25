@@ -1,6 +1,5 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::chk;
-use crate::dag_metadata::DagMetadata;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
@@ -12,7 +11,6 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{Operation, Schema};
 
@@ -53,7 +51,6 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoopProcessor {}))
     }
@@ -63,11 +60,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
-    fn commit(
-        &self,
-        _epoch_details: &Epoch,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -76,7 +69,6 @@ impl Processor for NoopProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
     }
@@ -84,8 +76,6 @@ impl Processor for NoopProcessor {
 
 #[test]
 fn test_run_dag() {
-    // dozer_tracing::init_telemetry(false).unwrap();
-
     let count: u64 = 1_000;
 
     let mut dag = Dag::new();
@@ -174,9 +164,7 @@ fn test_run_dag_and_stop() {
     running.store(false, Ordering::SeqCst);
     join_handle.join().unwrap();
 
-    let dag_schemas = DagSchemas::new(dag).unwrap();
-    let dag_metadata = DagMetadata::new(dag_schemas, tmp_dir.path().to_path_buf()).unwrap();
-    assert!(dag_metadata.check_consistency());
+    DagSchemas::new(dag).unwrap();
 }
 
 #[derive(Debug)]
@@ -209,7 +197,6 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
@@ -219,11 +206,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
-    fn commit(
-        &self,
-        _epoch_details: &Epoch,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -232,7 +215,6 @@ impl Processor for NoopJoinProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
     }

@@ -5,10 +5,8 @@ use crate::errors::ExecutionError::InvalidPortHandle;
 use crate::executor::ExecutorOperation;
 use crate::node::PortHandle;
 use crate::record_store::RecordWriter;
-use dozer_storage::common::Database;
 
 use crossbeam::channel::Sender;
-use dozer_storage::lmdb_storage::SharedTransaction;
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use dozer_types::log::debug;
 use dozer_types::node::NodeHandle;
@@ -17,26 +15,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::dag_metadata::write_source_metadata;
-
 #[derive(Debug)]
 pub(crate) struct StateWriter {
-    meta_db: Database,
     record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
-    tx: SharedTransaction,
 }
 
 impl StateWriter {
-    pub fn new(
-        meta_db: Database,
-        record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
-        tx: SharedTransaction,
-    ) -> Self {
-        Self {
-            meta_db,
-            record_writers,
-            tx,
-        }
+    pub fn new(record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>) -> Self {
+        Self { record_writers }
     }
 
     fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
@@ -47,16 +33,7 @@ impl StateWriter {
         }
     }
 
-    pub fn store_commit_info(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {
-        write_source_metadata(
-            &mut self.tx.write(),
-            self.meta_db,
-            epoch_details
-                .details
-                .iter()
-                .map(|(source, op_id)| (source, *op_id)),
-        )?;
-        self.tx.write().commit_and_renew()?;
+    pub fn store_commit_info(&mut self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -232,6 +209,10 @@ impl SourceChannelManager {
                 self.num_uncommitted_ops += 1;
                 self.manager.send_snapshotting_done()?;
                 self.commit(request_termination)
+            }
+            IngestionMessageKind::SnapshottingStarted => {
+                // TODO "implement handle for snapshotting started"
+                Ok(true)
             }
         }
     }

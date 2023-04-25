@@ -8,6 +8,7 @@ use arrow::{
     datatypes::i256,
     record_batch::RecordBatch,
 };
+use arrow_schema::TimeUnit;
 use arrow::array::{ArrayData, as_map_array, MapArray};
 use arrow::ipc::Map;
 use arrow_array::BinaryArray;
@@ -17,11 +18,11 @@ use crate::arrow_types::from_arrow::map_arrow_to_dozer_type;
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
-    schema: crate::types::Schema,
+    schema: &crate::types::Schema,
 ) -> Result<arrow_types::Schema, arrow::error::ArrowError> {
     let mut fields = vec![];
-    for fd in schema.fields {
-        let field = arrow_types::Field::from(fd);
+    for fd in &schema.fields {
+        let field = arrow_types::Field::from(fd.clone());
         fields.push(field);
     }
     Ok(arrow_types::Schema {
@@ -35,7 +36,7 @@ pub fn map_to_arrow_schema(
 // In a micro batch we can send a record batch that is of size > 1
 pub fn map_record_to_arrow(
     rec: Record,
-    schema: Schema,
+    schema: &Schema,
 ) -> Result<RecordBatch, arrow::error::ArrowError> {
     let mut rows = vec![];
 
@@ -86,12 +87,12 @@ pub fn map_record_to_arrow(
                 None as Option<i256>,
             ])) as ArrayRef,
             (Field::Timestamp(v), FieldType::Timestamp) => {
-                Arc::new(arrow_array::TimestampMillisecondArray::from_iter_values([
-                    v.timestamp_millis(),
+                Arc::new(arrow_array::TimestampNanosecondArray::from_iter_values([
+                    v.timestamp_nanos()
                 ])) as ArrayRef
             }
             (Field::Null, FieldType::Timestamp) => {
-                Arc::new(arrow_array::TimestampMillisecondArray::from(vec![
+                Arc::new(arrow_array::TimestampNanosecondArray::from(vec![
                     None as Option<i64>,
                 ])) as ArrayRef
             }
@@ -127,6 +128,16 @@ pub fn map_record_to_arrow(
                     None as Option<&[u8]>,
                 ])) as ArrayRef
             }
+            (Field::Duration(d), FieldType::Duration) => {
+                Arc::new(arrow_array::DurationNanosecondArray::from_iter_values([
+                    d.0.as_nanos() as i64,
+                ])) as ArrayRef
+            }
+            (Field::Null, FieldType::Duration) => {
+                Arc::new(arrow_array::BinaryArray::from_opt_vec(vec![
+                    None as Option<&[u8]>,
+                ])) as ArrayRef
+            }
             (a, b) => Err(arrow::error::ArrowError::InvalidArgumentError(format!(
                 "Invalid field type {b:?} for the field: {a:?}",
             )))?,
@@ -142,14 +153,15 @@ pub fn map_record_to_arrow(
 pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, String>>) -> DataType {
     match typ {
         FieldType::UInt => DataType::UInt64,
+        FieldType::U128 => DataType::Utf8,
         FieldType::Int => DataType::Int64,
+        FieldType::I128 => DataType::Utf8,
         FieldType::Float => DataType::Float64,
         FieldType::Boolean => DataType::Boolean,
         FieldType::String => DataType::Utf8,
         FieldType::Text => DataType::LargeUtf8,
-        // TODO: Map this correctly
-        FieldType::Decimal => DataType::Decimal256(10, 5),
-        FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Millisecond, None),
+        FieldType::Decimal => DataType::Decimal256(10, 5), // TODO: Map this correctly
+        FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Nanosecond, None),
         FieldType::Date => DataType::Date64,
         FieldType::Binary => {
             metadata.map(|m| m.insert("logical_type".to_string(), "Binary".to_string()));
@@ -163,7 +175,7 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
             metadata.map(|m| m.insert("logical_type".to_string(), "Point".to_string()));
             DataType::Binary
         }
-        _ => todo!(),
+        FieldType::Duration => DataType::Duration(TimeUnit::Nanosecond),
     }
 }
 

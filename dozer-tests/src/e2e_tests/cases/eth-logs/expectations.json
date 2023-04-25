@@ -21,7 +21,7 @@
                             {
                                 "name": "SUM(id)",
                                 "typ": "UInt",
-                                "nullable": false,
+                                "nullable": true,
                                 "source": "Dynamic"
                             }
                         ]

@@ -35,7 +35,20 @@ pub(crate) fn evaluate_ucase(
 
     Ok(match arg.get_type(schema)?.return_type {
         FieldType::String => Field::String(ret),
-        _ => Field::Text(ret),
+        FieldType::UInt
+        | FieldType::U128
+        | FieldType::Int
+        | FieldType::I128
+        | FieldType::Float
+        | FieldType::Decimal
+        | FieldType::Boolean
+        | FieldType::Text
+        | FieldType::Date
+        | FieldType::Timestamp
+        | FieldType::Binary
+        | FieldType::Bson
+        | FieldType::Point
+        | FieldType::Duration => Field::Text(ret),
     })
 }
 
@@ -84,7 +97,20 @@ pub(crate) fn evaluate_concat(
     let res_str = res_vec.iter().fold(String::new(), |a, b| a + b.as_str());
     Ok(match res_type {
         FieldType::Text => Field::Text(res_str),
-        _ => Field::String(res_str),
+        FieldType::UInt
+        | FieldType::U128
+        | FieldType::Int
+        | FieldType::I128
+        | FieldType::Float
+        | FieldType::Decimal
+        | FieldType::Boolean
+        | FieldType::String
+        | FieldType::Date
+        | FieldType::Timestamp
+        | FieldType::Binary
+        | FieldType::Bson
+        | FieldType::Point
+        | FieldType::Duration => Field::String(res_str),
     })
 }
 
@@ -155,7 +181,20 @@ pub(crate) fn evaluate_trim(
 
     Ok(match arg.get_type(schema)?.return_type {
         FieldType::String => Field::String(retval),
-        _ => Field::Text(retval),
+        FieldType::UInt
+        | FieldType::U128
+        | FieldType::Int
+        | FieldType::I128
+        | FieldType::Float
+        | FieldType::Decimal
+        | FieldType::Boolean
+        | FieldType::Text
+        | FieldType::Date
+        | FieldType::Timestamp
+        | FieldType::Binary
+        | FieldType::Bson
+        | FieldType::Point
+        | FieldType::Duration => Field::Text(retval),
     })
 }
 

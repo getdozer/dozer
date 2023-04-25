@@ -4,9 +4,9 @@ use dozer_types::{
     log::{error, info},
     models::app_config::Config,
 };
+use dozer_utils::Cleanup;
 
-use super::expectation::Expectation;
-use super::{cleanup::Cleanup, expectation::ErrorExpectation};
+use super::expectation::{ErrorExpectation, Expectation};
 
 mod client;
 
@@ -52,7 +52,9 @@ fn check_migrate_failure(
 
 fn assert_command_fails(mut command: Command, expected_string_in_stdout: Option<&str>) {
     info!("Running command: {:?}", command);
-    let output = command.output().expect("Failed to run command");
+    let output = command
+        .output()
+        .unwrap_or_else(|e| panic!("Failed to run command {command:?}: {e}"));
     if output.status.success() {
         panic!("Command {command:?} is expected to fail, but it succeeded");
     }

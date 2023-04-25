@@ -1,10 +1,9 @@
-use crate::connectors::TableInfo;
+use crate::connectors::ListOrFilterColumns;
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 
-use std::cell::RefCell;
 use std::str::FromStr;
 
 use std::sync::Arc;
@@ -17,7 +16,6 @@ use crate::errors::PostgresConnectorError::{
     InvalidQueryError, LSNNotStoredError, LsnNotReturnedFromReplicationSlot, LsnParseError,
 };
 use postgres_types::PgLsn;
-use tokio::runtime::Runtime;
 
 use super::schema::helper::PostgresTableInfo;
 
@@ -40,13 +38,11 @@ pub enum ReplicationState {
 pub struct PostgresIterator<'a> {
     details: Arc<Details>,
     ingestor: &'a Ingestor,
-    connector_id: u64,
 }
 
 impl<'a> PostgresIterator<'a> {
     #![allow(clippy::too_many_arguments)]
     pub fn new(
-        id: u64,
         name: String,
         publication_name: String,
         slot_name: String,
@@ -63,38 +59,30 @@ impl<'a> PostgresIterator<'a> {
             replication_conn_config,
             conn_config,
         });
-        PostgresIterator {
-            details,
-            ingestor,
-            connector_id: id,
-        }
+        PostgresIterator { details, ingestor }
     }
 }
 
 impl<'a> PostgresIterator<'a> {
-    pub fn start(self, lsn: Option<(PgLsn, u64)>) -> Result<(), ConnectorError> {
-        let lsn = RefCell::new(lsn);
-        let state = RefCell::new(ReplicationState::Pending);
+    pub async fn start(self, lsn: Option<(PgLsn, u64)>) -> Result<(), ConnectorError> {
+        let state = ReplicationState::Pending;
         let details = self.details.clone();
-        let connector_id = self.connector_id;
 
-        let stream_inner = PostgresIteratorHandler {
+        let mut stream_inner = PostgresIteratorHandler {
             details,
             ingestor: self.ingestor,
             state,
             lsn,
-            connector_id,
         };
-        stream_inner._start()
+        stream_inner.start().await
     }
 }
 
 pub struct PostgresIteratorHandler<'a> {
     pub details: Arc<Details>,
-    pub lsn: RefCell<Option<(PgLsn, u64)>>,
-    pub state: RefCell<ReplicationState>,
+    pub lsn: Option<(PgLsn, u64)>,
+    pub state: ReplicationState,
     pub ingestor: &'a Ingestor,
-    pub connector_id: u64,
 }
 
 impl<'a> PostgresIteratorHandler<'a> {
@@ -111,51 +99,52 @@ impl<'a> PostgresIteratorHandler<'a> {
         3) Replicating
         - Replicate CDC events using lsn
     */
-    pub fn _start(&self) -> Result<(), ConnectorError> {
+    pub async fn start(&mut self) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
         let replication_conn_config = details.replication_conn_config.to_owned();
-        let client = Arc::new(RefCell::new(
-            helper::connect(replication_conn_config)
-                .map_err(ConnectorError::PostgresConnectorError)?,
-        ));
+        let client = helper::connect(replication_conn_config)
+            .await
+            .map_err(ConnectorError::PostgresConnectorError)?;
 
         // TODO: Handle cases:
         // - When snapshot replication is not completed
         // - When there is gap between available lsn (in case when slot dropped and new created) and last lsn
         // - When publication tables changes
-        if self.lsn.clone().into_inner().is_none() {
+        if self.lsn.is_none() {
             debug!("\nCreating Slot....");
             let slot_exist =
-                ReplicationSlotHelper::replication_slot_exists(client.clone(), &details.slot_name)
+                ReplicationSlotHelper::replication_slot_exists(&client, &details.slot_name)
+                    .await
                     .map_err(ConnectorError::PostgresConnectorError)?;
 
             if slot_exist {
                 // We dont have lsn, so we need to drop replication slot and start from scratch
-                ReplicationSlotHelper::drop_replication_slot(client.clone(), &details.slot_name)
+                ReplicationSlotHelper::drop_replication_slot(&client, &details.slot_name)
+                    .await
                     .map_err(InvalidQueryError)?;
             }
 
             client
-                .borrow_mut()
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
+                .await
                 .map_err(|_e| {
                     debug!("failed to begin txn for replication");
                     PostgresConnectorError::BeginReplication
                 })?;
 
             let replication_slot_lsn =
-                ReplicationSlotHelper::create_replication_slot(client.clone(), &details.slot_name)?;
+                ReplicationSlotHelper::create_replication_slot(&client, &details.slot_name).await?;
             if let Some(lsn) = replication_slot_lsn {
                 let parsed_lsn =
                     PgLsn::from_str(&lsn).map_err(|_| LsnParseError(lsn.to_string()))?;
-                self.lsn.replace(Some((parsed_lsn, 0)));
+                self.lsn = Some((parsed_lsn, 0));
             } else {
                 return Err(ConnectorError::PostgresConnectorError(
                     LsnNotReturnedFromReplicationSlot,
                 ));
             }
 
-            self.state.replace(ReplicationState::SnapshotInProgress);
+            self.state = ReplicationState::SnapshotInProgress;
 
             /* #####################        SnapshotInProgress         ###################### */
             debug!("\nInitializing snapshots...");
@@ -163,63 +152,59 @@ impl<'a> PostgresIteratorHandler<'a> {
             let snapshotter = PostgresSnapshotter {
                 conn_config: details.conn_config.to_owned(),
                 ingestor: self.ingestor,
-                connector_id: self.connector_id,
             };
             let tables = details
                 .tables
                 .iter()
-                .map(|table_info| TableInfo {
+                .map(|table_info| ListOrFilterColumns {
                     name: table_info.name.clone(),
                     columns: Some(table_info.columns.clone()),
+                    schema: Some(table_info.schema.clone()),
                 })
                 .collect::<Vec<_>>();
-            snapshotter.sync_tables(&tables)?;
+            snapshotter.sync_tables(&tables).await?;
 
-            let lsn = self.lsn.borrow().map_or(0, |(lsn, _)| u64::from(lsn));
+            let lsn = self.lsn.map_or(0, |(lsn, _)| u64::from(lsn));
             self.ingestor
                 .handle_message(IngestionMessage::new_snapshotting_done(lsn, 0))
                 .map_err(ConnectorError::IngestorError)?;
 
             debug!("\nInitialized with tables: {:?}", details.tables);
 
-            client.borrow_mut().simple_query("COMMIT;").map_err(|_e| {
+            client.simple_query("COMMIT;").await.map_err(|_e| {
                 debug!("failed to commit txn for replication");
                 ConnectorError::PostgresConnectorError(PostgresConnectorError::CommitReplication)
             })?;
         }
 
-        self.state.replace(ReplicationState::Replicating);
+        self.state = ReplicationState::Replicating;
 
         /*  ####################        Replicating         ######################  */
-        self.replicate()
+        self.replicate().await
     }
 
-    fn replicate(&self) -> Result<(), ConnectorError> {
-        let rt = Runtime::new().unwrap();
-        let lsn = self.lsn.borrow();
-        let (lsn, offset) = lsn
+    async fn replicate(&self) -> Result<(), ConnectorError> {
+        let (lsn, offset) = self
+            .lsn
             .as_ref()
             .map_or(Err(LSNNotStoredError), |(x, offset)| Ok((x, offset)))?;
 
         let publication_name = self.details.publication_name.clone();
         let slot_name = self.details.slot_name.clone();
         let tables = self.details.tables.clone();
-        rt.block_on(async {
-            let mut replicator = CDCHandler {
-                replication_conn_config: self.details.replication_conn_config.clone(),
-                ingestor: self.ingestor,
-                start_lsn: *lsn,
-                begin_lsn: 0,
-                offset_lsn: 0,
-                offset: *offset,
-                publication_name,
-                slot_name,
-                last_commit_lsn: 0,
-                connector_id: self.connector_id,
-                seq_no: 0,
-                name: self.details.name.clone(),
-            };
-            replicator.start(tables).await
-        })
+        let mut replicator = CDCHandler {
+            replication_conn_config: self.details.replication_conn_config.clone(),
+            ingestor: self.ingestor,
+            start_lsn: *lsn,
+            begin_lsn: 0,
+            offset_lsn: 0,
+            offset: *offset,
+            publication_name,
+            slot_name,
+            last_commit_lsn: 0,
+            seq_no: 0,
+            name: self.details.name.clone(),
+        };
+        replicator.start(tables).await
     }
 }

@@ -1,7 +1,7 @@
 name: Release
 on:
   push:
-    branches: [release, release-dev, main]
+    branches: [release, release-dev, release-test, main]
     tags:
       - "v*.*.*"
 env:
@@ -61,10 +61,237 @@ jobs:
             echo "::set-output name=version::dev"
             echo "::set-output name=prerelease::true"
           fi
+
+  release-linux-aarch64:
+    name: Release Linux binary for aarch64
+    runs-on: ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: aarch64
+            os: ubuntu-20-16-cores
+            target: aarch64-unknown-linux-gnu
+            linker: gcc-aarch64-linux-gnu
+            use-cross: true
+            file_name: dozer
+            asset_name: dozer-linux-aarch64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: ${{ matrix.target }}
+          components: rustfmt, clippy
+      - name: APT update
+        run: |
+          sudo apt update
+      - name: Install target specific tools
+        if: matrix.use-cross
+        run: |
+          sudo apt-get install -y ${{ matrix.linker }}
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-release-
+
+      - name: Configure target aarch64 GNU
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config
+          echo 'JEMALLOC_SYS_WITH_LG_PAGE=16' >> $GITHUB_ENV
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          use-cross: false
+          args: --release --target ${{ matrix.target }} --bin ${{ matrix.file_name }}
+      - name: List target output files
+        run: ls -lR ./target
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Compile deb file
+        run: cargo-deb -p dozer-orchestrator --output ./deb/${{matrix.asset_name}}.deb
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p release
+          cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
+          cp target/${{ matrix.target }}/release/${{matrix.file_name}} release/
+
+          mv release/ ${{matrix.asset_name}}/
+
+          tar -czvf ${{matrix.asset_name}}.tar.gz ${{matrix.asset_name}}/
+          
+          cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/
+          
+          ls -l ${{matrix.asset_name}}
+
+      - name: Upload the release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{matrix.asset_name}}*
+          file_glob: true
+          overwrite: true
+          tag: ${{ needs.prepare.outputs.version }}
+          release_name: "Development Release - ${{ needs.prepare.outputs.version }}"
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          body: "${{ needs.prepare.outputs.release_body }}"
+
+      - name: Set env variables
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_NAME: ${{matrix.asset_name}}.tar.gz
+        run: |
+          echo "RELEASE_NAME=${{env.RELEASE_NAME}}" >> $GITHUB_ENV
+          echo "DEB_NAME=${{matrix.asset_name}}.deb" >> $GITHUB_ENV
+          echo "VERSION=${{env.VERSION}}" >> $GITHUB_ENV
+          echo "ARTIFACT_URL=https://${{ env.BUCKET_NAME }}.s3.ap-southeast-1.amazonaws.com/${{ env.VERSION }}/${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
+
+      - name: List deb output files
+        run: ls -lR ./deb
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: deployer
+          aws-region: ap-southeast-1
+
+      - name: Upload release to S3
+        id: upload_s3
+        run: |
+          aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
+
+      - name: Upload release deb to S3
+        id: upload_s3_deb
+        run: |
+          aws s3 cp deb/$DEB_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$DEB_NAME
+
+  release-macos-apple-silicon:
+    name: Release binary for macOS silicon
+    runs-on: ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-12
+            target: aarch64-apple-darwin
+            file_name: dozer
+            asset_name: dozer-macos-aarch64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Installing Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          target: ${{ matrix.target }}
+          override: true
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-release-
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target ${{ matrix.target }} --bin ${{ matrix.file_name }}
+
+      - name: List target output files
+        run: ls -lR ./target
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p release
+          cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
+          cp target/${{ matrix.target }}/release/${{matrix.file_name}} release/
+
+          mv release/ ${{matrix.asset_name}}/
+
+          tar -czvf ${{matrix.asset_name}}.tar.gz ${{matrix.asset_name}}/
+
+      - name: Upload the release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{matrix.asset_name}}*
+          file_glob: true
+          overwrite: true
+          tag: ${{ needs.prepare.outputs.version }}
+          release_name: "Development Release - ${{ needs.prepare.outputs.version }}"
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          body: "${{ needs.prepare.outputs.release_body }}"
+
+      - name: Set env variables
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_NAME: ${{matrix.asset_name}}.tar.gz
+        run: |
+          echo "RELEASE_NAME=${{env.RELEASE_NAME}}" >> $GITHUB_ENV
+          echo "VERSION=${{env.VERSION}}" >> $GITHUB_ENV
+          echo "ARTIFACT_URL=https://${{ env.BUCKET_NAME }}.s3.ap-southeast-1.amazonaws.com/${{ env.VERSION }}/${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: deployer
+          aws-region: ap-southeast-1
+
+      - name: Upload release to S3
+        id: upload_s3
+        run: |
+          aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
+
   release:
     name: Release
-    runs-on: 
-      group: Default Larger Runners
+    runs-on:
       labels: ${{ matrix.os }}
     needs: prepare
     timeout-minutes: 60
@@ -74,10 +301,12 @@ jobs:
         include:
           - os: ubuntu-20-16-cores
             file_name: dozer
+            target: x86_64-unknown-linux-gnu
             asset_name: dozer-linux-amd64
-          # - os: macos-12
-          #   file_name: dozer
-          #   asset_name: dozer-macos-amd64
+          - os: macos-12
+            file_name: dozer
+            target: x86_64-apple-darwin
+            asset_name: dozer-macos-amd64
     steps:
       - uses: actions/checkout@v3
       - name: Install minimal stable with clippy and rustfmt
@@ -85,6 +314,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          target: ${{ matrix.target }}
           components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
@@ -106,8 +336,20 @@ jobs:
             ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
             ${{ runner.os }}-cargo-release-
 
-      - name: Prepare build package
-        run: cargo build --features=snowflake --release
+      - name: Build package
+        run: cargo build --release --bin ${{ matrix.file_name }}
+
+      - name: Install cargo-deb
+        if: matrix.os == 'ubuntu-20-16-cores'
+        run: cargo install cargo-deb
+
+      - name: Compile deb file
+        if: matrix.os == 'ubuntu-20-16-cores'
+        run: cargo-deb -p dozer-orchestrator  --output ./deb/${{matrix.asset_name}}.deb
+
+      # - name: Build Linux binary
+      #   if: matrix.os == 'ubuntu-20-16-cores'
+      #   run: cargo build --features=snowflake --release
 
       - name: Prepare release assets
         shell: bash
@@ -116,16 +358,20 @@ jobs:
           cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
           cp target/release/${{matrix.file_name}} release/
 
-          mv release/ ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
+          mv release/ ${{matrix.asset_name}}/
 
-          tar -czvf ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}.tar.gz \
-              ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
+          tar -czvf ${{matrix.asset_name}}.tar.gz \
+              ${{matrix.asset_name}}/
+
+          cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/ 2>/dev/null || :
+          
+          ls -l ${{matrix.asset_name}}
 
       - name: Upload the release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}*
+          file: ${{matrix.asset_name}}*
           file_glob: true
           overwrite: true
           tag: ${{ needs.prepare.outputs.version }}
@@ -134,15 +380,17 @@ jobs:
           body: "${{ needs.prepare.outputs.release_body }}"
 
       - name: Set env variables
-        env: 
+        env:
           VERSION: ${{ needs.prepare.outputs.version }}
-          RELEASE_NAME: ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}.tar.gz
+          RELEASE_NAME: ${{matrix.asset_name}}.tar.gz
         run: |
           echo "RELEASE_NAME=${{env.RELEASE_NAME}}" >> $GITHUB_ENV
+          echo "DEB_NAME=${{matrix.asset_name}}.deb" >> $GITHUB_ENV
           echo "VERSION=${{env.VERSION}}" >> $GITHUB_ENV
           echo "ARTIFACT_URL=https://${{ env.BUCKET_NAME }}.s3.ap-southeast-1.amazonaws.com/${{ env.VERSION }}/${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
-          
+
       - name: configure aws credentials
+        if: matrix.os == 'ubuntu-20-16-cores'
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
@@ -151,8 +399,15 @@ jobs:
 
       - name: Upload release to S3
         id: upload_s3
+        if: matrix.os == 'ubuntu-20-16-cores'
         run: |
           aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
+
+      - name: Upload release deb to S3
+        id: upload_s3_deb
+        if: matrix.os == 'ubuntu-20-16-cores'
+        run: |
+          aws s3 cp deb/$DEB_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$DEB_NAME
 
       - name: Build, tag, and push image to Amazon ECR
         id: build_push_ecr
@@ -160,10 +415,8 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
-          SHORT_GITHUB_SHA=$(echo ${GITHUB_SHA} | cut -c1-8)
-          echo "SHORT_GITHUB_SHA=$SHORT_GITHUB_SHA" >> $GITHUB_OUTPUT
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_GITHUB_SHA .
+          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
 
       - name: Update latest image if releasing
@@ -174,28 +427,16 @@ jobs:
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-#      - name: Clean up Amazon ECR untagged images
-#        run: |
-#          IMAGES_TO_DELETE=$( aws ecr list-images --region us-east-1 --repository-name $ECR_REPOSITORY --filter "tagStatus=UNTAGGED" --query 'imageIds[*]' --output json )
-#          aws ecr batch-delete-image --region us-east-1 --repository-name $ECR_REPOSITORY --image-ids "$IMAGES_TO_DELETE" || true
-
-      - name: Trigger BuildKite integration tests
-        run: |
-          curl -X POST "https://api.buildkite.com/v2/organizations/dozer-data-pte-ltd/pipelines/integration-tests/builds" \
-            --header 'Authorization: Bearer ${{ secrets.BUILDKITE_API_ACCESS_TOKEN_WRITE_BUILDS }}' \
-            -d '{ "commit": "${{ github.sha }}", "branch": "${{ github.ref_name }}", "env": { "DOZER_VERSION": "${{ steps.build_push_ecr.outputs.SHORT_GITHUB_SHA }}" }, "ignore_pipeline_branch_filters": true }'
-
       - name: Release notification
-        if: ${{ env.VERSION != 'dev' }}
+        if: ${{ env.VERSION != 'dev' && matrix.os == 'ubuntu-20-16-cores'}}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_HOOK }}
-          DISCORD_EMBEDS: '[ { 
+          DISCORD_EMBEDS: '[ {
            "title": "New version `${{env.VERSION}}` released",
            "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },
           "fields": [
             { "name": "Repository", "value": "[getdozer/dozer](https://github.com/getdozer/dozer)", "inline": true },
             { "name": "Binary", "value": "[${{ env.RELEASE_NAME }}](${{ env.ARTIFACT_URL }})", "inline": true },
-            { "name": "Using Docker", "value": "`docker run ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY}}:${{ env.VERSION }} dozer -h`"},
             { "name": "Using Binary", "value": "`dozer -h`"},
             { "name": "Release Notes", "value": "Release notes can be found [here](https://github.com/getdozer/dozer/releases/tag/${{env.VERSION}})"}
           ],

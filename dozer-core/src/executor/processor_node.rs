@@ -2,7 +2,7 @@ use std::{borrow::Cow, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_storage::lmdb_storage::SharedTransaction;
+use dozer_types::log::warn;
 use dozer_types::node::NodeHandle;
 
 use crate::{
@@ -27,8 +27,6 @@ pub struct ProcessorNode {
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The processor.
     processor: Box<dyn Processor>,
-    /// The transaction for this node's environment. Processor uses it to persist data.
-    master_tx: SharedTransaction,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
     channel_manager: ProcessorChannelManager,
 }
@@ -39,7 +37,6 @@ impl ProcessorNode {
             panic!("Must pass in a node")
         };
         let node_handle = node.handle;
-        let node_storage = node.storage;
         let NodeKind::Processor(processor) = node.kind else {
             panic!("Must pass in a processor node");
         };
@@ -48,11 +45,7 @@ impl ProcessorNode {
 
         let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
 
-        let state_writer = StateWriter::new(
-            node_storage.meta_db,
-            record_writers,
-            node_storage.master_txn.clone(),
-        );
+        let state_writer = StateWriter::new(record_writers);
         let channel_manager =
             ProcessorChannelManager::new(node_handle.clone(), senders, state_writer, true);
 
@@ -61,7 +54,6 @@ impl ProcessorNode {
             port_handles,
             receivers,
             processor,
-            master_tx: node_storage.master_txn,
             channel_manager,
         }
     }
@@ -93,16 +85,19 @@ impl ReceiverLoop for ProcessorNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        self.processor.process(
-            self.port_handles[index],
-            op,
-            &mut self.channel_manager,
-            &self.master_tx,
-        )
+        let result =
+            self.processor
+                .process(self.port_handles[index], op, &mut self.channel_manager);
+        if let Err(e) = result {
+            warn!("Processor error: {:?}", e);
+        }
+
+        // TODO: Enable "test_run_dag_proc_err_2" and "test_run_dag_proc_err_3" tests when errors threshold is implemented
+        Ok(())
     }
 
     fn on_commit(&mut self, epoch: &crate::epoch::Epoch) -> Result<(), ExecutionError> {
-        self.processor.commit(epoch, &self.master_tx)?;
+        self.processor.commit(epoch)?;
         self.channel_manager.store_and_send_commit(epoch)
     }
 

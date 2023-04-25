@@ -1,3 +1,4 @@
+use crate::connectors::{ListOrFilterColumns, SourceSchemaResult};
 use crate::ingestion::Ingestor;
 
 use super::helper;
@@ -5,42 +6,44 @@ use crate::connectors::postgres::connection::helper as connection_helper;
 use crate::errors::ConnectorError;
 use crate::errors::PostgresConnectorError::{InvalidQueryError, PostgresSchemaError};
 use crate::errors::PostgresConnectorError::{SnapshotReadError, SyncWithSnapshotError};
-use crossbeam::channel::{unbounded, Sender};
 
 use crate::connectors::postgres::schema::helper::SchemaHelper;
-use crate::connectors::TableInfo;
 use crate::errors::ConnectorError::PostgresConnectorError;
-use dozer_types::types::{Schema, SourceSchema};
-use postgres::fallible_iterator::FallibleIterator;
-
-use std::thread;
+use dozer_types::types::Schema;
 
 use dozer_types::ingestion_types::IngestionMessage;
 
 use dozer_types::types::Operation;
+use futures::StreamExt;
+use tokio::sync::mpsc::{channel, Sender};
 
 pub struct PostgresSnapshotter<'a> {
     pub conn_config: tokio_postgres::Config,
     pub ingestor: &'a Ingestor,
-    pub connector_id: u64,
 }
 
 impl<'a> PostgresSnapshotter<'a> {
-    pub fn get_tables(&self, tables: &[TableInfo]) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let helper = SchemaHelper::new(self.conn_config.clone(), None);
+    pub async fn get_tables(
+        &self,
+        tables: &[ListOrFilterColumns],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
+        let helper = SchemaHelper::new(self.conn_config.clone());
         helper
-            .get_schemas(Some(tables))
+            .get_schemas(tables)
+            .await
             .map_err(PostgresConnectorError)
     }
 
-    pub fn sync_table(
+    pub async fn sync_table(
         schema: Schema,
+        schema_name: String,
         name: String,
         conn_config: tokio_postgres::Config,
         sender: Sender<Result<Option<Operation>, ConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        let mut client_plain =
-            connection_helper::connect(conn_config).map_err(PostgresConnectorError)?;
+        let client_plain = connection_helper::connect(conn_config)
+            .await
+            .map_err(PostgresConnectorError)?;
 
         let column_str: Vec<String> = schema
             .fields
@@ -49,18 +52,20 @@ impl<'a> PostgresSnapshotter<'a> {
             .collect();
 
         let column_str = column_str.join(",");
-        let query = format!("select {column_str} from {name}");
+        let query = format!("select {column_str} from {schema_name}.{name}");
         let stmt = client_plain
             .prepare(&query)
+            .await
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
         let columns = stmt.columns();
 
         let empty_vec: Vec<String> = Vec::new();
-        for msg in client_plain
+        let row_stream = client_plain
             .query_raw(&stmt, empty_vec)
-            .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?
-            .iterator()
-        {
+            .await
+            .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
+        tokio::pin!(row_stream);
+        while let Some(msg) = row_stream.next().await {
             match msg {
                 Ok(msg) => {
                     let evt = helper::map_row_to_operation_event(
@@ -73,41 +78,49 @@ impl<'a> PostgresSnapshotter<'a> {
                     )
                     .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
 
-                    sender.send(Ok(Some(evt))).unwrap();
+                    sender.send(Ok(Some(evt))).await.unwrap();
                 }
                 Err(e) => return Err(PostgresConnectorError(SyncWithSnapshotError(e.to_string()))),
             }
         }
 
         // After table read is finished, send None as message to inform receiver loop about end of table
-        sender.send(Ok(None)).unwrap();
+        sender.send(Ok(None)).await.unwrap();
         Ok(())
     }
 
-    pub fn sync_tables(&self, tables: &[TableInfo]) -> Result<(), ConnectorError> {
-        let tables = self.get_tables(tables)?;
+    pub async fn sync_tables(&self, tables: &[ListOrFilterColumns]) -> Result<(), ConnectorError> {
+        let schemas = self.get_tables(tables).await?;
 
         let mut left_tables_count = tables.len();
 
-        let (tx, rx) = unbounded();
+        let (tx, mut rx) = channel(16);
 
-        for t in tables.iter() {
-            let schema = t.schema.clone();
-            let name = t.name.clone();
+        for (schema, table) in schemas.into_iter().zip(tables) {
+            let schema = schema?;
+            let schema = schema.schema;
+            let schema_name = table.schema.clone().unwrap_or("public".to_string());
+            let name = table.name.clone();
             let conn_config = self.conn_config.clone();
             let sender = tx.clone();
-            thread::spawn(move || {
-                if let Err(e) = Self::sync_table(schema, name, conn_config, sender.clone()) {
-                    sender.send(Err(e)).unwrap();
+            tokio::spawn(async move {
+                if let Err(e) =
+                    Self::sync_table(schema, schema_name, name, conn_config, sender.clone()).await
+                {
+                    sender.send(Err(e)).await.unwrap();
                 }
             });
         }
 
-        let mut idx = 0;
+        self.ingestor
+            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
+            .map_err(ConnectorError::IngestorError)?;
+        let mut idx = 1;
         loop {
             let message = rx
                 .recv()
-                .map_err(|_| PostgresConnectorError(SnapshotReadError))??;
+                .await
+                .ok_or(PostgresConnectorError(SnapshotReadError))??;
             match message {
                 None => {
                     left_tables_count -= 1;
@@ -124,6 +137,10 @@ impl<'a> PostgresSnapshotter<'a> {
             }
         }
 
+        self.ingestor
+            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, idx))
+            .map_err(ConnectorError::IngestorError)?;
+
         Ok(())
     }
 }
@@ -137,11 +154,9 @@ mod tests {
     use crate::{
         connectors::{
             postgres::{
-                connection::helper::map_connection_config,
-                connector::{PostgresConfig, PostgresConnector},
-                tests::client::TestPostgresClient,
+                connection::helper::map_connection_config, tests::client::TestPostgresClient,
             },
-            TableInfo,
+            ListOrFilterColumns,
         },
         errors::ConnectorError,
         ingestion::{IngestionConfig, Ingestor},
@@ -150,11 +165,11 @@ mod tests {
 
     use super::PostgresSnapshotter;
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_snapshotter_sync_tables_successfully_1_requested_table() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_snapshotter_sync_tables_successfully_1_requested_table() {
+        run_connector_test("postgres", |app_config| async move {
             let config = app_config
                 .connections
                 .get(0)
@@ -163,32 +178,19 @@ mod tests {
                 .as_ref()
                 .unwrap();
 
-            let mut test_client = TestPostgresClient::new(config);
+            let test_client = TestPostgresClient::new(config).await;
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
-            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
 
-            test_client.create_simple_table("public", &table_name);
-            test_client.insert_rows(&table_name, 2, None);
-
-            let tables = vec![TableInfo {
-                name: table_name.clone(),
-                columns: None,
-            }];
+            test_client.create_simple_table("public", &table_name).await;
+            test_client.insert_rows(&table_name, 2, None).await;
 
             let conn_config = map_connection_config(config).unwrap();
 
-            let postgres_config = PostgresConfig {
-                name: connector_name,
-                tables: Some(tables),
-                config: conn_config.clone(),
-            };
-
-            let connector = PostgresConnector::new(1, postgres_config);
-
-            let input_tables = vec![TableInfo {
+            let input_tables = vec![ListOrFilterColumns {
                 name: table_name,
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 
@@ -198,10 +200,9 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
-                connector_id: connector.id,
             };
 
-            let actual = snapshotter.sync_tables(&input_tables);
+            let actual = snapshotter.sync_tables(&input_tables).await;
 
             assert!(actual.is_ok());
 
@@ -219,13 +220,14 @@ mod tests {
                 i += 1;
             }
         })
+        .await
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_snapshotter_sync_tables_successfully_not_match_table() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_snapshotter_sync_tables_successfully_not_match_table() {
+        run_connector_test("postgres", |app_config| async move {
             let config = app_config
                 .connections
                 .get(0)
@@ -234,33 +236,20 @@ mod tests {
                 .as_ref()
                 .unwrap();
 
-            let mut test_client = TestPostgresClient::new(config);
+            let test_client = TestPostgresClient::new(config).await;
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
-            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
 
-            test_client.create_simple_table("public", &table_name);
-            test_client.insert_rows(&table_name, 2, None);
-
-            let tables = vec![TableInfo {
-                name: table_name,
-                columns: None,
-            }];
+            test_client.create_simple_table("public", &table_name).await;
+            test_client.insert_rows(&table_name, 2, None).await;
 
             let conn_config = map_connection_config(config).unwrap();
-
-            let postgres_config = PostgresConfig {
-                name: connector_name,
-                tables: Some(tables),
-                config: conn_config.clone(),
-            };
-
-            let connector = PostgresConnector::new(1, postgres_config);
 
             let input_table_name = String::from("not_existing_table");
-            let input_tables = vec![TableInfo {
+            let input_tables = vec![ListOrFilterColumns {
                 name: input_table_name,
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 
@@ -270,10 +259,9 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
-                connector_id: connector.id,
             };
 
-            let actual = snapshotter.sync_tables(&input_tables);
+            let actual = snapshotter.sync_tables(&input_tables).await;
 
             assert!(actual.is_err());
 
@@ -284,13 +272,14 @@ mod tests {
                 }
             }
         })
+        .await
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_snapshotter_sync_tables_successfully_table_not_exist() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_snapshotter_sync_tables_successfully_table_not_exist() {
+        run_connector_test("postgres", |app_config| async move {
             let config = app_config
                 .connections
                 .get(0)
@@ -301,25 +290,12 @@ mod tests {
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
-            let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
-
-            let tables = vec![TableInfo {
-                name: table_name.clone(),
-                columns: None,
-            }];
 
             let conn_config = map_connection_config(config).unwrap();
 
-            let postgres_config = PostgresConfig {
-                name: connector_name,
-                tables: Some(tables),
-                config: conn_config.clone(),
-            };
-
-            let connector = PostgresConnector::new(1, postgres_config);
-
-            let input_tables = vec![TableInfo {
+            let input_tables = vec![ListOrFilterColumns {
                 name: table_name,
+                schema: Some("public".to_string()),
                 columns: None,
             }];
 
@@ -329,10 +305,9 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
-                connector_id: connector.id,
             };
 
-            let actual = snapshotter.sync_tables(&input_tables);
+            let actual = snapshotter.sync_tables(&input_tables).await;
 
             assert!(actual.is_err());
 
@@ -343,5 +318,6 @@ mod tests {
                 }
             }
         })
+        .await
     }
 }

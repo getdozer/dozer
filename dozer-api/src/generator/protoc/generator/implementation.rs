@@ -1,8 +1,8 @@
 use crate::errors::GenerationError;
 use crate::errors::GenerationError::ServiceNotFound;
 use crate::generator::protoc::generator::{
-    CountMethodDesc, DecimalDesc, EventDesc, OnEventMethodDesc, PointDesc, QueryMethodDesc,
-    RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
+    CountMethodDesc, DecimalDesc, DurationDesc, EventDesc, OnEventMethodDesc, PointDesc,
+    QueryMethodDesc, RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
 };
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 use super::{CountResponseDesc, QueryResponseDesc, RecordDesc, ServiceDesc};
 
 const POINT_TYPE_CLASS: &str = "dozer.types.PointType";
+const DURATION_TYPE_CLASS: &str = "dozer.types.DurationType";
 const DECIMAL_TYPE_CLASS: &str = "dozer.types.RustDecimal";
 const TIMESTAMP_TYPE_CLASS: &str = "google.protobuf.Timestamp";
 
@@ -172,23 +173,32 @@ impl<'a> ProtoGeneratorImpl<'a> {
                     let pv = point_values;
                     if let Some(decimal_values) = descriptor.get_message_by_name(DECIMAL_TYPE_CLASS)
                     {
-                        let dv = decimal_values;
-                        Ok(RecordDesc {
-                            message,
-                            version_field,
-                            point_field: PointDesc {
-                                message: pv.clone(),
-                                x: get_field(&pv, "x")?,
-                                y: get_field(&pv, "y")?,
-                            },
-                            decimal_field: DecimalDesc {
-                                message: dv.clone(),
-                                flags: get_field(&dv, "flags")?,
-                                lo: get_field(&dv, "lo")?,
-                                mid: get_field(&dv, "mid")?,
-                                hi: get_field(&dv, "hi")?,
-                            },
-                        })
+                        if let Some(dv) = descriptor.get_message_by_name(DURATION_TYPE_CLASS) {
+                            let durv = dv;
+                            Ok(RecordDesc {
+                                message,
+                                version_field,
+                                point_field: PointDesc {
+                                    message: pv.clone(),
+                                    x: get_field(&pv, "x")?,
+                                    y: get_field(&pv, "y")?,
+                                },
+                                decimal_field: DecimalDesc {
+                                    message: decimal_values.clone(),
+                                    flags: get_field(&decimal_values, "flags")?,
+                                    lo: get_field(&decimal_values, "lo")?,
+                                    mid: get_field(&decimal_values, "mid")?,
+                                    hi: get_field(&decimal_values, "hi")?,
+                                },
+                                duration_field: DurationDesc {
+                                    message: durv.clone(),
+                                    value: get_field(&durv, "value")?,
+                                    time_unit: get_field(&durv, "time_unit")?,
+                                },
+                            })
+                        } else {
+                            Err(ServiceNotFound(DURATION_TYPE_CLASS.to_string()))
+                        }
                     } else {
                         Err(ServiceNotFound(DECIMAL_TYPE_CLASS.to_string()))
                     }
@@ -360,7 +370,9 @@ impl Names {
 fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, GenerationError> {
     match field_type {
         FieldType::UInt => Ok("uint64".to_owned()),
+        FieldType::U128 => Ok("string".to_owned()),
         FieldType::Int => Ok("int64".to_owned()),
+        FieldType::I128 => Ok("string".to_owned()),
         FieldType::Float => Ok("double".to_owned()),
         FieldType::Boolean => Ok("bool".to_owned()),
         FieldType::String => Ok("string".to_owned()),
@@ -371,5 +383,6 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::Date => Ok("string".to_owned()),
         FieldType::Json => Ok("bytes".to_owned()),
         FieldType::Point => Ok(POINT_TYPE_CLASS.to_owned()),
+        FieldType::Duration => Ok(DURATION_TYPE_CLASS.to_owned()),
     }
 }

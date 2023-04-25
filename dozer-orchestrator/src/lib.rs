@@ -1,54 +1,46 @@
 pub mod cli;
 pub mod errors;
 pub mod pipeline;
+pub mod shutdown;
 pub mod simple;
+
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
+use dozer_ingestion::connectors::SourceSchema;
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
-use dozer_types::{
-    crossbeam::channel::Sender,
-    log::debug,
-    types::{Operation, SourceSchema},
-};
+use dozer_types::{crossbeam::channel::Sender, log::debug};
 use errors::OrchestrationError;
+use shutdown::{ShutdownReceiver, ShutdownSender};
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     collections::HashMap,
     panic, process,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
     thread::current,
 };
 use tokio::task::JoinHandle;
 mod console_helper;
-#[cfg(test)]
-mod test_utils;
-mod utils;
+pub mod utils;
 
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
-    fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
-    fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
+    fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError>;
+    fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
+    fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
-        running: Arc<AtomicBool>,
+        shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError>;
-    fn list_connectors(&self) -> Result<HashMap<String, Vec<SourceSchema>>, OrchestrationError>;
-    fn generate_token(&self) -> Result<String, OrchestrationError>;
-    fn query(
+    #[allow(clippy::type_complexity)]
+    fn list_connectors(
         &self,
-        sql: String,
-        sender: Sender<Operation>,
-        running: Arc<AtomicBool>,
-    ) -> Result<Schema, OrchestrationError>;
+    ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError>;
+    fn generate_token(&self) -> Result<String, OrchestrationError>;
 }
 
 // Re-exports
 pub use dozer_ingestion::{
-    connectors::{get_connector, ColumnInfo, TableInfo},
+    connectors::{get_connector, TableInfo},
     errors::ConnectorError,
 };
 pub use dozer_sql::pipeline::builder::QueryContext;
@@ -58,9 +50,9 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
     statement_to_pipeline(sql, &mut pipeline, None)
 }
 
+use crate::cli::types::Deploy;
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
-use dozer_types::types::Schema;
 
 async fn flatten_join_handle(
     handle: JoinHandle<Result<(), OrchestrationError>>,
@@ -113,9 +105,12 @@ pub fn set_panic_hook() {
     }));
 }
 
-pub fn set_ctrl_handler(r: Arc<AtomicBool>) {
+pub fn set_ctrl_handler(shutdown_sender: ShutdownSender) {
+    let mut shutdown = Some(shutdown_sender);
     ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
+        if let Some(shutdown) = shutdown.take() {
+            shutdown.shutdown()
+        }
     })
     .expect("Error setting Ctrl-C handler");
 }

@@ -1,7 +1,6 @@
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::RecordNotFound;
 use crate::node::OutputPortType;
-use dozer_storage::errors::StorageError;
 use dozer_types::types::{Operation, Record, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -18,18 +17,17 @@ impl Debug for dyn RecordWriter {
     }
 }
 
-#[allow(clippy::type_complexity)]
-pub fn create_record_store(
+pub fn create_record_writer(
     _output_port: PortHandle,
     output_port_type: OutputPortType,
     schema: Schema,
-) -> Result<Option<Box<dyn RecordWriter>>, StorageError> {
+) -> Option<Box<dyn RecordWriter>> {
     match output_port_type {
-        OutputPortType::Stateless => Ok(None),
+        OutputPortType::Stateless => None,
 
         OutputPortType::StatefulWithPrimaryKeyLookup => {
             let writer = Box::new(PrimaryKeyLookupRecordWriter::new(schema));
-            Ok(Some(writer))
+            Some(writer)
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use super::super::{ApiServer, CorsOptions};
-use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, RoCacheEndpoint};
+use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint};
 use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
 use dozer_types::serde_json::{json, Value};
@@ -30,7 +30,7 @@ async fn list_route() {
         None,
         CorsOptions::Permissive,
         vec![Arc::new(
-            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::open(&*cache_manager, endpoint.clone()).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;
@@ -89,7 +89,7 @@ async fn count_and_query_route() {
         None,
         CorsOptions::Permissive,
         vec![Arc::new(
-            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::open(&*cache_manager, endpoint.clone()).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;
@@ -134,7 +134,7 @@ async fn get_route() {
         None,
         CorsOptions::Permissive,
         vec![Arc::new(
-            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::open(&*cache_manager, endpoint.clone()).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;

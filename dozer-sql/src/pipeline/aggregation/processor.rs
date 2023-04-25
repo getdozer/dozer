@@ -7,14 +7,13 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::errors::ExecutionError;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use std::hash::{Hash, Hasher};
 
 use crate::pipeline::aggregation::aggregator::{
     get_aggregator_from_aggregator_type, get_aggregator_type_from_aggregation_expression,
-    AggregatorType,
+    AggregatorEnum, AggregatorType,
 };
 use ahash::AHasher;
 use dozer_core::epoch::Epoch;
@@ -25,13 +24,13 @@ const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 #[derive(Debug)]
 struct AggregationState {
     count: usize,
-    states: Vec<Box<dyn Aggregator>>,
+    states: Vec<AggregatorEnum>,
     values: Option<Vec<Field>>,
 }
 
 impl AggregationState {
     pub fn new(types: &[AggregatorType], ret_types: &[FieldType]) -> Self {
-        let mut states: Vec<Box<dyn Aggregator>> = Vec::new();
+        let mut states: Vec<AggregatorEnum> = Vec::new();
         for (idx, typ) in types.iter().enumerate() {
             let mut aggr = get_aggregator_from_aggregator_type(*typ);
             aggr.init(ret_types[idx]);
@@ -506,7 +505,7 @@ impl AggregationProcessor {
             output.push(exp.evaluate(original, aggregation_schema)?);
         }
         original.values.drain(original_len..);
-        Ok(Record::new(None, output, None))
+        Ok(Record::new(None, output))
     }
 
     pub fn aggregate(&mut self, mut op: Operation) -> Result<Vec<Operation>, PipelineError> {
@@ -555,7 +554,7 @@ fn get_key(
 }
 
 impl Processor for AggregationProcessor {
-    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -564,7 +563,6 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _txn: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         let ops = self.aggregate(op).map_err(|e| InternalError(Box::new(e)))?;
         for fop in ops {

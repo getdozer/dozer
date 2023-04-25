@@ -1,7 +1,6 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::epoch::Epoch;
 use crate::errors::ExecutionError;
-use dozer_storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransaction};
 
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
@@ -70,18 +69,16 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<Box<dyn Processor>, ExecutionError>;
 }
 
 pub trait Processor: Send + Sync + Debug {
-    fn commit(&self, epoch_details: &Epoch, tx: &SharedTransaction) -> Result<(), ExecutionError>;
+    fn commit(&self, epoch_details: &Epoch) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: &SharedTransaction,
     ) -> Result<(), ExecutionError>;
 }
 
@@ -98,13 +95,8 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Sink: Send + Sync + Debug {
-    fn commit(&mut self, tx: &SharedTransaction) -> Result<(), ExecutionError>;
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        op: Operation,
-        state: &SharedTransaction,
-    ) -> Result<(), ExecutionError>;
+    fn commit(&mut self) -> Result<(), ExecutionError>;
+    fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), ExecutionError>;
 
     fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError>;
 }

@@ -1,10 +1,10 @@
-use crate::cache::{expression::QueryExpression, RecordWithId, RoCache};
+use crate::cache::{expression::QueryExpression, CacheRecord, RoCache};
 
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
 use dozer_types::{
     serde,
-    types::{IndexDefinition, Record, Schema},
+    types::{Record, SchemaWithIndex},
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +17,7 @@ pub struct AccessFilter {
     pub filter: Option<FilterExpression>,
 
     /// Fields to be restricted
+    #[serde(default)]
     pub fields: Vec<String>,
 }
 
@@ -36,15 +37,11 @@ impl CacheReader {
         Ok(())
     }
 
-    pub fn get_schema(&self) -> Result<&(Schema, Vec<IndexDefinition>), CacheError> {
+    pub fn get_schema(&self) -> &SchemaWithIndex {
         self.cache.get_schema()
     }
 
-    pub fn get(
-        &self,
-        key: &[u8],
-        access_filter: &AccessFilter,
-    ) -> Result<RecordWithId, CacheError> {
+    pub fn get(&self, key: &[u8], access_filter: &AccessFilter) -> Result<CacheRecord, CacheError> {
         let record = self.cache.get(key)?;
         match self.check_access(&record.record, access_filter) {
             Ok(_) => Ok(record),
@@ -56,7 +53,7 @@ impl CacheReader {
         &self,
         query: &mut QueryExpression,
         access_filter: AccessFilter,
-    ) -> Result<Vec<RecordWithId>, CacheError> {
+    ) -> Result<Vec<CacheRecord>, CacheError> {
         self.apply_access_filter(query, access_filter);
         self.cache.query(query)
     }

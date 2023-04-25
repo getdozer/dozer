@@ -1,33 +1,31 @@
-use crate::connectors::postgres::connection::validator::{validate_connection, validate_slot};
+use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
-use crate::connectors::{Connector, TableInfo, ValidationResults};
+use crate::connectors::{
+    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
+};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use dozer_types::tracing::{error, info};
-use dozer_types::types::SourceSchema;
-use postgres::Client;
+use dozer_types::tracing::info;
 use postgres_types::PgLsn;
+use tonic::async_trait;
 
 use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::errors::ConnectorError::PostgresConnectorError;
 use crate::errors::PostgresConnectorError::{CreatePublicationError, DropPublicationError};
 use tokio_postgres::config::ReplicationMode;
-use tokio_postgres::Config;
+use tokio_postgres::{Client, Config};
 
 use super::connection::helper;
 
 #[derive(Clone, Debug)]
 pub struct PostgresConfig {
     pub name: String,
-    pub tables: Option<Vec<TableInfo>>,
     pub config: Config,
 }
 
 #[derive(Debug)]
 pub struct PostgresConnector {
-    pub id: u64,
     name: String,
-    tables: Option<Vec<TableInfo>>,
     replication_conn_config: Config,
     conn_config: Config,
     schema_helper: SchemaHelper,
@@ -40,21 +38,19 @@ pub struct ReplicationSlotInfo {
 }
 
 impl PostgresConnector {
-    pub fn new(id: u64, config: PostgresConfig) -> PostgresConnector {
+    pub fn new(config: PostgresConfig) -> PostgresConnector {
         let mut replication_conn_config = config.config.clone();
         replication_conn_config.replication_mode(ReplicationMode::Logical);
 
-        let helper = SchemaHelper::new(config.config.clone(), None);
+        let helper = SchemaHelper::new(config.config.clone());
 
         // conn_str - replication_conn_config
         // conn_str_plain- conn_config
 
         PostgresConnector {
-            id,
             name: config.name,
             conn_config: config.config,
             replication_conn_config,
-            tables: config.tables,
             schema_helper: helper,
         }
     }
@@ -79,79 +75,123 @@ impl PostgresConnector {
     }
 }
 
+#[async_trait]
 impl Connector for PostgresConnector {
-    fn get_schemas(
-        &self,
-        table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        self.schema_helper
-            .get_schemas(table_names.as_deref())
-            .map_err(PostgresConnectorError)
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
     }
 
-    fn start(
-        &self,
-        from_seq: Option<(u64, u64)>,
-        ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
-    ) -> Result<(), ConnectorError> {
-        let client = helper::connect(self.replication_conn_config.clone())
-            .map_err(PostgresConnectorError)?;
-        self.create_publication(client)?;
-
-        let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), from_seq);
-
-        let iterator = PostgresIterator::new(
-            self.id,
-            self.name.clone(),
-            self.get_publication_name(),
-            self.get_slot_name(),
-            self.schema_helper.get_tables(Some(&tables))?,
-            self.replication_conn_config.clone(),
-            ingestor,
-            self.conn_config.clone(),
-        );
-        iterator.start(lsn)
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
+        validate_connection(&self.name, self.conn_config.clone(), None, None)
+            .await
+            .map_err(Into::into)
     }
 
-    fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let tables_list = tables.or_else(|| self.tables.clone());
-        validate_connection(
-            &self.name,
-            self.conn_config.clone(),
-            tables_list.as_ref(),
-            None,
-        )?;
-
-        Ok(())
-    }
-
-    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        SchemaHelper::validate(&self.schema_helper, tables).map_err(PostgresConnectorError)
-    }
-
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        let tables = self.schema_helper.get_tables(None)?;
-        Ok(tables
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        Ok(self
+            .schema_helper
+            .get_tables(None)
+            .await?
             .into_iter()
-            .map(|table_info| TableInfo {
-                name: table_info.name,
-                columns: Some(table_info.columns),
+            .map(|table| TableIdentifier::new(Some(table.schema), table.name))
+            .collect())
+    }
+
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        let tables = tables
+            .iter()
+            .map(|table| ListOrFilterColumns {
+                schema: table.schema.clone(),
+                name: table.name.clone(),
+                columns: None,
+            })
+            .collect::<Vec<_>>();
+        validate_connection(&self.name, self.conn_config.clone(), Some(&tables), None)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        let table_infos = tables
+            .iter()
+            .map(|table| ListOrFilterColumns {
+                schema: table.schema.clone(),
+                name: table.name.clone(),
+                columns: None,
+            })
+            .collect::<Vec<_>>();
+        Ok(self
+            .schema_helper
+            .get_tables(Some(&table_infos))
+            .await?
+            .into_iter()
+            .map(|table| TableInfo {
+                schema: Some(table.schema),
+                name: table.name,
+                column_names: table.columns,
             })
             .collect())
     }
 
-    fn can_start_from(&self, (lsn, _): (u64, u64)) -> Result<bool, ConnectorError> {
-        let mut client =
-            helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?;
-        let slot_info = ReplicationSlotInfo {
-            name: self.get_slot_name(),
-            start_lsn: PgLsn::from(lsn),
-        };
-        match validate_slot(&mut client, &slot_info, self.tables.as_ref()) {
-            Ok(_) => Ok(true),
-            Err(_e) => Ok(false),
-        }
+    async fn get_schemas(
+        &self,
+        table_infos: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
+        let table_infos = table_infos
+            .iter()
+            .map(|table| ListOrFilterColumns {
+                schema: table.schema.clone(),
+                name: table.name.clone(),
+                columns: Some(table.column_names.clone()),
+            })
+            .collect::<Vec<_>>();
+        self.schema_helper
+            .get_schemas(&table_infos)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn start(
+        &self,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+    ) -> Result<(), ConnectorError> {
+        let client = helper::connect(self.replication_conn_config.clone())
+            .await
+            .map_err(PostgresConnectorError)?;
+        let table_identifiers = tables
+            .iter()
+            .map(|table| TableIdentifier::new(table.schema.clone(), table.name.clone()))
+            .collect::<Vec<_>>();
+        self.create_publication(client, Some(&table_identifiers))
+            .await?;
+
+        let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), None);
+
+        let tables = tables
+            .into_iter()
+            .map(|table| ListOrFilterColumns {
+                schema: table.schema,
+                name: table.name,
+                columns: Some(table.column_names),
+            })
+            .collect::<Vec<_>>();
+        let iterator = PostgresIterator::new(
+            self.name.clone(),
+            self.get_publication_name(),
+            self.get_slot_name(),
+            self.schema_helper.get_tables(Some(&tables)).await?,
+            self.replication_conn_config.clone(),
+            ingestor,
+            self.conn_config.clone(),
+        );
+        iterator.start(lsn).await
     }
 }
 
@@ -164,29 +204,39 @@ impl PostgresConnector {
         format!("dozer_slot_{}", self.name)
     }
 
-    pub fn create_publication(&self, mut client: Client) -> Result<(), ConnectorError> {
+    pub async fn create_publication(
+        &self,
+        client: Client,
+        table_identifiers: Option<&[TableIdentifier]>,
+    ) -> Result<(), ConnectorError> {
         let publication_name = self.get_publication_name();
-        let table_str: String = match self.tables.as_ref() {
+        let table_str: String = match table_identifiers {
             None => "ALL TABLES".to_string(),
-            Some(arr) => {
-                let table_names: Vec<String> = arr.iter().map(|t| t.name.clone()).collect();
+            Some(table_identifiers) => {
+                let table_names = table_identifiers
+                    .iter()
+                    .map(|table_identifier| {
+                        format!(
+                            "{}.{}",
+                            table_identifier.schema.as_deref().unwrap_or("public"),
+                            table_identifier.name
+                        )
+                    })
+                    .collect::<Vec<_>>();
                 format!("TABLE {}", table_names.join(" , "))
             }
         };
 
         client
             .simple_query(format!("DROP PUBLICATION IF EXISTS {publication_name}").as_str())
-            .map_err(|e| {
-                error!("failed to drop publication {}", e.to_string());
-                DropPublicationError
-            })?;
+            .await
+            .map_err(DropPublicationError)?;
 
         client
             .simple_query(format!("CREATE PUBLICATION {publication_name} FOR {table_str}").as_str())
-            .map_err(|e| {
-                error!("failed to create publication {}", e.to_string());
-                CreatePublicationError
-            })?;
+            .await
+            .map_err(CreatePublicationError)?;
+
         Ok(())
     }
 }

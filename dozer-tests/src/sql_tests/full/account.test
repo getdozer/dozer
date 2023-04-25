@@ -1,0 +1,237 @@
+control sortmode rowsort
+
+statement ok
+CREATE TABLE accounts (
+    account_id INTEGER NOT NULL,
+    account_name TEXT NOT NULL,
+    balance NUMERIC NOT NULL
+);
+
+statement ok
+CREATE TABLE transactions (
+    transaction_id INTEGER PRIMARY KEY,
+    account_id INTEGER NOT NULL,
+    transaction_date TIMESTAMP NOT NULL,
+    description TEXT,
+    amount NUMERIC NOT NULL
+);
+
+statement ok
+CREATE TABLE categories (
+    category_id INTEGER PRIMARY KEY,
+    category_name TEXT NOT NULL
+);
+
+statement ok
+CREATE TABLE transaction_categories (
+    transaction_id INTEGER NOT NULL,
+    category_id INTEGER NOT NULL
+);
+
+
+
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (1, 'Savings Account', 10000);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (2, 'Checking Account', 5000);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (3, 'Investment Account', 20000);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (4, 'Credit Card Account', -5000);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (5, 'Loan Account', -15000);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (6, 'Money Market Account', 25000);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (7, 'IRA Account', 30000);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (8, 'CD Account', 15000);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (9, 'HSA Account', 7500);
+
+statement ok
+INSERT INTO accounts (account_id, account_name, balance) VALUES (10, 'Business Account', 100000);
+
+
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (1, 1, '2022-01-01 12:00:00', 'Deposit', 5000);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (2, 2, '2022-01-02 15:30:00', 'Withdrawal', -2000);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (3, 3, '2022-01-03 10:45:00', 'Investment', -5000);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (4, 4, '2022-01-04 16:15:00', 'Credit card payment', 1000);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (5, 5, '2022-01-05 09:00:00', 'Loan payment', 500);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (6, 6, '2022-01-06 14:00:00', 'Deposit', 10000);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (7, 7, '2022-01-07 11:30:00', 'IRA contribution', -4000);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (8, 8, '2022-01-08 08:00:00', 'CD maturity', 5000);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (9, 9, '2022-01-09 13:00:00', 'HSA contribution', -2500);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (10, 10, '2022-01-10 17:00:00', 'Business deposit', 20000);
+
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (1, 'Groceries');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (2, 'Dining out');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (3, 'Utilities');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (4, 'Entertainment');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (5, 'Travel');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (6, 'Shopping');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (7, 'Healthcare');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (8, 'Transportation');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (9, 'Charity');
+
+statement ok
+INSERT INTO categories (category_id, category_name) VALUES (10, 'Miscellaneous');
+
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (1, 1);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (2, 2);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (3, 3);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (4, 4);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (5, 5);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (6, 6);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (7, 7);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (8, 8);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (9, 9);
+
+statement ok
+INSERT INTO transaction_categories (transaction_id, category_id) VALUES (10, 10);
+
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (11, 2, '2022-01-10 13:30:00', 'Salary', 5000.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (12, 2, '2022-01-15 12:00:00', 'Rent Payment', -1000.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (13, 3, '2022-01-20 10:30:00', 'Groceries', -200.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (14, 1, '2022-01-25 15:45:00', 'Electric Bill', -150.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (15, 2, '2022-02-01 08:00:00', 'Car Payment', -300.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (16, 1, '2022-02-05 11:15:00', 'Internet Bill', -100.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (17, 3, '2022-02-10 13:30:00', 'Gas Bill', -75.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (18, 1, '2022-02-15 12:00:00', 'Rent Payment', -1000.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (19, 2, '2022-02-20 10:30:00', 'Groceries', -175.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (20, 3, '2022-02-25 15:45:00', 'Electric Bill', -150.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (21, 1, '2022-03-01 08:00:00', 'Phone Bill', -50.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (22, 2, '2022-03-05 11:15:00', 'Insurance Payment', -200.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (23, 3, '2022-03-10 13:30:00', 'Gas Bill', -100.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (24, 1, '2022-03-15 12:00:00', 'Rent Payment', -1000.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (25, 2, '2022-03-20 10:30:00', 'Groceries', -225.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (26, 3, '2022-03-25 15:45:00', 'Electric Bill', -150.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (27, 1, '2022-04-01 08:00:00', 'Car Payment', -300.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (28, 2, '2022-04-05 11:15:00', 'Internet Bill', -100.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (29, 3, '2022-04-10 13:30:00', 'Gas Bill', -75.00);
+
+statement ok
+INSERT INTO transactions (transaction_id, account_id, transaction_date, description, amount) VALUES (30, 1, '2022-04-15 12:00:00', 'Rent Payment', -1000.00);
+
+
+query IRR
+SELECT 
+    account_name, 
+    SUM(a.balance) AS total_balance, 
+    SUM(t.amount) AS total_income
+FROM 
+    transactions t 
+    JOIN accounts a ON t.account_id = a.account_id 
+WHERE t.amount > 0
+GROUP BY account_name
+----
+Business Account 100000 20000
+CD Account 15000 5000
+Checking Account 5000 5000
+Credit Card Account -5000 1000
+Loan Account -15000 500
+Money Market Account 25000 10000
+Savings Account 10000 5000

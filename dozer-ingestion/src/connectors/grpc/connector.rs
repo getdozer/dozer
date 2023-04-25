@@ -1,10 +1,9 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::Path;
 
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
-use crate::connectors::ValidationResults;
+use crate::connectors::{table_name, SourceSchema, SourceSchemaResult, TableIdentifier};
 use crate::{
     connectors::{Connector, TableInfo},
     errors::ConnectorError,
@@ -12,10 +11,11 @@ use crate::{
 };
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
-use dozer_types::log::info;
-use dozer_types::types::SourceSchema;
+use dozer_types::log::{info, warn};
+use dozer_types::tracing::Level;
+use tonic::async_trait;
 use tonic::transport::Server;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{self, TraceLayer};
 
 pub struct GrpcConnector<T>
 where
@@ -78,107 +78,161 @@ where
         Ok(schemas_str)
     }
 
-    pub fn serve(&self, ingestor: &Ingestor) -> Result<(), ConnectorError> {
+    pub async fn serve(&self, ingestor: &Ingestor) -> Result<(), ConnectorError> {
         let host = &self.config.host;
         let port = self.config.port;
 
         let addr = format!("{host:}:{port:}").parse().map_err(|e| {
             ConnectorError::InitializationError(format!("Failed to parse address: {e}"))
         })?;
-        let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
 
         let schemas_str = Self::parse_config(&self.config)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
 
-        rt.block_on(async {
-            // Ingestor will live as long as the server
-            // Refactor to use Arc
-            let ingestor =
-                unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
+        // Ingestor will live as long as the server
+        // Refactor to use Arc
+        let ingestor = unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
 
-            let ingest_service = IngestorServiceImpl::new(adapter, ingestor);
-            let ingest_service = tonic_web::config()
-                .allow_all_origins()
-                .enable(IngestServiceServer::new(ingest_service));
+        let ingest_service = IngestorServiceImpl::new(adapter, ingestor);
+        let ingest_service = tonic_web::config()
+            .allow_all_origins()
+            .enable(IngestServiceServer::new(ingest_service));
 
-            let reflection_service = tonic_reflection::server::Builder::configure()
-                .register_encoded_file_descriptor_set(
-                    dozer_types::grpc_types::ingest::FILE_DESCRIPTOR_SET,
-                )
-                .build()
-                .unwrap();
-            info!("Starting Dozer GRPC Ingestor  on http://{}:{} ", host, port,);
-            Server::builder()
-                .layer(TraceLayer::new_for_http())
-                .accept_http1(true)
-                .add_service(ingest_service)
-                .add_service(reflection_service)
-                .serve(addr)
-                .await
-        })
-        .map_err(|e| ConnectorError::InitializationError(e.to_string()))
+        let reflection_service = tonic_reflection::server::Builder::configure()
+            .register_encoded_file_descriptor_set(
+                dozer_types::grpc_types::ingest::FILE_DESCRIPTOR_SET,
+            )
+            .build()
+            .unwrap();
+        info!("Starting Dozer GRPC Ingestor  on http://{}:{} ", host, port,);
+        Server::builder()
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                    .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+            )
+            .accept_http1(true)
+            .add_service(ingest_service)
+            .add_service(reflection_service)
+            .serve(addr)
+            .await
+            .map_err(|e| ConnectorError::InitializationError(e.to_string()))
     }
 }
 
+impl<T: IngestAdapter> GrpcConnector<T> {
+    fn get_all_schemas(&self) -> Result<Vec<(String, SourceSchema)>, ConnectorError> {
+        let schemas_str = Self::parse_config(&self.config)?;
+        let adapter = GrpcIngestor::<T>::new(schemas_str)?;
+        adapter.get_schemas()
+    }
+}
+
+#[async_trait]
 impl<T> Connector for GrpcConnector<T>
 where
     T: IngestAdapter,
 {
-    fn get_schemas(
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
+        self.get_all_schemas().map(|_| ())
+    }
+
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        Ok(self
+            .get_all_schemas()?
+            .into_iter()
+            .map(|(name, _)| TableIdentifier::from_table_name(name))
+            .collect())
+    }
+
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        let schemas = self.get_all_schemas()?;
+        for table in tables {
+            if !schemas
+                .iter()
+                .any(|(name, _)| name == &table.name && table.schema.is_none())
+            {
+                return Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    async fn list_columns(
         &self,
-        table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        let schemas = self.get_all_schemas()?;
+        let mut result = vec![];
+        for table in tables {
+            if let Some((_, schema)) = schemas
+                .iter()
+                .find(|(name, _)| name == &table.name && table.schema.is_none())
+            {
+                let column_names = schema
+                    .schema
+                    .fields
+                    .iter()
+                    .map(|field| field.name.clone())
+                    .collect();
+                result.push(TableInfo {
+                    schema: table.schema,
+                    name: table.name,
+                    column_names,
+                })
+            } else {
+                return Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                )));
+            }
+        }
+        Ok(result)
+    }
+
+    async fn get_schemas(
+        &self,
+        table_infos: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
         let schemas_str = Self::parse_config(&self.config)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
 
         let schemas = adapter.get_schemas()?;
-        let schemas = table_names.map_or(schemas.clone(), |names| {
-            schemas
-                .into_iter()
-                .filter(|s| names.iter().any(|n| n.name == s.name))
-                .collect()
-        });
-        Ok(schemas)
+
+        let mut result = vec![];
+        for table in table_infos {
+            if let Some((_, schema)) = schemas
+                .iter()
+                .find(|(name, _)| name == &table.name && table.schema.is_none())
+            {
+                warn!("TODO: filter columns");
+                result.push(Ok(schema.clone()));
+            } else {
+                result.push(Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                ))));
+            }
+        }
+
+        Ok(result)
     }
 
-    fn start(
+    async fn start(
         &self,
-        _from_seq: Option<(u64, u64)>,
         ingestor: &Ingestor,
         _table_names: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
-        self.serve(ingestor)
-    }
-
-    fn validate(&self, table_names: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let schemas = self.get_schemas(table_names);
-        schemas.map(|_| ())
-    }
-
-    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        let mut results = HashMap::new();
-        let schemas_str = Self::parse_config(&self.config)?;
-        let adapter = GrpcIngestor::<T>::new(schemas_str)?;
-        let schema_map = adapter.schema_map;
-        for table in tables {
-            let r = schema_map.get(&table.name).map_or(
-                Err(ConnectorError::InitializationError(format!(
-                    "Schema not found for table {}",
-                    table.name
-                ))),
-                |_| Ok(()),
-            );
-
-            results.insert(table.name.clone(), vec![(None, r)]);
-        }
-        Ok(results)
-    }
-
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default()
-    }
-
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
-        Ok(false)
+        self.serve(ingestor).await
     }
 }

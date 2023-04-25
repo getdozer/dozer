@@ -2,23 +2,24 @@ app_name: dozer-users-ingest
 connections:
   - config: !Grpc
       schemas: !Inline |
-        [{
-          "name": "users",
-          "schema": {
-            "fields": [
-              {
-                "name": "id",
-                "typ": "Int",
-                "nullable": false
-              },
-              {
-                "name": "name",
-                "typ": "String",
-                "nullable": true
-              }
-            ]
-          } 
-        }]
+        {
+          "users": {
+            "schema": {
+              "fields": [
+                {
+                  "name": "id",
+                  "typ": "Int",
+                  "nullable": false
+                },
+                {
+                  "name": "name",
+                  "typ": "String",
+                  "nullable": true
+                }
+              ]
+            } 
+          }
+        }
     name: ingest
 
 sources:

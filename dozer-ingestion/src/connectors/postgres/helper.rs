@@ -8,12 +8,13 @@ use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, serde_json, types::*};
-use postgres::{Column, Row};
 use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
 use std::vec;
+use tokio_postgres::{Column, Row};
+use uuid::Uuid;
 
 use dozer_types::geo::Point as GeoPoint;
 use dozer_types::grpc_types::types::Value;
@@ -39,6 +40,7 @@ pub fn postgres_type_to_field(
                 Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR => {
                     Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
                 }
+                Type::UUID => Ok(Field::String(String::from_utf8(v.to_vec()).unwrap())),
                 Type::BYTEA => Ok(Field::Binary(v.to_vec())),
                 Type::NUMERIC => Ok(Field::Decimal(
                     Decimal::from_f64(
@@ -90,9 +92,11 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
     match column_type {
         Type::BOOL => Ok(FieldType::Boolean),
         Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
-        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR => Ok(FieldType::String),
+        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::UUID => {
+            Ok(FieldType::String)
+        }
         Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
-        Type::BIT | Type::BYTEA => Ok(FieldType::Binary),
+        Type::BYTEA => Ok(FieldType::Binary),
         Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
         Type::NUMERIC => Ok(FieldType::Decimal),
         Type::JSONB => Ok(FieldType::Json),
@@ -102,7 +106,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
     }
 }
 
-fn handle_error(e: postgres::error::Error) -> Result<Field, PostgresSchemaError> {
+fn handle_error(e: tokio_postgres::error::Error) -> Result<Field, PostgresSchemaError> {
     if let Some(e) = e.source() {
         if let Some(_e) = e.downcast_ref::<WasNull>() {
             Ok(Field::Null)
@@ -152,11 +156,16 @@ pub fn value_to_field(
             })
         }
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
+        // &Type::UUID => convert_row_value_to_field!(row, idx, Uuid),
+        &Type::UUID => {
+            let value: Result<Uuid, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |val| Ok(Field::from(val.to_string())))
+        }
         _ => {
             if col_type.schema() == "pg_catalog" {
                 Err(ColumnTypeNotSupported(col_type.name().to_string()))
             } else {
-                Err(CustomTypeNotSupported)
+                Err(CustomTypeNotSupported(col_type.name().to_string()))
             }
         }
     }
@@ -182,7 +191,7 @@ pub fn map_row_to_operation_event(
 ) -> Result<Operation, PostgresSchemaError> {
     match get_values(row, columns) {
         Ok(values) => Ok(Operation::Insert {
-            new: Record::new(Some(identifier), values, None),
+            new: Record::new(Some(identifier), values),
         }),
         Err(e) => Err(e),
     }
@@ -248,6 +257,13 @@ mod tests {
         let value = String::from("Test text");
         test_conversion!("Test text", Type::TEXT, Field::String(value));
 
+        let value = String::from("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
+        test_conversion!(
+            "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            Type::UUID,
+            Field::String(value)
+        );
+
         // UTF-8 bytes representation of json (https://www.charset.org/utf-8)
         let value: Vec<u8> = vec![98, 121, 116, 101, 97];
         test_conversion!("bytea", Type::BYTEA, Field::Binary(value));
@@ -300,6 +316,7 @@ mod tests {
         test_type_mapping!(Type::INT8, FieldType::Int);
         test_type_mapping!(Type::FLOAT8, FieldType::Float);
         test_type_mapping!(Type::VARCHAR, FieldType::String);
+        test_type_mapping!(Type::UUID, FieldType::String);
         test_type_mapping!(Type::BYTEA, FieldType::Binary);
         test_type_mapping!(Type::NUMERIC, FieldType::Decimal);
         test_type_mapping!(Type::TIMESTAMP, FieldType::Timestamp);

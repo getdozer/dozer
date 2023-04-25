@@ -2,17 +2,13 @@
 
 use crate::connectors::kafka::debezium::schema::map_type;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
-use crate::connectors::TableInfo;
+use crate::connectors::{CdcType, SourceSchema};
 use crate::errors::DebeziumError::{JsonDecodeError, SchemaRegistryFetchError};
 use crate::errors::DebeziumSchemaError::TypeNotSupported;
 use crate::errors::{ConnectorError, DebeziumError, DebeziumSchemaError};
-use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{
-    FieldDefinition, FieldType, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
-    SourceDefinition, SourceSchema,
-};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition};
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use std::collections::HashMap;
@@ -80,14 +76,14 @@ impl SchemaRegistry {
     }
 
     pub fn get_schema(
-        table_names: Option<Vec<TableInfo>>,
-        config: KafkaConfig,
+        table_names: Option<&[String]>,
+        schema_registry_url: String,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let sr_settings = SrSettings::new(config.schema_registry_url.unwrap());
+        let sr_settings = SrSettings::new(schema_registry_url);
         table_names.map_or(Ok(vec![]), |tables| {
             tables.get(0).map_or(Ok(vec![]), |table| {
-                let key_result = SchemaRegistry::fetch_struct(&sr_settings, &table.name, true)?;
-                let schema_result = SchemaRegistry::fetch_struct(&sr_settings, &table.name, false)?;
+                let key_result = SchemaRegistry::fetch_struct(&sr_settings, table, true)?;
+                let schema_result = SchemaRegistry::fetch_struct(&sr_settings, table, false)?;
 
                 let pk_fields = key_result.fields.map_or(vec![], |fields| {
                     fields
@@ -139,11 +135,8 @@ impl SchemaRegistry {
                                     primary_index: pk_keys_indexes,
                                 };
 
-                                schema_data = Some(Ok(vec![SourceSchema::new(
-                                    table.name.clone(),
-                                    schema,
-                                    ReplicationChangesTrackingType::FullChanges,
-                                )]));
+                                schema_data =
+                                    Some(Ok(vec![SourceSchema::new(schema, CdcType::FullChanges)]));
                             }
                         }
                     }

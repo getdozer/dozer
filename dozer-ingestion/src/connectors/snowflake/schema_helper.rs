@@ -4,18 +4,18 @@ use odbc::create_environment_v3;
 use std::collections::HashMap;
 
 use crate::connectors::snowflake::connection::client::Client;
-use crate::connectors::{TableInfo, ValidationResults};
-use crate::errors::ConnectorError::TableNotFound;
+use crate::connectors::SourceSchema;
 use crate::errors::SnowflakeError::ConnectionError;
-use dozer_types::types::{FieldType, SourceSchema};
+use dozer_types::types::FieldType;
 
 pub struct SchemaHelper {}
 
 impl SchemaHelper {
+    #[allow(clippy::type_complexity)]
     pub fn get_schema(
         config: &SnowflakeConfig,
-        table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
+        table_names: Option<&[String]>,
+    ) -> Result<Vec<Result<(String, SourceSchema), ConnectorError>>, ConnectorError> {
         let client = Client::new(config);
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
@@ -26,17 +26,17 @@ impl SchemaHelper {
             .fetch_keys(&conn)
             .map_err(ConnectorError::SnowflakeError)?;
 
-        let tables_indexes = table_names.clone().map_or(HashMap::new(), |tables| {
+        let tables_indexes = table_names.map(|table_names| {
             let mut result = HashMap::new();
-            for (idx, table) in tables.iter().enumerate() {
-                result.insert(table.name.clone(), idx);
+            for (idx, table_name) in table_names.iter().enumerate() {
+                result.insert(table_name.clone(), idx);
             }
 
             result
         });
 
         client
-            .fetch_tables(table_names, tables_indexes, keys, &conn)
+            .fetch_tables(tables_indexes, keys, &conn, config.schema.to_string())
             .map_err(ConnectorError::SnowflakeError)
     }
 
@@ -58,29 +58,12 @@ impl SchemaHelper {
             "BOOLEAN" => Ok(FieldType::Boolean),
             "DATE" => Ok(FieldType::Date),
             "TIMESTAMP_LTZ" | "TIMESTAMP_NTZ" | "TIMESTAMP_TZ" => Ok(FieldType::Timestamp),
+            // TODO: proper type handling for VARIANT and TIME
+            "VARIANT" => Ok(FieldType::String),
+            "TIME" => Ok(FieldType::String),
             _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
                 "{type_name:?}"
             ))),
         }
-    }
-
-    pub fn validate_schemas(
-        config: &SnowflakeConfig,
-        tables: &[TableInfo],
-    ) -> Result<ValidationResults, ConnectorError> {
-        let schemas = Self::get_schema(config, Some(tables.to_vec()))?;
-        let mut validation_result = ValidationResults::new();
-
-        let existing_schemas_names: Vec<String> = schemas.iter().map(|s| s.name.clone()).collect();
-        for table in tables {
-            let mut result = vec![];
-            if !existing_schemas_names.contains(&table.name) {
-                result.push((None, Err(TableNotFound(table.name.clone()))));
-            }
-
-            validation_result.insert(table.name.clone(), result);
-        }
-
-        Ok(validation_result)
     }
 }

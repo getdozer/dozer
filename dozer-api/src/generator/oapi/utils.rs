@@ -107,6 +107,10 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
             format: VariantOrUnknownOrEmpty::Item(IntegerFormat::Int64),
             ..Default::default()
         }),
+        FieldType::U128 | FieldType::I128 => Type::String(StringType {
+            format: VariantOrUnknownOrEmpty::Empty,
+            ..Default::default()
+        }),
         FieldType::Float => Type::Number(NumberType {
             format: VariantOrUnknownOrEmpty::Item(NumberFormat::Double),
             ..Default::default()
@@ -153,6 +157,30 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
                         schema_data: Default::default(),
                         schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(
                             FieldType::Float,
+                        )),
+                    }),
+                );
+            }
+
+            Type::Object(ObjectType {
+                properties,
+                required,
+                additional_properties: None,
+                min_properties: None,
+                max_properties: None,
+            })
+        }
+        FieldType::Duration => {
+            let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
+            let required: Vec<String> = vec!["value".to_string(), "time_unit".to_string()];
+
+            for key in &required {
+                properties.insert(
+                    key.clone(),
+                    ReferenceOr::boxed_item(Schema {
+                        schema_data: Default::default(),
+                        schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(
+                            FieldType::String,
                         )),
                     }),
                 );

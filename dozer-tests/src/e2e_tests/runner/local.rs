@@ -1,10 +1,14 @@
 use std::{path::Path, process::Command};
 
+use dozer_utils::{
+    process::{run_command, run_docker_compose},
+    Cleanup,
+};
+
 use crate::e2e_tests::{Case, CaseKind};
 
 use super::{
-    super::{checker::check_error_expectation, cleanup::Cleanup, run_test_client},
-    run_command, run_docker_compose,
+    super::{checker::check_error_expectation, run_test_client},
     running_env::LocalDockerCompose,
     spawn_command,
 };
@@ -16,12 +20,7 @@ pub struct Runner {
 impl Runner {
     pub fn new() -> Self {
         match std::env::var("DOZER_BIN") {
-            Ok(dozer_bin) => {
-                if !AsRef::<Path>::as_ref(&dozer_bin).exists() {
-                    panic!("dozer binary not found at {dozer_bin}");
-                }
-                Self { dozer_bin }
-            }
+            Ok(dozer_bin) => Self { dozer_bin },
             Err(_) => {
                 let dozer_bin = "./target/debug/dozer".to_string();
                 if !AsRef::<Path>::as_ref(&dozer_bin).exists() {
@@ -88,7 +87,11 @@ fn spawn_dozer_same_process(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cle
 }
 
 fn spawn_dozer_two_processes(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
-    run_command(dozer_bin, &["--config-path", dozer_config_path, "migrate"]);
+    run_command(
+        dozer_bin,
+        &["--config-path", dozer_config_path, "migrate"],
+        None,
+    );
     let mut cleanups = vec![];
     let child = spawn_command(
         dozer_bin,

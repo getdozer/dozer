@@ -8,7 +8,9 @@ use crate::pipeline::tests::utils::get_select;
 use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::DateTime;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
+use dozer_types::types::{
+    DozerDuration, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition, TimeUnit,
+};
 
 #[test]
 fn test_column_execution() {
@@ -51,7 +53,6 @@ fn test_column_execution() {
             Field::String("test".to_string()),
             Field::Float(OrderedFloat(10.10)),
         ],
-        None,
     );
 
     // Column
@@ -268,7 +269,6 @@ fn test_timestamp_difference() {
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
             Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap()),
         ],
-        Some(1),
     );
 
     let result = evaluate_sub(
@@ -278,14 +278,19 @@ fn test_timestamp_difference() {
         &record,
     )
     .unwrap();
-    assert_eq!(result, Field::Int(50000));
+    assert_eq!(
+        result,
+        Field::Duration(DozerDuration(
+            std::time::Duration::from_nanos(50000 * 1000 * 1000),
+            TimeUnit::Nanoseconds
+        ))
+    );
 
     let result = evaluate_sub(
         &schema,
         &Expression::Column { index: 1 },
         &Expression::Column { index: 0 },
         &record,
-    )
-    .unwrap();
-    assert_eq!(result, Field::Int(-50000));
+    );
+    assert!(result.is_err());
 }

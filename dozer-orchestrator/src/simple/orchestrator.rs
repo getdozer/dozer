@@ -1,137 +1,140 @@
 use super::executor::Executor;
+use super::schemas::load_schema;
 use crate::console_helper::get_colored_text;
-use crate::errors::OrchestrationError;
-use crate::pipeline::{CacheSinkSettings, PipelineBuilder};
+use crate::errors::{DeployError, OrchestrationError};
+use crate::pipeline::{LogSinkSettings, PipelineBuilder};
+use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
+use crate::simple::schemas::write_schemas;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_app_grpc_config, get_cache_dir,
-    get_cache_manager_options, get_executor_options, get_flags, get_grpc_config, get_pipeline_dir,
-    get_rest_config,
+    get_api_dir, get_api_security_config, get_cache_dir, get_cache_manager_options,
+    get_endpoint_log_path, get_executor_options, get_file_buffer_capacity, get_grpc_config,
+    get_pipeline_dir, get_rest_config,
 };
 use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
-use dozer_api::grpc::internal::internal_pipeline_client::InternalPipelineClient;
-use dozer_api::{
-    actix_web::dev::ServerHandle,
-    grpc::{self, internal::internal_pipeline_server::start_internal_pipeline_server},
-    rest, RoCacheEndpoint,
-};
-use dozer_cache::cache::{CacheManager, LmdbCacheManager};
+use dozer_api::{grpc, rest, CacheEndpoint};
+use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_core::app::AppPipeline;
-use dozer_core::dag_schemas::{DagHaveSchemas, DagSchemas};
-use dozer_core::errors::ExecutionError::InternalError;
-use dozer_core::petgraph::visit::{IntoEdgesDirected, IntoNodeReferences};
-use dozer_core::petgraph::Direction;
-use dozer_core::NodeKind;
+use dozer_core::dag_schemas::DagSchemas;
+
+use dozer_core::errors::ExecutionError;
+use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::grpc_types::internal::AliasRedirected;
+use dozer_types::crossbeam::channel::{self, Sender};
+use dozer_types::grpc_types::admin::dozer_admin_client::DozerAdminClient;
+use dozer_types::grpc_types::admin::{CreateAppRequest, StartRequest};
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
-use dozer_types::types::{Operation, Schema, SourceSchema};
+
+use crate::cli::types::Deploy;
+use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use futures::stream::FuturesUnordered;
-use futures::{StreamExt, TryFutureExt};
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::{sync::Arc, thread};
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::oneshot;
+use std::sync::Arc;
+use std::thread;
+use tokio::runtime::Runtime;
+use tokio::sync::broadcast;
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
+    pub runtime: Arc<Runtime>,
+    pub multi_pb: MultiProgress,
 }
 
 impl SimpleOrchestrator {
-    pub fn new(config: Config) -> Self {
-        Self { config }
+    pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
+        Self {
+            config,
+            runtime,
+            multi_pb: MultiProgress::new(),
+        }
     }
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-        // Channel to communicate CtrlC with API Server
-        let (tx, rx) = unbounded::<ServerHandle>();
-
-        let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
-        let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
-        rt.block_on(async {
+    fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+        self.runtime.block_on(async {
             let mut futures = FuturesUnordered::new();
 
-            // Initiate `AliasRedirected` events, must be done before `RoCacheEndpoint::new` to avoid following scenario:
-            // 1. `RoCacheEndpoint::new` is called.
-            // 2. App server sends an `AliasRedirected` event.
-            // 3. Push event is initiated.
-            // In this scenario, the `AliasRedirected` event will be lost and the API server will be serving the wrong cache.
-            let app_grpc_config = get_app_grpc_config(self.config.clone());
-            let mut internal_pipeline_client =
-                InternalPipelineClient::new(&app_grpc_config).await?;
-            let (alias_redirected_receiver, future) =
-                internal_pipeline_client.stream_alias_events().await?;
-            futures.push(flatten_join_handle(tokio::spawn(
-                future.map_err(OrchestrationError::GrpcServerFailed),
-            )));
+            // Open `RoCacheEndpoint`s. Streaming operations if necessary.
+            let flags = self.config.flags.clone().unwrap_or_default();
+            let (operations_sender, operations_receiver) = if flags.dynamic {
+                let (sender, receiver) = broadcast::channel(16);
+                (Some(sender), Some(receiver))
+            } else {
+                (None, None)
+            };
 
-            // Open `RoCacheEndpoint`s.
-            let cache_manager = LmdbCacheManager::new(get_cache_manager_options(&self.config))
-                .map_err(OrchestrationError::CacheInitFailed)?;
-            let cache_endpoints = self
-                .config
-                .endpoints
-                .iter()
-                .map(|endpoint| {
-                    RoCacheEndpoint::new(&cache_manager, endpoint.clone()).map(Arc::new)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-
-            // Listen to endpoint redirect events.
-            tokio::spawn(redirect_cache_endpoints(
-                Box::new(cache_manager),
-                cache_endpoints.clone(),
-                alias_redirected_receiver,
-            ));
+            let cache_manager = Arc::new(
+                LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
+                    .map_err(OrchestrationError::RoCacheInitFailed)?,
+            );
+            let pipeline_dir = get_pipeline_dir(&self.config);
+            let mut cache_endpoints = vec![];
+            for endpoint in &self.config.endpoints {
+                let schema = load_schema(&pipeline_dir, &endpoint.name)?;
+                let log_path = get_endpoint_log_path(&pipeline_dir, &endpoint.name);
+                let (cache_endpoint, task) = CacheEndpoint::new(
+                    &*cache_manager,
+                    schema.clone(),
+                    endpoint.clone(),
+                    self.runtime.clone(),
+                    Box::pin(shutdown.create_shutdown_future()),
+                    &log_path,
+                    operations_sender.clone(),
+                    Some(self.multi_pb.clone()),
+                )
+                .await?;
+                if let Some(task) = task {
+                    futures.push(flatten_join_handle(tokio::task::spawn_blocking(
+                        move || task().map_err(OrchestrationError::CacheBuildFailed),
+                    )));
+                }
+                cache_endpoints.push(Arc::new(cache_endpoint));
+            }
 
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
-            let security = get_api_security_config(self.config.to_owned());
-            let cache_endpoints_for_rest = cache_endpoints.clone();
-            let rest_handle = tokio::spawn(async move {
-                let api_server = rest::ApiServer::new(rest_config, security);
-                api_server
-                    .run(cache_endpoints_for_rest, tx)
-                    .await
-                    .map_err(OrchestrationError::ApiServerFailed)
-            });
-
-            // Initialize `PipelineResponse` events.
-            let flags = self.config.flags.clone().unwrap_or_default();
-            let operation_receiver = if flags.dynamic {
-                let (operation_receiver, future) =
-                    internal_pipeline_client.stream_operations().await?;
-                futures.push(flatten_join_handle(tokio::spawn(
-                    future.map_err(OrchestrationError::GrpcServerFailed),
-                )));
-                Some(operation_receiver)
+            let rest_handle = if rest_config.enabled {
+                let security = get_api_security_config(self.config.to_owned());
+                let cache_endpoints_for_rest = cache_endpoints.clone();
+                let shutdown_for_rest = shutdown.create_shutdown_future();
+                tokio::spawn(async move {
+                    let api_server = rest::ApiServer::new(rest_config, security);
+                    api_server
+                        .run(cache_endpoints_for_rest, shutdown_for_rest)
+                        .await
+                        .map_err(OrchestrationError::ApiServerFailed)
+                })
             } else {
-                None
+                tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
             };
 
             // Initialize gRPC Server
-            let api_dir = get_api_dir(&self.config);
             let grpc_config = get_grpc_config(self.config.to_owned());
-            let api_security = get_api_security_config(self.config.to_owned());
-            let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
-            let grpc_handle = tokio::spawn(async move {
-                grpc_server
-                    .run(cache_endpoints, receiver_shutdown, operation_receiver)
-                    .await
-                    .map_err(OrchestrationError::GrpcServerFailed)
-            });
+            let grpc_handle = if grpc_config.enabled {
+                let api_dir = get_api_dir(&self.config);
+                let api_security = get_api_security_config(self.config.to_owned());
+                let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
+                let shutdown = shutdown.create_shutdown_future();
+                tokio::spawn(async move {
+                    grpc_server
+                        .run(cache_endpoints, shutdown, operations_receiver)
+                        .await
+                        .map_err(OrchestrationError::GrpcServerFailed)
+                })
+            } else {
+                tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
+            };
 
             futures.push(flatten_join_handle(rest_handle));
             futures.push(flatten_join_handle(grpc_handle));
@@ -139,56 +142,64 @@ impl Orchestrator for SimpleOrchestrator {
             while let Some(result) = futures.next().await {
                 result?;
             }
+
             Ok::<(), OrchestrationError>(())
         })?;
-
-        let server_handle = rx
-            .recv()
-            .map_err(OrchestrationError::GrpcServerHandleError)?;
-
-        // Waiting for Ctrl+C
-        while running.load(Ordering::SeqCst) {}
-        sender_shutdown.send(()).unwrap();
-        rest::ApiServer::stop(server_handle);
 
         Ok(())
     }
 
     fn run_apps(
         &mut self,
-        running: Arc<AtomicBool>,
+        shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
         // gRPC notifier channel
         let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
         let (operation_sender, operation_receiver) = channel::unbounded();
+        let (status_update_sender, status_update_receiver) = channel::unbounded();
         let internal_app_config = self.config.clone();
-        let _intern_pipeline_thread = thread::spawn(move || {
-            if let Err(e) = start_internal_pipeline_server(
+        let _intern_pipeline_thread = self.runtime.spawn(async move {
+            let result = start_internal_pipeline_server(
                 internal_app_config,
-                (alias_redirected_receiver, operation_receiver),
-            ) {
+                (
+                    alias_redirected_receiver,
+                    operation_receiver,
+                    status_update_receiver,
+                ),
+            )
+            .await;
+
+            if let Err(e) = result {
                 std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
             }
+
             warn!("Shutting down internal pipeline server");
         });
 
         let pipeline_dir = get_pipeline_dir(&self.config);
         let executor = Executor::new(
+            &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
             &pipeline_dir,
-            running,
+            shutdown.get_running_flag(),
+            self.multi_pb.clone(),
         );
-        let flags = get_flags(self.config.clone());
-        let api_security = get_api_security_config(self.config.clone());
-        let settings = CacheSinkSettings::new(get_api_dir(&self.config), flags, api_security);
+        let settings = LogSinkSettings {
+            pipeline_dir: pipeline_dir.clone(),
+            file_buffer_capacity: get_file_buffer_capacity(&self.config),
+        };
         let dag_executor = executor.create_dag_executor(
-            Some((alias_redirected_sender, operation_sender)),
-            get_cache_manager_options(&self.config),
+            self.runtime.clone(),
             settings,
             get_executor_options(&self.config),
+            Some((
+                alias_redirected_sender,
+                operation_sender,
+                status_update_sender,
+            )),
         )?;
 
         if let Some(api_notifier) = api_notifier {
@@ -200,8 +211,11 @@ impl Orchestrator for SimpleOrchestrator {
         executor.run_dag_executor(dag_executor)
     }
 
-    fn list_connectors(&self) -> Result<HashMap<String, Vec<SourceSchema>>, OrchestrationError> {
-        Executor::get_tables(&self.config.connections)
+    fn list_connectors(
+        &self,
+    ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
+        self.runtime
+            .block_on(Executor::get_tables(&self.config.connections))
     }
 
     fn generate_token(&self) -> Result<String, OrchestrationError> {
@@ -221,45 +235,6 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::GenerateTokenFailed(
             "Missing api config or security input".to_owned(),
         ))
-    }
-
-    fn query(
-        &self,
-        sql: String,
-        sender: Sender<Operation>,
-        running: Arc<AtomicBool>,
-    ) -> Result<Schema, OrchestrationError> {
-        let pipeline_dir = tempdir::TempDir::new("query4")
-            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-        let executor = Executor::new(
-            &self.config.sources,
-            self.config.sql.as_deref(),
-            &[],
-            pipeline_dir.path(),
-            running,
-        );
-
-        let dag = executor.query(sql, sender)?;
-        let dag_schemas = DagSchemas::new(dag)?;
-
-        let sink_index = (|| {
-            for (node_index, node) in dag_schemas.graph().node_references() {
-                if matches!(node.kind, NodeKind::Sink(_)) {
-                    return node_index;
-                }
-            }
-            panic!("Sink is expected");
-        })();
-
-        let schema = dag_schemas
-            .graph()
-            .edges_directed(sink_index, Direction::Incoming)
-            .next()
-            .expect("Sink must have incoming edge")
-            .weight()
-            .schema
-            .clone();
-        Ok(schema)
     }
 
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
@@ -283,15 +258,24 @@ impl Orchestrator for SimpleOrchestrator {
         validate_config(&self.config)?;
 
         let builder = PipelineBuilder::new(
+            &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
             &pipeline_home_dir,
+            self.multi_pb.clone(),
         );
 
         // Api Path
         if !api_dir.exists() {
-            fs::create_dir_all(api_dir.clone()).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(&api_dir)
+                .map_err(|e| ExecutionError::FileSystemError(api_dir, e))?;
+        }
+
+        // cache Path
+        if !cache_dir.exists() {
+            fs::create_dir_all(&cache_dir)
+                .map_err(|e| ExecutionError::FileSystemError(cache_dir, e))?;
         }
 
         // Pipeline path
@@ -301,12 +285,32 @@ impl Orchestrator for SimpleOrchestrator {
                 e,
             )
         })?;
-        let api_security = get_api_security_config(self.config.clone());
-        let flags = get_flags(self.config.clone());
-        let settings = CacheSinkSettings::new(api_dir.clone(), flags, api_security);
-        let dag = builder.build(None, get_cache_manager_options(&self.config), settings)?;
+
+        let settings = LogSinkSettings {
+            pipeline_dir: pipeline_home_dir.clone(),
+            file_buffer_capacity: get_file_buffer_capacity(&self.config),
+        };
+        let dag = builder.build(self.runtime.clone(), settings, None)?;
         // Populate schemas.
-        DagSchemas::new(dag)?;
+        let dag_schemas = DagSchemas::new(dag)?;
+
+        // Write schemas to pipeline_dir and generate proto files.
+        let schemas = write_schemas(
+            &dag_schemas,
+            pipeline_home_dir.clone(),
+            &self.config.endpoints,
+        )?;
+        let api_dir = get_api_dir(&self.config);
+        let api_config = self.config.api.clone().unwrap_or_default();
+        for (schema_name, schema) in &schemas {
+            ProtoGenerator::generate(
+                &api_dir,
+                schema_name,
+                schema,
+                &api_config.api_security,
+                &self.config.flags,
+            )?;
+        }
 
         let mut resources = Vec::new();
         for e in &self.config.endpoints {
@@ -330,15 +334,64 @@ impl Orchestrator for SimpleOrchestrator {
     // Cleaning the entire folder as there will be inconsistencies
     // between pipeline, cache and generated proto files.
     fn clean(&mut self) -> Result<(), OrchestrationError> {
+        let cache_dir = PathBuf::from(self.config.cache_dir.clone());
+        if cache_dir.exists() {
+            fs::remove_dir_all(&cache_dir)
+                .map_err(|e| ExecutionError::FileSystemError(cache_dir, e))?;
+        };
+
         let home_dir = PathBuf::from(self.config.home_dir.clone());
         if home_dir.exists() {
-            fs::remove_dir_all(&home_dir).map_err(|e| InternalError(Box::new(e)))?;
+            fs::remove_dir_all(&home_dir)
+                .map_err(|e| ExecutionError::FileSystemError(home_dir, e))?;
         };
+
         Ok(())
     }
 
-    fn run_all(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-        let running_api = running.clone();
+    // TODO: Deploy Dozer application using local Dozer configuration
+    fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError> {
+        let target_url = deploy.target_url;
+        let username = match deploy.username {
+            Some(u) => u,
+            None => String::new(),
+        };
+        let _password = match deploy.password {
+            Some(p) => p,
+            None => String::new(),
+        };
+        info!("Deployment target url: {:?}", target_url);
+        info!("Authenticating for username: {:?}", username);
+        info!("Local dozer configuration path: {:?}", config_path);
+        // getting local dozer config file
+        let config_content = std::fs::read_to_string(&config_path)
+            .map_err(|e| DeployError::CannotReadConfig(config_path.into(), e))?;
+        // calling the target url with the config fetched
+        self.runtime.block_on(async move {
+            // 1. CREATE application
+            let mut client: DozerAdminClient<tonic::transport::Channel> =
+                DozerAdminClient::connect(target_url).await?;
+            let response = client
+                .create_application(CreateAppRequest {
+                    config: config_content,
+                })
+                .await?
+                .into_inner();
+            info!("Application created with id: {:?}", response.id);
+            // 2. START application
+            client
+                .start_dozer(StartRequest {
+                    config: response.id,
+                })
+                .await?;
+            info!("Deployed");
+            Ok::<(), DeployError>(())
+        })?;
+        Ok(())
+    }
+
+    fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+        let shutdown_api = shutdown.clone();
         // TODO: remove this after checkpointing
         self.clean()?;
 
@@ -358,23 +411,15 @@ impl Orchestrator for SimpleOrchestrator {
         }
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer_pipeline.run_apps(running, Some(tx)) {
-                std::panic::panic_any(e);
-            }
-        });
+        let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx)));
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
 
-        thread::spawn(move || {
-            if let Err(e) = dozer_api.run_api(running_api) {
-                std::panic::panic_any(e);
-            }
-        });
+        dozer_api.run_api(shutdown_api)?;
 
-        pipeline_thread.join().unwrap();
-        Ok(())
+        // wait for pipeline thread to shutdown gracefully
+        pipeline_thread.join().unwrap()
     }
 }
 
@@ -396,24 +441,4 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
             Ok(())
         },
     )
-}
-
-async fn redirect_cache_endpoints(
-    cache_manager: Box<dyn CacheManager>,
-    cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
-    mut alias_redirected_receiver: Receiver<AliasRedirected>,
-) -> Result<(), OrchestrationError> {
-    loop {
-        let alias_redirected = alias_redirected_receiver
-            .recv()
-            .await
-            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-        for cache_endpoint in &cache_endpoints {
-            if cache_endpoint.endpoint().name == alias_redirected.alias {
-                cache_endpoint
-                    .redirect_cache(&*cache_manager)
-                    .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-            }
-        }
-    }
 }

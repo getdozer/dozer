@@ -1,7 +1,6 @@
 use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
-use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -77,14 +76,6 @@ fn test_planner_with_aggregator() {
 
     projection_planner.plan(*statement).unwrap();
 
-    let storage = LmdbEnvironmentManager::create(
-        tempdir::TempDir::new("test").unwrap().path(),
-        "aggregation",
-        Default::default(),
-    )
-    .unwrap();
-
-    let _tx = storage.create_txn().unwrap();
     let mut processor = AggregationProcessor::new(
         projection_planner.groupby,
         projection_planner.aggregation_output,
@@ -106,7 +97,6 @@ fn test_planner_with_aggregator() {
                     Field::Int(2),
                     Field::Int(1),
                 ],
-                None,
             ),
         })
         .unwrap();
@@ -122,7 +112,6 @@ fn test_planner_with_aggregator() {
                     Field::Int(2),
                     Field::Int(2),
                 ],
-                None,
             ),
         })
         .unwrap();

@@ -1,0 +1,26 @@
+/**
+ * The _common_ gRPC API handles Pull and Push queries of all endpoints with a single service, `AuthGrpcService`.
+ */
+syntax = "proto3";
+
+package dozer.auth;
+
+/**
+ * AuthGrpcService allows developers to generate JWT token for restricted access to data.
+ */
+service AuthGrpcService {
+  // Creates auth token with custom access
+  rpc getAuthToken(GetAuthTokenRequest) returns (GetAuthTokenResponse);
+}
+
+// Request for `GetAuthTokenRequest`.
+message GetAuthTokenRequest {
+  string access_filter = 1;
+}
+
+// Response for `GetAuthTokenResponse`.
+message GetAuthTokenResponse {
+  // Generate token for access
+  string token = 1;
+}
+

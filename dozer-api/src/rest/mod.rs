@@ -5,24 +5,27 @@ use crate::errors::ApiError;
 use crate::rest::api_generator::health_route;
 use crate::{
     auth::api::{auth_route, validate},
-    RoCacheEndpoint,
+    CacheEndpoint,
 };
 use actix_cors::Cors;
 use actix_web::{
     body::MessageBody,
-    dev::{ServerHandle, Service, ServiceFactory, ServiceRequest, ServiceResponse},
+    dev::{Service, ServiceFactory, ServiceRequest, ServiceResponse},
     middleware::{Condition, Logger},
-    rt, web, App, HttpMessage, HttpServer,
+    web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use dozer_types::{crossbeam::channel::Sender, log::info, models::api_config::RestApiOptions};
+use dozer_types::{log::info, models::api_config::RestApiOptions};
 use dozer_types::{
     models::api_security::ApiSecurity,
     serde::{self, Deserialize, Serialize},
 };
+use futures_util::Future;
 use tracing_actix_web::TracingLogger;
 
 mod api_generator;
+
+pub use api_generator::field_to_json_value;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]
@@ -75,7 +78,7 @@ impl ApiServer {
     fn create_app_entry(
         security: Option<ApiSecurity>,
         cors: CorsOptions,
-        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
+        cache_endpoints: Vec<Arc<CacheEndpoint>>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -132,9 +135,9 @@ impl ApiServer {
     }
 
     pub async fn run(
-        &self,
-        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
-        tx: Sender<ServerHandle>,
+        self,
+        cache_endpoints: Vec<Arc<CacheEndpoint>>,
+        shutdown: impl Future<Output = ()> + Send + 'static,
     ) -> Result<(), ApiError> {
         info!(
             "Starting Rest Api Server on http://{}:{} with security: {}",
@@ -146,25 +149,27 @@ impl ApiServer {
                     ApiSecurity::Jwt(_) => "JWT".to_string(),
                 })
         );
-        let cors = self.cors.clone();
-        let security = self.security.clone();
+        let cors = self.cors;
+        let security = self.security;
         let address = format!("{}:{}", self.host, self.port);
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(security.clone(), cors.clone(), cache_endpoints.clone())
         })
         .bind(&address)
         .map_err(|e| ApiError::FailedToBindToAddress(address, e))?
-        .shutdown_timeout(self.shutdown_timeout.to_owned())
+        .disable_signals()
+        .shutdown_timeout(self.shutdown_timeout)
         .run();
 
-        let _ = tx.send(server.handle());
+        let server_handle = server.handle();
+        tokio::spawn(async move {
+            shutdown.await;
+            server_handle.stop(true).await;
+        });
+
         server
             .await
             .map_err(|e| ApiError::InternalError(Box::new(e)))
-    }
-
-    pub fn stop(server_handle: ServerHandle) {
-        rt::System::new().block_on(server_handle.stop(true));
     }
 }
 

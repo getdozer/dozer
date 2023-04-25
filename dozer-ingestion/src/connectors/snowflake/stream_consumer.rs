@@ -82,7 +82,6 @@ impl StreamConsumer {
                 version: 1,
             }),
             values: row,
-            version: None,
         }
     }
 

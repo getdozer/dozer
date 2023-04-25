@@ -1,4 +1,5 @@
 use clap::Parser;
+use dozer_types::tracing::info;
 use std::{thread::sleep, time::Duration};
 
 use dozer_tests::e2e_tests::{run_test_client, Case, CaseKind};
@@ -7,6 +8,8 @@ use dozer_tests::e2e_tests::{run_test_client, Case, CaseKind};
 struct Args {
     #[arg(long)]
     case_dir: String,
+    #[arg(long)]
+    ignored: bool,
     #[arg(long)]
     connections_dir: String,
     #[arg(short, long)]
@@ -20,6 +23,11 @@ async fn main() {
     env_logger::init();
     let args = Args::parse();
     let case = Case::load_from_case_dir(args.case_dir.clone().into(), args.connections_dir.into());
+    if !args.ignored && case.should_be_ignored() {
+        info!("Ignoring case {:?}", args.case_dir);
+        return;
+    }
+
     let CaseKind::Expectations(expectations) = case.kind else {
         panic!("Expectations not found in case {}", args.case_dir)
     };

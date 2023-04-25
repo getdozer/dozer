@@ -6,7 +6,7 @@ use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::datetime::PipelineError::InvalidValue;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use dozer_types::chrono::{DateTime, Datelike, Offset, Timelike, Utc};
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_types::types::{DozerDuration, Field, FieldType, Record, Schema, TimeUnit};
 use num_traits::ToPrimitive;
 use sqlparser::ast::DateTimeField;
 use std::fmt::{Display, Formatter};
@@ -16,6 +16,9 @@ pub enum DateTimeFunctionType {
     Extract {
         field: sqlparser::ast::DateTimeField,
     },
+    Interval {
+        field: sqlparser::ast::DateTimeField,
+    },
 }
 
 impl Display for DateTimeFunctionType {
@@ -23,6 +26,9 @@ impl Display for DateTimeFunctionType {
         match self {
             DateTimeFunctionType::Extract { field } => {
                 f.write_str(format!("EXTRACT {field}").as_str())
+            }
+            DateTimeFunctionType::Interval { field } => {
+                f.write_str(format!("INTERVAL {field}").as_str())
             }
         }
     }
@@ -34,17 +40,32 @@ pub(crate) fn get_datetime_function_type(
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
     let return_type = arg.get_type(schema)?.return_type;
-    if return_type != FieldType::Date && return_type != FieldType::Timestamp {
+    if return_type != FieldType::Date
+        && return_type != FieldType::Timestamp
+        && return_type != FieldType::Duration
+        && return_type != FieldType::String
+    {
         return Err(InvalidFunctionArgumentType(
             function.to_string(),
             return_type,
-            FieldTypes::new(vec![FieldType::Date, FieldType::Timestamp]),
+            FieldTypes::new(vec![
+                FieldType::Date,
+                FieldType::Timestamp,
+                FieldType::Duration,
+                FieldType::String,
+            ]),
             0,
         ));
     }
     match function {
         DateTimeFunctionType::Extract { field: _ } => Ok(ExpressionType::new(
             FieldType::Int,
+            false,
+            dozer_types::types::SourceDefinition::Dynamic,
+            false,
+        )),
+        DateTimeFunctionType::Interval { field: _ } => Ok(ExpressionType::new(
+            FieldType::Duration,
             false,
             dozer_types::types::SourceDefinition::Dynamic,
             false,
@@ -62,6 +83,9 @@ impl DateTimeFunctionType {
         match self {
             DateTimeFunctionType::Extract { field } => {
                 evaluate_date_part(schema, field, arg, record)
+            }
+            DateTimeFunctionType::Interval { field } => {
+                evaluate_interval(schema, field, arg, record)
             }
         }
     }
@@ -83,7 +107,20 @@ pub(crate) fn evaluate_date_part(
             .ok_or(InvalidValue(format!(
                 "Unable to cast date {d} to timestamp"
             ))),
-        _ => {
+        Field::UInt(_)
+        | Field::U128(_)
+        | Field::Int(_)
+        | Field::I128(_)
+        | Field::Float(_)
+        | Field::Boolean(_)
+        | Field::String(_)
+        | Field::Text(_)
+        | Field::Binary(_)
+        | Field::Decimal(_)
+        | Field::Bson(_)
+        | Field::Point(_)
+        | Field::Duration(_)
+        | Field::Null => {
             return Err(InvalidFunctionArgument(
                 DateTimeFunctionType::Extract { field: *field }.to_string(),
                 value,
@@ -126,26 +163,61 @@ pub(crate) fn evaluate_date_part(
     .map(Field::Int)
 }
 
-#[test]
-fn test_date_parts() {
-    let row = Record::new(None, vec![], None);
+pub(crate) fn evaluate_interval(
+    schema: &Schema,
+    field: &sqlparser::ast::DateTimeField,
+    arg: &Expression,
+    record: &Record,
+) -> Result<Field, PipelineError> {
+    let value = arg.evaluate(record, schema)?;
+    let dur = value.to_duration()?.unwrap().0.as_nanos();
 
-    let date_parts = vec![
-        (DateTimeField::Dow, 6),
-        (DateTimeField::Year, 2023),
-        (DateTimeField::Month, 1),
-        (DateTimeField::Hour, 0),
-        (DateTimeField::Second, 0),
-        (DateTimeField::Quarter, 1),
-    ];
-    let v = Expression::Literal(Field::Date(
-        dozer_types::chrono::NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
-    ));
-
-    for (part, value) in date_parts {
-        assert_eq!(
-            evaluate_date_part(&Schema::empty(), &part, &v, &row).unwrap(),
-            Field::Int(value)
-        );
+    match field {
+        DateTimeField::Second => Ok(Field::Duration(DozerDuration(
+            std::time::Duration::from_secs(dur as u64),
+            TimeUnit::Seconds,
+        ))),
+        DateTimeField::Millisecond | DateTimeField::Milliseconds => {
+            Ok(Field::Duration(DozerDuration(
+                std::time::Duration::from_millis(dur as u64),
+                TimeUnit::Milliseconds,
+            )))
+        }
+        DateTimeField::Microsecond | DateTimeField::Microseconds => {
+            Ok(Field::Duration(DozerDuration(
+                std::time::Duration::from_micros(dur as u64),
+                TimeUnit::Microseconds,
+            )))
+        }
+        DateTimeField::Nanoseconds | DateTimeField::Nanosecond => {
+            Ok(Field::Duration(DozerDuration(
+                std::time::Duration::from_nanos(dur as u64),
+                TimeUnit::Nanoseconds,
+            )))
+        }
+        DateTimeField::Isodow
+        | DateTimeField::Timezone
+        | DateTimeField::Dow
+        | DateTimeField::Isoyear
+        | DateTimeField::Julian
+        | DateTimeField::Millenium
+        | DateTimeField::Millennium
+        | DateTimeField::TimezoneHour
+        | DateTimeField::TimezoneMinute
+        | DateTimeField::Date
+        | DateTimeField::NoDateTime
+        | DateTimeField::Day
+        | DateTimeField::Month
+        | DateTimeField::Year
+        | DateTimeField::Hour
+        | DateTimeField::Minute
+        | DateTimeField::Quarter
+        | DateTimeField::Epoch
+        | DateTimeField::Week
+        | DateTimeField::Century
+        | DateTimeField::Decade
+        | DateTimeField::Doy => Err(PipelineError::InvalidOperandType(format!(
+            "Unable to extract date part {field} from {value}"
+        ))),
     }
 }

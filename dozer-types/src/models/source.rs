@@ -16,12 +16,17 @@ pub struct Source {
     #[serde(skip_deserializing)]
     /// reference to pre-defined connection name - syntax: `!Ref <connection_name>`; Type: `Ref!` tag
     pub connection: Option<Connection>,
+    /// name of schema source database; Type: String
+    #[prost(string, optional, tag = "5")]
+    #[serde(default)]
+    pub schema: Option<String>,
     #[prost(oneof = "RefreshConfig", tags = "7")]
     #[serde(default = "default_refresh_config")]
     #[serde(skip_serializing_if = "Option::is_none")]
     /// setting for how to refresh the data; Default: RealTime
     pub refresh_config: Option<RefreshConfig>,
 }
+
 fn default_refresh_config() -> Option<RefreshConfig> {
     Some(RefreshConfig::default())
 }
@@ -34,6 +39,7 @@ impl Serialize for Source {
         state.serialize_field("name", &self.name)?;
         state.serialize_field("table_name", &self.table_name)?;
         state.serialize_field("columns", &self.columns)?;
+        state.serialize_field("schema", &self.schema)?;
         state.serialize_field(
             "connection",
             &Value::Ref(self.connection.to_owned().unwrap_or_default().name),

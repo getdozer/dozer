@@ -18,75 +18,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(&["protos/health.proto"], &["protos"])?;
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
-        .extern_path(
-            ".dozer.internal.ApplicationDetail",
-            "dozer_types::models::app_config::Config",
-        )
-        .extern_path(
-            ".dozer.internal.ApiIndex",
-            "dozer_types::models::api_endpoint::ApiIndex",
-        )
-        .extern_path(
-            ".dozer.internal.EndpointInfo",
-            "dozer_types::models::api_endpoint::ApiEndpoint",
-        )
-        .extern_path(
-            ".dozer.internal.SourceInfo",
-            "dozer_types::models::source::Source",
-        )
-        .extern_path(
-            ".dozer.internal.Authentication",
-            "dozer_types::models::connection::AuthenticationWrapper",
-        )
-        .extern_path(
-            ".dozer.internal.ConnectionInfo",
-            "dozer_types::models::connection::Connection",
-        )
-        .extern_path(
-            ".dozer.internal.EthereumFilter",
-            "dozer_types::ingestion_types::EthereumFilter",
-        )
-        .extern_path(
-            ".dozer.internal.KafkaAuthentication",
-            "dozer_types::ingestion_types::KafkaConfig",
-        )
-        .extern_path(
-            ".dozer.internal.SnowflakeAuthentication",
-            "dozer_types::ingestion_types::SnowflakeConfig",
-        )
-        .extern_path(
-            ".dozer.internal.EventsAuthentication",
-            "dozer_types::models::connection::EventsAuthentication",
-        )
-        .extern_path(
-            ".dozer.internal.EthereumAuthentication",
-            "dozer_types::ingestion_types::EthConfig",
-        )
-        .extern_path(
-            ".dozer.internal.PostgresAuthentication",
-            "dozer_types::models::connection::PostgresAuthentication",
-        )
-        .extern_path(
-            ".dozer.internal.DBType",
-            "dozer_types::models::connection::DBType",
-        )
-        .extern_path(
-            ".dozer.internal.ApiConfig",
-            "dozer_types::models::api_config::ApiConfig",
-        )
-        .extern_path(
-            ".dozer.internal.ApiGrpc",
-            "dozer_types::models::api_config::ApiGrpc",
-        )
-        .extern_path(
-            ".dozer.internal.ApiRest",
-            "dozer_types::models::api_config::ApiRest",
-        )
-        .extern_path(
-            ".dozer.internal.ApiInternal",
-            "dozer_types::models::api_config::ApiInternal",
-        )
         .compile(&["protos/internal.proto"], &["protos"])?;
+    tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
+        .compile(&["protos/auth.proto"], &["protos"])?;
 
     // Sample service generated for tests and development
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -94,5 +29,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .protoc_arg("--experimental_allow_proto3_optional")
         .file_descriptor_set_path(out_dir.join("generated_films.bin"))
         .compile(&["protos/films.proto"], &["protos"])?;
+
+    // Admin Service & Types
+    tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
+        .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
+        .extern_path(
+            ".dozer.admin.AppConfig",
+            "crate::models::app_config::Config",
+        )
+        .extern_path(
+            ".dozer.admin.ConnectionConfig",
+            "crate::models::connection::ConnectionConfig",
+        )
+        .extern_path(
+            ".dozer.admin.Connection",
+            "crate::models::connection::Connection",
+        )
+        .extern_path(
+            ".dozer.admin.EthContract",
+            "crate::ingestion_types::EthContract",
+        )
+        .extern_path(
+            ".dozer.admin.EthereumFilter",
+            "crate::ingestion_types::EthereumFilter",
+        )
+        .extern_path(
+            ".dozer.admin.KafkaConfig",
+            "crate::ingestion_types::KafkaConfig",
+        )
+        .extern_path(
+            ".dozer.admin.SnowflakeConfig",
+            "crate::ingestion_types::SnowflakeConfig",
+        )
+        .extern_path(
+            ".dozer.admin.GrpcConfig",
+            "crate::models::connection::GrpcConfig",
+        )
+        .extern_path(
+            ".dozer.admin.EthereumConfig",
+            "crate::ingestion_types::EthConfig",
+        )
+        .extern_path(
+            ".dozer.admin.PostgresConfig",
+            "crate::models::connection::PostgresConfig",
+        )
+        .file_descriptor_set_path(out_dir.join("admin.bin"))
+        .compile(&["protos/admin.proto"], &["protos"])
+        .unwrap();
+
     Ok(())
 }

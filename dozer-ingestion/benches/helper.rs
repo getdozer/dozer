@@ -1,7 +1,8 @@
+use dozer_ingestion::connectors::TableIdentifier;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
-use dozer_orchestrator::Connection;
 use dozer_types::indicatif::{ProgressBar, ProgressStyle};
 use dozer_types::log::error;
+use dozer_types::models::connection::Connection;
 use dozer_types::serde::{self, Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,15 +40,21 @@ pub fn get_progress() -> ProgressBar {
 
 pub async fn get_connection_iterator(config: TestConfig) -> IngestionIterator {
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-    std::thread::spawn(move || {
+    tokio::spawn(async move {
         let grpc_connector = dozer_ingestion::connectors::get_connector(config.connection).unwrap();
 
-        let mut tables = grpc_connector.get_tables().unwrap();
-        if let Some(tables_filter) = config.tables_filter {
-            tables.retain(|t| tables_filter.contains(&t.name));
-        }
+        let tables = match config.tables_filter.map(|table_names| {
+            table_names
+                .into_iter()
+                .map(TableIdentifier::from_table_name)
+                .collect()
+        }) {
+            Some(tables) => tables,
+            None => grpc_connector.list_tables().await.unwrap(),
+        };
+        let tables = grpc_connector.list_columns(tables).await.unwrap();
 
-        let res = grpc_connector.start(None, &ingestor, tables);
+        let res = grpc_connector.start(&ingestor, tables).await;
         if let Err(e) = res {
             error!("Error: {:?}", e);
         }

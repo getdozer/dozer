@@ -1,21 +1,13 @@
 use crate::connectors::postgres::tests::client::TestPostgresClient;
-use postgres::Client;
 use postgres_types::PgLsn;
-use std::cell::RefCell;
 use std::error::Error;
-use std::thread;
 
 use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
-use crate::connectors::{get_connector, TableInfo};
-use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_types::models::app_config::Config;
-use dozer_types::models::connection::Connection;
-use postgres::error::DbError;
 use std::str::FromStr;
-use std::sync::Arc;
-use tokio_postgres::{Error as PostgresError, SimpleQueryMessage};
+use tokio_postgres::{error::DbError, Client, Error as PostgresError, SimpleQueryMessage};
 
-pub fn get_client(app_config: Config) -> TestPostgresClient {
+pub async fn get_client(app_config: Config) -> TestPostgresClient {
     let config = app_config
         .connections
         .get(0)
@@ -24,42 +16,27 @@ pub fn get_client(app_config: Config) -> TestPostgresClient {
         .as_ref()
         .unwrap();
 
-    TestPostgresClient::new(config)
+    TestPostgresClient::new(config).await
 }
 
-pub fn get_iterator(config: Connection, table_name: String) -> IngestionIterator {
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-    thread::spawn(move || {
-        let tables: Vec<TableInfo> = vec![TableInfo {
-            name: table_name,
-            columns: None,
-        }];
-
-        let connector = get_connector(config).unwrap();
-        connector.start(None, &ingestor, tables).unwrap();
-    });
-
-    iterator
-}
-
-pub fn create_slot(client_ref: Arc<RefCell<Client>>, slot_name: &str) -> PgLsn {
+pub async fn create_slot(client_ref: &Client, slot_name: &str) -> PgLsn {
     client_ref
-        .borrow_mut()
         .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
+        .await
         .unwrap();
 
-    let created_lsn = ReplicationSlotHelper::create_replication_slot(client_ref.clone(), slot_name)
+    let created_lsn = ReplicationSlotHelper::create_replication_slot(client_ref, slot_name)
+        .await
         .unwrap()
         .unwrap();
-    client_ref.borrow_mut().simple_query("COMMIT;").unwrap();
+    client_ref.simple_query("COMMIT;").await.unwrap();
 
     PgLsn::from_str(&created_lsn).unwrap()
 }
 
-pub fn retry_drop_active_slot(
+pub async fn retry_drop_active_slot(
     e: PostgresError,
-    client_ref: Arc<RefCell<Client>>,
+    client_ref: &Client,
     slot_name: &str,
 ) -> Result<Vec<SimpleQueryMessage>, PostgresError> {
     match e.source() {
@@ -70,11 +47,11 @@ pub fn retry_drop_active_slot(
                 let parts = err.rsplit_once(' ').unwrap();
 
                 client_ref
-                    .borrow_mut()
                     .simple_query(format!("select pg_terminate_backend('{}');", parts.1).as_ref())
+                    .await
                     .unwrap();
 
-                ReplicationSlotHelper::drop_replication_slot(client_ref, slot_name)
+                ReplicationSlotHelper::drop_replication_slot(client_ref, slot_name).await
             }
             _ => Err(e),
         },

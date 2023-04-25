@@ -1,12 +1,58 @@
 use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{FieldTypes, PipelineError};
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Max;
-use crate::{calculate_err, calculate_err_field};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::{argv, calculate_err, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
-
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use std::collections::BTreeMap;
+
+pub fn validate_max(args: &[Expression], schema: &Schema) -> Result<ExpressionType, PipelineError> {
+    let arg = &argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema)?;
+
+    let ret_type = match arg.return_type {
+        FieldType::UInt => FieldType::UInt,
+        FieldType::U128 => FieldType::U128,
+        FieldType::Int => FieldType::Int,
+        FieldType::I128 => FieldType::I128,
+        FieldType::Float => FieldType::Float,
+        FieldType::Decimal => FieldType::Decimal,
+        FieldType::Timestamp => FieldType::Timestamp,
+        FieldType::Date => FieldType::Date,
+        FieldType::Duration => FieldType::Duration,
+        FieldType::Boolean
+        | FieldType::String
+        | FieldType::Text
+        | FieldType::Binary
+        | FieldType::Bson
+        | FieldType::Point => {
+            return Err(PipelineError::InvalidFunctionArgumentType(
+                Max.to_string(),
+                arg.return_type,
+                FieldTypes::new(vec![
+                    FieldType::Decimal,
+                    FieldType::UInt,
+                    FieldType::U128,
+                    FieldType::Int,
+                    FieldType::I128,
+                    FieldType::Float,
+                    FieldType::Timestamp,
+                    FieldType::Date,
+                    FieldType::Duration,
+                ]),
+                0,
+            ));
+        }
+    };
+    Ok(ExpressionType::new(
+        ret_type,
+        true,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
 
 #[derive(Debug)]
 pub struct MaxAggregator {
@@ -53,31 +99,41 @@ fn get_max(
     } else {
         let val = calculate_err!(field_map.keys().max(), Max).clone();
         match return_type {
-            Some(FieldType::UInt) => Ok(Field::UInt(calculate_err_field!(val.to_uint(), Max, val))),
-            Some(FieldType::Int) => Ok(Field::Int(calculate_err_field!(val.to_int(), Max, val))),
-            Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
-                val.to_float(),
-                Max,
-                val
-            )))),
-            Some(FieldType::Decimal) => Ok(Field::Decimal(calculate_err_field!(
-                val.to_decimal(),
-                Max,
-                val
-            ))),
-            Some(FieldType::Timestamp) => Ok(Field::Timestamp(calculate_err_field!(
-                val.to_timestamp()?,
-                Max,
-                val
-            ))),
-            Some(FieldType::Date) => {
-                Ok(Field::Date(calculate_err_field!(val.to_date()?, Max, val)))
-            }
-            Some(not_supported_return_type) => {
-                Err(PipelineError::InternalExecutionError(InvalidType(format!(
-                    "Not supported return type {not_supported_return_type} for {Max}"
-                ))))
-            }
+            Some(typ) => match typ {
+                FieldType::UInt => Ok(Field::UInt(calculate_err_field!(val.to_uint(), Max, val))),
+                FieldType::U128 => Ok(Field::U128(calculate_err_field!(val.to_u128(), Max, val))),
+                FieldType::Int => Ok(Field::Int(calculate_err_field!(val.to_int(), Max, val))),
+                FieldType::I128 => Ok(Field::I128(calculate_err_field!(val.to_i128(), Max, val))),
+                FieldType::Float => Ok(Field::Float(OrderedFloat::from(calculate_err_field!(
+                    val.to_float(),
+                    Max,
+                    val
+                )))),
+                FieldType::Decimal => Ok(Field::Decimal(calculate_err_field!(
+                    val.to_decimal(),
+                    Max,
+                    val
+                ))),
+                FieldType::Timestamp => Ok(Field::Timestamp(calculate_err_field!(
+                    val.to_timestamp()?,
+                    Max,
+                    val
+                ))),
+                FieldType::Date => Ok(Field::Date(calculate_err_field!(val.to_date()?, Max, val))),
+                FieldType::Duration => Ok(Field::Duration(calculate_err_field!(
+                    val.to_duration()?,
+                    Max,
+                    val
+                ))),
+                FieldType::Boolean
+                | FieldType::String
+                | FieldType::Text
+                | FieldType::Binary
+                | FieldType::Bson
+                | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(
+                    format!("Not supported return type {typ} for {Max}"),
+                ))),
+            },
             None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
                 "Not supported None return type for {Max}"
             )))),

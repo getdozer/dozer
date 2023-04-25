@@ -1,0 +1,28 @@
+[
+    "HealthyService",
+    {
+        "Endpoint": {
+            "endpoint": "pickup",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "pickup_time",
+                                "typ": "Timestamp",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "zone",
+                                "typ": "String",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+]

@@ -239,7 +239,7 @@ pub fn map_value_to_dozer_field(
         DataType::FixedSizeBinary(_) => make_binary!(array::FixedSizeBinaryArray, column, row),
         DataType::LargeBinary => make_binary!(array::LargeBinaryArray, column, row),
         DataType::Utf8 => make_from!(array::StringArray, column, row),
-        DataType::LargeUtf8 => make_from!(array::StringArray, column, row),
+        DataType::LargeUtf8 => make_from!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
         // DataType::List(_) => {}
         // DataType::FixedSizeList(_, _) => {}
@@ -283,7 +283,6 @@ pub fn map_record_batch_to_dozer_records(
         records.push(Record {
             schema_id: schema.identifier,
             values,
-            version: None,
         });
     }
 

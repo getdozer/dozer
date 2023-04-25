@@ -1,17 +1,19 @@
 use std::collections::HashMap;
 use std::{str::FromStr, sync::Arc};
 
-use crate::connectors::{Connector, ValidationResults};
+use crate::connectors::{
+    table_name, CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier,
+};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::{EthFilter, EthLogConfig};
 
+use dozer_types::log::warn;
 use dozer_types::serde_json;
+use tonic::async_trait;
 
 use super::helper;
 use super::sender::{run, EthDetails};
-use dozer_types::types::{ReplicationChangesTrackingType, SourceSchema};
-use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
@@ -121,62 +123,16 @@ impl EthLogConnector {
     }
 }
 
+#[async_trait]
 impl Connector for EthLogConnector {
-    fn get_schemas(
-        &self,
-        tables: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let mut schemas = vec![SourceSchema::new(
-            ETH_LOGS_TABLE.to_string(),
-            helper::get_eth_schema(),
-            ReplicationChangesTrackingType::Nothing,
-        )];
-
-        let event_schemas = helper::get_contract_event_schemas(
-            self.contracts.to_owned(),
-            self.schema_map.to_owned(),
-        );
-        schemas.extend(event_schemas);
-
-        let schemas = if let Some(tables) = tables {
-            schemas
-                .iter()
-                .filter(|s| tables.iter().any(|t| t.name == s.name))
-                .cloned()
-                .collect()
-        } else {
-            schemas
-        };
-
-        Ok(schemas)
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
     }
 
-    fn start(
-        &self,
-        from_seq: Option<(u64, u64)>,
-        ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
-    ) -> Result<(), ConnectorError> {
-        // Start a new thread that interfaces with ETH node
-        let wss_url = self.config.wss_url.to_owned();
-        let filter = self.config.filter.to_owned().unwrap_or_default();
-
-        Runtime::new().unwrap().block_on(async {
-            let details = Arc::new(EthDetails::new(
-                wss_url,
-                filter,
-                ingestor,
-                self.contracts.to_owned(),
-                tables,
-                self.schema_map.to_owned(),
-                from_seq,
-                self.conn_name.clone(),
-            ));
-            run(details).await
-        })
-    }
-
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
         // Return contract parsing error
         for contract in &self.config.contracts {
             let res: Result<Contract, serde_json::Error> = serde_json::from_str(&contract.abi);
@@ -187,15 +143,116 @@ impl Connector for EthLogConnector {
         Ok(())
     }
 
-    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        Ok(HashMap::new())
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        let event_schema_names =
+            helper::get_contract_event_schemas(&self.contracts, &self.schema_map)
+                .into_iter()
+                .map(|(name, _)| TableIdentifier::from_table_name(name));
+        let mut result = vec![TableIdentifier::from_table_name(ETH_LOGS_TABLE.to_string())];
+        result.extend(event_schema_names);
+        Ok(result)
     }
 
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default()
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        let existing_tables = self.list_tables().await?;
+        for table in tables {
+            if !existing_tables.contains(table) || table.schema.is_some() {
+                return Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                )));
+            }
+        }
+        Ok(())
     }
 
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
-        Ok(false)
+    async fn list_columns(
+        &self,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        let event_schemas = helper::get_contract_event_schemas(&self.contracts, &self.schema_map);
+        let mut result = vec![];
+        for table in tables {
+            let column_names = if table.name == ETH_LOGS_TABLE && table.schema.is_none() {
+                helper::get_eth_schema()
+                    .fields
+                    .into_iter()
+                    .map(|field| field.name)
+                    .collect()
+            } else if let Some((_, schema)) = event_schemas
+                .iter()
+                .find(|(name, _)| name == &table.name && table.schema.is_none())
+            {
+                schema
+                    .schema
+                    .fields
+                    .iter()
+                    .map(|field| field.name.clone())
+                    .collect()
+            } else {
+                return Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                )));
+            };
+            result.push(TableInfo {
+                schema: table.schema,
+                name: table.name,
+                column_names,
+            })
+        }
+        Ok(result)
+    }
+
+    async fn get_schemas(
+        &self,
+        table_infos: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
+        let mut schemas = vec![(
+            ETH_LOGS_TABLE.to_string(),
+            SourceSchema::new(helper::get_eth_schema(), CdcType::Nothing),
+        )];
+
+        let event_schemas = helper::get_contract_event_schemas(&self.contracts, &self.schema_map);
+        schemas.extend(event_schemas);
+
+        let mut result = vec![];
+        for table in table_infos {
+            if let Some((_, schema)) = schemas
+                .iter()
+                .find(|(name, _)| name == &table.name && table.schema.is_none())
+            {
+                warn!("TODO: filter columns");
+                result.push(Ok(schema.clone()));
+            } else {
+                result.push(Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                ))));
+            }
+        }
+
+        Ok(result)
+    }
+
+    async fn start(
+        &self,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+    ) -> Result<(), ConnectorError> {
+        // Start a new thread that interfaces with ETH node
+        let wss_url = self.config.wss_url.to_owned();
+        let filter = self.config.filter.to_owned().unwrap_or_default();
+
+        let details = Arc::new(EthDetails::new(
+            wss_url,
+            filter,
+            ingestor,
+            self.contracts.to_owned(),
+            tables,
+            self.schema_map.to_owned(),
+            self.conn_name.clone(),
+        ));
+        run(details).await
     }
 }

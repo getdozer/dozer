@@ -2,120 +2,70 @@ use dozer_types::{
     chrono::Duration,
     types::{FieldDefinition, Schema},
 };
-use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, TableFactor, Value};
+use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, Value};
 
 use crate::pipeline::{
     errors::{JoinError, PipelineError, WindowError},
     expression::builder::ExpressionBuilder,
+    pipeline_builder::from_builder::TableOperator,
 };
 
 use super::operator::WindowType;
 
-pub(crate) fn window_from_relation(
-    relation: &TableFactor,
+pub(crate) fn window_from_table_operator(
+    operator: &TableOperator,
     schema: &Schema,
 ) -> Result<Option<WindowType>, WindowError> {
-    match relation {
-        TableFactor::Table { name, args, .. } => {
-            let function_name = string_from_sql_object_name(name);
+    let function_name = string_from_sql_object_name(&operator.name);
 
-            if let Some(args) = args {
-                if function_name.to_uppercase() == "TUMBLE" {
-                    let column_index = get_window_column_index(args, schema)?;
-                    let interval_arg = args
-                        .get(2)
-                        .ok_or(WindowError::WindowMissingIntervalArgument)?;
-                    let interval = get_window_interval(interval_arg)?;
+    if function_name.to_uppercase() == "TUMBLE" {
+        let column_index = get_window_column_index(&operator.args, schema)?;
+        let interval_arg = operator
+            .args
+            .get(2)
+            .ok_or(WindowError::WindowMissingIntervalArgument)?;
+        let interval = get_window_interval(interval_arg)?;
 
-                    Ok(Some(WindowType::Tumble {
-                        column_index,
-                        interval,
-                    }))
-                } else if function_name.to_uppercase() == "HOP" {
-                    let column_index = get_window_column_index(args, schema)?;
-                    let hop_arg = args
-                        .get(2)
-                        .ok_or(WindowError::WindowMissingHopSizeArgument)?;
-                    let hop_size = get_window_hop(hop_arg)?;
-                    let interval_arg = args
-                        .get(3)
-                        .ok_or(WindowError::WindowMissingIntervalArgument)?;
-                    let interval = get_window_interval(interval_arg)?;
+        Ok(Some(WindowType::Tumble {
+            column_index,
+            interval,
+        }))
+    } else if function_name.to_uppercase() == "HOP" {
+        let column_index = get_window_column_index(&operator.args, schema)?;
+        let hop_arg = operator
+            .args
+            .get(2)
+            .ok_or(WindowError::WindowMissingHopSizeArgument)?;
+        let hop_size = get_window_hop(hop_arg)?;
+        let interval_arg = operator
+            .args
+            .get(3)
+            .ok_or(WindowError::WindowMissingIntervalArgument)?;
+        let interval = get_window_interval(interval_arg)?;
 
-                    return Ok(Some(WindowType::Hop {
-                        column_index,
-                        hop_size,
-                        interval,
-                    }));
-                } else {
-                    return Err(WindowError::UnsupportedRelationFunction(function_name));
-                }
-            } else {
-                // not a function, most probably just a relation name
-                Ok(None)
-            }
-        }
-        TableFactor::Derived {
-            lateral: _,
-            subquery: _,
-            alias: _,
-        } => Ok(None),
-        TableFactor::TableFunction { expr: _, alias: _ } => {
-            Err(WindowError::UnsupportedTableFunction)
-        }
-        TableFactor::UNNEST {
-            alias: _,
-            array_expr: _,
-            with_offset: _,
-            with_offset_alias: _,
-        } => Err(WindowError::UnsupportedUnnest),
-        TableFactor::NestedJoin {
-            table_with_joins: _,
-            alias: _,
-        } => Err(WindowError::UnsupportedNestedJoin),
+        return Ok(Some(WindowType::Hop {
+            column_index,
+            hop_size,
+            interval,
+        }));
+    } else {
+        return Err(WindowError::UnsupportedRelationFunction(function_name));
     }
 }
 
-pub(crate) fn window_source_name(relation: &TableFactor) -> Result<String, WindowError> {
-    match relation {
-        TableFactor::Table { name, args, .. } => {
-            let function_name = string_from_sql_object_name(name);
+pub(crate) fn window_source_name(operator: &TableOperator) -> Result<String, WindowError> {
+    let function_name = string_from_sql_object_name(&operator.name);
 
-            if let Some(args) = args {
-                if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP"
-                {
-                    let source_arg = args
-                        .get(0)
-                        .ok_or(WindowError::WindowMissingSourceArgument)?;
-                    let source_name = get_window_source_name(source_arg)?;
+    if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP" {
+        let source_arg = operator
+            .args
+            .get(0)
+            .ok_or(WindowError::WindowMissingSourceArgument)?;
+        let source_name = get_window_source_name(source_arg)?;
 
-                    Ok(source_name)
-                } else {
-                    Err(WindowError::UnsupportedRelationFunction(function_name))
-                }
-            } else {
-                // not a function, most probably just a relation name
-                Err(WindowError::UnsupportedRelationFunction(function_name))
-            }
-        }
-        TableFactor::Derived {
-            lateral: _,
-            subquery: _,
-            alias: _,
-        } => Err(WindowError::UnsupportedDerived),
-        TableFactor::TableFunction { expr: _, alias: _ } => {
-            Err(WindowError::UnsupportedTableFunction)
-        }
-        TableFactor::UNNEST {
-            alias: _,
-            array_expr: _,
-            with_offset: _,
-            with_offset_alias: _,
-        } => Err(WindowError::UnsupportedUnnest),
-        TableFactor::NestedJoin {
-            table_with_joins: _,
-            alias: _,
-        } => Err(WindowError::UnsupportedNestedJoin),
+        Ok(source_name)
+    } else {
+        Err(WindowError::UnsupportedRelationFunction(function_name))
     }
 }
 
@@ -253,7 +203,7 @@ fn parse_duration_string(duration_string: &str) -> Result<Duration, WindowError>
     }
 }
 
-fn string_from_sql_object_name(name: &ObjectName) -> String {
+pub fn string_from_sql_object_name(name: &ObjectName) -> String {
     let function_name = name
         .0
         .iter()
@@ -313,42 +263,4 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>
         }
     };
     field_index.map_or(Ok(None), |(i, _fd)| Ok(Some(i)))
-}
-
-pub(crate) fn relation_is_a_window(relation: &TableFactor) -> Result<bool, WindowError> {
-    match relation {
-        TableFactor::Table { name, args, .. } => {
-            let function_name = string_from_sql_object_name(name);
-
-            if args.is_some() {
-                if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP"
-                {
-                    Ok(true)
-                } else {
-                    Err(WindowError::UnsupportedRelationFunction(function_name))
-                }
-            } else {
-                // not a function, most probably just a relation name
-                Ok(false)
-            }
-        }
-        TableFactor::Derived {
-            lateral: _,
-            subquery: _,
-            alias: _,
-        } => Ok(false),
-        TableFactor::TableFunction { expr: _, alias: _ } => {
-            Err(WindowError::UnsupportedTableFunction)
-        }
-        TableFactor::UNNEST {
-            alias: _,
-            array_expr: _,
-            with_offset: _,
-            with_offset_alias: _,
-        } => Err(WindowError::UnsupportedUnnest),
-        TableFactor::NestedJoin {
-            table_with_joins: _,
-            alias: _,
-        } => Err(WindowError::UnsupportedNestedJoin),
-    }
 }

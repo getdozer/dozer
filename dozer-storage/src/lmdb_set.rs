@@ -2,7 +2,7 @@ use lmdb::{RoCursor, RwTransaction, Transaction};
 
 use crate::{
     errors::StorageError,
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
+    lmdb_storage::{LmdbEnvironment, RwLmdbEnvironment},
     KeyIterator, LmdbKey, LmdbMap,
 };
 
@@ -18,20 +18,12 @@ impl<K> Clone for LmdbSet<K> {
 impl<K> Copy for LmdbSet<K> {}
 
 impl<K: LmdbKey> LmdbSet<K> {
-    pub fn new_from_env(
-        env: &mut LmdbEnvironmentManager,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        LmdbMap::new_from_env(env, name, create_if_not_exist).map(Self)
+    pub fn create(env: &mut RwLmdbEnvironment, name: Option<&str>) -> Result<Self, StorageError> {
+        LmdbMap::create(env, name).map(Self)
     }
 
-    pub fn new_from_txn(
-        txn: &mut LmdbExclusiveTransaction,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        LmdbMap::new_from_txn(txn, name, create_if_not_exist).map(Self)
+    pub fn open<E: LmdbEnvironment>(env: &E, name: Option<&str>) -> Result<Self, StorageError> {
+        LmdbMap::open(env, name).map(Self)
     }
 
     pub fn count<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
@@ -102,33 +94,30 @@ mod tests {
     #[test]
     fn test_lmdb_set() {
         let temp_dir = TempDir::new("test_lmdb_set").unwrap();
-        let mut env = LmdbEnvironmentManager::create(
+        let mut env = LmdbEnvironmentManager::create_rw(
             temp_dir.path(),
             "test",
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
-        let set = LmdbSet::<u32>::new_from_env(&mut env, Some("test"), true).unwrap();
+        let set = LmdbSet::<u32>::create(&mut env, Some("test")).unwrap();
 
-        let txn = env.create_txn().unwrap();
-        let mut txn = txn.write();
+        assert_eq!(set.count(env.txn_mut().unwrap()).unwrap(), 0);
 
-        assert_eq!(set.count(txn.txn()).unwrap(), 0);
+        set.insert(env.txn_mut().unwrap(), &1).unwrap();
 
-        set.insert(txn.txn_mut(), &1).unwrap();
+        assert_eq!(set.count(env.txn_mut().unwrap()).unwrap(), 1);
 
-        assert_eq!(set.count(txn.txn()).unwrap(), 1);
+        assert!(set.contains(env.txn_mut().unwrap(), &1).unwrap());
+        assert!(!set.contains(env.txn_mut().unwrap(), &2).unwrap());
 
-        assert!(set.contains(txn.txn(), &1).unwrap());
-        assert!(!set.contains(txn.txn(), &2).unwrap());
+        assert!(!set.remove(env.txn_mut().unwrap(), &2).unwrap());
+        assert!(set.remove(env.txn_mut().unwrap(), &1).unwrap());
+        assert_eq!(set.count(env.txn_mut().unwrap()).unwrap(), 0);
 
-        assert!(!set.remove(txn.txn_mut(), &2).unwrap());
-        assert!(set.remove(txn.txn_mut(), &1).unwrap());
-        assert_eq!(set.count(txn.txn()).unwrap(), 0);
-
-        set.extend(txn.txn_mut(), [&5, &4, &3]).unwrap();
+        set.extend(env.txn_mut().unwrap(), [&5, &4, &3]).unwrap();
         assert_eq!(
-            set.iter(txn.txn())
+            set.iter(env.txn_mut().unwrap())
                 .unwrap()
                 .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()
@@ -136,9 +125,9 @@ mod tests {
             vec![3, 4, 5]
         );
 
-        set.clear(txn.txn_mut()).unwrap();
+        set.clear(env.txn_mut().unwrap()).unwrap();
         assert_eq!(
-            set.iter(txn.txn())
+            set.iter(env.txn_mut().unwrap())
                 .unwrap()
                 .map(|result| result.map(IntoOwned::into_owned))
                 .collect::<Result<Vec<_>, _>>()

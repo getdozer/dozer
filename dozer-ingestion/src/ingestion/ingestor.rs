@@ -52,6 +52,8 @@ impl IngestionIterator {
 
 #[derive(Debug)]
 /// `Ingestor` is the sender side of a spsc channel. The receiver side is `IngestionIterator`.
+///
+/// `IngestionMessage` is the message type that is sent over the channel.
 pub struct Ingestor {
     pub sender: Arc<Box<dyn IngestorForwarder>>,
 }
@@ -89,12 +91,12 @@ mod tests {
 
         // Expected seq no - 2
         let operation = Operation::Insert {
-            new: Record::new(None, vec![], None),
+            new: Record::new(None, vec![]),
         };
 
         // Expected seq no - 3
         let operation2 = Operation::Insert {
-            new: Record::new(None, vec![], None),
+            new: Record::new(None, vec![]),
         };
 
         ingestor

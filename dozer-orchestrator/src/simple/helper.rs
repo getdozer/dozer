@@ -4,7 +4,6 @@ use dozer_types::log::info;
 use dozer_types::models::api_config::ApiConfig;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
-
 use dozer_types::prettytable::{row, Table};
 
 pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
@@ -13,11 +12,19 @@ pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
         print_api_config(api_config)
     }
 
-    print_api_endpoints(&config.endpoints);
     validate_endpoints(&config.endpoints)?;
+
+    print_api_endpoints(&config.endpoints);
     Ok(())
 }
-pub fn validate_endpoints(_endpoints: &[ApiEndpoint]) -> Result<(), OrchestrationError> {
+
+pub fn validate_endpoints(endpoints: &[ApiEndpoint]) -> Result<(), OrchestrationError> {
+    if endpoints.is_empty() {
+        return Err(OrchestrationError::ConfigError(
+            "No endpoints initialized in the config provided".to_string(),
+        ));
+    }
+
     Ok(())
 }
 
@@ -41,7 +48,7 @@ pub fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
     info!("[API] {}", get_colored_text("Endpoints", "35"));
     let mut table_parent = Table::new();
 
-    table_parent.add_row(row!["Path", "Name", "Sql"]);
+    table_parent.add_row(row!["Path", "Name"]);
     for endpoint in endpoints {
         table_parent.add_row(row![endpoint.path, endpoint.name]);
     }

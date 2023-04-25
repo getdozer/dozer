@@ -2,20 +2,24 @@ use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::errors::{ExecutionError, SourceError};
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
-use dozer_ingestion::connectors::{get_connector, ColumnInfo, Connector, TableInfo};
+use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+
+use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
+use dozer_types::grpc_types::internal::StatusUpdate;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, IngestorError};
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
-use dozer_types::types::{
-    Operation, ReplicationChangesTrackingType, Schema, SchemaIdentifier, SourceDefinition,
-};
+use dozer_types::tracing::{span, Level};
+use dozer_types::types::{Operation, Schema, SchemaIdentifier, SourceDefinition};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::thread;
+use tokio::runtime::Runtime;
 
 fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
@@ -40,10 +44,11 @@ fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
 
 #[derive(Debug)]
 struct Table {
+    schema_name: Option<String>,
     name: String,
-    columns: Option<Vec<ColumnInfo>>,
+    columns: Vec<String>,
     schema: Schema,
-    replication_type: ReplicationChangesTrackingType,
+    cdc_type: CdcType,
     port: PortHandle,
 }
 
@@ -53,35 +58,38 @@ pub struct ConnectorSourceFactory {
     tables: Vec<Table>,
     /// Will be moved to `ConnectorSource` in `build`.
     connector: Mutex<Option<Box<dyn Connector>>>,
+    runtime: Arc<Runtime>,
     progress: Option<MultiProgress>,
+    notifier: Option<PipelineEventSenders>,
 }
 
-fn map_replication_type_to_output_port_type(
-    typ: &ReplicationChangesTrackingType,
-) -> OutputPortType {
+fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
     match typ {
-        ReplicationChangesTrackingType::FullChanges => OutputPortType::StatefulWithPrimaryKeyLookup,
-        ReplicationChangesTrackingType::OnlyPK => OutputPortType::StatefulWithPrimaryKeyLookup,
-        ReplicationChangesTrackingType::Nothing => OutputPortType::Stateless,
+        CdcType::FullChanges => OutputPortType::StatefulWithPrimaryKeyLookup,
+        CdcType::OnlyPK => OutputPortType::StatefulWithPrimaryKeyLookup,
+        CdcType::Nothing => OutputPortType::Stateless,
     }
 }
 
 impl ConnectorSourceFactory {
-    pub fn new(
+    pub async fn new(
         table_and_ports: Vec<(TableInfo, PortHandle)>,
         connection: Connection,
+        runtime: Arc<Runtime>,
         progress: Option<MultiProgress>,
+        notifier: Option<PipelineEventSenders>,
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
 
-        let connector = get_connector(connection).map_err(|e| InternalError(Box::new(e)))?;
+        let connector =
+            get_connector(connection).map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
+        let tables: Vec<TableInfo> = table_and_ports
+            .iter()
+            .map(|(table, _)| table.clone())
+            .collect();
         let source_schemas = connector
-            .get_schemas(Some(
-                table_and_ports
-                    .iter()
-                    .map(|(table, _)| table.clone())
-                    .collect(),
-            ))
+            .get_schemas(&tables)
+            .await
             .map_err(|e| InternalError(Box::new(e)))?;
 
         let mut tables = vec![];
@@ -89,15 +97,18 @@ impl ConnectorSourceFactory {
             table_and_ports.into_iter().zip(source_schemas.into_iter())
         {
             let name = table.name;
-            let columns = table.columns;
+            let columns = table.column_names;
+            let source_schema =
+                source_schema.map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
             let schema = source_schema.schema;
-            let replication_type = source_schema.replication_type;
+            let cdc_type = source_schema.cdc_type;
 
             let table = Table {
                 name,
+                schema_name: table.schema.clone(),
                 columns,
                 schema,
-                replication_type,
+                cdc_type,
                 port,
             };
 
@@ -108,7 +119,9 @@ impl ConnectorSourceFactory {
             connection_name,
             tables,
             connector: Mutex::new(Some(connector)),
+            runtime,
             progress,
+            notifier,
         })
     }
 }
@@ -145,7 +158,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         self.tables
             .iter()
             .map(|table| {
-                let typ = map_replication_type_to_output_port_type(&table.replication_type);
+                let typ = map_replication_type_to_output_port_type(&table.cdc_type);
                 OutputPortDef::new(table.port, typ)
             })
             .collect()
@@ -160,15 +173,16 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         let mut schema_port_map = HashMap::new();
         for table in &self.tables {
             let schema_id = get_schema_id(table.schema.identifier)?;
-            schema_port_map.insert(schema_id, table.port);
+            schema_port_map.insert(schema_id, (table.port, table.name.clone()));
         }
 
         let tables = self
             .tables
             .iter()
             .map(|table| TableInfo {
+                schema: table.schema_name.clone(),
                 name: table.name.clone(),
-                columns: table.columns.clone(),
+                column_names: table.columns.clone(),
             })
             .collect();
 
@@ -191,7 +205,10 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             schema_port_map,
             tables,
             connector,
+            runtime: self.runtime.clone(),
+            connection_name: self.connection_name.clone(),
             bars,
+            notifier: self.notifier.clone(),
         }))
     }
 }
@@ -200,31 +217,31 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
 pub struct ConnectorSource {
     ingestor: Ingestor,
     iterator: Mutex<IngestionIterator>,
-    schema_port_map: HashMap<u32, PortHandle>,
+    schema_port_map: HashMap<u32, (PortHandle, String)>,
     tables: Vec<TableInfo>,
     connector: Box<dyn Connector>,
+    runtime: Arc<Runtime>,
+    connection_name: String,
     bars: HashMap<PortHandle, ProgressBar>,
+    notifier: Option<PipelineEventSenders>,
 }
 
 impl Source for ConnectorSource {
-    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
-        self.connector
-            .as_ref()
-            .can_start_from(last_checkpoint)
-            .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+        Ok(false)
     }
 
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        last_checkpoint: Option<(u64, u64)>,
+        _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         thread::scope(|scope| {
             let mut counter = HashMap::new();
             let t = scope.spawn(|| {
                 match self
-                    .connector
-                    .start(last_checkpoint, &self.ingestor, self.tables.clone())
+                    .runtime
+                    .block_on(self.connector.start(&self.ingestor, self.tables.clone()))
                 {
                     Ok(_) => {}
                     // If we get a channel error, it means the source sender thread has quit.
@@ -237,6 +254,15 @@ impl Source for ConnectorSource {
             let mut iterator = self.iterator.lock();
 
             for IngestionMessage { identifier, kind } in iterator.by_ref() {
+                let span = span!(
+                    Level::TRACE,
+                    "pipeline_source_start",
+                    self.connection_name,
+                    identifier.txid,
+                    identifier.seq_in_tx
+                );
+                let _enter = span.enter();
+
                 let schema_id = match &kind {
                     IngestionMessageKind::OperationEvent(Operation::Delete { old }) => {
                         Some(get_schema_id(old.schema_id)?)
@@ -247,10 +273,11 @@ impl Source for ConnectorSource {
                     IngestionMessageKind::OperationEvent(Operation::Update { old: _, new }) => {
                         Some(get_schema_id(new.schema_id)?)
                     }
-                    IngestionMessageKind::SnapshottingDone => None,
+                    IngestionMessageKind::SnapshottingDone
+                    | IngestionMessageKind::SnapshottingStarted => None,
                 };
                 if let Some(schema_id) = schema_id {
-                    let port =
+                    let (port, table_name) =
                         self.schema_port_map
                             .get(&schema_id)
                             .ok_or(ExecutionError::SourceError(SourceError::PortError(
@@ -268,10 +295,19 @@ impl Source for ConnectorSource {
                         if let Some(pb) = pb {
                             pb.set_position(*schema_counter);
                         }
+
+                        if let Some(notifier) = &self.notifier {
+                            let status_update = StatusUpdate {
+                                source: table_name.clone(),
+                                r#type: "source".to_string(),
+                                count: *schema_counter as i64,
+                            };
+                            let _ = notifier.2.try_send(status_update);
+                        }
                     }
                     fw.send(IngestionMessage { identifier, kind }, *port)?
                 } else {
-                    for port in self.schema_port_map.values() {
+                    for (port, _) in self.schema_port_map.values() {
                         fw.send(
                             IngestionMessage::new_snapshotting_done(
                                 identifier.txid,

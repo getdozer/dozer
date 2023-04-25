@@ -20,6 +20,12 @@ cargo run --bin dozer-tests
 
 It will run all the test cases and stop on first failure.
 
+The cases starting with `ignore-` are ignored by default. To run them, use `--ignored` flag:
+
+```rust
+cargo run --bin dozer-tests -- --ignored
+```
+
 Filtering of test cases similar to `cargo test` is supported. For example, to run all test cases whose names start with `eth`:
 
 ```rust
@@ -55,7 +61,17 @@ The framework traverses `dozer-config.yaml`, and for every `connection`, it trie
 
 The connection directory may have a `Dockerfile` used for building the image. The build context will be the connection directory.
 
-If there's no `Dockerfile` under the connection directory, it must contain a `service.yaml` file, whose content will be added to the connection service section of the docker commpose file. The `build` section of `service.yaml` will be overwritten, to the `Dockerfile` if it exists, removed if not. The working directory of the `docker compose` run will be the repository root, so be careful with relative paths in `service.yaml` (better don't use them).
+If there's no `Dockerfile` under the connection directory, it must contain a `service.yaml` file, whose content will be added to the connection service section of the docker compose file. The `build` section of `service.yaml` will be overwritten, to the `Dockerfile` if it exists, removed if not. The working directory of the `docker compose` run will be the repository root, so be careful with relative paths in `service.yaml` (better don't use them).
+
+### Health check the connection
+
+We support all 3 kinds of health checks that docker compose supports.
+
+If a file named`oneshot` is found under the connection directory, health check criteria will be `service_completed_successfully`.
+
+Otherwise, if `service.yaml` contains a `healthcheck` section, health check criteria will be `service_healthy`.
+
+Otherwise, health check criteria will be `service_started`.
 
 ### Troubleshoot Connections
 
@@ -70,7 +86,7 @@ export DOZER_VERSION=YOUR_TEST_TARGET_VERSION
 The CI tests use the dozer image instead of a locally built binary. It reads `DOZER_VERSION` environment variable to determine the image tag.
 
 ```bash
-docker compose -f ./buildkite/build_dozer_tests/docker-compose.yaml up
+docker compose -f ./.buildkite/build_dozer_tests/docker-compose.yaml up
 ```
 
 This command will build `dozer-tests` image, inside which `dozer-tests` and `dozer-test-client` can run. It also builds `dozer-test-client` binary under `target/debug/`, which will be used by test cases. After building is finished, the container runs `dozer-tests` to test all the test cases.

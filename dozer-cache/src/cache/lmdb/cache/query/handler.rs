@@ -1,83 +1,93 @@
-use std::cmp::Ordering;
-use std::ops::Bound;
-
 use super::intersection::intersection;
 use crate::cache::expression::Skip;
-use crate::cache::lmdb::cache::helper::lmdb_cmp;
-use crate::cache::lmdb::cache::LmdbCacheCommon;
-use crate::cache::RecordWithId;
+use crate::cache::lmdb::cache::main_environment::MainEnvironment;
+use crate::cache::lmdb::cache::query::secondary::build_index_scan;
+use crate::cache::lmdb::cache::LmdbCache;
+use crate::cache::CacheRecord;
 use crate::cache::{
-    expression::{Operator, QueryExpression, SortDirection},
-    index,
-    plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
+    expression::QueryExpression,
+    plan::{IndexScan, Plan, QueryPlanner},
 };
-use crate::errors::{CacheError, IndexError};
-use dozer_storage::lmdb::Transaction;
-use dozer_types::borrow::{Borrow, IntoOwned};
-use dozer_types::types::{Field, IndexDefinition, Schema};
+use crate::errors::{CacheError, PlanError};
+use dozer_storage::errors::StorageError;
+use dozer_storage::lmdb::{RoTransaction, Transaction};
+use dozer_storage::LmdbEnvironment;
+use dozer_types::borrow::IntoOwned;
 use itertools::Either;
 
-pub struct LmdbQueryHandler<'a, T: Transaction> {
-    common: &'a LmdbCacheCommon,
-    txn: &'a T,
-    schema: &'a Schema,
-    secondary_indexes: &'a [IndexDefinition],
+pub struct LmdbQueryHandler<'a, C: LmdbCache> {
+    cache: &'a C,
     query: &'a QueryExpression,
 }
-impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
-    pub fn new(
-        common: &'a LmdbCacheCommon,
-        txn: &'a T,
-        schema: &'a Schema,
-        secondary_indexes: &'a [IndexDefinition],
-        query: &'a QueryExpression,
-    ) -> Self {
-        Self {
-            common,
-            txn,
-            schema,
-            secondary_indexes,
-            query,
-        }
+
+impl<'a, C: LmdbCache> LmdbQueryHandler<'a, C> {
+    pub fn new(cache: &'a C, query: &'a QueryExpression) -> Self {
+        Self { cache, query }
     }
 
     pub fn count(&self) -> Result<usize, CacheError> {
-        let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
-        let execution = planner.plan()?;
-        match execution {
-            Plan::IndexScans(index_scans) => Ok(self.build_index_scan(index_scans)?.count()),
+        match self.plan()? {
+            Plan::IndexScans(index_scans) => {
+                let secondary_txns = self.create_secondary_txns(&index_scans)?;
+                let ids = self.combine_secondary_queries(&index_scans, &secondary_txns)?;
+                self.count_secondary_queries(ids)
+            }
             Plan::SeqScan(_) => Ok(match self.query.skip {
                 Skip::Skip(skip) => self
-                    .common
-                    .main_environment
-                    .count(self.txn, self.schema.is_append_only())?
+                    .cache
+                    .main_env()
+                    .count()?
                     .saturating_sub(skip)
                     .min(self.query.limit.unwrap_or(usize::MAX)),
-                Skip::After(_) => self.all_ids()?.count(),
+                Skip::After(_) => self.all_ids(&self.cache.main_env().begin_txn()?)?.count(),
             }),
             Plan::ReturnEmpty => Ok(0),
         }
     }
 
-    pub fn query(&self) -> Result<Vec<RecordWithId>, CacheError> {
-        let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
-        let execution = planner.plan()?;
-        match execution {
+    pub fn query(&self) -> Result<Vec<CacheRecord>, CacheError> {
+        match self.plan()? {
             Plan::IndexScans(index_scans) => {
-                self.collect_records(self.build_index_scan(index_scans)?)
+                let secondary_txns = self.create_secondary_txns(&index_scans)?;
+                let main_txn = self.cache.main_env().begin_txn()?;
+                #[allow(clippy::let_and_return)] // Must do let binding unless won't compile
+                let result = self.collect_records(
+                    &main_txn,
+                    self.combine_secondary_queries(&index_scans, &secondary_txns)?,
+                );
+                result
             }
-            Plan::SeqScan(_seq_scan) => self.collect_records(self.all_ids()?),
+            Plan::SeqScan(_seq_scan) => {
+                let main_txn = self.cache.main_env().begin_txn()?;
+                #[allow(clippy::let_and_return)] // Must do let binding unless won't compile
+                let result = self.collect_records(&main_txn, self.all_ids(&main_txn)?);
+                result
+            }
             Plan::ReturnEmpty => Ok(vec![]),
         }
     }
 
-    pub fn all_ids(
+    fn plan(&self) -> Result<Plan, PlanError> {
+        let (schema, secondary_indexes) = self.cache.main_env().schema();
+        let planner = QueryPlanner::new(
+            schema,
+            secondary_indexes,
+            self.query.filter.as_ref(),
+            &self.query.order_by,
+        );
+        planner.plan()
+    }
+
+    fn all_ids<'txn, T: Transaction>(
         &self,
-    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + '_, CacheError> {
+        main_txn: &'txn T,
+    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + 'txn, CacheError> {
+        let schema_is_append_only = self.cache.main_env().schema().0.is_append_only();
         let all_ids = self
-            .common
-            .main_environment
-            .present_operation_ids(self.txn, self.schema.is_append_only())?
+            .cache
+            .main_env()
+            .operation_log()
+            .present_operation_ids(main_txn, schema_is_append_only)?
             .map(|result| {
                 result
                     .map(|id| id.into_owned())
@@ -86,291 +96,103 @@ impl<'a, T: Transaction> LmdbQueryHandler<'a, T> {
         Ok(skip(all_ids, self.query.skip).take(self.query.limit.unwrap_or(usize::MAX)))
     }
 
-    fn build_index_scan(
+    fn create_secondary_txns(
         &self,
-        index_scans: Vec<IndexScan>,
-    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + '_, CacheError> {
+        index_scans: &[IndexScan],
+    ) -> Result<Vec<RoTransaction<'_>>, StorageError> {
+        index_scans
+            .iter()
+            .map(|index_scan| self.cache.secondary_env(index_scan.index_id).begin_txn())
+            .collect()
+    }
+
+    fn combine_secondary_queries<'txn, T: Transaction>(
+        &self,
+        index_scans: &[IndexScan],
+        secondary_txns: &'txn [T],
+    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + 'txn, CacheError> {
         debug_assert!(
             !index_scans.is_empty(),
             "Planner should not generate empty index scan"
         );
-        let full_scan = if index_scans.len() == 1 {
+        let combined = if index_scans.len() == 1 {
             // The fast path, without intersection calculation.
-            Either::Left(self.query_with_secondary_index(&index_scans[0])?)
+            Either::Left(build_index_scan(
+                &secondary_txns[0],
+                self.cache.secondary_env(index_scans[0].index_id),
+                &index_scans[0].kind,
+            )?)
         } else {
             // Intersection of multiple index scans.
             let iterators = index_scans
                 .iter()
-                .map(|index_scan| self.query_with_secondary_index(index_scan))
+                .zip(secondary_txns)
+                .map(|(index_scan, secondary_txn)| {
+                    build_index_scan(
+                        secondary_txn,
+                        self.cache.secondary_env(index_scan.index_id),
+                        &index_scan.kind,
+                    )
+                })
                 .collect::<Result<Vec<_>, CacheError>>()?;
             Either::Right(intersection(
                 iterators,
-                self.common.cache_options.intersection_chunk_size,
+                self.cache.main_env().intersection_chunk_size(),
             ))
         };
-        Ok(skip(full_scan, self.query.skip).take(self.query.limit.unwrap_or(usize::MAX)))
+        Ok(skip(combined, self.query.skip).take(self.query.limit.unwrap_or(usize::MAX)))
     }
 
-    fn query_with_secondary_index(
-        &'a self,
-        index_scan: &IndexScan,
-    ) -> Result<impl Iterator<Item = Result<u64, CacheError>> + 'a, CacheError> {
-        let index_db = self.common.secondary_indexes[index_scan.index_id];
-
-        let RangeSpec {
-            start,
-            end,
-            direction,
-        } = get_range_spec(&index_scan.kind, index_scan.is_single_field_sorted_inverted)?;
-        let start = match &start {
-            Some(KeyEndpoint::Including(key)) => Bound::Included(key.as_slice()),
-            Some(KeyEndpoint::Excluding(key)) => Bound::Excluded(key.as_slice()),
-            None => Bound::Unbounded,
-        };
-
-        Ok(index_db
-            .range(self.txn, start, direction == SortDirection::Ascending)?
-            .take_while(move |result| match result {
-                Ok((key, _)) => {
-                    if let Some(end_key) = &end {
-                        match lmdb_cmp(self.txn, index_db.database(), key.borrow(), end_key.key()) {
-                            Ordering::Less => matches!(direction, SortDirection::Ascending),
-                            Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
-                            Ordering::Greater => matches!(direction, SortDirection::Descending),
-                        }
-                    } else {
-                        true
-                    }
-                }
-                Err(_) => true,
-            })
-            .map(|result| {
-                result
-                    .map(|(_, id)| id.into_owned())
-                    .map_err(CacheError::Storage)
-            }))
-    }
-
-    fn collect_records(
-        &self,
-        ids: impl Iterator<Item = Result<u64, CacheError>>,
-    ) -> Result<Vec<RecordWithId>, CacheError> {
-        ids.filter_map(|id| match id {
-            Ok(id) => self
-                .common
-                .main_environment
-                .get_by_operation_id(self.txn, id, self.schema.is_append_only())
-                .transpose(),
+    fn filter_secondary_queries<'txn, T: Transaction>(
+        &'txn self,
+        main_txn: &'txn T,
+        ids: impl Iterator<Item = Result<u64, CacheError>> + 'txn,
+    ) -> impl Iterator<Item = Result<u64, CacheError>> + 'txn {
+        let schema_is_append_only = self.cache.main_env().schema().0.is_append_only();
+        ids.filter_map(move |id| match id {
+            Ok(id) => match self.cache.main_env().operation_log().contains_operation_id(
+                main_txn,
+                schema_is_append_only,
+                id,
+            ) {
+                Ok(true) => Some(Ok(id)),
+                Ok(false) => None,
+                Err(err) => Some(Err(err.into())),
+            },
             Err(err) => Some(Err(err)),
         })
-        .collect()
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum KeyEndpoint {
-    Including(Vec<u8>),
-    Excluding(Vec<u8>),
-}
+    fn count_secondary_queries(
+        &self,
+        ids: impl Iterator<Item = Result<u64, CacheError>>,
+    ) -> Result<usize, CacheError> {
+        let main_txn = self.cache.main_env().begin_txn()?;
 
-impl KeyEndpoint {
-    pub fn key(&self) -> &[u8] {
-        match self {
-            KeyEndpoint::Including(key) => key,
-            KeyEndpoint::Excluding(key) => key,
+        let mut result = 0;
+        for maybe_id in self.filter_secondary_queries(&main_txn, ids) {
+            maybe_id?;
+            result += 1;
         }
+        Ok(result)
     }
-}
 
-#[derive(Debug)]
-struct RangeSpec {
-    start: Option<KeyEndpoint>,
-    end: Option<KeyEndpoint>,
-    direction: SortDirection,
-}
-
-fn get_range_spec(
-    index_scan_kind: &IndexScanKind,
-    is_single_field_sorted_inverted: bool,
-) -> Result<RangeSpec, CacheError> {
-    match &index_scan_kind {
-        IndexScanKind::SortedInverted {
-            eq_filters,
-            range_query,
-        } => {
-            let comparison_key = build_sorted_inverted_comparison_key(
-                eq_filters,
-                range_query.as_ref(),
-                is_single_field_sorted_inverted,
-            );
-            // There're 3 cases:
-            // 1. Range query with operator.
-            // 2. Range query without operator (only order by).
-            // 3. No range query.
-            Ok(if let Some(range_query) = range_query {
-                match range_query.operator_and_value {
-                    Some((operator, _)) => {
-                        // Here we respond to case 1, examples are `a = 1 && b > 2` or `b < 2`.
-                        let comparison_key = comparison_key.expect("here's at least a range query");
-                        let null_key = build_sorted_inverted_comparison_key(
-                            eq_filters,
-                            Some(&SortedInvertedRangeQuery {
-                                field_index: range_query.field_index,
-                                operator_and_value: Some((operator, Field::Null)),
-                                sort_direction: range_query.sort_direction,
-                            }),
-                            is_single_field_sorted_inverted,
-                        )
-                        .expect("we provided a range query");
-                        get_key_interval_from_range_query(
-                            comparison_key,
-                            null_key,
-                            operator,
-                            range_query.sort_direction,
-                        )
-                    }
-                    None => {
-                        // Here we respond to case 2, examples are `a = 1 && b asc` or `b desc`.
-                        if let Some(comparison_key) = comparison_key {
-                            // This is the case like `a = 1 && b asc`. The comparison key is only built from `a = 1`.
-                            // We use `a = 1 && b = null` as a sentinel, using the invariant that `null` is greater than anything.
-                            let null_key = build_sorted_inverted_comparison_key(
-                                eq_filters,
-                                Some(&SortedInvertedRangeQuery {
-                                    field_index: range_query.field_index,
-                                    operator_and_value: Some((Operator::LT, Field::Null)),
-                                    sort_direction: range_query.sort_direction,
-                                }),
-                                is_single_field_sorted_inverted,
-                            )
-                            .expect("we provided a range query");
-                            match range_query.sort_direction {
-                                SortDirection::Ascending => RangeSpec {
-                                    start: Some(KeyEndpoint::Excluding(comparison_key)),
-                                    end: Some(KeyEndpoint::Including(null_key)),
-                                    direction: SortDirection::Ascending,
-                                },
-                                SortDirection::Descending => RangeSpec {
-                                    start: Some(KeyEndpoint::Including(null_key)),
-                                    end: Some(KeyEndpoint::Excluding(comparison_key)),
-                                    direction: SortDirection::Descending,
-                                },
-                            }
-                        } else {
-                            // Just all of them.
-                            RangeSpec {
-                                start: None,
-                                end: None,
-                                direction: range_query.sort_direction,
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Here we respond to case 3, examples are `a = 1` or `a = 1 && b = 2`.
-                let comparison_key = comparison_key
-                    .expect("here's at least a eq filter because there's no range query");
-                RangeSpec {
-                    start: Some(KeyEndpoint::Including(comparison_key.clone())),
-                    end: Some(KeyEndpoint::Including(comparison_key)),
-                    direction: SortDirection::Ascending, // doesn't matter
-                }
-            })
-        }
-        IndexScanKind::FullText { filter } => match filter.op {
-            Operator::Contains => {
-                let token = match &filter.val {
-                    Field::String(token) => token,
-                    Field::Text(token) => token,
-                    _ => return Err(CacheError::Index(IndexError::ExpectedStringFullText)),
-                };
-                let key = index::get_full_text_secondary_index(token);
-                Ok(RangeSpec {
-                    start: Some(KeyEndpoint::Including(key.clone())),
-                    end: Some(KeyEndpoint::Including(key)),
-                    direction: SortDirection::Ascending, // doesn't matter
+    fn collect_records<'txn, T: Transaction>(
+        &'txn self,
+        main_txn: &'txn T,
+        ids: impl Iterator<Item = Result<u64, CacheError>> + 'txn,
+    ) -> Result<Vec<CacheRecord>, CacheError> {
+        self.filter_secondary_queries(main_txn, ids)
+            .map(|id| {
+                id.and_then(|id| {
+                    self.cache
+                        .main_env()
+                        .operation_log()
+                        .get_record_by_operation_id_unchecked(main_txn, id)
+                        .map_err(Into::into)
                 })
-            }
-            Operator::MatchesAll | Operator::MatchesAny => {
-                unimplemented!("matches all and matches any are not implemented")
-            }
-            other => panic!("operator {other:?} is not supported by full text index"),
-        },
-    }
-}
-
-fn build_sorted_inverted_comparison_key(
-    eq_filters: &[(usize, Field)],
-    range_query: Option<&SortedInvertedRangeQuery>,
-    is_single_field_index: bool,
-) -> Option<Vec<u8>> {
-    let mut fields = vec![];
-    eq_filters.iter().for_each(|filter| {
-        fields.push(&filter.1);
-    });
-    if let Some(range_query) = range_query {
-        if let Some((_, val)) = &range_query.operator_and_value {
-            fields.push(val);
-        }
-    }
-    if fields.is_empty() {
-        None
-    } else {
-        Some(index::get_secondary_index(&fields, is_single_field_index))
-    }
-}
-
-/// Here we use the invariant that `null` is greater than anything.
-fn get_key_interval_from_range_query(
-    comparison_key: Vec<u8>,
-    null_key: Vec<u8>,
-    operator: Operator,
-    sort_direction: SortDirection,
-) -> RangeSpec {
-    match (operator, sort_direction) {
-        (Operator::LT, SortDirection::Ascending) => RangeSpec {
-            start: None,
-            end: Some(KeyEndpoint::Excluding(comparison_key)),
-            direction: SortDirection::Ascending,
-        },
-        (Operator::LT, SortDirection::Descending) => RangeSpec {
-            start: Some(KeyEndpoint::Excluding(comparison_key)),
-            end: None,
-            direction: SortDirection::Descending,
-        },
-        (Operator::LTE, SortDirection::Ascending) => RangeSpec {
-            start: None,
-            end: Some(KeyEndpoint::Including(comparison_key)),
-            direction: SortDirection::Ascending,
-        },
-        (Operator::LTE, SortDirection::Descending) => RangeSpec {
-            start: Some(KeyEndpoint::Including(comparison_key)),
-            end: None,
-            direction: SortDirection::Descending,
-        },
-        (Operator::GT, SortDirection::Ascending) => RangeSpec {
-            start: Some(KeyEndpoint::Excluding(comparison_key)),
-            end: Some(KeyEndpoint::Excluding(null_key)),
-            direction: SortDirection::Ascending,
-        },
-        (Operator::GT, SortDirection::Descending) => RangeSpec {
-            start: Some(KeyEndpoint::Excluding(null_key)),
-            end: Some(KeyEndpoint::Excluding(comparison_key)),
-            direction: SortDirection::Descending,
-        },
-        (Operator::GTE, SortDirection::Ascending) => RangeSpec {
-            start: Some(KeyEndpoint::Including(comparison_key)),
-            end: Some(KeyEndpoint::Excluding(null_key)),
-            direction: SortDirection::Ascending,
-        },
-        (Operator::GTE, SortDirection::Descending) => RangeSpec {
-            start: Some(KeyEndpoint::Excluding(null_key)),
-            end: Some(KeyEndpoint::Including(comparison_key)),
-            direction: SortDirection::Descending,
-        },
-        (other, _) => {
-            panic!("operator {other:?} is not supported by sorted inverted index range query")
-        }
+            })
+            .collect()
     }
 }
 

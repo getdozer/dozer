@@ -1,6 +1,6 @@
-pub mod common;
 pub mod errors;
 pub mod lmdb_storage;
+pub use lmdb_storage::{LmdbEnvironment, RoLmdbEnvironment, RwLmdbEnvironment};
 
 mod lmdb_database;
 pub use lmdb_database::{
@@ -15,6 +15,8 @@ mod lmdb_set;
 pub use lmdb_set::LmdbSet;
 mod lmdb_counter;
 pub use lmdb_counter::LmdbCounter;
+mod lmdb_option;
+pub use lmdb_option::LmdbOption;
 
 #[cfg(test)]
 mod tests;

@@ -1,7 +1,6 @@
 use std::{sync::Arc, thread};
 
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
-use dozer_orchestrator::Connection;
 use dozer_types::{
     arrow::array::{Int32Array, StringArray},
     grpc_types::{
@@ -9,7 +8,7 @@ use dozer_types::{
         types,
     },
     ingestion_types::IngestionMessageKind,
-    models::connection::ConnectionConfig,
+    models::connection::{Connection, ConnectionConfig},
     serde_json::Value,
     types::Operation,
 };
@@ -31,7 +30,7 @@ async fn ingest_grpc(
 ) -> (IngestServiceClient<Channel>, IngestionIterator) {
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
-    std::thread::spawn(move || {
+    tokio::spawn(async move {
         let grpc_connector = crate::connectors::get_connector(Connection {
             config: Some(ConnectionConfig::Grpc(GrpcConfig {
                 schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
@@ -43,8 +42,11 @@ async fn ingest_grpc(
         })
         .unwrap();
 
-        let tables = grpc_connector.get_tables().unwrap();
-        grpc_connector.start(None, &ingestor, tables).unwrap();
+        let tables = grpc_connector
+            .list_columns(grpc_connector.list_tables().await.unwrap())
+            .await
+            .unwrap();
+        grpc_connector.start(&ingestor, tables).await.unwrap();
     });
 
     let retries = 10;
@@ -64,25 +66,26 @@ async fn ingest_grpc(
     (res.unwrap(), iterator)
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn ingest_grpc_default() {
-    let schemas = json!([{
-      "name": "users",
-      "schema": {
-        "fields": [
-          {
-            "name": "id",
-            "typ": "Int",
-            "nullable": false
-          },
-          {
-            "name": "name",
-            "typ": "String",
-            "nullable": true
-          }
-        ]
-      }
-    }]);
+    let schemas = json!({
+      "users": {
+        "schema": {
+            "fields": [
+            {
+                "name": "id",
+                "typ": "Int",
+                "nullable": false
+            },
+            {
+                "name": "name",
+                "typ": "String",
+                "nullable": true
+            }
+            ]
+        }
+        }
+    });
 
     let (mut ingest_client, mut iterator) =
         ingest_grpc(schemas, "default".to_string(), 45678).await;
@@ -143,7 +146,7 @@ async fn test_serialize_arrow_schema() {
     info!("{str}");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn ingest_grpc_arrow() {
     let schemas = json!([{
       "name": "users",

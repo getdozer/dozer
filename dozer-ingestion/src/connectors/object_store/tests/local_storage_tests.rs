@@ -1,12 +1,10 @@
 use crate::connectors::object_store::connector::ObjectStoreConnector;
 use crate::connectors::Connector;
-use crate::connectors::TableInfo;
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::ingestion_types::LocalDetails;
 use dozer_types::node::OpIdentifier;
-use std::thread;
 
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::tests::test_utils::get_local_storage_config;
@@ -22,12 +20,12 @@ macro_rules! test_type_conversion {
     };
 }
 
-#[test]
-fn test_get_schema_of_parquet() {
+#[tokio::test]
+async fn test_get_schema_of_parquet() {
     let local_storage = get_local_storage_config("parquet");
 
     let connector = ObjectStoreConnector::new(1, local_storage);
-    let schemas = connector.get_schemas(None).unwrap();
+    let (_, schemas) = connector.list_all_schemas().await.unwrap();
     let schema = schemas.get(0).unwrap();
 
     let fields = schema.schema.fields.clone();
@@ -44,12 +42,12 @@ fn test_get_schema_of_parquet() {
     assert_eq!(fields.get(10).unwrap().typ, FieldType::Timestamp);
 }
 
-#[test]
-fn test_get_schema_of_csv() {
+#[tokio::test]
+async fn test_get_schema_of_csv() {
     let local_storage = get_local_storage_config("csv");
 
     let connector = ObjectStoreConnector::new(1, local_storage);
-    let schemas = connector.get_schemas(None).unwrap();
+    let (_, schemas) = connector.list_all_schemas().await.unwrap();
     let schema = schemas.get(0).unwrap();
 
     let fields = schema.schema.fields.clone();
@@ -64,8 +62,8 @@ fn test_get_schema_of_csv() {
     assert_eq!(fields.get(8).unwrap().typ, FieldType::String);
 }
 
-#[test]
-fn test_read_parquet_file() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_read_parquet_file() {
     let local_storage = get_local_storage_config("parquet");
 
     let connector = ObjectStoreConnector::new(1, local_storage);
@@ -73,18 +71,27 @@ fn test_read_parquet_file() {
     let config = IngestionConfig::default();
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
-    let table = TableInfo {
-        name: "all_types_parquet".to_string(),
-        columns: None,
-    };
-    thread::spawn(move || {
-        let tables: Vec<TableInfo> = vec![table];
-
-        let _ = connector.start(None, &ingestor, tables);
+    let tables = connector
+        .list_columns(connector.list_tables().await.unwrap())
+        .await
+        .unwrap();
+    tokio::spawn(async move {
+        connector.start(&ingestor, tables).await.unwrap();
     });
 
-    let mut i = 0;
-    while i < 8 {
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingStarted,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 0);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    let mut i = 1;
+    while i < 9 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
@@ -114,8 +121,8 @@ fn test_read_parquet_file() {
     }
 }
 
-#[test]
-fn test_csv_read() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_csv_read() {
     let local_storage = get_local_storage_config("csv");
 
     let connector = ObjectStoreConnector::new(1, local_storage);
@@ -123,18 +130,27 @@ fn test_csv_read() {
     let config = IngestionConfig::default();
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
 
-    let table = TableInfo {
-        name: "all_types_csv".to_string(),
-        columns: None,
-    };
+    let tables = connector
+        .list_columns(connector.list_tables().await.unwrap())
+        .await
+        .unwrap();
 
-    thread::spawn(move || {
-        let tables: Vec<TableInfo> = vec![table];
-
-        let _ = connector.start(None, &ingestor, tables);
+    tokio::spawn(async move {
+        connector.start(&ingestor, tables).await.unwrap();
     });
 
-    let mut i = 0;
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingStarted,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 0);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    let mut i = 1;
     while i < 9 {
         let row = iterator.next();
         if let Some(IngestionMessage {
@@ -183,28 +199,19 @@ fn test_unsupported_format() {
     ));
 }
 
-#[test]
-fn test_missing_directory() {
+#[tokio::test]
+async fn test_missing_directory() {
     let mut local_storage = get_local_storage_config("unsupported");
     local_storage.details = Some(LocalDetails {
         path: "not_existing_path".to_string(),
     });
-    let table = local_storage.tables.get(0).unwrap().clone();
     let connector = ObjectStoreConnector::new(1, local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, _) = Ingestor::initialize_channel(config);
+    let tables = connector
+        .list_columns(connector.list_tables().await.unwrap())
+        .await;
 
-    let result = connector.start(
-        None,
-        &ingestor,
-        vec![TableInfo {
-            name: table.name,
-            columns: None,
-        }],
-    );
+    assert!(tables.is_err());
 
-    assert!(result.is_err());
-
-    assert!(matches!(result, Err(InitializationError(_))));
+    assert!(matches!(tables, Err(InitializationError(_))));
 }

@@ -1,4 +1,4 @@
-use std::{env, thread, time::Duration};
+use std::{env, time::Duration};
 
 use dozer_types::{
     ingestion_types::{EthTraceConfig, IngestionMessage, IngestionMessageKind},
@@ -37,12 +37,12 @@ async fn test_get_block_traces() {
     assert!(!traces.is_empty(), "Failed to get traces found");
 }
 
-#[test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[ignore]
-fn test_trace_iterator() {
+async fn test_trace_iterator() {
     let https_url = env::var("ETH_HTTPS_URL").unwrap();
 
-    dozer_tracing::init_telemetry(false).unwrap();
+    let _ = dozer_tracing::init_telemetry(None, None);
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         // invoke the default handler and exit the process
@@ -51,7 +51,7 @@ fn test_trace_iterator() {
 
     let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
-    let _t = thread::spawn(move || {
+    let _t = tokio::spawn(async move {
         info!("Initializing with WSS: {}", https_url);
 
         let connector = EthTraceConnector::new(
@@ -65,11 +65,11 @@ fn test_trace_iterator() {
             "test".to_string(),
         );
 
-        let schemas = connector.get_schemas(None).unwrap();
+        let (tables, schemas) = connector.list_all_schemas().await.unwrap();
         for s in schemas {
             s.schema.print().printstd();
         }
-        connector.start(None, &ingestor, vec![]).unwrap();
+        connector.start(&ingestor, tables).await.unwrap();
     });
 
     if let Some(IngestionMessage {

@@ -1,15 +1,16 @@
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use dozer_cache::cache::expression::QueryExpression;
-use dozer_cache::cache::RecordWithId;
+use dozer_cache::cache::CacheRecord;
 use dozer_cache::{AccessFilter, CacheReader};
 
 pub fn get_record(
     cache_reader: &CacheReader,
     key: &[u8],
+    endpoint: &str,
     access: Option<Access>,
-) -> Result<RecordWithId, ApiError> {
-    let access_filter = get_access_filter(access)?;
+) -> Result<CacheRecord, ApiError> {
+    let access_filter = get_access_filter(access, endpoint)?;
     let record = cache_reader
         .get(key, &access_filter)
         .map_err(ApiError::NotFound)?;
@@ -19,9 +20,10 @@ pub fn get_record(
 pub fn get_records_count(
     cache_reader: &CacheReader,
     exp: &mut QueryExpression,
+    endpoint: &str,
     access: Option<Access>,
 ) -> Result<usize, ApiError> {
-    let access_filter = get_access_filter(access)?;
+    let access_filter = get_access_filter(access, endpoint)?;
     cache_reader
         .count(exp, access_filter)
         .map_err(ApiError::CountFailed)
@@ -31,22 +33,23 @@ pub fn get_records_count(
 pub fn get_records(
     cache_reader: &CacheReader,
     exp: &mut QueryExpression,
+    endpoint: &str,
     access: Option<Access>,
-) -> Result<Vec<RecordWithId>, ApiError> {
-    let access_filter = get_access_filter(access)?;
+) -> Result<Vec<CacheRecord>, ApiError> {
+    let access_filter = get_access_filter(access, endpoint)?;
     cache_reader
         .query(exp, access_filter)
         .map_err(ApiError::QueryFailed)
 }
 
-fn get_access_filter(access: Option<Access>) -> Result<AccessFilter, ApiError> {
+fn get_access_filter(access: Option<Access>, endpoint: &str) -> Result<AccessFilter, ApiError> {
     match access {
         None | Some(Access::All) => Ok(AccessFilter {
             filter: None,
             fields: vec![],
         }),
         Some(Access::Custom(mut access_filters)) => {
-            if let Some(access_filter) = access_filters.remove("get_records") {
+            if let Some(access_filter) = access_filters.remove(endpoint) {
                 Ok(access_filter)
             } else {
                 Err(ApiError::ApiAuthError(AuthError::InvalidToken))

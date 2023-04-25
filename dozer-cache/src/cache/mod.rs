@@ -3,39 +3,61 @@ use std::fmt::Debug;
 
 use self::expression::QueryExpression;
 use crate::errors::CacheError;
+use dozer_types::models::api_endpoint::{
+    OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
+};
 use dozer_types::{
     serde::{Deserialize, Serialize},
-    types::{IndexDefinition, Record, Schema},
+    types::{IndexDefinition, Record, Schema, SchemaWithIndex},
 };
-pub use lmdb::cache_manager::{CacheManagerOptions, LmdbCacheManager};
+pub use lmdb::cache_manager::{CacheManagerOptions, LmdbRoCacheManager, LmdbRwCacheManager};
 pub mod expression;
-pub mod index;
+mod index;
 mod plan;
 pub mod test_utils;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
-pub struct RecordWithId {
+pub struct CacheRecord {
     pub id: u64,
+    pub version: u32,
     pub record: Record,
 }
 
-impl RecordWithId {
-    pub fn new(id: u64, record: Record) -> Self {
-        Self { id, record }
+impl CacheRecord {
+    pub fn new(id: u64, version: u32, record: Record) -> Self {
+        Self {
+            id,
+            version,
+            record,
+        }
     }
 }
 
-pub trait CacheManager: Send + Sync + Debug {
-    /// Opens a cache in read-write mode with given name or an alias with that name.
-    ///
-    /// If the name is both an alias and a real name, it's treated as an alias.
-    fn open_rw_cache(&self, name: &str) -> Result<Option<Box<dyn RwCache>>, CacheError>;
-
+pub trait RoCacheManager: Send + Sync + Debug {
     /// Opens a cache in read-only mode with given name or an alias with that name.
     ///
     /// If the name is both an alias and a real name, it's treated as an alias.
     fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError>;
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CacheWriteOptions {
+    pub insert_resolution: OnInsertResolutionTypes,
+    pub delete_resolution: OnDeleteResolutionTypes,
+    pub update_resolution: OnUpdateResolutionTypes,
+    pub detect_hash_collision: bool,
+}
+
+pub trait RwCacheManager: RoCacheManager {
+    /// Opens a cache in read-write mode with given name or an alias with that name.
+    ///
+    /// If the name is both an alias and a real name, it's treated as an alias.
+    fn open_rw_cache(
+        &self,
+        name: &str,
+        write_options: CacheWriteOptions,
+    ) -> Result<Option<Box<dyn RwCache>>, CacheError>;
 
     /// Creates a new cache with given `schema`s, which can also be opened in read-only mode using `open_ro_cache`.
     ///
@@ -46,6 +68,7 @@ pub trait CacheManager: Send + Sync + Debug {
         &self,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
+        write_options: CacheWriteOptions,
     ) -> Result<Box<dyn RwCache>, CacheError>;
 
     /// Creates an alias `alias` for a cache with name `name`.
@@ -59,22 +82,59 @@ pub trait RoCache: Send + Sync + Debug {
     fn name(&self) -> &str;
 
     // Schema Operations
-    fn get_schema(&self) -> Result<&(Schema, Vec<IndexDefinition>), CacheError>;
+    fn get_schema(&self) -> &SchemaWithIndex;
 
     // Record Operations
-    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError>;
+    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError>;
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError>;
-    fn query(&self, query: &QueryExpression) -> Result<Vec<RecordWithId>, CacheError>;
+    fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
+pub struct RecordMeta {
+    pub id: u64,
+    pub version: u32,
+}
+
+impl RecordMeta {
+    pub fn new(id: u64, version: u32) -> Self {
+        Self { id, version }
+    }
+}
+
+#[derive(Debug)]
+pub enum UpsertResult {
+    Updated {
+        old_meta: RecordMeta,
+        new_meta: RecordMeta,
+    },
+    Inserted {
+        meta: RecordMeta,
+    },
+    Ignored,
 }
 
 pub trait RwCache: RoCache {
-    // Record Operations
-    /// Sets the version of the inserted record and inserts it into the cache. Returns the id of the newly inserted record.
-    fn insert(&self, record: &mut Record) -> Result<u64, CacheError>;
-    /// Returns version of the deleted record.
-    fn delete(&self, key: &[u8]) -> Result<u32, CacheError>;
-    /// Sets the version of the updated record and updates it in the cache. Returns the version of the record before the update.
-    fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError>;
+    /// Inserts a record into the cache. Implicitly starts a transaction if there's no active transaction.
+    ///
+    /// Depending on the `ConflictResolution` strategy, it may or may not overwrite the existing record.
+    fn insert(&mut self, record: &Record) -> Result<UpsertResult, CacheError>;
+
+    /// Deletes a record. Implicitly starts a transaction if there's no active transaction.
+    ///
+    /// Returns the id and version of the deleted record if it existed.
+    ///
+    /// If the schema has primary index, only fields that are part of the primary index are used to identify the record.
+    fn delete(&mut self, record: &Record) -> Result<Option<RecordMeta>, CacheError>;
+
+    /// Updates a record in the cache. Implicitly starts a transaction if there's no active transaction.
+    ///
+    /// Depending on the `ConflictResolution` strategy, it may actually insert the record if it doesn't exist.
+    ///
+    /// If the schema has primary index, only fields that are part of the primary index are used to identify the old record.
+    fn update(&mut self, old: &Record, record: &Record) -> Result<UpsertResult, CacheError>;
+
     /// Commits the current transaction.
-    fn commit(&self) -> Result<(), CacheError>;
+    fn commit(&mut self) -> Result<(), CacheError>;
 }

@@ -11,7 +11,10 @@ use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
 mod field;
+#[cfg(test)]
+mod tests;
 
+use crate::errors::internal::BoxedError;
 use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
@@ -73,36 +76,6 @@ pub struct Schema {
     pub primary_index: Vec<usize>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
-pub enum ReplicationChangesTrackingType {
-    FullChanges,
-    OnlyPK,
-    #[default]
-    Nothing,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct SourceSchema {
-    pub name: String,
-    pub schema: Schema,
-    #[serde(default)]
-    pub replication_type: ReplicationChangesTrackingType,
-}
-
-impl SourceSchema {
-    pub fn new(
-        name: String,
-        schema: Schema,
-        replication_type: ReplicationChangesTrackingType,
-    ) -> Self {
-        Self {
-            name,
-            schema,
-            replication_type,
-        }
-    }
-}
-
 impl Schema {
     pub fn empty() -> Schema {
         Self {
@@ -143,9 +116,9 @@ impl Schema {
 
     /// Returns if this schema is append only.
     ///
-    /// Currently schema is append only if it does not have a primary key. We'll support append only schema with primary key in the future.
+    /// Append only schemas enable additional optimizations, however, the connectors and processors haven't properly implemented this yet.
     pub fn is_append_only(&self) -> bool {
-        self.primary_index.is_empty()
+        false
     }
 }
 
@@ -164,42 +137,32 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
+pub type SchemaWithIndex = (Schema, Vec<IndexDefinition>);
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
-    /// Records with same primary key will have increasing version.
-    pub version: Option<u32>,
 }
 
 impl Record {
-    pub fn new(
-        schema_id: Option<SchemaIdentifier>,
-        values: Vec<Field>,
-        version: Option<u32>,
-    ) -> Record {
-        Record {
-            schema_id,
-            values,
-            version,
-        }
+    pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
+        Record { schema_id, values }
     }
 
     pub fn from_schema(schema: &Schema) -> Record {
         Record {
             schema_id: schema.identifier,
             values: vec![Field::Null; schema.fields.len()],
-            version: None,
         }
     }
 
-    pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize, version: Option<u32>) -> Record {
+    pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize) -> Record {
         Record {
             schema_id,
             values: vec![Field::Null; size],
-            version,
         }
     }
 
@@ -269,11 +232,129 @@ impl Display for Record {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// A CDC event.
 pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
+}
+
+// Helpful in interacting with external systems during ingestion and querying
+// For example, nanoseconds can overflow.
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TimeUnit {
+    Seconds,
+    Milliseconds,
+    Microseconds,
+    Nanoseconds,
+}
+
+impl Display for TimeUnit {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TimeUnit::Seconds => f.write_str("Seconds"),
+            TimeUnit::Milliseconds => f.write_str("Milliseconds"),
+            TimeUnit::Microseconds => f.write_str("Microseconds"),
+            TimeUnit::Nanoseconds => f.write_str("Nanoseconds"),
+        }
+    }
+}
+
+impl FromStr for TimeUnit {
+    type Err = TypeError;
+
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        let error = || InvalidFieldValue {
+            field_type: FieldType::Duration,
+            nullable: false,
+            value: str.to_string(),
+        };
+        let string = str.parse::<String>().map_err(|_| error())?;
+        match string.as_str() {
+            "Seconds" => Ok(TimeUnit::Seconds),
+            "Milliseconds" => Ok(TimeUnit::Milliseconds),
+            "Microseconds" => Ok(TimeUnit::Microseconds),
+            "Nanoseconds" => Ok(TimeUnit::Nanoseconds),
+            &_ => Err(error()),
+        }
+    }
+}
+
+impl TimeUnit {
+    pub fn to_bytes(&self) -> [u8; 1] {
+        match self {
+            TimeUnit::Seconds => [0_u8],
+            TimeUnit::Milliseconds => [1_u8],
+            TimeUnit::Microseconds => [2_u8],
+            TimeUnit::Nanoseconds => [3_u8],
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, BoxedError> {
+        match bytes {
+            [0_u8] => Ok(TimeUnit::Seconds),
+            [1_u8] => Ok(TimeUnit::Milliseconds),
+            [2_u8] => Ok(TimeUnit::Microseconds),
+            [3_u8] => Ok(TimeUnit::Nanoseconds),
+            _ => Err(BoxedError::from("Unsupported unit".to_string())),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub struct DozerDuration(pub std::time::Duration, pub TimeUnit);
+
+impl Ord for DozerDuration {
+    fn cmp(&self, other: &Self) -> Ordering {
+        std::time::Duration::cmp(&self.0, &other.0)
+    }
+}
+
+impl PartialOrd for DozerDuration {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl FromStr for DozerDuration {
+    type Err = TypeError;
+
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        let error = || InvalidFieldValue {
+            field_type: FieldType::Duration,
+            nullable: false,
+            value: str.to_string(),
+        };
+        let val = str.parse::<u64>().map_err(|_| error())?;
+        Ok(Self(
+            std::time::Duration::from_nanos(val),
+            TimeUnit::Nanoseconds,
+        ))
+    }
+}
+
+impl Display for DozerDuration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{:?} {:?}", self.0, self.1))
+    }
+}
+
+impl DozerDuration {
+    pub fn to_bytes(&self) -> [u8; 17] {
+        let mut result = [0_u8; 17];
+        result[0..1].copy_from_slice(&self.1.to_bytes());
+        result[1..17].copy_from_slice(&self.0.as_nanos().to_be_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, TryFromSliceError> {
+        let unit = TimeUnit::from_bytes(bytes[0..1].try_into()?).unwrap();
+        let val =
+            std::time::Duration::from_nanos(u128::from_be_bytes(bytes[1..17].try_into()?) as u64);
+
+        Ok(DozerDuration(val, unit))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]

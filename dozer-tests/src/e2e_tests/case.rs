@@ -1,4 +1,5 @@
-use dozer_orchestrator::cli::load_config;
+use dozer_orchestrator::cli::load_config_from_file;
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
 use std::{
     collections::HashMap,
     fs::read_to_string,
@@ -16,6 +17,7 @@ pub struct Connection {
     pub directory: PathBuf,
     pub service: Option<Service>,
     pub has_docker_file: bool,
+    pub has_oneshot_file: bool,
 }
 
 pub enum CaseKind {
@@ -35,7 +37,7 @@ pub struct Case {
 impl Case {
     pub fn load_from_case_dir(case_dir: PathBuf, connections_dir: PathBuf) -> Self {
         let dozer_config_path = find_dozer_config_path(&case_dir);
-        let dozer_config = load_config(dozer_config_path.clone())
+        let dozer_config = load_config_from_file(&dozer_config_path)
             .unwrap_or_else(|e| panic!("Cannot read file: {}: {:?}", &dozer_config_path, e));
         let mut connections = HashMap::new();
         for connection in &dozer_config.connections {
@@ -55,12 +57,15 @@ impl Case {
                 panic!("Connection {connection_dir:?} must have either service.yaml or Dockerfile");
             }
 
+            let oneshot_file = connection_dir.join("oneshot");
+
             connections.insert(
                 connection.name.clone(),
                 Connection {
                     directory: connection_dir,
                     service,
                     has_docker_file: docker_file.exists(),
+                    has_oneshot_file: oneshot_file.exists(),
                 },
             );
         }
@@ -89,12 +94,26 @@ impl Case {
             panic!("Case {case_dir:?} must have either expectations or error expectation");
         }
     }
+
+    pub fn should_be_ignored(&self) -> bool {
+        // Check if the last component of `case_dir` starts with `ignore-`.
+        self.case_dir
+            .file_name()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Case directory must have a file name, but it's {:?}",
+                    self.case_dir
+                )
+            })
+            .to_str()
+            .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", self.case_dir))
+            .starts_with("ignore-")
+    }
 }
 
 fn find_dozer_config_path(case_dir: &Path) -> String {
     {
-        let file_name = "dozer-config.yaml";
-        let config_path = case_dir.join(file_name);
+        let config_path = case_dir.join(DEFAULT_CONFIG_PATH);
         if config_path.exists() {
             return config_path
                 .to_str()

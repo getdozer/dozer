@@ -1,15 +1,12 @@
 use std::fmt::Display;
-use std::path::Path;
 use std::process::Child;
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 
-use dozer_types::log::{error, info};
+use dozer_types::log::info;
 
 use crate::e2e_tests::Case;
-
-use super::cleanup::Cleanup;
 
 mod buildkite;
 mod local;
@@ -63,40 +60,14 @@ impl Runner for BuildkiteRunner {
     }
 }
 
-fn run_command(bin: &str, args: &[&str]) {
-    let mut cmd = Command::new(bin);
-    cmd.args(args);
-    info!("Running command: {:?}", cmd);
-    let output = cmd.output().expect("Failed to run command");
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        error!("{}", stderr);
-        panic!(
-            "Command {:?} failed with status {}, working directory {:?}",
-            cmd,
-            output.status,
-            std::env::current_dir().expect("Failed to get cwd")
-        );
-    }
-    info!("Command done: {:?}", cmd);
-}
-
-pub fn run_docker_compose(docker_compose_path: &Path, service_name: &str) -> Cleanup {
-    let docker_compose_path = docker_compose_path
-        .to_str()
-        .unwrap_or_else(|| panic!("Non-UFT8 path {docker_compose_path:?}"));
-    run_command(
-        "docker",
-        &["compose", "-f", docker_compose_path, "run", service_name],
-    );
-    Cleanup::DockerCompose(docker_compose_path.to_string())
-}
-
 fn spawn_command(bin: &str, args: &[&str]) -> Child {
     let mut cmd = Command::new(bin);
     cmd.args(args);
     info!("Spawning command: {:?}", cmd);
-    let mut child = cmd.spawn().expect("Failed to run command");
+    let mut child = cmd
+        .spawn()
+        .unwrap_or_else(|e| panic!("Failed to run command {cmd:?}: {e}"));
+    // Give dozer some time to start.
     sleep(Duration::from_millis(30000));
     if let Some(exit_status) = child
         .try_wait()

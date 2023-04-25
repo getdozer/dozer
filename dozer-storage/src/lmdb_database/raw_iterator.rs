@@ -155,44 +155,40 @@ mod tests {
     use lmdb::{Database, DatabaseFlags, Transaction, WriteFlags};
     use tempdir::TempDir;
 
-    use crate::lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions, SharedTransaction};
+    use crate::lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions, RwLmdbEnvironment};
 
     use super::*;
 
-    fn test_database() -> (TempDir, SharedTransaction, Database) {
+    fn test_database() -> (TempDir, RwLmdbEnvironment, Database) {
         let temp_dir = TempDir::new("test_database").unwrap();
-        let mut env = LmdbEnvironmentManager::create(
+        let mut env = LmdbEnvironmentManager::create_rw(
             temp_dir.path(),
             "test_database",
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
-        let db = env
-            .create_database(None, Some(DatabaseFlags::DUP_SORT))
-            .unwrap();
-        let txn = env.create_txn().unwrap();
+        let db = env.create_database(None, DatabaseFlags::DUP_SORT).unwrap();
 
-        (temp_dir, txn, db)
+        (temp_dir, env, db)
     }
 
-    fn insert_test_data(txn: &SharedTransaction, db: Database) {
-        let mut txn = txn.write();
+    fn insert_test_data(txn: &mut RwLmdbEnvironment, db: Database) {
         for key in [b"1", b"3", b"5"] {
             txn.txn_mut()
+                .unwrap()
                 .put(db, key, &[], WriteFlags::empty())
                 .unwrap();
         }
-        txn.commit_and_renew().unwrap();
+        txn.commit().unwrap();
     }
 
     #[test]
     fn test_cursor_get_greater_than_or_equal_to() {
-        let (_temp_dir, txn, db) = test_database();
+        let (_temp_dir, mut env, db) = test_database();
 
         // Empty database.
         {
-            let txn = txn.read();
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             assert_eq!(
                 cursor_get_greater_than_or_equal_to(&cursor, b"0").unwrap(),
                 None
@@ -200,9 +196,8 @@ mod tests {
         }
 
         // Non-empty database.
-        insert_test_data(&txn, db);
-        let txn = txn.read();
-        let cursor = txn.txn().open_ro_cursor(db).unwrap();
+        insert_test_data(&mut env, db);
+        let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
         // Before db start.
         assert_eq!(
             cursor_get_greater_than_or_equal_to(&cursor, b"0")
@@ -236,19 +231,17 @@ mod tests {
 
     #[test]
     fn test_cursor_greater_than() {
-        let (_temp_dir, txn, db) = test_database();
+        let (_temp_dir, mut env, db) = test_database();
 
         // Empty database.
         {
-            let txn = txn.read();
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             assert_eq!(cursor_get_greater_than(&cursor, b"0").unwrap(), None);
         }
 
         // Non-empty database.
-        insert_test_data(&txn, db);
-        let txn = txn.read();
-        let cursor = txn.txn().open_ro_cursor(db).unwrap();
+        insert_test_data(&mut env, db);
+        let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
         // Before db start.
         assert_eq!(
             cursor_get_greater_than(&cursor, b"0").unwrap().unwrap().0,
@@ -270,12 +263,11 @@ mod tests {
 
     #[test]
     fn test_cursor_get_less_than_or_equal_to() {
-        let (_temp_dir, txn, db) = test_database();
+        let (_temp_dir, mut env, db) = test_database();
 
         // Empty database.
         {
-            let txn = txn.read();
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             assert_eq!(
                 cursor_get_less_than_or_equal_to(&cursor, b"6").unwrap(),
                 None
@@ -283,9 +275,8 @@ mod tests {
         }
 
         // Non-empty database.
-        insert_test_data(&txn, db);
-        let txn = txn.read();
-        let cursor = txn.txn().open_ro_cursor(db).unwrap();
+        insert_test_data(&mut env, db);
+        let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
         // Before db start.
         assert_eq!(
             cursor_get_less_than_or_equal_to(&cursor, b"0").unwrap(),
@@ -319,19 +310,17 @@ mod tests {
 
     #[test]
     fn test_cursor_less_than() {
-        let (_temp_dir, txn, db) = test_database();
+        let (_temp_dir, mut env, db) = test_database();
 
         // Empty database.
         {
-            let txn = txn.read();
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             assert_eq!(cursor_get_less_than(&cursor, b"6").unwrap(), None);
         }
 
         // Non-empty database.
-        insert_test_data(&txn, db);
-        let txn = txn.read();
-        let cursor = txn.txn().open_ro_cursor(db).unwrap();
+        insert_test_data(&mut env, db);
+        let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
         // Before db start.
         assert_eq!(cursor_get_less_than(&cursor, b"0").unwrap(), None);
         // Equal element should be skipped.
@@ -353,18 +342,17 @@ mod tests {
 
     #[test]
     fn test_raw_iterator() {
-        let (_temp_dir, txn, db) = test_database();
+        let (_temp_dir, mut env, db) = test_database();
 
         // Empty database.
         {
-            let txn = txn.read();
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Unbounded, true)
                 .unwrap()
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
             assert_eq!(items, vec![]);
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Unbounded, false)
                 .unwrap()
                 .collect::<Result<Vec<_>, _>>()
@@ -373,11 +361,10 @@ mod tests {
         }
 
         // Non-empty database.
-        insert_test_data(&txn, db);
-        let txn = txn.read();
+        insert_test_data(&mut env, db);
         // Included ascending
         {
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Included(b"3"), true)
                 .unwrap()
                 .map(|result| result.map(|(key, _)| key))
@@ -387,7 +374,7 @@ mod tests {
         }
         // Excluded ascending
         {
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Excluded(b"3"), true)
                 .unwrap()
                 .map(|result| result.map(|(key, _)| key))
@@ -397,7 +384,7 @@ mod tests {
         }
         // Unbounded ascending
         {
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Unbounded, true)
                 .unwrap()
                 .map(|result| result.map(|(key, _)| key))
@@ -407,7 +394,7 @@ mod tests {
         }
         // Included descending
         {
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Included(b"3"), false)
                 .unwrap()
                 .map(|result| result.map(|(key, _)| key))
@@ -417,7 +404,7 @@ mod tests {
         }
         // Excluded descending
         {
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Excluded(b"3"), false)
                 .unwrap()
                 .map(|result| result.map(|(key, _)| key))
@@ -427,7 +414,7 @@ mod tests {
         }
         // Unbounded descending
         {
-            let cursor = txn.txn().open_ro_cursor(db).unwrap();
+            let cursor = env.txn_mut().unwrap().open_ro_cursor(db).unwrap();
             let items = RawIterator::new(cursor, Bound::Unbounded, false)
                 .unwrap()
                 .map(|result| result.map(|(key, _)| key))

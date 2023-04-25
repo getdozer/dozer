@@ -1,0 +1,40 @@
+connections:    
+  - config : !LocalStorage
+      details:
+        path: data
+      tables:
+        - !Table
+          name: yellow_trips
+          prefix: /yellow_trips
+          file_type: parquet
+          extension: .parquet
+    name: yellow_taxi
+
+sql: |
+  SELECT t.PULocationID as location, t.tpep_pickup_datetime as pickup_time, t.window_start as start, t.window_end AS end
+  INTO tumble
+  FROM TUMBLE(yellow_trips, tpep_pickup_datetime, '5 MINUTES') t;
+
+  SELECT t.PULocationID as location, t.tpep_pickup_datetime as pickup_time, t.window_start as start, t.window_end AS end
+  INTO hop
+  FROM HOP(yellow_trips, tpep_pickup_datetime, '1 MINUTE', '2 MINUTES') t;
+
+sources:
+  - name: yellow_trips
+    table_name: yellow_trips
+    connection: !Ref yellow_taxi
+    columns:
+
+endpoints:
+  - name: tumble
+    path: /tumble
+    table_name: tumble
+    index:
+      primary_key: 
+  - name: hop
+    path: /hop
+    table_name: hop
+    index:
+      primary_key: 
+
+cache_max_map_size: 2147483648

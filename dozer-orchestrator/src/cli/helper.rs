@@ -2,27 +2,42 @@ use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 use crate::{errors::CliError, Orchestrator};
 
+use dozer_types::models::app_config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::app_config::Config, serde_yaml};
 use handlebars::Handlebars;
+use std::sync::Arc;
 use std::{collections::BTreeMap, fs};
+use tokio::runtime::Runtime;
 
 pub fn init_dozer(config_path: String) -> Result<Dozer, CliError> {
-    let config = load_config(config_path)?;
-    Ok(Dozer::new(config))
+    let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
+    let mut config = runtime.block_on(load_config(&config_path))?;
+
+    let cache_max_map_size = config
+        .cache_max_map_size
+        .unwrap_or_else(default_cache_max_map_size);
+    let page_size = page_size::get() as u64;
+    config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
+
+    Ok(Dozer::new(config, Arc::new(runtime)))
 }
 
 pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {
     let dozer = init_dozer(config_path.to_string())?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
-    for (c, tables) in connection_map {
+    for (connection_name, (tables, schemas)) in connection_map {
         table_parent.add_row(row!["Connection", "Table", "Columns"]);
 
-        for s in tables {
-            let schema_table = s.schema.print();
+        for (table, schema) in tables.into_iter().zip(schemas) {
+            let schema_table = schema.schema.print();
 
-            table_parent.add_row(row![c, s.name, schema_table]);
+            let name = table.schema.map_or(table.name.clone(), |schema_name| {
+                format!("{schema_name}.{}", table.name)
+            });
+
+            table_parent.add_row(row![connection_name, name, schema_table]);
         }
         table_parent.add_empty_row();
     }
@@ -30,13 +45,30 @@ pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {
     Ok(())
 }
 
-pub fn load_config(config_path: String) -> Result<Config, CliError> {
-    let contents = fs::read_to_string(config_path.clone())
-        .map_err(|_| CliError::FailedToLoadFile(config_path))?;
+async fn load_config(config_url_or_path: &str) -> Result<Config, CliError> {
+    if config_url_or_path.starts_with("https://") || config_url_or_path.starts_with("http://") {
+        load_config_from_http_url(config_url_or_path).await
+    } else {
+        load_config_from_file(config_url_or_path)
+    }
+}
 
+async fn load_config_from_http_url(config_url: &str) -> Result<Config, CliError> {
+    let response = reqwest::get(config_url).await?.error_for_status()?;
+    let contents = response.text().await?;
+    parse_config(&contents)
+}
+
+pub fn load_config_from_file(config_path: &str) -> Result<Config, CliError> {
+    let contents = fs::read_to_string(config_path)
+        .map_err(|e| CliError::FileSystem(config_path.to_string().into(), e))?;
+    parse_config(&contents)
+}
+
+fn parse_config(config_template: &str) -> Result<Config, CliError> {
     let mut handlebars = Handlebars::new();
     handlebars
-        .register_template_string("config", contents)
+        .register_template_string("config", config_template)
         .map_err(|e| CliError::FailedToParseYaml(Box::new(e)))?;
 
     let mut data = BTreeMap::new();
@@ -49,11 +81,12 @@ pub fn load_config(config_path: String) -> Result<Config, CliError> {
         .render("config", &data)
         .map_err(|e| CliError::FailedToParseYaml(Box::new(e)))?;
 
-    let config: Config =
-        serde_yaml::from_str(&config_str).map_err(|e| CliError::FailedToParseYaml(Box::new(e)))?;
+    let config: Config = serde_yaml::from_str(&config_str)
+        .map_err(|e: serde_yaml::Error| CliError::FailedToParseYaml(Box::new(e)))?;
 
     // Create home_dir if not exists.
-    let _res = fs::create_dir_all(&config.home_dir);
+    fs::create_dir_all(&config.home_dir)
+        .map_err(|e| CliError::FileSystem(config.home_dir.clone().into(), e))?;
 
     Ok(config)
 }

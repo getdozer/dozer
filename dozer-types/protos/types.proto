@@ -51,18 +51,21 @@ message RecordWithId {
 
 // Supported data types in Dozer.
 enum Type {
-  UInt = 0;      // Unsigned 64 bit integer.
-  Int = 1;       // Signed 64 bit integer.
-  Float = 2;     // 64 bit floating point number.
-  Boolean = 3;   // Boolean.
-  String = 4;    // UTF-8 string.
-  Text = 5;      // UTF-8 string.
-  Binary = 6;    // Binary data.
-  Decimal = 7;   // Decimal number.
-  Timestamp = 8; // ISO 8601 combined date and time with time zone.
-  Date = 9;      // ISO 8601 calendar date without timezone.
-  Json = 10;     // Json data.
-  Point = 11;    // Geo Point type.
+  UInt = 0;       // Unsigned 64 bit integer.
+  U128 = 1;       // Unsigned 128 bit integer.
+  Int = 2;        // Signed 64 bit integer.
+  I128 = 3;       // Signed 128 bit integer.
+  Float = 4;      // 64 bit floating point number.
+  Boolean = 5;    // Boolean.
+  String = 6;     // UTF-8 string.
+  Text = 7;       // UTF-8 string.
+  Binary = 8;     // Binary data.
+  Decimal = 9;    // Decimal number.
+  Timestamp = 10; // ISO 8601 combined date and time with time zone.
+  Date = 11;      // ISO 8601 calendar date without timezone.
+  Bson = 12;      // BSON data.
+  Point = 13;     // Geo Point type.
+  Duration = 14;  // Duration type.
 }
 message SchemaEvent {
   string endpoint = 1;
@@ -86,6 +89,11 @@ message PointType {
   double y = 2;
 }
 
+message DurationType {
+  string value = 1;      // up to u128
+  string time_unit = 2;  // nanoseconds by default
+}
+
 // rust-decimal as a message
 message RustDecimal {
   // the sign of the Decimal value, 0 meaning positive and 1 meaning negative
@@ -101,15 +109,18 @@ message RustDecimal {
 message Value {
   // A field value.
   oneof value {
-    uint64 uint_value = 1;     // Unsigned 64 bit integer.
-    int64 int_value = 2;       // Signed 64 bit integer.
-    double float_value = 3;    // 32 bit floating point number.
-    bool bool_value = 4;       // Boolean.
-    string string_value = 5;   // UTF-8 string.
-    bytes bytes_value = 7;     // Binary data.
-    RustDecimal decimal_value = 8;                 // Decimal value.
-    google.protobuf.Timestamp timestamp_value = 9; // DateTime & Timestamp.
-    string date_value = 10;     // ISO 8601 calendar date without timezone.
-    PointType point_value = 11; // Point type.
+    uint64 uint_value = 1;      // Unsigned 64 bit integer.
+    string uint_128_value = 2;  // Unsigned 128 bit integer.
+    int64 int_value = 3;        // Signed 64 bit integer.
+    string int_128_value = 4;   // Signed 128 bit integer.
+    double float_value = 5;     // 64 bit floating point number.
+    bool bool_value = 6;        // Boolean.
+    string string_value = 7;    // UTF-8 string.
+    bytes bytes_value = 8;      // Binary data.
+    RustDecimal decimal_value = 9;                  // Decimal value.
+    google.protobuf.Timestamp timestamp_value = 10; // DateTime & Timestamp.
+    string date_value = 11;             // ISO 8601 calendar date without timezone.
+    PointType point_value = 12;         // Point type.
+    DurationType duration_value = 13;   // Duration type.
   };
 }

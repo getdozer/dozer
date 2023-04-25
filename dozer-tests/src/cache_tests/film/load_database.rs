@@ -1,6 +1,6 @@
 use bson::doc;
 use csv::StringRecord;
-use dozer_cache::cache::{CacheManager, LmdbCacheManager, RoCache};
+use dozer_cache::cache::{LmdbRwCacheManager, RoCache, RoCacheManager, RwCacheManager};
 use dozer_types::{chrono::DateTime, types::IndexDefinition};
 use mongodb::{options::ClientOptions, Client, Collection, IndexModel};
 
@@ -16,9 +16,9 @@ pub async fn load_database(
 
     // Create cache and insert schema.
     let schema = film_schema();
-    let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
-    let cache = cache_manager
-        .create_cache(schema.clone(), secondary_indexes)
+    let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
+    let mut cache = cache_manager
+        .create_cache(schema.clone(), secondary_indexes, Default::default())
         .unwrap();
 
     // Connect to mongodb and clear collection.
@@ -58,6 +58,7 @@ pub async fn load_database(
             .unwrap();
     }
     cache.commit().unwrap();
+    cache_manager.wait_until_indexing_catchup();
 
     let cache_name = cache.name().to_string();
     drop(cache);

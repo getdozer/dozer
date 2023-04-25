@@ -2,11 +2,24 @@ use crate::calculate_err_type;
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Count;
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use num_traits::FromPrimitive;
+
+pub fn validate_count(
+    _args: &[Expression],
+    _schema: &Schema,
+) -> Result<ExpressionType, PipelineError> {
+    Ok(ExpressionType::new(
+        FieldType::Int,
+        false,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
 
 #[derive(Debug)]
 pub struct CountAggregator {
@@ -46,17 +59,29 @@ impl Aggregator for CountAggregator {
 
 fn get_count(count: u64, return_type: Option<FieldType>) -> Result<Field, PipelineError> {
     match return_type {
-        Some(FieldType::UInt) => Ok(Field::UInt(count)),
-        Some(FieldType::Int) => Ok(Field::Int(count as i64)),
-        Some(FieldType::Float) => Ok(Field::Float(OrderedFloat::from(count as f64))),
-        Some(FieldType::Decimal) => Ok(Field::Decimal(calculate_err_type!(
-            Decimal::from_f64(count as f64),
-            Count,
-            FieldType::Decimal
-        ))),
-        Some(not_supported_return_type) => Err(PipelineError::InternalExecutionError(InvalidType(
-            format!("Not supported return type {not_supported_return_type} for {Count}"),
-        ))),
+        Some(typ) => match typ {
+            FieldType::UInt => Ok(Field::UInt(count)),
+            FieldType::U128 => Ok(Field::U128(count as u128)),
+            FieldType::Int => Ok(Field::Int(count as i64)),
+            FieldType::I128 => Ok(Field::I128(count as i128)),
+            FieldType::Float => Ok(Field::Float(OrderedFloat::from(count as f64))),
+            FieldType::Decimal => Ok(Field::Decimal(calculate_err_type!(
+                Decimal::from_f64(count as f64),
+                Count,
+                FieldType::Decimal
+            ))),
+            FieldType::Duration => Ok(Field::Int(count as i64)),
+            FieldType::Boolean
+            | FieldType::String
+            | FieldType::Text
+            | FieldType::Date
+            | FieldType::Timestamp
+            | FieldType::Binary
+            | FieldType::Bson
+            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+                "Not supported return type {typ} for {Count}"
+            )))),
+        },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Count}"
         )))),

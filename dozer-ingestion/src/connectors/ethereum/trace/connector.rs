@@ -1,18 +1,15 @@
-use std::collections::HashMap;
-
 use super::super::helper as conn_helper;
 use super::helper::{self, get_block_traces, map_trace_to_ops};
-use crate::connectors::ValidationResults;
+use crate::connectors::{table_name, CdcType, SourceSchema, SourceSchemaResult, TableIdentifier};
 use crate::{
     connectors::{Connector, TableInfo},
     errors::ConnectorError,
     ingestion::Ingestor,
 };
 use dozer_types::ingestion_types::{EthTraceConfig, IngestionMessage};
-use dozer_types::log::{error, info};
-use dozer_types::types::{ReplicationChangesTrackingType, SourceSchema};
+use dozer_types::log::{error, info, warn};
 
-use tokio::runtime::Runtime;
+use tonic::async_trait;
 
 #[derive(Debug)]
 pub struct EthTraceConnector {
@@ -33,52 +30,86 @@ impl EthTraceConnector {
     }
 }
 
+#[async_trait]
 impl Connector for EthTraceConnector {
-    fn get_schemas(
-        &self,
-        _table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        Ok(vec![SourceSchema::new(
+    fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    async fn validate_connection(&self) -> Result<(), ConnectorError> {
+        validate(&self.config).await
+    }
+
+    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
+        Ok(vec![TableIdentifier::from_table_name(
             ETH_TRACE_TABLE.to_string(),
-            helper::get_trace_schema(),
-            ReplicationChangesTrackingType::Nothing,
         )])
     }
 
-    fn start(
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+        for table in tables {
+            if table.name != ETH_TRACE_TABLE || table.schema.is_some() {
+                return Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    async fn list_columns(
         &self,
-        _from_seq: Option<(u64, u64)>,
+        tables: Vec<TableIdentifier>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        let mut result = Vec::new();
+        for table in tables {
+            if table.name != ETH_TRACE_TABLE || table.schema.is_some() {
+                return Err(ConnectorError::TableNotFound(table_name(
+                    table.schema.as_deref(),
+                    &table.name,
+                )));
+            }
+            let column_names = helper::get_trace_schema()
+                .fields
+                .into_iter()
+                .map(|field| field.name)
+                .collect();
+            result.push(TableInfo {
+                schema: table.schema,
+                name: table.name,
+                column_names,
+            })
+        }
+        Ok(result)
+    }
+
+    async fn get_schemas(
+        &self,
+        _table_infos: &[TableInfo],
+    ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
+        warn!("TODO: respect table_infos");
+        Ok(vec![Ok(SourceSchema::new(
+            helper::get_trace_schema(),
+            CdcType::Nothing,
+        ))])
+    }
+
+    async fn start(
+        &self,
         ingestor: &Ingestor,
         _tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         let config = self.config.clone();
         let conn_name = self.conn_name.clone();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(ingestor, config, conn_name).await })
-    }
-
-    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-        let config = self.config.clone();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { validate(config).await })
-    }
-
-    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        Ok(HashMap::new())
-    }
-
-    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        self.get_tables_default()
-    }
-
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ConnectorError> {
-        Ok(false)
+        run(ingestor, config, conn_name).await
     }
 }
 
-pub async fn validate(config: EthTraceConfig) -> Result<(), ConnectorError> {
+pub async fn validate(config: &EthTraceConfig) -> Result<(), ConnectorError> {
     // Check if transport can be initialized
     let tuple = conn_helper::get_batch_http_client(&config.https_url)
         .await
@@ -139,6 +170,7 @@ pub async fn run(
             }
         }
     }
+
     Ok(())
 }
 

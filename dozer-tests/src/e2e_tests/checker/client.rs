@@ -237,8 +237,9 @@ impl Client {
             };
             assert!(
                 oapi_type_matches(oapi_type, field.typ),
-                "Check REST schema failed for endpoint {}, expected field type {}, got {:?}",
+                "Check REST schema failed for endpoint {}, field {}, expected field type {}, got {:?}",
                 endpoint,
+                field.name,
                 field.typ,
                 oapi_type
             );
@@ -262,7 +263,7 @@ impl Client {
         assert_eq!(
             actual_fields.len(),
             fields.len(),
-            "Check common gRPC schema failed for endpoin {}, expected {} fields, got {}",
+            "Check common gRPC schema failed for endpoint {}, expected {} fields, got {}",
             endpoint,
             fields.len(),
             actual_fields.len()
@@ -318,7 +319,9 @@ fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
 
     match field_type {
         FieldType::UInt => grpc_type == Type::UInt as i32,
+        FieldType::U128 => grpc_type == Type::UInt as i32,
         FieldType::Int => grpc_type == Type::Int as i32,
+        FieldType::I128 => grpc_type == Type::Int as i32,
         FieldType::Float => grpc_type == Type::Float as i32,
         FieldType::Boolean => grpc_type == Type::Boolean as i32,
         FieldType::String => grpc_type == Type::String as i32,
@@ -329,6 +332,7 @@ fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
         FieldType::Date => grpc_type == Type::Date as i32,
         FieldType::Json => grpc_type == Type::Bson as i32,
         FieldType::Point => grpc_type == Type::Point as i32,
+        FieldType::Duration => grpc_type == Type::Duration as i32,
     }
 }
 
@@ -336,7 +340,7 @@ fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldTy
     use dozer_api::openapiv3::Type::{Array, Boolean, Integer, Number, String};
 
     match (oapi_type, field_type) {
-        (Integer(_), FieldType::UInt | FieldType::Int) => true,
+        (Integer(_), FieldType::UInt | FieldType::U128 | FieldType::Int | FieldType::I128) => true,
         (Number(_), FieldType::Float) => true,
         (Boolean {}, FieldType::Boolean) => true,
         (

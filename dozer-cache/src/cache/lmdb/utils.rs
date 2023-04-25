@@ -1,88 +1,75 @@
-use std::{fs, ops::Deref};
+use std::{
+    fs,
+    ops::Deref,
+    path::{Path, PathBuf},
+};
 
 use crate::errors::CacheError;
 use dozer_storage::{
     lmdb::EnvironmentFlags,
-    lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions},
+    lmdb_storage::{
+        LmdbEnvironmentManager, LmdbEnvironmentOptions, RoLmdbEnvironment, RwLmdbEnvironment,
+    },
 };
 use tempdir::TempDir;
 
-use super::cache::{CacheCommonOptions, CacheWriteOptions};
+use super::cache::CacheOptions;
 
-#[derive(Clone, Debug, Default)]
-pub struct CacheOptions {
-    pub common: CacheCommonOptions,
-    pub kind: CacheOptionsKind,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct CacheReadOptions {}
-
-#[derive(Clone, Debug)]
-pub enum CacheOptionsKind {
-    // Write Options
-    Write(CacheWriteOptions),
-
-    // Read Options
-    ReadOnly(CacheReadOptions),
-}
-
-impl Default for CacheOptionsKind {
-    fn default() -> Self {
-        Self::Write(CacheWriteOptions::default())
-    }
-}
-
-pub fn init_env(options: &CacheOptions) -> Result<(LmdbEnvironmentManager, String), CacheError> {
-    match &options.kind {
-        CacheOptionsKind::Write(write_options) => {
-            let (base_path, name, _temp_dir) = match &options.common.path {
-                None => {
-                    let base_path = TempDir::new("dozer")?;
-                    (
-                        base_path.path().to_path_buf(),
-                        "dozer-cache",
-                        Some(base_path),
-                    )
-                }
-                Some((base_path, name)) => {
-                    fs::create_dir_all(base_path)?;
-                    (base_path.clone(), name.deref(), None)
-                }
-            };
-
-            let options = LmdbEnvironmentOptions::new(
-                options.common.max_db_size,
-                options.common.max_readers,
-                write_options.max_size,
-                EnvironmentFlags::empty(),
-            );
-
-            Ok((
-                LmdbEnvironmentManager::create(&base_path, name, options)?,
-                name.to_string(),
-            ))
+#[allow(clippy::type_complexity)]
+pub fn create_env(
+    options: &CacheOptions,
+) -> Result<(RwLmdbEnvironment, (PathBuf, String), Option<TempDir>), CacheError> {
+    let (base_path, name, temp_dir) = match &options.path {
+        None => {
+            let base_path =
+                TempDir::new("dozer").map_err(|e| CacheError::Io("tempdir".into(), e))?;
+            (
+                base_path.path().to_path_buf(),
+                "dozer-cache",
+                Some(base_path),
+            )
         }
-        CacheOptionsKind::ReadOnly(_) => {
-            let (base_path, name) = options
-                .common
-                .path
-                .as_ref()
-                .ok_or(CacheError::PathNotInitialized)?;
-
-            let env_options = LmdbEnvironmentOptions {
-                max_dbs: options.common.max_db_size,
-                max_readers: options.common.max_readers,
-                flags: EnvironmentFlags::READ_ONLY,
-                ..Default::default()
-            };
-
-            Ok((
-                LmdbEnvironmentManager::create(base_path, name, env_options)?,
-                name.to_string(),
-            ))
+        Some((base_path, name)) => {
+            fs::create_dir_all(base_path).map_err(|e| CacheError::Io(base_path.clone(), e))?;
+            (base_path.clone(), name.deref(), None)
         }
-    }
+    };
+
+    let options = LmdbEnvironmentOptions::new(
+        options.max_db_size,
+        options.max_readers,
+        options.max_size,
+        EnvironmentFlags::empty(),
+    );
+
+    Ok((
+        LmdbEnvironmentManager::create_rw(&base_path, name, options)?,
+        (base_path, name.to_string()),
+        temp_dir,
+    ))
+}
+
+#[allow(clippy::type_complexity)]
+pub fn open_env(
+    options: &CacheOptions,
+) -> Result<(RoLmdbEnvironment, (&Path, &str), Option<TempDir>), CacheError> {
+    let (base_path, name) = options
+        .path
+        .as_ref()
+        .ok_or(CacheError::PathNotInitialized)?;
+
+    let env_options = LmdbEnvironmentOptions::new(
+        options.max_db_size,
+        options.max_readers,
+        options.max_size,
+        EnvironmentFlags::empty(),
+    );
+
+    Ok((
+        LmdbEnvironmentManager::create_ro(base_path, name, env_options)?,
+        (base_path, name),
+        None,
+    ))
 }
 
 #[cfg(test)]
@@ -90,7 +77,7 @@ mod tests {
     use dozer_storage::lmdb::{Cursor, DatabaseFlags, RoCursor, Transaction, WriteFlags};
     use dozer_types::types::Field;
 
-    use crate::cache::lmdb::utils::{init_env, CacheOptions};
+    use super::*;
 
     fn cursor_dump(mut cursor: RoCursor) -> Vec<(&[u8], &[u8])> {
         cursor
@@ -102,19 +89,16 @@ mod tests {
 
     #[test]
     fn duplicate_test_nested() {
-        let options = CacheOptions::default();
-        let mut env = init_env(&options).unwrap().0;
+        let mut env = create_env(&Default::default()).unwrap().0;
 
         let db = env
             .create_database(
                 Some("test"),
-                Some(DatabaseFlags::DUP_SORT | DatabaseFlags::INTEGER_KEY),
+                DatabaseFlags::DUP_SORT | DatabaseFlags::INTEGER_KEY,
             )
             .unwrap();
 
-        let txn = env.create_txn().unwrap();
-        let mut master_txn = txn.write();
-        let txn = master_txn.txn_mut();
+        let txn = env.txn_mut().unwrap();
 
         let mut c_txn = txn.begin_nested_txn().unwrap();
 
@@ -142,9 +126,9 @@ mod tests {
             c_txn.put(db, &key, data, WriteFlags::empty()).unwrap();
         }
         c_txn.commit().unwrap();
-        master_txn.commit_and_renew().unwrap();
+        env.commit().unwrap();
 
-        let rtxn = master_txn.txn();
+        let rtxn = env.txn_mut().unwrap();
 
         let cursor = rtxn.open_ro_cursor(db).unwrap();
         let vals = cursor_dump(cursor);

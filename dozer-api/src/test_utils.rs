@@ -1,13 +1,13 @@
 use dozer_types::serde_json::{json, Value};
-use dozer_types::types::{Field, Record, SourceDefinition};
+use dozer_types::types::{Field, Record, SchemaWithIndex, SourceDefinition};
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
 };
 
-use dozer_cache::cache::{CacheManager, LmdbCacheManager, RecordWithId};
+use dozer_cache::cache::{CacheRecord, LmdbRwCacheManager, RwCacheManager};
 
-pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
+pub fn get_schema() -> SchemaWithIndex {
     let fields = vec![
         FieldDefinition {
             name: "film_id".to_string(),
@@ -64,8 +64,10 @@ pub fn get_endpoint() -> ApiEndpoint {
         path: "/films".to_string(),
         index: Some(ApiIndex {
             primary_key: vec!["film_id".to_string()],
+            secondary: None,
         }),
         table_name: "film".to_string(),
+        conflict_resolution: None,
     }
 }
 
@@ -101,18 +103,19 @@ fn get_films() -> Vec<Value> {
 
 pub fn initialize_cache(
     schema_name: &str,
-    schema: Option<(Schema, Vec<IndexDefinition>)>,
-) -> Box<dyn CacheManager> {
-    let cache_manager = LmdbCacheManager::new(Default::default()).unwrap();
+    schema: Option<SchemaWithIndex>,
+) -> Box<LmdbRwCacheManager> {
+    let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
-    let cache = cache_manager
-        .create_cache(schema.clone(), secondary_indexes)
+    let mut cache = cache_manager
+        .create_cache(schema.clone(), secondary_indexes, Default::default())
         .unwrap();
     let records = get_sample_records(schema);
     for mut record in records {
         cache.insert(&mut record.record).unwrap();
     }
     cache.commit().unwrap();
+    cache_manager.wait_until_indexing_catchup();
 
     cache_manager
         .create_alias(cache.name(), schema_name)
@@ -120,7 +123,7 @@ pub fn initialize_cache(
     Box::new(cache_manager)
 }
 
-pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {
+pub fn get_sample_records(schema: Schema) -> Vec<CacheRecord> {
     let records_value: Vec<Value> = get_films();
     let mut records = vec![];
     for (record_index, record_str) in records_value.into_iter().enumerate() {
@@ -139,9 +142,8 @@ pub fn get_sample_records(schema: Schema) -> Vec<RecordWithId> {
                     Field::UInt(release_year),
                     Field::Null,
                 ],
-                Some(1),
             );
-            records.push(RecordWithId::new(record_index as _, record));
+            records.push(CacheRecord::new(record_index as _, 1, record));
         }
     }
     records

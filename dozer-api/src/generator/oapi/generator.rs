@@ -4,7 +4,7 @@ use super::utils::{
 use dozer_types::indexmap::{self, IndexMap};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Map;
-use dozer_types::types::IndexDefinition;
+use dozer_types::types::{IndexDefinition, TimeUnit};
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
 use openapiv3::*;
 use serde_json::{json, Value};
@@ -30,8 +30,10 @@ impl<'a> OpenApiGenerator<'a> {
                 let field_def = &self.schema.fields[fields[0]];
                 let name = field_def.name.clone();
                 let val = match field_def.typ {
-                    FieldType::Int => Value::from(-1),
                     FieldType::UInt => Value::from(-1),
+                    FieldType::U128 => Value::from(-1),
+                    FieldType::Int => Value::from(-1),
+                    FieldType::I128 => Value::from(-1),
                     FieldType::Float => Value::from(1.1),
                     FieldType::Boolean => Value::from(true),
                     FieldType::String => Value::from("foo".to_string()),
@@ -46,6 +48,15 @@ impl<'a> OpenApiGenerator<'a> {
                         let mut m = Map::new();
                         m.insert("x".to_string(), Value::from(3.3));
                         m.insert("y".to_string(), Value::from(4.4));
+                        Value::Object(m)
+                    }
+                    FieldType::Duration => {
+                        let mut m = Map::new();
+                        m.insert("val".to_string(), Value::from("3.3i128"));
+                        m.insert(
+                            "unit".to_string(),
+                            Value::from(TimeUnit::Nanoseconds.to_string()),
+                        );
                         Value::Object(m)
                     }
                 };
@@ -78,7 +89,7 @@ impl<'a> OpenApiGenerator<'a> {
             parameters: vec![ReferenceOr::Item(Parameter::Path {
                 parameter_data: ParameterData {
                     name: "id".to_owned(),
-                    description: Some(format!("Primary key of the document - {} ", self.endpoint.index.to_owned().unwrap().primary_key.join(", "))),
+                    description: Some(format!("Primary key of the document - {} ", self.endpoint.index.as_ref().map_or(String::new(), |index| index.primary_key.join(", ")))),
                     required: true,
                     format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
                         schema_data: SchemaData {

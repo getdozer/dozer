@@ -44,7 +44,6 @@ fn test_storage_params_config() {
 "#;
     let deserializer_result = serde_yaml::from_str::<Config>(input_config_without_flag).unwrap();
     assert_eq!(deserializer_result.cache_max_map_size, Some(1073741824));
-    assert_eq!(deserializer_result.app_max_map_size, Some(1073741824));
     assert_eq!(deserializer_result.commit_timeout, Some(100));
     assert_eq!(deserializer_result.app_buffer_size, Some(10000));
     assert_eq!(deserializer_result.commit_size, Some(1000));
@@ -56,8 +55,7 @@ fn test_default_storage_params_config() {
     app_name: working_app
 "#;
     let deserializer_result = serde_yaml::from_str::<Config>(input_config_without_flag).unwrap();
-    assert_eq!(deserializer_result.cache_max_map_size, Some(1099511627776));
-    assert_eq!(deserializer_result.app_max_map_size, Some(1099511627776));
+    assert_eq!(deserializer_result.cache_max_map_size, Some(1073741824));
     assert_eq!(deserializer_result.commit_timeout, Some(50));
     assert_eq!(deserializer_result.app_buffer_size, Some(20000));
     assert_eq!(deserializer_result.commit_size, Some(10000));

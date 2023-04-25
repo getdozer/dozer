@@ -1,6 +1,6 @@
 [package]
 name = "dozer-types"
-version = "0.1.10"
+version = "0.1.18"
 authors = ["getdozer/dozer-dev"]
 edition = "2021"
 
@@ -25,7 +25,7 @@ serde_yaml = "0.9.17"
 fp_rust = "0.3.5"
 prettytable-rs = "0.10.0"
 indicatif = "0.17.3"
-geo = {version = "0.23.1", features = ["use-serde"]}
+geo = {version = "0.24.0", features = ["use-serde"]}
 pyo3 = {version = "0.18.1", features = ["auto-initialize"],  optional = true}
 tonic = {version = "0.8.3"}
 prost-types = "0.11.1"
@@ -39,4 +39,5 @@ tonic-build = "0.8.2"
 
 [features]
 python = ["dep:pyo3"]
+python-extension-module = ["python", "pyo3?/extension-module"]
 snowflake=[]

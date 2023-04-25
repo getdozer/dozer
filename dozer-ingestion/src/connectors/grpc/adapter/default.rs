@@ -1,9 +1,6 @@
-use dozer_types::{
-    serde_json,
-    types::{SchemaIdentifier, SourceSchema},
-};
+use dozer_types::{serde_json, types::SchemaIdentifier};
 
-use crate::errors::ConnectorError;
+use crate::{connectors::SourceSchema, errors::ConnectorError};
 
 use super::{GrpcIngestMessage, IngestAdapter};
 use dozer_types::{
@@ -21,38 +18,46 @@ use dozer_types::grpc_types;
 use dozer_types::grpc_types::ingest::IngestRequest;
 
 #[derive(Debug)]
-pub struct DefaultAdapter {}
+pub struct DefaultAdapter {
+    schema_map: HashMap<String, SourceSchema>,
+}
 
-impl IngestAdapter for DefaultAdapter {
-    fn new() -> Self {
-        Self {}
-    }
-    fn get_schemas(&self, schemas_str: &str) -> Result<Vec<SourceSchema>, ConnectorError> {
-        let mut schemas: Vec<SourceSchema> =
+impl DefaultAdapter {
+    fn parse_schemas(schemas_str: &str) -> Result<HashMap<String, SourceSchema>, ConnectorError> {
+        let mut schemas: HashMap<String, SourceSchema> =
             serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
 
-        schemas = schemas
-            .iter()
+        schemas
+            .iter_mut()
             .enumerate()
-            .map(|(id, schema)| {
-                let mut s = schema.clone();
-                s.schema.identifier = Some(SchemaIdentifier {
+            .for_each(|(id, (_, schema))| {
+                schema.schema.identifier = Some(SchemaIdentifier {
                     id: id as u32,
                     version: 1,
                 });
-                s
-            })
-            .collect();
+            });
+
         Ok(schemas)
+    }
+}
+impl IngestAdapter for DefaultAdapter {
+    fn new(schemas_str: String) -> Result<Self, ConnectorError> {
+        let schema_map = Self::parse_schemas(&schemas_str)?;
+        Ok(Self { schema_map })
+    }
+    fn get_schemas(&self) -> Vec<(String, SourceSchema)> {
+        self.schema_map
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
     }
     fn handle_message(
         &self,
         msg: GrpcIngestMessage,
-        schema_map: &'static HashMap<String, Schema>,
         ingestor: &'static Ingestor,
     ) -> Result<(), ConnectorError> {
         match msg {
-            GrpcIngestMessage::Default(msg) => handle_message(msg, schema_map, ingestor),
+            GrpcIngestMessage::Default(msg) => handle_message(msg, &self.schema_map, ingestor),
             GrpcIngestMessage::Arrow(_) => Err(ConnectorError::InitializationError(
                 "Wrong message format!".to_string(),
             )),
@@ -62,12 +67,15 @@ impl IngestAdapter for DefaultAdapter {
 
 pub fn handle_message(
     req: IngestRequest,
-    schema_map: &'static HashMap<String, Schema>,
+    schema_map: &HashMap<String, SourceSchema>,
     ingestor: &'static Ingestor,
 ) -> Result<(), ConnectorError> {
-    let schema = schema_map.get(&req.schema_name).ok_or_else(|| {
-        ConnectorError::InitializationError(format!("schema not found: {}", req.schema_name))
-    })?;
+    let schema = &schema_map
+        .get(&req.schema_name)
+        .ok_or_else(|| {
+            ConnectorError::InitializationError(format!("schema not found: {}", req.schema_name))
+        })?
+        .schema;
 
     let op = match req.typ() {
         grpc_types::types::OperationType::Insert => Operation::Insert {
@@ -173,6 +181,5 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
     Ok(Record {
         schema_id: schema.identifier,
         values,
-        version: None,
     })
 }

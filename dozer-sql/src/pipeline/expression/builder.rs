@@ -3,20 +3,24 @@ use dozer_types::{
     types::{Field, FieldDefinition, Schema, SourceDefinition},
 };
 use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
-    FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+    BinaryOperator as SqlBinaryOperator, DataType, DateTimeField, Expr as SqlExpr, Expr, Function,
+    FunctionArg, FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator,
+    Value as SqlValue,
 };
 
 use crate::pipeline::errors::PipelineError::{
-    InvalidArgument, InvalidExpression, InvalidNestedAggregationFunction, InvalidOperator,
-    InvalidValue,
+    InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
+    InvalidOperator, InvalidValue,
 };
 use crate::pipeline::errors::{PipelineError, SqlError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
+use crate::pipeline::expression::conditional::ConditionalExpressionType;
 use crate::pipeline::expression::datetime::DateTimeFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::expression::execution::Expression::{GeoFunction, ScalarFunction};
+use crate::pipeline::expression::execution::Expression::{
+    ConditionalExpression, GeoFunction, ScalarFunction,
+};
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
@@ -109,6 +113,15 @@ impl ExpressionBuilder {
             SqlExpr::Extract { field, expr } => {
                 self.parse_sql_extract_operator(parse_aggregations, field, expr, schema)
             }
+            SqlExpr::Interval {
+                value,
+                leading_field,
+                leading_precision: _,
+                last_field: _,
+                fractional_seconds_precision: _,
+            } => {
+                self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema)
+            }
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
@@ -126,7 +139,9 @@ impl ExpressionBuilder {
                 return Err(PipelineError::SqlError(SqlError::InvalidColumn(
                     ident
                         .iter()
-                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                        .map(|e| e.value.as_str())
+                        .collect::<Vec<&str>>()
+                        .join("."),
                 )));
             }
         };
@@ -146,7 +161,9 @@ impl ExpressionBuilder {
                 None => Err(PipelineError::SqlError(SqlError::InvalidColumn(
                     ident
                         .iter()
-                        .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                        .map(|e| e.value.as_str())
+                        .collect::<Vec<&str>>()
+                        .join("."),
                 ))),
                 Some(src_table_or_alias) => {
                     let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> =
@@ -192,7 +209,9 @@ impl ExpressionBuilder {
                                     _ => Err(PipelineError::SqlError(SqlError::InvalidColumn(
                                         ident
                                             .iter()
-                                            .fold(String::new(), |a, b| a + "." + b.value.as_str()),
+                                            .map(|e| e.value.as_str())
+                                            .collect::<Vec<&str>>()
+                                            .join("."),
                                     ))),
                                 }
                             }
@@ -228,21 +247,13 @@ impl ExpressionBuilder {
         Ok(Expression::Trim { arg, what, typ })
     }
 
-    fn parse_sql_function(
+    fn aggr_function_check(
         &mut self,
+        function_name: String,
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
     ) -> Result<Expression, PipelineError> {
-        let function_name = sql_function.name.to_string().to_lowercase();
-
-        #[cfg(feature = "python")]
-        if function_name.starts_with("py_") {
-            // The function is from python udf.
-            let udf_name = function_name.strip_prefix("py_").unwrap();
-            return self.parse_python_udf(udf_name, sql_function, schema);
-        }
-
         match (
             AggregateFunctionType::new(function_name.as_str()),
             parse_aggregations,
@@ -274,31 +285,94 @@ impl ExpressionBuilder {
                 })
             }
             (Ok(_agg), false) => Err(InvalidNestedAggregationFunction(function_name)),
-            (Err(_), _) => {
-                let mut function_args: Vec<Expression> = Vec::new();
-                for arg in &sql_function.args {
-                    function_args.push(self.parse_sql_function_arg(
-                        parse_aggregations,
-                        arg,
-                        schema,
-                    )?);
-                }
-
-                match ScalarFunctionType::new(function_name.as_str()) {
-                    Ok(sft) => Ok(ScalarFunction {
-                        fun: sft,
-                        args: function_args.clone(),
-                    }),
-                    Err(_d) => match GeoFunctionType::new(function_name.as_str()) {
-                        Ok(gft) => Ok(GeoFunction {
-                            fun: gft,
-                            args: function_args.clone(),
-                        }),
-                        Err(_err) => Err(InvalidNestedAggregationFunction(function_name)),
-                    },
-                }
-            }
+            (Err(_), _) => Err(InvalidNestedAggregationFunction(function_name)),
         }
+    }
+
+    fn scalar_function_check(
+        &mut self,
+        function_name: String,
+        parse_aggregations: bool,
+        sql_function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let mut function_args: Vec<Expression> = Vec::new();
+        for arg in &sql_function.args {
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+        }
+
+        match ScalarFunctionType::new(function_name.as_str()) {
+            Ok(sft) => Ok(ScalarFunction {
+                fun: sft,
+                args: function_args.clone(),
+            }),
+            Err(_d) => Err(InvalidFunction(function_name)),
+        }
+    }
+
+    fn conditional_expr_check(
+        &mut self,
+        function_name: String,
+        parse_aggregations: bool,
+        sql_function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let mut function_args: Vec<Expression> = Vec::new();
+        for arg in &sql_function.args {
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+        }
+
+        match GeoFunctionType::new(function_name.as_str()) {
+            Ok(gft) => Ok(GeoFunction {
+                fun: gft,
+                args: function_args.clone(),
+            }),
+            Err(_e) => match ConditionalExpressionType::new(function_name.as_str()) {
+                Ok(cet) => Ok(ConditionalExpression {
+                    fun: cet,
+                    args: function_args.clone(),
+                }),
+                Err(_err) => Err(InvalidFunction(function_name)),
+            },
+        }
+    }
+
+    fn parse_sql_function(
+        &mut self,
+        parse_aggregations: bool,
+        sql_function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let function_name = sql_function.name.to_string().to_lowercase();
+
+        #[cfg(feature = "python")]
+        if function_name.starts_with("py_") {
+            // The function is from python udf.
+            let udf_name = function_name.strip_prefix("py_").unwrap();
+            return self.parse_python_udf(udf_name, sql_function, schema);
+        }
+
+        let aggr_check = self.aggr_function_check(
+            function_name.clone(),
+            parse_aggregations,
+            sql_function,
+            schema,
+        );
+        if aggr_check.is_ok() {
+            return aggr_check;
+        }
+
+        let scalar_check = self.scalar_function_check(
+            function_name.clone(),
+            parse_aggregations,
+            sql_function,
+            schema,
+        );
+        if scalar_check.is_ok() {
+            return scalar_check;
+        }
+
+        self.conditional_expr_check(function_name, parse_aggregations, sql_function, schema)
     }
 
     fn parse_sql_function_arg(
@@ -329,6 +403,26 @@ impl ExpressionBuilder {
             FunctionArg::Unnamed(FunctionArgExpr::QualifiedWildcard(_)) => {
                 Err(InvalidArgument(format!("{argument:?}")))
             }
+        }
+    }
+
+    fn parse_sql_interval_expression(
+        &mut self,
+        parse_aggregations: bool,
+        value: &Expr,
+        leading_field: &Option<DateTimeField>,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let right = self.parse_sql_expression(parse_aggregations, value, schema)?;
+        if leading_field.is_some() {
+            Ok(Expression::DateTimeFunction {
+                fun: DateTimeFunctionType::Interval {
+                    field: leading_field.unwrap(),
+                },
+                arg: Box::new(right),
+            })
+        } else {
+            Err(InvalidExpression(format!("INTERVAL for {leading_field:?}")))
         }
     }
 
@@ -459,6 +553,12 @@ impl ExpressionBuilder {
             DataType::Custom(name, ..) => {
                 if name.to_string().to_lowercase() == "json" {
                     CastOperatorType::Json
+                } else if name.to_string().to_lowercase() == "uint" {
+                    CastOperatorType::UInt
+                } else if name.to_string().to_lowercase() == "u128" {
+                    CastOperatorType::U128
+                } else if name.to_string().to_lowercase() == "i128" {
+                    CastOperatorType::I128
                 } else {
                     Err(PipelineError::InvalidFunction(format!(
                         "Unsupported Cast type {name}"

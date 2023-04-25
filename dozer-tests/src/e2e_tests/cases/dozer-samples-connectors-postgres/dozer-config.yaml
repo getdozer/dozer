@@ -1,0 +1,30 @@
+connections:
+  - name: pagila_conn
+    config: !Postgres
+      user: postgres
+      password: postgres
+      host: localhost
+      port: 5433
+      database: pagila
+      name: user
+
+sources:
+  - name: actors
+    table_name: actor
+    connection: !Ref pagila_conn
+    columns:
+  - name: films
+    table_name: film
+    connection: !Ref pagila_conn
+    columns:
+      - film_id
+      - title
+
+endpoints:
+  - name: actors
+    path: /actors
+    table_name: actors
+
+  - name: films
+    path: /films
+    table_name: films

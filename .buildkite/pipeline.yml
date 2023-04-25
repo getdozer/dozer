@@ -1,6 +1,0 @@
-steps:
-  - label: "Build and Run Tests"
-    plugins:
-      - docker-compose#v4.9.0:
-          config: .buildkite/build_dozer_tests/docker-compose.yaml
-          run: dozer-tests

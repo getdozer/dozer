@@ -1,24 +1,38 @@
-use dozer_storage::{lmdb::Transaction, LmdbMultimap};
-use dozer_types::types::{Field, IndexDefinition, Record, Schema};
+use std::sync::Arc;
 
-use crate::cache::{lmdb::cache::LmdbRwCache, RwCache};
+use dozer_types::parking_lot::Mutex;
+use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaWithIndex};
+
+use crate::cache::{
+    lmdb::{
+        cache::{LmdbCache, LmdbRwCache, SecondaryEnvironment},
+        indexing::IndexingThreadPool,
+    },
+    RoCache, RwCache,
+};
 
 pub fn create_cache(
-    schema_gen: impl FnOnce() -> (Schema, Vec<IndexDefinition>),
-) -> (LmdbRwCache, Schema, Vec<IndexDefinition>) {
-    let (schema, secondary_indexes) = schema_gen();
-    let cache = LmdbRwCache::create(
-        schema.clone(),
-        secondary_indexes.clone(),
+    schema_gen: impl FnOnce() -> SchemaWithIndex,
+) -> (
+    LmdbRwCache,
+    Arc<Mutex<IndexingThreadPool>>,
+    Schema,
+    Vec<IndexDefinition>,
+) {
+    let schema = schema_gen();
+    let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(1)));
+    let cache = LmdbRwCache::new(
+        Some(&schema),
+        &Default::default(),
         Default::default(),
-        Default::default(),
+        indexing_thread_pool.clone(),
     )
     .unwrap();
-    (cache, schema, secondary_indexes)
+    (cache, indexing_thread_pool, schema.0, schema.1)
 }
 
 pub fn insert_rec_1(
-    cache: &LmdbRwCache,
+    cache: &mut LmdbRwCache,
     schema: &Schema,
     (a, b, c): (i64, Option<String>, Option<i64>),
 ) {
@@ -29,13 +43,12 @@ pub fn insert_rec_1(
             b.map_or(Field::Null, Field::String),
             c.map_or(Field::Null, Field::Int),
         ],
-        None,
     );
     cache.insert(&mut record).unwrap();
 }
 
 pub fn insert_full_text(
-    cache: &LmdbRwCache,
+    cache: &mut LmdbRwCache,
     schema: &Schema,
     (a, b): (Option<String>, Option<String>),
 ) {
@@ -45,18 +58,12 @@ pub fn insert_full_text(
             a.map_or(Field::Null, Field::String),
             b.map_or(Field::Null, Field::Text),
         ],
-        None,
     );
     cache.insert(&mut record).unwrap();
 }
 
-pub fn get_index_counts<'txn, T: Transaction>(
-    txn: &'txn T,
-    secondary_index_databases: &[LmdbMultimap<Vec<u8>, u64>],
-) -> Vec<usize> {
-    let mut items = Vec::new();
-    for db in secondary_index_databases {
-        items.push(db.count_data(txn).unwrap());
-    }
-    items
+pub fn get_index_counts<C: LmdbCache>(cache: &C) -> Vec<usize> {
+    (0..cache.get_schema().1.len())
+        .map(|index| cache.secondary_env(index).count_data().unwrap())
+        .collect()
 }

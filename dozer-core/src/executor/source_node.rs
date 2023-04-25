@@ -149,7 +149,6 @@ pub fn create_source_nodes(
         panic!("Must pass in a node")
     };
     let node_handle = node.handle;
-    let node_storage = node.storage;
     let NodeKind::Source(source, last_checkpoint) = node.kind else {
         panic!("Must pass in a source node");
     };
@@ -169,11 +168,7 @@ pub fn create_source_nodes(
 
     // Create source sender node.
     let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
-    let state_writer = StateWriter::new(
-        node_storage.meta_db,
-        record_writers,
-        node_storage.master_txn,
-    );
+    let state_writer = StateWriter::new(record_writers);
     let channel_manager = SourceChannelManager::new(
         node_handle.clone(),
         senders,

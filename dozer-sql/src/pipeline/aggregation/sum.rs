@@ -1,35 +1,86 @@
-use crate::calculate_err_field;
 use crate::pipeline::aggregation::aggregator::Aggregator;
-use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::{FieldTypes, PipelineError};
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Sum;
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::{argv, calculate_err_field};
 use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{DozerDuration, Field, FieldType, Schema, SourceDefinition, TimeUnit};
 use num_traits::FromPrimitive;
+
+pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionType, PipelineError> {
+    let arg = &argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema)?;
+
+    let ret_type = match arg.return_type {
+        FieldType::UInt => FieldType::UInt,
+        FieldType::U128 => FieldType::U128,
+        FieldType::Int => FieldType::Int,
+        FieldType::I128 => FieldType::I128,
+        FieldType::Float => FieldType::Float,
+        FieldType::Decimal => FieldType::Decimal,
+        FieldType::Duration => FieldType::Duration,
+        FieldType::Boolean
+        | FieldType::String
+        | FieldType::Text
+        | FieldType::Date
+        | FieldType::Timestamp
+        | FieldType::Binary
+        | FieldType::Bson
+        | FieldType::Point => {
+            return Err(PipelineError::InvalidFunctionArgumentType(
+                Sum.to_string(),
+                arg.return_type,
+                FieldTypes::new(vec![
+                    FieldType::UInt,
+                    FieldType::U128,
+                    FieldType::Int,
+                    FieldType::I128,
+                    FieldType::Float,
+                    FieldType::Decimal,
+                    FieldType::Duration,
+                ]),
+                0,
+            ));
+        }
+    };
+    Ok(ExpressionType::new(
+        ret_type,
+        true,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
 
 #[derive(Debug)]
 pub struct SumAggregator {
-    current_state: SumAggregatorState,
+    current_state: SumState,
     return_type: Option<FieldType>,
 }
 
 #[derive(Debug)]
-struct SumAggregatorState {
-    int_state: i64,
-    uint_state: u64,
-    float_state: f64,
-    decimal_state: Decimal,
+pub struct SumState {
+    pub(crate) int_state: i64,
+    pub(crate) i128_state: i128,
+    pub(crate) uint_state: u64,
+    pub(crate) u128_state: u128,
+    pub(crate) float_state: f64,
+    pub(crate) decimal_state: Decimal,
+    pub(crate) duration_state: std::time::Duration,
 }
 
 impl SumAggregator {
     pub fn new() -> Self {
         Self {
-            current_state: SumAggregatorState {
+            current_state: SumState {
                 int_state: 0_i64,
+                i128_state: 0_i128,
                 uint_state: 0_u64,
+                u128_state: 0_u128,
                 float_state: 0_f64,
                 decimal_state: Decimal::from_f64(0_f64).unwrap(),
+                duration_state: std::time::Duration::new(0, 0),
             },
             return_type: None,
         }
@@ -55,72 +106,126 @@ impl Aggregator for SumAggregator {
     }
 }
 
-fn get_sum(
+pub fn get_sum(
     fields: &[Field],
-    current_state: &mut SumAggregatorState,
+    current_state: &mut SumState,
     return_type: Option<FieldType>,
     decr: bool,
 ) -> Result<Field, PipelineError> {
     match return_type {
-        Some(FieldType::UInt) => {
-            if decr {
-                for field in fields {
-                    let val = calculate_err_field!(field.to_uint(), Sum, field);
-                    current_state.uint_state -= val;
+        Some(typ) => match typ {
+            FieldType::UInt => {
+                if decr {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_uint(), Sum, field);
+                        current_state.uint_state -= val;
+                    }
+                } else {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_uint(), Sum, field);
+                        current_state.uint_state += val;
+                    }
                 }
-            } else {
-                for field in fields {
-                    let val = calculate_err_field!(field.to_uint(), Sum, field);
-                    current_state.uint_state += val;
-                }
+                Ok(Field::UInt(current_state.uint_state))
             }
-            Ok(Field::UInt(current_state.uint_state))
-        }
-        Some(FieldType::Int) => {
-            if decr {
-                for field in fields {
-                    let val = calculate_err_field!(field.to_int(), Sum, field);
-                    current_state.int_state -= val;
+            FieldType::U128 => {
+                if decr {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_u128(), Sum, field);
+                        current_state.u128_state -= val;
+                    }
+                } else {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_u128(), Sum, field);
+                        current_state.u128_state += val;
+                    }
                 }
-            } else {
-                for field in fields {
-                    let val = calculate_err_field!(field.to_int(), Sum, field);
-                    current_state.int_state += val;
-                }
+                Ok(Field::U128(current_state.u128_state))
             }
-            Ok(Field::Int(current_state.int_state))
-        }
-        Some(FieldType::Float) => {
-            if decr {
-                for field in fields {
-                    let val = calculate_err_field!(field.to_float(), Sum, field);
-                    current_state.float_state -= val;
+            FieldType::Int => {
+                if decr {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_int(), Sum, field);
+                        current_state.int_state -= val;
+                    }
+                } else {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_int(), Sum, field);
+                        current_state.int_state += val;
+                    }
                 }
-            } else {
-                for field in fields {
-                    let val = calculate_err_field!(field.to_float(), Sum, field);
-                    current_state.float_state += val;
-                }
+                Ok(Field::Int(current_state.int_state))
             }
-            Ok(Field::Float(OrderedFloat::from(current_state.float_state)))
-        }
-        Some(FieldType::Decimal) => {
-            if decr {
-                for field in fields {
-                    let val = calculate_err_field!(field.to_decimal(), Sum, field);
-                    current_state.decimal_state -= val;
+            FieldType::I128 => {
+                if decr {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_i128(), Sum, field);
+                        current_state.i128_state -= val;
+                    }
+                } else {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_i128(), Sum, field);
+                        current_state.i128_state += val;
+                    }
                 }
-            } else {
-                for field in fields {
-                    let val = calculate_err_field!(field.to_decimal(), Sum, field);
-                    current_state.decimal_state += val;
-                }
+                Ok(Field::I128(current_state.i128_state))
             }
-            Ok(Field::Decimal(current_state.decimal_state))
-        }
-        Some(not_supported_return_type) => Err(PipelineError::InternalExecutionError(InvalidType(
-            format!("Not supported return type {not_supported_return_type} for {Sum}"),
-        ))),
+            FieldType::Float => {
+                if decr {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_float(), Sum, field);
+                        current_state.float_state -= val;
+                    }
+                } else {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_float(), Sum, field);
+                        current_state.float_state += val;
+                    }
+                }
+                Ok(Field::Float(OrderedFloat::from(current_state.float_state)))
+            }
+            FieldType::Decimal => {
+                if decr {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_decimal(), Sum, field);
+                        current_state.decimal_state -= val;
+                    }
+                } else {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_decimal(), Sum, field);
+                        current_state.decimal_state += val;
+                    }
+                }
+                Ok(Field::Decimal(current_state.decimal_state))
+            }
+            FieldType::Duration => {
+                if decr {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_duration()?, Sum, field);
+                        current_state.duration_state -= val.0;
+                    }
+                } else {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_duration()?, Sum, field);
+                        current_state.duration_state += val.0;
+                    }
+                }
+                Ok(Field::Duration(DozerDuration(
+                    current_state.duration_state,
+                    TimeUnit::Nanoseconds,
+                )))
+            }
+            FieldType::Boolean
+            | FieldType::String
+            | FieldType::Text
+            | FieldType::Date
+            | FieldType::Timestamp
+            | FieldType::Binary
+            | FieldType::Bson
+            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+                "Not supported return type {typ} for {Sum}"
+            )))),
+        },
         None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
             "Not supported None return type for {Sum}"
         )))),

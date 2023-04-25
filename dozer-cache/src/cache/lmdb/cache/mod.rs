@@ -1,45 +1,36 @@
-use std::fmt::Debug;
+use dozer_types::parking_lot::Mutex;
 use std::path::PathBuf;
+use std::{fmt::Debug, sync::Arc};
 
-use dozer_storage::lmdb::{RoTransaction, RwTransaction, Transaction};
-use dozer_storage::lmdb_storage::{
-    LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
+use dozer_types::types::{Record, SchemaWithIndex};
+
+use super::{
+    super::{RoCache, RwCache},
+    indexing::IndexingThreadPool,
 };
-use dozer_storage::LmdbMultimap;
-
-use dozer_types::parking_lot::RwLockReadGuard;
-
-use dozer_types::types::Schema;
-use dozer_types::types::{IndexDefinition, Record};
-
-use self::secondary_index_database::{
-    new_secondary_index_database_from_env, new_secondary_index_database_from_txn,
-};
-
-use super::super::{RoCache, RwCache};
-use super::indexer::Indexer;
-use super::utils::{self, CacheReadOptions};
-use super::utils::{CacheOptions, CacheOptionsKind};
 use crate::cache::expression::QueryExpression;
-use crate::cache::RecordWithId;
+use crate::cache::{CacheRecord, CacheWriteOptions, RecordMeta, UpsertResult};
 use crate::errors::CacheError;
-use query::LmdbQueryHandler;
 
-mod helper;
 mod main_environment;
 mod query;
-mod schema_database;
-mod secondary_index_database;
+mod secondary_environment;
 
-use main_environment::MainEnvironment;
-use schema_database::SchemaDatabase;
+pub use main_environment::{MainEnvironment, RoMainEnvironment, RwMainEnvironment};
+use query::LmdbQueryHandler;
+pub use secondary_environment::{
+    RoSecondaryEnvironment, RwSecondaryEnvironment, SecondaryEnvironment,
+};
 
 #[derive(Clone, Debug)]
-pub struct CacheCommonOptions {
+pub struct CacheOptions {
     // Total number of readers allowed
     pub max_readers: u32,
     // Max no of dbs
     pub max_db_size: u32,
+    // Total size allocated for data in a memory mapped file.
+    // This size is allocated at initialization.
+    pub max_size: usize,
 
     /// The chunk size when calculating intersection of index queries.
     pub intersection_chunk_size: usize,
@@ -49,326 +40,164 @@ pub struct CacheCommonOptions {
     pub path: Option<(PathBuf, String)>,
 }
 
-impl Default for CacheCommonOptions {
+impl Default for CacheOptions {
     fn default() -> Self {
         Self {
             max_readers: 1000,
             max_db_size: 1000,
+            max_size: 1024 * 1024 * 1024,
             intersection_chunk_size: 100,
             path: None,
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LmdbRoCache {
-    common: LmdbCacheCommon,
-    env: LmdbEnvironmentManager,
+    pub(crate) main_env: RoMainEnvironment,
+    pub(crate) secondary_envs: Vec<RoSecondaryEnvironment>,
 }
 
 impl LmdbRoCache {
-    pub fn new(options: CacheCommonOptions) -> Result<Self, CacheError> {
-        let (mut env, name) = utils::init_env(&CacheOptions {
-            common: options.clone(),
-            kind: CacheOptionsKind::ReadOnly(CacheReadOptions {}),
-        })?;
-        let common = LmdbCacheCommon::new(&mut env, options, name, false)?;
-        Ok(Self { common, env })
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct CacheWriteOptions {
-    // Total size allocated for data in a memory mapped file.
-    // This size is allocated at initialization.
-    pub max_size: usize,
-}
-
-impl Default for CacheWriteOptions {
-    fn default() -> Self {
-        Self {
-            max_size: 1024 * 1024 * 1024 * 1024,
-        }
+    pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
+        let main_env = RoMainEnvironment::new(options)?;
+        let secondary_envs = (0..main_env.schema().1.len())
+            .map(|index| RoSecondaryEnvironment::new(secondary_environment_name(index), options))
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
+            main_env,
+            secondary_envs,
+        })
     }
 }
 
 #[derive(Debug)]
 pub struct LmdbRwCache {
-    common: LmdbCacheCommon,
-    txn: SharedTransaction,
+    main_env: RwMainEnvironment,
+    secondary_envs: Vec<RoSecondaryEnvironment>,
+    indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
 }
 
 impl LmdbRwCache {
-    pub fn create(
-        schema: Schema,
-        indexes: Vec<IndexDefinition>,
-        common_options: CacheCommonOptions,
+    pub fn new(
+        schema: Option<&SchemaWithIndex>,
+        options: &CacheOptions,
         write_options: CacheWriteOptions,
+        indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
     ) -> Result<Self, CacheError> {
-        let mut cache = Self::open(common_options, write_options)?;
+        let rw_main_env = RwMainEnvironment::new(schema, options, write_options)?;
 
-        let mut txn = cache.txn.write();
-        cache.common.insert_schema(&mut txn, schema, indexes)?;
+        let options = CacheOptions {
+            path: Some((
+                rw_main_env.base_path().to_path_buf(),
+                rw_main_env.name().to_string(),
+            )),
+            ..*options
+        };
+        let ro_main_env = rw_main_env.share();
 
-        txn.commit_and_renew()?;
-        drop(txn);
+        let mut rw_secondary_envs = vec![];
+        let mut ro_secondary_envs = vec![];
+        for (index, index_definition) in ro_main_env.schema().1.iter().enumerate() {
+            let name = secondary_environment_name(index);
+            let rw_secondary_env =
+                RwSecondaryEnvironment::new(index_definition, name.clone(), &options)?;
+            let ro_secondary_env = rw_secondary_env.share();
 
-        Ok(cache)
-    }
+            rw_secondary_envs.push(rw_secondary_env);
+            ro_secondary_envs.push(ro_secondary_env);
+        }
 
-    pub fn open(
-        common_options: CacheCommonOptions,
-        write_options: CacheWriteOptions,
-    ) -> Result<Self, CacheError> {
-        let (mut env, name) = utils::init_env(&CacheOptions {
-            common: common_options.clone(),
-            kind: CacheOptionsKind::Write(write_options),
-        })?;
-        let common = LmdbCacheCommon::new(&mut env, common_options, name, true)?;
-        let txn = env.create_txn()?;
-        Ok(Self { common, txn })
+        indexing_thread_pool
+            .lock()
+            .add_cache(ro_main_env, rw_secondary_envs);
+
+        Ok(Self {
+            main_env: rw_main_env,
+            secondary_envs: ro_secondary_envs,
+            indexing_thread_pool,
+        })
     }
 }
 
 impl<C: LmdbCache> RoCache for C {
     fn name(&self) -> &str {
-        &self.common().name
+        self.main_env().name()
     }
 
-    fn get(&self, key: &[u8]) -> Result<RecordWithId, CacheError> {
-        let txn = self.begin_txn()?;
-        let txn = txn.as_txn();
-        self.common().main_environment.get(txn, key)
+    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError> {
+        self.main_env().get(key)
     }
 
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError> {
-        let txn = self.begin_txn()?;
-        let handler = self.create_query_handler(&txn, query)?;
-        handler.count()
+        LmdbQueryHandler::new(self, query).count()
     }
 
-    fn query(&self, query: &QueryExpression) -> Result<Vec<RecordWithId>, CacheError> {
-        let txn = self.begin_txn()?;
-        let handler = self.create_query_handler(&txn, query)?;
-        handler.query()
+    fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError> {
+        LmdbQueryHandler::new(self, query).query()
     }
 
-    fn get_schema(&self) -> Result<&(Schema, Vec<IndexDefinition>), CacheError> {
-        self.get_schema_impl()
+    fn get_schema(&self) -> &SchemaWithIndex {
+        self.main_env().schema()
     }
 }
 
 impl RwCache for LmdbRwCache {
-    fn insert(&self, record: &mut Record) -> Result<u64, CacheError> {
-        let (schema, secondary_indexes) = self.get_schema()?;
-        self.insert_impl(record, schema, secondary_indexes)
+    fn insert(&mut self, record: &Record) -> Result<UpsertResult, CacheError> {
+        let span = dozer_types::tracing::span!(dozer_types::tracing::Level::TRACE, "insert_cache");
+        let _enter = span.enter();
+        self.main_env.insert(record)
     }
 
-    fn delete(&self, key: &[u8]) -> Result<u32, CacheError> {
-        let (_, _, version) = self.delete_impl(key)?;
-        Ok(version)
+    fn delete(&mut self, record: &Record) -> Result<Option<RecordMeta>, CacheError> {
+        self.main_env.delete(record)
     }
 
-    fn update(&self, key: &[u8], record: &mut Record) -> Result<u32, CacheError> {
-        let (schema, secondary_indexes, old_version) = self.delete_impl(key)?;
-        self.insert_impl(record, schema, secondary_indexes)?;
-        Ok(old_version)
+    fn update(&mut self, old: &Record, new: &Record) -> Result<UpsertResult, CacheError> {
+        self.main_env.update(old, new)
     }
 
-    fn commit(&self) -> Result<(), CacheError> {
-        let mut txn = self.txn.write();
-        txn.commit_and_renew()?;
+    fn commit(&mut self) -> Result<(), CacheError> {
+        self.main_env.commit()?;
+        self.indexing_thread_pool.lock().wake(self.name());
         Ok(())
     }
 }
 
-impl LmdbRwCache {
-    fn delete_impl(&self, key: &[u8]) -> Result<(&Schema, &[IndexDefinition], u32), CacheError> {
-        let record = self.get(key)?;
-        let (schema, secondary_indexes) = self.get_schema()?;
+pub trait LmdbCache: Send + Sync + Debug {
+    type MainEnvironment: MainEnvironment;
 
-        let mut txn = self.txn.write();
-        let txn = txn.txn_mut();
+    fn main_env(&self) -> &Self::MainEnvironment;
 
-        let (version, operation_id) = self.common.main_environment.delete(txn, key)?;
+    type SecondaryEnvironment: SecondaryEnvironment;
 
-        let indexer = Indexer {
-            secondary_indexes: &self.common.secondary_indexes,
-        };
-        indexer.delete_indexes(txn, &record.record, secondary_indexes, operation_id)?;
-        Ok((schema, secondary_indexes, version))
-    }
-
-    /// Inserts the record, sets the record version, builds the secondary index, and returns the record id.
-    fn insert_impl(
-        &self,
-        record: &mut Record,
-        schema: &Schema,
-        secondary_indexes: &[IndexDefinition],
-    ) -> Result<u64, CacheError> {
-        let mut txn = self.txn.write();
-        let txn = txn.txn_mut();
-
-        let (record_id, operation_id) = self.common.main_environment.insert(txn, record, schema)?;
-
-        let indexer = Indexer {
-            secondary_indexes: &self.common.secondary_indexes,
-        };
-
-        indexer.build_indexes(txn, record, secondary_indexes, operation_id)?;
-
-        Ok(record_id)
-    }
-}
-
-/// This trait abstracts the behavior of getting a transaction from a `LmdbExclusiveTransaction` or a `lmdb::Transaction`.
-trait AsTransaction {
-    type Transaction<'a>: Transaction
-    where
-        Self: 'a;
-
-    fn as_txn(&self) -> &Self::Transaction<'_>;
-}
-
-impl<'a> AsTransaction for RoTransaction<'a> {
-    type Transaction<'env> = RoTransaction<'env> where Self: 'env;
-
-    fn as_txn(&self) -> &Self::Transaction<'_> {
-        self
-    }
-}
-
-impl<'a> AsTransaction for RwLockReadGuard<'a, LmdbExclusiveTransaction> {
-    type Transaction<'env> = RwTransaction<'env> where Self: 'env;
-
-    fn as_txn(&self) -> &Self::Transaction<'_> {
-        self.txn()
-    }
-}
-
-/// This trait abstracts the behavior of locking a `SharedTransaction` for reading
-/// and beginning a `RoTransaction` from `LmdbEnvironmentManager`.
-trait LmdbCache: Send + Sync + Debug {
-    type AsTransaction<'a>: AsTransaction
-    where
-        Self: 'a;
-
-    fn common(&self) -> &LmdbCacheCommon;
-    fn begin_txn(&self) -> Result<Self::AsTransaction<'_>, CacheError>;
-
-    fn get_schema_impl(&self) -> Result<&(Schema, Vec<IndexDefinition>), CacheError> {
-        self.common()
-            .schema_db
-            .get_schema()
-            .ok_or(CacheError::SchemaNotFound)
-    }
-
-    fn create_query_handler<'a, 'as_txn>(
-        &'a self,
-        txn: &'a Self::AsTransaction<'as_txn>,
-        query: &'a QueryExpression,
-    ) -> Result<
-        LmdbQueryHandler<'a, <Self::AsTransaction<'as_txn> as AsTransaction>::Transaction<'a>>,
-        CacheError,
-    > {
-        let txn = txn.as_txn();
-        let (schema, secondary_indexes) = self.get_schema_impl()?;
-        let handler = LmdbQueryHandler::new(self.common(), txn, schema, secondary_indexes, query);
-        Ok(handler)
-    }
+    fn secondary_env(&self, index: usize) -> &Self::SecondaryEnvironment;
 }
 
 impl LmdbCache for LmdbRoCache {
-    type AsTransaction<'a> = RoTransaction<'a>;
-
-    fn common(&self) -> &LmdbCacheCommon {
-        &self.common
+    type MainEnvironment = RoMainEnvironment;
+    fn main_env(&self) -> &Self::MainEnvironment {
+        &self.main_env
     }
 
-    fn begin_txn(&self) -> Result<Self::AsTransaction<'_>, CacheError> {
-        Ok(self.env.begin_ro_txn()?)
+    type SecondaryEnvironment = RoSecondaryEnvironment;
+    fn secondary_env(&self, index: usize) -> &Self::SecondaryEnvironment {
+        &self.secondary_envs[index]
     }
 }
 
 impl LmdbCache for LmdbRwCache {
-    type AsTransaction<'a> = RwLockReadGuard<'a, LmdbExclusiveTransaction>;
-
-    fn common(&self) -> &LmdbCacheCommon {
-        &self.common
+    type MainEnvironment = RwMainEnvironment;
+    fn main_env(&self) -> &Self::MainEnvironment {
+        &self.main_env
     }
 
-    fn begin_txn(&self) -> Result<Self::AsTransaction<'_>, CacheError> {
-        Ok(self.txn.read())
-    }
-}
-
-#[derive(Debug)]
-pub struct LmdbCacheCommon {
-    main_environment: MainEnvironment,
-    secondary_indexes: Vec<LmdbMultimap<Vec<u8>, u64>>,
-    schema_db: SchemaDatabase,
-    cache_options: CacheCommonOptions,
-    /// File name of the database.
-    name: String,
-}
-
-impl LmdbCacheCommon {
-    fn new(
-        env: &mut LmdbEnvironmentManager,
-        options: CacheCommonOptions,
-        name: String,
-        create_db_if_not_exist: bool,
-    ) -> Result<Self, CacheError> {
-        // Create or open must have databases.
-        let main_environment = MainEnvironment::new(env, create_db_if_not_exist)?;
-        let schema_db = SchemaDatabase::new(env, create_db_if_not_exist)?;
-
-        // Open existing secondary index databases.
-        let mut secondary_indexe_databases = vec![];
-        if let Some((_, secondary_indexes)) = schema_db.get_schema() {
-            for (index, index_definition) in secondary_indexes.iter().enumerate() {
-                let db =
-                    new_secondary_index_database_from_env(env, index, index_definition, false)?;
-                secondary_indexe_databases.push(db);
-            }
-        }
-
-        Ok(Self {
-            main_environment,
-            secondary_indexes: secondary_indexe_databases,
-            schema_db,
-            cache_options: options,
-            name,
-        })
-    }
-
-    fn insert_schema(
-        &mut self,
-        txn: &mut LmdbExclusiveTransaction,
-        schema: Schema,
-        secondary_indexes: Vec<IndexDefinition>,
-    ) -> Result<(), CacheError> {
-        for (index, index_definition) in secondary_indexes.iter().enumerate() {
-            let db = new_secondary_index_database_from_txn(txn, index, index_definition, true)?;
-            self.secondary_indexes.push(db);
-        }
-
-        self.schema_db
-            .insert(txn.txn_mut(), schema, secondary_indexes)?;
-        Ok(())
+    type SecondaryEnvironment = RoSecondaryEnvironment;
+    fn secondary_env(&self, index: usize) -> &Self::SecondaryEnvironment {
+        &self.secondary_envs[index]
     }
 }
 
-/// Methods for testing.
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    impl LmdbRwCache {
-        pub fn get_txn_and_secondary_indexes(
-            &self,
-        ) -> (&SharedTransaction, &[LmdbMultimap<Vec<u8>, u64>]) {
-            (&self.txn, &self.common.secondary_indexes)
-        }
-    }
+fn secondary_environment_name(index: usize) -> String {
+    format!("{index}")
 }

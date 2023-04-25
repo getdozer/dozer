@@ -1,6 +1,8 @@
 #![allow(clippy::enum_variant_names)]
 
-use dozer_api::errors::{ApiError, GrpcError};
+use std::path::PathBuf;
+
+use dozer_api::errors::{ApiError, GenerationError, GrpcError};
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
@@ -16,22 +18,28 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("Failed to initialize. {0}[/api/generated,/cache] are not empty. Use -f to clean the directory and overwrite. Warning! there will be data loss.")]
     InitializationFailed(String),
+    #[error("Failed to generate proto files: {0:?}")]
+    FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Failed to initialize pipeline_dir. Is the path {0:?} accessible?: {1}")]
     PipelineDirectoryInitFailed(String, #[source] std::io::Error),
-    #[error("Can't locate pipeline_dir. Has dozer been initialized(dozer init) ?")]
+    #[error("Can't locate pipeline_dir. Have you run `dozer migrate`?")]
     PipelineDirectoryNotFound(String),
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
+    #[error("Failed to deploy dozer application: {0:?}")]
+    DeployFailed(#[from] DeployError),
     #[error("Failed to initialize api server: {0}")]
     ApiServerFailed(#[from] ApiError),
     #[error("Failed to initialize grpc server: {0}")]
     GrpcServerFailed(#[from] GrpcError),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] tonic::transport::Error),
-    #[error(
-        "{0}: Failed to initialize read only cache. Has dozer been initialized (`dozer init`)?"
-    )]
-    CacheInitFailed(#[source] CacheError),
+    #[error("Failed to initialize cache: {0}")]
+    RwCacheInitFailed(#[source] CacheError),
+    #[error("{0}: Failed to initialize read only cache. Have you run `dozer migrate`?")]
+    RoCacheInitFailed(#[source] CacheError),
+    #[error("Failed to build cache from log")]
+    CacheBuildFailed(#[source] CacheError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
     #[error(transparent)]
@@ -52,6 +60,22 @@ pub enum OrchestrationError {
     EndpointTableNotFound(String),
     #[error("Duplicate table name found: {0:?}")]
     DuplicateTable(String),
+    #[error("Configuration Error: {0:?}")]
+    ConfigError(String),
+    #[error("Loading Schema failed: {0:?}")]
+    SchemaLoadFailed(#[source] CacheError),
+    #[error("Schemas not found in Path specified {0:?}")]
+    SchemasNotInitializedPath(PathBuf),
+    #[error("Cannot convert Schema in Path specified {0:?}")]
+    DeserializeSchema(PathBuf),
+    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
+    MismatchPrimaryKey {
+        endpoint_name: String,
+        expected: Vec<String>,
+        actual: Vec<String>,
+    },
+    #[error("Field not found at position {0}")]
+    FieldNotFound(String),
 }
 
 #[derive(Error, Debug)]
@@ -64,10 +88,22 @@ pub enum CliError {
     FailedToParseYaml(#[source] BoxedError),
     #[error("Failed to validate dozer config: {0:?}")]
     FailedToParseValidateYaml(#[source] BoxedError),
-    #[error(transparent)]
+    #[error("Failed to read line: {0}")]
     ReadlineError(#[from] rustyline::error::ReadlineError),
-    #[error(transparent)]
-    InternalError(#[from] BoxedError),
-    #[error(transparent)]
-    TerminalError(#[from] crossterm::ErrorKind),
+    #[error("File system error {0:?}: {1}")]
+    FileSystem(PathBuf, #[source] std::io::Error),
+    #[error("Failed to create tokio runtime: {0}")]
+    FailedToCreateTokioRuntime(#[source] std::io::Error),
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] reqwest::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum DeployError {
+    #[error("Cannot read configuration: {0}")]
+    CannotReadConfig(PathBuf, #[source] std::io::Error),
+    #[error("Transport error: {0}")]
+    Transport(#[from] tonic::transport::Error),
+    #[error("Server error: {0}")]
+    Server(#[from] tonic::Status),
 }

@@ -19,6 +19,8 @@ use std::string::FromUtf8Error;
 use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
+
+#[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
 use tokio_postgres::Error;
 
@@ -35,9 +37,6 @@ pub enum ConnectorError {
 
     #[error("Table not found: {0}")]
     TableNotFound(String),
-
-    #[error("Columns are expected in table_info")]
-    ColumnsNotFound,
 
     #[error("Failed to initialize connector {0}")]
     InitializationError(String),
@@ -73,6 +72,7 @@ pub enum ConnectorError {
     #[error("Failed to send message on channel")]
     IngestorError(#[source] IngestorError),
 
+    #[cfg(feature = "ethereum")]
     #[error("Error in Eth Connection: {0}")]
     EthError(#[source] web3::Error),
 
@@ -88,8 +88,11 @@ pub enum ConnectorError {
     #[error("Datafusion error: {0}")]
     DataFusionError(#[from] DataFusionError),
 
-    #[error("Runtime creation error")]
-    RuntimeCreationError(#[from] std::io::Error),
+    #[error("kafka feature is not enabled")]
+    KafkaFeatureNotEnabled,
+
+    #[error("ethereum feature is not enabled")]
+    EthereumFeatureNotEnabled,
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {
@@ -134,14 +137,14 @@ pub enum PostgresConnectorError {
     #[error("Cannot find columns {0}")]
     ColumnsNotFound(String),
 
-    #[error("Failed to create a replication slot : {0}")]
+    #[error("Failed to create a replication slot \"{0}\". Error: {1}")]
     CreateSlotError(String, #[source] Error),
 
-    #[error("Failed to create publication")]
-    CreatePublicationError,
+    #[error("Failed to create publication: {0}")]
+    CreatePublicationError(#[source] Error),
 
-    #[error("Failed to drop publication")]
-    DropPublicationError,
+    #[error("Failed to drop publication: {0}")]
+    DropPublicationError(#[source] Error),
 
     #[error("Failed to begin txn for replication")]
     BeginReplication,
@@ -149,7 +152,7 @@ pub enum PostgresConnectorError {
     #[error("Failed to begin txn for replication")]
     CommitReplication,
 
-    #[error("fetch of replication slot info failed")]
+    #[error("Fetch of replication slot info failed. Error: {0}")]
     FetchReplicationSlotError(#[source] tokio_postgres::Error),
 
     #[error("No slots available or all available slots are used")]
@@ -215,8 +218,8 @@ pub enum PostgresSchemaError {
     #[error("Column type {0} not supported")]
     ColumnTypeNotSupported(String),
 
-    #[error("CustomTypeNotSupported")]
-    CustomTypeNotSupported,
+    #[error("Custom type {0:?} is not supported yet. Join our Discord at https://discord.com/invite/3eWXBgJaEQ - we're here to help with your use case!")]
+    CustomTypeNotSupported(String),
 
     #[error("ColumnTypeNotFound")]
     ColumnTypeNotFound,
@@ -310,6 +313,7 @@ pub enum DebeziumError {
     #[error(transparent)]
     DebeziumSchemaError(#[from] DebeziumSchemaError),
 
+    #[cfg(feature = "kafka")]
     #[error("Connection error")]
     DebeziumConnectionError(#[source] kafka::Error),
 
@@ -319,9 +323,11 @@ pub enum DebeziumError {
     #[error("Bytes convert error")]
     BytesConvertError(#[source] Utf8Error),
 
+    #[cfg(feature = "kafka")]
     #[error(transparent)]
     DebeziumStreamError(#[from] DebeziumStreamError),
 
+    #[cfg(feature = "kafka")]
     #[error("Schema registry fetch failed")]
     SchemaRegistryFetchError(#[source] SRCError),
 
@@ -329,6 +335,7 @@ pub enum DebeziumError {
     TopicNotDefined,
 }
 
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
 pub enum DebeziumStreamError {
     #[error("Consume commit error")]
@@ -381,9 +388,6 @@ pub enum ObjectStoreConnectorError {
     #[error(transparent)]
     DataFusionStorageObjectError(#[from] ObjectStoreObjectError),
 
-    #[error("Runtime creation error")]
-    RuntimeCreationError,
-
     #[error("Internal data fusion error")]
     InternalDataFusionError(#[source] DataFusionError),
 
@@ -392,6 +396,9 @@ pub enum ObjectStoreConnectorError {
 
     #[error(transparent)]
     IngestorError(#[from] IngestorError),
+
+    #[error("Failed to receive message on data read channel")]
+    RecvError,
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -420,8 +427,8 @@ pub enum ObjectStoreObjectError {
     #[error("Table definition not found")]
     TableDefinitionNotFound,
 
-    #[error("Listing path parsing error: {0}")]
-    ListingPathParsingError(#[source] DataFusionError),
+    #[error("Listing path {0} parsing error: {1}")]
+    ListingPathParsingError(String, #[source] DataFusionError),
 
     #[error("File format unsupported: {0}")]
     FileFormatUnsupportedError(String),
@@ -429,12 +436,12 @@ pub enum ObjectStoreObjectError {
 
 #[derive(Error, Debug)]
 pub enum ObjectStoreTableReaderError {
-    #[error("Table read failed")]
+    #[error("Table read failed: {0}")]
     TableReadFailed(DataFusionError),
 
-    #[error("Columns select failed")]
+    #[error("Columns select failed: {0}")]
     ColumnsSelectFailed(DataFusionError),
 
-    #[error("Stream execution failed")]
+    #[error("Stream execution failed: {0}")]
     StreamExecutionError(DataFusionError),
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use super::super::{ApiServer, CorsOptions};
 use crate::{
     auth::{Access, Authorizer},
-    test_utils, RoCacheEndpoint,
+    test_utils, CacheEndpoint,
 };
 use actix_web::{body::MessageBody, dev::ServiceResponse};
 use dozer_types::{
@@ -70,7 +70,7 @@ async fn check_status(
         security,
         CorsOptions::Permissive,
         vec![Arc::new(
-            RoCacheEndpoint::new(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::open(&*cache_manager, endpoint.clone()).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;
@@ -98,7 +98,7 @@ async fn _call_auth_token_api(
         Some(ApiSecurity::Jwt(secret)),
         CorsOptions::Permissive,
         vec![Arc::new(
-            RoCacheEndpoint::new(&*cache_manager, endpoint).unwrap(),
+            CacheEndpoint::open(&*cache_manager, endpoint).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;

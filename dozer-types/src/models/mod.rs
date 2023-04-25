@@ -5,3 +5,4 @@ pub mod app_config;
 pub mod connection;
 pub mod flags;
 pub mod source;
+pub mod telemetry;

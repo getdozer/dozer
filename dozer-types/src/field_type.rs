@@ -1,4 +1,4 @@
-use crate::types::{DozerPoint, Field};
+use crate::types::{DozerDuration, DozerPoint, Field};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset, Timelike, Utc};
 use geo::Point;
 use ordered_float::OrderedFloat;
@@ -122,5 +122,12 @@ impl From<Point> for Field {
     fn from(value: Point) -> Self {
         let v = DozerPoint::from((value.x(), value.y()));
         Field::Point(v)
+    }
+}
+
+impl From<DozerDuration> for Field {
+    fn from(value: DozerDuration) -> Self {
+        let v = DozerDuration(value.0, value.1);
+        Field::Duration(v)
     }
 }

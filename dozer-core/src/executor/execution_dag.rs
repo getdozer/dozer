@@ -13,7 +13,7 @@ use crate::{
     errors::ExecutionError,
     hash_map_to_vec::insert_vec_element,
     node::PortHandle,
-    record_store::{create_record_store, RecordWriter},
+    record_store::{create_record_writer, RecordWriter},
 };
 use crossbeam::channel::{bounded, Receiver, Sender};
 use daggy::petgraph::{
@@ -61,7 +61,7 @@ impl ExecutionDag {
             .count();
 
         // We only create record stored once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record store created.
-        let mut all_record_stores = vec![
+        let mut all_record_writers = vec![
             HashMap::<PortHandle, SharedRecordWriter>::new();
             builder_dag.graph().node_count()
         ];
@@ -75,14 +75,14 @@ impl ExecutionDag {
 
             // Create or get record store.
             let record_writer =
-                match all_record_stores[source_node_index.index()].entry(output_port) {
+                match all_record_writers[source_node_index.index()].entry(output_port) {
                     Entry::Vacant(entry) => {
-                        let record_store = create_record_store(
+                        let record_writer = create_record_writer(
                             output_port,
                             edge.output_port_type,
                             edge.schema.clone(),
-                        )?;
-                        let record_writer = if let Some(record_writer) = record_store {
+                        );
+                        let record_writer = if let Some(record_writer) = record_writer {
                             Rc::new(RefCell::new(Some(record_writer)))
                         } else {
                             Rc::new(RefCell::new(None))
@@ -166,7 +166,6 @@ impl ExecutionDag {
         (senders, record_writers)
     }
 
-    #[allow(clippy::type_complexity)]
     pub fn collect_receivers(
         &mut self,
         node_index: daggy::NodeIndex,

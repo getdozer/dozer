@@ -6,7 +6,6 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ordered_float::OrderedFloat;
@@ -194,21 +193,13 @@ impl Source for TestSource {
         let operations = vec![
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::Int(0), Field::String("IT".to_string())],
-                        Some(1),
-                    ),
+                    new: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::Int(1), Field::String("HR".to_string())],
-                        Some(1),
-                    ),
+                    new: Record::new(None, vec![Field::Int(1), Field::String("HR".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
@@ -223,7 +214,6 @@ impl Source for TestSource {
                             Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        Some(1),
                     ),
                 },
                 USER_PORT,
@@ -239,7 +229,6 @@ impl Source for TestSource {
                             Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        Some(1),
                     ),
                 },
                 USER_PORT,
@@ -252,7 +241,6 @@ impl Source for TestSource {
                             Field::String("UK".to_string()),
                             Field::String("United Kingdom".to_string()),
                         ],
-                        Some(1),
                     ),
                 },
                 COUNTRY_PORT,
@@ -265,7 +253,6 @@ impl Source for TestSource {
                             Field::String("SG".to_string()),
                             Field::String("Singapore".to_string()),
                         ],
-                        Some(1),
                     ),
                 },
                 COUNTRY_PORT,
@@ -281,7 +268,6 @@ impl Source for TestSource {
                             Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        Some(1),
                     ),
                 },
                 USER_PORT,
@@ -291,7 +277,6 @@ impl Source for TestSource {
             //         old: Record::new(
             //             None,
             //             vec![Field::Int(1), Field::String("HR".to_string())],
-            //             Some(1),
             //         ),
             //     },
             //     DEPARTMENT_PORT,
@@ -307,7 +292,6 @@ impl Source for TestSource {
                             Field::String("UK".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        Some(1),
                     ),
                 },
                 USER_PORT,
@@ -323,7 +307,6 @@ impl Source for TestSource {
                             Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.1)),
                         ],
-                        Some(1),
                     ),
                 },
                 USER_PORT,
@@ -338,7 +321,6 @@ impl Source for TestSource {
             //                 Field::Int(1),
             //                 Field::Float(OrderedFloat(1.1)),
             //             ],
-            //             None,
             //         ),
             //     },
             //     USER_PORT,
@@ -354,23 +336,14 @@ impl Source for TestSource {
                             Field::String("SG".to_string()),
                             Field::Float(OrderedFloat(1.5)),
                         ],
-                        None,
                     ),
                 },
                 USER_PORT,
             ),
             (
                 Operation::Update {
-                    old: Record::new(
-                        None,
-                        vec![Field::Int(0), Field::String("IT".to_string())],
-                        Some(1),
-                    ),
-                    new: Record::new(
-                        None,
-                        vec![Field::Int(0), Field::String("RD".to_string())],
-                        Some(2),
-                    ),
+                    old: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: Record::new(None, vec![Field::Int(0), Field::String("RD".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
@@ -379,12 +352,10 @@ impl Source for TestSource {
             //         old: Record::new(
             //             None,
             //             vec![Field::Int(0), Field::String("IT".to_string())],
-            //             None,
             //         ),
             //         new: Record::new(
             //             None,
             //             vec![Field::Int(0), Field::String("XX".to_string())],
-            //             None,
             //         ),
             //     },
             //     DEPARTMENT_PORT,
@@ -469,12 +440,7 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
         match _op {
             Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
             Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
@@ -494,7 +460,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -506,7 +472,7 @@ impl Sink for TestSink {
 #[test]
 #[ignore]
 fn test_pipeline_builder() {
-    dozer_tracing::init_telemetry(false).unwrap();
+    let _ = dozer_tracing::init_telemetry(None, None);
 
     let mut pipeline = AppPipeline::new();
 

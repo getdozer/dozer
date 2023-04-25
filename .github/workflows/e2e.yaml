@@ -1,0 +1,70 @@
+name: Dozer E2E Test
+
+on:
+  pull_request_target:
+    branches: [main, e2e-yaml-dev]
+  push:
+    branches: [main, e2e-yaml-dev]
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: e2e/${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # Run e2e test
+  e2e:
+    timeout-minutes: 60
+    runs-on:
+      group: Default Larger Runners
+      labels: ubuntu-latest-16-cores
+
+    steps:
+      - if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - if: github.event_name == 'push'
+        uses: actions/checkout@v3
+
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: build-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            build-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+            build-${{ runner.os }}-cargo-
+
+      - name: Build dozer
+        run: cargo build --features ethereum --bin dozer 
+
+      - name: Build dozer-tests
+        run: cargo build --bin dozer-tests
+
+      - name: Run dozer-tests
+        env:
+          ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
+          ETH_HTTPS_URL: ${{ secrets.ETH_HTTPS_URL }}
+        run: cargo run --bin dozer-tests

@@ -14,9 +14,10 @@ use crate::{
         TokenResponseDesc,
     },
     grpc::shared_impl,
-    RoCacheEndpoint,
+    CacheEndpoint,
 };
 use dozer_cache::CacheReader;
+use dozer_types::log::error;
 use dozer_types::{grpc_types::types::Operation, models::api_security::ApiSecurity};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};
@@ -30,7 +31,7 @@ use tonic::{
 
 #[derive(Debug, Clone)]
 struct TypedEndpoint {
-    cache_endpoint: Arc<RoCacheEndpoint>,
+    cache_endpoint: Arc<CacheEndpoint>,
     service_desc: ServiceDesc,
 }
 
@@ -58,7 +59,7 @@ impl Clone for TypedService {
 impl TypedService {
     pub fn new(
         descriptor_path: &Path,
-        cache_endpoints: Vec<Arc<RoCacheEndpoint>>,
+        cache_endpoints: Vec<Arc<CacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
         security: Option<ApiSecurity>,
     ) -> Result<Self, GrpcError> {
@@ -111,7 +112,7 @@ impl TypedService {
         let method_name = current_path[2];
         if method_name == typed_endpoint.service_desc.count.method.name() {
             struct CountService {
-                cache_endpoint: Arc<RoCacheEndpoint>,
+                cache_endpoint: Arc<CacheEndpoint>,
                 response_desc: Option<CountResponseDesc>,
             }
             impl tonic::server::UnaryService<DynamicMessage> for CountService {
@@ -121,6 +122,7 @@ impl TypedService {
                     let response = count(
                         request,
                         &self.cache_endpoint.cache_reader(),
+                        &self.cache_endpoint.endpoint.name,
                         self.response_desc
                             .take()
                             .expect("This future shouldn't be polled twice"),
@@ -140,7 +142,7 @@ impl TypedService {
             }))
         } else if method_name == typed_endpoint.service_desc.query.method.name() {
             struct QueryService {
-                cache_endpoint: Arc<RoCacheEndpoint>,
+                cache_endpoint: Arc<CacheEndpoint>,
                 response_desc: Option<QueryResponseDesc>,
             }
             impl tonic::server::UnaryService<DynamicMessage> for QueryService {
@@ -150,6 +152,7 @@ impl TypedService {
                     let response = query(
                         request,
                         &self.cache_endpoint.cache_reader(),
+                        &self.cache_endpoint.endpoint.name,
                         self.response_desc
                             .take()
                             .expect("This future shouldn't be polled twice"),
@@ -170,7 +173,7 @@ impl TypedService {
         } else if let Some(on_event_method_desc) = &typed_endpoint.service_desc.on_event {
             if method_name == on_event_method_desc.method.name() {
                 struct EventService {
-                    cache_endpoint: Arc<RoCacheEndpoint>,
+                    cache_endpoint: Arc<CacheEndpoint>,
                     event_desc: Option<EventDesc>,
                     event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
                 }
@@ -302,26 +305,34 @@ fn parse_request(
 fn count(
     request: Request<DynamicMessage>,
     reader: &CacheReader,
+    endpoint: &str,
     response_desc: CountResponseDesc,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let count = shared_impl::count(reader, query.as_deref(), access)?;
-    let res = count_response_to_typed_response(count, response_desc);
+    let count = shared_impl::count(reader, query.as_deref(), endpoint, access)?;
+    let res = count_response_to_typed_response(count, response_desc).map_err(|e| {
+        error!("Count API error: {:?}", e);
+        Status::internal("Count API error")
+    })?;
     Ok(Response::new(res))
 }
 
 fn query(
     request: Request<DynamicMessage>,
     reader: &CacheReader,
+    endpoint: &str,
     response_desc: QueryResponseDesc,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let records = shared_impl::query(reader, query.as_deref(), access)?;
-    let res = query_response_to_typed_response(records, response_desc);
+    let records = shared_impl::query(reader, query.as_deref(), endpoint, access)?;
+    let res = query_response_to_typed_response(records, response_desc).map_err(|e| {
+        error!("Query API error: {:?}", e);
+        Status::internal("Query API error")
+    })?;
     Ok(Response::new(res))
 }
 
@@ -347,20 +358,19 @@ fn on_event(
         .transpose()?;
 
     let endpoint_to_be_streamed = endpoint_name.to_string();
-    shared_impl::on_event(
-        reader,
-        endpoint_name,
-        filter,
-        event_notifier,
-        access.cloned(),
-        move |op| {
-            if endpoint_to_be_streamed == op.endpoint_name {
-                Some(Ok(on_event_to_typed_response(op, event_desc.clone())))
-            } else {
-                None
+    shared_impl::on_event(reader, filter, event_notifier, access.cloned(), move |op| {
+        if endpoint_to_be_streamed == op.endpoint_name {
+            match on_event_to_typed_response(op, event_desc.clone()) {
+                Ok(event) => Some(Ok(event)),
+                Err(e) => {
+                    error!("On event error: {:?}", e);
+                    None
+                }
             }
-        },
-    )
+        } else {
+            None
+        }
+    })
 }
 
 fn token(

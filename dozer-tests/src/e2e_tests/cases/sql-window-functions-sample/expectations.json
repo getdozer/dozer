@@ -1,0 +1,77 @@
+[
+    "HealthyService",
+    {
+        "Endpoint": {
+            "endpoint": "tumble",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "location",
+                                "typ": "Int",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "pickup_time",
+                                "typ": "Timestamp",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "start",
+                                "typ": "Timestamp",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "end",
+                                "typ": "Timestamp",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "Endpoint": {
+            "endpoint": "hop",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "location",
+                                "typ": "Int",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "pickup_time",
+                                "typ": "Timestamp",
+                                "nullable": true,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "start",
+                                "typ": "Timestamp",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "end",
+                                "typ": "Timestamp",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+]

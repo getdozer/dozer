@@ -7,8 +7,11 @@ use thiserror::Error;
 use crate::{errors::internal::BoxedError, node::OpIdentifier, types::Operation};
 
 #[derive(Debug, Clone, PartialEq)]
+/// Messages that connectors send to Dozer.
 pub struct IngestionMessage {
+    /// The message's identifier, must be unique in a connector.
     pub identifier: OpIdentifier,
+    /// The message kind.
     pub kind: IngestionMessageKind,
 }
 
@@ -26,11 +29,24 @@ impl IngestionMessage {
             kind: IngestionMessageKind::SnapshottingDone,
         }
     }
+
+    pub fn new_snapshotting_started(txn: u64, seq_no: u64) -> Self {
+        Self {
+            identifier: OpIdentifier::new(txn, seq_no),
+            kind: IngestionMessageKind::SnapshottingStarted,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// All possible kinds of `IngestionMessage`.
 pub enum IngestionMessageKind {
+    /// A CDC event.
     OperationEvent(Operation),
+    /// A connector uses this message kind to notify Dozer that a initial snapshot of the source table is started
+    SnapshottingStarted,
+    /// A connector uses this message kind to notify Dozer that a initial snapshot of the source table is done,
+    /// and the data is up-to-date until next CDC event.
     SnapshottingDone,
 }
 
@@ -213,6 +229,8 @@ pub struct SnowflakeConfig {
     pub warehouse: String,
     #[prost(string, optional, tag = "8")]
     pub driver: Option<String>,
+    #[prost(string, default = "PUBLIC", tag = "9")]
+    pub role: String,
 }
 
 impl SnowflakeConfig {
@@ -222,6 +240,7 @@ impl SnowflakeConfig {
             ["port", self.port],
             ["user", self.user],
             ["password", "************"],
+            ["role", self.role],
             ["database", self.database],
             ["schema", self.schema],
             ["warehouse", self.warehouse],

@@ -1,0 +1,32 @@
+control sortmode rowsort
+
+
+statement ok
+create table t1(a integer, b integer);
+
+statement ok
+create table t2(c integer, d integer);
+
+statement ok
+insert into t1(a, b) values (1, 2);
+
+statement ok
+insert into t1(a, b) values (2, 3);
+
+statement ok
+insert into t1(a, b) values (3, 4);
+
+statement ok
+insert into t2(c, d) values (1, 2);
+
+
+query II
+select * from t1;
+
+
+query II
+select * from t1;
+
+
+query IIII
+select * from t1 join t2 on t1.a = t2.c;

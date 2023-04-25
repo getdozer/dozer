@@ -31,7 +31,6 @@ pub struct EthDetails<'a> {
     contracts: HashMap<String, ContractTuple>,
     pub tables: Vec<TableInfo>,
     pub schema_map: HashMap<H256, usize>,
-    from_seq: Option<(u64, u64)>,
     pub conn_name: String,
 }
 
@@ -44,7 +43,6 @@ impl<'a> EthDetails<'a> {
         contracts: HashMap<String, ContractTuple>,
         tables: Vec<TableInfo>,
         schema_map: HashMap<H256, usize>,
-        from_seq: Option<(u64, u64)>,
         conn_name: String,
     ) -> Self {
         EthDetails {
@@ -54,7 +52,6 @@ impl<'a> EthDetails<'a> {
             contracts,
             tables,
             schema_map,
-            from_seq,
             conn_name,
         }
     }
@@ -80,11 +77,7 @@ pub async fn run(details: Arc<EthDetails<'_>>) -> Result<(), ConnectorError> {
     };
 
     // Default to current block if from_block is not specified
-    let block_start = match (details.from_seq, details.filter.from_block) {
-        (Some((0, _)), Some(block_no)) | (None, Some(block_no)) => block_no,
-        (Some((0, _)), None) | (None, None) => block_end,
-        (Some((lsn, _)), _) => lsn + 1,
-    };
+    let block_start = details.filter.from_block.unwrap_or(block_end);
 
     fetch_logs(
         details.clone(),
@@ -144,7 +137,7 @@ pub async fn run(details: Arc<EthDetails<'_>>) -> Result<(), ConnectorError> {
             process_log(details.clone(), msg)?;
         }
     } else {
-        info!("[{}] Reading reached block_to limit", details.conn_name)
+        info!("[{}] Reading reached block_to limit", details.conn_name);
     }
     Ok(())
 }

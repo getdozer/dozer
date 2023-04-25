@@ -3,40 +3,30 @@ use lmdb::{RwTransaction, Transaction};
 
 use crate::{
     errors::StorageError,
-    lmdb_storage::{LmdbEnvironmentManager, LmdbExclusiveTransaction},
-    LmdbMap,
+    lmdb_storage::{LmdbEnvironment, RwLmdbEnvironment},
+    LmdbOption,
 };
 
-const COUNTER_KEY: u8 = 0;
-
-#[derive(Debug)]
-pub struct LmdbCounter(LmdbMap<u8, u64>);
+#[derive(Debug, Clone, Copy)]
+pub struct LmdbCounter(LmdbOption<u64>);
 
 impl LmdbCounter {
-    pub fn new_from_env(
-        env: &mut LmdbEnvironmentManager,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        LmdbMap::new_from_env(env, name, create_if_not_exist).map(Self)
+    pub fn create(env: &mut RwLmdbEnvironment, name: Option<&str>) -> Result<Self, StorageError> {
+        LmdbOption::create(env, name).map(Self)
     }
 
-    pub fn new_from_txn(
-        txn: &mut LmdbExclusiveTransaction,
-        name: Option<&str>,
-        create_if_not_exist: bool,
-    ) -> Result<Self, StorageError> {
-        LmdbMap::new_from_txn(txn, name, create_if_not_exist).map(Self)
+    pub fn open<E: LmdbEnvironment>(env: &E, name: Option<&str>) -> Result<Self, StorageError> {
+        LmdbOption::open(env, name).map(Self)
     }
 
     pub fn load(&self, txn: &impl Transaction) -> Result<u64, StorageError> {
         self.0
-            .get(txn, &COUNTER_KEY)
+            .load(txn)
             .map(|value| value.map_or(0, IntoOwned::into_owned))
     }
 
     pub fn store(&self, txn: &mut RwTransaction, value: u64) -> Result<(), StorageError> {
-        self.0.insert_overwrite(txn, &COUNTER_KEY, &value)
+        self.0.store(txn, &value)
     }
 
     pub fn fetch_add(&self, txn: &mut RwTransaction, value: u64) -> Result<u64, StorageError> {
@@ -58,26 +48,23 @@ mod tests {
     #[test]
     fn test_lmdb_counter() {
         let temp_dir = TempDir::new("test_lmdb_counter").unwrap();
-        let mut env = LmdbEnvironmentManager::create(
+        let mut env = LmdbEnvironmentManager::create_rw(
             temp_dir.path(),
             "test",
             LmdbEnvironmentOptions::default(),
         )
         .unwrap();
-        let counter = LmdbCounter::new_from_env(&mut env, None, true).unwrap();
+        let counter = LmdbCounter::create(&mut env, None).unwrap();
 
-        let txn = env.create_txn().unwrap();
-        let mut txn = txn.write();
+        assert_eq!(counter.load(env.txn_mut().unwrap()).unwrap(), 0);
 
-        assert_eq!(counter.load(txn.txn()).unwrap(), 0);
+        counter.store(env.txn_mut().unwrap(), 0).unwrap();
+        assert_eq!(counter.load(env.txn_mut().unwrap()).unwrap(), 0);
 
-        counter.store(txn.txn_mut(), 0).unwrap();
-        assert_eq!(counter.load(txn.txn()).unwrap(), 0);
+        counter.store(env.txn_mut().unwrap(), 1).unwrap();
+        assert_eq!(counter.load(env.txn_mut().unwrap()).unwrap(), 1);
 
-        counter.store(txn.txn_mut(), 1).unwrap();
-        assert_eq!(counter.load(txn.txn()).unwrap(), 1);
-
-        assert_eq!(counter.fetch_add(txn.txn_mut(), 1).unwrap(), 1);
-        assert_eq!(counter.load(txn.txn()).unwrap(), 2);
+        assert_eq!(counter.fetch_add(env.txn_mut().unwrap(), 1).unwrap(), 1);
+        assert_eq!(counter.load(env.txn_mut().unwrap()).unwrap(), 2);
     }
 }

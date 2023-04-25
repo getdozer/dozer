@@ -30,6 +30,9 @@ pub struct RestApiOptions {
     #[prost(bool, tag = "3")]
     #[serde(default = "default_cors")]
     pub cors: bool,
+    #[prost(bool, tag = "4")]
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
 }
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct GrpcApiOptions {
@@ -45,6 +48,9 @@ pub struct GrpcApiOptions {
     #[prost(bool, tag = "4")]
     #[serde(default = "default_enable_web")]
     pub web: bool,
+    #[prost(bool, tag = "5")]
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
 }
 
 fn default_app_grpc_port() -> u32 {
@@ -60,6 +66,7 @@ pub(crate) fn default_app_grpc() -> Option<GrpcApiOptions> {
         host: default_app_grpc_host(),
         cors: false,
         web: false,
+        enabled: true,
     })
 }
 pub(crate) fn default_api_rest() -> Option<RestApiOptions> {
@@ -67,6 +74,7 @@ pub(crate) fn default_api_rest() -> Option<RestApiOptions> {
         port: default_rest_port(),
         host: default_host(),
         cors: default_cors(),
+        enabled: true,
     })
 }
 pub(crate) fn default_api_grpc() -> Option<GrpcApiOptions> {
@@ -75,6 +83,7 @@ pub(crate) fn default_api_grpc() -> Option<GrpcApiOptions> {
         host: default_host(),
         cors: default_cors(),
         web: default_enable_web(),
+        enabled: true,
     })
 }
 fn default_grpc_port() -> u32 {
@@ -87,6 +96,9 @@ fn default_enable_web() -> bool {
     true
 }
 fn default_cors() -> bool {
+    true
+}
+fn default_enabled() -> bool {
     true
 }
 

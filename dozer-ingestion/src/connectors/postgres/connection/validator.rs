@@ -1,21 +1,19 @@
 use crate::connectors::postgres::connector::ReplicationSlotInfo;
+use crate::connectors::ListOrFilterColumns;
 
-use crate::connectors::TableInfo;
 use crate::errors::PostgresConnectorError::{
-    ColumnNameNotValid, ColumnsNotFound, ConnectionFailure, InvalidQueryError,
-    MissingTableInReplicationSlot, NoAvailableSlotsError, ReplicationIsNotAvailableForUserError,
-    SlotIsInUseError, SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableError,
-    TableNameNotValid, WALLevelIsNotCorrect,
+    ColumnNameNotValid, ConnectionFailure, InvalidQueryError, MissingTableInReplicationSlot,
+    NoAvailableSlotsError, ReplicationIsNotAvailableForUserError, SlotIsInUseError,
+    SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableNameNotValid,
+    WALLevelIsNotCorrect,
 };
-use crate::errors::PostgresSchemaError::TableTypeNotFound;
-use crate::errors::{PostgresConnectorError, PostgresSchemaError};
+
+use crate::connectors::postgres::connection::tables_validator::TablesValidator;
+use crate::errors::PostgresConnectorError;
 use dozer_types::indicatif::ProgressStyle;
-use postgres::Client;
 use postgres_types::PgLsn;
 use regex::Regex;
-use std::borrow::BorrowMut;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use tokio_postgres::Client;
 
 pub enum Validations {
     Details,
@@ -25,10 +23,10 @@ pub enum Validations {
     Slot,
 }
 
-pub fn validate_connection(
+pub async fn validate_connection(
     name: &str,
     config: tokio_postgres::Config,
-    tables: Option<&Vec<TableInfo>>,
+    tables: Option<&Vec<ListOrFilterColumns>>,
     replication_info: Option<ReplicationSlotInfo>,
 ) -> Result<(), PostgresConnectorError> {
     let validations_order: Vec<Validations> = vec![
@@ -48,23 +46,23 @@ pub fn validate_connection(
     );
     pb.set_message("Validating connection to source");
 
-    let mut client = super::helper::connect(config)?;
+    let client = super::helper::connect(config).await?;
 
     for validation_type in validations_order {
         match validation_type {
-            Validations::Details => validate_details(client.borrow_mut())?,
-            Validations::User => validate_user(client.borrow_mut())?,
+            Validations::Details => validate_details(&client).await?,
+            Validations::User => validate_user(&client).await?,
             Validations::Tables => {
                 if let Some(tables_info) = &tables {
-                    validate_tables(client.borrow_mut(), tables_info)?;
+                    validate_tables(&client, tables_info).await?;
                 }
             }
-            Validations::WALLevel => validate_wal_level(client.borrow_mut())?,
+            Validations::WALLevel => validate_wal_level(&client).await?,
             Validations::Slot => {
                 if let Some(replication_details) = &replication_info {
-                    validate_slot(client.borrow_mut(), replication_details, tables)?;
+                    validate_slot(&client, replication_details, tables).await?;
                 } else {
-                    validate_limit_of_replications(client.borrow_mut())?;
+                    validate_limit_of_replications(&client).await?;
                 }
             }
         }
@@ -77,15 +75,16 @@ pub fn validate_connection(
     Ok(())
 }
 
-fn validate_details(client: &mut Client) -> Result<(), PostgresConnectorError> {
+async fn validate_details(client: &Client) -> Result<(), PostgresConnectorError> {
     client
         .simple_query("SELECT version()")
+        .await
         .map_err(ConnectionFailure)?;
 
     Ok(())
 }
 
-fn validate_user(client: &mut Client) -> Result<(), PostgresConnectorError> {
+async fn validate_user(client: &Client) -> Result<(), PostgresConnectorError> {
     client
         .query_one(
             "
@@ -101,6 +100,7 @@ fn validate_user(client: &mut Client) -> Result<(), PostgresConnectorError> {
             ",
             &[],
         )
+        .await
         .map_or(Err(ReplicationIsNotAvailableForUserError), |row| {
             let can_login: bool = row.get("can_login");
             let is_replication_role: bool = row.get("is_replication_role");
@@ -114,9 +114,10 @@ fn validate_user(client: &mut Client) -> Result<(), PostgresConnectorError> {
         })
 }
 
-fn validate_wal_level(client: &mut Client) -> Result<(), PostgresConnectorError> {
+async fn validate_wal_level(client: &Client) -> Result<(), PostgresConnectorError> {
     let result = client
         .query_one("SHOW wal_level", &[])
+        .await
         .map_err(|_e| WALLevelIsNotCorrect())?;
 
     let wal_level: Result<String, _> = result.try_get(0);
@@ -132,7 +133,9 @@ fn validate_wal_level(client: &mut Client) -> Result<(), PostgresConnectorError>
     )
 }
 
-fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
+fn validate_tables_names(
+    table_info: &Vec<ListOrFilterColumns>,
+) -> Result<(), PostgresConnectorError> {
     let table_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
         if !table_regex.is_match(&t.name) {
@@ -143,13 +146,15 @@ fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConn
     Ok(())
 }
 
-fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
+fn validate_columns_names(
+    table_info: &Vec<ListOrFilterColumns>,
+) -> Result<(), PostgresConnectorError> {
     let column_name_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
         if let Some(columns) = &t.columns {
             for column in columns {
-                if !column_name_regex.is_match(&column.name) {
-                    return Err(ColumnNameNotValid(column.name.clone()));
+                if !column_name_regex.is_match(column) {
+                    return Err(ColumnNameNotValid(column.clone()));
                 }
             }
         }
@@ -158,110 +163,30 @@ fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresCon
     Ok(())
 }
 
-fn validate_tables(
-    client: &mut Client,
-    table_info: &Vec<TableInfo>,
+async fn validate_tables(
+    client: &Client,
+    table_info: &Vec<ListOrFilterColumns>,
 ) -> Result<(), PostgresConnectorError> {
-    let mut tables_names: HashMap<String, bool> = HashMap::new();
-    table_info.iter().for_each(|t| {
-        tables_names.insert(t.name.clone(), true);
-    });
-
     validate_tables_names(table_info)?;
     validate_columns_names(table_info)?;
 
-    // validate if configurtables exist
-    let table_name_keys: Vec<String> = tables_names.keys().cloned().collect();
-    let result = client
-        .query(
-            "SELECT table_name, table_type FROM information_schema.tables WHERE table_name = ANY($1)",
-            &[&table_name_keys],
-        )
-        .map_err(InvalidQueryError)?;
+    let tables_validator = TablesValidator::new(table_info);
+    tables_validator.validate(client).await?;
 
-    let existing_tables_names: Vec<String> = result.iter().map(|t| t.try_get(0).unwrap()).collect();
-
-    let tables_columns = client
-        .query(
-            "SELECT table_name, column_name FROM information_schema.columns WHERE table_name = ANY($1)",
-            &[&existing_tables_names],
-        )
-        .map_err(InvalidQueryError)?;
-
-    let mut table_columns_map: HashMap<String, Vec<String>> = HashMap::new();
-    tables_columns.iter().for_each(|r| {
-        let tbl_name: String = r.try_get(0).unwrap();
-        let col_name: String = r.try_get(1).unwrap();
-
-        if let Entry::Vacant(e) = table_columns_map.entry(tbl_name.clone()) {
-            let cols = vec![col_name];
-            e.insert(cols);
-        } else {
-            let cols = table_columns_map.get_mut(&tbl_name).unwrap();
-            cols.push(col_name);
-        }
-    });
-
-    let mut error_columns = String::new();
-
-    for r in result.iter() {
-        let table_name: String = r.try_get(0).map_err(InvalidQueryError)?;
-
-        let columns = table_info
-            .iter()
-            .find(|x| x.name == table_name)
-            .unwrap()
-            .clone()
-            .columns;
-
-        if let Some(column_info) = columns {
-            let existing_cols = table_columns_map.get(&table_name).unwrap();
-
-            for c in column_info.iter() {
-                if !existing_cols.contains(&c.name) {
-                    error_columns =
-                        format!("{0}{1} in {2} table, ", error_columns, c.name, table_name);
-                }
-            }
-        }
-
-        tables_names.remove(&table_name);
-
-        let table_type: Option<String> = r.try_get(1).map_err(InvalidQueryError)?;
-        table_type
-            .map_or(Err(TableTypeNotFound), |typ| {
-                if typ != *"BASE TABLE" {
-                    Err(PostgresSchemaError::UnsupportedTableType(typ, table_name))
-                } else {
-                    Ok(())
-                }
-            })
-            .map_err(PostgresConnectorError::PostgresSchemaError)?;
-    }
-
-    if !tables_names.is_empty() {
-        let table_name_keys = tables_names.keys().cloned().collect();
-        return Err(TableError(table_name_keys));
-    }
-
-    if !error_columns.trim().is_empty() {
-        error_columns = error_columns[0..error_columns.len() - 2].to_string();
-
-        return Err(ColumnsNotFound(error_columns));
-    }
     Ok(())
 }
 
-pub fn validate_slot(
-    client: &mut Client,
+pub async fn validate_slot(
+    client: &Client,
     replication_info: &ReplicationSlotInfo,
-    tables: Option<&Vec<TableInfo>>,
+    tables: Option<&Vec<ListOrFilterColumns>>,
 ) -> Result<(), PostgresConnectorError> {
     let result = client
         .query_one(
             "SELECT active, confirmed_flush_lsn FROM pg_replication_slots WHERE slot_name = $1",
             &[&replication_info.name],
         )
+        .await
         .map_err(InvalidQueryError)?;
 
     let is_already_running: bool = result.try_get(0).map_err(InvalidQueryError)?;
@@ -287,6 +212,7 @@ pub fn validate_slot(
                 WHERE pubname = $1",
                 &[&replication_info.name],
             )
+            .await
             .map_err(|_e| SlotNotExistError(replication_info.name.clone()))?;
 
         let mut publication_tables: Vec<String> = vec![];
@@ -304,9 +230,10 @@ pub fn validate_slot(
     Ok(())
 }
 
-fn validate_limit_of_replications(client: &mut Client) -> Result<(), PostgresConnectorError> {
+async fn validate_limit_of_replications(client: &Client) -> Result<(), PostgresConnectorError> {
     let slots_limit_result = client
         .query_one("SHOW max_replication_slots", &[])
+        .await
         .map_err(ConnectionFailure)?;
 
     let slots_limit_str: String = slots_limit_result.try_get(0).map_err(InvalidQueryError)?;
@@ -314,6 +241,7 @@ fn validate_limit_of_replications(client: &mut Client) -> Result<(), PostgresCon
 
     let used_slots_result = client
         .query_one("SELECT COUNT(*) FROM pg_replication_slots;", &[])
+        .await
         .map_err(ConnectionFailure)?;
 
     let used_slots: i64 = used_slots_result.try_get(0).map_err(InvalidQueryError)?;
@@ -327,12 +255,11 @@ fn validate_limit_of_replications(client: &mut Client) -> Result<(), PostgresCon
 
 #[cfg(test)]
 mod tests {
-    use crate::connectors::postgres::connection::validator::{
-        validate_columns_names, validate_connection, validate_tables, validate_tables_names,
-    };
+    use super::*;
+
+    use crate::connectors::postgres::connection::helper::connect;
     use crate::connectors::postgres::connector::ReplicationSlotInfo;
     use crate::connectors::postgres::test_utils::get_client;
-    use crate::connectors::{ColumnInfo, TableInfo};
     use crate::errors::PostgresConnectorError;
     use crate::errors::PostgresSchemaError::UnsupportedTableType;
     use crate::test_util::{get_config, run_connector_test};
@@ -340,17 +267,16 @@ mod tests {
     use rand::Rng;
     use serial_test::serial;
     use std::panic;
-    use tokio_postgres::NoTls;
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_validation_connection_fail_to_connect() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_validation_connection_fail_to_connect() {
+        run_connector_test("postgres", |app_config| async move {
             let mut config = get_config(app_config);
             config.dbname("not_existing");
 
-            let result = validate_connection("pg_test_conn", config, None, None);
+            let result = validate_connection("pg_test_conn", config, None, None).await;
 
             assert!(result.is_err());
 
@@ -369,7 +295,8 @@ mod tests {
                     }
                 }
             }
-        });
+        })
+        .await
     }
 
     // #[test]
@@ -396,7 +323,7 @@ mod tests {
     //
     //         config.user("dozer_test_without_permission");
     //
-    //         let result = validate_connection("pg_test_conn", config, None, None);
+    //         let result = validate_connection(config, None, None);
     //
     //         assert!(result.is_err());
     //
@@ -412,25 +339,25 @@ mod tests {
     //     });
     // }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_validation_connection_requested_tables_not_exist() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_validation_connection_requested_tables_not_exist() {
+        run_connector_test("postgres", |app_config| async move {
             let config = get_config(app_config);
-            let mut client = postgres::Config::from(config.clone())
-                .connect(NoTls)
-                .unwrap();
+            let client = connect(config.clone()).await.unwrap();
 
             client
                 .simple_query("DROP TABLE IF EXISTS not_existing")
+                .await
                 .expect("User creation failed");
 
-            let tables = vec![TableInfo {
+            let tables = vec![ListOrFilterColumns {
                 name: "not_existing".to_string(),
+                schema: Some("public".to_string()),
                 columns: None,
             }];
-            let result = validate_connection("pg_test_conn", config, Some(&tables), None);
+            let result = validate_connection("pg_test_conn", config, Some(&tables), None).await;
 
             assert!(result.is_err());
 
@@ -440,46 +367,41 @@ mod tests {
                     assert!(matches!(e, PostgresConnectorError::TableError(_)));
 
                     if let PostgresConnectorError::TableError(msg) = e {
-                        assert_eq!(msg, vec!["not_existing".to_string()]);
+                        assert_eq!(msg, vec!["public.not_existing".to_string()]);
                     } else {
                         panic!("Unexpected error occurred");
                     }
                 }
             }
-        });
+        })
+        .await
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_validation_connection_requested_columns_not_exist() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_validation_connection_requested_columns_not_exist() {
+        run_connector_test("postgres", |app_config| async move {
             let config = get_config(app_config);
-            let mut client = postgres::Config::from(config.clone())
-                .connect(NoTls)
-                .unwrap();
+            let client = connect(config.clone()).await.unwrap();
 
             client
                 .simple_query("CREATE TABLE IF NOT EXISTS existing(column_1 serial PRIMARY KEY, column_2 serial);")
+                .await
                 .expect("User creation failed");
 
             let columns = vec![
-                ColumnInfo {
-                    name: String::from("column_not_existing_1"),
-                    data_type: Some(String::from("serial")),
-                },
-                ColumnInfo {
-                    name: String::from("column_not_existing_2"),
-                    data_type: Some(String::from("serial")),
-                },
+                String::from("column_not_existing_1"),
+                String::from("column_not_existing_2"),
             ];
 
-            let tables = vec![TableInfo {
+            let tables = vec![ListOrFilterColumns {
                 name: "existing".to_string(),
+                schema: Some("public".to_string()),
                 columns: Some(columns),
             }];
 
-            let result = validate_connection("pg_test_conn", config, Some(&tables), None);
+            let result = validate_connection("pg_test_conn", config, Some(&tables), None).await;
 
             assert!(result.is_err());
 
@@ -489,20 +411,20 @@ mod tests {
                     assert!(matches!(e, PostgresConnectorError::ColumnsNotFound(_)));
 
                     if let PostgresConnectorError::ColumnsNotFound(msg) = e {
-                        assert_eq!(msg, "column_not_existing_1 in existing table, column_not_existing_2 in existing table");
+                        assert_eq!(msg, "column_not_existing_1 in public.existing table, column_not_existing_2 in public.existing table");
                     } else {
                         panic!("Unexpected error occurred");
                     }
                 }
             }
-        });
+        }).await
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_validation_connection_replication_slot_not_exist() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_validation_connection_replication_slot_not_exist() {
+        run_connector_test("postgres", |app_config| async move {
             let config = get_config(app_config);
 
             let new_slot = "not_existing_slot";
@@ -511,7 +433,8 @@ mod tests {
                 start_lsn: PgLsn::from(0),
             };
 
-            let result = validate_connection("pg_test_conn", config, None, Some(replication_info));
+            let result =
+                validate_connection("pg_test_conn", config, None, Some(replication_info)).await;
 
             assert!(result.is_err());
 
@@ -521,7 +444,8 @@ mod tests {
                     assert!(matches!(e, PostgresConnectorError::InvalidQueryError(_)));
                 }
             }
-        });
+        })
+        .await
     }
 
     #[test]
@@ -544,7 +468,7 @@ mod tests {
         //     name: "existing_slot".to_string(),
         //     start_lsn: PgLsn::from(0),
         // };
-        // let result = validate_connection("pg_test_conn", config, None, Some(replication_info));
+        // let result = validate_connection(config, None, Some(replication_info));
         //
         // client
         //     .query(r#"SELECT pg_drop_replication_slot('existing_slot');"#, &[])
@@ -559,23 +483,25 @@ mod tests {
         // }
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_validation_connection_valid_number_of_replication_slots() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_validation_connection_valid_number_of_replication_slots() {
+        run_connector_test("postgres", |app_config| async move {
             let config = get_config(app_config);
-            let mut client = postgres::Config::from(config.clone())
-                .connect(NoTls)
-                .unwrap();
+            let client = connect(config.clone()).await.unwrap();
 
-            let slots_limit_result = client.query_one("SHOW max_replication_slots", &[]).unwrap();
+            let slots_limit_result = client
+                .query_one("SHOW max_replication_slots", &[])
+                .await
+                .unwrap();
 
             let slots_limit_str: String = slots_limit_result.try_get(0).unwrap();
             let slots_limit: i64 = slots_limit_str.parse().unwrap();
 
             let used_slots_result = client
                 .query_one("SELECT COUNT(*) FROM pg_replication_slots;", &[])
+                .await
                 .unwrap();
 
             let used_slots: i64 = used_slots_result.try_get(0).unwrap();
@@ -588,32 +514,36 @@ mod tests {
                         r#"SELECT pg_create_logical_replication_slot($1, 'pgoutput');"#,
                         &[&slot_name],
                     )
+                    .await
                     .unwrap();
             }
 
             // One replication slot is available
-            let result = validate_connection("pg_test_conn", config, None, None);
+            let result = validate_connection("pg_test_conn", config, None, None).await;
             assert!(result.is_ok());
-        });
+        })
+        .await
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_validation_connection_not_any_replication_slot_availble() {
-        run_connector_test("postgres", |app_config| {
+    async fn test_connector_validation_connection_not_any_replication_slot_availble() {
+        run_connector_test("postgres", |app_config| async move {
             let config = get_config(app_config);
-            let mut client = postgres::Config::from(config.clone())
-                .connect(NoTls)
-                .unwrap();
+            let client = connect(config.clone()).await.unwrap();
 
-            let slots_limit_result = client.query_one("SHOW max_replication_slots", &[]).unwrap();
+            let slots_limit_result = client
+                .query_one("SHOW max_replication_slots", &[])
+                .await
+                .unwrap();
 
             let slots_limit_str: String = slots_limit_result.try_get(0).unwrap();
             let slots_limit: i64 = slots_limit_str.parse().unwrap();
 
             let used_slots_result = client
                 .query_one("SELECT COUNT(*) FROM pg_replication_slots;", &[])
+                .await
                 .unwrap();
 
             let used_slots: i64 = used_slots_result.try_get(0).unwrap();
@@ -626,10 +556,11 @@ mod tests {
                         r#"SELECT pg_create_logical_replication_slot($1, 'pgoutput');"#,
                         &[&slot_name],
                     )
+                    .await
                     .unwrap();
             }
 
-            let result = validate_connection("pg_test_conn", config, None, None);
+            let result = validate_connection("pg_test_conn", config, None, None).await;
 
             assert!(result.is_err());
 
@@ -639,7 +570,8 @@ mod tests {
                     assert!(matches!(e, PostgresConnectorError::NoAvailableSlotsError));
                 }
             }
-        });
+        })
+        .await
     }
 
     #[test]
@@ -652,8 +584,9 @@ mod tests {
         ];
 
         for (table_name, expected_result) in tables_with_result {
-            let res = validate_tables_names(&vec![TableInfo {
+            let res = validate_tables_names(&vec![ListOrFilterColumns {
                 name: table_name.to_string(),
+                schema: Some("public".to_string()),
                 columns: None,
             }]);
 
@@ -671,24 +604,22 @@ mod tests {
         ];
 
         for (column_name, expected_result) in columns_names_with_result {
-            let res = validate_columns_names(&vec![TableInfo {
+            let res = validate_columns_names(&vec![ListOrFilterColumns {
+                schema: Some("public".to_string()),
                 name: "column_test_table".to_string(),
-                columns: Some(vec![ColumnInfo {
-                    name: column_name.to_string(),
-                    data_type: None,
-                }]),
+                columns: Some(vec![column_name.to_string()]),
             }]);
 
             assert_eq!(expected_result, res.is_ok());
         }
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
     #[serial]
-    fn test_connector_return_error_on_view_in_table_validation() {
-        run_connector_test("postgres", |app_config| {
-            let mut client = get_client(app_config.clone());
+    async fn test_connector_return_error_on_view_in_table_validation() {
+        run_connector_test("postgres", |app_config| async move {
+            let client = get_client(app_config.clone()).await;
 
             let mut rng = rand::thread_rng();
 
@@ -696,30 +627,34 @@ mod tests {
             let table_name = format!("products_test_{}", rng.gen::<u32>());
             let view_name = format!("products_view_test_{}", rng.gen::<u32>());
 
-            client.create_schema(&schema);
-            client.create_simple_table(&schema, &table_name);
-            client.create_view(&schema, &table_name, &view_name);
+            client.create_schema(&schema).await;
+            client.create_simple_table(&schema, &table_name).await;
+            client.create_view(&schema, &table_name, &view_name).await;
 
             let config = get_config(app_config);
-            let mut pg_client = postgres::Config::from(config).connect(NoTls).unwrap();
+            let pg_client = connect(config).await.unwrap();
 
             let result = validate_tables(
-                &mut pg_client,
-                &vec![TableInfo {
+                &pg_client,
+                &vec![ListOrFilterColumns {
                     name: table_name,
+                    schema: Some(schema.clone()),
                     columns: None,
                 }],
-            );
+            )
+            .await;
 
             assert!(result.is_ok());
 
             let result = validate_tables(
-                &mut pg_client,
-                &vec![TableInfo {
+                &pg_client,
+                &vec![ListOrFilterColumns {
                     name: view_name,
+                    schema: Some(schema),
                     columns: None,
                 }],
-            );
+            )
+            .await;
 
             assert!(result.is_err());
             assert!(matches!(
@@ -728,6 +663,7 @@ mod tests {
                     UnsupportedTableType(_, _)
                 ))
             ));
-        });
+        })
+        .await
     }
 }

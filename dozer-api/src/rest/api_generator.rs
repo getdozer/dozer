@@ -3,27 +3,27 @@ use std::sync::Arc;
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
-use dozer_cache::cache::{index, RecordWithId};
+use dozer_cache::cache::CacheRecord;
 use dozer_cache::CacheReader;
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::errors::types::TypeError;
 use dozer_types::indexmap::IndexMap;
-use dozer_types::log::info;
+use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, Schema, DATE_FORMAT};
+use dozer_types::types::{DozerDuration, Field, Schema, DATE_FORMAT};
 use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
 use crate::generator::oapi::generator::OpenApiGenerator;
-use crate::RoCacheEndpoint;
+use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::serde_json;
 use dozer_types::serde_json::{json, Map, Value};
 
 fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {
-    let (schema, secondary_indexes) = reader.get_schema().map_err(ApiError::SchemaNotFound)?;
+    let (schema, secondary_indexes) = reader.get_schema();
 
     let oapi_generator = OpenApiGenerator::new(
         schema,
@@ -37,7 +37,7 @@ fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI
 
 /// Generated function to return openapi.yaml documentation.
 pub async fn generate_oapi(
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
 ) -> Result<HttpResponse, ApiError> {
     generate_oapi3(
         &cache_endpoint.cache_reader(),
@@ -49,14 +49,11 @@ pub async fn generate_oapi(
 // Generated Get function to return a single record in JSON format
 pub async fn get(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
     let cache_reader = &cache_endpoint.cache_reader();
-    let schema = &cache_reader
-        .get_schema()
-        .map_err(ApiError::SchemaNotFound)?
-        .0;
+    let schema = &cache_reader.get_schema().0;
 
     let key = path.as_str();
     let key = if schema.primary_index.is_empty() {
@@ -68,10 +65,12 @@ pub async fn get(
         return Err(ApiError::MultiIndexFetch(key.to_string()));
     };
 
-    let key = index::get_primary_key(&[0], &[key]);
+    // This implementation must be consistent with `dozer_cache::cache::index::get_primary_key`
+    let key = key.encode();
     let record = get_record(
         &cache_endpoint.cache_reader(),
         &key,
+        &cache_endpoint.endpoint.name,
         access.map(|a| a.into_inner()),
     )?;
 
@@ -81,7 +80,7 @@ pub async fn get(
 // Generated list function for multiple records with a default query expression
 pub async fn list(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut exp = QueryExpression::new(None, vec![], Some(50), Skip::Skip(0));
     match get_records_map(access, cache_endpoint, &mut exp) {
@@ -89,7 +88,7 @@ pub async fn list(
         Err(e) => match e {
             ApiError::QueryFailed(_) => {
                 let res: Vec<String> = vec![];
-                info!("No records found.");
+                warn!("No records found.");
                 Ok(HttpResponse::Ok().json(res))
             }
             _ => Err(ApiError::InternalError(Box::new(e))),
@@ -106,7 +105,7 @@ pub async fn health_route() -> Result<HttpResponse, ApiError> {
 
 pub async fn count(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = match query_info {
@@ -118,6 +117,7 @@ pub async fn count(
     get_records_count(
         &cache_endpoint.cache_reader(),
         &mut query_expression,
+        &cache_endpoint.endpoint.name,
         access.map(|a| a.into_inner()),
     )
     .map(|count| HttpResponse::Ok().json(count))
@@ -126,7 +126,7 @@ pub async fn count(
 // Generated query function for multiple records
 pub async fn query(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = match query_info {
@@ -145,16 +145,18 @@ pub async fn query(
 /// Get multiple records
 fn get_records_map(
     access: Option<ReqData<Access>>,
-    cache_endpoint: ReqData<Arc<RoCacheEndpoint>>,
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     exp: &mut QueryExpression,
 ) -> Result<Vec<IndexMap<String, Value>>, ApiError> {
     let mut maps = vec![];
     let cache_reader = &cache_endpoint.cache_reader();
-    let records = get_records(cache_reader, exp, access.map(|a| a.into_inner()))?;
-    let schema = &cache_reader
-        .get_schema()
-        .map_err(ApiError::SchemaNotFound)?
-        .0;
+    let records = get_records(
+        cache_reader,
+        exp,
+        &cache_endpoint.endpoint.name,
+        access.map(|a| a.into_inner()),
+    )?;
+    let schema = &cache_reader.get_schema().0;
     for record in records.into_iter() {
         let map = record_to_map(record, schema)?;
         maps.push(map);
@@ -164,7 +166,7 @@ fn get_records_map(
 
 /// Used in REST APIs for converting to JSON
 fn record_to_map(
-    record: RecordWithId,
+    record: CacheRecord,
     schema: &Schema,
 ) -> Result<IndexMap<String, Value>, TypeError> {
     let mut map = IndexMap::new();
@@ -177,7 +179,7 @@ fn record_to_map(
     map.insert("__dozer_record_id".to_string(), Value::from(record.id));
     map.insert(
         "__dozer_record_version".to_string(),
-        Value::from(record.record.version),
+        Value::from(record.version),
     );
 
     Ok(map)
@@ -190,13 +192,22 @@ fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Val
     Value::Object(m)
 }
 
+fn convert_duration_to_object(d: &DozerDuration) -> Value {
+    let mut m = Map::new();
+    m.insert("value".to_string(), Value::from(d.0.as_nanos().to_string()));
+    m.insert("time_unit".to_string(), Value::from(d.1.to_string()));
+    Value::Object(m)
+}
+
 /// Used in REST APIs for converting raw value back and forth.
 ///
 /// Should be consistent with `convert_cache_type_to_schema_type`.
-fn field_to_json_value(field: Field) -> Value {
+pub fn field_to_json_value(field: Field) -> Value {
     match field {
         Field::UInt(n) => Value::from(n),
+        Field::U128(n) => Value::String(n.to_string()),
         Field::Int(n) => Value::from(n),
+        Field::I128(n) => Value::String(n.to_string()),
         Field::Float(n) => Value::from(n.0),
         Field::Boolean(b) => Value::from(b),
         Field::String(s) => Value::from(s),
@@ -207,12 +218,14 @@ fn field_to_json_value(field: Field) -> Value {
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
         Field::Json(b) => Value::from(b),
         Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
+        Field::Duration(d) => convert_duration_to_object(&d),
         Field::Null => Value::Null,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::types::TimeUnit;
     use dozer_types::{
         chrono::{NaiveDate, Offset, TimeZone, Utc},
         json_value_to_field,
@@ -220,6 +233,7 @@ mod tests {
         rust_decimal::Decimal,
         types::{DozerPoint, Field, FieldType},
     };
+    use std::time::Duration;
 
     use super::*;
 
@@ -262,6 +276,13 @@ mod tests {
             (
                 FieldType::Point,
                 Field::Point(DozerPoint::from((3.234, 4.567))),
+            ),
+            (
+                FieldType::Duration,
+                Field::Duration(DozerDuration(
+                    Duration::from_nanos(123_u64),
+                    TimeUnit::Nanoseconds,
+                )),
             ),
         ];
         for (field_type, field) in fields {

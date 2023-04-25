@@ -1,7 +1,7 @@
 use dozer_types::log::error;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, ReplicationChangesTrackingType, Schema,
-    SchemaIdentifier, SourceDefinition, SourceSchema,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SchemaIdentifier,
+    SourceDefinition,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -9,18 +9,18 @@ use std::sync::Arc;
 use web3::ethabi::RawLog;
 use web3::types::{Log, H256};
 
-use crate::connectors::TableInfo;
+use crate::connectors::{CdcType, SourceSchema, TableInfo};
 
 use super::connector::{ContractTuple, ETH_LOGS_TABLE};
 use super::sender::EthDetails;
 
 pub fn get_contract_event_schemas(
-    contracts: HashMap<String, ContractTuple>,
-    schema_map: HashMap<H256, usize>,
-) -> Vec<SourceSchema> {
+    contracts: &HashMap<String, ContractTuple>,
+    schema_map: &HashMap<H256, usize>,
+) -> Vec<(String, SourceSchema)> {
     let mut schemas = vec![];
 
-    for (_, contract_tuple) in contracts {
+    for contract_tuple in contracts.values() {
         for event in contract_tuple.0.events.values().flatten() {
             let mut fields = vec![];
             for input in event.inputs.iter().cloned() {
@@ -49,17 +49,19 @@ pub fn get_contract_event_schemas(
                 .expect("schema is missing")
                 .to_owned();
 
-            schemas.push(SourceSchema::new(
-                get_table_name(&contract_tuple, &event.name),
-                Schema {
-                    identifier: Some(SchemaIdentifier {
-                        id: schema_id as u32,
-                        version: 1,
-                    }),
-                    fields,
-                    primary_index: vec![],
-                },
-                ReplicationChangesTrackingType::Nothing,
+            schemas.push((
+                get_table_name(contract_tuple, &event.name),
+                SourceSchema::new(
+                    Schema {
+                        identifier: Some(SchemaIdentifier {
+                            id: schema_id as u32,
+                            version: 1,
+                        }),
+                        fields,
+                        primary_index: vec![],
+                    },
+                    CdcType::Nothing,
+                ),
             ));
         }
     }
@@ -125,7 +127,6 @@ pub fn decode_event(
                                     version: 1,
                                 }),
                                 values,
-                                version: None,
                             },
                         });
                     }
@@ -181,7 +182,6 @@ pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<Operation>
             new: Record {
                 schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                 values,
-                version: None,
             },
         })
     } else {

@@ -9,10 +9,13 @@ use crate::pipeline::errors::{FieldTypes, PipelineError};
 
 use super::execution::{Expression, ExpressionExecutor, ExpressionType};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum CastOperatorType {
     UInt,
+    U128,
     Int,
+    I128,
     Float,
     Boolean,
     String,
@@ -28,7 +31,9 @@ impl Display for CastOperatorType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CastOperatorType::UInt => f.write_str("CAST AS UINT"),
+            CastOperatorType::U128 => f.write_str("CAST AS U128"),
             CastOperatorType::Int => f.write_str("CAST AS INT"),
+            CastOperatorType::I128 => f.write_str("CAST AS I128"),
             CastOperatorType::Float => f.write_str("CAST AS FLOAT"),
             CastOperatorType::Boolean => f.write_str("CAST AS BOOLEAN"),
             CastOperatorType::String => f.write_str("CAST AS STRING"),
@@ -61,6 +66,16 @@ impl CastOperatorType {
                     })
                 }
             }
+            CastOperatorType::U128 => {
+                if let Some(value) = field.to_u128() {
+                    Ok(Field::U128(value))
+                } else {
+                    Err(PipelineError::InvalidCast {
+                        from: field,
+                        to: FieldType::U128,
+                    })
+                }
+            }
             CastOperatorType::Int => {
                 if let Some(value) = field.to_int() {
                     Ok(Field::Int(value))
@@ -68,6 +83,16 @@ impl CastOperatorType {
                     Err(PipelineError::InvalidCast {
                         from: field,
                         to: FieldType::Int,
+                    })
+                }
+            }
+            CastOperatorType::I128 => {
+                if let Some(value) = field.to_i128() {
+                    Ok(Field::I128(value))
+                } else {
+                    Err(PipelineError::InvalidCast {
+                        from: field,
+                        to: FieldType::I128,
                     })
                 }
             }
@@ -171,20 +196,54 @@ impl CastOperatorType {
     ) -> Result<ExpressionType, PipelineError> {
         let (expected_input_type, return_type) = match self {
             CastOperatorType::UInt => (
-                vec![FieldType::Int, FieldType::String, FieldType::UInt],
+                vec![
+                    FieldType::Int,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                ],
                 FieldType::UInt,
             ),
+            CastOperatorType::U128 => (
+                vec![
+                    FieldType::Int,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                ],
+                FieldType::U128,
+            ),
             CastOperatorType::Int => (
-                vec![FieldType::Int, FieldType::String, FieldType::UInt],
+                vec![
+                    FieldType::Int,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                ],
                 FieldType::Int,
+            ),
+            CastOperatorType::I128 => (
+                vec![
+                    FieldType::Int,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                ],
+                FieldType::I128,
             ),
             CastOperatorType::Float => (
                 vec![
                     FieldType::Decimal,
                     FieldType::Float,
                     FieldType::Int,
+                    FieldType::I128,
                     FieldType::String,
                     FieldType::UInt,
+                    FieldType::U128,
                 ],
                 FieldType::Float,
             ),
@@ -194,7 +253,9 @@ impl CastOperatorType {
                     FieldType::Decimal,
                     FieldType::Float,
                     FieldType::Int,
+                    FieldType::I128,
                     FieldType::UInt,
+                    FieldType::U128,
                 ],
                 FieldType::Boolean,
             ),
@@ -206,10 +267,12 @@ impl CastOperatorType {
                     FieldType::Decimal,
                     FieldType::Float,
                     FieldType::Int,
+                    FieldType::I128,
                     FieldType::String,
                     FieldType::Text,
                     FieldType::Timestamp,
                     FieldType::UInt,
+                    FieldType::U128,
                 ],
                 FieldType::String,
             ),
@@ -221,10 +284,12 @@ impl CastOperatorType {
                     FieldType::Decimal,
                     FieldType::Float,
                     FieldType::Int,
+                    FieldType::I128,
                     FieldType::String,
                     FieldType::Text,
                     FieldType::Timestamp,
                     FieldType::UInt,
+                    FieldType::U128,
                 ],
                 FieldType::Text,
             ),
@@ -234,8 +299,10 @@ impl CastOperatorType {
                     FieldType::Decimal,
                     FieldType::Float,
                     FieldType::Int,
+                    FieldType::I128,
                     FieldType::String,
                     FieldType::UInt,
+                    FieldType::U128,
                 ],
                 FieldType::Decimal,
             ),

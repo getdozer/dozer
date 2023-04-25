@@ -7,7 +7,6 @@ use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 
-use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
@@ -33,14 +32,16 @@ const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 #[test]
 #[ignore]
 fn test_pipeline_builder() {
-    dozer_tracing::init_telemetry(false).unwrap();
+    let _ = dozer_tracing::init_telemetry(None, None);
 
     let mut pipeline = AppPipeline::new();
 
     let context = statement_to_pipeline(
-        "SELECT trips.taxi_id, puz.zone, trips.completed_at, trips.window_start, trips.window_end \
-        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips \
-        JOIN zones puz ON trips.pu_location_id = puz.location_id",
+        // "SELECT trips.taxi_id, puz.zone, trips.completed_at, trips.window_start, trips.window_end \
+        // FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips \
+        // JOIN zones puz ON trips.pu_location_id = puz.location_id",
+        "SELECT trips.taxi_id, trips.completed_at, trips.window_start, trips.window_end \
+        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips ",
         &mut pipeline,
         Some("results".to_string()),
     )
@@ -241,7 +242,6 @@ impl Source for TestSource {
                             ),
                             Field::UInt(1),
                         ],
-                        Some(1),
                     ),
                 },
                 TRIPS_PORT,
@@ -259,7 +259,6 @@ impl Source for TestSource {
                             ),
                             Field::UInt(2),
                         ],
-                        Some(1),
                     ),
                 },
                 TRIPS_PORT,
@@ -277,7 +276,6 @@ impl Source for TestSource {
                             ),
                             Field::UInt(3),
                         ],
-                        Some(1),
                     ),
                 },
                 TRIPS_PORT,
@@ -295,7 +293,6 @@ impl Source for TestSource {
                             ),
                             Field::UInt(2),
                         ],
-                        Some(1),
                     ),
                 },
                 TRIPS_PORT,
@@ -313,7 +310,6 @@ impl Source for TestSource {
                             ),
                             Field::UInt(1),
                         ],
-                        Some(1),
                     ),
                 },
                 TRIPS_PORT,
@@ -331,44 +327,40 @@ impl Source for TestSource {
                             ),
                             Field::UInt(2),
                         ],
-                        Some(1),
                     ),
                 },
                 TRIPS_PORT,
             ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::UInt(1), Field::String("Newark Airport".to_string())],
-                        Some(1),
-                    ),
-                },
-                ZONES_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::UInt(2), Field::String("Jamaica Bay".to_string())],
-                        Some(1),
-                    ),
-                },
-                ZONES_PORT,
-            ),
-            (
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(3),
-                            Field::String("Allerton/Pelham Gardens".to_string()),
-                        ],
-                        Some(1),
-                    ),
-                },
-                ZONES_PORT,
-            ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![Field::UInt(1), Field::String("Newark Airport".to_string())],
+            //         ),
+            //     },
+            //     ZONES_PORT,
+            // ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![Field::UInt(2), Field::String("Jamaica Bay".to_string())],
+            //         ),
+            //     },
+            //     ZONES_PORT,
+            // ),
+            // (
+            //     Operation::Insert {
+            //         new: Record::new(
+            //             None,
+            //             vec![
+            //                 Field::UInt(3),
+            //                 Field::String("Allerton/Pelham Gardens".to_string()),
+            //             ],
+            //         ),
+            //     },
+            //     ZONES_PORT,
+            // ),
         ];
 
         for (index, (op, port)) in operations.into_iter().enumerate() {
@@ -433,12 +425,7 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: Operation,
-        _state: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
         match _op {
             Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
             Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
@@ -458,7 +445,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 

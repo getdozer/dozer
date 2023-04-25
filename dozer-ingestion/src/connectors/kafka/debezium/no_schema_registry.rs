@@ -1,12 +1,10 @@
 use crate::connectors::kafka::debezium::schema::map_schema;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumMessage;
-use crate::connectors::TableInfo;
+use crate::connectors::{CdcType, SourceSchema};
 use crate::errors::DebeziumError::{BytesConvertError, DebeziumConnectionError, JsonDecodeError};
 use crate::errors::{ConnectorError, DebeziumError, DebeziumStreamError};
-use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::serde_json;
 
-use dozer_types::types::{ReplicationChangesTrackingType, SourceSchema};
 use kafka::client::{FetchOffset, GroupOffsetStorage};
 use kafka::consumer::Consumer;
 
@@ -14,13 +12,13 @@ pub struct NoSchemaRegistry {}
 
 impl NoSchemaRegistry {
     pub fn get_schema(
-        table_names: Option<Vec<TableInfo>>,
-        config: KafkaConfig,
+        table_names: Option<&[String]>,
+        broker: String,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         table_names.map_or(Ok(vec![]), |tables| {
             tables.get(0).map_or(Ok(vec![]), |table| {
-                let mut con = Consumer::from_hosts(vec![config.broker.clone()])
-                    .with_topic(table.name.clone())
+                let mut con = Consumer::from_hosts(vec![broker])
+                    .with_topic(table.clone())
                     .with_fallback_offset(FetchOffset::Earliest)
                     .with_offset_storage(GroupOffsetStorage::Kafka)
                     .create()
@@ -51,11 +49,7 @@ impl NoSchemaRegistry {
                                 ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
                             })?;
 
-                            schemas.push(SourceSchema::new(
-                                table.name.clone(),
-                                mapped_schema,
-                                ReplicationChangesTrackingType::FullChanges,
-                            ));
+                            schemas.push(SourceSchema::new(mapped_schema, CdcType::FullChanges));
                         }
                     }
                 }
