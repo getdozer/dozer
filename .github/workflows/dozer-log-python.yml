@@ -8,11 +8,9 @@ name: CI for dozer-log-python
 on:
   push:
     branches:
-      - main
       - dozer-log-python-ci-dev
     tags:
       - '*'
-  pull_request:
   workflow_dispatch:
 
 concurrency:
