@@ -106,13 +106,12 @@ pub fn map_record_to_arrow(
                 Arc::new(arrow_array::Date64Array::from(vec![None as Option<i64>])) as ArrayRef
             }
             (Field::Binary(v), FieldType::Binary) => {
-                Arc::new(BinaryArray::from_iter_values([v])) as ArrayRef
+                Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
             }
             (Field::Json(v), FieldType::Json) => {
                 Arc::new(arrow_array::MapArray::from(ArrayData::from(
                     MapArray::new_from_strings(
                         v.as_object().unwrap().keys().map(|f| f.as_str()),
-                        ,
                         &[]
                     ).unwrap()
                 ))) as ArrayRef
@@ -121,10 +120,10 @@ pub fn map_record_to_arrow(
                 // Arc::new(DataType::Map(Box::from(Field::Json(v.to_owned())), false)) as ArrayRef
             }
             (Field::Point(v), FieldType::Point) => {
-                Arc::new(BinaryArray::from_iter_values([v.to_bytes()])) as ArrayRef
+                Arc::new(arrow_array::BinaryArray::from_iter_values([v.to_bytes()])) as ArrayRef
             }
             (Field::Null, FieldType::Point) => {
-                Arc::new(BinaryArray::from_opt_vec(vec![
+                Arc::new(arrow_array::BinaryArray::from_opt_vec(vec![
                     None as Option<&[u8]>,
                 ])) as ArrayRef
             }

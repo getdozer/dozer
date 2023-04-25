@@ -344,8 +344,6 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::Decimal(_) => Some(FieldType::Decimal),
         Field::Timestamp(_) => Some(FieldType::Timestamp),
         Field::Json(_) => Some(FieldType::Json),
-        Field::Null => None,
-        Field::UInt(_) => Some(FieldType::UInt),
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
         Field::Point(_) => Some(FieldType::Point),
