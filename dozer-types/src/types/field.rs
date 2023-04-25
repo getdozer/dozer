@@ -9,7 +9,6 @@ use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use std::collections::HashMap;
 use std::time::Duration;
 use serde_json::Value;
 
