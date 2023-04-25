@@ -95,18 +95,21 @@ impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
 
 pub(crate) fn operator_from_descriptor(
     descriptor: &TableOperatorDescriptor,
-    schema: &Schema,
+    _schema: &Schema,
 ) -> Result<Option<TableOperatorType>, ExecutionError> {
     let function_name = string_from_sql_object_name(&descriptor.name);
 
     if function_name.to_uppercase() == "TTL" {
-        let operator = LifetimeTableOperator::new(DozerDuration(
-            std::time::Duration::from_nanos(0 as u64),
-            TimeUnit::Nanoseconds,
-        ));
+        let operator = LifetimeTableOperator::new(
+            None,
+            DozerDuration(
+                std::time::Duration::from_nanos(0_u64),
+                TimeUnit::Nanoseconds,
+            ),
+        );
 
         Ok(Some(operator.into()))
     } else {
-        return Err(ExecutionError::InternalError(function_name.into()));
+        Err(ExecutionError::InternalError(function_name.into()))
     }
 }
