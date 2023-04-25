@@ -50,13 +50,13 @@ mod tests {
     use dozer_storage::{
         lmdb::DatabaseFlags, lmdb_sys::mdb_cmp, LmdbEnvironment, RwLmdbEnvironment,
     };
+    use dozer_types::serde_json::json;
     use dozer_types::{
         chrono::{DateTime, NaiveDate, TimeZone, Utc},
         ordered_float::OrderedFloat,
         rust_decimal::Decimal,
         types::Field,
     };
-    use dozer_types::serde_json::json;
 
     use crate::cache::{index::get_secondary_index, lmdb::utils};
 

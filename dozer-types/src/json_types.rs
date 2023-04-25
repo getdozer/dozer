@@ -50,6 +50,7 @@ mod tests {
         types::{DozerPoint, Field, FieldType, TimeUnit},
     };
     use std::time::Duration;
+    use serde_json::json;
 
     use super::*;
 
@@ -82,11 +83,10 @@ mod tests {
                 Field::Date(NaiveDate::from_ymd_opt(2022, 11, 24).unwrap()),
             ),
             (
-                FieldType::Bson,
-                Field::Bson(vec![
-                    // BSON representation of `{"abc":"foo"}`
+                FieldType::Json,
+                Field::Json(json!([
                     123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125,
-                ]),
+                ])),
             ),
             (FieldType::Text, Field::Text("lorem ipsum".to_string())),
             (

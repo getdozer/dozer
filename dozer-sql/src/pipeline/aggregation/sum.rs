@@ -27,7 +27,7 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         | FieldType::Date
         | FieldType::Timestamp
         | FieldType::Binary
-        | FieldType::Bson
+        | FieldType::Json
         | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Sum.to_string(),
@@ -221,7 +221,7 @@ pub fn get_sum(
             | FieldType::Date
             | FieldType::Timestamp
             | FieldType::Binary
-            | FieldType::Bson
+            | FieldType::Json
             | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
                 "Not supported return type {typ} for {Sum}"
             )))),

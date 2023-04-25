@@ -146,7 +146,7 @@ fn field_type_to_sql(field_type: FieldType) -> Option<String> {
         FieldType::Decimal => Some("NUMERIC".to_string()),
         FieldType::Timestamp => Some("TIMESTAMP".to_string()),
         FieldType::Date => Some("DATE".to_string()),
-        FieldType::Bson => Some("JSONB".to_string()),
+        FieldType::Json => Some("JSONB".to_string()),
         FieldType::Point => Some("POINT".to_string()),
         FieldType::Duration => Some("DURATION".to_string()),
     }
@@ -217,7 +217,7 @@ fn field_to_sql(field: &Field) -> String {
         Field::Decimal(d) => d.to_string(),
         Field::Timestamp(t) => format!("'{}'", t),
         Field::Date(d) => format!("'{}'", d),
-        Field::Bson(b) => {
+        Field::Json(b) => {
             let json = bson::from_slice::<dozer_types::serde_json::Value>(b).unwrap();
             format!("'{}'::json", json)
         }

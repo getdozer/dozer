@@ -151,9 +151,7 @@ pub fn value_to_field(
         &Type::JSONB => {
             let value: Result<serde_json::Value, _> = row.try_get(idx);
 
-            value.map_or_else(handle_error, |v| {
-                Ok(Field::Json(v))
-            })
+            value.map_or_else(handle_error, |v| Ok(Field::Json(v)))
         }
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
         // &Type::UUID => convert_row_value_to_field!(row, idx, Uuid),

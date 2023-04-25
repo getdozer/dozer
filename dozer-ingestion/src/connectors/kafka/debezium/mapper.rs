@@ -114,9 +114,9 @@ fn convert_value(
                     })
                 }
                 "io.debezium.time.MicroTime" => Ok(Field::Null),
-                "io.debezium.data.Json" => value
-                    .as_str()
-                    .map_or(Ok(Field::Null), |s| Ok(Field::Json(json!(s.as_bytes().to_vec())))),
+                "io.debezium.data.Json" => value.as_str().map_or(Ok(Field::Null), |s| {
+                    Ok(Field::Json(json!(s.as_bytes().to_vec())))
+                }),
                 // | "io.debezium.time.MicroTime" | "org.apache.kafka.connect.data.Time" => Ok(FieldType::Timestamp),
                 _ => Err(TypeNotSupported(name)),
             }

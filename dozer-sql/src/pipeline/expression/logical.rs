@@ -26,7 +26,7 @@ pub fn evaluate_and(
             | Field::Decimal(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidType(r_field, "AND".to_string())),
         },
@@ -45,7 +45,7 @@ pub fn evaluate_and(
             | Field::Decimal(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidType(r_field, "AND".to_string())),
         },
@@ -61,7 +61,7 @@ pub fn evaluate_and(
         | Field::Decimal(_)
         | Field::Timestamp(_)
         | Field::Date(_)
-        | Field::Bson(_)
+        | Field::Json(_)
         | Field::Point(_)
         | Field::Duration(_) => Err(PipelineError::InvalidType(l_field, "AND".to_string())),
     }
@@ -91,7 +91,7 @@ pub fn evaluate_or(
             | Field::Decimal(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidType(r_field, "OR".to_string())),
         },
@@ -110,7 +110,7 @@ pub fn evaluate_or(
             | Field::Decimal(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidType(r_field, "OR".to_string())),
         },
@@ -125,7 +125,7 @@ pub fn evaluate_or(
         | Field::Decimal(_)
         | Field::Timestamp(_)
         | Field::Date(_)
-        | Field::Bson(_)
+        | Field::Json(_)
         | Field::Point(_)
         | Field::Duration(_) => Err(PipelineError::InvalidType(l_field, "OR".to_string())),
     }
@@ -152,7 +152,7 @@ pub fn evaluate_not(
         | Field::Decimal(_)
         | Field::Timestamp(_)
         | Field::Date(_)
-        | Field::Bson(_)
+        | Field::Json(_)
         | Field::Point(_)
         | Field::Duration(_) => Err(PipelineError::InvalidType(value_p, "NOT".to_string())),
     }

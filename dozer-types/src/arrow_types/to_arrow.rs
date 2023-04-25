@@ -1,14 +1,14 @@
-use std::{collections::HashMap, sync::Arc};
 use crate::types::{Field, FieldDefinition, FieldType, Record, Schema};
 use arrow::datatypes::{self as arrow_types, DataType};
+use std::{collections::HashMap, sync::Arc};
 
+use arrow::array::{ArrayData, MapArray, UInt32Array};
 use arrow::{
     array::{self as arrow_array, ArrayRef},
     datatypes::i256,
     record_batch::RecordBatch,
 };
-use arrow_schema::{TimeUnit, Field as ArrowField};
-use arrow::array::{ArrayData, MapArray, UInt32Array};
+use arrow_schema::{Field as ArrowField, TimeUnit};
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
@@ -114,7 +114,7 @@ pub fn map_record_to_arrow(
                     &values_data,
                     &entry_offsets,
                 )
-                    .unwrap();
+                .unwrap();
                 Arc::new(arrow_array::MapArray::from(ArrayData::from(map_array))) as ArrayRef
                 // Arc::new(as_map_array(serde_json::Map::from(v.as_object().unwrap()))) as ArrayRef
                 // Arc::new(arrow_types::Field::from(Field::Json(v.to_owned()))) as ArrayRef

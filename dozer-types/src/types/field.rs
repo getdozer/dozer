@@ -6,11 +6,11 @@ use ordered_float::OrderedFloat;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
+use serde_json::Value;
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::time::Duration;
-use serde_json::Value;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
@@ -786,7 +786,7 @@ impl pyo3::ToPyObject for Field {
                     .unwrap()
                     .to_object(py)
             }
-            Field::Bson(val) => val.to_object(py),
+            Field::Json(val) => val.to_object(py),
             Field::Json(val) => value_to_object(val, py),
             Field::Point(_val) => todo!(),
             Field::Duration(_d) => todo!(),
