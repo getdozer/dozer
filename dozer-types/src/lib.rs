@@ -36,7 +36,10 @@ pub use tonic;
 #[macro_use]
 pub extern crate prettytable;
 
-#[cfg(feature = "python")]
+#[cfg(any(
+    feature = "python-auto-initialize",
+    feature = "python-extension-module"
+))]
 pub use pyo3;
 pub use rust_decimal;
 pub use serde;
