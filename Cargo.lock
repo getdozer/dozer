@@ -2459,7 +2459,6 @@ dependencies = [
 name = "dozer-log"
 version = "0.1.18"
 dependencies = [
- "dozer-core",
  "dozer-types",
  "futures-util",
  "tokio",
@@ -2469,10 +2468,7 @@ dependencies = [
 name = "dozer-log-js"
 version = "0.1.18"
 dependencies = [
- "dozer-api",
- "dozer-core",
  "dozer-log",
- "dozer-orchestrator",
  "dozer-types",
  "neon",
 ]
@@ -2481,9 +2477,7 @@ dependencies = [
 name = "dozer-log-python"
 version = "0.1.18"
 dependencies = [
- "dozer-core",
  "dozer-log",
- "dozer-orchestrator",
  "dozer-types",
  "pyo3-asyncio",
 ]

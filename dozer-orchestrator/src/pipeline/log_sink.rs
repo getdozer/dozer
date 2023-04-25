@@ -6,24 +6,22 @@ use std::{
 };
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
+use dozer_cache::dozer_log::get_endpoint_log_path;
 use dozer_core::{
     epoch::Epoch,
     errors::ExecutionError,
-    executor::ExecutorOperation,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::grpc_types::internal::StatusUpdate;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::{
     bytes::{BufMut, BytesMut},
     models::api_endpoint::ApiEndpoint,
     types::{Operation, Schema},
 };
+use dozer_types::{epoch::ExecutorOperation, grpc_types::internal::StatusUpdate};
 use std::fs::OpenOptions;
-
-use crate::utils::get_endpoint_log_path;
 
 #[derive(Debug, Clone)]
 pub struct LogSinkSettings {

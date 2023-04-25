@@ -1,11 +1,11 @@
 use crate::pipeline::errors::PipelineError::{
-    InvalidFunctionArgument, InvalidFunctionArgumentType,
+    InvalidFunction, InvalidFunctionArgument, InvalidFunctionArgumentType,
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
-
 use crate::pipeline::expression::datetime::PipelineError::InvalidValue;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
-use dozer_types::chrono::{DateTime, Datelike, Offset, Timelike, Utc};
+
+use dozer_types::chrono::{DateTime, Datelike, FixedOffset, Offset, Timelike, Utc};
 use dozer_types::types::{DozerDuration, Field, FieldType, Record, Schema, TimeUnit};
 use num_traits::ToPrimitive;
 use sqlparser::ast::DateTimeField;
@@ -19,6 +19,7 @@ pub enum DateTimeFunctionType {
     Interval {
         field: sqlparser::ast::DateTimeField,
     },
+    Now,
 }
 
 impl Display for DateTimeFunctionType {
@@ -30,6 +31,7 @@ impl Display for DateTimeFunctionType {
             DateTimeFunctionType::Interval { field } => {
                 f.write_str(format!("INTERVAL {field}").as_str())
             }
+            DateTimeFunctionType::Now => f.write_str("NOW".to_string().as_str()),
         }
     }
 }
@@ -70,10 +72,23 @@ pub(crate) fn get_datetime_function_type(
             dozer_types::types::SourceDefinition::Dynamic,
             false,
         )),
+        DateTimeFunctionType::Now => Ok(ExpressionType::new(
+            FieldType::Timestamp,
+            false,
+            dozer_types::types::SourceDefinition::Dynamic,
+            false,
+        )),
     }
 }
 
 impl DateTimeFunctionType {
+    pub(crate) fn new(name: &str) -> Result<DateTimeFunctionType, PipelineError> {
+        match name {
+            "now" => Ok(DateTimeFunctionType::Now),
+            _ => Err(InvalidFunction(name.to_string())),
+        }
+    }
+
     pub(crate) fn evaluate(
         &self,
         schema: &Schema,
@@ -87,7 +102,12 @@ impl DateTimeFunctionType {
             DateTimeFunctionType::Interval { field } => {
                 evaluate_interval(schema, field, arg, record)
             }
+            DateTimeFunctionType::Now => self.evaluate_now(),
         }
+    }
+
+    pub(crate) fn evaluate_now(&self) -> Result<Field, PipelineError> {
+        Ok(Field::Timestamp(DateTime::<FixedOffset>::from(Utc::now())))
     }
 }
 

@@ -1,6 +1,6 @@
-use dozer_api::rest::field_to_json_value;
-use dozer_core::executor::ExecutorOperation;
 use dozer_types::{
+    epoch::ExecutorOperation,
+    json_types::field_to_json_value,
     serde_json::Value,
     types::{Field, Operation, Record, Schema},
 };
