@@ -33,7 +33,7 @@ pub fn field_to_json_value(field: Field) -> Value {
         Field::Decimal(n) => Value::String(n.to_string()),
         Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
-        Field::Bson(b) => Value::from(b),
+        Field::Json(b) => Value::from(b),
         Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
         Field::Duration(d) => convert_duration_to_object(&d),
         Field::Null => Value::Null,
