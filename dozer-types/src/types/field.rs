@@ -10,7 +10,6 @@ use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::collections::HashMap;
-use crate::types::DozerPoint;
 use std::time::Duration;
 use serde_json::Value;
 
@@ -641,16 +640,6 @@ impl<'a> FieldBorrow<'a> {
     }
 }
 
-// Helpful in interacting with external systems during ingestion and querying
-// For example, nanoseconds can overflow.
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum TimeUnit {
-    Seconds,
-    Milliseconds,
-    Microseconds,
-    Nanoseconds,
-}
-
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// All field types supported in Dozer.
 pub enum FieldType {
@@ -801,30 +790,5 @@ impl pyo3::ToPyObject for Field {
             Field::Duration(_d) => todo!(),
             Field::Null => unreachable!(),
         }
-    }
-}
-
-#[cfg(feature = "python")]
-use pyo3::ToPyObject;
-fn value_to_object(val: &Value, py: pyo3::Python<'_>) -> pyo3::PyObject {
-    match val {
-        Value::Null => py.None(),
-        Value::Bool(b) => b.to_object(py),
-        Value::Number(n) => {
-            let oi64 = n.as_i64().map(|i| i.to_object(py));
-            let ou64 = n.as_u64().map(|i| i.to_object(py));
-            let of64 = n.as_f64().map(|i| i.to_object(py));
-            oi64.or(ou64).or(of64).expect("number too large")
-        },
-        Value::String(s) => s.to_object(py),
-        Value::Array(v) => {
-            let inner: Vec<_> = v.iter().map(|x| value_to_object(x, py)).collect();
-            inner.to_object(py)
-        },
-        Value::Object(m) => {
-            let inner: HashMap<_, _> =
-                m.iter().map(|(k, v)| (k, value_to_object(v, py))).collect();
-            inner.to_object(py)
-        },
     }
 }
