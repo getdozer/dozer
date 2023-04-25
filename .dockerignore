@@ -3,4 +3,3 @@ dozer-sql/data
 **/**/target/
 target/
 !target/release/dozer
-!target/release/dozer-admin
