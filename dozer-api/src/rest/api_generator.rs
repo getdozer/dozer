@@ -234,6 +234,7 @@ mod tests {
         types::{DozerPoint, Field, FieldType},
     };
     use std::time::Duration;
+    use dozer_types::serde_json::Value::Array;
 
     use super::*;
 
@@ -267,10 +268,9 @@ mod tests {
             ),
             (
                 FieldType::Json,
-                Field::Json(vec![
-                    // BSON representation of `{"abc":"foo"}`
-                    123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125,
-                ]),
+                Field::Json(
+                    json!([123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125])
+                ),
             ),
             (FieldType::Text, Field::Text("lorem ipsum".to_string())),
             (
