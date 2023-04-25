@@ -56,6 +56,7 @@ mod tests {
         rust_decimal::Decimal,
         types::Field,
     };
+    use dozer_types::serde_json::json;
 
     use crate::cache::{index::get_secondary_index, lmdb::utils};
 
@@ -232,7 +233,7 @@ mod tests {
             Field::Decimal(Decimal::new(i64::MAX, 0)),
             Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(1).unwrap())),
             Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap()),
-            Field::Json(vec![255]),
+            Field::Json(json![255]),
         ];
         for a in test_cases.iter() {
             check(a);
