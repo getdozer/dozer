@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
@@ -36,7 +36,7 @@ pub struct DagCheckpoint<T> {
 }
 
 impl<T> DagCheckpoint<T> {
-    pub fn new(dag_schemas: DagSchemas<T>, _path: PathBuf) -> Result<Self, ExecutionError> {
+    pub fn new(dag_schemas: DagSchemas<T>) -> Result<Self, ExecutionError> {
         // Create node storages and sources.
         let mut sources = vec![];
         let node_indexes = dag_schemas.graph().node_identifiers().collect::<Vec<_>>();

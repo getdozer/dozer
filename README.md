@@ -183,7 +183,7 @@ Refer to the full list of connectors and example configurations [here](https://g
 ```python
 import pydozer_log
 
-reader = await pydozer_log.LogReader.new('.dozer/pipeline', 'trips')
+reader = await pydozer_log.LogReader.new('.dozer', 'trips')
 print(await reader.next_op())
 ```
 
@@ -193,7 +193,7 @@ print(await reader.next_op())
 const dozer_log = require('@dozerjs/log');
 
 const runtime = dozer_log.Runtime();
-reader = await runtime.create_reader('.dozer/pipeline', 'trips');
+reader = await runtime.create_reader('.dozer', 'trips');
 console.log(await reader.next_op());
 ```
 

@@ -8,7 +8,7 @@ use prost_reflect::{
 use std::{
     fs::File,
     io::{self, BufReader, Read},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 #[derive(Debug, Clone)]
@@ -169,7 +169,9 @@ impl ProtoGenerator {
     }
 
     pub fn read_descriptor_bytes(descriptor_path: &Path) -> Result<Vec<u8>, GenerationError> {
-        read_file_as_byte(descriptor_path).map_err(GenerationError::FailedToReadProtoDescriptor)
+        read_file_as_byte(descriptor_path).map_err(|e| {
+            GenerationError::FailedToReadProtoDescriptor(descriptor_path.to_path_buf(), e)
+        })
     }
 
     pub fn read_schema(
@@ -180,10 +182,6 @@ impl ProtoGenerator {
         let descriptor = DescriptorPool::decode(descriptor_bytes.as_slice())
             .map_err(GenerationError::FailedToDecodeProtoDescriptor)?;
         ProtoGeneratorImpl::read(&descriptor, schema_name)
-    }
-
-    pub fn descriptor_path(folder_path: &Path) -> PathBuf {
-        folder_path.join("file_descriptor_set.bin")
     }
 }
 

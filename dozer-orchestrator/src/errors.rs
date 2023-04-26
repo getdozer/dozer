@@ -8,7 +8,6 @@ use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::crossbeam::channel::RecvError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_yaml, thiserror};
@@ -17,8 +16,12 @@ use dozer_types::{serde_yaml, thiserror};
 pub enum OrchestrationError {
     #[error("Failed to write config yaml: {0:?}")]
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
-    #[error("Failed to initialize. {0}[/api/generated,/cache] are not empty. Use -f to clean the directory and overwrite. Warning! there will be data loss.")]
+    #[error("Failed to initialize. {0} is not empty. Use -f to clean the directory and overwrite. Warning! there will be data loss.")]
     InitializationFailed(String),
+    #[error("Failed to create directory {0:?}: {1}")]
+    FailedToCreateDir(PathBuf, #[source] std::io::Error),
+    #[error("Failed to write schema: {0}")]
+    FailedToWriteSchema(#[source] SchemaError),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Failed to initialize pipeline_dir. Is the path {0:?} accessible?: {1}")]
@@ -51,8 +54,6 @@ pub enum OrchestrationError {
     PipelineError(#[from] PipelineError),
     #[error(transparent)]
     CliError(#[from] CliError),
-    #[error("Failed to receive server handle from grpc server: {0}")]
-    GrpcServerHandleError(#[source] RecvError),
     #[error("Source validation failed")]
     SourceValidationError,
     #[error("Pipeline validation failed")]
@@ -61,10 +62,8 @@ pub enum OrchestrationError {
     EndpointTableNotFound(String),
     #[error("Duplicate table name found: {0:?}")]
     DuplicateTable(String),
-    #[error("Configuration Error: {0:?}")]
-    ConfigError(String),
-    #[error("Schema IO Error: {0}")]
-    SchemaIOError(#[from] SchemaError),
+    #[error("No endpoints initialized in the config provided")]
+    EmptyEndpoints,
 }
 
 #[derive(Error, Debug)]
