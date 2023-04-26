@@ -227,8 +227,8 @@ impl Record {
         res_buffer
     }
 
-    pub fn set_lifetime(&mut self, duration: DozerDuration) {
-        self.lifetime = Some(duration);
+    pub fn set_lifetime(&mut self, duration: Option<DozerDuration>) {
+        self.lifetime = duration;
     }
 
     pub fn get_lifetime(&mut self) -> Option<DozerDuration> {

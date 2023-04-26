@@ -13,6 +13,7 @@ use crate::pipeline::{
     errors::PipelineError,
     expression::builder::ExpressionBuilder,
     product::table::factory::TableProcessorFactory,
+    table_operator::factory::TableOperatorProcessorFactory,
     window::factory::WindowProcessorFactory,
 };
 
@@ -37,20 +38,20 @@ pub fn insert_from_to_pipeline(
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
     if from.joins.is_empty() {
-        insert_table_processor_to_pipeline(&from.relation, pipeline, pipeline_idx, query_context)
+        insert_table_to_pipeline(&from.relation, pipeline, pipeline_idx, query_context)
     } else {
         insert_join_to_pipeline(from, pipeline, pipeline_idx, query_context)
     }
 }
 
-fn insert_table_processor_to_pipeline(
+fn insert_table_to_pipeline(
     relation: &TableFactor,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
     if let Some(operator) = is_table_operator(relation)? {
-        insert_function_processor_to_pipeline(
+        insert_table_operator_processor_to_pipeline(
             relation,
             &operator,
             pipeline,
@@ -58,11 +59,11 @@ fn insert_table_processor_to_pipeline(
             query_context,
         )
     } else {
-        insert_table_to_pipeline(relation, pipeline, pipeline_idx, query_context)
+        insert_table_processor_to_pipeline(relation, pipeline, pipeline_idx, query_context)
     }
 }
 
-fn insert_table_to_pipeline(
+fn insert_table_processor_to_pipeline(
     relation: &TableFactor,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
@@ -113,7 +114,7 @@ fn insert_table_to_pipeline(
     })
 }
 
-fn insert_function_processor_to_pipeline(
+fn insert_table_operator_processor_to_pipeline(
     relation: &TableFactor,
     operator: &TableOperatorDescriptor,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
@@ -128,7 +129,46 @@ fn insert_function_processor_to_pipeline(
 
     pipeline.add_processor(Arc::new(product_processor), &product_processor_name, vec![]);
 
-    if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
+    if operator.name.to_uppercase() == "TTL" {
+        let processor = TableOperatorProcessorFactory::new(operator.clone());
+        let processor_name = processor.get_name();
+        let source_name = processor
+            .get_source_name()
+            .map_err(PipelineError::TableOperatorError)?;
+
+        let mut entry_points = vec![];
+
+        if is_an_entry_point(&source_name, &mut query_context.pipeline_map, pipeline_idx) {
+            let entry_point = PipelineEntryPoint::new(
+                AppSourceId::new(source_name.clone(), None),
+                DEFAULT_PORT_HANDLE as PortHandle,
+            );
+
+            entry_points.push(entry_point);
+            query_context.used_sources.push(source_name);
+        } else {
+            input_nodes.push((
+                source_name,
+                processor_name.to_owned(),
+                DEFAULT_PORT_HANDLE as PortHandle,
+            ));
+        }
+
+        pipeline.add_processor(Arc::new(processor), &processor_name, entry_points);
+
+        pipeline.connect_nodes(
+            &processor_name,
+            Some(DEFAULT_PORT_HANDLE),
+            &product_processor_name,
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        )?;
+
+        Ok(ConnectionInfo {
+            input_nodes,
+            output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
+        })
+    } else if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
         let window_processor = WindowProcessorFactory::new(operator.clone());
         let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
         let window_source_name = window_processor.get_source_name()?;

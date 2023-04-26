@@ -28,11 +28,11 @@ impl TableOperator for LifetimeTableOperator {
             let operator_records = operator.execute(&source_record)?;
             for operator_record in operator_records {
                 source_record = operator_record;
-                source_record.set_lifetime(self.duration);
+                source_record.set_lifetime(Some(self.duration));
                 ttl_records.push(source_record);
             }
         } else {
-            source_record.set_lifetime(self.duration);
+            source_record.set_lifetime(Some(self.duration));
             ttl_records.push(source_record);
         }
 

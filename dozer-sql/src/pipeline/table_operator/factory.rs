@@ -6,30 +6,51 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{DozerDuration, Schema, TimeUnit};
+use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr};
 
 use crate::pipeline::{
-    builder::SchemaSQLContext, errors::TableOperatorError,
+    builder::SchemaSQLContext, errors::TableOperatorError, expression::builder::ExpressionBuilder,
     pipeline_builder::from_builder::TableOperatorDescriptor,
 };
 
 use super::{
     lifetime::LifetimeTableOperator,
     operator::{TableOperator, TableOperatorType},
-    processor::TableProcessor,
+    processor::TableOperatorProcessor,
 };
 
+const SOURCE_TABLE_ARGUMENT: usize = 0;
+
 #[derive(Debug)]
-pub struct TableProcessorFactory {
+pub struct TableOperatorProcessorFactory {
     table: TableOperatorDescriptor,
+    name: String,
 }
 
-impl TableProcessorFactory {
+impl TableOperatorProcessorFactory {
     pub fn new(table: TableOperatorDescriptor) -> Self {
-        Self { table }
+        Self {
+            table: table.to_owned(),
+            name: format!("TOP_{0}_{1}", table.name, uuid::Uuid::new_v4()),
+        }
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub(crate) fn get_source_name(&self) -> Result<String, TableOperatorError> {
+        let source_arg = self.table.args.get(SOURCE_TABLE_ARGUMENT).ok_or(
+            TableOperatorError::MissingSourceArgument(self.table.name.to_owned()),
+        )?;
+
+        let source_name = get_source_name(self.table.name.to_owned(), source_arg)?;
+
+        Ok(source_name)
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
+impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -84,7 +105,7 @@ impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
         match operator_from_descriptor(&self.table, &input_schema)
             .map_err(|e| ExecutionError::TableProcessorError(Box::new(e)))?
         {
-            Some(operator) => Ok(Box::new(TableProcessor::new(operator))),
+            Some(operator) => Ok(Box::new(TableOperatorProcessor::new(operator))),
             None => Err(ExecutionError::TableProcessorError(Box::new(
                 TableOperatorError::InternalError("Invalid Table Operator".into()),
             ))),
@@ -110,5 +131,40 @@ pub(crate) fn operator_from_descriptor(
         Err(ExecutionError::InternalError(
             descriptor.name.clone().into(),
         ))
+    }
+}
+
+fn get_source_name(function_name: String, arg: &FunctionArg) -> Result<String, TableOperatorError> {
+    match arg {
+        FunctionArg::Named { name, arg: _ } => {
+            let source_name = ExpressionBuilder::normalize_ident(name);
+            Err(TableOperatorError::InvalidSourceArgument(
+                source_name,
+                function_name,
+            ))
+        }
+        FunctionArg::Unnamed(arg_expr) => match arg_expr {
+            FunctionArgExpr::Expr(expr) => match expr {
+                Expr::Identifier(ident) => {
+                    let source_name = ExpressionBuilder::normalize_ident(ident);
+                    Ok(source_name)
+                }
+                Expr::CompoundIdentifier(ident) => {
+                    let source_name = ExpressionBuilder::fullname_from_ident(ident);
+                    Ok(source_name)
+                }
+                _ => Err(TableOperatorError::InvalidSourceArgument(
+                    expr.to_string(),
+                    function_name,
+                )),
+            },
+            FunctionArgExpr::QualifiedWildcard(_) => Err(
+                TableOperatorError::InvalidSourceArgument("*".to_string(), function_name),
+            ),
+            FunctionArgExpr::Wildcard => Err(TableOperatorError::InvalidSourceArgument(
+                "*".to_string(),
+                function_name,
+            )),
+        },
     }
 }

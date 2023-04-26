@@ -34,7 +34,10 @@ fn test_lifetime() {
         ],
     );
 
-    expected_record.set_lifetime(DozerDuration(Duration::from_secs(60), TimeUnit::Seconds));
+    expected_record.set_lifetime(Some(DozerDuration(
+        Duration::from_secs(60),
+        TimeUnit::Seconds,
+    )));
 
     assert_eq!(*lifetime_record, expected_record);
 }

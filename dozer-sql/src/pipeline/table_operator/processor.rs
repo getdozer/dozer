@@ -10,11 +10,11 @@ use crate::pipeline::errors::TableOperatorError;
 use super::operator::{TableOperator, TableOperatorType};
 
 #[derive(Debug)]
-pub struct TableProcessor {
+pub struct TableOperatorProcessor {
     operator: TableOperatorType,
 }
 
-impl TableProcessor {
+impl TableOperatorProcessor {
     pub fn new(operator: TableOperatorType) -> Self {
         Self { operator }
     }
@@ -24,7 +24,7 @@ impl TableProcessor {
     }
 }
 
-impl Processor for TableProcessor {
+impl Processor for TableOperatorProcessor {
     fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
         Ok(())
     }

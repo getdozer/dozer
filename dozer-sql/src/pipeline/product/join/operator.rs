@@ -484,5 +484,17 @@ fn join_records(left_record: &Record, right_record: &Record) -> Record {
         right_record.values.as_slice(),
     ]
     .concat();
-    Record::new(None, concat_values)
+    let mut output_record = Record::new(None, concat_values);
+
+    if let Some(left_record_lifetime) = left_record.lifetime {
+        if let Some(right_record_lifetime) = right_record.lifetime {
+            output_record.set_lifetime(Some(left_record_lifetime.min(right_record_lifetime)));
+        } else {
+            output_record.set_lifetime(Some(left_record_lifetime));
+        }
+    } else if let Some(right_record_lifetime) = right_record.lifetime {
+        output_record.set_lifetime(Some(right_record_lifetime));
+    }
+
+    output_record
 }

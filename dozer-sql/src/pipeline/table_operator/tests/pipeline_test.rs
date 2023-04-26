@@ -25,7 +25,6 @@ use tempdir::TempDir;
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
 const TRIPS_PORT: u16 = 0 as PortHandle;
-const ZONES_PORT: u16 = 1 as PortHandle;
 const EXPECTED_SINK_OP_COUNT: u64 = 12;
 const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
@@ -37,11 +36,8 @@ fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new();
 
     let context = statement_to_pipeline(
-        // "SELECT trips.taxi_id, puz.zone, trips.completed_at, trips.window_start, trips.window_end \
-        // FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips \
-        // JOIN zones puz ON trips.pu_location_id = puz.location_id",
-        "SELECT trips.taxi_id, trips.completed_at, trips.window_start, trips.window_end \
-        FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips ",
+        "SELECT trips.taxi_id, trips.completed_at \
+        FROM TTL(taxi_trips, '60 SECONDS') trips ",
         &mut pipeline,
         Some("results".to_string()),
     )
@@ -55,12 +51,9 @@ fn test_pipeline_builder() {
     asm.add(AppSource::new(
         "connection".to_string(),
         Arc::new(TestSourceFactory::new(latch.clone())),
-        vec![
-            ("taxi_trips".to_string(), TRIPS_PORT),
-            ("zones".to_string(), ZONES_PORT),
-        ]
-        .into_iter()
-        .collect(),
+        vec![("taxi_trips".to_string(), TRIPS_PORT)]
+            .into_iter()
+            .collect(),
     ))
     .unwrap();
 
@@ -123,10 +116,7 @@ impl TestSourceFactory {
 
 impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![
-            OutputPortDef::new(TRIPS_PORT, OutputPortType::Stateless),
-            OutputPortDef::new(ZONES_PORT, OutputPortType::Stateless),
-        ]
+        vec![OutputPortDef::new(TRIPS_PORT, OutputPortType::Stateless)]
     }
 
     fn get_output_schema(
@@ -164,34 +154,6 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                             FieldType::UInt,
                             false,
                             taxi_trips_source,
-                        ),
-                        false,
-                    )
-                    .clone(),
-                SchemaSQLContext::default(),
-            ))
-        } else if port == &ZONES_PORT {
-            let source_id = SourceDefinition::Table {
-                connection: "connection".to_string(),
-                name: "zones".to_string(),
-            };
-            Ok((
-                Schema::empty()
-                    .field(
-                        FieldDefinition::new(
-                            String::from("location_id"),
-                            FieldType::UInt,
-                            false,
-                            source_id.clone(),
-                        ),
-                        true,
-                    )
-                    .field(
-                        FieldDefinition::new(
-                            String::from("zone"),
-                            FieldType::String,
-                            false,
-                            source_id,
                         ),
                         false,
                     )
@@ -331,36 +293,6 @@ impl Source for TestSource {
                 },
                 TRIPS_PORT,
             ),
-            // (
-            //     Operation::Insert {
-            //         new: Record::new(
-            //             None,
-            //             vec![Field::UInt(1), Field::String("Newark Airport".to_string())],
-            //         ),
-            //     },
-            //     ZONES_PORT,
-            // ),
-            // (
-            //     Operation::Insert {
-            //         new: Record::new(
-            //             None,
-            //             vec![Field::UInt(2), Field::String("Jamaica Bay".to_string())],
-            //         ),
-            //     },
-            //     ZONES_PORT,
-            // ),
-            // (
-            //     Operation::Insert {
-            //         new: Record::new(
-            //             None,
-            //             vec![
-            //                 Field::UInt(3),
-            //                 Field::String("Allerton/Pelham Gardens".to_string()),
-            //             ],
-            //         ),
-            //     },
-            //     ZONES_PORT,
-            // ),
         ];
 
         for (index, (op, port)) in operations.into_iter().enumerate() {
