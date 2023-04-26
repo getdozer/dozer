@@ -23,7 +23,6 @@ pub mod utils;
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
-    fn deploy(&mut self, deploy: Deploy, config_path: String) -> Result<(), OrchestrationError>;
     fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_apps(
@@ -38,6 +37,12 @@ pub trait Orchestrator {
     fn generate_token(&self) -> Result<String, OrchestrationError>;
 }
 
+pub trait CloudOrchestrator {
+    fn deploy(&mut self, cloud: Cloud, config_path: String) -> Result<(), OrchestrationError>;
+    fn list(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
+    fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
+}
+
 // Re-exports
 pub use dozer_ingestion::{
     connectors::{get_connector, TableInfo},
@@ -50,7 +55,7 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
     statement_to_pipeline(sql, &mut pipeline, None)
 }
 
-use crate::cli::types::Deploy;
+use crate::cli::types::Cloud;
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 
