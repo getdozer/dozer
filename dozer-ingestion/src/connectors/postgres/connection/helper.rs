@@ -1,7 +1,10 @@
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::error;
 use dozer_types::models::connection::ConnectionConfig;
-use tokio_postgres::{Client, NoTls};
+use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+use postgres_openssl::MakeTlsConnector;
+use tokio_postgres::config::SslMode;
+use tokio_postgres::{Client, Config, NoTls};
 
 pub fn map_connection_config(
     auth_details: &ConnectionConfig,
@@ -21,7 +24,34 @@ pub fn map_connection_config(
 }
 
 pub async fn connect(config: tokio_postgres::Config) -> Result<Client, PostgresConnectorError> {
+    match make_tls_connector(&config)? {
+        None => connect_no_tls(&config).await,
+        Some(tls) => connect_tls(&config, tls).await,
+    }
+}
+
+async fn connect_tls(
+    config: &Config,
+    tls: MakeTlsConnector,
+) -> Result<Client, PostgresConnectorError> {
     let (client, connection) = config
+        .clone()
+        .connect(tls)
+        .await
+        .map_err(PostgresConnectorError::ConnectionFailure)?;
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            error!("Postgres connection error: {}", e);
+        }
+    });
+
+    Ok(client)
+}
+
+async fn connect_no_tls(config: &Config) -> Result<Client, PostgresConnectorError> {
+    let (client, connection) = config
+        .clone()
         .connect(NoTls)
         .await
         .map_err(PostgresConnectorError::ConnectionFailure)?;
@@ -49,4 +79,32 @@ pub async fn async_connect(
         }
         Err(e) => Err(PostgresConnectorError::ConnectionFailure(e)),
     }
+}
+
+fn make_tls_connector(
+    pg_config: &Config,
+) -> Result<Option<MakeTlsConnector>, PostgresConnectorError> {
+    let mut builder = SslConnector::builder(SslMethod::tls_client())
+        .map_err(|e| PostgresConnectorError::SSLError(e.into()))?;
+    let ssl_mode = pg_config.get_ssl_mode();
+    let (verify_ca, verify_hostname) = match ssl_mode {
+        SslMode::Disable | SslMode::Prefer => (false, false),
+        // TODO! support tls & multiple ssl modes.
+        _ => return Ok(None),
+    };
+
+    if !verify_ca {
+        builder.set_verify(SslVerifyMode::NONE); // do not verify CA
+    }
+
+    let mut tls_connector = MakeTlsConnector::new(builder.build());
+
+    if !verify_hostname {
+        tls_connector.set_callback(|connect, _| {
+            connect.set_verify_hostname(false);
+            Ok(())
+        });
+    }
+
+    Ok(Some(tls_connector))
 }

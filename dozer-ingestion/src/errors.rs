@@ -205,6 +205,12 @@ pub enum PostgresConnectorError {
 
     #[error("Failed to send message on snapshot read channel")]
     SnapshotReadError,
+
+    #[error("Unsupported ssl mode")]
+    UnsupportedSSLMode,
+
+    #[error("Unexpected ssl error: {0}")]
+    SSLError(#[source] std::io::Error),
 }
 
 #[derive(Error, Debug, Eq, PartialEq)]
