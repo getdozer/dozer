@@ -127,6 +127,7 @@ pub fn decode_event(
                                     version: 1,
                                 }),
                                 values,
+                                lifetime: None,
                             },
                         });
                     }
@@ -182,6 +183,7 @@ pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<Operation>
             new: Record {
                 schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                 values,
+                lifetime: None,
             },
         })
     } else {
