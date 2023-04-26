@@ -17,6 +17,10 @@ impl LifetimeTableOperator {
 }
 
 impl TableOperator for LifetimeTableOperator {
+    fn get_name(&self) -> String {
+        "TTL".to_owned()
+    }
+
     fn execute(&self, record: &Record) -> Result<Vec<Record>, TableOperatorError> {
         let mut source_record = record.clone();
         let mut ttl_records = vec![];

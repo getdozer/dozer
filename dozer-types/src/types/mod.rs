@@ -230,6 +230,10 @@ impl Record {
     pub fn set_lifetime(&mut self, duration: DozerDuration) {
         self.lifetime = Some(duration);
     }
+
+    pub fn get_lifetime(&mut self) -> Option<DozerDuration> {
+        self.lifetime
+    }
 }
 
 impl Display for Record {
