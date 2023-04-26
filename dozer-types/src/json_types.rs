@@ -1,8 +1,53 @@
+use std::array::TryFromSliceError;
+use std::collections::BTreeMap;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use chrono::SecondsFormat;
 use ordered_float::OrderedFloat;
-use serde_json::{Map, Value};
-
+use serde_json::{Map, Number, Value};
+use serde::{Deserialize, Serialize};
+use crate::errors::types::SerializationError;
 use crate::types::{DozerDuration, Field, DATE_FORMAT};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
+pub enum JsonValue {
+    Null,
+    Bool(bool),
+    Number(OrderedFloat<f64>),
+    String(String),
+    Array(Vec<JsonValue>),
+    Object(BTreeMap<String, JsonValue>),
+}
+
+impl Display for JsonValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JsonValue::Null => f.write_str("NULL"),
+            JsonValue::Bool(v) => f.write_str(&format!("{v}")),
+            JsonValue::Number(v) => f.write_str(&format!("{v}")),
+            JsonValue::String(v) => f.write_str(&v.to_string()),
+            JsonValue::Array(v) => {
+                let list: Vec<String> = v.iter().map(|val| format!("{val}")).collect();
+                let data = &format!("[{}]", list.join(","));
+                f.write_str(data)
+            }
+            JsonValue::Object(v) => {
+                let list: Vec<String> = v.iter().map(|(key, val)| format!("{key}:{val}")).collect();
+                let data = &format!("{{ {} }}", list.join(","));
+                f.write_str(data)
+            }
+        }
+    }
+}
+
+impl FromStr for JsonValue {
+    type Err = SerializationError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let object: Value = serde_json::from_str(s).unwrap();
+        Ok(serde_json_to_json_value(object))
+    }
+}
 
 fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Value {
     let mut m = Map::new();
@@ -33,10 +78,44 @@ pub fn field_to_json_value(field: Field) -> Value {
         Field::Decimal(n) => Value::String(n.to_string()),
         Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
-        Field::Json(b) => Value::from(b),
+        Field::Json(b) => json_value_to_serde_json(b),
         Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
         Field::Duration(d) => convert_duration_to_object(&d),
         Field::Null => Value::Null,
+    }
+}
+
+fn json_value_to_serde_json(value: JsonValue) -> Value {
+    match value {
+        JsonValue::Null => Value::Null,
+        JsonValue::Bool(b) => Value::Bool(b),
+        JsonValue::Number(n) => Value::Number(Number::from_f64(*n).unwrap()),
+        JsonValue::String(s) => Value::String(s),
+        JsonValue::Array(a) => Value::Array(a.iter().map(|val| json_value_to_serde_json(val.to_owned())).collect()),
+        JsonValue::Object(o) => {
+            let mut values: Map<String, Value> = Map::new();
+            for (key, val) in o {
+                values.insert(key, json_value_to_serde_json(val));
+            }
+            Value::Object(values)
+        }
+    }
+}
+
+fn serde_json_to_json_value(value: Value) -> JsonValue {
+    match value {
+        Value::Null => JsonValue::Null,
+        Value::Bool(b) => JsonValue::Bool(b),
+        Value::Number(n) => JsonValue::Number(OrderedFloat(n.as_f64().unwrap())),
+        Value::String(s) => JsonValue::String(s),
+        Value::Array(a) => JsonValue::Array(a.iter().map(|val| serde_json_to_json_value(val.to_owned())).collect()),
+        Value::Object(o) => {
+            let mut values: BTreeMap<String, JsonValue> = BTreeMap::<String, JsonValue>::new();
+            for (key, val) in o {
+                values.insert(key, serde_json_to_json_value(val));
+            }
+            JsonValue::Object(values)
+        }
     }
 }
 
