@@ -37,7 +37,7 @@ fn test_pipeline_builder() {
 
     let context = statement_to_pipeline(
         "SELECT trips.taxi_id, trips.completed_at \
-        FROM TTL(taxi_trips, '60 SECONDS') trips ",
+        FROM TTL(taxi_trips, '32 SECONDS') trips ",
         &mut pipeline,
         Some("results".to_string()),
     )

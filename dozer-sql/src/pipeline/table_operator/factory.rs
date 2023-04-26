@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use dozer_core::{
     errors::ExecutionError,
@@ -6,7 +6,7 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::types::{DozerDuration, Schema, TimeUnit};
-use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr};
+use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Value};
 
 use crate::pipeline::{
     builder::SchemaSQLContext, errors::TableOperatorError, expression::builder::ExpressionBuilder,
@@ -118,19 +118,113 @@ pub(crate) fn operator_from_descriptor(
     _schema: &Schema,
 ) -> Result<Option<TableOperatorType>, ExecutionError> {
     if &descriptor.name.to_uppercase() == "TTL" {
-        let operator = LifetimeTableOperator::new(
-            None,
-            DozerDuration(
-                std::time::Duration::from_nanos(0_u64),
-                TimeUnit::Nanoseconds,
-            ),
-        );
+        let operator = lifetime_from_descriptor(descriptor)
+            .map_err(|e| ExecutionError::TableProcessorError(Box::new(e)))?;
 
         Ok(Some(operator.into()))
     } else {
         Err(ExecutionError::InternalError(
             descriptor.name.clone().into(),
         ))
+    }
+}
+
+fn lifetime_from_descriptor(
+    descriptor: &TableOperatorDescriptor,
+) -> Result<LifetimeTableOperator, TableOperatorError> {
+    let interval = get_interval(descriptor.name.to_owned(), descriptor.args.get(1).unwrap())?;
+
+    let operator = LifetimeTableOperator::new(None, interval);
+
+    Ok(operator)
+}
+
+fn get_interval(
+    function_name: String,
+    interval_arg: &FunctionArg,
+) -> Result<DozerDuration, TableOperatorError> {
+    match interval_arg {
+        FunctionArg::Named { name, arg: _ } => {
+            let column_name = ExpressionBuilder::normalize_ident(name);
+            Err(TableOperatorError::InvalidInterval(
+                column_name,
+                function_name,
+            ))
+        }
+        FunctionArg::Unnamed(arg_expr) => match arg_expr {
+            FunctionArgExpr::Expr(expr) => match expr {
+                Expr::Value(Value::SingleQuotedString(s) | Value::DoubleQuotedString(s)) => {
+                    let interval: DozerDuration =
+                        parse_duration_string(function_name.to_owned(), s).map_err(|_| {
+                            TableOperatorError::InvalidInterval(s.to_owned(), function_name)
+                        })?;
+                    Ok(interval)
+                }
+                _ => Err(TableOperatorError::InvalidInterval(
+                    expr.to_string(),
+                    function_name,
+                )),
+            },
+            FunctionArgExpr::QualifiedWildcard(_) => Err(TableOperatorError::InvalidInterval(
+                "*".to_string(),
+                function_name,
+            )),
+            FunctionArgExpr::Wildcard => Err(TableOperatorError::InvalidInterval(
+                "*".to_string(),
+                function_name,
+            )),
+        },
+    }
+}
+
+fn parse_duration_string(
+    function_name: String,
+    duration_string: &str,
+) -> Result<DozerDuration, TableOperatorError> {
+    let duration_string = duration_string
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let duration_tokens = duration_string.split(' ').collect::<Vec<_>>();
+    if duration_tokens.len() != 2 {
+        return Err(TableOperatorError::InvalidInterval(
+            duration_string,
+            function_name,
+        ));
+    }
+
+    let duration_value = duration_tokens[0].parse::<u64>().map_err(|_| {
+        TableOperatorError::InvalidInterval(duration_string.to_owned(), function_name.clone())
+    })?;
+
+    let duration_unit = duration_tokens[1].to_uppercase();
+
+    match duration_unit.as_str() {
+        "MILLISECOND" | "MILLISECONDS" => Ok(DozerDuration(
+            Duration::from_millis(duration_value),
+            TimeUnit::Milliseconds,
+        )),
+        "SECOND" | "SECONDS" => Ok(DozerDuration(
+            Duration::from_secs(duration_value),
+            TimeUnit::Seconds,
+        )),
+        "MINUTE" | "MINUTES" => Ok(DozerDuration(
+            Duration::from_secs(duration_value * 60),
+            TimeUnit::Seconds,
+        )),
+        "HOUR" | "HOURS" => Ok(DozerDuration(
+            Duration::from_secs(duration_value * 60 * 60),
+            TimeUnit::Seconds,
+        )),
+        "DAY" | "DAYS" => Ok(DozerDuration(
+            Duration::from_secs(duration_value * 60 * 60 * 24),
+            TimeUnit::Seconds,
+        )),
+        _ => Err(TableOperatorError::InvalidInterval(
+            duration_string,
+            function_name,
+        )),
     }
 }
 

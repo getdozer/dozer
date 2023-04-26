@@ -344,9 +344,15 @@ pub enum TableOperatorError {
     #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
 
-    #[error("Source Table not specified in the Table Operator function {0}")]
+    #[error("Source Table not specified in the Table Operator {0}")]
     MissingSourceArgument(String),
 
-    #[error("Invalid source table {0} in the Table Operator function {1}")]
+    #[error("Invalid source table {0} in the Table Operator {1}")]
     InvalidSourceArgument(String, String),
+
+    #[error("Interval is not specified in the Table Operator {0}")]
+    MissingIntervalArgument(String),
+
+    #[error("Invalid time interval '{0}' specified in the Table Operator {1}")]
+    InvalidInterval(String, String),
 }
