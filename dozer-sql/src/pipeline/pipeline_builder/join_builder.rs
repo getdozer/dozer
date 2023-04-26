@@ -14,6 +14,7 @@ use crate::pipeline::{
         join::factory::{JoinProcessorFactory, LEFT_JOIN_PORT, RIGHT_JOIN_PORT},
         table::factory::get_name_or_alias,
     },
+    table_operator::factory::TableOperatorProcessorFactory,
     window::factory::WindowProcessorFactory,
 };
 
@@ -198,42 +199,77 @@ fn insert_table_operator_to_pipeline(
 ) -> Result<ConnectionInfo, PipelineError> {
     let mut input_nodes = vec![];
 
-    // for now, we only support window operators
-    let window_processor_factory = WindowProcessorFactory::new(table_operator.clone());
-    let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
-    let window_source_name = window_processor_factory.get_source_name()?;
-    let mut window_entry_points = vec![];
+    if table_operator.name.to_uppercase() == "TTL" {
+        let processor = TableOperatorProcessorFactory::new(table_operator.clone());
+        let processor_name = processor.get_name();
+        let source_name = processor
+            .get_source_name()
+            .map_err(PipelineError::TableOperatorError)?;
 
-    if is_an_entry_point(
-        &window_source_name,
-        &mut query_context.pipeline_map,
-        pipeline_idx,
-    ) {
-        let entry_point = PipelineEntryPoint::new(
-            AppSourceId::new(window_source_name.clone(), None),
-            DEFAULT_PORT_HANDLE,
+        let mut entry_points = vec![];
+
+        if is_an_entry_point(&source_name, &mut query_context.pipeline_map, pipeline_idx) {
+            let entry_point = PipelineEntryPoint::new(
+                AppSourceId::new(source_name.clone(), None),
+                DEFAULT_PORT_HANDLE,
+            );
+
+            entry_points.push(entry_point);
+            query_context.used_sources.push(source_name);
+        } else {
+            input_nodes.push((source_name, processor_name.clone(), DEFAULT_PORT_HANDLE));
+        }
+
+        pipeline.add_processor(Arc::new(processor), &processor_name, entry_points);
+
+        Ok(ConnectionInfo {
+            input_nodes,
+            output_node: (processor_name, DEFAULT_PORT_HANDLE),
+        })
+    } else if table_operator.name.to_uppercase() == "TUMBLE"
+        || table_operator.name.to_uppercase() == "HOP"
+    {
+        // for now, we only support window operators
+        let window_processor_factory = WindowProcessorFactory::new(table_operator.clone());
+        let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
+        let window_source_name = window_processor_factory.get_source_name()?;
+        let mut window_entry_points = vec![];
+
+        if is_an_entry_point(
+            &window_source_name,
+            &mut query_context.pipeline_map,
+            pipeline_idx,
+        ) {
+            let entry_point = PipelineEntryPoint::new(
+                AppSourceId::new(window_source_name.clone(), None),
+                DEFAULT_PORT_HANDLE,
+            );
+
+            window_entry_points.push(entry_point);
+            query_context.used_sources.push(window_source_name);
+        } else {
+            input_nodes.push((
+                window_source_name,
+                window_processor_name.clone(),
+                DEFAULT_PORT_HANDLE,
+            ));
+        }
+
+        pipeline.add_processor(
+            Arc::new(window_processor_factory),
+            &window_processor_name,
+            window_entry_points,
         );
 
-        window_entry_points.push(entry_point);
-        query_context.used_sources.push(window_source_name);
+        Ok(ConnectionInfo {
+            input_nodes,
+            output_node: (window_processor_name, DEFAULT_PORT_HANDLE),
+        })
     } else {
-        input_nodes.push((
-            window_source_name,
-            window_processor_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        ));
+        Err(PipelineError::UnsupportedTableOperator(
+            table_operator.name.clone(),
+        ))
     }
-
-    pipeline.add_processor(
-        Arc::new(window_processor_factory),
-        &window_processor_name,
-        window_entry_points,
-    );
-
-    Ok(ConnectionInfo {
-        input_nodes,
-        output_node: (window_processor_name, DEFAULT_PORT_HANDLE),
-    })
 }
 
 fn is_nested_join(left_table: &sqlparser::ast::TableFactor) -> bool {
