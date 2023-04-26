@@ -8,11 +8,9 @@ name: CI for dozer-log-python
 on:
   push:
     branches:
-      - main
       - dozer-log-python-ci-dev
     tags:
       - '*'
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -27,9 +25,25 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64]
+        target: [x86_64, x86, aarch64, armv7, s390x]
+        include:
+          - target: x86_64
+            gcc: gcc-x86-64-linux-gnu
+          - target: x86
+            gcc: gcc-multilib
+          - target: aarch64
+            gcc: gcc-aarch64-linux-gnu
+          - target: armv7
+            gcc: gcc-arm-linux-gnueabihf
+          - target: s390x
+            gcc: gcc-s390x-linux-gnu
     steps:
       - uses: actions/checkout@v3
+
+      - name: Install target specific tools
+        run: |
+          sudo apt update
+          sudo apt install -y ${{ matrix.gcc }}
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
