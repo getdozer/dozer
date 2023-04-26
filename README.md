@@ -148,7 +148,7 @@ Check out Dozer's [samples repository](https://github.com/getdozer/dozer-samples
 | Use Cases        | [Flight Microservices](https://github.com/getdozer/dozer-samples/tree/main/usecases/pg-flights)                            | Build APIs over multiple microservices.                                      |
 |                  | Use Dozer to Instrument (Coming soon)                                                                                      | Combine Log data to get real time insights                                   |
 |                  | Real Time Model Scoring (Coming soon)                                                                                      | Deploy trained models to get real time insights as APIs                      |
-| Client Libraries | Dozer React Starter (Coming soon)                                                                                          | Instantly start building real time views using Dozer and React               |
+| Client Libraries | [Dozer React Starter](https://github.com/getdozer/dozer-samples/tree/main/usecases/react)                                                                                          | Instantly start building real time views using Dozer and React               |
 |                  | [Ingest Polars/Pandas Dataframes](https://github.com/getdozer/dozer-samples/tree/main/client-samples/ingest-python-sample) | Instantly ingest Polars/Pandas dataframes using Arrow format and deploy APIs |
 | Authorization    | Dozer Authorziation (Coming soon)                                                                                          | How to apply JWT Auth on Dozer                                               |
 
