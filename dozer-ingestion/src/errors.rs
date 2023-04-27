@@ -374,6 +374,9 @@ pub enum DebeziumSchemaError {
     #[error("Invalid date")]
     InvalidDateError,
 
+    #[error("Invalid json")]
+    InvalidJsonError,
+
     // #[error("Invalid time")]
     // InvalidTimeError,
     #[error("Invalid timestamp")]
