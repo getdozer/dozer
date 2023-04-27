@@ -1,4 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
+use crate::json_types::serde_json_to_json_value;
 use crate::types::{DozerDuration, DozerPoint, TimeUnit, DATE_FORMAT};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
@@ -7,7 +8,6 @@ use rust_decimal::Decimal;
 use serde_json::Value;
 use std::str::FromStr;
 use std::time::Duration;
-use crate::json_types::serde_json_to_json_value;
 
 /// Used in REST APIs and query expressions for converting JSON value to `Field`
 pub fn json_value_to_field(

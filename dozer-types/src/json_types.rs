@@ -172,7 +172,7 @@ mod tests {
         rust_decimal::Decimal,
         types::{DozerPoint, Field, FieldType, TimeUnit},
     };
-    
+
     use std::time::Duration;
 
     use super::*;
