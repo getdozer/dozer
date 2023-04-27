@@ -76,7 +76,10 @@ pub fn postgres_type_to_field(
                 }
                 Type::JSONB | Type::JSON | Type::JSONB_ARRAY | Type::JSON_ARRAY => {
                     let val = serde_json::from_slice(v).map_err(|_| {
-                        PostgresSchemaError::ColumnTypeNotSupported(column_type.name().to_string())
+                        PostgresSchemaError::JSONBParseError(format!(
+                            "Error converting to a single row for: {}",
+                            column_type.name()
+                        ))
                     })?;
                     let json: JsonValue = serde_json_to_json_value(val).map_err(|_| {
                         PostgresSchemaError::ColumnTypeNotSupported(column_type.name().to_string())

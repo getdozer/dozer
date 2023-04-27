@@ -5,8 +5,9 @@ use ordered_float::OrderedFloat;
 use prost_types::value::Kind;
 use prost_types::{ListValue, Struct, Value as ProstValue};
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Number, Value};
+use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
+
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
@@ -90,7 +91,7 @@ pub fn json_value_to_serde_json(value: JsonValue) -> Value {
     match value {
         JsonValue::Null => Value::Null,
         JsonValue::Bool(b) => Value::Bool(b),
-        JsonValue::Number(n) => Value::Number(Number::from_f64(*n).unwrap()),
+        JsonValue::Number(n) => json!(*n),
         JsonValue::String(s) => Value::String(s),
         JsonValue::Array(a) => Value::Array(a.into_iter().map(json_value_to_serde_json).collect()),
         JsonValue::Object(o) => {
