@@ -61,20 +61,27 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
     // Extract `endpoint_name` from the second argument.
     let endpoint_name = cx.argument::<JsString>(1)?.value(&mut cx);
 
-    // Load schema.
+    // Find latest migration.
     let home_dir = HomeDir::new(home_dir.as_ref(), Default::default());
-    let schema = match load_schema(&home_dir, &endpoint_name) {
+    let migration_path = match home_dir.find_latest_migration_path(&endpoint_name) {
+        Ok(Some(migration_path)) => migration_path,
+        Ok(None) => return cx.throw_error("No migration found"),
+        Err((path, error)) => return cx.throw_error(format!("Failed to read {path:?}: {error}")),
+    };
+
+    // Load schema.
+    let schema = match load_schema(&migration_path.schema_path) {
         Ok(schema) => schema,
         Err(error) => return cx.throw_error(error.to_string()),
     };
 
     // Create the reader.
     let (deferred, promise) = cx.promise();
-    let log_path = home_dir.get_endpoint_log_path(&endpoint_name);
     let runtime_for_reader = (**runtime).clone();
     let channel = runtime.channel.clone();
     runtime.runtime.spawn(async move {
         // Create the reader.
+        let log_path = migration_path.log_path;
         let name = AsRef::<Path>::as_ref(&log_path)
             .parent()
             .and_then(|parent| parent.file_name().and_then(|file_name| file_name.to_str()))

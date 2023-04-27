@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::OpenOptions};
+use std::{fs::OpenOptions, path::Path};
 
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
@@ -7,40 +7,29 @@ use dozer_types::{
 };
 use std::io::Write;
 
-use crate::{errors::SchemaError, home_dir::HomeDir};
+use crate::errors::SchemaError;
 
-pub fn write_schemas(
-    mut schemas: HashMap<String, Schema>,
-    home_dir: &HomeDir,
-    api_endpoints: &[ApiEndpoint],
-) -> Result<HashMap<String, Schema>, SchemaError> {
-    for api_endpoint in api_endpoints {
-        let schema = schemas
-            .get(&api_endpoint.name)
-            .unwrap_or_else(|| panic!("Schema not found for a sink {}", api_endpoint.name));
-        let schema = modify_schema(schema, api_endpoint)?;
+pub fn write_schema(
+    schema: &Schema,
+    api_endpoint: &ApiEndpoint,
+    schema_path: &Path,
+) -> Result<Schema, SchemaError> {
+    let schema = modify_schema(schema, api_endpoint)?;
 
-        let schema_path = home_dir.get_endpoint_schema_path(&api_endpoint.name);
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(schema_path)
+        .map_err(|e| SchemaError::Filesystem(schema_path.to_path_buf(), e))?;
+    writeln!(file, "{}", serde_json::to_string(&schema).unwrap())
+        .map_err(|e| SchemaError::Filesystem(schema_path.to_path_buf(), e))?;
 
-        let mut file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(&schema_path)
-            .map_err(|e| SchemaError::Filesystem(schema_path.clone(), e))?;
-        writeln!(file, "{}", serde_json::to_string(&schema).unwrap())
-            .map_err(|e| SchemaError::Filesystem(schema_path, e))?;
-
-        schemas.insert(api_endpoint.name.clone(), schema);
-    }
-
-    Ok(schemas)
+    Ok(schema)
 }
 
-pub fn load_schema(home_dir: &HomeDir, endpoint_name: &str) -> Result<Schema, SchemaError> {
-    let path = home_dir.get_endpoint_schema_path(endpoint_name);
-
-    let schema_str =
-        std::fs::read_to_string(&path).map_err(|e| SchemaError::Filesystem(path, e))?;
+pub fn load_schema(schema_path: &Path) -> Result<Schema, SchemaError> {
+    let schema_str = std::fs::read_to_string(schema_path)
+        .map_err(|e| SchemaError::Filesystem(schema_path.to_path_buf(), e))?;
 
     serde_json::from_str(&schema_str).map_err(Into::into)
 }
