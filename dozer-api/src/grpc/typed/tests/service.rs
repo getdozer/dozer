@@ -47,9 +47,13 @@ async fn start_internal_pipeline_client() -> Result<Receiver<Operation>, GrpcErr
 }
 
 pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) {
+    // Copy this file from dozer-tests output directory if it changes
+    let res = env::current_dir().unwrap();
+    let descriptor_path = res.join("src/grpc/typed/tests/generated_films.bin");
     let endpoint = test_utils::get_endpoint();
     let cache_endpoint = CacheEndpoint::open(
         &*test_utils::initialize_cache(&endpoint.name, None),
+        descriptor_path,
         endpoint,
     )
     .unwrap();
@@ -62,12 +66,9 @@ pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) 
 }
 
 async fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
-    // Copy this file from dozer-tests output directory if it changes
-    let res = env::current_dir().unwrap();
-    let path = res.join("src/grpc/typed/tests/generated_films.bin");
     let (endpoints, rx1) = setup_pipeline().await;
 
-    TypedService::new(&path, endpoints, Some(rx1), security).unwrap()
+    TypedService::new(endpoints, Some(rx1), security).unwrap()
 }
 
 async fn test_grpc_count_and_query_common(

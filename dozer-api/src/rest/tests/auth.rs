@@ -70,7 +70,7 @@ async fn check_status(
         security,
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;
@@ -98,7 +98,7 @@ async fn _call_auth_token_api(
         Some(ApiSecurity::Jwt(secret)),
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, endpoint).unwrap(),
+            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;

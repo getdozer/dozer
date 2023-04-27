@@ -17,7 +17,7 @@ use dozer_types::{
 };
 use futures_util::stream::{AbortHandle, Abortable, Aborted};
 use futures_util::Future;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::broadcast::{self, Receiver};
 use tonic::transport::Server;
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
@@ -27,7 +27,6 @@ use tower_http::trace::{self, TraceLayer};
 pub struct ApiServer {
     port: u16,
     host: String,
-    api_dir: PathBuf,
     security: Option<ApiSecurity>,
     flags: Flags,
 }
@@ -55,18 +54,22 @@ impl ApiServer {
                 })
         );
 
-        let descriptor_path = ProtoGenerator::descriptor_path(&self.api_dir);
+        let mut all_descriptor_bytes = vec![];
+        for cache_endpoint in &cache_endpoints {
+            let descriptor_path = cache_endpoint.descriptor_path();
+            let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(descriptor_path)?;
+            all_descriptor_bytes.push(descriptor_bytes);
+        }
 
-        let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(&descriptor_path)?;
-
-        let inflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(&descriptor_bytes)
-            .build()?;
+        let mut builder = tonic_reflection::server::Builder::configure();
+        for descriptor_bytes in &all_descriptor_bytes {
+            builder = builder.register_encoded_file_descriptor_set(descriptor_bytes);
+        }
+        let inflection_service = builder.build()?;
 
         // Service handling dynamic gRPC requests.
         let typed_service = if self.flags.dynamic {
             Some(TypedService::new(
-                &descriptor_path,
                 cache_endpoints,
                 operations_receiver,
                 self.security.clone(),
@@ -78,16 +81,10 @@ impl ApiServer {
         Ok((typed_service, inflection_service))
     }
 
-    pub fn new(
-        grpc_config: GrpcApiOptions,
-        api_dir: PathBuf,
-        security: Option<ApiSecurity>,
-        flags: Flags,
-    ) -> Self {
+    pub fn new(grpc_config: GrpcApiOptions, security: Option<ApiSecurity>, flags: Flags) -> Self {
         Self {
             port: grpc_config.port as u16,
             host: grpc_config.host,
-            api_dir,
             security,
             flags,
         }

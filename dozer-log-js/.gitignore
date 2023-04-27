@@ -1,5 +1,6 @@
 target
-index.node
+build/log.node
+build/stage
 **/node_modules
 **/.DS_Store
 npm-debug.log*

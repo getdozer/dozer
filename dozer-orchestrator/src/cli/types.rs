@@ -2,6 +2,7 @@ use clap::{Args, Parser, Subcommand};
 
 use super::helper::{DESCRIPTION, LOGO};
 
+use dozer_types::constants::DEFAULT_CLOUD_TARGET_URL;
 use dozer_types::constants::DEFAULT_CONFIG_PATH;
 
 #[derive(Parser, Debug)]
@@ -33,8 +34,8 @@ pub enum Commands {
         about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed"
     )]
     Migrate(Migrate),
-    #[command(about = "Deploy Dozer application")]
-    Deploy(Deploy),
+    #[command(about = "Deploy cloud applications")]
+    Cloud(Cloud),
 
     #[command(about = "Run Api Server")]
     Api(Api),
@@ -103,4 +104,25 @@ pub enum AppCommands {
 #[derive(Debug, Subcommand)]
 pub enum ConnectorCommands {
     Ls,
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct Cloud {
+    #[arg(
+        global = true,
+        short = 't',
+        long,
+        default_value = DEFAULT_CLOUD_TARGET_URL
+    )]
+    pub target_url: String,
+    #[command(subcommand)]
+    pub command: CloudCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CloudCommands {
+    Deploy,
+    List,
+    Status,
 }

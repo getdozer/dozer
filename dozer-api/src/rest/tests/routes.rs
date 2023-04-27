@@ -30,7 +30,7 @@ async fn list_route() {
         None,
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;
@@ -89,7 +89,7 @@ async fn count_and_query_route() {
         None,
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;
@@ -134,7 +134,7 @@ async fn get_route() {
         None,
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, endpoint.clone()).unwrap(),
+            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
     );
     let app = actix_web::test::init_service(api_server).await;

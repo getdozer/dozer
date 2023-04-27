@@ -33,26 +33,6 @@ pub enum Field {
     Null,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
-pub enum FieldBorrow<'a> {
-    UInt(u64),
-    U128(u128),
-    Int(i64),
-    I128(i128),
-    Float(OrderedFloat<f64>),
-    Boolean(bool),
-    String(&'a str),
-    Text(&'a str),
-    Binary(&'a [u8]),
-    Decimal(Decimal),
-    Timestamp(DateTime<FixedOffset>),
-    Date(NaiveDate),
-    Json(&'a [u8]),
-    Point(DozerPoint),
-    Duration(DozerDuration),
-    Null,
-}
-
 impl Field {
     pub(crate) fn data_encoding_len(&self) -> usize {
         match self {
@@ -113,60 +93,35 @@ impl Field {
         result
     }
 
-    pub fn borrow(&self) -> FieldBorrow {
-        match self {
-            Field::UInt(i) => FieldBorrow::UInt(*i),
-            Field::U128(i) => FieldBorrow::U128(*i),
-            Field::Int(i) => FieldBorrow::Int(*i),
-            Field::I128(i) => FieldBorrow::I128(*i),
-            Field::Float(f) => FieldBorrow::Float(*f),
-            Field::Boolean(b) => FieldBorrow::Boolean(*b),
-            Field::String(s) => FieldBorrow::String(s),
-            Field::Text(s) => FieldBorrow::Text(s),
-            Field::Binary(b) => FieldBorrow::Binary(b),
-            Field::Decimal(d) => FieldBorrow::Decimal(*d),
-            Field::Timestamp(t) => FieldBorrow::Timestamp(*t),
-            Field::Date(t) => FieldBorrow::Date(*t),
-            Field::Json(_) => todo!(),
-            Field::Point(p) => FieldBorrow::Point(*p),
-            Field::Duration(d) => FieldBorrow::Duration(*d),
-            Field::Null => FieldBorrow::Null,
-        }
-    }
-
     pub fn decode(buf: &[u8]) -> Result<Field, DeserializationError> {
-        Self::decode_borrow(buf).map(|field| field.to_owned())
-    }
-
-    pub fn decode_borrow(buf: &[u8]) -> Result<FieldBorrow, DeserializationError> {
         let first_byte = *buf.first().ok_or(DeserializationError::EmptyInput)?;
         let val = &buf[1..];
         match first_byte {
-            0 => Ok(FieldBorrow::UInt(u64::from_be_bytes(
+            0 => Ok(Field::UInt(u64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            1 => Ok(FieldBorrow::U128(u128::from_be_bytes(
+            1 => Ok(Field::U128(u128::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            2 => Ok(FieldBorrow::Int(i64::from_be_bytes(
+            2 => Ok(Field::Int(i64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            3 => Ok(FieldBorrow::I128(i128::from_be_bytes(
+            3 => Ok(Field::I128(i128::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            4 => Ok(FieldBorrow::Float(OrderedFloat(f64::from_be_bytes(
+            4 => Ok(Field::Float(OrderedFloat(f64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             )))),
-            5 => Ok(FieldBorrow::Boolean(val[0] == 1)),
-            6 => Ok(FieldBorrow::String(std::str::from_utf8(val)?)),
-            7 => Ok(FieldBorrow::Text(std::str::from_utf8(val)?)),
-            8 => Ok(FieldBorrow::Binary(val)),
-            9 => Ok(FieldBorrow::Decimal(Decimal::deserialize(
+            5 => Ok(Field::Boolean(val[0] == 1)),
+            6 => Ok(Field::String(std::str::from_utf8(val)?.to_string())),
+            7 => Ok(Field::Text(std::str::from_utf8(val)?.to_string())),
+            8 => Ok(Field::Binary(val.to_vec())),
+            9 => Ok(Field::Decimal(Decimal::deserialize(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
@@ -177,7 +132,7 @@ impl Field {
                 ));
 
                 match timestamp {
-                    LocalResult::Single(v) => Ok(FieldBorrow::Timestamp(DateTime::from(v))),
+                    LocalResult::Single(v) => Ok(Field::Timestamp(DateTime::from(v))),
                     LocalResult::Ambiguous(_, _) => Err(DeserializationError::Custom(Box::new(
                         TypeError::AmbiguousTimestamp,
                     ))),
@@ -186,18 +141,18 @@ impl Field {
                     ))),
                 }
             }
-            11 => Ok(FieldBorrow::Date(NaiveDate::parse_from_str(
+            11 => Ok(Field::Date(NaiveDate::parse_from_str(
                 std::str::from_utf8(val)?,
                 DATE_FORMAT,
             )?)),
-            12 => Ok(FieldBorrow::Json(val)),
-            13 => Ok(FieldBorrow::Point(
+            12 => Ok(Field::Json(val)),
+            13 => Ok(Field::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
-            14 => Ok(FieldBorrow::Duration(
+            14 => Ok(Field::Duration(
                 DozerDuration::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
-            15 => Ok(FieldBorrow::Null),
+            15 => Ok(Field::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
@@ -612,29 +567,6 @@ impl Display for Field {
             Field::Point(v) => f.write_str(&format!("{v} (Point)")),
             Field::Duration(d) => f.write_str(&format!("{:?} {:?} (Duration)", d.0, d.1)),
             Field::Null => f.write_str("NULL"),
-        }
-    }
-}
-
-impl<'a> FieldBorrow<'a> {
-    pub fn to_owned(self) -> Field {
-        match self {
-            FieldBorrow::UInt(i) => Field::UInt(i),
-            FieldBorrow::U128(i) => Field::U128(i),
-            FieldBorrow::Int(i) => Field::Int(i),
-            FieldBorrow::I128(i) => Field::I128(i),
-            FieldBorrow::Float(f) => Field::Float(f),
-            FieldBorrow::Decimal(d) => Field::Decimal(d),
-            FieldBorrow::Boolean(b) => Field::Boolean(b),
-            FieldBorrow::String(s) => Field::String(s.to_owned()),
-            FieldBorrow::Text(s) => Field::Text(s.to_owned()),
-            FieldBorrow::Binary(b) => Field::Binary(b.to_owned()),
-            FieldBorrow::Timestamp(t) => Field::Timestamp(t),
-            FieldBorrow::Date(d) => Field::Date(d),
-            FieldBorrow::Json(_) => todo!(),
-            FieldBorrow::Point(p) => Field::Point(p),
-            FieldBorrow::Duration(d) => Field::Duration(DozerDuration(d.0, d.1)),
-            FieldBorrow::Null => Field::Null,
         }
     }
 }

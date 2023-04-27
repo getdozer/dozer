@@ -1,7 +1,7 @@
-import dozer_log
+import pydozer_log
 
 async def main():
-    reader = await dozer_log.LogReader.new('../.dozer/pipeline', 'trips')
+    reader = await pydozer_log.LogReader.new('../.dozer', 'trips')
     for _ in range(10):
         data = await reader.next_op()
         print(data)

@@ -11,7 +11,6 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::panic::panic_any;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -69,11 +68,10 @@ pub struct DagExecutorJoinHandle {
 impl DagExecutor {
     pub fn new<T: Clone + Debug>(
         dag: Dag<T>,
-        path: PathBuf,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let builder_dag = BuilderDag::new(dag_schemas, path)?;
+        let builder_dag = BuilderDag::new(dag_schemas)?;
 
         Ok(Self {
             builder_dag,
@@ -81,7 +79,7 @@ impl DagExecutor {
         })
     }
 
-    pub fn validate<T: Clone + Debug>(dag: Dag<T>, _path: PathBuf) -> Result<(), ExecutionError> {
+    pub fn validate<T: Clone + Debug>(dag: Dag<T>) -> Result<(), ExecutionError> {
         DagSchemas::new(dag)?;
         Ok(())
     }

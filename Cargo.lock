@@ -2410,7 +2410,6 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",
- "fp_rust",
  "tempdir",
  "uuid",
 ]
@@ -2601,7 +2600,6 @@ dependencies = [
  "bytes",
  "chrono",
  "crossbeam",
- "fp_rust",
  "geo",
  "indexmap",
  "indicatif",
@@ -2935,12 +2933,6 @@ checksum = "a9c384f161156f5260c24a097c56119f9be8c798586aecc13afbcbe7b7e26bf8"
 dependencies = [
  "percent-encoding",
 ]
-
-[[package]]
-name = "fp_rust"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6449172a114cfa5c420d2d87db37fd4a3547e76ca06b1fa27f67757b0013368"
 
 [[package]]
 name = "fs-err"

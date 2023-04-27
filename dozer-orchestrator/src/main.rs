@@ -1,9 +1,12 @@
 use clap::Parser;
 use dozer_orchestrator::cli::generate_config_repl;
-use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
+use dozer_orchestrator::cli::types::{
+    ApiCommands, AppCommands, Cli, CloudCommands, Commands, ConnectorCommands,
+};
 use dozer_orchestrator::cli::{init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::{CliError, OrchestrationError};
 use dozer_orchestrator::simple::SimpleOrchestrator;
+use dozer_orchestrator::CloudOrchestrator;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
@@ -71,7 +74,13 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.migrate(force)
             }
             Commands::Clean => dozer.clean(),
-            Commands::Deploy(deploy) => dozer.deploy(deploy, cli.config_path),
+            Commands::Cloud(cloud) => match cloud.command {
+                CloudCommands::Deploy => dozer.deploy(cloud, cli.config_path),
+                _ => {
+                    info!("Command not implemented yet");
+                    Ok(())
+                }
+            },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }

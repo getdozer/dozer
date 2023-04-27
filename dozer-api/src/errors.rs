@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
+use dozer_cache::dozer_log::errors::SchemaError;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_json, thiserror};
 
@@ -39,6 +40,8 @@ pub enum ApiError {
     TypeError(#[from] TypeError),
     #[error("Failed to bind to address {0}: {1}")]
     FailedToBindToAddress(String, #[source] std::io::Error),
+    #[error("Failed to load schema: {0}")]
+    FailedToLoadSchema(#[from] SchemaError),
 }
 
 impl ApiError {
@@ -96,8 +99,8 @@ pub enum GenerationError {
     DozerToProtoTypeNotSupported(String),
     #[error("Failed to create proto descriptor: {0}")]
     FailedToCreateProtoDescriptor(#[source] std::io::Error),
-    #[error("Failed to read proto descriptor: {0}")]
-    FailedToReadProtoDescriptor(#[source] std::io::Error),
+    #[error("Failed to read proto descriptor {0:?}: {1}")]
+    FailedToReadProtoDescriptor(PathBuf, #[source] std::io::Error),
     #[error("Failed to decode proto descriptor: {0}")]
     FailedToDecodeProtoDescriptor(#[source] DescriptorError),
     #[error("Service not found: {0}")]
@@ -150,7 +153,8 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::CacheNotFound(_)
             | ApiError::QueryFailed(_)
             | ApiError::CountFailed(_)
-            | ApiError::FailedToBindToAddress(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ApiError::FailedToBindToAddress(_, _)
+            | ApiError::FailedToLoadSchema(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
