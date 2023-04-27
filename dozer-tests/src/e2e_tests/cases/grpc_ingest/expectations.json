@@ -1,3 +1,49 @@
 [
-    "HealthyService"
+    "HealthyService",
+    {
+        "Endpoint": {
+            "endpoint": "users",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "id",
+                                "typ": "Int",
+                                "nullable": false,
+                                "source": {
+                                    "Table": {
+                                        "connection": "ingest",
+                                        "name": "users"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "name",
+                                "typ": "String",
+                                "nullable": true,
+                                "source": {
+                                    "Table": {
+                                        "connection": "ingest",
+                                        "name": "users"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "json",
+                                "typ": "Json",
+                                "nullable": true,
+                                "source": {
+                                    "Table": {
+                                        "connection": "ingest",
+                                        "name": "users"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
 ]
