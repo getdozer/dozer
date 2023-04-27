@@ -5,17 +5,16 @@ use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_cache_dir, get_cache_manager_options,
-    get_executor_options, get_file_buffer_capacity, get_grpc_config, get_pipeline_dir,
-    get_rest_config,
+    get_api_security_config, get_cache_manager_options, get_executor_options,
+    get_file_buffer_capacity, get_grpc_config, get_rest_config,
 };
 use crate::{flatten_join_handle, CloudOrchestrator, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
-use dozer_cache::dozer_log::get_endpoint_log_path;
-use dozer_cache::dozer_log::schemas::{load_schema, write_schemas};
+use dozer_cache::dozer_log::home_dir::HomeDir;
+use dozer_cache::dozer_log::schemas::write_schemas;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 
@@ -78,18 +77,18 @@ impl Orchestrator for SimpleOrchestrator {
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::RoCacheInitFailed)?,
             );
-            let pipeline_dir = get_pipeline_dir(&self.config);
+            let home_dir = HomeDir::new(
+                self.config.home_dir.as_ref(),
+                self.config.cache_dir.clone().into(),
+            );
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
-                let schema = load_schema(&pipeline_dir, &endpoint.name)?;
-                let log_path = get_endpoint_log_path(&pipeline_dir, &endpoint.name);
                 let (cache_endpoint, task) = CacheEndpoint::new(
+                    &home_dir,
                     &*cache_manager,
-                    schema.clone(),
                     endpoint.clone(),
                     self.runtime.clone(),
                     Box::pin(shutdown.create_shutdown_future()),
-                    &log_path,
                     operations_sender.clone(),
                     Some(self.multi_pb.clone()),
                 )
@@ -122,9 +121,8 @@ impl Orchestrator for SimpleOrchestrator {
             // Initialize gRPC Server
             let grpc_config = get_grpc_config(self.config.to_owned());
             let grpc_handle = if grpc_config.enabled {
-                let api_dir = get_api_dir(&self.config);
                 let api_security = get_api_security_config(self.config.to_owned());
-                let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
+                let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
                 let shutdown = shutdown.create_shutdown_future();
                 tokio::spawn(async move {
                     grpc_server
@@ -177,18 +175,20 @@ impl Orchestrator for SimpleOrchestrator {
             warn!("Shutting down internal pipeline server");
         });
 
-        let pipeline_dir = get_pipeline_dir(&self.config);
+        let home_dir = HomeDir::new(
+            self.config.home_dir.as_ref(),
+            self.config.cache_dir.clone().into(),
+        );
         let executor = Executor::new(
+            &home_dir,
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            &pipeline_dir,
             shutdown.get_running_flag(),
             self.multi_pb.clone(),
         );
         let settings = LogSinkSettings {
-            pipeline_dir: pipeline_dir.clone(),
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
         let dag_executor = executor.create_dag_executor(
@@ -238,15 +238,16 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
-        let pipeline_home_dir = get_pipeline_dir(&self.config);
-        let api_dir = get_api_dir(&self.config);
-        let cache_dir = get_cache_dir(&self.config);
+        let home_dir = HomeDir::new(
+            self.config.home_dir.as_ref(),
+            self.config.cache_dir.clone().into(),
+        );
 
         info!(
             "Initiating app: {}",
             get_colored_text(&self.config.app_name, "35")
         );
-        if api_dir.exists() || pipeline_home_dir.exists() || cache_dir.exists() {
+        if home_dir.exists() {
             if force {
                 self.clean()?;
             } else {
@@ -258,36 +259,24 @@ impl Orchestrator for SimpleOrchestrator {
         validate_config(&self.config)?;
 
         let builder = PipelineBuilder::new(
+            &home_dir,
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            &pipeline_home_dir,
             self.multi_pb.clone(),
         );
 
-        // Api Path
-        if !api_dir.exists() {
-            fs::create_dir_all(&api_dir)
-                .map_err(|e| ExecutionError::FileSystemError(api_dir, e))?;
-        }
-
-        // cache Path
-        if !cache_dir.exists() {
-            fs::create_dir_all(&cache_dir)
-                .map_err(|e| ExecutionError::FileSystemError(cache_dir, e))?;
-        }
-
-        // Pipeline path
-        fs::create_dir_all(pipeline_home_dir.clone()).map_err(|e| {
-            OrchestrationError::PipelineDirectoryInitFailed(
-                pipeline_home_dir.to_string_lossy().to_string(),
-                e,
+        home_dir
+            .create_dir_all(
+                self.config
+                    .endpoints
+                    .iter()
+                    .map(|endpoint| endpoint.name.as_str()),
             )
-        })?;
+            .map_err(|(path, error)| OrchestrationError::FailedToCreateDir(path, error))?;
 
         let settings = LogSinkSettings {
-            pipeline_dir: pipeline_home_dir.clone(),
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
         let dag = builder.build(self.runtime.clone(), settings, None)?;
@@ -297,36 +286,36 @@ impl Orchestrator for SimpleOrchestrator {
         // Write schemas to pipeline_dir and generate proto files.
         let schemas = write_schemas(
             dag_schemas.get_sink_schemas(),
-            pipeline_home_dir.clone(),
+            &home_dir,
             &self.config.endpoints,
-        )?;
-        let api_dir = get_api_dir(&self.config);
+        )
+        .map_err(OrchestrationError::FailedToWriteSchema)?;
         let api_config = self.config.api.clone().unwrap_or_default();
-        for (schema_name, schema) in &schemas {
+        for (endpoint_name, schema) in &schemas {
+            let endpoint_api_dir = home_dir.get_endpoint_api_dir(endpoint_name);
+
             ProtoGenerator::generate(
-                &api_dir,
-                schema_name,
+                &endpoint_api_dir,
+                endpoint_name,
                 schema,
                 &api_config.api_security,
                 &self.config.flags,
             )?;
+
+            let mut resources = Vec::new();
+            resources.push(endpoint_name);
+
+            let common_resources = ProtoGenerator::copy_common(&endpoint_api_dir)
+                .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+
+            // Copy common service to be included in descriptor.
+            resources.extend(common_resources.iter());
+
+            // Generate a descriptor based on all proto files generated within sink.
+            let descriptor_path = home_dir.get_endpoint_descriptor_path(endpoint_name);
+            ProtoGenerator::generate_descriptor(&endpoint_api_dir, &descriptor_path, &resources)
+                .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         }
-
-        let mut resources = Vec::new();
-        for e in &self.config.endpoints {
-            resources.push(&e.name);
-        }
-
-        let common_resources = ProtoGenerator::copy_common(&api_dir)
-            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
-
-        // Copy common service to be included in descriptor.
-        resources.extend(common_resources.iter());
-
-        // Generate a descriptor based on all proto files generated within sink.
-        let descriptor_path = ProtoGenerator::descriptor_path(&api_dir);
-        ProtoGenerator::generate_descriptor(&api_dir, &descriptor_path, &resources)
-            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())
     }

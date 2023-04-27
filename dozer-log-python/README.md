@@ -13,7 +13,7 @@ Assume your Dozer home directory is `.dozer` and you have an endpoint named `tri
 ```python
 import pydozer_log
 
-reader = await pydozer_log.LogReader.new('.dozer/pipeline', 'trips')
+reader = await pydozer_log.LogReader.new('.dozer', 'trips')
 print(await reader.next_op())
 ```
 

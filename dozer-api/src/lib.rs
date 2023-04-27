@@ -1,6 +1,7 @@
 use arc_swap::ArcSwap;
 use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
+    dozer_log::{home_dir::HomeDir, schemas::load_schema},
     errors::CacheError,
     CacheReader,
 };
@@ -11,13 +12,12 @@ use dozer_types::{
         ApiEndpoint, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
         SecondaryIndexConfig,
     },
-    types::Schema,
 };
 use futures_util::Future;
 use std::{
-    borrow::{Borrow, Cow},
+    borrow::Cow,
     ops::Deref,
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -26,18 +26,18 @@ mod api_helper;
 #[derive(Debug)]
 pub struct CacheEndpoint {
     cache_reader: ArcSwap<CacheReader>,
+    descriptor_path: PathBuf,
     endpoint: ApiEndpoint,
 }
 
 impl CacheEndpoint {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
+        home_dir: &HomeDir,
         cache_manager: &dyn RwCacheManager,
-        schema: Schema,
         endpoint: ApiEndpoint,
         runtime: Arc<Runtime>,
         cancel: impl Future<Output = ()> + Unpin,
-        log_path: &Path,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<(Self, Option<impl FnOnce() -> Result<(), CacheError>>), ApiError> {
@@ -46,6 +46,9 @@ impl CacheEndpoint {
         {
             (cache_reader, None)
         } else {
+            let schema = load_schema(home_dir, &endpoint.name)?;
+            let secondary_index_config = get_secondary_index_config(&endpoint);
+            let log_path = home_dir.get_endpoint_log_path(&endpoint.name);
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
             let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
             let write_options = CacheWriteOptions {
@@ -57,10 +60,10 @@ impl CacheEndpoint {
             let (cache_name, task) = cache_builder::create_cache(
                 cache_manager,
                 schema,
-                get_secondary_index_config(&endpoint).borrow(),
+                &secondary_index_config,
                 runtime,
                 cancel,
-                log_path,
+                &log_path,
                 write_options,
                 operations_sender,
                 multi_pb,
@@ -76,6 +79,7 @@ impl CacheEndpoint {
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
+                descriptor_path: home_dir.get_endpoint_descriptor_path(&endpoint.name),
                 endpoint,
             },
             task,
@@ -84,6 +88,7 @@ impl CacheEndpoint {
 
     pub fn open(
         cache_manager: &dyn RwCacheManager,
+        descriptor_path: PathBuf,
         endpoint: ApiEndpoint,
     ) -> Result<Self, ApiError> {
         Ok(Self {
@@ -91,12 +96,17 @@ impl CacheEndpoint {
                 cache_manager,
                 &endpoint.name,
             )?),
+            descriptor_path,
             endpoint,
         })
     }
 
     pub fn cache_reader(&self) -> impl Deref<Target = Arc<CacheReader>> + '_ {
         self.cache_reader.load()
+    }
+
+    pub fn descriptor_path(&self) -> &Path {
+        &self.descriptor_path
     }
 
     pub fn endpoint(&self) -> &ApiEndpoint {

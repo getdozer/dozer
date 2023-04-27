@@ -18,7 +18,7 @@ Assume your Dozer home directory is `.dozer` and you have an endpoint named `tri
 const dozer_log = require('@dozerjs/log');
 
 const runtime = dozer_log.Runtime();
-reader = await runtime.create_reader('.dozer/pipeline', 'trips');
+reader = await runtime.create_reader('.dozer', 'trips');
 console.log(await reader.next_op());
 ```
 

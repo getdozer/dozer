@@ -24,7 +24,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use std::time::Duration;
-use tempdir::TempDir;
 
 #[derive(Debug)]
 pub(crate) struct TestSourceFactory {
@@ -323,14 +322,8 @@ impl TestPipeline {
     }
 
     pub fn run(self) -> Result<Vec<Vec<String>>, ExecutionError> {
-        let tmp_dir = TempDir::new("sqltest").expect("Unable to create temp dir");
-
-        let executor = DagExecutor::new(
-            self.dag,
-            tmp_dir.path().to_path_buf(),
-            ExecutorOptions::default(),
-        )
-        .unwrap_or_else(|e| panic!("Unable to create exec: {e}"));
+        let executor = DagExecutor::new(self.dag, ExecutorOptions::default())
+            .unwrap_or_else(|e| panic!("Unable to create exec: {e}"));
         let join_handle = executor.start(Arc::new(AtomicBool::new(true)))?;
 
         for (schema_name, op) in &self.ops {

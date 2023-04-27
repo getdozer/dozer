@@ -2,7 +2,7 @@ const dozer = require('..');
 
 async function main() {
     runtime = dozer.Runtime();
-    reader = await runtime.create_reader('../.dozer/pipeline', 'trips');
+    reader = await runtime.create_reader('../.dozer', 'trips');
 
     for (let i = 0; i < 10; ++i) {
         let op = await reader.next_op();

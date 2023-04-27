@@ -1,5 +1,4 @@
 use crate::channels::ProcessorChannelForwarder;
-use crate::chk;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
@@ -22,7 +21,6 @@ use std::thread;
 use std::time::Duration;
 
 use crate::tests::app::NoneContext;
-use tempdir::TempDir;
 
 #[derive(Debug)]
 pub(crate) struct NoopProcessorFactory {}
@@ -95,27 +93,24 @@ fn test_run_dag() {
         Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
     .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -139,26 +134,23 @@ fn test_run_dag_and_stop() {
         Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    let running = Arc::new(AtomicBool::new(true));
-    let join_handle = DagExecutor::new(
-        dag.clone(),
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(running.clone())
     .unwrap();
+
+    let running = Arc::new(AtomicBool::new(true));
+    let join_handle = DagExecutor::new(dag.clone(), ExecutorOptions::default())
+        .unwrap()
+        .start(running.clone())
+        .unwrap();
 
     thread::sleep(Duration::from_millis(1000));
     running.store(false, Ordering::SeqCst);
@@ -247,32 +239,30 @@ fn test_run_dag_2_sources_stateless() {
         Arc::new(CountingSinkFactory::new(count * 2, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
     .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -302,32 +292,30 @@ fn test_run_dag_2_sources_stateful() {
         Arc::new(CountingSinkFactory::new(count * 2, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
     .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -355,33 +343,31 @@ fn test_run_dag_1_source_2_ports_stateless() {
         Arc::new(CountingSinkFactory::new(count * 2, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(
             source_handle.clone(),
-            DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1
+            DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
         ),
         Endpoint::new(proc_handle.clone(), 1),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source_handle, DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2),
         Endpoint::new(proc_handle.clone(), 2),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
     .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }

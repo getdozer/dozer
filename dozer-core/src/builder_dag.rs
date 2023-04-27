@@ -1,4 +1,4 @@
-use std::{fmt::Debug, path::PathBuf};
+use std::fmt::Debug;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
@@ -36,9 +36,9 @@ pub struct BuilderDag {
 }
 
 impl BuilderDag {
-    pub fn new<T>(dag_schemas: DagSchemas<T>, path: PathBuf) -> Result<Self, ExecutionError> {
+    pub fn new<T>(dag_schemas: DagSchemas<T>) -> Result<Self, ExecutionError> {
         // Decide the checkpoint to start from.
-        let dag_checkpoint = DagCheckpoint::new(dag_schemas, path)?;
+        let dag_checkpoint = DagCheckpoint::new(dag_schemas)?;
 
         // Create processors and sinks.
         let mut nodes = vec![];
