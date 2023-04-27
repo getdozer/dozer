@@ -70,7 +70,6 @@ pub struct Deploy {
 }
 
 #[derive(Debug, Args, Clone)]
-#[command(args_conflicts_with_subcommands = true)]
 pub struct AppCommand {
     #[arg(short = 'a', long)]
     pub app_id: String,
