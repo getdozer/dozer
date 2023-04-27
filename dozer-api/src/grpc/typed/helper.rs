@@ -99,7 +99,6 @@ fn interval_value_to_pb(
             );
             Value::Message(duration)
         }
-        GrpcTypes::value::Value::JsonValue(_) => todo!(),
         GrpcTypes::value::Value::DecimalValue(d) => {
             let decimal_type_desc = descriptor.decimal_field.message.clone();
             let flags_field_desc = &descriptor.decimal_field.flags;
@@ -115,6 +114,7 @@ fn interval_value_to_pb(
         }
         GrpcTypes::value::Value::TimestampValue(ts) => Value::Message(ts.transcode_to_dynamic()),
         GrpcTypes::value::Value::DateValue(d) => Value::String(d),
+        GrpcTypes::value::Value::JsonValue(v) => Value::Message(v.transcode_to_dynamic()),
     })
 }
 

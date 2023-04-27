@@ -330,7 +330,7 @@ fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
         FieldType::Decimal => grpc_type == Type::Decimal as i32,
         FieldType::Timestamp => grpc_type == Type::Timestamp as i32,
         FieldType::Date => grpc_type == Type::Date as i32,
-        FieldType::Json => grpc_type == Type::Bson as i32,
+        FieldType::Json => grpc_type == Type:Json as i32,
         FieldType::Point => grpc_type == Type::Point as i32,
         FieldType::Duration => grpc_type == Type::Duration as i32,
     }
