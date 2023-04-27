@@ -20,6 +20,7 @@ const POINT_TYPE_CLASS: &str = "dozer.types.PointType";
 const DURATION_TYPE_CLASS: &str = "dozer.types.DurationType";
 const DECIMAL_TYPE_CLASS: &str = "dozer.types.RustDecimal";
 const TIMESTAMP_TYPE_CLASS: &str = "google.protobuf.Timestamp";
+const JSON_TYPE_CLASS: &str = "google.protobuf.Value";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
@@ -88,7 +89,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
     }
 
     fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
-        let type_need_import_libs = [TIMESTAMP_TYPE_CLASS];
+        let type_need_import_libs = [TIMESTAMP_TYPE_CLASS, JSON_TYPE_CLASS];
         let mut libs_import: Vec<String> = self
             .schema
             .fields
@@ -99,6 +100,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
             })
             .map(|proto_type| match proto_type.as_str() {
                 TIMESTAMP_TYPE_CLASS => "google/protobuf/timestamp.proto".to_owned(),
+                JSON_TYPE_CLASS => "google/protobuf/struct.proto".to_owned(),
                 _ => "".to_owned(),
             })
             .collect();
@@ -381,7 +383,7 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
         FieldType::Decimal => Ok(DECIMAL_TYPE_CLASS.to_owned()),
         FieldType::Timestamp => Ok(TIMESTAMP_TYPE_CLASS.to_owned()),
         FieldType::Date => Ok("string".to_owned()),
-        FieldType::Json => Ok("bytes".to_owned()),
+        FieldType::Json => Ok(JSON_TYPE_CLASS.to_owned()),
         FieldType::Point => Ok(POINT_TYPE_CLASS.to_owned()),
         FieldType::Duration => Ok(DURATION_TYPE_CLASS.to_owned()),
     }

@@ -1,4 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
+use crate::json_types::JsonValue;
 use crate::types::{DozerDuration, DozerPoint, TimeUnit};
 #[allow(unused_imports)]
 use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
@@ -10,7 +11,6 @@ use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::time::Duration;
-use crate::json_types::JsonValue;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
@@ -48,7 +48,7 @@ impl Field {
             Field::Decimal(_) => 16,
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
-            Field::Json(b) => b.to_string().len(),
+            Field::Json(b) => bincode::serialize(b).unwrap().len(),
             Field::Point(_p) => 16,
             Field::Duration(_) => 17,
             Field::Null => 0,
@@ -69,7 +69,7 @@ impl Field {
             Field::Decimal(d) => Cow::Owned(d.serialize().into()),
             Field::Timestamp(t) => Cow::Owned(t.timestamp_millis().to_be_bytes().into()),
             Field::Date(t) => Cow::Owned(t.to_string().into()),
-            Field::Json(b) => Cow::Owned(b.to_string().into()),
+            Field::Json(b) => Cow::Owned(bincode::serialize(b).unwrap()),
             Field::Point(p) => Cow::Owned(p.to_bytes().into()),
             Field::Duration(d) => Cow::Owned(d.to_bytes().into()),
             Field::Null => Cow::Owned([].into()),
@@ -145,7 +145,7 @@ impl Field {
                 std::str::from_utf8(val)?,
                 DATE_FORMAT,
             )?)),
-            12 => Ok(Field::Json(val)),
+            12 => Ok(Field::Json(bincode::deserialize(val).unwrap())),
             13 => Ok(Field::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
@@ -698,7 +698,8 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
             JsonValue::Number(OrderedFloat(102_f64)),
             JsonValue::Number(OrderedFloat(111_f64)),
             JsonValue::Number(OrderedFloat(111_f64)),
-            JsonValue::Number(OrderedFloat(34_f64))])),
+            JsonValue::Number(OrderedFloat(34_f64)),
+        ])),
         Field::Null,
     ]
     .into_iter()
@@ -727,7 +728,7 @@ impl pyo3::ToPyObject for Field {
                     .unwrap()
                     .to_object(py)
             }
-            Field::Json(val) => todo!(),
+            Field::Json(_val) => todo!(),
             Field::Point(_val) => todo!(),
             Field::Duration(_d) => todo!(),
             Field::Null => unreachable!(),

@@ -1,9 +1,9 @@
+use crate::json_types::serde_json_to_json_value;
 use crate::types::{DozerDuration, DozerPoint, Field};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset, Timelike, Utc};
 use geo::Point;
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
-use crate::json_types::serde_json_to_json_value;
 
 impl From<bool> for Field {
     fn from(value: bool) -> Self {

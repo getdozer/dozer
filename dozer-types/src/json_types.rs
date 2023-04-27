@@ -1,12 +1,14 @@
+use crate::errors::types::SerializationError;
+use crate::types::{DozerDuration, Field, DATE_FORMAT};
+use chrono::SecondsFormat;
+use ordered_float::OrderedFloat;
+use prost_types::value::Kind;
+use prost_types::{ListValue, Struct, Value as ProstValue};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Number, Value};
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use chrono::SecondsFormat;
-use ordered_float::OrderedFloat;
-use serde_json::{Map, Number, Value};
-use serde::{Deserialize, Serialize};
-use crate::errors::types::SerializationError;
-use crate::types::{DozerDuration, Field, DATE_FORMAT};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub enum JsonValue {
@@ -91,7 +93,11 @@ pub fn json_value_to_serde_json(value: JsonValue) -> Value {
         JsonValue::Bool(b) => Value::Bool(b),
         JsonValue::Number(n) => Value::Number(Number::from_f64(*n).unwrap()),
         JsonValue::String(s) => Value::String(s),
-        JsonValue::Array(a) => Value::Array(a.iter().map(|val| json_value_to_serde_json(val.to_owned())).collect()),
+        JsonValue::Array(a) => Value::Array(
+            a.iter()
+                .map(|val| json_value_to_serde_json(val.to_owned()))
+                .collect(),
+        ),
         JsonValue::Object(o) => {
             let mut values: Map<String, Value> = Map::new();
             for (key, val) in o {
@@ -102,6 +108,39 @@ pub fn json_value_to_serde_json(value: JsonValue) -> Value {
     }
 }
 
+pub fn json_value_to_prost_kind(val: JsonValue) -> ProstValue {
+    ProstValue {
+        kind: match val {
+            JsonValue::Null => Some(Kind::NullValue(0)),
+            JsonValue::Bool(b) => Some(Kind::BoolValue(b)),
+            JsonValue::Number(n) => Some(Kind::NumberValue(*n)),
+            JsonValue::String(s) => Some(Kind::StringValue(s)),
+            JsonValue::Array(a) => {
+                let values: prost::alloc::vec::Vec<ProstValue> = a
+                    .iter()
+                    .map(|val| json_value_to_prost_kind(val.to_owned()))
+                    .collect();
+                Some(Kind::ListValue(ListValue { values }))
+            }
+            JsonValue::Object(o) => {
+                let fields: prost::alloc::collections::BTreeMap<
+                    prost::alloc::string::String,
+                    ProstValue,
+                > = o
+                    .iter()
+                    .map(|(key, val)| {
+                        (
+                            prost::alloc::string::String::from(key),
+                            json_value_to_prost_kind(val.to_owned()),
+                        )
+                    })
+                    .collect();
+                Some(Kind::StructValue(Struct { fields }))
+            }
+        },
+    }
+}
+
 // todo: not sure whether we need to involve serde_json conversion, and From<serde_json> for try_get from row
 pub fn serde_json_to_json_value(value: Value) -> JsonValue {
     match value {
@@ -109,7 +148,11 @@ pub fn serde_json_to_json_value(value: Value) -> JsonValue {
         Value::Bool(b) => JsonValue::Bool(b),
         Value::Number(n) => JsonValue::Number(OrderedFloat(n.as_f64().unwrap())),
         Value::String(s) => JsonValue::String(s),
-        Value::Array(a) => JsonValue::Array(a.iter().map(|val| serde_json_to_json_value(val.to_owned())).collect()),
+        Value::Array(a) => JsonValue::Array(
+            a.iter()
+                .map(|val| serde_json_to_json_value(val.to_owned()))
+                .collect(),
+        ),
         Value::Object(o) => {
             let mut values: BTreeMap<String, JsonValue> = BTreeMap::<String, JsonValue>::new();
             for (key, val) in o {
@@ -129,8 +172,8 @@ mod tests {
         rust_decimal::Decimal,
         types::{DozerPoint, Field, FieldType, TimeUnit},
     };
-    use std::time::Duration;
     use serde_json::json;
+    use std::time::Duration;
 
     use super::*;
 
@@ -164,8 +207,19 @@ mod tests {
             ),
             (
                 FieldType::Json,
-                Field::Json(json!([
-                    123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125,
+                Field::Json(JsonValue::Array(vec![
+                    JsonValue::Number(OrderedFloat(123_f64)),
+                    JsonValue::Number(OrderedFloat(34_f64)),
+                    JsonValue::Number(OrderedFloat(97_f64)),
+                    JsonValue::Number(OrderedFloat(98_f64)),
+                    JsonValue::Number(OrderedFloat(99_f64)),
+                    JsonValue::Number(OrderedFloat(34_f64)),
+                    JsonValue::Number(OrderedFloat(58_f64)),
+                    JsonValue::Number(OrderedFloat(34_f64)),
+                    JsonValue::Number(OrderedFloat(102_f64)),
+                    JsonValue::Number(OrderedFloat(111_f64)),
+                    JsonValue::Number(OrderedFloat(111_f64)),
+                    JsonValue::Number(OrderedFloat(34_f64)),
                 ])),
             ),
             (FieldType::Text, Field::Text("lorem ipsum".to_string())),
