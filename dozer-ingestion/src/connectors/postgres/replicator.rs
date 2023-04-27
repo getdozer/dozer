@@ -42,7 +42,7 @@ pub struct CDCHandler<'a> {
 impl<'a> CDCHandler<'a> {
     pub async fn start(&mut self, tables: Vec<PostgresTableInfo>) -> Result<(), ConnectorError> {
         let replication_conn_config = self.replication_conn_config.clone();
-        let client: tokio_postgres::Client = helper::async_connect(replication_conn_config).await?;
+        let client: tokio_postgres::Client = helper::connect(replication_conn_config).await?;
 
         info!(
             "[{}] Starting Replication: {:?}, {:?}",
