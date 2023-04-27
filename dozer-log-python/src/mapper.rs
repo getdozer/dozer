@@ -98,8 +98,9 @@ fn map_json_py(val: JsonValue, py: Python) -> Py<PyAny> {
         }
         JsonValue::Object(o) => {
             let obj = PyDict::new(py);
-            o.into_iter()
-                .for_each(|(key, val)| obj.set_item(key, map_json_py(val, py)).unwrap());
+            let _ = o
+                .into_iter()
+                .map(|(key, val)| obj.set_item(key, map_json_py(val, py)));
             obj.to_object(py)
         }
     }
