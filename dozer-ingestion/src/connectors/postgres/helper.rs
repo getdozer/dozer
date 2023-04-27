@@ -74,8 +74,8 @@ pub fn postgres_type_to_field(
                     .unwrap();
                     Ok(Field::from(date))
                 }
-                Type::JSONB | Type::JSON | Type::JSONB_ARRAY | Type::JSON_ARRAY => {
-                    let val = serde_json::from_slice(v).map_err(|_| {
+                Type::JSONB | Type::JSON => {
+                    let val: serde_json::Value = serde_json::from_slice(v).map_err(|_| {
                         PostgresSchemaError::JSONBParseError(format!(
                             "Error converting to a single row for: {}",
                             column_type.name()
@@ -84,6 +84,28 @@ pub fn postgres_type_to_field(
                     let json: JsonValue = serde_json_to_json_value(val).map_err(|_| {
                         PostgresSchemaError::ColumnTypeNotSupported(column_type.name().to_string())
                     })?;
+                    Ok(Field::Json(json))
+                }
+                Type::JSONB_ARRAY | Type::JSON_ARRAY => {
+                    let val: Vec<serde_json::Value> = serde_json::from_slice(v).map_err(|_| {
+                        PostgresSchemaError::JSONBParseError(format!(
+                            "Error converting to a single row for: {}",
+                            column_type.name()
+                        ))
+                    })?;
+                    let json: JsonValue = JsonValue::Array(
+                        val.into_iter()
+                            .map(|v| {
+                                serde_json_to_json_value(v)
+                                    .map_err(|_| {
+                                        PostgresSchemaError::ColumnTypeNotSupported(
+                                            column_type.name().to_string(),
+                                        )
+                                    })
+                                    .unwrap()
+                            })
+                            .collect(),
+                    );
                     Ok(Field::Json(json))
                 }
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
