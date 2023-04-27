@@ -1,0 +1,36 @@
+name: Build dozer-log-js
+
+inputs:
+  version:
+    required: true
+  rustup_target:
+    required: true
+  node_arch:
+    required: true
+  github_token:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      working-directory: dozer-log-js
+      run: npm ci
+      shell: bash
+
+    - name: Build native module
+      working-directory: dozer-log-js
+      run: npm run build-release -- --target ${{ inputs.rustup_target }}
+      shell: bash
+
+    - name: Package native module
+      working-directory: dozer-log-js
+      run: npx node-pre-gyp package --target_arch=${{ inputs.node_arch }}
+      shell: bash
+
+    - name: Upload native module
+      working-directory: dozer-log-js
+      run: gh release upload v${{ inputs.version }} build/stage/**/*.tar.gz --clobber
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
