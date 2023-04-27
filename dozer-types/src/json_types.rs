@@ -41,7 +41,6 @@ impl Display for JsonValue {
     }
 }
 
-// todo: for serde_json conversion
 impl FromStr for JsonValue {
     type Err = SerializationError;
 
@@ -141,7 +140,6 @@ pub fn json_value_to_prost_kind(val: JsonValue) -> ProstValue {
     }
 }
 
-// todo: not sure whether we need to involve serde_json conversion, and From<serde_json> for try_get from row
 pub fn serde_json_to_json_value(value: Value) -> JsonValue {
     match value {
         Value::Null => JsonValue::Null,
@@ -149,8 +147,8 @@ pub fn serde_json_to_json_value(value: Value) -> JsonValue {
         Value::Number(n) => JsonValue::Number(OrderedFloat(n.as_f64().unwrap())),
         Value::String(s) => JsonValue::String(s),
         Value::Array(a) => JsonValue::Array(
-            a.iter()
-                .map(|val| serde_json_to_json_value(val.to_owned()))
+            a.into_iter()
+                .map(serde_json_to_json_value)
                 .collect(),
         ),
         Value::Object(o) => {

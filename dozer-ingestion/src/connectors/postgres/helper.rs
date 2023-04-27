@@ -74,7 +74,7 @@ pub fn postgres_type_to_field(
                     .unwrap();
                     Ok(Field::from(date))
                 }
-                Type::JSONB | Type::JSON => {
+                Type::JSONB | Type::JSON | Type::JSONB_ARRAY | Type::JSON_ARRAY => {
                     let json: JsonValue =
                         serde_json_to_json_value(serde_json::from_slice(v).unwrap());
                     Ok(Field::Json(json))
@@ -102,7 +102,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
         Type::BYTEA => Ok(FieldType::Binary),
         Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
         Type::NUMERIC => Ok(FieldType::Decimal),
-        Type::JSONB => Ok(FieldType::Json),
+        Type::JSONB | Type::JSON | Type::JSONB_ARRAY | Type::JSON_ARRAY => Ok(FieldType::Json),
         Type::DATE => Ok(FieldType::Date),
         Type::POINT => Ok(FieldType::Point),
         _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
@@ -151,7 +151,11 @@ pub fn value_to_field(
             let value: Result<Vec<u8>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
         }
-        &Type::JSONB => convert_row_value_to_field!(row, idx, serde_json::Value),
+        &Type::JSONB | &Type::JSON => convert_row_value_to_field!(row, idx, serde_json::Value),
+        &Type::JSONB_ARRAY | &Type::JSON_ARRAY => {
+            let value: Result<Vec<serde_json::Value>, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |val| Ok(Field::from(val)))
+        }
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
         // &Type::UUID => convert_row_value_to_field!(row, idx, Uuid),
         &Type::UUID => {
@@ -323,6 +327,9 @@ mod tests {
         test_type_mapping!(Type::TIMESTAMP, FieldType::Timestamp);
         test_type_mapping!(Type::TIMESTAMPTZ, FieldType::Timestamp);
         test_type_mapping!(Type::JSONB, FieldType::Json);
+        test_type_mapping!(Type::JSON, FieldType::Json);
+        test_type_mapping!(Type::JSONB_ARRAY, FieldType::Json);
+        test_type_mapping!(Type::JSON_ARRAY, FieldType::Json);
         test_type_mapping!(Type::BOOL, FieldType::Boolean);
         test_type_mapping!(Type::POINT, FieldType::Point);
     }

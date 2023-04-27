@@ -1,4 +1,4 @@
-use crate::json_types::serde_json_to_json_value;
+use crate::json_types::{serde_json_to_json_value, JsonValue};
 use crate::types::{DozerDuration, DozerPoint, Field};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset, Timelike, Utc};
 use geo::Point;
@@ -136,5 +136,13 @@ impl From<DozerDuration> for Field {
 impl From<serde_json::Value> for Field {
     fn from(value: serde_json::Value) -> Self {
         Field::Json(serde_json_to_json_value(value))
+    }
+}
+
+impl From<Vec<serde_json::Value>> for Field {
+    fn from(value: Vec<serde_json::Value>) -> Self {
+        Field::Json(JsonValue::Array(
+            value.into_iter().map(serde_json_to_json_value).collect(),
+        ))
     }
 }
