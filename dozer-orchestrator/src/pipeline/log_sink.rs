@@ -6,7 +6,6 @@ use std::{
 };
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_cache::dozer_log::get_endpoint_log_path;
 use dozer_core::{
     epoch::Epoch,
     errors::ExecutionError,
@@ -17,7 +16,6 @@ use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::{
     bytes::{BufMut, BytesMut},
-    models::api_endpoint::ApiEndpoint,
     types::{Operation, Schema},
 };
 use dozer_types::{epoch::ExecutorOperation, grpc_types::internal::StatusUpdate};
@@ -25,28 +23,30 @@ use std::fs::OpenOptions;
 
 #[derive(Debug, Clone)]
 pub struct LogSinkSettings {
-    pub pipeline_dir: PathBuf,
     pub file_buffer_capacity: u64,
 }
 
 #[derive(Debug, Clone)]
 pub struct LogSinkFactory {
+    log_path: PathBuf,
     settings: LogSinkSettings,
-    api_endpoint: ApiEndpoint,
+    endpoint_name: String,
     multi_pb: MultiProgress,
     notifier: Option<PipelineEventSenders>,
 }
 
 impl LogSinkFactory {
     pub fn new(
+        log_path: PathBuf,
         settings: LogSinkSettings,
-        api_endpoint: ApiEndpoint,
+        endpoint_name: String,
         multi_pb: MultiProgress,
         notifier: Option<PipelineEventSenders>,
     ) -> Self {
         Self {
+            log_path,
             settings,
-            api_endpoint,
+            endpoint_name,
             multi_pb,
             notifier,
         }
@@ -70,19 +70,11 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
-        let log_path = get_endpoint_log_path(&self.settings.pipeline_dir, &self.api_endpoint.name);
-
-        if let Some(log_dir) = log_path.as_path().parent() {
-            std::fs::create_dir_all(log_dir)
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        }
-
         Ok(Box::new(LogSink::new(
             Some(self.multi_pb.clone()),
-            log_path,
-            &self.api_endpoint.name,
+            self.log_path.clone(),
             self.settings.file_buffer_capacity,
-            self.api_endpoint.name.clone(),
+            self.endpoint_name.clone(),
             self.notifier.clone(),
         )?))
     }
@@ -101,7 +93,6 @@ impl LogSink {
     pub fn new(
         multi_pb: Option<MultiProgress>,
         log_path: PathBuf,
-        name: &str,
         file_buffer_capacity: u64,
         endpoint_name: String,
         notifier: Option<PipelineEventSenders>,
@@ -116,7 +107,7 @@ impl LogSink {
         let buffered_file = std::io::BufWriter::with_capacity(file_buffer_capacity as usize, file);
 
         let pb = attach_progress(multi_pb);
-        pb.set_message(name.to_string());
+        pb.set_message(endpoint_name.clone());
 
         Ok(Self {
             pb,

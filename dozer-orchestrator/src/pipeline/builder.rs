@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
+use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -16,7 +17,6 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::hash::Hash;
-use std::path::Path;
 use tokio::runtime::Runtime;
 
 use crate::pipeline::{LogSinkFactory, LogSinkSettings};
@@ -42,28 +42,28 @@ pub struct CalculatedSources {
     pub query_context: Option<QueryContext>,
 }
 pub struct PipelineBuilder<'a> {
+    home_dir: &'a HomeDir,
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
     api_endpoints: &'a [ApiEndpoint],
-    pipeline_dir: &'a Path,
     progress: MultiProgress,
 }
 impl<'a> PipelineBuilder<'a> {
     pub fn new(
+        home_dir: &'a HomeDir,
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
-        pipeline_dir: &'a Path,
         progress: MultiProgress,
     ) -> Self {
         Self {
+            home_dir,
             connections,
             sources,
             sql,
             api_endpoints,
-            pipeline_dir,
             progress,
         }
     }
@@ -241,8 +241,9 @@ impl<'a> PipelineBuilder<'a> {
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
             let snk_factory = Arc::new(LogSinkFactory::new(
+                self.home_dir.get_endpoint_log_path(&api_endpoint.name),
                 settings.clone(),
-                api_endpoint.clone(),
+                api_endpoint.name.clone(),
                 self.progress.clone(),
                 notifier.clone(),
             ));
@@ -297,7 +298,7 @@ impl<'a> PipelineBuilder<'a> {
 
         debug!("{}", dag);
 
-        DagExecutor::validate(dag.clone(), self.pipeline_dir.to_path_buf())
+        DagExecutor::validate(dag.clone())
             .map(|_| {
                 info!("[pipeline] Validation completed");
             })

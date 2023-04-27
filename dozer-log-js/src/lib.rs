@@ -1,7 +1,7 @@
 use std::{path::Path, sync::Arc};
 
 use dozer_log::{
-    get_endpoint_log_path,
+    home_dir::HomeDir,
     reader::LogReader as RustLogReader,
     schemas::load_schema,
     tokio::{runtime::Runtime as TokioRuntime, sync::Mutex},
@@ -55,21 +55,22 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let runtime_object = this.downcast_or_throw::<JsObject, _>(&mut cx)?;
     let runtime = runtime_object.get::<JsBox<Runtime>, _, _>(&mut cx, EXTERNAL_PROPERTY_NAME)?;
 
-    // Extract `pipeline_dir` from the first argument.
-    let pipeline_dir = cx.argument::<JsString>(0)?.value(&mut cx);
+    // Extract `home_dir` from the first argument.
+    let home_dir = cx.argument::<JsString>(0)?.value(&mut cx);
 
     // Extract `endpoint_name` from the second argument.
     let endpoint_name = cx.argument::<JsString>(1)?.value(&mut cx);
 
     // Load schema.
-    let schema = match load_schema(pipeline_dir.as_ref(), &endpoint_name) {
+    let home_dir = HomeDir::new(home_dir.as_ref(), Default::default());
+    let schema = match load_schema(&home_dir, &endpoint_name) {
         Ok(schema) => schema,
         Err(error) => return cx.throw_error(error.to_string()),
     };
 
     // Create the reader.
     let (deferred, promise) = cx.promise();
-    let log_path = get_endpoint_log_path(pipeline_dir.as_ref(), &endpoint_name);
+    let log_path = home_dir.get_endpoint_log_path(&endpoint_name);
     let runtime_for_reader = (**runtime).clone();
     let channel = runtime.channel.clone();
     runtime.runtime.spawn(async move {

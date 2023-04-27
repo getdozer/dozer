@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    fs::OpenOptions,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fs::OpenOptions};
 
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
@@ -11,11 +7,11 @@ use dozer_types::{
 };
 use std::io::Write;
 
-use crate::{errors::SchemaError, get_endpoint_schema_path};
+use crate::{errors::SchemaError, home_dir::HomeDir};
 
 pub fn write_schemas(
     mut schemas: HashMap<String, Schema>,
-    pipeline_dir: PathBuf,
+    home_dir: &HomeDir,
     api_endpoints: &[ApiEndpoint],
 ) -> Result<HashMap<String, Schema>, SchemaError> {
     for api_endpoint in api_endpoints {
@@ -24,11 +20,7 @@ pub fn write_schemas(
             .unwrap_or_else(|| panic!("Schema not found for a sink {}", api_endpoint.name));
         let schema = modify_schema(schema, api_endpoint)?;
 
-        let schema_path = get_endpoint_schema_path(&pipeline_dir, &api_endpoint.name);
-        if let Some(schema_dir) = schema_path.parent() {
-            std::fs::create_dir_all(schema_dir)
-                .map_err(|e| SchemaError::Filesystem(schema_dir.to_path_buf(), e))?;
-        }
+        let schema_path = home_dir.get_endpoint_schema_path(&api_endpoint.name);
 
         let mut file = OpenOptions::new()
             .create(true)
@@ -44,8 +36,8 @@ pub fn write_schemas(
     Ok(schemas)
 }
 
-pub fn load_schema(pipeline_dir: &Path, endpoint_name: &str) -> Result<Schema, SchemaError> {
-    let path = get_endpoint_schema_path(pipeline_dir, endpoint_name);
+pub fn load_schema(home_dir: &HomeDir, endpoint_name: &str) -> Result<Schema, SchemaError> {
+    let path = home_dir.get_endpoint_schema_path(endpoint_name);
 
     let schema_str =
         std::fs::read_to_string(&path).map_err(|e| SchemaError::Filesystem(path, e))?;

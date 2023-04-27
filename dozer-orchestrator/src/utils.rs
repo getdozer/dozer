@@ -8,18 +8,7 @@ use dozer_types::models::{
         default_commit_timeout, default_file_buffer_capacity, Config,
     },
 };
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
-
-pub fn get_pipeline_dir(config: &Config) -> PathBuf {
-    AsRef::<Path>::as_ref(&config.home_dir).join("pipeline")
-}
-
-pub fn get_cache_dir(config: &Config) -> PathBuf {
-    config.cache_dir.clone().into()
-}
+use std::time::Duration;
 
 fn get_cache_max_map_size(config: &Config) -> u64 {
     config
@@ -51,9 +40,6 @@ pub fn get_file_buffer_capacity(config: &Config) -> u64 {
         .unwrap_or_else(default_file_buffer_capacity)
 }
 
-pub fn get_api_dir(config: &Config) -> PathBuf {
-    AsRef::<Path>::as_ref(&config.home_dir).join("api")
-}
 pub fn get_grpc_config(config: Config) -> GrpcApiOptions {
     config.api.unwrap_or_default().grpc.unwrap_or_default()
 }
@@ -77,7 +63,7 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
 
 pub fn get_cache_manager_options(config: &Config) -> CacheManagerOptions {
     CacheManagerOptions {
-        path: Some(get_cache_dir(config)),
+        path: Some(config.cache_dir.clone().into()),
         max_size: get_cache_max_map_size(config) as usize,
         ..CacheManagerOptions::default()
     }

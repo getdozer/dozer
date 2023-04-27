@@ -1,9 +1,9 @@
+use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -21,30 +21,30 @@ use OrchestrationError::ExecutionError;
 use crate::errors::OrchestrationError;
 
 pub struct Executor<'a> {
+    home_dir: &'a HomeDir,
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
     api_endpoints: &'a [ApiEndpoint],
-    pipeline_dir: &'a Path,
     running: Arc<AtomicBool>,
     multi_pb: MultiProgress,
 }
 impl<'a> Executor<'a> {
     pub fn new(
+        home_dir: &'a HomeDir,
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
-        pipeline_dir: &'a Path,
         running: Arc<AtomicBool>,
         multi_pb: MultiProgress,
     ) -> Self {
         Self {
+            home_dir,
             connections,
             sources,
             sql,
             api_endpoints,
-            pipeline_dir,
             running,
             multi_pb,
         }
@@ -72,24 +72,16 @@ impl<'a> Executor<'a> {
         notifier: Option<PipelineEventSenders>,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
+            self.home_dir,
             self.connections,
             self.sources,
             self.sql,
             self.api_endpoints,
-            self.pipeline_dir,
             self.multi_pb.clone(),
         );
 
         let dag = builder.build(runtime, settings, notifier)?;
-        let path = &self.pipeline_dir;
-
-        if !path.exists() {
-            return Err(OrchestrationError::PipelineDirectoryNotFound(
-                path.to_string_lossy().to_string(),
-            ));
-        }
-
-        let exec = DagExecutor::new(dag, path.to_path_buf(), executor_options)?;
+        let exec = DagExecutor::new(dag, executor_options)?;
 
         Ok(exec)
     }

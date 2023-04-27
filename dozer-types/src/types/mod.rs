@@ -16,7 +16,7 @@ mod tests;
 
 use crate::errors::internal::BoxedError;
 use crate::errors::types::TypeError::InvalidFieldValue;
-pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
+pub use field::{field_test_cases, Field, FieldType, DATE_FORMAT};
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum SourceDefinition {

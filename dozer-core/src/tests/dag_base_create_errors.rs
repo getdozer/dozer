@@ -1,5 +1,3 @@
-use crate::chk;
-
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
@@ -19,7 +17,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crate::tests::app::NoneContext;
-use tempdir::TempDir;
 
 #[derive(Debug)]
 struct CreateErrSourceFactory {
@@ -96,27 +93,24 @@ fn test_create_src_err() {
         Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
     .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -141,27 +135,24 @@ fn test_create_src_panic() {
         Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
     .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[derive(Debug)]
@@ -248,27 +239,24 @@ fn test_create_proc_err() {
         Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
     .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -296,25 +284,22 @@ fn test_create_proc_panic() {
         Arc::new(CountingSinkFactory::new(count, latch)),
     );
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-    ));
+    )
+    .unwrap();
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-    ));
-
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
     )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
     .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }

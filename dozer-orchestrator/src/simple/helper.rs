@@ -20,9 +20,7 @@ pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
 
 pub fn validate_endpoints(endpoints: &[ApiEndpoint]) -> Result<(), OrchestrationError> {
     if endpoints.is_empty() {
-        return Err(OrchestrationError::ConfigError(
-            "No endpoints initialized in the config provided".to_string(),
-        ));
+        return Err(OrchestrationError::EmptyEndpoints);
     }
 
     Ok(())

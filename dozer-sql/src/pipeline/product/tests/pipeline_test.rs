@@ -17,7 +17,6 @@ use dozer_types::types::{
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tempdir::TempDir;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 
@@ -518,28 +517,14 @@ fn test_pipeline_builder() {
 
     let dag = app.get_dag().unwrap();
 
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-    if tmp_dir.path().exists() {
-        std::fs::remove_dir_all(tmp_dir.path())
-            .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-    }
-    std::fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    let now = std::time::Instant::now();
 
-    use std::time::Instant;
-    let now = Instant::now();
-
-    let tmp_dir = TempDir::new("test").unwrap();
-
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
-    )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
