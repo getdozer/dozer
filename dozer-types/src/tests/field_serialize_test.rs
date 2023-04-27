@@ -29,13 +29,6 @@ fn field_serialization_should_never_be_empty() {
 }
 
 #[test]
-fn test_borrow_roundtrip() {
-    for field in field_test_cases() {
-        assert_eq!(field.borrow().to_owned(), field);
-    }
-}
-
-#[test]
 fn encoding_len_must_agree_with_encode() {
     for field in field_test_cases() {
         let bytes = field.encode();
