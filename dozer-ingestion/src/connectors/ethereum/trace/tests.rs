@@ -67,7 +67,7 @@ async fn test_trace_iterator() {
 
         let (tables, schemas) = connector.list_all_schemas().await.unwrap();
         for s in schemas {
-            s.schema.print().printstd();
+            info!("\n{}", s.schema.print());
         }
         connector.start(&ingestor, tables).await.unwrap();
     });

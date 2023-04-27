@@ -81,8 +81,7 @@ impl<'a> PipelineBuilder<'a> {
             let connector = get_connector(connection.clone())?;
 
             if let Some(info_table) = get_connector_info_table(connection) {
-                info!("[{}] Connection parameters", connection.name);
-                info_table.printstd();
+                info!("[{}] Connection parameters\n{info_table}", connection.name);
             }
 
             let connector_tables = connector.list_tables().await?;
