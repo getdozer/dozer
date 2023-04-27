@@ -421,7 +421,7 @@ impl JoinOperator {
                 let join_key: Vec<u8> = get_record_key(new, &self.right_join_key_indexes);
                 let primary_key: Vec<u8> = get_record_key(new, &self.right_primary_key_indexes);
 
-                add_join_record(&mut self.left_map, &join_key, &primary_key, new);
+                add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime {
                     self.insert_evict_index(from, lifetime, &join_key, &primary_key)
@@ -449,7 +449,7 @@ impl JoinOperator {
                 let join_key: Vec<u8> = get_record_key(new, &self.right_join_key_indexes);
                 let primary_key: Vec<u8> = get_record_key(new, &self.right_primary_key_indexes);
 
-                add_join_record(&mut self.left_map, &join_key, &primary_key, new);
+                add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime {
                     self.insert_evict_index(from, lifetime, &join_key, &primary_key)
@@ -477,7 +477,7 @@ impl JoinOperator {
                 let join_key: Vec<u8> = get_record_key(new, &self.right_join_key_indexes);
                 let primary_key: Vec<u8> = get_record_key(new, &self.right_primary_key_indexes);
 
-                add_join_record(&mut self.left_map, &join_key, &primary_key, new);
+                add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime {
                     self.insert_evict_index(from, lifetime, &join_key, &primary_key)
