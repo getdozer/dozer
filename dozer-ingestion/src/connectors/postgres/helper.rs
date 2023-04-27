@@ -180,10 +180,29 @@ pub fn value_to_field(
             let value: Result<Vec<u8>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
         }
-        &Type::JSONB | &Type::JSON => convert_row_value_to_field!(row, idx, serde_json::Value),
+        &Type::JSONB | &Type::JSON => {
+            let value: Result<serde_json::Value, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |val| {
+                Ok(Field::Json(
+                    serde_json_to_json_value(val)
+                        .map_err(|_| ColumnTypeNotSupported(col_type.name().to_string()))
+                        .unwrap(),
+                ))
+            })
+        }
         &Type::JSONB_ARRAY | &Type::JSON_ARRAY => {
             let value: Result<Vec<serde_json::Value>, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |val| Ok(Field::from(val)))
+            value.map_or_else(handle_error, |val| {
+                Ok(Field::Json(JsonValue::Array(
+                    val.into_iter()
+                        .map(|v| {
+                            serde_json_to_json_value(v)
+                                .map_err(|_| ColumnTypeNotSupported(col_type.name().to_string()))
+                                .unwrap()
+                        })
+                        .collect(),
+                )))
+            })
         }
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
         // &Type::UUID => convert_row_value_to_field!(row, idx, Uuid),
