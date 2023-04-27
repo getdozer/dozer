@@ -74,12 +74,10 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.migrate(force)
             }
             Commands::Clean => dozer.clean(),
-            Commands::Cloud(cloud) => match cloud.command {
+            Commands::Cloud(cloud) => match cloud.command.clone() {
                 CloudCommands::Deploy => dozer.deploy(cloud, cli.config_path),
-                _ => {
-                    info!("Command not implemented yet");
-                    Ok(())
-                }
+                CloudCommands::List => dozer.list(cloud),
+                CloudCommands::Status(ref app) => dozer.status(cloud, app.app_id.clone()),
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
