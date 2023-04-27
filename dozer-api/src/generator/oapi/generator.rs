@@ -39,14 +39,14 @@ impl<'a> OpenApiGenerator<'a> {
                     FieldType::String => Value::from("foo".to_string()),
                     FieldType::Binary | FieldType::Decimal | FieldType::Timestamp => Value::Null,
                     FieldType::Json => {
-                        json!({
+                        json!([{
                             "name": "John Doe",
                             "age": 43,
                             "phones": [
                                 "+44 1234567",
                                 "+44 2345678"
                             ]
-                        })
+                        }])
                     }
                     FieldType::Text => Value::from("lorem ipsum".to_string()),
                     FieldType::Date => Value::from("2022-11-24"),
