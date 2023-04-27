@@ -36,6 +36,8 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             numeric_null NUMERIC,
             jsonb JSONB NOT NULL,
             jsonb_null JSONB,
+            json JSON NOT NULL,
+            json_null JSON,
             date DATE NOT NULL,
             date_null DATE,
             point POINT NOT NULL,
@@ -72,6 +74,8 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             '1970-01-01 00:00:00',
             0,
             0,
+            '{{}}'::jsonb,
+            '{{}}'::jsonb,
             '{{}}'::json,
             '{{}}'::json,
             '1970-01-01',
@@ -109,6 +113,8 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             '1970-01-01 00:00:00',
             null,
             1,
+            null,
+            '{{ "1": 1 }}'::jsonb,
             null,
             '{{ "1": 1 }}'::json,
             null,
@@ -217,10 +223,7 @@ fn field_to_sql(field: &Field) -> String {
         Field::Decimal(d) => d.to_string(),
         Field::Timestamp(t) => format!("'{}'", t),
         Field::Date(d) => format!("'{}'", d),
-        Field::Json(b) => {
-            let json = bson::from_slice::<dozer_types::serde_json::Value>(b).unwrap();
-            format!("'{}'::json", json)
-        }
+        Field::Json(b) => format!("'{b}'::json"),
         Field::Point(p) => format!("'({},{})'", p.0.x(), p.0.y()),
         Field::Duration(d) => d.to_string(),
         Field::Null => "NULL".to_string(),
