@@ -69,6 +69,12 @@ pub struct Deploy {
     pub password: Option<String>,
 }
 
+#[derive(Debug, Args, Clone)]
+pub struct AppCommand {
+    #[arg(short = 'a', long)]
+    pub app_id: String,
+}
+
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct App {
@@ -120,9 +126,9 @@ pub struct Cloud {
     pub command: CloudCommands,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
     Deploy,
     List,
-    Status,
+    Status(AppCommand),
 }

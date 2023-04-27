@@ -40,7 +40,7 @@ pub trait Orchestrator {
 pub trait CloudOrchestrator {
     fn deploy(&mut self, cloud: Cloud, config_path: String) -> Result<(), OrchestrationError>;
     fn list(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
-    fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
+    fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports
