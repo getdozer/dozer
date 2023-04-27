@@ -8,7 +8,7 @@ use dozer_types::chrono::{NaiveDate, NaiveDateTime};
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::serde_json::{json, Value};
+use dozer_types::serde_json::{Value};
 use dozer_types::types::{Field, Schema};
 use std::collections::HashMap;
 use std::str::FromStr;

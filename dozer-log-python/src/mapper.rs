@@ -76,7 +76,7 @@ fn map_value(value: Field, py: Python) -> PyResult<Py<PyAny>> {
         Field::Decimal(v) => Ok(v.to_string().to_object(py)),
         Field::Timestamp(v) => Ok(v.to_string().to_object(py)),
         Field::Date(v) => Ok(v.to_string().to_object(py)),
-        Field::Json(v) => Ok(v.to_object(py)),
+        Field::Json(v) => Ok(v.to_string().to_object(py)),
         Field::Point(v) => map_point(v, py),
         Field::Duration(v) => Ok(v.to_string().to_object(py)),
         Field::Null => Ok(py.None()),
