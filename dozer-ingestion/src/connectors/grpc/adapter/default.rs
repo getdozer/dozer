@@ -1,4 +1,4 @@
-use dozer_types::{bincode, serde_json, types::SchemaIdentifier};
+use dozer_types::{serde_json, types::SchemaIdentifier};
 
 use crate::{connectors::SourceSchema, errors::ConnectorError};
 
@@ -16,6 +16,7 @@ use crate::ingestion::Ingestor;
 
 use dozer_types::grpc_types;
 use dozer_types::grpc_types::ingest::IngestRequest;
+use dozer_types::json_types::prost_to_json_value;
 
 #[derive(Debug)]
 pub struct DefaultAdapter {
@@ -141,11 +142,11 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
                 dozer_types::types::FieldType::Text,
             ) => Ok(dozer_types::types::Field::Text(a.clone())),
             (
-                grpc_types::types::value::Value::BytesValue(a),
+                grpc_types::types::value::Value::JsonValue(a),
                 dozer_types::types::FieldType::Json,
-            ) => Ok(dozer_types::types::Field::Json(
-                bincode::deserialize(a).unwrap(),
-            )),
+            ) => Ok(dozer_types::types::Field::Json(prost_to_json_value(
+                a.clone(),
+            ))),
             (
                 grpc_types::types::value::Value::TimestampValue(a),
                 dozer_types::types::FieldType::Timestamp,

@@ -1,3 +1,7 @@
+use dozer_types::geo::Point;
+use dozer_types::json_types::JsonValue;
+use dozer_types::pyo3::types::{PyList, PyMapping};
+use dozer_types::pyo3::PyObject;
 use dozer_types::{
     epoch::ExecutorOperation,
     pyo3::{types::PyDict, Py, PyAny, PyResult, Python, ToPyObject},
@@ -76,10 +80,29 @@ fn map_value(value: Field, py: Python) -> PyResult<Py<PyAny>> {
         Field::Decimal(v) => Ok(v.to_string().to_object(py)),
         Field::Timestamp(v) => Ok(v.to_string().to_object(py)),
         Field::Date(v) => Ok(v.to_string().to_object(py)),
-        Field::Json(v) => Ok(v.to_string().to_object(py)),
+        Field::Json(v) => Ok(map_json_py(v, py)),
         Field::Point(v) => map_point(v, py),
         Field::Duration(v) => Ok(v.to_string().to_object(py)),
         Field::Null => Ok(py.None()),
+    }
+}
+
+fn map_json_py(val: JsonValue, py: Python) -> Py<PyAny> {
+    match val {
+        JsonValue::Null => py.None(),
+        JsonValue::Bool(b) => b.to_object(py),
+        JsonValue::Number(n) => n.to_object(py),
+        JsonValue::String(s) => s.to_object(py),
+        JsonValue::Array(a) => {
+            PyList::new(py, a.into_iter().map(|val| map_json_py(val, py))).to_object(py)
+        }
+        JsonValue::Object(o) => {
+            let obj = PyDict::new(py);
+            let _ = o
+                .into_iter()
+                .map(|(key, val)| obj.set_item(key, map_json_py(val, py)));
+            obj.to_object(py)
+        }
     }
 }
 

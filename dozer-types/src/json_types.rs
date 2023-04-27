@@ -1,4 +1,4 @@
-use crate::errors::types::SerializationError;
+use crate::errors::types::DeserializationError;
 use crate::types::{DozerDuration, Field, DATE_FORMAT};
 use chrono::SecondsFormat;
 use ordered_float::OrderedFloat;
@@ -42,11 +42,11 @@ impl Display for JsonValue {
 }
 
 impl FromStr for JsonValue {
-    type Err = SerializationError;
+    type Err = DeserializationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let object: Value = serde_json::from_str(s).unwrap();
-        Ok(serde_json_to_json_value(object))
+        let object: Value = serde_json::from_str(s)?;
+        serde_json_to_json_value(object)
     }
 }
 
@@ -92,11 +92,7 @@ pub fn json_value_to_serde_json(value: JsonValue) -> Value {
         JsonValue::Bool(b) => Value::Bool(b),
         JsonValue::Number(n) => Value::Number(Number::from_f64(*n).unwrap()),
         JsonValue::String(s) => Value::String(s),
-        JsonValue::Array(a) => Value::Array(
-            a.iter()
-                .map(|val| json_value_to_serde_json(val.to_owned()))
-                .collect(),
-        ),
+        JsonValue::Array(a) => Value::Array(a.into_iter().map(json_value_to_serde_json).collect()),
         JsonValue::Object(o) => {
             let mut values: Map<String, Value> = Map::new();
             for (key, val) in o {
@@ -107,7 +103,28 @@ pub fn json_value_to_serde_json(value: JsonValue) -> Value {
     }
 }
 
-pub fn json_value_to_prost_kind(val: JsonValue) -> ProstValue {
+pub fn prost_to_json_value(val: ProstValue) -> JsonValue {
+    match val.kind {
+        Some(v) => match v {
+            Kind::NullValue(_) => JsonValue::Null,
+            Kind::BoolValue(b) => JsonValue::Bool(b),
+            Kind::NumberValue(n) => JsonValue::Number(OrderedFloat(n)),
+            Kind::StringValue(s) => JsonValue::String(s),
+            Kind::ListValue(l) => {
+                JsonValue::Array(l.values.into_iter().map(prost_to_json_value).collect())
+            }
+            Kind::StructValue(s) => JsonValue::Object(
+                s.fields
+                    .into_iter()
+                    .map(|(key, val)| (key, prost_to_json_value(val)))
+                    .collect(),
+            ),
+        },
+        None => JsonValue::Null,
+    }
+}
+
+pub fn json_value_to_prost(val: JsonValue) -> ProstValue {
     ProstValue {
         kind: match val {
             JsonValue::Null => Some(Kind::NullValue(0)),
@@ -115,10 +132,8 @@ pub fn json_value_to_prost_kind(val: JsonValue) -> ProstValue {
             JsonValue::Number(n) => Some(Kind::NumberValue(*n)),
             JsonValue::String(s) => Some(Kind::StringValue(s)),
             JsonValue::Array(a) => {
-                let values: prost::alloc::vec::Vec<ProstValue> = a
-                    .iter()
-                    .map(|val| json_value_to_prost_kind(val.to_owned()))
-                    .collect();
+                let values: prost::alloc::vec::Vec<ProstValue> =
+                    a.into_iter().map(json_value_to_prost).collect();
                 Some(Kind::ListValue(ListValue { values }))
             }
             JsonValue::Object(o) => {
@@ -126,13 +141,8 @@ pub fn json_value_to_prost_kind(val: JsonValue) -> ProstValue {
                     prost::alloc::string::String,
                     ProstValue,
                 > = o
-                    .iter()
-                    .map(|(key, val)| {
-                        (
-                            prost::alloc::string::String::from(key),
-                            json_value_to_prost_kind(val.to_owned()),
-                        )
-                    })
+                    .into_iter()
+                    .map(|(key, val)| (key, json_value_to_prost(val)))
                     .collect();
                 Some(Kind::StructValue(Struct { fields }))
             }
@@ -140,23 +150,30 @@ pub fn json_value_to_prost_kind(val: JsonValue) -> ProstValue {
     }
 }
 
-pub fn serde_json_to_json_value(value: Value) -> JsonValue {
+pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, DeserializationError> {
     match value {
-        Value::Null => JsonValue::Null,
-        Value::Bool(b) => JsonValue::Bool(b),
-        Value::Number(n) => JsonValue::Number(OrderedFloat(n.as_f64().unwrap())),
-        Value::String(s) => JsonValue::String(s),
-        Value::Array(a) => JsonValue::Array(
+        Value::Null => Ok(JsonValue::Null),
+        Value::Bool(b) => Ok(JsonValue::Bool(b)),
+        Value::Number(n) => Ok(JsonValue::Number(OrderedFloat(match n.as_f64() {
+            Some(f) => f,
+            None => return Err(DeserializationError::F64TypeConversionError),
+        }))),
+        Value::String(s) => Ok(JsonValue::String(s)),
+        Value::Array(a) => Ok(JsonValue::Array(
             a.into_iter()
-                .map(serde_json_to_json_value)
+                .map(|val| {
+                    serde_json_to_json_value(val)
+                        .map_err(|_| DeserializationError::F64TypeConversionError)
+                        .unwrap()
+                })
                 .collect(),
-        ),
+        )),
         Value::Object(o) => {
             let mut values: BTreeMap<String, JsonValue> = BTreeMap::<String, JsonValue>::new();
             for (key, val) in o {
-                values.insert(key, serde_json_to_json_value(val));
+                values.insert(key, serde_json_to_json_value(val)?);
             }
-            JsonValue::Object(values)
+            Ok(JsonValue::Object(values))
         }
     }
 }

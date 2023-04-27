@@ -48,6 +48,7 @@ impl Field {
             Field::Decimal(_) => 16,
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
+            // todo: should optimize with better serialization method
             Field::Json(b) => bincode::serialize(b).unwrap().len(),
             Field::Point(_p) => 16,
             Field::Duration(_) => 17,
@@ -145,7 +146,9 @@ impl Field {
                 std::str::from_utf8(val)?,
                 DATE_FORMAT,
             )?)),
-            12 => Ok(Field::Json(bincode::deserialize(val).unwrap())),
+            12 => Ok(Field::Json(
+                bincode::deserialize(val).map_err(DeserializationError::Bincode)?,
+            )),
             13 => Ok(Field::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
@@ -262,9 +265,9 @@ impl Field {
         }
     }
 
-    pub fn as_json(&self) -> Option<JsonValue> {
+    pub fn as_json(&self) -> Option<&JsonValue> {
         match self {
-            Field::Json(b) => Some(b.to_owned()),
+            Field::Json(b) => Some(b),
             _ => None,
         }
     }
@@ -601,7 +604,7 @@ pub enum FieldType {
     Timestamp,
     /// Allows for every date from Jan 1, 262145 BCE to Dec 31, 262143 CE.
     Date,
-    /// Bytes that are valid JSON.
+    /// JsonValue.
     Json,
     /// A geographic point.
     Point,

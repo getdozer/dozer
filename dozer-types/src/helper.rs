@@ -84,7 +84,9 @@ pub fn json_value_to_field(
                     .into(),
             )),
         },
-        FieldType::Json => Ok(Field::Json(serde_json_to_json_value(value))),
+        FieldType::Json => Ok(Field::Json(
+            serde_json_to_json_value(value).map_err(TypeError::DeserializationError)?,
+        )),
         FieldType::Point => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),

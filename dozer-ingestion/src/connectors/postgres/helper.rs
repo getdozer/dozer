@@ -75,8 +75,12 @@ pub fn postgres_type_to_field(
                     Ok(Field::from(date))
                 }
                 Type::JSONB | Type::JSON | Type::JSONB_ARRAY | Type::JSON_ARRAY => {
-                    let json: JsonValue =
-                        serde_json_to_json_value(serde_json::from_slice(v).unwrap());
+                    let val = serde_json::from_slice(v).map_err(|_| {
+                        PostgresSchemaError::ColumnTypeNotSupported(column_type.name().to_string())
+                    })?;
+                    let json: JsonValue = serde_json_to_json_value(val).map_err(|_| {
+                        PostgresSchemaError::ColumnTypeNotSupported(column_type.name().to_string())
+                    })?;
                     Ok(Field::Json(json))
                 }
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
@@ -299,7 +303,6 @@ mod tests {
             Field::Timestamp(value)
         );
 
-        // UTF-8 bytes representation of json (https://www.charset.org/utf-8)
         let value = JsonValue::Object(BTreeMap::from([(
             String::from("abc"),
             JsonValue::String(String::from("foo")),

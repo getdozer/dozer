@@ -3,7 +3,7 @@ use dozer_types::grpc_types::types::{
     value, DurationType, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal,
     Type, Value,
 };
-use dozer_types::json_types::json_value_to_prost_kind;
+use dozer_types::json_types::json_value_to_prost;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{DozerDuration, Field, FieldType, DATE_FORMAT};
@@ -127,7 +127,7 @@ fn field_to_prost_value(f: Field) -> Value {
             })),
         },
         Field::Json(b) => Value {
-            value: Some(value::Value::JsonValue(json_value_to_prost_kind(b))),
+            value: Some(value::Value::JsonValue(json_value_to_prost(b))),
         },
         Field::Null => Value { value: None },
         Field::Date(date) => Value {

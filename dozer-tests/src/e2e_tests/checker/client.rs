@@ -337,7 +337,7 @@ fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
 }
 
 fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldType) -> bool {
-    use dozer_api::openapiv3::Type::{Array, Boolean, Integer, Number, String};
+    use dozer_api::openapiv3::Type::{Array, Boolean, Integer, Number, Object, String};
 
     match (oapi_type, field_type) {
         (Integer(_), FieldType::UInt | FieldType::U128 | FieldType::Int | FieldType::I128) => true,
@@ -361,7 +361,8 @@ fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldTy
                 true
             }
         }
-        (Array(array_type), FieldType::Binary | FieldType::Json) => {
+        (Array(_), FieldType::Json) | (Object(_), FieldType::Json) => true,
+        (Array(array_type), FieldType::Binary) => {
             let Some(ReferenceOr::Item(schema)) = array_type.items.as_ref() else {
                 return false;
             };
