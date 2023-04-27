@@ -11,6 +11,8 @@ use dozer_types::rust_decimal::Decimal;
 use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Schema};
 use std::collections::HashMap;
+use std::str::FromStr;
+use dozer_types::json_types::JsonValue;
 
 fn convert_decimal(value: &str, scale: u32) -> Result<Field, DebeziumSchemaError> {
     let decoded_value = engine::general_purpose::STANDARD
@@ -115,7 +117,7 @@ fn convert_value(
                 }
                 "io.debezium.time.MicroTime" => Ok(Field::Null),
                 "io.debezium.data.Json" => value.as_str().map_or(Ok(Field::Null), |s| {
-                    Ok(Field::Json(json!(s.as_bytes().to_vec())))
+                    Ok(Field::Json(JsonValue::from_str(s).unwrap()))
                 }),
                 // | "io.debezium.time.MicroTime" | "org.apache.kafka.connect.data.Time" => Ok(FieldType::Timestamp),
                 _ => Err(TypeNotSupported(name)),
@@ -155,7 +157,9 @@ mod tests {
     use dozer_types::rust_decimal;
     use dozer_types::serde_json::{Map, Value};
     use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
+    use dozer_types::json_types::JsonValue;
+    use dozer_types::ordered_float::OrderedFloat;
 
     #[macro_export]
     macro_rules! test_conversion_debezium {
@@ -270,7 +274,9 @@ mod tests {
             "{\"abc\":123}",
             "-",
             Some("io.debezium.data.Json".to_string()),
-            Field::Json(json_bytes),
+            Field::Json(JsonValue::Object(
+                BTreeMap::from([(String::from("abc"), JsonValue::Number(OrderedFloat(123_f64)))])
+            )),
             None
         );
     }
