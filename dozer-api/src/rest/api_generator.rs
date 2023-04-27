@@ -5,13 +5,11 @@ use actix_web::{web, HttpResponse};
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::CacheReader;
-use dozer_types::chrono::SecondsFormat;
 use dozer_types::errors::types::TypeError;
 use dozer_types::indexmap::IndexMap;
 use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{DozerDuration, Field, Schema, DATE_FORMAT};
+use dozer_types::types::{Field, Schema};
 use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
@@ -21,7 +19,7 @@ use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::json_types::field_to_json_value;
 use dozer_types::serde_json;
-use dozer_types::serde_json::{json, Map, Value};
+use dozer_types::serde_json::{json, Value};
 
 fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {
     let (schema, secondary_indexes) = reader.get_schema();

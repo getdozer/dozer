@@ -99,6 +99,7 @@ fn interval_value_to_pb(
             );
             Value::Message(duration)
         }
+        GrpcTypes::value::Value::JsonValue(_) => todo!(),
         GrpcTypes::value::Value::DecimalValue(d) => {
             let decimal_type_desc = descriptor.decimal_field.message.clone();
             let flags_field_desc = &descriptor.decimal_field.flags;

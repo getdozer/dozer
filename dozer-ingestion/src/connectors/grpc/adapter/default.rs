@@ -1,4 +1,4 @@
-use dozer_types::{serde_json, types::SchemaIdentifier};
+use dozer_types::{bincode, serde_json, types::SchemaIdentifier};
 
 use crate::{connectors::SourceSchema, errors::ConnectorError};
 
@@ -143,7 +143,7 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
             (
                 grpc_types::types::value::Value::BytesValue(a),
                 dozer_types::types::FieldType::Json,
-            ) => Ok(dozer_types::types::Field::Json(a.clone())),
+            ) => Ok(dozer_types::types::Field::Json(bincode::deserialize(a).unwrap())),
             (
                 grpc_types::types::value::Value::TimestampValue(a),
                 dozer_types::types::FieldType::Timestamp,

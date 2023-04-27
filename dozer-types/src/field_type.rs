@@ -3,6 +3,7 @@ use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset,
 use geo::Point;
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
+use crate::json_types::serde_json_to_json_value;
 
 impl From<bool> for Field {
     fn from(value: bool) -> Self {
@@ -129,5 +130,11 @@ impl From<DozerDuration> for Field {
     fn from(value: DozerDuration) -> Self {
         let v = DozerDuration(value.0, value.1);
         Field::Duration(v)
+    }
+}
+
+impl From<serde_json::Value> for Field {
+    fn from(value: serde_json::Value) -> Self {
+        Field::Json(serde_json_to_json_value(value))
     }
 }

@@ -1,4 +1,3 @@
-use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -40,6 +39,7 @@ impl Display for JsonValue {
     }
 }
 
+// todo: for serde_json conversion
 impl FromStr for JsonValue {
     type Err = SerializationError;
 
@@ -85,7 +85,7 @@ pub fn field_to_json_value(field: Field) -> Value {
     }
 }
 
-fn json_value_to_serde_json(value: JsonValue) -> Value {
+pub fn json_value_to_serde_json(value: JsonValue) -> Value {
     match value {
         JsonValue::Null => Value::Null,
         JsonValue::Bool(b) => Value::Bool(b),
@@ -102,7 +102,8 @@ fn json_value_to_serde_json(value: JsonValue) -> Value {
     }
 }
 
-fn serde_json_to_json_value(value: Value) -> JsonValue {
+// todo: not sure whether we need to involve serde_json conversion, and From<serde_json> for try_get from row
+pub fn serde_json_to_json_value(value: Value) -> JsonValue {
     match value {
         Value::Null => JsonValue::Null,
         Value::Bool(b) => JsonValue::Bool(b),

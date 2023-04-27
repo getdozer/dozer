@@ -7,6 +7,7 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{DozerDuration, Field, FieldType, DATE_FORMAT};
 use prost_reflect::prost_types::Timestamp;
+use dozer_types::json_types::JsonValue;
 
 pub fn map_insert_operation(endpoint_name: String, record: CacheRecord) -> Operation {
     Operation {
@@ -78,6 +79,12 @@ fn map_duration_to_prost_coord_map(d: DozerDuration) -> Value {
     }
 }
 
+fn map_json_to_prost(_val: JsonValue) -> Value {
+    Value {
+        value: None,
+    }
+}
+
 fn map_decimal(d: Decimal) -> Value {
     Value {
         value: Some(value::Value::DecimalValue(RustDecimal {
@@ -125,9 +132,7 @@ fn field_to_prost_value(f: Field) -> Value {
                 nanos: ts.timestamp_subsec_nanos() as i32,
             })),
         },
-        Field::Json(b) => Value {
-            value: Some(value::Value::BytesValue(b)),
-        },
+        Field::Json(b) => map_json_to_prost(b),
         Field::Null => Value { value: None },
         Field::Date(date) => Value {
             value: Some(value::Value::StringValue(

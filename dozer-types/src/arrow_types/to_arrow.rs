@@ -1,14 +1,12 @@
 use crate::types::{Field, FieldDefinition, FieldType, Record, Schema};
 use arrow::datatypes::{self as arrow_types, DataType};
 use std::{collections::HashMap, sync::Arc};
-
-use arrow::array::{ArrayData, MapArray, UInt32Array};
 use arrow::{
     array::{self as arrow_array, ArrayRef},
     datatypes::i256,
     record_batch::RecordBatch,
 };
-use arrow_schema::{Field as ArrowField, TimeUnit};
+use arrow_schema::TimeUnit;
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
@@ -102,24 +100,9 @@ pub fn map_record_to_arrow(
             (Field::Binary(v), FieldType::Binary) => {
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
             }
-            (Field::Json(v), FieldType::Json) => {
-                let keys = vec!["a", "b", "c", "d", "e", "f", "g", "h"];
-                let values_data = UInt32Array::from(vec![0u32, 10, 20, 30, 40, 50, 60, 70]);
-                // Construct a buffer for value offsets, for the nested array:
-                //  [[a, b, c], [d, e, f], [g, h]]
-                let entry_offsets = [0, 3, 6, 8];
-
-                let map_array = MapArray::new_from_strings(
-                    keys.clone().into_iter(),
-                    &values_data,
-                    &entry_offsets,
-                )
-                .unwrap();
-                Arc::new(arrow_array::MapArray::from(ArrayData::from(map_array))) as ArrayRef
-                // Arc::new(as_map_array(serde_json::Map::from(v.as_object().unwrap()))) as ArrayRef
-                // Arc::new(arrow_types::Field::from(Field::Json(v.to_owned()))) as ArrayRef
-                // Arc::new(DataType::Map(Box::from(Field::Json(v.to_owned())), false)) as ArrayRef
-            }
+            (Field::Json(v), FieldType::Json) => Err(arrow::error::ArrowError::InvalidArgumentError(format!(
+                "Invalid field type Json for the field {v:?} for arrow conversion",
+            )))?,
             (Field::Point(v), FieldType::Point) => {
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v.to_bytes()])) as ArrayRef
             }
@@ -167,11 +150,7 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
             metadata.map(|m| m.insert("logical_type".to_string(), "Binary".to_string()));
             DataType::Binary
         }
-        FieldType::Json => {
-            metadata.map(|m| m.insert("logical_type".to_string(), "Json".to_string()));
-            let field = ArrowField::new("null", DataType::Null, false);
-            DataType::Map(Box::from(field), false)
-        }
+        FieldType::Json => todo!(),
         FieldType::Point => {
             metadata.map(|m| m.insert("logical_type".to_string(), "Point".to_string()));
             DataType::Binary

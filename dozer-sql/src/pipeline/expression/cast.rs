@@ -178,7 +178,7 @@ impl CastOperatorType {
             }
             CastOperatorType::Json => {
                 if let Some(value) = field.to_json() {
-                    Ok(Field::Json(value.to_vec()))
+                    Ok(Field::Json(value.to_owned()))
                 } else {
                     Err(PipelineError::InvalidCast {
                         from: field,

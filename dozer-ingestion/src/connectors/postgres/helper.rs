@@ -1,13 +1,13 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use crate::errors::PostgresSchemaError::{
-    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, JSONBParseError,
-    PointParseError, StringParseError, ValueConversionError,
+    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, PointParseError,
+    StringParseError, ValueConversionError,
 };
 use crate::errors::{ConnectorError, PostgresSchemaError};
 use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::{rust_decimal, serde_json, types::*};
+use dozer_types::{bincode, rust_decimal, serde_json, types::*};
 use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
@@ -15,9 +15,7 @@ use std::error::Error;
 use std::vec;
 use tokio_postgres::{Column, Row};
 use uuid::Uuid;
-
 use dozer_types::geo::Point as GeoPoint;
-use dozer_types::grpc_types::types::Value;
 
 pub fn postgres_type_to_field(
     value: Option<&Bytes>,
@@ -75,7 +73,7 @@ pub fn postgres_type_to_field(
                     .unwrap();
                     Ok(Field::from(date))
                 }
-                Type::JSONB | Type::JSON => Ok(Field::Json(bson::from_slice(v)?)),
+                Type::JSONB | Type::JSON => Ok(Field::Json(bincode::deserialize(v).unwrap())),
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
                 Type::POINT => Ok(Field::Point(
                     String::from_utf8(v.to_vec())
@@ -148,11 +146,7 @@ pub fn value_to_field(
             let value: Result<Vec<u8>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
         }
-        &Type::JSONB => {
-            let value: Result<serde_json::Value, _> = row.try_get(idx);
-
-            value.map_or_else(handle_error, |v| Ok(Field::Json(v)))
-        }
+        &Type::JSONB => convert_row_value_to_field!(row, idx, serde_json::Value),
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
         // &Type::UUID => convert_row_value_to_field!(row, idx, Uuid),
         &Type::UUID => {
