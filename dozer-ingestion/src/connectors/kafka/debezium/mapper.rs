@@ -269,7 +269,7 @@ mod tests {
             Field::from(current_date),
             None
         );
-        let json_bytes = "{\"abc\":123}".as_bytes().to_vec();
+        let _json_bytes = "{\"abc\":123}".as_bytes().to_vec();
         test_conversion_debezium!(
             "{\"abc\":123}",
             "-",
