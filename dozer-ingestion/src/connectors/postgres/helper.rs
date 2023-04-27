@@ -7,7 +7,7 @@ use crate::errors::{ConnectorError, PostgresSchemaError};
 use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::geo::Point as GeoPoint;
-use dozer_types::json_types::JsonValue;
+use dozer_types::json_types::{JsonValue, serde_json_to_json_value};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{bincode, rust_decimal, serde_json, types::*};
 use postgres_types::{Type, WasNull};
@@ -75,7 +75,7 @@ pub fn postgres_type_to_field(
                     Ok(Field::from(date))
                 }
                 Type::JSONB | Type::JSON => {
-                    let json: JsonValue = bincode::deserialize(v).unwrap();
+                    let json: JsonValue = serde_json_to_json_value(serde_json::from_slice(v).unwrap());
                     Ok(Field::Json(json))
                 }
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
@@ -218,6 +218,7 @@ pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, Postg
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use super::*;
     use dozer_types::chrono::NaiveDate;
 
@@ -294,21 +295,9 @@ mod tests {
         );
 
         // UTF-8 bytes representation of json (https://www.charset.org/utf-8)
-        let value = JsonValue::Array(vec![
-            JsonValue::Number(OrderedFloat(123_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(97_f64)),
-            JsonValue::Number(OrderedFloat(98_f64)),
-            JsonValue::Number(OrderedFloat(99_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(58_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(102_f64)),
-            JsonValue::Number(OrderedFloat(111_f64)),
-            JsonValue::Number(OrderedFloat(111_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(125_f64)),
-        ]);
+        let value = JsonValue::Object(BTreeMap::from(
+            [(String::from("abc"), JsonValue::String(String::from("foo")))]
+        ));
         test_conversion!("{\"abc\":\"foo\"}", Type::JSONB, Field::Json(value));
 
         test_conversion!("t", Type::BOOL, Field::Boolean(true));
