@@ -2,7 +2,8 @@ use crate::types::{field_test_cases, DozerDuration, DozerPoint, Field, TimeUnit}
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
-use serde_json::json;
+
+use crate::json_types::JsonValue;
 
 #[test]
 fn data_encoding_len_must_agree_with_encode() {
@@ -230,7 +231,7 @@ fn test_as_conversion() {
     assert!(field.as_duration().is_none());
     assert!(field.as_null().is_none());
 
-    let field = Field::Json(json!([]));
+    let field = Field::Json(JsonValue::Array(vec![]));
     assert!(field.as_uint().is_none());
     assert!(field.as_int().is_none());
     assert!(field.as_u128().is_none());
@@ -523,7 +524,7 @@ fn test_to_conversion() {
     assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
 
-    let field = Field::Json(json!([]));
+    let field = Field::Json(JsonValue::Array(vec![]));
     assert!(field.to_uint().is_none());
     assert!(field.to_int().is_none());
     assert!(field.to_u128().is_none());

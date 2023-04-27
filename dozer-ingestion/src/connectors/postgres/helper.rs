@@ -294,7 +294,21 @@ mod tests {
         );
 
         // UTF-8 bytes representation of json (https://www.charset.org/utf-8)
-        let value = vec![123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125];
+        let value = JsonValue::Array(vec![
+            JsonValue::Number(OrderedFloat(123_f64)),
+            JsonValue::Number(OrderedFloat(34_f64)),
+            JsonValue::Number(OrderedFloat(97_f64)),
+            JsonValue::Number(OrderedFloat(98_f64)),
+            JsonValue::Number(OrderedFloat(99_f64)),
+            JsonValue::Number(OrderedFloat(34_f64)),
+            JsonValue::Number(OrderedFloat(58_f64)),
+            JsonValue::Number(OrderedFloat(34_f64)),
+            JsonValue::Number(OrderedFloat(102_f64)),
+            JsonValue::Number(OrderedFloat(111_f64)),
+            JsonValue::Number(OrderedFloat(111_f64)),
+            JsonValue::Number(OrderedFloat(34_f64)),
+            JsonValue::Number(OrderedFloat(125_f64)),
+        ]);
         test_conversion!("{\"abc\":\"foo\"}", Type::JSONB, Field::Json(value));
 
         test_conversion!("t", Type::BOOL, Field::Boolean(true));

@@ -57,6 +57,7 @@ mod tests {
         rust_decimal::Decimal,
         types::Field,
     };
+    use dozer_types::json_types::JsonValue;
 
     use crate::cache::{index::get_secondary_index, lmdb::utils};
 
@@ -233,7 +234,7 @@ mod tests {
             Field::Decimal(Decimal::new(i64::MAX, 0)),
             Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(1).unwrap())),
             Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap()),
-            Field::Json(json![255]),
+            Field::Json(JsonValue::Array(vec![JsonValue::Number(OrderedFloat(255_f64))])),
         ];
         for a in test_cases.iter() {
             check(a);
