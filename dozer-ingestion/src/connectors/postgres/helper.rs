@@ -6,6 +6,7 @@ use crate::errors::PostgresSchemaError::{
 use crate::errors::{ConnectorError, PostgresSchemaError};
 use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
+use dozer_types::errors::types::TypeError;
 use dozer_types::geo::Point as GeoPoint;
 use dozer_types::json_types::{serde_json_to_json_value, JsonValue};
 use dozer_types::ordered_float::OrderedFloat;
@@ -81,8 +82,8 @@ pub fn postgres_type_to_field(
                             column_type.name()
                         ))
                     })?;
-                    let json: JsonValue = serde_json_to_json_value(val).map_err(|_| {
-                        PostgresSchemaError::ColumnTypeNotSupported(column_type.name().to_string())
+                    let json: JsonValue = serde_json_to_json_value(val).map_err(|e| {
+                        PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
                     })?;
                     Ok(Field::Json(json))
                 }
@@ -97,9 +98,9 @@ pub fn postgres_type_to_field(
                         val.into_iter()
                             .map(|v| {
                                 serde_json_to_json_value(v)
-                                    .map_err(|_| {
-                                        PostgresSchemaError::ColumnTypeNotSupported(
-                                            column_type.name().to_string(),
+                                    .map_err(|e| {
+                                        PostgresSchemaError::TypeError(
+                                            TypeError::DeserializationError(e),
                                         )
                                     })
                                     .unwrap()

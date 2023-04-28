@@ -18,7 +18,6 @@ use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::json_types::field_to_json_value;
-use dozer_types::serde_json;
 use dozer_types::serde_json::{json, Value};
 
 fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {

@@ -207,7 +207,7 @@ pub enum PostgresConnectorError {
     SnapshotReadError,
 }
 
-#[derive(Error, Debug, Eq, PartialEq)]
+#[derive(Error, Debug)]
 pub enum PostgresSchemaError {
     #[error("Schema's '{0}' doesn't have primary key")]
     PrimaryKeyIsMissingInSchema(String),
@@ -252,6 +252,9 @@ pub enum PostgresSchemaError {
 
     #[error("Column not found")]
     ColumnNotFound,
+
+    #[error("Type error: {0}")]
+    TypeError(#[from] TypeError),
 }
 
 #[cfg(feature = "snowflake")]
@@ -348,7 +351,7 @@ pub enum DebeziumStreamError {
     PollingError(#[source] kafka::Error),
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum DebeziumSchemaError {
     #[error("Schema definition not found")]
     SchemaDefinitionNotFound,
