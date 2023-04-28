@@ -349,7 +349,7 @@ fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
 }
 
 fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldType) -> bool {
-    use dozer_api::openapiv3::Type::{Array, Boolean, Integer, Number, Object, String};
+    use dozer_api::openapiv3::Type::{Array, Boolean, Integer, Number, String};
 
     match (oapi_type, field_type) {
         (Integer(_), FieldType::UInt | FieldType::U128 | FieldType::Int | FieldType::I128) => true,
