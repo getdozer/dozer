@@ -11,6 +11,8 @@ use dozer_orchestrator::CloudOrchestrator;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
+use futures::executor;
+use serde::Deserialize;
 
 use std::process;
 
@@ -31,9 +33,39 @@ fn render_logo() {
     info!("\nDozer Version: {VERSION}\n");
 }
 
+#[derive(Deserialize, Debug)]
+struct DozerPackage {
+    pub latestVersion: String,
+    pub availableAssets: Vec<String>,
+    pub link: String,
+}
+
+async fn check_update() {
+    use std::println as info;
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    const ARCH: &str = std::env::consts::ARCH;
+    const OS: &str = std::env::consts::OS;
+
+    info!("Checking for updates...");
+    let request_url = format!(
+        "https://metadata.dev.getdozer.io?version={}&build={}&os={}",
+        VERSION, ARCH, OS
+    );
+    println!("{}", request_url);
+    let response = reqwest::get(&request_url).await.unwrap();
+    let package: DozerPackage = response.json().await.unwrap();
+    println!("A new version is available.");
+    println!(
+        "You can download Dozer v{}, from {}.",
+        package.latestVersion, package.link
+    );
+}
+
 fn run() -> Result<(), OrchestrationError> {
     // Reloading trace layer seems impossible, so we are running Cli::parse in a closure
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
+
+    executor::block_on(check_update());
 
     let cli = parse_and_generate()?;
     let mut dozer = init_orchestrator(&cli)?;
