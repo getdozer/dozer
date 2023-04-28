@@ -99,7 +99,6 @@ async fn check_update() {
             }
         }
         time::sleep(Duration::from_secs(2 * 60 * 60)).await;
-        info!("next!");
     }
 }
 
