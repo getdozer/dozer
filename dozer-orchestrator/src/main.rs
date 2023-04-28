@@ -60,18 +60,25 @@ fn compare_versions(v1: Vec<i32>, v2: Vec<i32>) -> bool {
 }
 
 async fn check_update() {
-    use std::println as info;
     const VERSION: &str = env!("CARGO_PKG_VERSION");
-    const ARCH: &str = std::env::consts::ARCH;
-    const OS: &str = std::env::consts::OS;
+    let query = vec![
+        ("version", VERSION),
+        ("build", std::env::consts::ARCH), // input encoding
+        ("os", std::env::consts::OS),
+    ];
 
+    let request_url = "https://metadata.dev.getdozer.io/";
+
+    let client = reqwest::Client::new();
     loop {
         info!("Checking for updates...");
-        let request_url = format!(
-            "https://metadata.dev.getdozer.io/?version={}&build={}&os={}",
-            VERSION, ARCH, OS
-        );
-        let response = reqwest::get(&request_url).await;
+
+        let response = client
+            .get(&request_url.to_string())
+            .query(&query)
+            .send()
+            .await;
+
         match response {
             Ok(r) => {
                 let package: DozerPackage = r.json().await.unwrap();
