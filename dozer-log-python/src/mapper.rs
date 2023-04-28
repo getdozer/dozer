@@ -98,7 +98,8 @@ fn map_json_py(val: JsonValue, py: Python) -> Py<PyAny> {
         JsonValue::Object(o) => {
             let obj = PyDict::new(py);
             for (key, val) in o {
-                obj.set_item(key, map_json_py(val, py)).unwrap();
+                obj.set_item(key, map_json_py(val, py))
+                    .expect("Unable to map json to py object");
             }
             obj.to_object(py)
         }
