@@ -133,7 +133,7 @@ mod tests {
         };
 
         let actual_error = map_schema(&schema, &key_schema).unwrap_err();
-        assert_eq!(actual_error.type_id(), SchemaDefinitionNotFound.type_id());
+        assert_eq!(actual_error, SchemaDefinitionNotFound);
     }
 
     #[test]
