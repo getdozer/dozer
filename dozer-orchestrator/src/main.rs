@@ -51,7 +51,6 @@ async fn check_update() {
         "https://metadata.dev.getdozer.io/?version={}&build={}&os={}",
         VERSION, ARCH, OS
     );
-    info!("{}", request_url);
     let response = reqwest::get(&request_url).await;
     match response {
         Ok(r) => {
@@ -71,8 +70,6 @@ async fn check_update() {
 fn run() -> Result<(), OrchestrationError> {
     // Reloading trace layer seems impossible, so we are running Cli::parse in a closure
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
-
-    executor::block_on(check_update());
 
     let cli = parse_and_generate()?;
     let mut dozer = init_orchestrator(&cli)?;
@@ -156,7 +153,10 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
         let res = init_dozer(cli.config_path.clone());
 
         match res {
-            Ok(dozer) => Ok(dozer),
+            Ok(dozer) => {
+                dozer.runtime.block_on(check_update());
+                Ok(dozer)
+            }
             Err(e) => {
                 error!("{}", e);
                 Err(e)
