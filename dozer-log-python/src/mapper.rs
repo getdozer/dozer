@@ -1,6 +1,7 @@
 use dozer_types::json_types::JsonValue;
 use dozer_types::pyo3::types::PyList;
 
+use dozer_types::pyo3::exceptions::PyTypeError;
 use dozer_types::{
     epoch::ExecutorOperation,
     pyo3::{types::PyDict, Py, PyAny, PyResult, Python, ToPyObject},
@@ -79,29 +80,33 @@ fn map_value(value: Field, py: Python) -> PyResult<Py<PyAny>> {
         Field::Decimal(v) => Ok(v.to_string().to_object(py)),
         Field::Timestamp(v) => Ok(v.to_string().to_object(py)),
         Field::Date(v) => Ok(v.to_string().to_object(py)),
-        Field::Json(v) => Ok(map_json_py(v, py)),
+        Field::Json(v) => map_json_py(v, py),
         Field::Point(v) => map_point(v, py),
         Field::Duration(v) => Ok(v.to_string().to_object(py)),
         Field::Null => Ok(py.None()),
     }
 }
 
-fn map_json_py(val: JsonValue, py: Python) -> Py<PyAny> {
+fn map_json_py(val: JsonValue, py: Python) -> PyResult<Py<PyAny>> {
     match val {
-        JsonValue::Null => py.None(),
-        JsonValue::Bool(b) => b.to_object(py),
-        JsonValue::Number(n) => n.to_object(py),
-        JsonValue::String(s) => s.to_object(py),
-        JsonValue::Array(a) => {
-            PyList::new(py, a.into_iter().map(|val| map_json_py(val, py))).to_object(py)
-        }
+        JsonValue::Null => Ok(py.None()),
+        JsonValue::Bool(b) => Ok(b.to_object(py)),
+        JsonValue::Number(n) => Ok(n.to_object(py)),
+        JsonValue::String(s) => Ok(s.to_object(py)),
+        JsonValue::Array(a) => Ok(PyList::new(
+            py,
+            a.into_iter().map(|val| map_json_py(val, py).unwrap()),
+        )
+        .to_object(py)),
         JsonValue::Object(o) => {
             let obj = PyDict::new(py);
             for (key, val) in o {
-                obj.set_item(key, map_json_py(val, py))
-                    .expect("Unable to map json to py object");
+                obj.set_item(key, map_json_py(val, py).unwrap()).map_or(
+                    Err(PyTypeError::new_err("Json Object type conversion error").value(py)),
+                    Ok,
+                )?;
             }
-            obj.to_object(py)
+            Ok(obj.to_object(py))
         }
     }
 }
