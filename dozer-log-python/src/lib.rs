@@ -24,10 +24,18 @@ impl LogReader {
     fn new(py: Python, home_dir: String, endpoint_name: String) -> PyResult<&PyAny> {
         pyo3_asyncio::tokio::future_into_py(py, async move {
             let home_dir = HomeDir::new(home_dir.as_ref(), Default::default());
-            let schema = load_schema(&home_dir, &endpoint_name)
+            let migration_path = home_dir
+                .find_latest_migration_path(&endpoint_name)
+                .map_err(|(path, error)| {
+                    PyException::new_err(format!("Failed to read {path:?}: {error}"))
+                })?;
+            let migration_path =
+                migration_path.ok_or(PyException::new_err("No migration found"))?;
+
+            let schema = load_schema(&migration_path.schema_path)
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
-            let log_path = home_dir.get_endpoint_log_path(&endpoint_name);
+            let log_path = migration_path.log_path;
             let name = log_path
                 .parent()
                 .and_then(|parent| parent.file_name().and_then(|file_name| file_name.to_str()))

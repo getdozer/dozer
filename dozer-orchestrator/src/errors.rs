@@ -16,18 +16,16 @@ use dozer_types::{serde_yaml, thiserror};
 pub enum OrchestrationError {
     #[error("Failed to write config yaml: {0:?}")]
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
-    #[error("Failed to initialize. {0} is not empty. Use -f to clean the directory and overwrite. Warning! there will be data loss.")]
-    InitializationFailed(String),
-    #[error("Failed to create directory {0:?}: {1}")]
-    FailedToCreateDir(PathBuf, #[source] std::io::Error),
+    #[error("Failed to create migration {0:?}: {1}")]
+    FailedToCreateMigration(PathBuf, #[source] std::io::Error),
     #[error("Failed to write schema: {0}")]
     FailedToWriteSchema(#[source] SchemaError),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
-    #[error("Failed to initialize pipeline_dir. Is the path {0:?} accessible?: {1}")]
-    PipelineDirectoryInitFailed(String, #[source] std::io::Error),
-    #[error("Can't locate pipeline_dir. Have you run `dozer migrate`?")]
-    PipelineDirectoryNotFound(String),
+    #[error("File system error {0:?}: {1}")]
+    FileSystem(PathBuf, std::io::Error),
+    #[error("Failed to find migration for endpoint {0}")]
+    NoMigrationFound(String),
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
     #[error("Failed to deploy dozer application: {0:?}")]

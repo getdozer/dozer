@@ -42,6 +42,8 @@ pub enum ApiError {
     FailedToBindToAddress(String, #[source] std::io::Error),
     #[error("Failed to load schema: {0}")]
     FailedToLoadSchema(#[from] SchemaError),
+    #[error("Failed to find migration for endpoint {0}")]
+    NoMigrationFound(String),
 }
 
 impl ApiError {
@@ -154,7 +156,8 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::QueryFailed(_)
             | ApiError::CountFailed(_)
             | ApiError::FailedToBindToAddress(_, _)
-            | ApiError::FailedToLoadSchema(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ApiError::FailedToLoadSchema(_)
+            | ApiError::NoMigrationFound(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

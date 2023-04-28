@@ -4,6 +4,7 @@ use tokio::runtime::Runtime;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -21,11 +22,11 @@ use OrchestrationError::ExecutionError;
 use crate::errors::OrchestrationError;
 
 pub struct Executor<'a> {
-    home_dir: &'a HomeDir,
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    api_endpoints: &'a [ApiEndpoint],
+    /// `ApiEndpoint` and its log path.
+    endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
     running: Arc<AtomicBool>,
     multi_pb: MultiProgress,
 }
@@ -38,16 +39,24 @@ impl<'a> Executor<'a> {
         api_endpoints: &'a [ApiEndpoint],
         running: Arc<AtomicBool>,
         multi_pb: MultiProgress,
-    ) -> Self {
-        Self {
-            home_dir,
+    ) -> Result<Self, OrchestrationError> {
+        let mut endpoint_and_log_paths = vec![];
+        for endpoint in api_endpoints {
+            let migration_path = home_dir
+                .find_latest_migration_path(&endpoint.name)
+                .map_err(|(path, error)| OrchestrationError::FileSystem(path, error))?
+                .ok_or(OrchestrationError::NoMigrationFound(endpoint.name.clone()))?;
+            endpoint_and_log_paths.push((endpoint.clone(), migration_path.log_path));
+        }
+
+        Ok(Self {
             connections,
             sources,
             sql,
-            api_endpoints,
+            endpoint_and_log_paths,
             running,
             multi_pb,
-        }
+        })
     }
 
     #[allow(clippy::type_complexity)]
@@ -72,11 +81,10 @@ impl<'a> Executor<'a> {
         notifier: Option<PipelineEventSenders>,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
-            self.home_dir,
             self.connections,
             self.sources,
             self.sql,
-            self.api_endpoints,
+            self.endpoint_and_log_paths.clone(),
             self.multi_pb.clone(),
         );
 

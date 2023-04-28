@@ -105,11 +105,10 @@ pub async fn health_route() -> Result<HttpResponse, ApiError> {
 pub async fn count(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
-    query_info: Option<web::Json<Value>>,
+    query_info: Option<web::Json<QueryExpression>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = match query_info {
-        Some(query_info) => serde_json::from_value::<QueryExpression>(query_info.0)
-            .map_err(ApiError::map_deserialization_error)?,
+        Some(query_info) => query_info.0,
         None => QueryExpression::with_no_limit(),
     };
 
@@ -126,11 +125,10 @@ pub async fn count(
 pub async fn query(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
-    query_info: Option<web::Json<Value>>,
+    query_info: Option<web::Json<QueryExpression>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = match query_info {
-        Some(query_info) => serde_json::from_value::<QueryExpression>(query_info.0)
-            .map_err(ApiError::map_deserialization_error)?,
+        Some(query_info) => query_info.0,
         None => QueryExpression::with_default_limit(),
     };
     if query_expression.limit.is_none() {
