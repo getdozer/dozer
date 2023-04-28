@@ -1,7 +1,6 @@
 use dozer_types::json_types::JsonValue;
 use dozer_types::pyo3::types::PyList;
 
-use dozer_types::pyo3::exceptions::PyTypeError;
 use dozer_types::{
     epoch::ExecutorOperation,
     pyo3::{types::PyDict, Py, PyAny, PyResult, Python, ToPyObject},
@@ -101,10 +100,7 @@ fn map_json_py(val: JsonValue, py: Python) -> PyResult<Py<PyAny>> {
         JsonValue::Object(o) => {
             let obj = PyDict::new(py);
             for (key, val) in o {
-                obj.set_item(key, map_json_py(val, py).unwrap()).map_or(
-                    Err(PyTypeError::new_err("Json Object type conversion error").value(py)),
-                    Ok,
-                )?;
+                obj.set_item(key, map_json_py(val, py)?)?;
             }
             Ok(obj.to_object(py))
         }
