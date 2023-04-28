@@ -373,7 +373,6 @@ fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldTy
                 true
             }
         }
-        (Array(_), FieldType::Json) | (Object(_), FieldType::Json) => true,
         (Array(array_type), FieldType::Binary) => {
             let Some(ReferenceOr::Item(schema)) = array_type.items.as_ref() else {
                 return false;
