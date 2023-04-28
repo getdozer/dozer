@@ -186,7 +186,9 @@ pub fn value_to_field(
             value.map_or_else(handle_error, |val| {
                 Ok(Field::Json(
                     serde_json_to_json_value(val)
-                        .map_err(|_| ColumnTypeNotSupported(col_type.name().to_string()))
+                        .map_err(|e| {
+                            PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                        })
                         .unwrap(),
                 ))
             })
@@ -198,7 +200,11 @@ pub fn value_to_field(
                     val.into_iter()
                         .map(|v| {
                             serde_json_to_json_value(v)
-                                .map_err(|_| ColumnTypeNotSupported(col_type.name().to_string()))
+                                .map_err(|e| {
+                                    PostgresSchemaError::TypeError(TypeError::DeserializationError(
+                                        e,
+                                    ))
+                                })
                                 .unwrap()
                         })
                         .collect(),
