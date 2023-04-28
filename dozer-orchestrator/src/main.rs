@@ -91,6 +91,7 @@ async fn check_update() {
                         "You can download Dozer v{}, from {}.",
                         package.latest_version, package.link
                     );
+                    break;
                 }
             }
             Err(e) => {
