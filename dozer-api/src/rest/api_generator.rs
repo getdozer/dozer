@@ -168,7 +168,7 @@ fn record_to_map(
     let mut map = IndexMap::new();
 
     for (field_def, field) in schema.fields.iter().zip(record.record.values) {
-        let val = field_to_json_value(field);
+        let val = field_to_json_value(field).map_err(TypeError::DeserializationError)?;
         map.insert(field_def.name.clone(), val);
     }
 
