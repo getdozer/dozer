@@ -5,6 +5,7 @@ use super::errors::FromArrowError::DurationConversionError;
 use super::errors::FromArrowError::FieldTypeNotSupported;
 use super::errors::FromArrowError::TimeConversionError;
 use super::to_arrow;
+use crate::arrow_types::to_arrow::{JSON_TYPE, LOGICAL_TYPE_KEY};
 use crate::types::Record;
 use crate::types::{
     Field as DozerField, FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition,
@@ -15,6 +16,7 @@ use arrow::datatypes::{DataType, TimeUnit};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
+use arrow_schema::Field;
 
 macro_rules! make_from {
     ($array_type:ty, $column: ident, $row: ident) => {{
@@ -128,7 +130,7 @@ pub fn map_schema_to_dozer(
 ) -> Result<DozerSchema, FromArrowError> {
     let mut fields = vec![];
     for field in schema.fields() {
-        let typ = map_arrow_to_dozer_type(field.data_type())?;
+        let typ = map_arrow_to_dozer_type(field)?;
 
         fields.push(FieldDefinition {
             name: field.name().clone(),
@@ -145,7 +147,9 @@ pub fn map_schema_to_dozer(
     })
 }
 
-pub fn map_arrow_to_dozer_type(dt: &DataType) -> Result<FieldType, FromArrowError> {
+pub fn map_arrow_to_dozer_type(field: &Field) -> Result<FieldType, FromArrowError> {
+    let dt = field.data_type();
+    let m = field.metadata();
     match dt {
         DataType::Boolean => Ok(FieldType::Boolean),
         DataType::Time32(_)
@@ -165,7 +169,22 @@ pub fn map_arrow_to_dozer_type(dt: &DataType) -> Result<FieldType, FromArrowErro
         DataType::Binary | DataType::FixedSizeBinary(_) | DataType::LargeBinary => {
             Ok(FieldType::Binary)
         }
-        DataType::Utf8 => Ok(FieldType::String),
+        DataType::Utf8 => {
+            if m.contains_key(LOGICAL_TYPE_KEY) {
+                match m.get(LOGICAL_TYPE_KEY) {
+                    Some(s) => {
+                        if s.eq(JSON_TYPE) {
+                            Ok(FieldType::Json)
+                        } else {
+                            Ok(FieldType::String)
+                        }
+                    }
+                    None => Ok(FieldType::String),
+                }
+            } else {
+                Ok(FieldType::String)
+            }
+        }
         DataType::LargeUtf8 => Ok(FieldType::Text),
         // DataType::List(_) => {}
         // DataType::FixedSizeList(_, _) => {}

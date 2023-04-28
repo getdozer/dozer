@@ -8,6 +8,11 @@ use arrow::{
 use arrow_schema::TimeUnit;
 use std::{collections::HashMap, sync::Arc};
 
+pub const LOGICAL_TYPE_KEY: &str = "logical_type";
+pub const JSON_TYPE: &str = "Json";
+pub const BINARY_TYPE: &str = "Binary";
+pub const POINT_TYPE: &str = "Point";
+
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
     schema: &crate::types::Schema,
@@ -101,9 +106,10 @@ pub fn map_record_to_arrow(
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
             }
             (Field::Json(v), FieldType::Json) => {
-                Err(arrow::error::ArrowError::InvalidArgumentError(format!(
-                    "Invalid field type Json for the field {v:?} for arrow conversion",
-                )))?
+                Arc::new(arrow_array::StringArray::from_iter_values([v.to_string()])) as ArrayRef
+            }
+            (Field::Null, FieldType::Json) => {
+                Arc::new(arrow_array::StringArray::from(vec![None as Option<String>])) as ArrayRef
             }
             (Field::Point(v), FieldType::Point) => {
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v.to_bytes()])) as ArrayRef
@@ -149,12 +155,15 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
         FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Nanosecond, None),
         FieldType::Date => DataType::Date64,
         FieldType::Binary => {
-            metadata.map(|m| m.insert("logical_type".to_string(), "Binary".to_string()));
+            metadata.map(|m| m.insert(LOGICAL_TYPE_KEY.to_string(), BINARY_TYPE.to_string()));
             DataType::Binary
         }
-        FieldType::Json => todo!(),
+        FieldType::Json => {
+            metadata.map(|m| m.insert(LOGICAL_TYPE_KEY.to_string(), JSON_TYPE.to_string()));
+            DataType::Utf8
+        }
         FieldType::Point => {
-            metadata.map(|m| m.insert("logical_type".to_string(), "Point".to_string()));
+            metadata.map(|m| m.insert(LOGICAL_TYPE_KEY.to_string(), POINT_TYPE.to_string()));
             DataType::Binary
         }
         FieldType::Duration => DataType::Duration(TimeUnit::Nanosecond),
