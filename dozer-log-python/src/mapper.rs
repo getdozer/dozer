@@ -1,5 +1,5 @@
 use dozer_types::json_types::JsonValue;
-use dozer_types::pyo3::types::{PyList};
+use dozer_types::pyo3::types::PyList;
 use dozer_types::{
     epoch::ExecutorOperation,
     pyo3::{types::PyDict, Py, PyAny, PyResult, Python, ToPyObject},

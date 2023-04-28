@@ -383,39 +383,3 @@ fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldTy
         _ => false,
     }
 }
-
-fn oapi_any_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldType) -> bool {
-    use dozer_api::openapiv3::Type::{Array, Boolean, Integer, Number, Object, String};
-
-    match (oapi_type, field_type) {
-        (Integer(_), FieldType::UInt | FieldType::U128 | FieldType::Int | FieldType::I128) => true,
-        (Number(_), FieldType::Float) => true,
-        (Boolean {}, FieldType::Boolean) => true,
-        (
-            String(string_type),
-            FieldType::String
-            | FieldType::Text
-            | FieldType::Decimal
-            | FieldType::Timestamp
-            | FieldType::Date,
-        ) => {
-            if field_type == FieldType::Timestamp {
-                string_type.format == VariantOrUnknownOrEmpty::Item(StringFormat::DateTime)
-                    && string_type.pattern == Some("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'".to_string())
-            } else if field_type == FieldType::Date {
-                string_type.format == VariantOrUnknownOrEmpty::Item(StringFormat::Date)
-                    && string_type.pattern == Some(DATE_FORMAT.to_string())
-            } else {
-                true
-            }
-        }
-        (Array(_), FieldType::Json) | (Object(_), FieldType::Json) => true,
-        (Array(array_type), FieldType::Binary) => {
-            let Some(ReferenceOr::Item(schema)) = array_type.items.as_ref() else {
-                return false;
-            };
-            matches!(schema.schema_kind, SchemaKind::Type(Integer(_)))
-        }
-        _ => false,
-    }
-}
