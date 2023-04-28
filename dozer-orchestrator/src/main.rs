@@ -12,9 +12,11 @@ use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrato
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;
+use tokio::time;
 
 use std::cmp::Ordering;
 use std::process;
+use std::time::Duration;
 
 fn main() {
     set_panic_hook();
@@ -63,29 +65,33 @@ async fn check_update() {
     const ARCH: &str = std::env::consts::ARCH;
     const OS: &str = std::env::consts::OS;
 
-    info!("Checking for updates...");
-    let request_url = format!(
-        "https://metadata.dev.getdozer.io/?version={}&build={}&os={}",
-        VERSION, ARCH, OS
-    );
-    let response = reqwest::get(&request_url).await;
-    match response {
-        Ok(r) => {
-            let package: DozerPackage = r.json().await.unwrap();
-            let current = version_to_vector(VERSION);
-            let remote = version_to_vector(&package.latest_version);
+    loop {
+        info!("Checking for updates...");
+        let request_url = format!(
+            "https://metadata.dev.getdozer.io/?version={}&build={}&os={}",
+            VERSION, ARCH, OS
+        );
+        let response = reqwest::get(&request_url).await;
+        match response {
+            Ok(r) => {
+                let package: DozerPackage = r.json().await.unwrap();
+                let current = version_to_vector(VERSION);
+                let remote = version_to_vector(&package.latest_version);
 
-            if compare_versions(remote, current) {
-                info!("A new version is available.");
-                info!(
-                    "You can download Dozer v{}, from {}.",
-                    package.latest_version, package.link
-                );
+                if compare_versions(remote, current) {
+                    info!("A new version is available.");
+                    info!(
+                        "You can download Dozer v{}, from {}.",
+                        package.latest_version, package.link
+                    );
+                }
+            }
+            Err(e) => {
+                info!("Failed to check for updates: {}", e);
             }
         }
-        Err(e) => {
-            info!("Failed to check for updates: {}", e);
-        }
+        time::sleep(Duration::from_secs(2 * 60 * 60)).await;
+        info!("next!");
     }
 }
 
@@ -176,7 +182,7 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
 
         match res {
             Ok(dozer) => {
-                dozer.runtime.block_on(check_update());
+                dozer.runtime.spawn(check_update());
                 Ok(dozer)
             }
             Err(e) => {
