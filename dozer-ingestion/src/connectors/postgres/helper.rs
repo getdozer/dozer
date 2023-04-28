@@ -370,11 +370,7 @@ mod tests {
             Type::JSON_ARRAY,
             Field::Json(value.clone())
         );
-        test_conversion!(
-            "[{\"abc\":\"foo\"}]",
-            Type::JSONB_ARRAY,
-            Field::Json(value)
-        );
+        test_conversion!("[{\"abc\":\"foo\"}]", Type::JSONB_ARRAY, Field::Json(value));
 
         test_conversion!("t", Type::BOOL, Field::Boolean(true));
         test_conversion!("f", Type::BOOL, Field::Boolean(false));
