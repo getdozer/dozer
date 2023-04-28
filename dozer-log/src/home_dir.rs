@@ -1,7 +1,4 @@
-use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct HomeDir {
@@ -23,15 +20,14 @@ impl HomeDir {
         }
     }
 
-    pub fn create_new_migration(&self, endpoint_name: &str) -> Result<MigrationPath, Error> {
+    pub fn create_migration_dir_all(
+        &self,
+        endpoint_name: &str,
+        migration_id: MigrationId,
+    ) -> Result<MigrationPath, Error> {
         std::fs::create_dir_all(&self.cache_dir).map_err(|e| (self.cache_dir.clone(), e))?;
 
-        let id = self
-            .find_latest_migration_id(endpoint_name)?
-            .map(|migration_id| migration_id.id)
-            .unwrap_or(0);
-        let migration_id = MigrationId::from_id(id + 1);
-        let migration_path = self.get_migration_path(endpoint_name, &migration_id);
+        let migration_path = self.get_migration_path(endpoint_name, migration_id);
 
         std::fs::create_dir_all(&migration_path.api_dir)
             .map_err(|e| (migration_path.api_dir.clone(), e))?;
@@ -47,7 +43,7 @@ impl HomeDir {
     ) -> Result<Option<MigrationPath>, Error> {
         Ok(self
             .find_latest_migration_id(endpoint_name)?
-            .map(|migration_id| self.get_migration_path(endpoint_name, &migration_id)))
+            .map(|migration_id| self.get_migration_path(endpoint_name, migration_id)))
     }
 
     fn find_latest_migration_id(&self, endpoint_name: &str) -> Result<Option<MigrationId>, Error> {
@@ -70,7 +66,7 @@ impl HomeDir {
         }
     }
 
-    fn get_migration_path(&self, endpoint_name: &str, migration_id: &MigrationId) -> MigrationPath {
+    fn get_migration_path(&self, endpoint_name: &str, migration_id: MigrationId) -> MigrationPath {
         let api_dir = self
             .get_endpoint_api_dir(endpoint_name)
             .join(&migration_id.name);
@@ -81,6 +77,7 @@ impl HomeDir {
         let schema_path = log_dir.join("schema.json");
         let log_path = log_dir.join("log");
         MigrationPath {
+            id: migration_id,
             api_dir,
             descriptor_path,
             log_dir,
@@ -101,23 +98,35 @@ impl HomeDir {
 #[derive(Debug, Clone)]
 pub struct MigrationId {
     id: u32,
-    name: OsString,
+    name: String,
 }
 
 impl MigrationId {
     fn from_id(id: u32) -> Self {
         Self {
             id,
-            name: OsString::from(format!("v{:04}", id)),
+            name: format!("v{id:04}"),
         }
     }
 
-    fn from_name(name: OsString) -> Option<Self> {
-        let id = name
-            .to_str()
-            .and_then(|s| s.strip_prefix('v'))
-            .and_then(|s| s.parse::<u32>().ok())?;
-        Some(Self { id, name })
+    fn from_name(name: &str) -> Option<Self> {
+        let id = name.strip_prefix('v').and_then(|s| s.parse::<u32>().ok())?;
+        Some(Self {
+            id,
+            name: name.to_string(),
+        })
+    }
+
+    pub fn first() -> Self {
+        Self::from_id(1)
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn next(&self) -> Self {
+        Self::from_id(self.id + 1)
     }
 }
 
@@ -130,13 +139,15 @@ fn find_latest_migration_id(dir: &Path) -> Result<Option<MigrationId>, Error> {
     for entry in std::fs::read_dir(dir).map_err(|e| (dir.to_path_buf(), e))? {
         let entry = entry.map_err(|e| (dir.to_path_buf(), e))?;
         if entry.path().is_dir() {
-            if let Some(migration) = MigrationId::from_name(entry.file_name()) {
-                if let Some(MigrationId { id, .. }) = result {
-                    if migration.id > id {
+            if let Some(file_name) = entry.file_name().to_str() {
+                if let Some(migration) = MigrationId::from_name(file_name) {
+                    if let Some(MigrationId { id, .. }) = result {
+                        if migration.id > id {
+                            result = Some(migration);
+                        }
+                    } else {
                         result = Some(migration);
                     }
-                } else {
-                    result = Some(migration);
                 }
             }
         }
@@ -146,6 +157,7 @@ fn find_latest_migration_id(dir: &Path) -> Result<Option<MigrationId>, Error> {
 
 #[derive(Debug, Clone)]
 pub struct MigrationPath {
+    pub id: MigrationId,
     pub api_dir: PathBuf,
     pub descriptor_path: PathBuf,
     log_dir: PathBuf,

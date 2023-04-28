@@ -23,12 +23,4 @@ pub enum SchemaError {
     Filesystem(PathBuf, #[source] std::io::Error),
     #[error("Error deserializing schema: {0:?}")]
     Json(#[from] serde_json::Error),
-    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
-    MismatchPrimaryKey {
-        endpoint_name: String,
-        expected: Vec<String>,
-        actual: Vec<String>,
-    },
-    #[error("Field not found at position {0}")]
-    FieldNotFound(String),
 }

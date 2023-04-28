@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use dozer_api::errors::{ApiError, GenerationError, GrpcError};
+use dozer_api::errors::{ApiError, AuthError, GenerationError, GrpcError};
 use dozer_cache::dozer_log::errors::SchemaError;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
@@ -16,18 +16,16 @@ use dozer_types::{serde_yaml, thiserror};
 pub enum OrchestrationError {
     #[error("Failed to write config yaml: {0:?}")]
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
-    #[error("Failed to create migration {0:?}: {1}")]
-    FailedToCreateMigration(PathBuf, #[source] std::io::Error),
-    #[error("Failed to write schema: {0}")]
-    FailedToWriteSchema(#[source] SchemaError),
-    #[error("Failed to generate proto files: {0:?}")]
-    FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
     #[error("Failed to find migration for endpoint {0}")]
     NoMigrationFound(String),
-    #[error("Failed to generate token: {0:?}")]
-    GenerateTokenFailed(String),
+    #[error("Failed to migrate: {0}")]
+    MigrateFailed(#[from] MigrationError),
+    #[error("Failed to generate token: {0}")]
+    GenerateTokenFailed(#[source] AuthError),
+    #[error("Missing api config or security input")]
+    MissingSecurityConfig,
     #[error("Failed to deploy dozer application: {0:?}")]
     DeployFailed(#[from] DeployError),
     #[error("Failed to initialize api server: {0}")]
@@ -36,14 +34,12 @@ pub enum OrchestrationError {
     GrpcServerFailed(#[from] GrpcError),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] tonic::transport::Error),
-    #[error("Failed to initialize cache: {0}")]
-    RwCacheInitFailed(#[source] CacheError),
-    #[error("{0}: Failed to initialize read only cache. Have you run `dozer migrate`?")]
-    RoCacheInitFailed(#[source] CacheError),
+    #[error("{0}: Failed to initialize cache. Have you run `dozer migrate`?")]
+    CacheInitFailed(#[source] CacheError),
     #[error("Failed to build cache from log")]
     CacheBuildFailed(#[source] CacheError),
-    #[error(transparent)]
-    InternalError(#[from] BoxedError),
+    #[error("Internal thread panic: {0}")]
+    JoinError(#[source] tokio::task::JoinError),
     #[error(transparent)]
     ExecutionError(#[from] ExecutionError),
     #[error(transparent)]
@@ -92,4 +88,24 @@ pub enum DeployError {
     Transport(#[from] tonic::transport::Error),
     #[error("Server error: {0}")]
     Server(#[from] tonic::Status),
+}
+
+#[derive(Debug, Error)]
+pub enum MigrationError {
+    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
+    MismatchPrimaryKey {
+        endpoint_name: String,
+        expected: Vec<String>,
+        actual: Vec<String>,
+    },
+    #[error("Field not found at position {0}")]
+    FieldNotFound(String),
+    #[error("File system error {0:?}: {1}")]
+    FileSystem(PathBuf, std::io::Error),
+    #[error("Cannot load existing schema: {0}")]
+    CannotLoadExistingSchema(#[source] SchemaError),
+    #[error("Cannot write schema: {0}")]
+    CannotWriteSchema(#[source] SchemaError),
+    #[error("Failed to generate proto files: {0:?}")]
+    FailedToGenerateProtoFiles(#[from] GenerationError),
 }
