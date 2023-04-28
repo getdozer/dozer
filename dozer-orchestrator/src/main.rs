@@ -13,6 +13,7 @@ use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;
 
+use std::cmp::Ordering;
 use std::process;
 
 fn main() {
@@ -41,6 +42,21 @@ struct DozerPackage {
     pub link: String,
 }
 
+fn version_to_vector(version: &str) -> Vec<i32> {
+    version.split('.').map(|s| s.parse().unwrap()).collect()
+}
+
+fn compare_versions(v1: Vec<i32>, v2: Vec<i32>) -> bool {
+    for i in 0..v1.len() {
+        match v1.get(i).cmp(&v2.get(i)) {
+            Ordering::Greater => return true,
+            Ordering::Less => return false,
+            Ordering::Equal => continue,
+        }
+    }
+    false
+}
+
 async fn check_update() {
     use std::println as info;
     const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -56,11 +72,16 @@ async fn check_update() {
     match response {
         Ok(r) => {
             let package: DozerPackage = r.json().await.unwrap();
-            info!("A new version is available.");
-            info!(
-                "You can download Dozer v{}, from {}.",
-                package.latest_version, package.link
-            );
+            let current = version_to_vector(VERSION);
+            let remote = version_to_vector(&package.latest_version);
+
+            if compare_versions(remote, current) {
+                info!("A new version is available.");
+                info!(
+                    "You can download Dozer v{}, from {}.",
+                    package.latest_version, package.link
+                );
+            }
         }
         Err(e) => {
             info!("Failed to check for updates: {}", e);
