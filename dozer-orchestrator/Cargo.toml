@@ -43,3 +43,4 @@ path = "src/main.rs"
 
 [features]
 snowflake = ["dozer-types/snowflake", "dozer-ingestion/snowflake"]
+cloud = []

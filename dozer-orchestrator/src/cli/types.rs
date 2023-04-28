@@ -2,6 +2,7 @@ use clap::{Args, Parser, Subcommand};
 
 use super::helper::{DESCRIPTION, LOGO};
 
+#[cfg(feature = "cloud")]
 use dozer_types::constants::DEFAULT_CLOUD_TARGET_URL;
 use dozer_types::constants::DEFAULT_CONFIG_PATH;
 
@@ -35,6 +36,7 @@ pub enum Commands {
     )]
     Migrate(Migrate),
     #[command(about = "Deploy cloud applications")]
+    #[cfg(feature = "cloud")]
     Cloud(Cloud),
 
     #[command(about = "Run Api Server")]
@@ -112,6 +114,7 @@ pub enum ConnectorCommands {
     Ls,
 }
 
+#[cfg(feature = "cloud")]
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
@@ -126,6 +129,7 @@ pub struct Cloud {
     pub command: CloudCommands,
 }
 
+#[cfg(feature = "cloud")]
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
     Deploy,

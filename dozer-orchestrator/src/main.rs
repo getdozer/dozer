@@ -1,11 +1,12 @@
 use clap::Parser;
 use dozer_orchestrator::cli::generate_config_repl;
-use dozer_orchestrator::cli::types::{
-    ApiCommands, AppCommands, Cli, CloudCommands, Commands, ConnectorCommands,
-};
+#[cfg(feature = "cloud")]
+use dozer_orchestrator::cli::types::CloudCommands;
+use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::cli::{init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::{CliError, OrchestrationError};
 use dozer_orchestrator::simple::SimpleOrchestrator;
+#[cfg(feature = "cloud")]
 use dozer_orchestrator::CloudOrchestrator;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
@@ -74,6 +75,7 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.migrate(force)
             }
             Commands::Clean => dozer.clean(),
+            #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
                 CloudCommands::Deploy => dozer.deploy(cloud, cli.config_path),
                 CloudCommands::List => dozer.list(cloud),

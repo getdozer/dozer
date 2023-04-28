@@ -1,6 +1,8 @@
 use super::executor::Executor;
 use crate::console_helper::get_colored_text;
-use crate::errors::{DeployError, OrchestrationError};
+#[cfg(feature = "cloud")]
+use crate::errors::DeployError;
+use crate::errors::OrchestrationError;
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
@@ -8,7 +10,9 @@ use crate::utils::{
     get_api_security_config, get_cache_manager_options, get_executor_options,
     get_file_buffer_capacity, get_grpc_config, get_rest_config,
 };
-use crate::{flatten_join_handle, CloudOrchestrator, Orchestrator};
+#[cfg(feature = "cloud")]
+use crate::CloudOrchestrator;
+use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{grpc, rest, CacheEndpoint};
@@ -23,7 +27,9 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
+#[cfg(feature = "cloud")]
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
+#[cfg(feature = "cloud")]
 use dozer_types::grpc_types::cloud::{
     CreateAppRequest, GetStatusRequest, ListAppRequest, StartRequest,
 };
@@ -32,8 +38,10 @@ use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 
+#[cfg(feature = "cloud")]
 use crate::cli::types::Cloud;
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
+#[cfg(feature = "cloud")]
 use dozer_types::prettytable::{row, table};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -370,6 +378,7 @@ impl Orchestrator for SimpleOrchestrator {
     }
 }
 
+#[cfg(feature = "cloud")]
 impl CloudOrchestrator for SimpleOrchestrator {
     // TODO: Deploy Dozer application using local Dozer configuration
     fn deploy(&mut self, cloud: Cloud, config_path: String) -> Result<(), OrchestrationError> {
