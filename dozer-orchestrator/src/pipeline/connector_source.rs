@@ -147,9 +147,11 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             };
         }
 
-        use std::println as info;
-        info!("Source: Initializing input schema: {table_name}");
-        schema.print().printstd();
+        info!(
+            "Source: Initializing input schema: {}\n{}",
+            table_name,
+            schema.print()
+        );
 
         Ok((schema, SchemaSQLContext::default()))
     }

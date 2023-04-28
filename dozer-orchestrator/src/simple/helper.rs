@@ -27,7 +27,6 @@ pub fn validate_endpoints(endpoints: &[ApiEndpoint]) -> Result<(), Orchestration
 }
 
 fn print_api_config(api_config: &ApiConfig) {
-    info!("[API] {}", get_colored_text("Configuration", "35"));
     let mut table_parent = Table::new();
 
     table_parent.add_row(row!["Type", "IP", "Port"]);
@@ -38,18 +37,23 @@ fn print_api_config(api_config: &ApiConfig) {
     if let Some(grpc_config) = &api_config.grpc {
         table_parent.add_row(row!["GRPC", grpc_config.host, grpc_config.port]);
     }
-
-    table_parent.printstd();
+    info!(
+        "[API] {}\n{}",
+        get_colored_text("Configuration", "35"),
+        table_parent
+    );
 }
 
 pub fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
-    info!("[API] {}", get_colored_text("Endpoints", "35"));
     let mut table_parent = Table::new();
 
     table_parent.add_row(row!["Path", "Name"]);
     for endpoint in endpoints {
         table_parent.add_row(row![endpoint.path, endpoint.name]);
     }
-
-    table_parent.printstd();
+    info!(
+        "[API] {}\n{}",
+        get_colored_text("Endpoints", "35"),
+        table_parent
+    );
 }
