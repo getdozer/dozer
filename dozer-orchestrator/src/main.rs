@@ -11,7 +11,6 @@ use dozer_orchestrator::CloudOrchestrator;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
-use futures::executor;
 use serde::Deserialize;
 
 use std::process;
@@ -35,8 +34,10 @@ fn render_logo() {
 
 #[derive(Deserialize, Debug)]
 struct DozerPackage {
-    pub latestVersion: String,
-    pub availableAssets: Vec<String>,
+    #[serde(rename(deserialize = "latestVersion"))]
+    pub latest_version: String,
+    #[serde(rename(deserialize = "availableAssets"))]
+    pub _available_assets: Vec<String>,
     pub link: String,
 }
 
@@ -58,7 +59,7 @@ async fn check_update() {
             info!("A new version is available.");
             info!(
                 "You can download Dozer v{}, from {}.",
-                package.latestVersion, package.link
+                package.latest_version, package.link
             );
         }
         Err(e) => {
