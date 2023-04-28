@@ -14,7 +14,7 @@ use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
-use dozer_cache::dozer_log::schemas::write_schemas;
+use dozer_cache::dozer_log::schemas::write_schema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 
@@ -190,7 +190,7 @@ impl Orchestrator for SimpleOrchestrator {
             &self.config.endpoints,
             shutdown.get_running_flag(),
             self.multi_pb.clone(),
-        );
+        )?;
         let settings = LogSinkSettings {
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
@@ -250,35 +250,37 @@ impl Orchestrator for SimpleOrchestrator {
             "Initiating app: {}",
             get_colored_text(&self.config.app_name, "35")
         );
-        if home_dir.exists() {
-            if force {
-                self.clean()?;
-            } else {
-                return Err(OrchestrationError::InitializationFailed(
-                    self.config.home_dir.to_string(),
-                ));
-            }
+        if force {
+            self.clean()?;
         }
         validate_config(&self.config)?;
 
+        // Always create new migration for now.
+        let mut endpoint_and_migration_paths = vec![];
+        for endpoint in &self.config.endpoints {
+            let migration_path =
+                home_dir
+                    .create_new_migration(&endpoint.name)
+                    .map_err(|(path, error)| {
+                        OrchestrationError::FailedToCreateMigration(path, error)
+                    })?;
+            endpoint_and_migration_paths.push((endpoint, migration_path));
+        }
+
+        // Calculate schemas.
+        let endpoint_and_log_paths = endpoint_and_migration_paths
+            .iter()
+            .map(|(endpoint, migration_path)| {
+                ((*endpoint).clone(), migration_path.log_path.clone())
+            })
+            .collect();
         let builder = PipelineBuilder::new(
-            &home_dir,
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
-            &self.config.endpoints,
+            endpoint_and_log_paths,
             self.multi_pb.clone(),
         );
-
-        home_dir
-            .create_dir_all(
-                self.config
-                    .endpoints
-                    .iter()
-                    .map(|endpoint| endpoint.name.as_str()),
-            )
-            .map_err(|(path, error)| OrchestrationError::FailedToCreateDir(path, error))?;
-
         let settings = LogSinkSettings {
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
@@ -287,20 +289,22 @@ impl Orchestrator for SimpleOrchestrator {
         let dag_schemas = DagSchemas::new(dag)?;
 
         // Write schemas to pipeline_dir and generate proto files.
-        let schemas = write_schemas(
-            dag_schemas.get_sink_schemas(),
-            &home_dir,
-            &self.config.endpoints,
-        )
-        .map_err(OrchestrationError::FailedToWriteSchema)?;
+        let schemas = dag_schemas.get_sink_schemas();
         let api_config = self.config.api.clone().unwrap_or_default();
         for (endpoint_name, schema) in &schemas {
-            let endpoint_api_dir = home_dir.get_endpoint_api_dir(endpoint_name);
+            let (endpoint, migration_path) = endpoint_and_migration_paths
+                .iter()
+                .find(|e| e.0.name == *endpoint_name)
+                .expect("Sink name must be the same as endpoint name");
 
+            let schema = write_schema(schema, endpoint, &migration_path.schema_path)
+                .map_err(OrchestrationError::FailedToWriteSchema)?;
+
+            let proto_folder_path = &migration_path.api_dir;
             ProtoGenerator::generate(
-                &endpoint_api_dir,
+                proto_folder_path,
                 endpoint_name,
-                schema,
+                &schema,
                 &api_config.api_security,
                 &self.config.flags,
             )?;
@@ -308,16 +312,19 @@ impl Orchestrator for SimpleOrchestrator {
             let mut resources = Vec::new();
             resources.push(endpoint_name);
 
-            let common_resources = ProtoGenerator::copy_common(&endpoint_api_dir)
+            let common_resources = ProtoGenerator::copy_common(proto_folder_path)
                 .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
             // Copy common service to be included in descriptor.
             resources.extend(common_resources.iter());
 
             // Generate a descriptor based on all proto files generated within sink.
-            let descriptor_path = home_dir.get_endpoint_descriptor_path(endpoint_name);
-            ProtoGenerator::generate_descriptor(&endpoint_api_dir, &descriptor_path, &resources)
-                .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+            ProtoGenerator::generate_descriptor(
+                proto_folder_path,
+                &migration_path.descriptor_path,
+                &resources,
+            )
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         }
 
         Ok(())
@@ -343,23 +350,12 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         let shutdown_api = shutdown.clone();
-        // TODO: remove this after checkpointing
-        self.clean()?;
 
         let mut dozer_api = self.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        if let Err(e) = self.migrate(false) {
-            if let OrchestrationError::InitializationFailed(_) = e {
-                warn!(
-                    "{} is already present. Skipping initialisation..",
-                    self.config.home_dir.to_owned()
-                )
-            } else {
-                return Err(e);
-            }
-        }
+        self.migrate(false)?;
 
         let mut dozer_pipeline = self.clone();
         let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx)));

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -42,28 +42,26 @@ pub struct CalculatedSources {
     pub query_context: Option<QueryContext>,
 }
 pub struct PipelineBuilder<'a> {
-    home_dir: &'a HomeDir,
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    api_endpoints: &'a [ApiEndpoint],
+    /// `ApiEndpoint` and its log path.
+    endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
     progress: MultiProgress,
 }
 impl<'a> PipelineBuilder<'a> {
     pub fn new(
-        home_dir: &'a HomeDir,
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        api_endpoints: &'a [ApiEndpoint],
+        endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
         progress: MultiProgress,
     ) -> Self {
         Self {
-            home_dir,
             connections,
             sources,
             sql,
-            api_endpoints,
+            endpoint_and_log_paths,
             progress,
         }
     }
@@ -165,7 +163,7 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         // Add Used Souces if direct from source
-        for api_endpoint in self.api_endpoints {
+        for (api_endpoint, _) in &self.endpoint_and_log_paths {
             let table_name = &api_endpoint.table_name;
 
             // Don't add if the table is a result of SQL
@@ -185,7 +183,7 @@ impl<'a> PipelineBuilder<'a> {
 
     // This function is used by both migrate and actual execution
     pub fn build(
-        &self,
+        self,
         runtime: Arc<Runtime>,
         settings: LogSinkSettings,
         notifier: Option<PipelineEventSenders>,
@@ -233,7 +231,7 @@ impl<'a> PipelineBuilder<'a> {
 
         let conn_ports = source_builder.get_ports();
 
-        for api_endpoint in self.api_endpoints {
+        for (api_endpoint, log_path) in self.endpoint_and_log_paths {
             let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
@@ -241,7 +239,7 @@ impl<'a> PipelineBuilder<'a> {
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
             let snk_factory = Arc::new(LogSinkFactory::new(
-                self.home_dir.get_endpoint_log_path(&api_endpoint.name),
+                log_path,
                 settings.clone(),
                 api_endpoint.name.clone(),
                 self.progress.clone(),

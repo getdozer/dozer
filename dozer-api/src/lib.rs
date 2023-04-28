@@ -1,7 +1,7 @@
 use arc_swap::ArcSwap;
 use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
-    dozer_log::{home_dir::HomeDir, schemas::load_schema},
+    dozer_log::{errors::SchemaError, home_dir::HomeDir, schemas::load_schema},
     errors::CacheError,
     CacheReader,
 };
@@ -41,14 +41,19 @@ impl CacheEndpoint {
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<(Self, Option<impl FnOnce() -> Result<(), CacheError>>), ApiError> {
+        let migration_path = home_dir
+            .find_latest_migration_path(&endpoint.name)
+            .map_err(|(path, error)| SchemaError::Filesystem(path, error))?;
+        let migration_path =
+            migration_path.ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?;
+
         let (cache_reader, task) = if let Some(cache_reader) =
             open_cache_reader(cache_manager, &endpoint.name)?
         {
             (cache_reader, None)
         } else {
-            let schema = load_schema(home_dir, &endpoint.name)?;
+            let schema = load_schema(&migration_path.schema_path)?;
             let secondary_index_config = get_secondary_index_config(&endpoint);
-            let log_path = home_dir.get_endpoint_log_path(&endpoint.name);
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
             let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
             let write_options = CacheWriteOptions {
@@ -63,7 +68,7 @@ impl CacheEndpoint {
                 &secondary_index_config,
                 runtime,
                 cancel,
-                &log_path,
+                &migration_path.log_path,
                 write_options,
                 operations_sender,
                 multi_pb,
@@ -79,7 +84,7 @@ impl CacheEndpoint {
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
-                descriptor_path: home_dir.get_endpoint_descriptor_path(&endpoint.name),
+                descriptor_path: migration_path.descriptor_path,
                 endpoint,
             },
             task,
