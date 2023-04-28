@@ -10,6 +10,18 @@ use dozer_cache::cache::{CacheRecord, LmdbRwCacheManager, RwCacheManager};
 pub fn get_schema() -> SchemaWithIndex {
     let fields = vec![
         FieldDefinition {
+            name: "id".to_string(),
+            typ: FieldType::Int,
+            nullable: false,
+            source: SourceDefinition::Dynamic,
+        },
+        FieldDefinition {
+            name: "id128".to_string(),
+            typ: FieldType::I128,
+            nullable: false,
+            source: SourceDefinition::Dynamic,
+        },
+        FieldDefinition {
             name: "film_id".to_string(),
             typ: FieldType::UInt,
             nullable: false,
@@ -29,7 +41,7 @@ pub fn get_schema() -> SchemaWithIndex {
         },
         FieldDefinition {
             name: "release_year".to_string(),
-            typ: FieldType::UInt,
+            typ: FieldType::U128,
             nullable: true,
             source: SourceDefinition::Dynamic,
         },
@@ -78,10 +90,14 @@ fn get_films() -> Vec<Value> {
           "rental_rate": null,
           "release_year": 2006,
           "film_id": 268,
+          "id": 268,
+          "id128": 268,
           "updated_at": null
         }),
         json!({
           "film_id": 524,
+          "id": 524,
+          "id128": 524,
           "release_year": 2006,
           "rental_rate": null,
           "description": "A Intrepid Display of a Pastry Chef And a Cat who must Kill a A Shark in Ancient China",
@@ -92,6 +108,8 @@ fn get_films() -> Vec<Value> {
     for film_id in 1..=50 {
         result.push(json!({
             "film_id": film_id,
+            "id": film_id,
+            "id128": film_id,
             "description": format!("Film {film_id}"),
             "rental_rate": null,
             "release_year": 2006,
@@ -137,9 +155,11 @@ pub fn get_sample_records(schema: Schema) -> Vec<CacheRecord> {
                 schema.identifier,
                 vec![
                     Field::UInt(film_id),
+                    Field::Int(film_id as i64),
+                    Field::I128(film_id as i128),
                     Field::String(description.to_string()),
                     Field::Null,
-                    Field::UInt(release_year),
+                    Field::U128(release_year as u128),
                     Field::Null,
                 ],
             );
