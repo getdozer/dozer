@@ -593,8 +593,8 @@ impl ExpressionBuilder {
             DataType::Text => CastOperatorType::Text,
             DataType::String => CastOperatorType::String,
             DataType::Custom(name, ..) => {
-                if name.to_string().to_lowercase() == "bson" {
-                    CastOperatorType::Bson
+                if name.to_string().to_lowercase() == "json" {
+                    CastOperatorType::Json
                 } else if name.to_string().to_lowercase() == "uint" {
                     CastOperatorType::UInt
                 } else if name.to_string().to_lowercase() == "u128" {

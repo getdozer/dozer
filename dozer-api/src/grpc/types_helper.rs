@@ -3,6 +3,7 @@ use dozer_types::grpc_types::types::{
     value, DurationType, Operation, OperationType, PointType, Record, RecordWithId, RustDecimal,
     Type, Value,
 };
+use dozer_types::json_types::json_value_to_prost;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{DozerDuration, Field, FieldType, DATE_FORMAT};
@@ -125,8 +126,8 @@ fn field_to_prost_value(f: Field) -> Value {
                 nanos: ts.timestamp_subsec_nanos() as i32,
             })),
         },
-        Field::Bson(b) => Value {
-            value: Some(value::Value::BytesValue(b)),
+        Field::Json(b) => Value {
+            value: Some(value::Value::JsonValue(json_value_to_prost(b))),
         },
         Field::Null => Value { value: None },
         Field::Date(date) => Value {
@@ -165,7 +166,7 @@ fn field_type_to_internal_type(typ: FieldType) -> Type {
         FieldType::Binary => Type::Binary,
         FieldType::Decimal => Type::Decimal,
         FieldType::Timestamp => Type::Timestamp,
-        FieldType::Bson => Type::Bson,
+        FieldType::Json => Type::Json,
         FieldType::Date => Type::String,
         FieldType::Point => Type::Point,
         FieldType::Duration => Type::Duration,

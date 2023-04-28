@@ -32,7 +32,7 @@ pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         | FieldType::Date
         | FieldType::Timestamp
         | FieldType::Binary
-        | FieldType::Bson
+        | FieldType::Json
         | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Avg.to_string(),
@@ -215,7 +215,7 @@ fn get_average(
             | FieldType::Date
             | FieldType::Timestamp
             | FieldType::Binary
-            | FieldType::Bson
+            | FieldType::Json
             | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
                 "Not supported return type {typ} for {Avg}"
             )))),

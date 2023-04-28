@@ -7,7 +7,6 @@ use dozer_cache::cache::CacheRecord;
 use dozer_cache::CacheReader;
 use dozer_types::errors::types::TypeError;
 use dozer_types::indexmap::IndexMap;
-use dozer_types::json_types::field_to_json_value;
 use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{Field, Schema};
@@ -18,6 +17,7 @@ use crate::generator::oapi::generator::OpenApiGenerator;
 use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
+use dozer_types::json_types::field_to_json_value;
 use dozer_types::serde_json::{json, Value};
 
 fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {
@@ -168,7 +168,7 @@ fn record_to_map(
     let mut map = IndexMap::new();
 
     for (field_def, field) in schema.fields.iter().zip(record.record.values) {
-        let val = field_to_json_value(field);
+        let val = field_to_json_value(field).map_err(TypeError::DeserializationError)?;
         map.insert(field_def.name.clone(), val);
     }
 

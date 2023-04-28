@@ -163,7 +163,7 @@ fn generate_secondary_indexes(
             }
 
             // Skip creating indexes
-            FieldType::Text | FieldType::Binary | FieldType::Bson => (),
+            FieldType::Text | FieldType::Binary | FieldType::Json => (),
         }
     }
 

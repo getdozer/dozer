@@ -1,9 +1,7 @@
+use super::internal::BoxedError;
+use crate::types::FieldType;
 use geo::vincenty_distance::FailedToConvergeError;
 use thiserror::Error;
-
-use crate::types::FieldType;
-
-use super::internal::BoxedError;
 
 #[derive(Error, Debug)]
 pub enum TypeError {
@@ -59,4 +57,6 @@ pub enum DeserializationError {
     BadDateFormat(#[from] chrono::ParseError),
     #[error("utf8: {0}")]
     Utf8(#[from] std::str::Utf8Error),
+    #[error("Failed to convert type due to json numbers being out of the f64 range")]
+    F64TypeConversionError,
 }

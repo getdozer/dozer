@@ -175,7 +175,6 @@ pub fn map_arrow_to_dozer_type(dt: &DataType) -> Result<FieldType, FromArrowErro
         // DataType::Dictionary(_, _) => {}
         // DataType::Decimal128(_, _) => {}
         // DataType::Decimal256(_, _) => {}
-        // DataType::Map(_, _) => {}
         _ => Err(FieldTypeNotSupported(format!("{dt:?}"))),
     }
 }

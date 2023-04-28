@@ -26,7 +26,7 @@ pub fn validate_max(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
         | FieldType::String
         | FieldType::Text
         | FieldType::Binary
-        | FieldType::Bson
+        | FieldType::Json
         | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
                 Max.to_string(),
@@ -129,7 +129,7 @@ fn get_max(
                 | FieldType::String
                 | FieldType::Text
                 | FieldType::Binary
-                | FieldType::Bson
+                | FieldType::Json
                 | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(
                     format!("Not supported return type {typ} for {Max}"),
                 ))),

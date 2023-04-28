@@ -24,7 +24,7 @@ pub enum CastOperatorType {
     Decimal,
     Timestamp,
     Date,
-    Bson,
+    Json,
 }
 
 impl Display for CastOperatorType {
@@ -42,7 +42,7 @@ impl Display for CastOperatorType {
             CastOperatorType::Decimal => f.write_str("CAST AS DECIMAL"),
             CastOperatorType::Timestamp => f.write_str("CAST AS TIMESTAMP"),
             CastOperatorType::Date => f.write_str("CAST AS DATE"),
-            CastOperatorType::Bson => f.write_str("CAST AS BSON"),
+            CastOperatorType::Json => f.write_str("CAST AS JSON"),
         }
     }
 }
@@ -176,13 +176,13 @@ impl CastOperatorType {
                     })
                 }
             }
-            CastOperatorType::Bson => {
-                if let Some(value) = field.to_bson() {
-                    Ok(Field::Bson(value.to_vec()))
+            CastOperatorType::Json => {
+                if let Some(value) = field.to_json() {
+                    Ok(Field::Json(value.to_owned()))
                 } else {
                     Err(PipelineError::InvalidCast {
                         from: field,
-                        to: FieldType::Bson,
+                        to: FieldType::Json,
                     })
                 }
             }
@@ -311,7 +311,7 @@ impl CastOperatorType {
                 FieldType::Timestamp,
             ),
             CastOperatorType::Date => (vec![FieldType::Date, FieldType::String], FieldType::Date),
-            CastOperatorType::Bson => (vec![FieldType::Bson], FieldType::Bson),
+            CastOperatorType::Json => (vec![FieldType::Json], FieldType::Json),
         };
 
         let expression_type = validate_arg_type(arg, expected_input_type, schema, self, 0)?;

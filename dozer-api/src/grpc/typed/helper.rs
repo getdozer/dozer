@@ -114,6 +114,7 @@ fn interval_value_to_pb(
         }
         GrpcTypes::value::Value::TimestampValue(ts) => Value::Message(ts.transcode_to_dynamic()),
         GrpcTypes::value::Value::DateValue(d) => Value::String(d),
+        GrpcTypes::value::Value::JsonValue(v) => Value::Message(v.transcode_to_dynamic()),
     })
 }
 

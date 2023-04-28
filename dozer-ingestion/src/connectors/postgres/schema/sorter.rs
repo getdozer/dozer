@@ -21,7 +21,7 @@ pub fn sort_schemas(
         let postgres_table = mapped_tables.get(&table_identifier).ok_or(ColumnNotFound)?;
 
         let sorted_table = table.columns.as_ref().map_or_else(
-            || Ok(postgres_table.clone()),
+            || Ok::<PostgresTable, PostgresSchemaError>(postgres_table.clone()),
             |expected_order| {
                 if expected_order.is_empty() {
                     Ok(postgres_table.clone())

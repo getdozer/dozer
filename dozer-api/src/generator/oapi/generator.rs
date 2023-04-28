@@ -37,11 +37,17 @@ impl<'a> OpenApiGenerator<'a> {
                     FieldType::Float => Value::from(1.1),
                     FieldType::Boolean => Value::from(true),
                     FieldType::String => Value::from("foo".to_string()),
-                    FieldType::Binary
-                    | FieldType::Decimal
-                    | FieldType::Timestamp
-                    | FieldType::Bson => Value::Null,
-
+                    FieldType::Binary | FieldType::Decimal | FieldType::Timestamp => Value::Null,
+                    FieldType::Json => {
+                        json!([{
+                            "name": "John Doe",
+                            "age": 43,
+                            "phones": [
+                                "+44 1234567",
+                                "+44 2345678"
+                            ]
+                        }])
+                    }
                     FieldType::Text => Value::from("lorem ipsum".to_string()),
                     FieldType::Date => Value::from("2022-11-24"),
                     FieldType::Point => {

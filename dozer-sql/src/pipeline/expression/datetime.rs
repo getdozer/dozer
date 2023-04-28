@@ -137,7 +137,7 @@ pub(crate) fn evaluate_date_part(
         | Field::Text(_)
         | Field::Binary(_)
         | Field::Decimal(_)
-        | Field::Bson(_)
+        | Field::Json(_)
         | Field::Point(_)
         | Field::Duration(_)
         | Field::Null => {

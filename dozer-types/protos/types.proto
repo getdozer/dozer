@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
 
 package dozer.types;
 
@@ -63,7 +64,7 @@ enum Type {
   Decimal = 9;    // Decimal number.
   Timestamp = 10; // ISO 8601 combined date and time with time zone.
   Date = 11;      // ISO 8601 calendar date without timezone.
-  Bson = 12;      // BSON data.
+  Json = 12;      // JSON data.
   Point = 13;     // Geo Point type.
   Duration = 14;  // Duration type.
 }
@@ -119,8 +120,9 @@ message Value {
     bytes bytes_value = 8;      // Binary data.
     RustDecimal decimal_value = 9;                  // Decimal value.
     google.protobuf.Timestamp timestamp_value = 10; // DateTime & Timestamp.
-    string date_value = 11;             // ISO 8601 calendar date without timezone.
-    PointType point_value = 12;         // Point type.
-    DurationType duration_value = 13;   // Duration type.
+    string date_value = 11;                 // ISO 8601 calendar date without timezone.
+    PointType point_value = 12;             // Point type.
+    DurationType duration_value = 13;       // Duration type.
+    google.protobuf.Value json_value = 14;  // JSON type.
   };
 }

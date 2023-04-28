@@ -305,7 +305,7 @@ fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk:
             FieldType::Decimal => assert!(value.as_decimal().is_some()),
             FieldType::Timestamp => assert!(value.as_timestamp().is_some()),
             FieldType::Date => assert!(value.as_date().is_some()),
-            FieldType::Bson => assert!(value.as_bson().is_some()),
+            FieldType::Json => assert!(value.as_json().is_some()),
             FieldType::Point => assert!(value.as_point().is_some()),
             FieldType::Duration => assert!(value.as_duration().is_some()),
         }

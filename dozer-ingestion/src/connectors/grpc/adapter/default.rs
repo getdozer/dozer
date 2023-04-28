@@ -7,7 +7,7 @@ use dozer_types::{
     chrono,
     ingestion_types::IngestionMessage,
     ordered_float::OrderedFloat,
-    types::{Operation, Record, Schema},
+    types::{Field, Operation, Record, Schema},
 };
 
 use std::collections::HashMap;
@@ -16,6 +16,7 @@ use crate::ingestion::Ingestor;
 
 use dozer_types::grpc_types;
 use dozer_types::grpc_types::ingest::IngestRequest;
+use dozer_types::json_types::prost_to_json_value;
 
 #[derive(Debug)]
 pub struct DefaultAdapter {
@@ -95,7 +96,7 @@ pub fn handle_message(
 }
 
 fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record, ConnectorError> {
-    let mut values = vec![];
+    let mut values: Vec<Field> = vec![];
     let values_count = rec.values.len();
     let schema_fields_count = schema.fields.len();
     if values_count != schema_fields_count {
@@ -104,46 +105,46 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
         ));
     }
 
-    for (idx, v) in rec.values.iter().enumerate() {
+    for (idx, v) in rec.values.into_iter().enumerate() {
         let typ = schema.fields[idx].typ;
 
-        let v = v.value.as_ref().map(|v| match (v, typ) {
+        let val = v.value.map(|value| match (value, typ) {
             (
                 grpc_types::types::value::Value::UintValue(a),
                 dozer_types::types::FieldType::UInt,
-            ) => Ok(dozer_types::types::Field::UInt(*a)),
+            ) => Ok(dozer_types::types::Field::UInt(a)),
 
             (grpc_types::types::value::Value::IntValue(a), dozer_types::types::FieldType::Int) => {
-                Ok(dozer_types::types::Field::Int(*a))
+                Ok(dozer_types::types::Field::Int(a))
             }
 
             (
                 grpc_types::types::value::Value::FloatValue(a),
                 dozer_types::types::FieldType::Float,
-            ) => Ok(dozer_types::types::Field::Float(OrderedFloat(*a))),
+            ) => Ok(dozer_types::types::Field::Float(OrderedFloat(a))),
 
             (
                 grpc_types::types::value::Value::BoolValue(a),
                 dozer_types::types::FieldType::Boolean,
-            ) => Ok(dozer_types::types::Field::Boolean(*a)),
+            ) => Ok(dozer_types::types::Field::Boolean(a)),
 
             (
                 grpc_types::types::value::Value::StringValue(a),
                 dozer_types::types::FieldType::String,
-            ) => Ok(dozer_types::types::Field::String(a.clone())),
+            ) => Ok(dozer_types::types::Field::String(a)),
 
             (
                 grpc_types::types::value::Value::BytesValue(a),
                 dozer_types::types::FieldType::Binary,
-            ) => Ok(dozer_types::types::Field::Binary(a.clone())),
+            ) => Ok(dozer_types::types::Field::Binary(a)),
             (
                 grpc_types::types::value::Value::StringValue(a),
                 dozer_types::types::FieldType::Text,
-            ) => Ok(dozer_types::types::Field::Text(a.clone())),
+            ) => Ok(dozer_types::types::Field::Text(a)),
             (
-                grpc_types::types::value::Value::BytesValue(a),
-                dozer_types::types::FieldType::Bson,
-            ) => Ok(dozer_types::types::Field::Bson(a.clone())),
+                grpc_types::types::value::Value::JsonValue(a),
+                dozer_types::types::FieldType::Json,
+            ) => Ok(dozer_types::types::Field::Json(prost_to_json_value(a))),
             (
                 grpc_types::types::value::Value::TimestampValue(a),
                 dozer_types::types::FieldType::Timestamp,
@@ -176,7 +177,7 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
                 "data is not valid at index: {idx}, Type: {a:?}, Expected Type: {b}"
             ))),
         });
-        values.push(v.unwrap_or(Ok(dozer_types::types::Field::Null))?);
+        values.push(val.unwrap_or(Ok(dozer_types::types::Field::Null))?);
     }
     Ok(Record {
         schema_id: schema.identifier,
