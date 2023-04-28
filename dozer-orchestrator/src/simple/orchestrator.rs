@@ -24,7 +24,9 @@ use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
-use dozer_types::grpc_types::cloud::{CreateAppRequest, StartRequest};
+use dozer_types::grpc_types::cloud::{
+    CreateAppRequest, GetStatusRequest, ListAppRequest, StartRequest,
+};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::{info, warn};
 use dozer_types::models::app_config::Config;
@@ -32,6 +34,7 @@ use dozer_types::tracing::error;
 
 use crate::cli::types::Cloud;
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
+use dozer_types::prettytable::{row, table};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -400,22 +403,97 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 })
                 .await?
                 .into_inner();
-            info!("Application created with id: {:?}", response.id);
+
+            info!("Application created with id: {:?}", &response.id);
             // 2. START application
             info!("Deploying application");
-            client.start_dozer(StartRequest { id: response.id }).await?;
-            info!("Deployed");
+            let deploy_result = client
+                .start_dozer(StartRequest {
+                    id: response.id.clone(),
+                })
+                .await?
+                .into_inner();
+            info!("Deployed {}", &response.id);
+            match deploy_result.api_endpoint {
+                None => {}
+                Some(endpoint) => info!("Endpoint: http://{endpoint}"),
+            }
+
             Ok::<(), DeployError>(())
         })?;
         Ok(())
     }
 
-    fn list(&mut self, _cloud: Cloud) -> Result<(), OrchestrationError> {
-        todo!()
+    fn list(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+        let target_url = cloud.target_url;
+
+        self.runtime.block_on(async move {
+            // 1. CREATE application
+            let mut client: DozerCloudClient<tonic::transport::Channel> =
+                DozerCloudClient::connect(target_url).await?;
+            let response = client
+                .list_applications(ListAppRequest {
+                    limit: None,
+                    offset: None,
+                })
+                .await?
+                .into_inner();
+
+            let mut table = table!();
+
+            for app in response.apps {
+                table.add_row(row![app.id, app.app.unwrap().convert_to_table()]);
+            }
+
+            table.printstd();
+
+            Ok::<(), DeployError>(())
+        })?;
+
+        Ok(())
     }
 
-    fn status(&mut self, _cloud: Cloud) -> Result<(), OrchestrationError> {
-        todo!()
+    fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+        let target_url = cloud.target_url;
+
+        self.runtime.block_on(async move {
+            // 1. CREATE application
+            let mut client: DozerCloudClient<tonic::transport::Channel> =
+                DozerCloudClient::connect(target_url).await?;
+            let response = client
+                .get_status(GetStatusRequest { id: app_id })
+                .await?
+                .into_inner();
+
+            let mut table = table!();
+
+            table.add_row(row!["State", response.state]);
+            match response.api_endpoint {
+                None => {}
+                Some(endpoint) => {
+                    table.add_row(row!["API endpoint", format!("http://{}", endpoint)]);
+                }
+            }
+
+            match response.rest_port {
+                None => {}
+                Some(port) => {
+                    table.add_row(row!["REST Port", port.to_string()]);
+                }
+            }
+
+            match response.grpc_port {
+                None => {}
+                Some(port) => {
+                    table.add_row(row!["GRPC Port", port]);
+                }
+            }
+
+            table.printstd();
+            Ok::<(), DeployError>(())
+        })?;
+
+        Ok(())
     }
 }
 
