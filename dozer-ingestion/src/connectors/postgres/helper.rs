@@ -94,20 +94,13 @@ pub fn postgres_type_to_field(
                             column_type.name()
                         ))
                     })?;
-                    let json: JsonValue = JsonValue::Array(
-                        val.into_iter()
-                            .map(|v| {
-                                serde_json_to_json_value(v)
-                                    .map_err(|e| {
-                                        PostgresSchemaError::TypeError(
-                                            TypeError::DeserializationError(e),
-                                        )
-                                    })
-                                    .unwrap()
-                            })
-                            .collect(),
-                    );
-                    Ok(Field::Json(json))
+                    let mut lst = vec![];
+                    for v in val {
+                        lst.push(serde_json_to_json_value(v).map_err(|e| {
+                            PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                        })?);
+                    }
+                    Ok(Field::Json(JsonValue::Array(lst)))
                 }
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
                 Type::POINT => Ok(Field::Point(
@@ -184,31 +177,21 @@ pub fn value_to_field(
         &Type::JSONB | &Type::JSON => {
             let value: Result<serde_json::Value, _> = row.try_get(idx);
             value.map_or_else(handle_error, |val| {
-                Ok(Field::Json(
-                    serde_json_to_json_value(val)
-                        .map_err(|e| {
-                            PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
-                        })
-                        .unwrap(),
-                ))
+                Ok(Field::Json(serde_json_to_json_value(val).map_err(|e| {
+                    PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                })?))
             })
         }
         &Type::JSONB_ARRAY | &Type::JSON_ARRAY => {
             let value: Result<Vec<serde_json::Value>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |val| {
-                Ok(Field::Json(JsonValue::Array(
-                    val.into_iter()
-                        .map(|v| {
-                            serde_json_to_json_value(v)
-                                .map_err(|e| {
-                                    PostgresSchemaError::TypeError(TypeError::DeserializationError(
-                                        e,
-                                    ))
-                                })
-                                .unwrap()
-                        })
-                        .collect(),
-                )))
+                let mut lst = vec![];
+                for v in val {
+                    lst.push(serde_json_to_json_value(v).map_err(|e| {
+                        PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                    })?);
+                }
+                Ok(Field::Json(JsonValue::Array(lst)))
             })
         }
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),

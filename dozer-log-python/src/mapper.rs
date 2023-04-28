@@ -92,11 +92,13 @@ fn map_json_py(val: JsonValue, py: Python) -> PyResult<Py<PyAny>> {
         JsonValue::Bool(b) => Ok(b.to_object(py)),
         JsonValue::Number(n) => Ok(n.to_object(py)),
         JsonValue::String(s) => Ok(s.to_object(py)),
-        JsonValue::Array(a) => Ok(PyList::new(
-            py,
-            a.into_iter().map(|val| map_json_py(val, py).unwrap()),
-        )
-        .to_object(py)),
+        JsonValue::Array(a) => {
+            let lst: &PyList = PyList::empty(py);
+            for val in a {
+                lst.append(map_json_py(val, py)?)?;
+            }
+            Ok(lst.to_object(py))
+        }
         JsonValue::Object(o) => {
             let obj = PyDict::new(py);
             for (key, val) in o {

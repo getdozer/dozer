@@ -197,7 +197,7 @@ mod tests {
                 },
             )
             .unwrap_err();
-            assert_eq!(actual_error.to_string(), $d.to_string());
+            assert_eq!(actual_error, $d);
         };
     }
     #[test]

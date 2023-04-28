@@ -66,24 +66,26 @@ fn convert_duration_to_object(d: &DozerDuration) -> Value {
 }
 
 /// Should be consistent with `convert_cache_type_to_schema_type`.
-pub fn field_to_json_value(field: Field) -> Value {
+pub fn field_to_json_value(field: Field) -> Result<Value, DeserializationError> {
     match field {
-        Field::UInt(n) => Value::from(n),
-        Field::U128(n) => Value::String(n.to_string()),
-        Field::Int(n) => Value::from(n),
-        Field::I128(n) => Value::String(n.to_string()),
-        Field::Float(n) => Value::from(n.0),
-        Field::Boolean(b) => Value::from(b),
-        Field::String(s) => Value::from(s),
-        Field::Text(n) => Value::from(n),
-        Field::Binary(b) => Value::from(b),
-        Field::Decimal(n) => Value::String(n.to_string()),
-        Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
-        Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
-        Field::Json(b) => json_value_to_serde_json(b).unwrap(),
-        Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
-        Field::Duration(d) => convert_duration_to_object(&d),
-        Field::Null => Value::Null,
+        Field::UInt(n) => Ok(Value::from(n)),
+        Field::U128(n) => Ok(Value::String(n.to_string())),
+        Field::Int(n) => Ok(Value::from(n)),
+        Field::I128(n) => Ok(Value::String(n.to_string())),
+        Field::Float(n) => Ok(Value::from(n.0)),
+        Field::Boolean(b) => Ok(Value::from(b)),
+        Field::String(s) => Ok(Value::from(s)),
+        Field::Text(n) => Ok(Value::from(n)),
+        Field::Binary(b) => Ok(Value::from(b)),
+        Field::Decimal(n) => Ok(Value::String(n.to_string())),
+        Field::Timestamp(ts) => Ok(Value::String(
+            ts.to_rfc3339_opts(SecondsFormat::Millis, true),
+        )),
+        Field::Date(n) => Ok(Value::String(n.format(DATE_FORMAT).to_string())),
+        Field::Json(b) => json_value_to_serde_json(b),
+        Field::Point(point) => Ok(convert_x_y_to_object(&point.0.x_y())),
+        Field::Duration(d) => Ok(convert_duration_to_object(&d)),
+        Field::Null => Ok(Value::Null),
     }
 }
 
@@ -99,15 +101,17 @@ pub fn json_value_to_serde_json(value: JsonValue) -> Result<Value, Deserializati
             }
         }
         JsonValue::String(s) => Ok(Value::String(s)),
-        JsonValue::Array(a) => Ok(Value::Array(
-            a.into_iter()
-                .map(|val| json_value_to_serde_json(val).unwrap())
-                .collect(),
-        )),
+        JsonValue::Array(a) => {
+            let mut lst: Vec<Value> = vec![];
+            for val in a {
+                lst.push(json_value_to_serde_json(val)?);
+            }
+            Ok(Value::Array(lst))
+        }
         JsonValue::Object(o) => {
             let mut values: Map<String, Value> = Map::new();
             for (key, val) in o {
-                values.insert(key, json_value_to_serde_json(val).unwrap());
+                values.insert(key, json_value_to_serde_json(val)?);
             }
             Ok(Value::Object(values))
         }
@@ -170,15 +174,13 @@ pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, Deserializati
             None => return Err(DeserializationError::F64TypeConversionError),
         }))),
         Value::String(s) => Ok(JsonValue::String(s)),
-        Value::Array(a) => Ok(JsonValue::Array(
-            a.into_iter()
-                .map(|val| {
-                    serde_json_to_json_value(val)
-                        .map_err(|_| DeserializationError::F64TypeConversionError)
-                        .unwrap()
-                })
-                .collect(),
-        )),
+        Value::Array(a) => {
+            let mut lst = vec![];
+            for val in a {
+                lst.push(serde_json_to_json_value(val)?);
+            }
+            Ok(JsonValue::Array(lst))
+        }
         Value::Object(o) => {
             let mut values: BTreeMap<String, JsonValue> = BTreeMap::<String, JsonValue>::new();
             for (key, val) in o {
@@ -208,7 +210,7 @@ mod tests {
         let value = field_to_json_value(field.clone());
 
         // Convert the JSON value back to a Field.
-        let deserialized = json_value_to_field(value, field_type, true).unwrap();
+        let deserialized = json_value_to_field(value.unwrap(), field_type, true).unwrap();
 
         assert_eq!(deserialized, field, "must be equal");
     }
