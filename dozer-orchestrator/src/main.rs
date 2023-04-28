@@ -48,17 +48,24 @@ async fn check_update() {
 
     info!("Checking for updates...");
     let request_url = format!(
-        "https://metadata.dev.getdozer.io?version={}&build={}&os={}",
+        "https://metadata.dev.getdozer.io/?version={}&build={}&os={}",
         VERSION, ARCH, OS
     );
-    println!("{}", request_url);
-    let response = reqwest::get(&request_url).await.unwrap();
-    let package: DozerPackage = response.json().await.unwrap();
-    println!("A new version is available.");
-    println!(
-        "You can download Dozer v{}, from {}.",
-        package.latestVersion, package.link
-    );
+    info!("{}", request_url);
+    let response = reqwest::get(&request_url).await;
+    match response {
+        Ok(r) => {
+            let package: DozerPackage = r.json().await.unwrap();
+            info!("A new version is available.");
+            info!(
+                "You can download Dozer v{}, from {}.",
+                package.latestVersion, package.link
+            );
+        }
+        Err(e) => {
+            info!("Failed to check for updates: {}", e);
+        }
+    }
 }
 
 fn run() -> Result<(), OrchestrationError> {
