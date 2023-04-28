@@ -118,7 +118,7 @@ fn convert_value(
                 "io.debezium.time.MicroTime" => Ok(Field::Null),
                 "io.debezium.data.Json" => value.as_str().map_or(Ok(Field::Null), |s| {
                     Ok(Field::Json(
-                        JsonValue::from_str(s).map_err(|_| InvalidJsonError)?,
+                        JsonValue::from_str(s).map_err(InvalidJsonError)?,
                     ))
                 }),
                 // | "io.debezium.time.MicroTime" | "org.apache.kafka.connect.data.Time" => Ok(FieldType::Timestamp),
@@ -197,7 +197,7 @@ mod tests {
                 },
             )
             .unwrap_err();
-            assert_eq!(actual_error, $d);
+            assert_eq!(actual_error.to_string(), $d.to_string());
         };
     }
     #[test]
