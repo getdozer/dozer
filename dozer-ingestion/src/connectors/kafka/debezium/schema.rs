@@ -108,7 +108,6 @@ mod tests {
     use dozer_types::types::{
         FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition,
     };
-    use std::any::Any;
 
     #[test]
     fn test_it_fails_when_schema_empty() {
