@@ -1,7 +1,7 @@
 use clap::Parser;
-use dozer_orchestrator::cli::generate_config_repl;
 #[cfg(feature = "cloud")]
-use dozer_orchestrator::cli::types::CloudCommands;
+use dozer_orchestrator::cli::cloud::CloudCommands;
+use dozer_orchestrator::cli::generate_config_repl;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::cli::{init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::{CliError, OrchestrationError};
