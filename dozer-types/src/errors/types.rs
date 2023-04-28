@@ -1,9 +1,7 @@
+use super::internal::BoxedError;
+use crate::types::FieldType;
 use geo::vincenty_distance::FailedToConvergeError;
 use thiserror::Error;
-
-use crate::types::FieldType;
-
-use super::internal::BoxedError;
 
 #[derive(Error, Debug)]
 pub enum TypeError {

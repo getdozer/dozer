@@ -108,6 +108,7 @@ mod tests {
     use dozer_types::types::{
         FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition,
     };
+    use std::any::Any;
 
     #[test]
     fn test_it_fails_when_schema_empty() {
@@ -132,7 +133,7 @@ mod tests {
         };
 
         let actual_error = map_schema(&schema, &key_schema).unwrap_err();
-        assert_eq!(actual_error, SchemaDefinitionNotFound);
+        assert_eq!(actual_error.type_id(), SchemaDefinitionNotFound.type_id());
     }
 
     #[test]

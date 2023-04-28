@@ -80,26 +80,36 @@ pub fn field_to_json_value(field: Field) -> Value {
         Field::Decimal(n) => Value::String(n.to_string()),
         Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
-        Field::Json(b) => json_value_to_serde_json(b),
+        Field::Json(b) => json_value_to_serde_json(b).unwrap(),
         Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
         Field::Duration(d) => convert_duration_to_object(&d),
         Field::Null => Value::Null,
     }
 }
 
-pub fn json_value_to_serde_json(value: JsonValue) -> Value {
+pub fn json_value_to_serde_json(value: JsonValue) -> Result<Value, DeserializationError> {
     match value {
-        JsonValue::Null => Value::Null,
-        JsonValue::Bool(b) => Value::Bool(b),
-        JsonValue::Number(n) => json!(*n),
-        JsonValue::String(s) => Value::String(s),
-        JsonValue::Array(a) => Value::Array(a.into_iter().map(json_value_to_serde_json).collect()),
+        JsonValue::Null => Ok(Value::Null),
+        JsonValue::Bool(b) => Ok(Value::Bool(b)),
+        JsonValue::Number(n) => {
+            if n.0.is_finite() {
+                Ok(json!(n.0))
+            } else {
+                Err(DeserializationError::F64TypeConversionError)
+            }
+        }
+        JsonValue::String(s) => Ok(Value::String(s)),
+        JsonValue::Array(a) => Ok(Value::Array(
+            a.into_iter()
+                .map(|val| json_value_to_serde_json(val).unwrap())
+                .collect(),
+        )),
         JsonValue::Object(o) => {
             let mut values: Map<String, Value> = Map::new();
             for (key, val) in o {
-                values.insert(key, json_value_to_serde_json(val));
+                values.insert(key, json_value_to_serde_json(val).unwrap());
             }
-            Value::Object(values)
+            Ok(Value::Object(values))
         }
     }
 }

@@ -1,7 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
+use dozer_types::errors::types::{SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
@@ -351,7 +351,7 @@ pub enum DebeziumStreamError {
     PollingError(#[source] kafka::Error),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum DebeziumSchemaError {
     #[error("Schema definition not found")]
     SchemaDefinitionNotFound,
@@ -378,13 +378,15 @@ pub enum DebeziumSchemaError {
     InvalidDateError,
 
     #[error("Invalid json: {0}")]
-    InvalidJsonError(#[source] DeserializationError),
+    InvalidJsonError(String),
 
     // #[error("Invalid time")]
     // InvalidTimeError,
     #[error("Invalid timestamp")]
     InvalidTimestampError,
 }
+
+impl Eq for DebeziumSchemaError {}
 
 #[derive(Error, Debug)]
 pub enum ObjectStoreConnectorError {
