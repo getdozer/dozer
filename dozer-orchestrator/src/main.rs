@@ -11,8 +11,12 @@ use dozer_orchestrator::CloudOrchestrator;
 use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
+use serde::Deserialize;
+use tokio::time;
 
+use std::cmp::Ordering;
 use std::process;
+use std::time::Duration;
 
 fn main() {
     set_panic_hook();
@@ -29,6 +33,76 @@ fn render_logo() {
 
     info!("{LOGO}");
     info!("\nDozer Version: {VERSION}\n");
+}
+
+#[derive(Deserialize, Debug)]
+struct DozerPackage {
+    #[serde(rename(deserialize = "latestVersion"))]
+    pub latest_version: String,
+    #[serde(rename(deserialize = "availableAssets"))]
+    pub _available_assets: Vec<String>,
+    pub link: String,
+}
+
+fn version_to_vector(version: &str) -> Vec<i32> {
+    version.split('.').map(|s| s.parse().unwrap()).collect()
+}
+
+fn compare_versions(v1: Vec<i32>, v2: Vec<i32>) -> bool {
+    for i in 0..v1.len() {
+        match v1.get(i).cmp(&v2.get(i)) {
+            Ordering::Greater => return true,
+            Ordering::Less => return false,
+            Ordering::Equal => continue,
+        }
+    }
+    false
+}
+
+async fn check_update() {
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    let query = vec![
+        ("version", VERSION),
+        ("build", std::env::consts::ARCH),
+        ("os", std::env::consts::OS),
+    ];
+
+    let request_url = "https://metadata.dev.getdozer.io/";
+
+    let client = reqwest::Client::new();
+
+    let mut printed = false;
+
+    loop {
+        let response = client
+            .get(&request_url.to_string())
+            .query(&query)
+            .send()
+            .await;
+
+        match response {
+            Ok(r) => {
+                if !printed {
+                    let package: DozerPackage = r.json().await.unwrap();
+                    let current = version_to_vector(VERSION);
+                    let remote = version_to_vector(&package.latest_version);
+
+                    if compare_versions(remote, current) {
+                        info!("A new version of Dozer is available.");
+                        info!(
+                            "You can download v{}, from {}.",
+                            package.latest_version, package.link
+                        );
+                        printed = true;
+                    }
+                }
+            }
+            Err(e) => {
+                info!("Failed to check for updates: {}", e);
+            }
+        }
+        time::sleep(Duration::from_secs(2 * 60 * 60)).await;
+    }
 }
 
 fn run() -> Result<(), OrchestrationError> {
@@ -117,7 +191,10 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
         let res = init_dozer(cli.config_path.clone());
 
         match res {
-            Ok(dozer) => Ok(dozer),
+            Ok(dozer) => {
+                dozer.runtime.spawn(check_update());
+                Ok(dozer)
+            }
             Err(e) => {
                 error!("{}", e);
                 Err(e)
