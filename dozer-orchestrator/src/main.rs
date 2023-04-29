@@ -71,6 +71,8 @@ async fn check_update() {
 
     let client = reqwest::Client::new();
 
+    let mut printed = false;
+
     loop {
         info!("Checking for updates...");
 
@@ -82,17 +84,19 @@ async fn check_update() {
 
         match response {
             Ok(r) => {
-                let package: DozerPackage = r.json().await.unwrap();
-                let current = version_to_vector(VERSION);
-                let remote = version_to_vector(&package.latest_version);
+                if !printed {
+                    let package: DozerPackage = r.json().await.unwrap();
+                    let current = version_to_vector(VERSION);
+                    let remote = version_to_vector(&package.latest_version);
 
-                if compare_versions(remote, current) {
-                    info!("A new version is available.");
-                    info!(
-                        "You can download Dozer v{}, from {}.",
-                        package.latest_version, package.link
-                    );
-                    break;
+                    if compare_versions(remote, current) {
+                        info!("A new version is available.");
+                        info!(
+                            "You can download Dozer v{}, from {}.",
+                            package.latest_version, package.link
+                        );
+                        printed = true;
+                    }
                 }
             }
             Err(e) => {
