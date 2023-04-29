@@ -63,13 +63,14 @@ async fn check_update() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     let query = vec![
         ("version", VERSION),
-        ("build", std::env::consts::ARCH), // input encoding
+        ("build", std::env::consts::ARCH),
         ("os", std::env::consts::OS),
     ];
 
     let request_url = "https://metadata.dev.getdozer.io/";
 
     let client = reqwest::Client::new();
+
     loop {
         info!("Checking for updates...");
 
