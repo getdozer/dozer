@@ -74,8 +74,6 @@ async fn check_update() {
     let mut printed = false;
 
     loop {
-        info!("Checking for updates...");
-
         let response = client
             .get(&request_url.to_string())
             .query(&query)
@@ -90,9 +88,9 @@ async fn check_update() {
                     let remote = version_to_vector(&package.latest_version);
 
                     if compare_versions(remote, current) {
-                        info!("A new version is available.");
+                        info!("A new version of Dozer is available.");
                         info!(
-                            "You can download Dozer v{}, from {}.",
+                            "You can download v{}, from {}.",
                             package.latest_version, package.link
                         );
                         printed = true;
