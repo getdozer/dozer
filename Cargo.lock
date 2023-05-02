@@ -2496,6 +2496,7 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "futures",
+ "glob",
  "handlebars",
  "include_dir",
  "page_size",

@@ -46,7 +46,10 @@ message GetStatusResponse {
   optional string grpc_port = 4;
 }
 
-message CreateAppRequest { string config = 2; }
+message CreateAppRequest {
+  string config = 2;
+  repeated File files = 3;
+}
 message ParseRequest { string sql = 1; }
 message ParseResponse {
   repeated string used_sources = 1;

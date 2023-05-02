@@ -17,6 +17,7 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
+mod cloud_helper;
 mod console_helper;
 mod utils;
 
