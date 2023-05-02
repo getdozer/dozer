@@ -431,13 +431,11 @@ impl ExpressionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => Err(InvalidArgument(format!("{argument:?}"))),
+            } => Ok(Expression::Literal(Field::Null)),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 self.parse_sql_expression(parse_aggregations, arg, schema)
             }
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                Err(InvalidArgument(format!("{argument:?}")))
-            }
+            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Ok(Expression::Literal(Field::Null)),
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::QualifiedWildcard(_),
