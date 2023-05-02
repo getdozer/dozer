@@ -7,6 +7,8 @@ use crate::errors::ObjectStoreSchemaError::TimeConversionError;
 use deltalake::arrow::array;
 use deltalake::arrow::array::{Array, ArrayRef};
 use deltalake::arrow::datatypes::{DataType, Field, TimeUnit};
+use dozer_types::json_types::serde_json_to_json_value;
+use dozer_types::serde_json;
 
 use dozer_types::types::{Field as DozerField, FieldDefinition, FieldType, SourceDefinition};
 
@@ -241,7 +243,24 @@ pub fn map_value_to_dozer_field(
         DataType::Binary => make_binary!(array::BinaryArray, column, row),
         DataType::FixedSizeBinary(_) => make_binary!(array::FixedSizeBinaryArray, column, row),
         DataType::LargeBinary => make_binary!(array::LargeBinaryArray, column, row),
-        DataType::Utf8 => make_from!(array::StringArray, column, row),
+        DataType::Utf8 => {
+            let array: Option<&serde_json::Value> =
+                column.as_any().downcast_ref::<serde_json::Value>();
+            if let Some(r) = array {
+                let s: DozerField = if r.is_null() {
+                    DozerField::Null
+                } else {
+                    DozerField::Json(
+                        serde_json_to_json_value(r.clone())
+                            .map_err(|_| FieldTypeNotSupported(column_name.to_string()))
+                            .unwrap(),
+                    )
+                };
+                Ok(s)
+            } else {
+                Ok(DozerField::Null)
+            }
+        }
         DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
         // DataType::List(_) => {}
