@@ -64,6 +64,7 @@ pub fn get_endpoint() -> ApiEndpoint {
         path: "/films".to_string(),
         index: Some(ApiIndex {
             primary_key: vec!["film_id".to_string()],
+            secondary: None,
         }),
         table_name: "film".to_string(),
         conflict_resolution: None,

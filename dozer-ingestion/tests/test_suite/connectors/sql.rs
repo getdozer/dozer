@@ -34,12 +34,20 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             timestamptz_null TIMESTAMPTZ,
             numeric NUMERIC NOT NULL,
             numeric_null NUMERIC,
+            json JSON NOT NULL,
+            json_null JSON,
             jsonb JSONB NOT NULL,
             jsonb_null JSONB,
+            json_array JSON[] NOT NULL,
+            json_array_null JSON[],
+            jsonb_array JSONB[] NOT NULL,
+            jsonb_array_null JSONB[],
             date DATE NOT NULL,
             date_null DATE,
             point POINT NOT NULL,
-            point_null POINT
+            point_null POINT,
+            uuid UUID NOT NULL,
+            uuid_null UUID
         );
         INSERT INTO {table_name} VALUES (
             false,
@@ -72,10 +80,18 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             0,
             '{{}}'::json,
             '{{}}'::json,
+            '{{}}'::jsonb,
+            '{{}}'::jsonb,
+            ARRAY[]::json[],
+            ARRAY[]::json[],
+            ARRAY[]::jsonb[],
+            ARRAY[]::jsonb[],
             '1970-01-01',
             '1970-01-01',
             '(0,0)',
-            '(0,0)'
+            '(0,0)',
+            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID,
+            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID
         );
         INSERT INTO {table_name} VALUES (
             true,
@@ -108,9 +124,17 @@ pub fn create_table_with_all_supported_data_types(table_name: &str) -> String {
             null,
             '{{ "1": 1 }}'::json,
             null,
+            '{{ "1": 1 }}'::jsonb,
+            null,
+            ARRAY['{{ "1": 1 }}']::json[],
+            null,
+            ARRAY['{{ "1": 1 }}']::jsonb[],
+            null,
             '1970-01-01',
             null,
             '(1,1)',
+            null,
+            'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::UUID,
             null
         );
         "#,
@@ -140,7 +164,8 @@ fn field_type_to_sql(field_type: FieldType) -> Option<String> {
         FieldType::Decimal => Some("NUMERIC".to_string()),
         FieldType::Timestamp => Some("TIMESTAMP".to_string()),
         FieldType::Date => Some("DATE".to_string()),
-        FieldType::Bson => Some("JSONB".to_string()),
+        // todo: mapping for `JSON`, `JSONB[]`, `JSON[]` is needed
+        FieldType::Json => Some("JSONB".to_string()),
         FieldType::Point => Some("POINT".to_string()),
         FieldType::Duration => Some("DURATION".to_string()),
     }
@@ -211,10 +236,7 @@ fn field_to_sql(field: &Field) -> String {
         Field::Decimal(d) => d.to_string(),
         Field::Timestamp(t) => format!("'{}'", t),
         Field::Date(d) => format!("'{}'", d),
-        Field::Bson(b) => {
-            let json = bson::from_slice::<dozer_types::serde_json::Value>(b).unwrap();
-            format!("'{}'::json", json)
-        }
+        Field::Json(b) => format!("'{b}'::jsonb"),
         Field::Point(p) => format!("'({},{})'", p.0.x(), p.0.y()),
         Field::Duration(d) => d.to_string(),
         Field::Null => "NULL".to_string(),

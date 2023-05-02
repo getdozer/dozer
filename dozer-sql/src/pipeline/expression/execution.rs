@@ -68,6 +68,9 @@ pub enum Expression {
         pattern: Box<Expression>,
         escape: Option<char>,
     },
+    Now {
+        fun: DateTimeFunctionType,
+    },
     #[cfg(feature = "python")]
     PythonUDF {
         name: String,
@@ -184,6 +187,7 @@ impl Expression {
             Expression::DateTimeFunction { fun, arg } => {
                 fun.to_string() + "(" + arg.to_string(schema).as_str() + ")"
             }
+            Expression::Now { fun } => fun.to_string() + "()",
         }
     }
 }
@@ -261,6 +265,7 @@ impl ExpressionExecutor for Expression {
             Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
             Expression::ConditionalExpression { fun, args } => fun.evaluate(schema, args, record),
             Expression::DateTimeFunction { fun, arg } => fun.evaluate(schema, arg, record),
+            Expression::Now { fun } => fun.evaluate_now(),
         }
     }
 
@@ -320,6 +325,12 @@ impl ExpressionExecutor for Expression {
             Expression::DateTimeFunction { fun, arg } => {
                 get_datetime_function_type(fun, arg, schema)
             }
+            Expression::Now { fun: _ } => Ok(ExpressionType::new(
+                FieldType::Timestamp,
+                false,
+                dozer_types::types::SourceDefinition::Dynamic,
+                false,
+            )),
             #[cfg(feature = "python")]
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,
@@ -343,7 +354,7 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
         Field::Binary(_) => Some(FieldType::Binary),
         Field::Decimal(_) => Some(FieldType::Decimal),
         Field::Timestamp(_) => Some(FieldType::Timestamp),
-        Field::Bson(_) => Some(FieldType::Bson),
+        Field::Json(_) => Some(FieldType::Json),
         Field::Text(_) => Some(FieldType::Text),
         Field::Date(_) => Some(FieldType::Date),
         Field::Point(_) => Some(FieldType::Point),

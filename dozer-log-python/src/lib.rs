@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
-use ::dozer_log::{reader::LogReader as DozerLogReader, tokio::sync::Mutex};
-use dozer_orchestrator::{simple::load_schema, utils::get_endpoint_log_path};
+use dozer_log::{
+    home_dir::HomeDir, reader::LogReader as DozerLogReader, schemas::load_schema,
+    tokio::sync::Mutex,
+};
 use dozer_types::{
     pyo3::{exceptions::PyException, prelude::*},
     types::Schema,
@@ -19,12 +21,21 @@ struct LogReader {
 impl LogReader {
     #[allow(clippy::new_ret_no_self)]
     #[staticmethod]
-    fn new(py: Python, pipeline_dir: String, endpoint_name: String) -> PyResult<&PyAny> {
+    fn new(py: Python, home_dir: String, endpoint_name: String) -> PyResult<&PyAny> {
         pyo3_asyncio::tokio::future_into_py(py, async move {
-            let schema = load_schema(pipeline_dir.as_ref(), &endpoint_name)
+            let home_dir = HomeDir::new(home_dir.as_ref(), Default::default());
+            let migration_path = home_dir
+                .find_latest_migration_path(&endpoint_name)
+                .map_err(|(path, error)| {
+                    PyException::new_err(format!("Failed to read {path:?}: {error}"))
+                })?;
+            let migration_path =
+                migration_path.ok_or(PyException::new_err("No migration found"))?;
+
+            let schema = load_schema(&migration_path.schema_path)
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
-            let log_path = get_endpoint_log_path(pipeline_dir.as_ref(), &endpoint_name);
+            let log_path = migration_path.log_path;
             let name = log_path
                 .parent()
                 .and_then(|parent| parent.file_name().and_then(|file_name| file_name.to_str()))
@@ -51,7 +62,7 @@ impl LogReader {
 /// Python binding for reading Dozer logs
 #[pymodule]
 #[pyo3(crate = "dozer_types::pyo3")]
-fn dozer_log(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pydozer_log(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<LogReader>()?;
     Ok(())
 }

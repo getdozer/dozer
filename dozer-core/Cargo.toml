@@ -1,6 +1,6 @@
 [package]
 name = "dozer-core"
-version = "0.1.17"
+version = "0.1.18"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -13,7 +13,6 @@ dozer-tracing = {path = "../dozer-tracing/"}
 uuid = {version = "1.3.0", features = ["v1", "v4", "fast-rng"]}
 crossbeam = "0.8.2"
 dyn-clone = "1.0.10"
-fp_rust = "0.3.5"
 daggy = { git = "https://github.com/getdozer/daggy", branch = "feat/map_owned" }
 
 [dev-dependencies]

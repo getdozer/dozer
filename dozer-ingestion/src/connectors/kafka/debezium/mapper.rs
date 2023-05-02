@@ -1,16 +1,18 @@
 use crate::errors::DebeziumSchemaError;
 use crate::errors::DebeziumSchemaError::{
-    BinaryDecodeError, DecimalConvertError, FieldNotFound, InvalidDateError, InvalidTimestampError,
-    ScaleIsInvalid, ScaleNotFound, TypeNotSupported,
+    BinaryDecodeError, DecimalConvertError, FieldNotFound, InvalidDateError, InvalidJsonError,
+    InvalidTimestampError, ScaleIsInvalid, ScaleNotFound, TypeNotSupported,
 };
 use base64::{engine, Engine};
 use dozer_types::chrono::{NaiveDate, NaiveDateTime};
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
+use dozer_types::json_types::JsonValue;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Schema};
 use std::collections::HashMap;
+use std::str::FromStr;
 
 fn convert_decimal(value: &str, scale: u32) -> Result<Field, DebeziumSchemaError> {
     let decoded_value = engine::general_purpose::STANDARD
@@ -114,9 +116,11 @@ fn convert_value(
                     })
                 }
                 "io.debezium.time.MicroTime" => Ok(Field::Null),
-                "io.debezium.data.Json" => value
-                    .as_str()
-                    .map_or(Ok(Field::Null), |s| Ok(Field::Bson(s.as_bytes().to_vec()))),
+                "io.debezium.data.Json" => value.as_str().map_or(Ok(Field::Null), |s| {
+                    Ok(Field::Json(
+                        JsonValue::from_str(s).map_err(|e| InvalidJsonError(e.to_string()))?,
+                    ))
+                }),
                 // | "io.debezium.time.MicroTime" | "org.apache.kafka.connect.data.Time" => Ok(FieldType::Timestamp),
                 _ => Err(TypeNotSupported(name)),
             }
@@ -152,10 +156,12 @@ mod tests {
     use crate::errors::DebeziumSchemaError::TypeNotSupported;
     use base64::{engine, Engine};
     use dozer_types::chrono::{NaiveDate, NaiveDateTime};
+    use dozer_types::json_types::JsonValue;
+    use dozer_types::ordered_float::OrderedFloat;
     use dozer_types::rust_decimal;
     use dozer_types::serde_json::{Map, Value};
     use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     #[macro_export]
     macro_rules! test_conversion_debezium {
@@ -265,12 +271,14 @@ mod tests {
             Field::from(current_date),
             None
         );
-        let json_bytes = "{\"abc\":123}".as_bytes().to_vec();
         test_conversion_debezium!(
             "{\"abc\":123}",
             "-",
             Some("io.debezium.data.Json".to_string()),
-            Field::Bson(json_bytes),
+            Field::Json(JsonValue::Object(BTreeMap::from([(
+                String::from("abc"),
+                JsonValue::Number(OrderedFloat(123_f64))
+            )]))),
             None
         );
     }

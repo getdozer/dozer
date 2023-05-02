@@ -15,6 +15,11 @@ connections:
                   "name": "name",
                   "typ": "String",
                   "nullable": true
+                },
+                {
+                  "name": "json",
+                  "typ": "Json",
+                  "nullable": true
                 }
               ]
             }

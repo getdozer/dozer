@@ -19,7 +19,6 @@ workspaces/
 
 # Local configuration for development
 /dozer-config.yaml
-dozer-admin-config.yaml
 dozer-config.test.*
 log4rs.yaml
 .DS_Store
@@ -28,11 +27,9 @@ log4rs.yaml
 logs/
 *.log
 register-postgres.test.json
-dozer-admin/dozer.db
 *.db
 config/tests/local/*.json
 config/tests/local/*.yaml
-dozer-admin/ui/*
 dozer-ui
 
 # Integration test generated files

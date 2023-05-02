@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
@@ -16,7 +17,6 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::hash::Hash;
-use std::path::Path;
 use tokio::runtime::Runtime;
 
 use crate::pipeline::{LogSinkFactory, LogSinkSettings};
@@ -45,8 +45,8 @@ pub struct PipelineBuilder<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    api_endpoints: &'a [ApiEndpoint],
-    pipeline_dir: &'a Path,
+    /// `ApiEndpoint` and its log path.
+    endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
     progress: MultiProgress,
 }
 impl<'a> PipelineBuilder<'a> {
@@ -54,16 +54,14 @@ impl<'a> PipelineBuilder<'a> {
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        api_endpoints: &'a [ApiEndpoint],
-        pipeline_dir: &'a Path,
+        endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
         progress: MultiProgress,
     ) -> Self {
         Self {
             connections,
             sources,
             sql,
-            api_endpoints,
-            pipeline_dir,
+            endpoint_and_log_paths,
             progress,
         }
     }
@@ -81,8 +79,7 @@ impl<'a> PipelineBuilder<'a> {
             let connector = get_connector(connection.clone())?;
 
             if let Some(info_table) = get_connector_info_table(connection) {
-                info!("[{}] Connection parameters", connection.name);
-                info_table.printstd();
+                info!("[{}] Connection parameters\n{info_table}", connection.name);
             }
 
             let connector_tables = connector.list_tables().await?;
@@ -165,7 +162,7 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         // Add Used Souces if direct from source
-        for api_endpoint in self.api_endpoints {
+        for (api_endpoint, _) in &self.endpoint_and_log_paths {
             let table_name = &api_endpoint.table_name;
 
             // Don't add if the table is a result of SQL
@@ -185,7 +182,7 @@ impl<'a> PipelineBuilder<'a> {
 
     // This function is used by both migrate and actual execution
     pub fn build(
-        &self,
+        self,
         runtime: Arc<Runtime>,
         settings: LogSinkSettings,
         notifier: Option<PipelineEventSenders>,
@@ -233,7 +230,7 @@ impl<'a> PipelineBuilder<'a> {
 
         let conn_ports = source_builder.get_ports();
 
-        for api_endpoint in self.api_endpoints {
+        for (api_endpoint, log_path) in self.endpoint_and_log_paths {
             let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
@@ -241,8 +238,9 @@ impl<'a> PipelineBuilder<'a> {
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
             let snk_factory = Arc::new(LogSinkFactory::new(
+                log_path,
                 settings.clone(),
-                api_endpoint.clone(),
+                api_endpoint.name.clone(),
                 self.progress.clone(),
                 notifier.clone(),
             ));
@@ -297,7 +295,7 @@ impl<'a> PipelineBuilder<'a> {
 
         debug!("{}", dag);
 
-        DagExecutor::validate(dag.clone(), self.pipeline_dir.to_path_buf())
+        DagExecutor::validate(dag.clone())
             .map(|_| {
                 info!("[pipeline] Validation completed");
             })

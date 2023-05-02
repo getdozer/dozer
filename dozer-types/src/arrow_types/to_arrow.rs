@@ -1,14 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
-
 use crate::types::{Field, FieldDefinition, FieldType, Record, Schema};
 use arrow::datatypes::{self as arrow_types, DataType};
-
 use arrow::{
     array::{self as arrow_array, ArrayRef},
     datatypes::i256,
     record_batch::RecordBatch,
 };
 use arrow_schema::TimeUnit;
+use std::{collections::HashMap, sync::Arc};
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
@@ -102,8 +100,10 @@ pub fn map_record_to_arrow(
             (Field::Binary(v), FieldType::Binary) => {
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
             }
-            (Field::Bson(v), FieldType::Bson) => {
-                Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
+            (Field::Json(v), FieldType::Json) => {
+                Err(arrow::error::ArrowError::InvalidArgumentError(format!(
+                    "Invalid field type Json for the field {v:?} for arrow conversion",
+                )))?
             }
             (Field::Point(v), FieldType::Point) => {
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v.to_bytes()])) as ArrayRef
@@ -152,10 +152,7 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
             metadata.map(|m| m.insert("logical_type".to_string(), "Binary".to_string()));
             DataType::Binary
         }
-        FieldType::Bson => {
-            metadata.map(|m| m.insert("logical_type".to_string(), "Bson".to_string()));
-            DataType::Binary
-        }
+        FieldType::Json => todo!(),
         FieldType::Point => {
             metadata.map(|m| m.insert("logical_type".to_string(), "Point".to_string()));
             DataType::Binary

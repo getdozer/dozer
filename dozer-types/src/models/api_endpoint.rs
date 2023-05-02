@@ -7,7 +7,47 @@ use serde_yaml::Value;
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct ApiIndex {
     #[prost(string, repeated, tag = "1")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub primary_key: Vec<String>,
+    #[prost(message, tag = "2")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secondary: Option<SecondaryIndexConfig>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+pub struct SecondaryIndexConfig {
+    #[prost(string, repeated, tag = "1")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skip_default: Vec<String>,
+    #[prost(message, repeated, tag = "2")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub create: Vec<CreateSecondaryIndex>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+pub struct CreateSecondaryIndex {
+    #[prost(oneof = "SecondaryIndex", tags = "1,2")]
+    pub index: Option<SecondaryIndex>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof)]
+pub enum SecondaryIndex {
+    #[prost(message, tag = "1")]
+    SortedInverted(SortedInverted),
+    #[prost(message, tag = "2")]
+    FullText(FullText),
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+pub struct SortedInverted {
+    #[prost(string, repeated, tag = "1")]
+    pub fields: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+pub struct FullText {
+    #[prost(string, tag = "1")]
+    pub field: String,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, ::prost::Enumeration)]

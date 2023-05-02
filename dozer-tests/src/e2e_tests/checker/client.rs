@@ -204,6 +204,7 @@ impl Client {
             SchemaKind::Type(dozer_api::openapiv3::Type::Object(object_type)) => {
                 (&object_type.properties, &object_type.required)
             }
+            SchemaKind::Any(schema) => (&schema.properties, &schema.required),
             _ => panic!(
                 "Expecting object schema for endpoint {endpoint} in oapi response, path is {rest_path}"
             ),
@@ -228,21 +229,32 @@ impl Client {
                     endpoint, field.name, rest_path
                 )
             });
-            let oapi_type = match &schema.schema_kind {
-                SchemaKind::Type(oapi_type) => oapi_type,
+            match &schema.schema_kind {
+                SchemaKind::Type(oapi_type) => {
+                    assert!(
+                        oapi_type_matches(oapi_type, field.typ),
+                        "Check REST schema failed for endpoint {}, field {}, expected field type {}, got {:?}",
+                        endpoint,
+                        field.name,
+                        field.typ,
+                        oapi_type
+                    );
+                }
+                SchemaKind::Any(_) => {
+                    assert_eq!(
+                        field.typ, FieldType::Json,
+                        "Check REST schema failed for endpoint {}, field {}, expected field type {}, got {:?}",
+                        endpoint,
+                        field.name,
+                        field.typ,
+                        FieldType::Json
+                    );
+                }
                 _ => panic!(
                     "Expecting type schema for endpoint {}, field {} in oapi response, path is {}",
                     endpoint, field.name, rest_path
                 ),
             };
-            assert!(
-                oapi_type_matches(oapi_type, field.typ),
-                "Check REST schema failed for endpoint {}, field {}, expected field type {}, got {:?}",
-                endpoint,
-                field.name,
-                field.typ,
-                oapi_type
-            );
             if field.nullable {
                 assert!(!required.contains(&field.name), "Check REST schema failed for endpoint {}, field {} is nullable, but it is required", endpoint, field.name);
             } else {
@@ -330,7 +342,7 @@ fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
         FieldType::Decimal => grpc_type == Type::Decimal as i32,
         FieldType::Timestamp => grpc_type == Type::Timestamp as i32,
         FieldType::Date => grpc_type == Type::Date as i32,
-        FieldType::Bson => grpc_type == Type::Bson as i32,
+        FieldType::Json => grpc_type == Type::Json as i32,
         FieldType::Point => grpc_type == Type::Point as i32,
         FieldType::Duration => grpc_type == Type::Duration as i32,
     }
@@ -361,7 +373,7 @@ fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldTy
                 true
             }
         }
-        (Array(array_type), FieldType::Binary | FieldType::Bson) => {
+        (Array(array_type), FieldType::Binary) => {
             let Some(ReferenceOr::Item(schema)) = array_type.items.as_ref() else {
                 return false;
             };

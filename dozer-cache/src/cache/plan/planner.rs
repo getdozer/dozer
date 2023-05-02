@@ -1,8 +1,11 @@
 use crate::cache::expression::{FilterExpression, Operator, SortDirection, SortOptions};
 use crate::errors::PlanError;
-use dozer_types::json_value_to_field;
+use dozer_types::models::api_endpoint::{
+    CreateSecondaryIndex, FullText, SecondaryIndex, SortedInverted,
+};
 use dozer_types::types::{Field, FieldDefinition, Schema};
 use dozer_types::types::{FieldType, IndexDefinition};
+use dozer_types::{json_value_to_field, serde_yaml};
 
 use super::helper::{RangeQuery, RangeQueryKind};
 use super::{helper, IndexScan, Plan, SeqScan};
@@ -75,14 +78,24 @@ impl<'a> QueryPlanner<'a> {
         let all_index_scans = helper::get_all_indexes(filters, range_query);
 
         // Check if existing secondary indexes can satisfy any of the scans.
+        let mut scans = None;
         for index_scans in all_index_scans {
+            if scans.is_none() {
+                scans = Some(index_scans.clone());
+            }
+
             if let Some(index_scans) = all_indexes_are_present(self.secondary_indexes, index_scans)
             {
                 return Ok(Plan::IndexScans(index_scans));
             }
         }
 
-        Err(PlanError::MatchingIndexNotFound)
+        Err(PlanError::MatchingIndexNotFound(
+            describe_index_configuration(
+                &self.schema.fields,
+                &scans.expect("Planner should always generate plan"),
+            ),
+        ))
     }
 }
 
@@ -228,7 +241,7 @@ fn all_indexes_are_present(
 ) -> Option<Vec<IndexScan>> {
     let mut scans = vec![];
     for index_scan_kind in index_scan_kinds {
-        let found = indexes
+        let found: Option<(usize, &IndexDefinition)> = indexes
             .iter()
             .enumerate()
             .find(|(_, i)| index_scan_kind.is_supported_by_index(i));
@@ -244,6 +257,42 @@ fn all_indexes_are_present(
         }
     }
     Some(scans)
+}
+
+fn describe_index_configuration(
+    field_definitions: &[FieldDefinition],
+    indexes: &[IndexScanKind],
+) -> String {
+    let mut creates = vec![];
+    for index in indexes {
+        match index {
+            IndexScanKind::FullText { filter } => {
+                let field = field_definitions[filter.field_index].name.clone();
+                creates.push(CreateSecondaryIndex {
+                    index: Some(SecondaryIndex::FullText(FullText { field })),
+                });
+            }
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query,
+            } => {
+                let mut fields = vec![];
+                for (field_index, _) in eq_filters {
+                    let field = field_definitions[*field_index].name.clone();
+                    fields.push(field);
+                }
+                if let Some(range_query) = range_query {
+                    let field = field_definitions[range_query.field_index].name.clone();
+                    fields.push(field);
+                }
+                creates.push(CreateSecondaryIndex {
+                    index: Some(SecondaryIndex::SortedInverted(SortedInverted { fields })),
+                });
+            }
+        }
+    }
+
+    serde_yaml::to_string(&creates).expect("This serialization should never fail.")
 }
 
 #[cfg(test)]

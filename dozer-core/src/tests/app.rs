@@ -1,6 +1,5 @@
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::appsource::{AppSource, AppSourceId, AppSourceManager};
-use crate::chk;
 use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
@@ -20,8 +19,6 @@ use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-
-use tempdir::TempDir;
 
 #[derive(Debug, Clone)]
 pub(crate) struct NoneContext {}
@@ -356,15 +353,10 @@ fn test_app_dag() {
 
     assert_eq!(edges.len(), 6);
 
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
-    )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }

@@ -1,4 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
+use crate::json_types::{serde_json_to_json_value, JsonValue};
 use crate::types::{DozerDuration, DozerPoint, TimeUnit, DATE_FORMAT};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
@@ -83,9 +84,9 @@ pub fn json_value_to_field(
                     .into(),
             )),
         },
-        FieldType::Bson => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Bson),
+        FieldType::Json => Ok(Field::Json(
+            serde_json_to_json_value(value).map_err(TypeError::DeserializationError)?,
+        )),
         FieldType::Point => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Point),
@@ -271,14 +272,16 @@ impl Field {
                         })
                 }
             }
-            FieldType::Bson => {
+            FieldType::Json => {
                 if nullable && (value.is_empty() || value == "null") {
                     Ok(Field::Null)
                 } else {
-                    Err(TypeError::InvalidFieldValue {
-                        field_type: typ,
-                        nullable,
-                        value: value.to_string(),
+                    JsonValue::from_str(value).map(Field::Json).map_err(|_| {
+                        TypeError::InvalidFieldValue {
+                            field_type: typ,
+                            nullable,
+                            value: value.to_string(),
+                        }
                     })
                 }
             }
@@ -305,6 +308,7 @@ mod tests {
     use chrono::FixedOffset;
     use geo::Point;
     use rust_decimal::prelude::FromPrimitive;
+    use std::collections::BTreeMap;
 
     use super::*;
 
@@ -358,6 +362,15 @@ mod tests {
                 false,
                 Field::Point(DozerPoint(Point::new(OrderedFloat(1.0), OrderedFloat(1.0)))),
             ),
+            (
+                "{\"abc\":\"foo\"}",
+                FieldType::Json,
+                false,
+                Field::Json(JsonValue::Object(BTreeMap::from([(
+                    String::from("abc"),
+                    JsonValue::String(String::from("foo")),
+                )]))),
+            ),
             ("null", FieldType::UInt, true, Field::Null),
             ("null", FieldType::U128, true, Field::Null),
             ("null", FieldType::Int, true, Field::Null),
@@ -380,8 +393,9 @@ mod tests {
             ("null", FieldType::Decimal, true, Field::Null),
             ("null", FieldType::Timestamp, true, Field::Null),
             ("null", FieldType::Date, true, Field::Null),
-            ("null", FieldType::Bson, true, Field::Null),
+            ("null", FieldType::Json, true, Field::Null),
             ("null", FieldType::Point, true, Field::Null),
+            ("null", FieldType::Json, true, Field::Null),
             ("null", FieldType::Duration, true, Field::Null),
             ("", FieldType::UInt, true, Field::Null),
             ("", FieldType::U128, true, Field::Null),
@@ -395,7 +409,7 @@ mod tests {
             ("", FieldType::Decimal, true, Field::Null),
             ("", FieldType::Timestamp, true, Field::Null),
             ("", FieldType::Date, true, Field::Null),
-            ("", FieldType::Bson, true, Field::Null),
+            ("", FieldType::Json, true, Field::Null),
             ("", FieldType::Point, true, Field::Null),
             ("", FieldType::Duration, true, Field::Null),
         ];
@@ -415,7 +429,6 @@ mod tests {
             ("null", FieldType::Decimal, false),
             ("null", FieldType::Timestamp, false),
             ("null", FieldType::Date, false),
-            ("null", FieldType::Bson, false),
             ("null", FieldType::Point, false),
             ("null", FieldType::Duration, false),
             ("", FieldType::UInt, false),
@@ -428,7 +441,6 @@ mod tests {
             ("", FieldType::Decimal, false),
             ("", FieldType::Timestamp, false),
             ("", FieldType::Date, false),
-            ("", FieldType::Bson, false),
             ("", FieldType::Point, false),
             ("", FieldType::Duration, false),
         ];

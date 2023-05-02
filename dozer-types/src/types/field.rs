@@ -1,4 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
+use crate::json_types::JsonValue;
 use crate::types::{DozerDuration, DozerPoint, TimeUnit};
 #[allow(unused_imports)]
 use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
@@ -26,27 +27,7 @@ pub enum Field {
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
-    Bson(Vec<u8>),
-    Point(DozerPoint),
-    Duration(DozerDuration),
-    Null,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
-pub enum FieldBorrow<'a> {
-    UInt(u64),
-    U128(u128),
-    Int(i64),
-    I128(i128),
-    Float(OrderedFloat<f64>),
-    Boolean(bool),
-    String(&'a str),
-    Text(&'a str),
-    Binary(&'a [u8]),
-    Decimal(Decimal),
-    Timestamp(DateTime<FixedOffset>),
-    Date(NaiveDate),
-    Bson(&'a [u8]),
+    Json(JsonValue),
     Point(DozerPoint),
     Duration(DozerDuration),
     Null,
@@ -67,7 +48,8 @@ impl Field {
             Field::Decimal(_) => 16,
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
-            Field::Bson(b) => b.len(),
+            // todo: should optimize with better serialization method
+            Field::Json(b) => bincode::serialize(b).unwrap().len(),
             Field::Point(_p) => 16,
             Field::Duration(_) => 17,
             Field::Null => 0,
@@ -88,7 +70,7 @@ impl Field {
             Field::Decimal(d) => Cow::Owned(d.serialize().into()),
             Field::Timestamp(t) => Cow::Owned(t.timestamp_millis().to_be_bytes().into()),
             Field::Date(t) => Cow::Owned(t.to_string().into()),
-            Field::Bson(b) => Cow::Borrowed(b),
+            Field::Json(b) => Cow::Owned(bincode::serialize(b).unwrap()),
             Field::Point(p) => Cow::Owned(p.to_bytes().into()),
             Field::Duration(d) => Cow::Owned(d.to_bytes().into()),
             Field::Null => Cow::Owned([].into()),
@@ -112,60 +94,35 @@ impl Field {
         result
     }
 
-    pub fn borrow(&self) -> FieldBorrow {
-        match self {
-            Field::UInt(i) => FieldBorrow::UInt(*i),
-            Field::U128(i) => FieldBorrow::U128(*i),
-            Field::Int(i) => FieldBorrow::Int(*i),
-            Field::I128(i) => FieldBorrow::I128(*i),
-            Field::Float(f) => FieldBorrow::Float(*f),
-            Field::Boolean(b) => FieldBorrow::Boolean(*b),
-            Field::String(s) => FieldBorrow::String(s),
-            Field::Text(s) => FieldBorrow::Text(s),
-            Field::Binary(b) => FieldBorrow::Binary(b),
-            Field::Decimal(d) => FieldBorrow::Decimal(*d),
-            Field::Timestamp(t) => FieldBorrow::Timestamp(*t),
-            Field::Date(t) => FieldBorrow::Date(*t),
-            Field::Bson(b) => FieldBorrow::Bson(b),
-            Field::Point(p) => FieldBorrow::Point(*p),
-            Field::Duration(d) => FieldBorrow::Duration(*d),
-            Field::Null => FieldBorrow::Null,
-        }
-    }
-
     pub fn decode(buf: &[u8]) -> Result<Field, DeserializationError> {
-        Self::decode_borrow(buf).map(|field| field.to_owned())
-    }
-
-    pub fn decode_borrow(buf: &[u8]) -> Result<FieldBorrow, DeserializationError> {
         let first_byte = *buf.first().ok_or(DeserializationError::EmptyInput)?;
         let val = &buf[1..];
         match first_byte {
-            0 => Ok(FieldBorrow::UInt(u64::from_be_bytes(
+            0 => Ok(Field::UInt(u64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            1 => Ok(FieldBorrow::U128(u128::from_be_bytes(
+            1 => Ok(Field::U128(u128::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            2 => Ok(FieldBorrow::Int(i64::from_be_bytes(
+            2 => Ok(Field::Int(i64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            3 => Ok(FieldBorrow::I128(i128::from_be_bytes(
+            3 => Ok(Field::I128(i128::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            4 => Ok(FieldBorrow::Float(OrderedFloat(f64::from_be_bytes(
+            4 => Ok(Field::Float(OrderedFloat(f64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             )))),
-            5 => Ok(FieldBorrow::Boolean(val[0] == 1)),
-            6 => Ok(FieldBorrow::String(std::str::from_utf8(val)?)),
-            7 => Ok(FieldBorrow::Text(std::str::from_utf8(val)?)),
-            8 => Ok(FieldBorrow::Binary(val)),
-            9 => Ok(FieldBorrow::Decimal(Decimal::deserialize(
+            5 => Ok(Field::Boolean(val[0] == 1)),
+            6 => Ok(Field::String(std::str::from_utf8(val)?.to_string())),
+            7 => Ok(Field::Text(std::str::from_utf8(val)?.to_string())),
+            8 => Ok(Field::Binary(val.to_vec())),
+            9 => Ok(Field::Decimal(Decimal::deserialize(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
@@ -176,7 +133,7 @@ impl Field {
                 ));
 
                 match timestamp {
-                    LocalResult::Single(v) => Ok(FieldBorrow::Timestamp(DateTime::from(v))),
+                    LocalResult::Single(v) => Ok(Field::Timestamp(DateTime::from(v))),
                     LocalResult::Ambiguous(_, _) => Err(DeserializationError::Custom(Box::new(
                         TypeError::AmbiguousTimestamp,
                     ))),
@@ -185,18 +142,20 @@ impl Field {
                     ))),
                 }
             }
-            11 => Ok(FieldBorrow::Date(NaiveDate::parse_from_str(
+            11 => Ok(Field::Date(NaiveDate::parse_from_str(
                 std::str::from_utf8(val)?,
                 DATE_FORMAT,
             )?)),
-            12 => Ok(FieldBorrow::Bson(val)),
-            13 => Ok(FieldBorrow::Point(
+            12 => Ok(Field::Json(
+                bincode::deserialize(val).map_err(DeserializationError::Bincode)?,
+            )),
+            13 => Ok(Field::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
-            14 => Ok(FieldBorrow::Duration(
+            14 => Ok(Field::Duration(
                 DozerDuration::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
-            15 => Ok(FieldBorrow::Null),
+            15 => Ok(Field::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
@@ -215,7 +174,7 @@ impl Field {
             Field::Decimal(_) => 9,
             Field::Timestamp(_) => 10,
             Field::Date(_) => 11,
-            Field::Bson(_) => 12,
+            Field::Json(_) => 12,
             Field::Point(_) => 13,
             Field::Duration(_) => 14,
             Field::Null => 15,
@@ -306,9 +265,9 @@ impl Field {
         }
     }
 
-    pub fn as_bson(&self) -> Option<&[u8]> {
+    pub fn as_json(&self) -> Option<&JsonValue> {
         match self {
-            Field::Bson(b) => Some(b),
+            Field::Json(b) => Some(b),
             _ => None,
         }
     }
@@ -534,9 +493,9 @@ impl Field {
         }
     }
 
-    pub fn to_bson(&self) -> Option<&[u8]> {
+    pub fn to_json(&self) -> Option<&JsonValue> {
         match self {
-            Field::Bson(b) => Some(b),
+            Field::Json(b) => Some(b),
             _ => None,
         }
     }
@@ -607,33 +566,10 @@ impl Display for Field {
             Field::Binary(v) => f.write_str(&format!("{v:x?}")),
             Field::Timestamp(v) => f.write_str(&format!("{v}")),
             Field::Date(v) => f.write_str(&format!("{v}")),
-            Field::Bson(v) => f.write_str(&format!("{v:x?}")),
+            Field::Json(v) => f.write_str(&format!("{v}")),
             Field::Point(v) => f.write_str(&format!("{v} (Point)")),
             Field::Duration(d) => f.write_str(&format!("{:?} {:?} (Duration)", d.0, d.1)),
             Field::Null => f.write_str("NULL"),
-        }
-    }
-}
-
-impl<'a> FieldBorrow<'a> {
-    pub fn to_owned(self) -> Field {
-        match self {
-            FieldBorrow::UInt(i) => Field::UInt(i),
-            FieldBorrow::U128(i) => Field::U128(i),
-            FieldBorrow::Int(i) => Field::Int(i),
-            FieldBorrow::I128(i) => Field::I128(i),
-            FieldBorrow::Float(f) => Field::Float(f),
-            FieldBorrow::Decimal(d) => Field::Decimal(d),
-            FieldBorrow::Boolean(b) => Field::Boolean(b),
-            FieldBorrow::String(s) => Field::String(s.to_owned()),
-            FieldBorrow::Text(s) => Field::Text(s.to_owned()),
-            FieldBorrow::Binary(b) => Field::Binary(b.to_owned()),
-            FieldBorrow::Timestamp(t) => Field::Timestamp(t),
-            FieldBorrow::Date(d) => Field::Date(d),
-            FieldBorrow::Bson(b) => Field::Bson(b.to_owned()),
-            FieldBorrow::Point(p) => Field::Point(p),
-            FieldBorrow::Duration(d) => Field::Duration(DozerDuration(d.0, d.1)),
-            FieldBorrow::Null => Field::Null,
         }
     }
 }
@@ -668,8 +604,8 @@ pub enum FieldType {
     Timestamp,
     /// Allows for every date from Jan 1, 262145 BCE to Dec 31, 262143 CE.
     Date,
-    /// Bytes that are valid BSON.
-    Bson,
+    /// JsonValue.
+    Json,
     /// A geographic point.
     Point,
     /// Duration up to nanoseconds.
@@ -693,7 +629,10 @@ impl TryFrom<&str> for FieldType {
             "binary" => FieldType::Binary,
             "timestamp" => FieldType::Timestamp,
             "date" => FieldType::Date,
-            "bson" => FieldType::Bson,
+            "json" => FieldType::Json,
+            "jsonb" => FieldType::Json,
+            "json_array" => FieldType::Json,
+            "jsonb_array" => FieldType::Json,
             "point" => FieldType::Point,
             "duration" => FieldType::Duration,
             _ => return Err(format!("Unsupported '{value}' type")),
@@ -718,7 +657,7 @@ impl Display for FieldType {
             FieldType::Decimal => f.write_str("decimal"),
             FieldType::Timestamp => f.write_str("timestamp"),
             FieldType::Date => f.write_str("date"),
-            FieldType::Bson => f.write_str("bson"),
+            FieldType::Json => f.write_str("json"),
             FieldType::Point => f.write_str("point"),
             FieldType::Duration => f.write_str("duration"),
         }
@@ -753,16 +692,29 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
-        Field::Bson(vec![
-            // BSON representation of `{"abc":"foo"}`
-            123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125,
-        ]),
+        Field::Json(JsonValue::Array(vec![
+            JsonValue::Number(OrderedFloat(123_f64)),
+            JsonValue::Number(OrderedFloat(34_f64)),
+            JsonValue::Number(OrderedFloat(97_f64)),
+            JsonValue::Number(OrderedFloat(98_f64)),
+            JsonValue::Number(OrderedFloat(99_f64)),
+            JsonValue::Number(OrderedFloat(34_f64)),
+            JsonValue::Number(OrderedFloat(58_f64)),
+            JsonValue::Number(OrderedFloat(34_f64)),
+            JsonValue::Number(OrderedFloat(102_f64)),
+            JsonValue::Number(OrderedFloat(111_f64)),
+            JsonValue::Number(OrderedFloat(111_f64)),
+            JsonValue::Number(OrderedFloat(34_f64)),
+        ])),
         Field::Null,
     ]
     .into_iter()
 }
 
-#[cfg(feature = "python")]
+#[cfg(any(
+    feature = "python-auto-initialize",
+    feature = "python-extension-module"
+))]
 impl pyo3::ToPyObject for Field {
     fn to_object(&self, py: pyo3::Python<'_>) -> pyo3::PyObject {
         match self {
@@ -782,7 +734,7 @@ impl pyo3::ToPyObject for Field {
                     .unwrap()
                     .to_object(py)
             }
-            Field::Bson(val) => val.to_object(py),
+            Field::Json(_val) => todo!(),
             Field::Point(_val) => todo!(),
             Field::Duration(_d) => todo!(),
             Field::Null => unreachable!(),

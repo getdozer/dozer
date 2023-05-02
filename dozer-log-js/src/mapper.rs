@@ -1,6 +1,6 @@
-use dozer_api::rest::field_to_json_value;
-use dozer_core::executor::ExecutorOperation;
 use dozer_types::{
+    epoch::ExecutorOperation,
+    json_types::field_to_json_value,
     serde_json::Value,
     types::{Field, Operation, Record, Schema},
 };
@@ -88,7 +88,10 @@ fn map_record<'a, C: Context<'a>>(
 }
 
 fn map_value<'a, C: Context<'a>>(value: Field, cx: &mut C) -> JsResult<'a, JsValue> {
-    let value = field_to_json_value(value);
+    let value = match field_to_json_value(value) {
+        Ok(val) => val,
+        Err(error) => return cx.throw_error(error.to_string()),
+    };
     map_json_value(value, cx)
 }
 

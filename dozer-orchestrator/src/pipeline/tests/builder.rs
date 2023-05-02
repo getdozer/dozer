@@ -59,13 +59,15 @@ fn load_multi_sources() {
         .map(|s| s.name.clone())
         .collect::<Vec<_>>();
 
-    let tmpdir = tempdir::TempDir::new("test").unwrap();
     let builder = PipelineBuilder::new(
         &config.connections,
         &config.sources,
         config.sql.as_deref(),
-        &config.endpoints,
-        tmpdir.path(),
+        config
+            .endpoints
+            .into_iter()
+            .map(|endpoint| (endpoint, Default::default()))
+            .collect(),
         MultiProgress::new(),
     );
 

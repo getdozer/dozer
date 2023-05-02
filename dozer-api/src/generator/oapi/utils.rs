@@ -3,7 +3,7 @@ use dozer_types::{
     types::{FieldType, DATE_FORMAT},
 };
 use openapiv3::{
-    ArrayType, Contact, IntegerFormat, IntegerType, MediaType, NumberFormat, NumberType,
+    AnySchema, ArrayType, Contact, IntegerFormat, IntegerType, MediaType, NumberFormat, NumberType,
     ObjectType, Parameter, ParameterData, ParameterSchemaOrContent, PathStyle, ReferenceOr,
     Response, Schema, SchemaData, SchemaKind, StringFormat, StringType, Type,
     VariantOrUnknownOrEmpty,
@@ -82,7 +82,7 @@ pub fn convert_cache_to_oapi_schema(
             field.name,
             ReferenceOr::boxed_item(Schema {
                 schema_data: Default::default(),
-                schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(field.typ)),
+                schema_kind: convert_cache_type_to_schema_type(field.typ),
             }),
         );
     }
@@ -101,21 +101,21 @@ pub fn convert_cache_to_oapi_schema(
 }
 
 /// Should be consistent with `field_to_json_value`.
-fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) -> Type {
+fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) -> SchemaKind {
     match field_type {
-        FieldType::UInt | FieldType::Int => Type::Integer(IntegerType {
+        FieldType::UInt | FieldType::Int => SchemaKind::Type(Type::Integer(IntegerType {
             format: VariantOrUnknownOrEmpty::Item(IntegerFormat::Int64),
             ..Default::default()
-        }),
-        FieldType::U128 | FieldType::I128 => Type::String(StringType {
+        })),
+        FieldType::U128 | FieldType::I128 => SchemaKind::Type(Type::String(StringType {
             format: VariantOrUnknownOrEmpty::Empty,
             ..Default::default()
-        }),
-        FieldType::Float => Type::Number(NumberType {
+        })),
+        FieldType::Float => SchemaKind::Type(Type::Number(NumberType {
             format: VariantOrUnknownOrEmpty::Item(NumberFormat::Double),
             ..Default::default()
-        }),
-        FieldType::Boolean => Type::Boolean {},
+        })),
+        FieldType::Boolean => SchemaKind::Type(Type::Boolean {}),
         FieldType::String
         | FieldType::Text
         | FieldType::Decimal
@@ -134,65 +134,58 @@ fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) 
             } else {
                 (VariantOrUnknownOrEmpty::Empty, None)
             };
-            Type::String(StringType {
+            SchemaKind::Type(Type::String(StringType {
                 format,
                 pattern,
                 ..Default::default()
-            })
+            }))
         }
-        FieldType::Binary | FieldType::Bson => Type::Array(ArrayType {
+        FieldType::Json => SchemaKind::Any(AnySchema::default()),
+        FieldType::Binary => SchemaKind::Type(Type::Array(ArrayType {
             items: Some(ReferenceOr::Item(Box::new(u8_schema()))),
             min_items: None,
             max_items: None,
             unique_items: false,
-        }),
+        })),
         FieldType::Point => {
             let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
             let required: Vec<String> = vec!["x".to_string(), "y".to_string()];
-
             for key in &required {
                 properties.insert(
                     key.clone(),
                     ReferenceOr::boxed_item(Schema {
                         schema_data: Default::default(),
-                        schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(
-                            FieldType::Float,
-                        )),
+                        schema_kind: convert_cache_type_to_schema_type(FieldType::Float),
                     }),
                 );
             }
-
-            Type::Object(ObjectType {
+            SchemaKind::Type(Type::Object(ObjectType {
                 properties,
                 required,
                 additional_properties: None,
                 min_properties: None,
                 max_properties: None,
-            })
+            }))
         }
         FieldType::Duration => {
             let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
             let required: Vec<String> = vec!["value".to_string(), "time_unit".to_string()];
-
             for key in &required {
                 properties.insert(
                     key.clone(),
                     ReferenceOr::boxed_item(Schema {
                         schema_data: Default::default(),
-                        schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(
-                            FieldType::String,
-                        )),
+                        schema_kind: convert_cache_type_to_schema_type(FieldType::String),
                     }),
                 );
             }
-
-            Type::Object(ObjectType {
+            SchemaKind::Type(Type::Object(ObjectType {
                 properties,
                 required,
                 additional_properties: None,
                 min_properties: None,
                 max_properties: None,
-            })
+            }))
         }
     }
 }

@@ -1,8 +1,8 @@
 syntax = "proto3";
-package dozer.admin;
-import "admin_types.proto";
+package dozer.cloud;
+import "cloud_types.proto";
 
-service DozerAdmin {
+service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
@@ -29,10 +29,11 @@ service DozerAdmin {
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
 }
 
-message StartRequest { string config = 1; }
+message StartRequest { string id = 1; }
 message StartResponse {
   bool success = 1;
   string id = 2;
+  optional string api_endpoint = 3;
 }
 message StopRequest { string id = 1; }
 message StopResponse { bool success = 1; }

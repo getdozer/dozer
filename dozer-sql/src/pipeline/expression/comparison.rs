@@ -100,7 +100,7 @@ macro_rules! define_comparison {
                     Field::Binary(_)
                     | Field::Timestamp(_)
                     | Field::Date(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_)
                     | Field::Duration(_)
                     | Field::Null => Ok(Field::Null),
@@ -146,7 +146,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Timestamp(_)
                     | Field::Date(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
@@ -194,7 +194,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Timestamp(_)
                     | Field::Date(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
@@ -240,7 +240,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Timestamp(_)
                     | Field::Date(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
@@ -290,7 +290,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Timestamp(_)
                     | Field::Date(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
@@ -330,7 +330,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Timestamp(_)
                     | Field::Date(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_)
                     | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
@@ -402,7 +402,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Timestamp(_)
                     | Field::Date(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_)
                     | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
@@ -493,7 +493,7 @@ macro_rules! define_comparison {
                         })?;
                         Ok(Field::Boolean($function(left_val, right_v)))
                     }
-                    Field::Binary(_) | Field::Bson(_) => Err(PipelineError::InvalidTypeComparison(
+                    Field::Binary(_) | Field::Json(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
                         right_p,
                         $op.to_string(),
@@ -520,7 +520,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Decimal(_)
                     | Field::Date(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_)
                     | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
@@ -550,7 +550,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Decimal(_)
                     | Field::Timestamp(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Point(_)
                     | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
@@ -576,7 +576,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Decimal(_)
                     | Field::Timestamp(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Date(_)
                     | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
@@ -606,7 +606,7 @@ macro_rules! define_comparison {
                     | Field::Binary(_)
                     | Field::Decimal(_)
                     | Field::Timestamp(_)
-                    | Field::Bson(_)
+                    | Field::Json(_)
                     | Field::Date(_)
                     | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                         left_p,
@@ -614,7 +614,7 @@ macro_rules! define_comparison {
                         $op.to_string(),
                     )),
                 },
-                Field::Binary(_) | Field::Bson(_) => Err(PipelineError::InvalidTypeComparison(
+                Field::Binary(_) | Field::Json(_) => Err(PipelineError::InvalidTypeComparison(
                     left_p,
                     right_p,
                     $op.to_string(),
@@ -692,7 +692,7 @@ pub fn evaluate_lt(
             Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_)
             | Field::Null => Ok(Field::Null),
@@ -735,7 +735,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
@@ -780,7 +780,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
@@ -823,7 +823,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
@@ -867,7 +867,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
@@ -906,7 +906,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -966,7 +966,7 @@ pub fn evaluate_lt(
                 | Field::Binary(_)
                 | Field::Timestamp(_)
                 | Field::Date(_)
-                | Field::Bson(_)
+                | Field::Json(_)
                 | Field::Point(_)
                 | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                     left_p,
@@ -1045,7 +1045,7 @@ pub fn evaluate_lt(
                 })?;
                 Ok(Field::Boolean(left_val < right_v))
             }
-            Field::Binary(_) | Field::Bson(_) => Err(PipelineError::InvalidTypeComparison(
+            Field::Binary(_) | Field::Json(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 "<".to_string(),
@@ -1069,7 +1069,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Decimal(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1095,7 +1095,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Decimal(_)
             | Field::Timestamp(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1121,7 +1121,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Decimal(_)
             | Field::Timestamp(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Date(_)
             | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1147,7 +1147,7 @@ pub fn evaluate_lt(
             | Field::Binary(_)
             | Field::Decimal(_)
             | Field::Timestamp(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Date(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1155,7 +1155,7 @@ pub fn evaluate_lt(
                 "<".to_string(),
             )),
         },
-        Field::Binary(_) | Field::Bson(_) => Err(PipelineError::InvalidTypeComparison(
+        Field::Binary(_) | Field::Json(_) => Err(PipelineError::InvalidTypeComparison(
             left_p,
             right_p,
             "<".to_string(),
@@ -1226,7 +1226,7 @@ pub fn evaluate_gt(
             Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_)
             | Field::Null => Ok(Field::Null),
@@ -1269,7 +1269,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
@@ -1314,7 +1314,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
@@ -1357,7 +1357,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
@@ -1401,7 +1401,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
@@ -1440,7 +1440,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Timestamp(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1500,7 +1500,7 @@ pub fn evaluate_gt(
                 | Field::Binary(_)
                 | Field::Timestamp(_)
                 | Field::Date(_)
-                | Field::Bson(_)
+                | Field::Json(_)
                 | Field::Point(_)
                 | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                     left_p,
@@ -1579,7 +1579,7 @@ pub fn evaluate_gt(
                 })?;
                 Ok(Field::Boolean(left_val > right_v))
             }
-            Field::Binary(_) | Field::Bson(_) => Err(PipelineError::InvalidTypeComparison(
+            Field::Binary(_) | Field::Json(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
                 right_p,
                 ">".to_string(),
@@ -1603,7 +1603,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Decimal(_)
             | Field::Date(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1629,7 +1629,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Decimal(_)
             | Field::Timestamp(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Point(_)
             | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1655,7 +1655,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Decimal(_)
             | Field::Timestamp(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Date(_)
             | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1681,7 +1681,7 @@ pub fn evaluate_gt(
             | Field::Binary(_)
             | Field::Decimal(_)
             | Field::Timestamp(_)
-            | Field::Bson(_)
+            | Field::Json(_)
             | Field::Date(_)
             | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
                 left_p,
@@ -1689,7 +1689,7 @@ pub fn evaluate_gt(
                 ">".to_string(),
             )),
         },
-        Field::Binary(_) | Field::Bson(_) => Err(PipelineError::InvalidTypeComparison(
+        Field::Binary(_) | Field::Json(_) => Err(PipelineError::InvalidTypeComparison(
             left_p,
             right_p,
             ">".to_string(),

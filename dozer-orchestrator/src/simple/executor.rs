@@ -1,9 +1,10 @@
+use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
 
 use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -24,30 +25,38 @@ pub struct Executor<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    api_endpoints: &'a [ApiEndpoint],
-    pipeline_dir: &'a Path,
+    /// `ApiEndpoint` and its log path.
+    endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
     running: Arc<AtomicBool>,
     multi_pb: MultiProgress,
 }
 impl<'a> Executor<'a> {
     pub fn new(
+        home_dir: &'a HomeDir,
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
-        pipeline_dir: &'a Path,
         running: Arc<AtomicBool>,
         multi_pb: MultiProgress,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, OrchestrationError> {
+        let mut endpoint_and_log_paths = vec![];
+        for endpoint in api_endpoints {
+            let migration_path = home_dir
+                .find_latest_migration_path(&endpoint.name)
+                .map_err(|(path, error)| OrchestrationError::FileSystem(path, error))?
+                .ok_or(OrchestrationError::NoMigrationFound(endpoint.name.clone()))?;
+            endpoint_and_log_paths.push((endpoint.clone(), migration_path.log_path));
+        }
+
+        Ok(Self {
             connections,
             sources,
             sql,
-            api_endpoints,
-            pipeline_dir,
+            endpoint_and_log_paths,
             running,
             multi_pb,
-        }
+        })
     }
 
     #[allow(clippy::type_complexity)]
@@ -75,21 +84,12 @@ impl<'a> Executor<'a> {
             self.connections,
             self.sources,
             self.sql,
-            self.api_endpoints,
-            self.pipeline_dir,
+            self.endpoint_and_log_paths.clone(),
             self.multi_pb.clone(),
         );
 
         let dag = builder.build(runtime, settings, notifier)?;
-        let path = &self.pipeline_dir;
-
-        if !path.exists() {
-            return Err(OrchestrationError::PipelineDirectoryNotFound(
-                path.to_string_lossy().to_string(),
-            ));
-        }
-
-        let exec = DagExecutor::new(dag, path.to_path_buf(), executor_options)?;
+        let exec = DagExecutor::new(dag, executor_options)?;
 
         Ok(exec)
     }

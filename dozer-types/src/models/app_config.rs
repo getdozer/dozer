@@ -5,6 +5,7 @@ use super::{
     source::Source, telemetry::TelemetryConfig,
 };
 use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
+use prettytable::Table as PrettyTable;
 use serde::{
     de::{self, IgnoredAny, Visitor},
     Deserialize, Deserializer, Serialize,
@@ -89,12 +90,15 @@ pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
 }
 
-pub fn default_cache_dir() -> String {
-    AsRef::<Path>::as_ref(DEFAULT_HOME_DIR)
+pub fn get_cache_dir(home_dir: &str) -> String {
+    AsRef::<Path>::as_ref(home_dir)
         .join("cache")
         .to_str()
         .unwrap()
         .to_string()
+}
+pub fn default_cache_dir() -> String {
+    get_cache_dir(DEFAULT_HOME_DIR)
 }
 
 pub fn default_file_buffer_capacity() -> u64 {
@@ -115,6 +119,31 @@ pub fn default_commit_size() -> u32 {
 
 pub fn default_commit_timeout() -> u64 {
     50
+}
+
+impl Config {
+    pub fn convert_to_table(&self) -> PrettyTable {
+        let mut table = table!();
+
+        table.add_row(row!["name", self.app_name]);
+        table.add_row(row![
+            "connectors",
+            self.connections
+                .iter()
+                .map(|c| c.name.clone())
+                .collect::<Vec<String>>()
+                .join(", ")
+        ]);
+        let mut endpoints_table = table!();
+        for endpoint in &self.endpoints {
+            endpoints_table.add_row(row![endpoint.name, endpoint.table_name, endpoint.path]);
+        }
+        if !self.endpoints.is_empty() {
+            table.add_row(row!["endpoints", endpoints_table]);
+        }
+
+        table
+    }
 }
 
 impl<'de> Deserialize<'de> for Config {

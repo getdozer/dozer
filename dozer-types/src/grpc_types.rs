@@ -27,10 +27,10 @@ pub mod ingest {
     pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("ingest");
 }
 
-pub mod admin {
+pub mod cloud {
     #![allow(clippy::derive_partial_eq_without_eq, clippy::large_enum_variant)]
-    tonic::include_proto!("dozer.admin");
-    pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("admin");
+    tonic::include_proto!("dozer.cloud");
+    pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("cloud");
 }
 
 // To be used in tests

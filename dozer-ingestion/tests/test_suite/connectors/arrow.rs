@@ -283,7 +283,7 @@ fn field_type_to_arrow(field_type: FieldType) -> Option<arrow::datatypes::DataTy
             None,
         )),
         FieldType::Date => Some(arrow::datatypes::DataType::Date32),
-        FieldType::Bson => None,
+        FieldType::Json => None,
         FieldType::Point => None,
         FieldType::Duration => Some(arrow::datatypes::DataType::Duration(
             arrow::datatypes::TimeUnit::Nanosecond,
@@ -421,7 +421,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             }
             Arc::new(builder.finish())
         }
-        FieldType::Bson => panic!("Bson not supported"),
+        FieldType::Json => panic!("Bson not supported"),
         FieldType::Point => panic!("Point not supported"),
         FieldType::Duration => {
             let mut builder = arrow::array::DurationNanosecondArray::builder(count);

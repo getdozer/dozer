@@ -2,8 +2,9 @@ use std::{borrow::Cow, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::log::warn;
+use dozer_types::epoch::Epoch;
 use dozer_types::node::NodeHandle;
+use dozer_types::{epoch::ExecutorOperation, log::warn};
 
 use crate::{
     builder_dag::NodeKind,
@@ -12,9 +13,7 @@ use crate::{
     node::{PortHandle, Processor},
 };
 
-use super::{
-    execution_dag::ExecutionDag, name::Name, receiver_loop::ReceiverLoop, ExecutorOperation,
-};
+use super::{execution_dag::ExecutionDag, name::Name, receiver_loop::ReceiverLoop};
 
 /// A processor in the execution DAG.
 #[derive(Debug)]
@@ -96,7 +95,7 @@ impl ReceiverLoop for ProcessorNode {
         Ok(())
     }
 
-    fn on_commit(&mut self, epoch: &crate::epoch::Epoch) -> Result<(), ExecutionError> {
+    fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         self.processor.commit(epoch)?;
         self.channel_manager.store_and_send_commit(epoch)
     }

@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use dozer_types::types::{FieldBorrow, IndexDefinition, Record};
+use dozer_types::types::{IndexDefinition, Record};
 
 pub trait CacheIndex {
     // Builds one index based on index definition and record
@@ -101,7 +101,7 @@ impl<'a> CompositeSecondaryIndexKey<'a> {
         Self { buf, offset: 0 }
     }
 
-    fn decode_one(&mut self) -> Result<FieldBorrow<'a>, CompareError> {
+    fn decode_one(&mut self) -> Result<Field, CompareError> {
         if self.offset + 8 > self.buf.len() {
             return Err(CompareError::CannotReadFieldLength);
         }
@@ -115,14 +115,14 @@ impl<'a> CompositeSecondaryIndexKey<'a> {
             return Err(CompareError::CannotReadField);
         }
 
-        let field = Field::decode_borrow(&self.buf[self.offset + 8..self.offset + field_len])?;
+        let field = Field::decode(&self.buf[self.offset + 8..self.offset + field_len])?;
         self.offset += field_len;
         Ok(field)
     }
 }
 
 impl<'a> Iterator for CompositeSecondaryIndexKey<'a> {
-    type Item = Result<FieldBorrow<'a>, CompareError>;
+    type Item = Result<Field, CompareError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset >= self.buf.len() {

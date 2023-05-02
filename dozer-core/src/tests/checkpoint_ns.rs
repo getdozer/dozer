@@ -1,4 +1,3 @@
-use crate::chk;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use crate::executor::{DagExecutor, ExecutorOptions};
@@ -8,7 +7,6 @@ use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT
 use dozer_types::node::NodeHandle;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tempdir::TempDir;
 
 #[test]
 fn test_checkpoint_consistency_ns() {
@@ -49,33 +47,32 @@ fn test_checkpoint_consistency_ns() {
             sink_handle.clone(),
             Arc::new(CountingSinkFactory::new(MESSAGES_COUNT * 2, latch.clone())),
         );
-        chk!(child_dag.connect(
-            Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
-            Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-        ));
+        child_dag
+            .connect(
+                Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+                Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
+            )
+            .unwrap();
 
         // Merge the DAG with the parent dag
         dag.merge(Some(i as u16), child_dag);
 
-        chk!(dag.connect(
+        dag.connect(
             Endpoint::new(sources[i].clone(), GENERATOR_SOURCE_OUTPUT_PORT),
             Endpoint::new(NodeHandle::new(Some(i as u16), "proc".to_string()), 1),
-        ));
-        chk!(dag.connect(
+        )
+        .unwrap();
+        dag.connect(
             Endpoint::new(sources[i + 1].clone(), GENERATOR_SOURCE_OUTPUT_PORT),
             Endpoint::new(NodeHandle::new(Some(i as u16), "proc".to_string()), 2),
-        ));
+        )
+        .unwrap();
     }
 
-    let tmp_dir = chk!(TempDir::new("test"));
-    DagExecutor::new(
-        dag,
-        tmp_dir.path().to_path_buf(),
-        ExecutorOptions::default(),
-    )
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }

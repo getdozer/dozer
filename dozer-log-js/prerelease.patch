@@ -1,0 +1,12 @@
+diff --git a/dozer-log-js/package.json b/dozer-log-js/package.json
+index 1b066168..2a5bbd68 100644
+--- a/dozer-log-js/package.json
++++ b/dozer-log-js/package.json
+@@ -7,6 +7,7 @@
+     "build": "cargo-cp-artifact -nc build/log.node -- cargo build --message-format=json-render-diagnostics",
+     "build-debug": "npm run build --",
+     "build-release": "npm run build -- --release",
++    "install": "node-pre-gyp install",
+     "test": "cargo test"
+   },
+   "author": "getdozer/dozer-dev",

@@ -1,12 +1,12 @@
 use crate::channels::ProcessorChannelForwarder;
-use crate::epoch::{Epoch, EpochManager};
+use crate::epoch::EpochManager;
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::InvalidPortHandle;
-use crate::executor::ExecutorOperation;
 use crate::node::PortHandle;
 use crate::record_store::RecordWriter;
 
 use crossbeam::channel::Sender;
+use dozer_types::epoch::{Epoch, ExecutorOperation};
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use dozer_types::log::debug;
 use dozer_types::node::NodeHandle;

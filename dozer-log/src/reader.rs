@@ -1,7 +1,7 @@
 use std::{io::SeekFrom, path::Path, time::Duration};
 
 use super::errors::ReaderError;
-use dozer_core::executor::ExecutorOperation;
+use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::{bincode, log::trace};
 use tokio::{

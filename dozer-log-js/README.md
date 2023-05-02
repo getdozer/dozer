@@ -6,15 +6,21 @@ This project was bootstrapped by [create-neon](https://www.npmjs.com/package/cre
 
 ## Installing dozer-log-js
 
-Installing dozer-log-js requires a [supported version of Node and Rust](https://github.com/neon-bindings/neon#platform-support).
-
-You can install the project with npm. In the project directory, run:
-
 ```sh
-npm install
+npm install @dozerjs/log
 ```
 
-This fully installs the project, including installing any dependencies and running the build.
+## Usage
+
+Assume your Dozer home directory is `.dozer` and you have an endpoint named `trips`. You can read the Dozer logs in Node.js as follows:
+
+```javascript
+const dozer_log = require('@dozerjs/log');
+
+const runtime = dozer_log.Runtime();
+reader = await runtime.create_reader('.dozer', 'trips');
+console.log(await reader.next_op());
+```
 
 ## Building dozer-log-js
 
@@ -31,7 +37,7 @@ This command uses the [cargo-cp-artifact](https://github.com/neon-bindings/cargo
 After building dozer-log-js, you can run dozer-log-js example with:
 
 ```sh
-npm install
+npm run build
 node examples/reader.js
 ```
 

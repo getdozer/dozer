@@ -2,18 +2,21 @@ use std::{borrow::Cow, collections::HashMap, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::{log::debug, node::NodeHandle};
+use dozer_types::{
+    epoch::{Epoch, ExecutorOperation},
+    log::debug,
+    node::NodeHandle,
+};
 
 use crate::{
     builder_dag::NodeKind,
-    epoch::Epoch,
     errors::ExecutionError,
     forwarder::StateWriter,
     node::{PortHandle, Sink},
 };
 
 use super::execution_dag::ExecutionDag;
-use super::{name::Name, receiver_loop::ReceiverLoop, ExecutorOperation};
+use super::{name::Name, receiver_loop::ReceiverLoop};
 
 /// A sink in the execution DAG.
 #[derive(Debug)]

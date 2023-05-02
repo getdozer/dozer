@@ -21,7 +21,7 @@ use dozer_types::log::error;
 use dozer_types::{grpc_types::types::Operation, models::api_security::ApiSecurity};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};
-use std::{borrow::Cow, collections::HashMap, convert::Infallible, path::Path};
+use std::{borrow::Cow, collections::HashMap, convert::Infallible};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
     codegen::{self, *},
@@ -58,7 +58,6 @@ impl Clone for TypedService {
 
 impl TypedService {
     pub fn new(
-        descriptor_path: &Path,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
         security: Option<ApiSecurity>,
@@ -66,8 +65,10 @@ impl TypedService {
         let endpoint_map = cache_endpoints
             .into_iter()
             .map(|cache_endpoint| {
-                let service_desc =
-                    ProtoGenerator::read_schema(descriptor_path, &cache_endpoint.endpoint.name)?;
+                let service_desc = ProtoGenerator::read_schema(
+                    cache_endpoint.descriptor_path(),
+                    &cache_endpoint.endpoint.name,
+                )?;
                 Ok::<_, GenerationError>((
                     service_desc.service.full_name().to_string(),
                     TypedEndpoint {

@@ -1,11 +1,14 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use crate::errors::PostgresSchemaError::{
-    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, JSONBParseError,
-    PointParseError, StringParseError, ValueConversionError,
+    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, PointParseError,
+    StringParseError, ValueConversionError,
 };
 use crate::errors::{ConnectorError, PostgresSchemaError};
 use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
+use dozer_types::errors::types::TypeError;
+use dozer_types::geo::Point as GeoPoint;
+use dozer_types::json_types::{serde_json_to_json_value, JsonValue};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, serde_json, types::*};
 use postgres_types::{Type, WasNull};
@@ -14,8 +17,7 @@ use rust_decimal::Decimal;
 use std::error::Error;
 use std::vec;
 use tokio_postgres::{Column, Row};
-
-use dozer_types::geo::Point as GeoPoint;
+use uuid::Uuid;
 
 pub fn postgres_type_to_field(
     value: Option<&Bytes>,
@@ -38,6 +40,7 @@ pub fn postgres_type_to_field(
                 Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR => {
                     Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
                 }
+                Type::UUID => Ok(Field::String(String::from_utf8(v.to_vec()).unwrap())),
                 Type::BYTEA => Ok(Field::Binary(v.to_vec())),
                 Type::NUMERIC => Ok(Field::Decimal(
                     Decimal::from_f64(
@@ -72,7 +75,33 @@ pub fn postgres_type_to_field(
                     .unwrap();
                     Ok(Field::from(date))
                 }
-                Type::JSONB | Type::JSON => Ok(Field::Bson(v.to_vec())),
+                Type::JSONB | Type::JSON => {
+                    let val: serde_json::Value = serde_json::from_slice(v).map_err(|_| {
+                        PostgresSchemaError::JSONBParseError(format!(
+                            "Error converting to a single row for: {}",
+                            column_type.name()
+                        ))
+                    })?;
+                    let json: JsonValue = serde_json_to_json_value(val).map_err(|e| {
+                        PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                    })?;
+                    Ok(Field::Json(json))
+                }
+                Type::JSONB_ARRAY | Type::JSON_ARRAY => {
+                    let val: Vec<serde_json::Value> = serde_json::from_slice(v).map_err(|_| {
+                        PostgresSchemaError::JSONBParseError(format!(
+                            "Error converting to a single row for: {}",
+                            column_type.name()
+                        ))
+                    })?;
+                    let mut lst = vec![];
+                    for v in val {
+                        lst.push(serde_json_to_json_value(v).map_err(|e| {
+                            PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                        })?);
+                    }
+                    Ok(Field::Json(JsonValue::Array(lst)))
+                }
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
                 Type::POINT => Ok(Field::Point(
                     String::from_utf8(v.to_vec())
@@ -89,12 +118,14 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
     match column_type {
         Type::BOOL => Ok(FieldType::Boolean),
         Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
-        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR => Ok(FieldType::String),
+        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::UUID => {
+            Ok(FieldType::String)
+        }
         Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
         Type::BYTEA => Ok(FieldType::Binary),
         Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
         Type::NUMERIC => Ok(FieldType::Decimal),
-        Type::JSONB => Ok(FieldType::Bson),
+        Type::JSONB | Type::JSON | Type::JSONB_ARRAY | Type::JSON_ARRAY => Ok(FieldType::Json),
         Type::DATE => Ok(FieldType::Date),
         Type::POINT => Ok(FieldType::Point),
         _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
@@ -143,21 +174,37 @@ pub fn value_to_field(
             let value: Result<Vec<u8>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
         }
-        &Type::JSONB => {
+        &Type::JSONB | &Type::JSON => {
             let value: Result<serde_json::Value, _> = row.try_get(idx);
-
-            value.map_or_else(handle_error, |v| {
-                Ok(Field::Bson(
-                    bson::to_vec(&v).map_err(|e| JSONBParseError(e.to_string()))?,
-                ))
+            value.map_or_else(handle_error, |val| {
+                Ok(Field::Json(serde_json_to_json_value(val).map_err(|e| {
+                    PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                })?))
+            })
+        }
+        &Type::JSONB_ARRAY | &Type::JSON_ARRAY => {
+            let value: Result<Vec<serde_json::Value>, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |val| {
+                let mut lst = vec![];
+                for v in val {
+                    lst.push(serde_json_to_json_value(v).map_err(|e| {
+                        PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                    })?);
+                }
+                Ok(Field::Json(JsonValue::Array(lst)))
             })
         }
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
+        // &Type::UUID => convert_row_value_to_field!(row, idx, Uuid),
+        &Type::UUID => {
+            let value: Result<Uuid, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |val| Ok(Field::from(val.to_string())))
+        }
         _ => {
             if col_type.schema() == "pg_catalog" {
                 Err(ColumnTypeNotSupported(col_type.name().to_string()))
             } else {
-                Err(CustomTypeNotSupported)
+                Err(CustomTypeNotSupported(col_type.name().to_string()))
             }
         }
     }
@@ -216,6 +263,7 @@ pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, Postg
 mod tests {
     use super::*;
     use dozer_types::chrono::NaiveDate;
+    use std::collections::BTreeMap;
 
     #[macro_export]
     macro_rules! test_conversion {
@@ -248,6 +296,13 @@ mod tests {
         test_conversion!("4.7809", Type::FLOAT8, Field::Float(OrderedFloat(4.7809)));
         let value = String::from("Test text");
         test_conversion!("Test text", Type::TEXT, Field::String(value));
+
+        let value = String::from("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
+        test_conversion!(
+            "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            Type::UUID,
+            Field::String(value)
+        );
 
         // UTF-8 bytes representation of json (https://www.charset.org/utf-8)
         let value: Vec<u8> = vec![98, 121, 116, 101, 97];
@@ -282,9 +337,23 @@ mod tests {
             Field::Timestamp(value)
         );
 
-        // UTF-8 bytes representation of json (https://www.charset.org/utf-8)
-        let value = vec![123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125];
-        test_conversion!("{\"abc\":\"foo\"}", Type::JSONB, Field::Bson(value));
+        let value = JsonValue::Object(BTreeMap::from([(
+            String::from("abc"),
+            JsonValue::String(String::from("foo")),
+        )]));
+        test_conversion!("{\"abc\":\"foo\"}", Type::JSONB, Field::Json(value.clone()));
+        test_conversion!("{\"abc\":\"foo\"}", Type::JSON, Field::Json(value));
+
+        let value = JsonValue::Array(vec![JsonValue::Object(BTreeMap::from([(
+            String::from("abc"),
+            JsonValue::String(String::from("foo")),
+        )]))]);
+        test_conversion!(
+            "[{\"abc\":\"foo\"}]",
+            Type::JSON_ARRAY,
+            Field::Json(value.clone())
+        );
+        test_conversion!("[{\"abc\":\"foo\"}]", Type::JSONB_ARRAY, Field::Json(value));
 
         test_conversion!("t", Type::BOOL, Field::Boolean(true));
         test_conversion!("f", Type::BOOL, Field::Boolean(false));
@@ -301,11 +370,15 @@ mod tests {
         test_type_mapping!(Type::INT8, FieldType::Int);
         test_type_mapping!(Type::FLOAT8, FieldType::Float);
         test_type_mapping!(Type::VARCHAR, FieldType::String);
+        test_type_mapping!(Type::UUID, FieldType::String);
         test_type_mapping!(Type::BYTEA, FieldType::Binary);
         test_type_mapping!(Type::NUMERIC, FieldType::Decimal);
         test_type_mapping!(Type::TIMESTAMP, FieldType::Timestamp);
         test_type_mapping!(Type::TIMESTAMPTZ, FieldType::Timestamp);
-        test_type_mapping!(Type::JSONB, FieldType::Bson);
+        test_type_mapping!(Type::JSONB, FieldType::Json);
+        test_type_mapping!(Type::JSON, FieldType::Json);
+        test_type_mapping!(Type::JSONB_ARRAY, FieldType::Json);
+        test_type_mapping!(Type::JSON_ARRAY, FieldType::Json);
         test_type_mapping!(Type::BOOL, FieldType::Boolean);
         test_type_mapping!(Type::POINT, FieldType::Point);
     }

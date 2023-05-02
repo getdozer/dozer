@@ -1,6 +1,6 @@
 [package]
 name = "dozer-log-js"
-version = "0.1.17"
+version = "0.1.18"
 description = "Node.js binding for reading Dozer logs"
 authors = ["getdozer/dozer-dev"]
 license = "Apache-2.0"
@@ -8,15 +8,13 @@ edition = "2018"
 exclude = ["index.node"]
 
 [lib]
+name = "log"
 crate-type = ["cdylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dozer-api = { path = "../dozer-api" }
-dozer-core = { path = "../dozer-core" }
 dozer-log = { path = "../dozer-log" }
-dozer-orchestrator = { path = "../dozer-orchestrator" }
 dozer-types = { path = "../dozer-types" }
 
 [dependencies.neon]

@@ -19,7 +19,7 @@ use crate::pipeline::expression::datetime::DateTimeFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::{
-    ConditionalExpression, GeoFunction, ScalarFunction,
+    ConditionalExpression, GeoFunction, Now, ScalarFunction,
 };
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -310,7 +310,7 @@ impl ExpressionBuilder {
         }
     }
 
-    fn conditional_expr_check(
+    fn geo_expr_check(
         &mut self,
         function_name: String,
         parse_aggregations: bool,
@@ -327,13 +327,35 @@ impl ExpressionBuilder {
                 fun: gft,
                 args: function_args.clone(),
             }),
-            Err(_e) => match ConditionalExpressionType::new(function_name.as_str()) {
-                Ok(cet) => Ok(ConditionalExpression {
-                    fun: cet,
-                    args: function_args.clone(),
-                }),
-                Err(_err) => Err(InvalidFunction(function_name)),
-            },
+            Err(_e) => Err(InvalidFunction(function_name)),
+        }
+    }
+
+    fn datetime_expr_check(&mut self, function_name: String) -> Result<Expression, PipelineError> {
+        match DateTimeFunctionType::new(function_name.as_str()) {
+            Ok(dtf) => Ok(Now { fun: dtf }),
+            Err(_e) => Err(InvalidFunction(function_name)),
+        }
+    }
+
+    fn conditional_expr_check(
+        &mut self,
+        function_name: String,
+        parse_aggregations: bool,
+        sql_function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let mut function_args: Vec<Expression> = Vec::new();
+        for arg in &sql_function.args {
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+        }
+
+        match ConditionalExpressionType::new(function_name.as_str()) {
+            Ok(cet) => Ok(ConditionalExpression {
+                fun: cet,
+                args: function_args.clone(),
+            }),
+            Err(_err) => Err(InvalidFunction(function_name)),
         }
     }
 
@@ -372,7 +394,27 @@ impl ExpressionBuilder {
             return scalar_check;
         }
 
-        self.conditional_expr_check(function_name, parse_aggregations, sql_function, schema)
+        let geo_check = self.geo_expr_check(
+            function_name.clone(),
+            parse_aggregations,
+            sql_function,
+            schema,
+        );
+        if geo_check.is_ok() {
+            return geo_check;
+        }
+
+        let conditional_check = self.conditional_expr_check(
+            function_name.clone(),
+            parse_aggregations,
+            sql_function,
+            schema,
+        );
+        if conditional_check.is_ok() {
+            return conditional_check;
+        }
+
+        self.datetime_expr_check(function_name)
     }
 
     fn parse_sql_function_arg(
@@ -549,8 +591,8 @@ impl ExpressionBuilder {
             DataType::Text => CastOperatorType::Text,
             DataType::String => CastOperatorType::String,
             DataType::Custom(name, ..) => {
-                if name.to_string().to_lowercase() == "bson" {
-                    CastOperatorType::Bson
+                if name.to_string().to_lowercase() == "json" {
+                    CastOperatorType::Json
                 } else if name.to_string().to_lowercase() == "uint" {
                     CastOperatorType::UInt
                 } else if name.to_string().to_lowercase() == "u128" {

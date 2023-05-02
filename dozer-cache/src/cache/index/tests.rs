@@ -15,7 +15,7 @@ fn test_composite_key_encode_roundtrip() {
     for field in field_test_cases() {
         let key = get_composite_secondary_index(&[&field]);
         let mut key = CompositeSecondaryIndexKey::new(&key);
-        assert_eq!(key.next().unwrap().unwrap(), field.borrow());
+        assert_eq!(key.next().unwrap().unwrap(), field);
         assert!(key.next().is_none());
     }
 
@@ -24,8 +24,8 @@ fn test_composite_key_encode_roundtrip() {
         for field2 in field_test_cases() {
             let key = get_composite_secondary_index(&[&field1, &field2]);
             let mut key = CompositeSecondaryIndexKey::new(&key);
-            assert_eq!(key.next().unwrap().unwrap(), field1.borrow());
-            assert_eq!(key.next().unwrap().unwrap(), field2.borrow());
+            assert_eq!(key.next().unwrap().unwrap(), field1);
+            assert_eq!(key.next().unwrap().unwrap(), field2);
             assert!(key.next().is_none());
         }
     }

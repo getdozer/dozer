@@ -1017,9 +1017,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sigv4"
-version = "0.54.1"
+version = "0.54.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdaf11005b7444e6cd66f600d09861a3aeb6eb89a0f003c7c9820dbab2d15297"
+checksum = "86529e7b64d902efea8fff52c1b2529368d04f90305cf632729e3713f6b57dc0"
 dependencies = [
  "aws-smithy-http",
  "form_urlencoded",
@@ -2347,7 +2347,7 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "dozer-api"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "Inflector",
  "actix-cors",
@@ -2383,7 +2383,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "ahash 0.8.3",
  "criterion",
@@ -2403,21 +2403,20 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "crossbeam",
  "daggy",
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",
- "fp_rust",
  "tempdir",
  "uuid",
 ]
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "base64 0.21.0",
  "bson",
@@ -2451,14 +2450,14 @@ dependencies = [
  "tonic-reflection",
  "tonic-web",
  "tower-http",
+ "uuid",
  "web3",
 ]
 
 [[package]]
 name = "dozer-log"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
- "dozer-core",
  "dozer-types",
  "futures-util",
  "tokio",
@@ -2466,30 +2465,25 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-js"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
- "dozer-api",
- "dozer-core",
  "dozer-log",
- "dozer-orchestrator",
  "dozer-types",
  "neon",
 ]
 
 [[package]]
 name = "dozer-log-python"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
- "dozer-core",
  "dozer-log",
- "dozer-orchestrator",
  "dozer-types",
  "pyo3-asyncio",
 ]
 
 [[package]]
 name = "dozer-orchestrator"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "clap 4.1.11",
  "ctrlc",
@@ -2519,7 +2513,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "ahash 0.8.3",
  "bloom",
@@ -2542,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
@@ -2553,7 +2547,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "ahash 0.8.3",
  "async-trait",
@@ -2584,7 +2578,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "dozer-types",
  "opentelemetry",
@@ -2597,7 +2591,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "ahash 0.8.3",
  "arrow 33.0.0",
@@ -2606,7 +2600,6 @@ dependencies = [
  "bytes",
  "chrono",
  "crossbeam",
- "fp_rust",
  "geo",
  "indexmap",
  "indicatif",
@@ -2629,7 +2622,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-utils"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "dozer-types",
 ]
@@ -2940,12 +2933,6 @@ checksum = "a9c384f161156f5260c24a097c56119f9be8c798586aecc13afbcbe7b7e26bf8"
 dependencies = [
  "percent-encoding",
 ]
-
-[[package]]
-name = "fp_rust"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6449172a114cfa5c420d2d87db37fd4a3547e76ca06b1fa27f67757b0013368"
 
 [[package]]
 name = "fs-err"
@@ -5026,6 +5013,7 @@ dependencies = [
  "postgres-protocol",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -6970,7 +6958,10 @@ dependencies = [
  "pin-project",
  "prost",
  "prost-derive",
+ "rustls-native-certs 0.6.2",
+ "rustls-pemfile",
  "tokio",
+ "tokio-rustls 0.23.4",
  "tokio-stream",
  "tokio-util 0.7.7",
  "tower",
@@ -7385,9 +7376,9 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 
 [[package]]
 name = "uuid"
-version = "1.3.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1674845326ee10d37ca60470760d4288a6f80f304007d92e5c53bab78c9cfd79"
+checksum = "5b55a3fef2a1e3b3a00ce878640918820d3c51081576ac657d23af9fc7928fdb"
 dependencies = [
  "atomic",
  "getrandom",

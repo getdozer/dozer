@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.17"
+version = "0.1.18"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -56,5 +56,4 @@ tempdir = "0.3.7"
 
 [features]
 mongodb = ["dep:bson", "dep:mongodb", "dep:futures"]
-python=["dozer-types/python", "dozer-sql/python"]
-
+python=["dozer-sql/python"]

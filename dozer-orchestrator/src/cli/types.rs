@@ -2,6 +2,10 @@ use clap::{Args, Parser, Subcommand};
 
 use super::helper::{DESCRIPTION, LOGO};
 
+#[cfg(feature = "cloud")]
+use crate::cli::cloud::Cloud;
+use dozer_types::constants::DEFAULT_CONFIG_PATH;
+
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
 #[command(
@@ -13,7 +17,7 @@ pub struct Cli {
         global = true,
         short = 'c',
         long,
-        default_value = "./dozer-config.yaml"
+        default_value = DEFAULT_CONFIG_PATH
     )]
     pub config_path: String,
 
@@ -23,15 +27,17 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(about = "Initalize an app using a template.")]
+    #[command(about = "Initialize an app using a template")]
     Init,
     #[command(about = "Clean home directory")]
     Clean,
     #[command(
-        about = "Initialize and lock schema definitions. Once intiialized, schemas cannot be changed."
+        about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed"
     )]
     Migrate(Migrate),
-
+    #[cfg(feature = "cloud")]
+    #[command(about = "Deploy cloud applications")]
+    Cloud(Cloud),
     #[command(about = "Run Api Server")]
     Api(Api),
     #[command(about = "Run App Server")]
@@ -52,6 +58,16 @@ pub struct Api {
 pub struct Migrate {
     #[arg(short = 'f')]
     pub force: Option<Option<String>>,
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct Deploy {
+    pub target_url: String,
+    #[arg(short = 'u')]
+    pub username: Option<String>,
+    #[arg(short = 'p')]
+    pub password: Option<String>,
 }
 
 #[derive(Debug, Args)]
