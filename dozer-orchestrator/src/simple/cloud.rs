@@ -1,4 +1,5 @@
 use crate::cli::cloud::Cloud;
+use crate::cloud_helper::list_files;
 use crate::errors::{DeployError, OrchestrationError};
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
@@ -33,8 +34,10 @@ impl CloudOrchestrator for SimpleOrchestrator {
             // 1. CREATE application
             let mut client: DozerCloudClient<tonic::transport::Channel> =
                 DozerCloudClient::connect(target_url).await?;
+            let files = list_files()?;
             let response = client
                 .create_application(CreateAppRequest {
+                    files,
                     config: config_content,
                 })
                 .await?
