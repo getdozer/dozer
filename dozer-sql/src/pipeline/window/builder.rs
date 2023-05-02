@@ -7,22 +7,28 @@ use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, Valu
 use crate::pipeline::{
     errors::{JoinError, PipelineError, WindowError},
     expression::builder::ExpressionBuilder,
-    pipeline_builder::from_builder::TableOperator,
+    pipeline_builder::from_builder::TableOperatorDescriptor,
 };
 
 use super::operator::WindowType;
 
+const ARG_SOURCE: usize = 0;
+const ARG_COLUMN: usize = 1;
+
+const ARG_TUMBLE_INTERVAL: usize = 2;
+
+const ARG_HOP_SIZE: usize = 2;
+const ARG_HOP_INTERVAL: usize = 3;
+
 pub(crate) fn window_from_table_operator(
-    operator: &TableOperator,
+    operator: &TableOperatorDescriptor,
     schema: &Schema,
 ) -> Result<Option<WindowType>, WindowError> {
-    let function_name = string_from_sql_object_name(&operator.name);
-
-    if function_name.to_uppercase() == "TUMBLE" {
+    if operator.name.to_uppercase() == "TUMBLE" {
         let column_index = get_window_column_index(&operator.args, schema)?;
         let interval_arg = operator
             .args
-            .get(2)
+            .get(ARG_TUMBLE_INTERVAL)
             .ok_or(WindowError::WindowMissingIntervalArgument)?;
         let interval = get_window_interval(interval_arg)?;
 
@@ -30,16 +36,16 @@ pub(crate) fn window_from_table_operator(
             column_index,
             interval,
         }))
-    } else if function_name.to_uppercase() == "HOP" {
+    } else if operator.name.to_uppercase() == "HOP" {
         let column_index = get_window_column_index(&operator.args, schema)?;
         let hop_arg = operator
             .args
-            .get(2)
+            .get(ARG_HOP_SIZE)
             .ok_or(WindowError::WindowMissingHopSizeArgument)?;
         let hop_size = get_window_hop(hop_arg)?;
         let interval_arg = operator
             .args
-            .get(3)
+            .get(ARG_HOP_INTERVAL)
             .ok_or(WindowError::WindowMissingIntervalArgument)?;
         let interval = get_window_interval(interval_arg)?;
 
@@ -49,23 +55,27 @@ pub(crate) fn window_from_table_operator(
             interval,
         }));
     } else {
-        return Err(WindowError::UnsupportedRelationFunction(function_name));
+        return Err(WindowError::UnsupportedRelationFunction(
+            operator.name.clone(),
+        ));
     }
 }
 
-pub(crate) fn window_source_name(operator: &TableOperator) -> Result<String, WindowError> {
-    let function_name = string_from_sql_object_name(&operator.name);
-
-    if function_name.to_uppercase() == "TUMBLE" || function_name.to_uppercase() == "HOP" {
+pub(crate) fn window_source_name(
+    operator: &TableOperatorDescriptor,
+) -> Result<String, WindowError> {
+    if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
         let source_arg = operator
             .args
-            .get(0)
+            .get(ARG_SOURCE)
             .ok_or(WindowError::WindowMissingSourceArgument)?;
         let source_name = get_window_source_name(source_arg)?;
 
         Ok(source_name)
     } else {
-        Err(WindowError::UnsupportedRelationFunction(function_name))
+        Err(WindowError::UnsupportedRelationFunction(
+            operator.name.clone(),
+        ))
     }
 }
 
@@ -143,7 +153,7 @@ fn get_window_source_name(arg: &FunctionArg) -> Result<String, WindowError> {
 
 fn get_window_column_index(args: &[FunctionArg], schema: &Schema) -> Result<usize, WindowError> {
     let column_arg = args
-        .get(1)
+        .get(ARG_COLUMN)
         .ok_or(WindowError::WindowMissingColumnArgument)?;
     match column_arg {
         FunctionArg::Named { name, arg: _ } => {
@@ -204,13 +214,11 @@ fn parse_duration_string(duration_string: &str) -> Result<Duration, WindowError>
 }
 
 pub fn string_from_sql_object_name(name: &ObjectName) -> String {
-    let function_name = name
-        .0
+    name.0
         .iter()
         .map(ExpressionBuilder::normalize_ident)
         .collect::<Vec<String>>()
-        .join(".");
-    function_name
+        .join(".")
 }
 
 pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>, PipelineError> {

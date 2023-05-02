@@ -162,6 +162,7 @@ pub fn map_trace_to_ops(trace: &Trace) -> Vec<Operation> {
                 Field::Text(format!("{:?}", trace.input)),
                 Field::Text(format!("{:?}", trace.output)),
             ],
+            lifetime: None,
         },
     };
     ops.push(op);

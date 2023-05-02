@@ -282,6 +282,7 @@ pub fn map_record_batch_to_dozer_records(
         records.push(Record {
             schema_id: schema.identifier,
             values,
+            lifetime: None,
         });
     }
 

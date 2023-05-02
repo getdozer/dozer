@@ -64,7 +64,8 @@ fn insert_get_and_delete_record() {
         cache
             .delete(&Record {
                 schema_id: schema.identifier,
-                values: vec![Field::String(val)]
+                values: vec![Field::String(val)],
+                lifetime: None,
             })
             .unwrap()
             .unwrap(),

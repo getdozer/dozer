@@ -182,5 +182,6 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
     Ok(Record {
         schema_id: schema.identifier,
         values,
+        lifetime: None,
     })
 }

@@ -143,19 +143,28 @@ pub type SchemaWithIndex = (Schema, Vec<IndexDefinition>);
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
+
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
+
+    /// Time To Live for this record. If the value is None, the record will never expire.
+    pub lifetime: Option<DozerDuration>,
 }
 
 impl Record {
     pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
-        Record { schema_id, values }
+        Record {
+            schema_id,
+            values,
+            lifetime: None,
+        }
     }
 
     pub fn from_schema(schema: &Schema) -> Record {
         Record {
             schema_id: schema.identifier,
             values: vec![Field::Null; schema.fields.len()],
+            lifetime: None,
         }
     }
 
@@ -163,6 +172,7 @@ impl Record {
         Record {
             schema_id,
             values: vec![Field::Null; size],
+            lifetime: None,
         }
     }
 
@@ -215,6 +225,14 @@ impl Record {
             res_buffer.extend(i);
         }
         res_buffer
+    }
+
+    pub fn set_lifetime(&mut self, duration: Option<DozerDuration>) {
+        self.lifetime = duration;
+    }
+
+    pub fn get_lifetime(&mut self) -> Option<DozerDuration> {
+        self.lifetime
     }
 }
 

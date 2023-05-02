@@ -10,7 +10,7 @@ use dozer_types::types::Schema;
 use crate::pipeline::{
     builder::SchemaSQLContext,
     errors::{PipelineError, WindowError},
-    pipeline_builder::from_builder::TableOperator,
+    pipeline_builder::from_builder::TableOperatorDescriptor,
 };
 
 use super::{
@@ -20,11 +20,11 @@ use super::{
 
 #[derive(Debug)]
 pub struct WindowProcessorFactory {
-    table: TableOperator,
+    table: TableOperatorDescriptor,
 }
 
 impl WindowProcessorFactory {
-    pub fn new(table: TableOperator) -> Self {
+    pub fn new(table: TableOperatorDescriptor) -> Self {
         Self { table }
     }
 
