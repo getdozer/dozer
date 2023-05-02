@@ -35,7 +35,6 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let mut client: DozerCloudClient<tonic::transport::Channel> =
                 DozerCloudClient::connect(target_url).await?;
             let files = list_files()?;
-            info!("FILES: {:?}", files);
             let response = client
                 .create_application(CreateAppRequest {
                     files,
