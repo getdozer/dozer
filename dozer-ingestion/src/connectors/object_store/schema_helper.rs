@@ -258,7 +258,7 @@ pub fn map_value_to_dozer_field(
                 };
                 Ok(s)
             } else {
-                Ok(DozerField::Null)
+                make_from!(array::StringArray, column, row)
             }
         }
         DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
