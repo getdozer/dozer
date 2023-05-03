@@ -1,15 +1,14 @@
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidFunction, InvalidFunctionArgument, InvalidValue,
 };
-use crate::pipeline::errors::{PipelineError};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use jsonpath_rust::{JsonPathQuery};
+use jsonpath_rust::JsonPathQuery;
 
 use dozer_types::json_types::{json_value_to_serde_json, serde_json_to_json_value, JsonValue};
-use dozer_types::serde_json::{Value};
+use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record, Schema};
 use std::fmt::{Display, Formatter};
-
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum JsonFunctionType {
@@ -117,23 +116,23 @@ impl JsonFunctionType {
         })
         .map_err(|e| InvalidArgument(e.to_string()))?;
 
-        let res = json_val
-            .path(path.as_str())
-            .map_err(InvalidArgument)?;
+        let res = json_val.path(path.as_str()).map_err(InvalidArgument)?;
 
         return match json_input.to_json().unwrap() {
             JsonValue::Array(_) => Ok(res),
             _ => match res {
-                Value::Array(array) => return if array.len() == 1 {
-                    match array.get(0) {
-                        Some(r) => Ok(r.clone()),
-                        None => Err(InvalidFunction(self.to_string())),
+                Value::Array(array) => {
+                    return if array.len() == 1 {
+                        match array.get(0) {
+                            Some(r) => Ok(r.clone()),
+                            None => Err(InvalidFunction(self.to_string())),
+                        }
+                    } else {
+                        Err(InvalidFunction(self.to_string()))
                     }
-                } else {
-                    Err(InvalidFunction(self.to_string()))
-                },
+                }
                 _ => Err(InvalidValue(path)),
-            }
-        }
+            },
+        };
     }
 }
