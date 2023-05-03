@@ -22,6 +22,7 @@ use crate::pipeline::expression::execution::Expression::{
     ConditionalExpression, GeoFunction, Now, ScalarFunction,
 };
 use crate::pipeline::expression::geo::common::GeoFunctionType;
+use crate::pipeline::expression::json_functions::JsonFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::expression::scalar::string::TrimType;
@@ -338,6 +339,27 @@ impl ExpressionBuilder {
         }
     }
 
+    fn json_func_check(
+        &mut self,
+        function_name: String,
+        parse_aggregations: bool,
+        sql_function: &Function,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let mut function_args: Vec<Expression> = Vec::new();
+        for arg in &sql_function.args {
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+        }
+
+        match JsonFunctionType::new(function_name.as_str()) {
+            Ok(jft) => Ok(Expression::Json {
+                fun: jft,
+                args: function_args,
+            }),
+            Err(_e) => Err(InvalidFunction(function_name)),
+        }
+    }
+
     fn conditional_expr_check(
         &mut self,
         function_name: String,
@@ -414,7 +436,12 @@ impl ExpressionBuilder {
             return conditional_check;
         }
 
-        self.datetime_expr_check(function_name)
+        let datetime_check = self.datetime_expr_check(function_name.clone());
+        if datetime_check.is_ok() {
+            return datetime_check;
+        }
+
+        self.json_func_check(function_name, parse_aggregations, sql_function, schema)
     }
 
     fn parse_sql_function_arg(

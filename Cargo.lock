@@ -2524,6 +2524,7 @@ dependencies = [
  "dyn-clone",
  "enum_dispatch",
  "hashbrown 0.13.2",
+ "jsonpath-rust",
  "like",
  "linked-hash-map",
  "multimap",
@@ -3674,6 +3675,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "445dde2150c55e483f3d8416706b97ec8e8237c307e5b7b4b8dd15e6af2a0730"
 dependencies = [
  "wasm-bindgen",
+]
+
+[[package]]
+name = "jsonpath-rust"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7ea2fa3ba7d1404aa6b094aceec1d49106ec0110b40c40b76cedae148837a3b"
+dependencies = [
+ "pest",
+ "pest_derive",
+ "regex",
+ "serde_json",
 ]
 
 [[package]]
