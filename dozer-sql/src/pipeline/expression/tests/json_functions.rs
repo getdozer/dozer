@@ -198,20 +198,26 @@ fn test_json_query_all() {
             .clone(),
         vec![Field::Json(json_val)],
     );
-    assert_eq!(f, Field::Json(serde_json_to_json_value(json!([
-        {
-            "digit": 30,
-            "letter": "A"
-        },
-        30,
-        "A",
-        {
-            "digit": 31,
-            "letter": "B"
-        },
-        31,
-        "B"
-    ])).unwrap()));
+    assert_eq!(
+        f,
+        Field::Json(
+            serde_json_to_json_value(json!([
+                {
+                    "digit": 30,
+                    "letter": "A"
+                },
+                30,
+                "A",
+                {
+                    "digit": 31,
+                    "letter": "B"
+                },
+                31,
+                "B"
+            ]))
+            .unwrap()
+        )
+    );
 }
 
 #[test]
@@ -222,7 +228,7 @@ fn test_json_query_iter() {
             {"digit": 31, "letter": "B"}
         ]
     ))
-        .unwrap();
+    .unwrap();
 
     let f = run_fct(
         "SELECT JSON_QUERY(jsonInfo, '$[*].digit') FROM users",
@@ -239,8 +245,8 @@ fn test_json_query_iter() {
             .clone(),
         vec![Field::Json(json_val)],
     );
-    assert_eq!(f, Field::Json(serde_json_to_json_value(json!([
-        30,
-        31,
-    ])).unwrap()));
+    assert_eq!(
+        f,
+        Field::Json(serde_json_to_json_value(json!([30, 31,])).unwrap())
+    );
 }
