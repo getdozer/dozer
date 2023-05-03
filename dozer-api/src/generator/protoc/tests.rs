@@ -2,8 +2,7 @@ use std::path::Path;
 
 use super::generator::{ProtoGenerator, ServiceDesc};
 use crate::test_utils;
-use dozer_types::models::api_security::ApiSecurity;
-use dozer_types::models::flags::Flags;
+use dozer_cache::dozer_log::schemas::MigrationSchema;
 use tempdir::TempDir;
 
 fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDesc {
@@ -17,22 +16,18 @@ fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDe
 fn test_generate_proto_and_descriptor() {
     let schema_name = "films";
     let schema = test_utils::get_schema().0;
+    let schema = MigrationSchema {
+        schema,
+        enable_token: false,
+        enable_on_event: false,
+    };
 
     let endpoint = test_utils::get_endpoint();
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();
-    let api_security: Option<ApiSecurity> = None;
-    let flags = Flags::default();
 
-    ProtoGenerator::generate(
-        tmp_dir_path,
-        schema_name,
-        &schema,
-        &api_security,
-        &Some(flags),
-    )
-    .unwrap();
+    ProtoGenerator::generate(tmp_dir_path, schema_name, &schema).unwrap();
 
     let service_desc = read_service_desc(tmp_dir_path, &endpoint.name);
 
@@ -53,22 +48,18 @@ fn test_generate_proto_and_descriptor() {
 fn test_generate_proto_and_descriptor_with_security() {
     let schema_name = "films";
     let schema = test_utils::get_schema().0;
+    let schema = MigrationSchema {
+        schema,
+        enable_token: true,
+        enable_on_event: true,
+    };
 
     let endpoint = test_utils::get_endpoint();
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();
 
-    let api_security = Some(ApiSecurity::Jwt("vDKrSDOrVY".to_owned()));
-    let flags = Flags::default();
-    ProtoGenerator::generate(
-        tmp_dir_path,
-        schema_name,
-        &schema,
-        &api_security,
-        &Some(flags),
-    )
-    .unwrap();
+    ProtoGenerator::generate(tmp_dir_path, schema_name, &schema).unwrap();
 
     let service_desc = read_service_desc(tmp_dir_path, &endpoint.name);
 
@@ -97,20 +88,17 @@ fn test_generate_proto_and_descriptor_with_security() {
 fn test_generate_proto_and_descriptor_with_push_event_off() {
     let schema_name = "films";
     let schema = test_utils::get_schema().0;
+    let schema = MigrationSchema {
+        schema,
+        enable_token: true,
+        enable_on_event: false,
+    };
 
     let endpoint = test_utils::get_endpoint();
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();
-    let api_security = ApiSecurity::Jwt("vDKrSDOrVY".to_owned());
-    ProtoGenerator::generate(
-        tmp_dir_path,
-        schema_name,
-        &schema,
-        &Some(api_security),
-        &None,
-    )
-    .unwrap();
+    ProtoGenerator::generate(tmp_dir_path, schema_name, &schema).unwrap();
 
     let service_desc = read_service_desc(tmp_dir_path, &endpoint.name);
 
