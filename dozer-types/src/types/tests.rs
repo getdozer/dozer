@@ -531,8 +531,8 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_none());
-    assert!(field.to_text().is_none());
+    assert!(field.to_string().is_some());
+    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
     assert!(field.to_timestamp().unwrap().is_none());
@@ -594,7 +594,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_some());
     assert!(field.to_timestamp().unwrap().is_some());
     assert!(field.to_date().unwrap().is_some());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_some());

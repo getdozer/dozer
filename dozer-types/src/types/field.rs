@@ -533,6 +533,7 @@ impl Field {
     pub fn to_json(&self) -> Option<&JsonValue> {
         match self {
             Field::Json(b) => Some(b),
+            Field::Null => Some(&JsonValue::Null),
             _ => None,
         }
     }
