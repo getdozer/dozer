@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use glob::{GlobError, PatternError};
 use std::path::PathBuf;
 
 use dozer_api::errors::{ApiError, GenerationError, GrpcError};
@@ -92,4 +93,10 @@ pub enum DeployError {
     Transport(#[from] tonic::transport::Error),
     #[error("Server error: {0}")]
     Server(#[from] tonic::Status),
+
+    #[error("Wrong pattern of config files read glob: {0}")]
+    WrongPatternOfConfigFilesGlob(#[from] PatternError),
+
+    #[error("Cannot read file: {0}")]
+    CannotReadFile(#[from] GlobError),
 }

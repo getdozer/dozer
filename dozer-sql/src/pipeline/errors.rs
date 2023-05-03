@@ -149,6 +149,9 @@ pub enum PipelineError {
 
     #[error("Error building the JOIN on the {0} source of the Processor")]
     JoinBuild(String),
+
+    #[error("Window: {0}")]
+    TableOperatorError(#[from] TableOperatorError),
 }
 
 #[cfg(feature = "python")]
@@ -334,4 +337,22 @@ pub enum WindowError {
 
     #[error("WINDOW functions require alias")]
     NoAlias,
+}
+
+#[derive(Error, Debug)]
+pub enum TableOperatorError {
+    #[error("Internal error: {0}")]
+    InternalError(#[from] BoxedError),
+
+    #[error("Source Table not specified in the Table Operator {0}")]
+    MissingSourceArgument(String),
+
+    #[error("Invalid source table {0} in the Table Operator {1}")]
+    InvalidSourceArgument(String, String),
+
+    #[error("Interval is not specified in the Table Operator {0}")]
+    MissingIntervalArgument(String),
+
+    #[error("Invalid time interval '{0}' specified in the Table Operator {1}")]
+    InvalidInterval(String, String),
 }

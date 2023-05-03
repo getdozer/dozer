@@ -1,6 +1,6 @@
 [package]
 name = "dozer-sql"
-version = "0.1.18"
+version = "0.1.19"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -15,14 +15,13 @@ num-traits = "0.2.15"
 sqlparser = "0.32.0"
 dyn-clone = "1.0.10"
 like = "0.3.1"
-lmdb-rkv = "0.14.0"
-lmdb-rkv-sys = "0.11.2"
 multimap = "0.8.3"
 uuid = {version = "1.3.0", features = ["v1", "v4", "fast-rng"]}
 hashbrown = "0.13"
 ahash = "0.8.3"
 bloom = "0.3.2"
 enum_dispatch = "0.3.11"
+linked-hash-map = "0.5.6"
 
 [dev-dependencies]
 tempdir = "0.3.7"

@@ -24,6 +24,7 @@ impl ProjectionProcessor {
 
     fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
+        let lifetime = record.lifetime;
 
         for expr in &self.expressions {
             results.push(
@@ -31,13 +32,16 @@ impl ProjectionProcessor {
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
-        Ok(Operation::Delete {
-            old: Record::new(None, results),
-        })
+
+        let mut output_record = Record::new(None, results);
+        output_record.set_lifetime(lifetime);
+
+        Ok(Operation::Delete { old: output_record })
     }
 
     fn insert(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
+        let lifetime = record.lifetime;
 
         for expr in self.expressions.clone() {
             results.push(
@@ -45,14 +49,18 @@ impl ProjectionProcessor {
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
-        Ok(Operation::Insert {
-            new: Record::new(None, results),
-        })
+
+        let mut output_record = Record::new(None, results);
+        output_record.set_lifetime(lifetime);
+        Ok(Operation::Insert { new: output_record })
     }
 
     fn update(&self, old: &Record, new: &Record) -> Result<Operation, ExecutionError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
+
+        let old_lifetime = old.lifetime;
+        let new_lifetime = new.lifetime;
 
         for expr in &self.expressions {
             old_results.push(
@@ -65,9 +73,13 @@ impl ProjectionProcessor {
             );
         }
 
+        let mut old_output_record = Record::new(None, old_results);
+        old_output_record.set_lifetime(old_lifetime);
+        let mut new_output_record = Record::new(None, new_results);
+        new_output_record.set_lifetime(new_lifetime);
         Ok(Operation::Update {
-            old: Record::new(None, old_results),
-            new: Record::new(None, new_results),
+            old: old_output_record,
+            new: new_output_record,
         })
     }
 }

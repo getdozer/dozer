@@ -64,7 +64,8 @@ fn insert_get_and_delete_record() {
         cache
             .delete(&Record {
                 schema_id: schema.identifier,
-                values: vec![Field::String(val)]
+                values: vec![Field::String(val)],
+                lifetime: None,
             })
             .unwrap()
             .unwrap(),
@@ -104,9 +105,9 @@ fn insert_and_query_record_impl(
     schema: Schema,
 ) {
     let val = "bar".to_string();
-    let mut record = Record::new(schema.identifier, vec![Field::String(val)]);
+    let record = Record::new(schema.identifier, vec![Field::String(val)]);
 
-    cache.insert(&mut record).unwrap();
+    cache.insert(&record).unwrap();
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
@@ -133,4 +134,48 @@ fn insert_and_query_record() {
     insert_and_query_record_impl(cache, indexing_thread_pool, schema);
     let (cache, indexing_thread_pool, schema) = _setup_empty_primary_index();
     insert_and_query_record_impl(cache, indexing_thread_pool, schema);
+}
+
+#[test]
+// This test cases covers update of records when primary key changes because of value change in primary_key
+fn update_record_when_primary_changes() {
+    let (mut cache, _, schema) = _setup();
+
+    let initial_values = vec![Field::String("1".into())];
+    let initial_record = Record {
+        schema_id: schema.identifier,
+        values: initial_values.clone(),
+        lifetime: None,
+    };
+
+    let updated_values = vec![Field::String("2".into())];
+    let updated_record = Record {
+        schema_id: schema.identifier,
+        values: updated_values.clone(),
+        lifetime: None,
+    };
+
+    cache.insert(&initial_record).unwrap();
+    cache.commit().unwrap();
+
+    let key = index::get_primary_key(&schema.primary_index, &initial_values);
+    let record = cache.get(&key).unwrap().record;
+
+    assert_eq!(initial_values, record.values);
+
+    cache.update(&initial_record, &updated_record).unwrap();
+    cache.commit().unwrap();
+
+    // Primary key with old values
+    let key = index::get_primary_key(&schema.primary_index, &initial_values);
+
+    let record = cache.get(&key);
+
+    assert!(record.is_err());
+
+    // Primary key with updated values
+    let key = index::get_primary_key(&schema.primary_index, &updated_values);
+    let record = cache.get(&key).unwrap().record;
+
+    assert_eq!(updated_values, record.values);
 }

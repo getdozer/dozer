@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
@@ -34,6 +36,16 @@ impl Processor for ProductProcessor {
             1 => &JoinBranch::Right,
             _ => return Err(ExecutionError::InvalidPort(from_port)),
         };
+
+        let now = Instant::now();
+
+        let old_instants = self.join_operator.evict_index(&JoinBranch::Left, &now);
+        self.join_operator
+            .clean_evict_index(&JoinBranch::Left, &old_instants);
+        let old_instants = self.join_operator.evict_index(&JoinBranch::Right, &now);
+        self.join_operator
+            .clean_evict_index(&JoinBranch::Right, &old_instants);
+
         let records = match op {
             Operation::Delete { ref old } => self
                 .join_operator

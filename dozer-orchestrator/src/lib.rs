@@ -17,6 +17,7 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
+mod cloud_helper;
 mod console_helper;
 mod utils;
 
@@ -37,6 +38,7 @@ pub trait Orchestrator {
     fn generate_token(&self) -> Result<String, OrchestrationError>;
 }
 
+#[cfg(feature = "cloud")]
 pub trait CloudOrchestrator {
     fn deploy(&mut self, cloud: Cloud, config_path: String) -> Result<(), OrchestrationError>;
     fn list(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
@@ -54,8 +56,8 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
     let mut pipeline = AppPipeline::new();
     statement_to_pipeline(sql, &mut pipeline, None)
 }
-
-use crate::cli::types::Cloud;
+#[cfg(feature = "cloud")]
+use crate::cli::cloud::Cloud;
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 

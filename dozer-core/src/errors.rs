@@ -93,6 +93,9 @@ pub enum ExecutionError {
     #[error("Failed to execute the Window processor: {0}")]
     WindowProcessorError(#[source] BoxedError),
 
+    #[error("Failed to execute the Table processor: {0}")]
+    TableProcessorError(#[source] BoxedError),
+
     #[error("JOIN processor received a Record from a wrong input: {0}")]
     InvalidPort(u16),
 }
