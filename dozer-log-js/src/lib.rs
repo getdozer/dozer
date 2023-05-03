@@ -91,7 +91,7 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
 
         // Resolve the promise.
         deferred.settle_with(&channel, move |mut cx| match reader {
-            Ok(reader) => new_reader(&mut cx, runtime_for_reader, reader, schema.schema),
+            Ok(reader) => new_reader(&mut cx, runtime_for_reader, reader, schema),
             Err(error) => cx.throw_error(error.to_string()),
         });
     });

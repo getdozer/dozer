@@ -1,5 +1,7 @@
 use crate::errors::GenerationError;
-use dozer_cache::dozer_log::schemas::MigrationSchema;
+use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::flags::Flags;
+use dozer_types::types::Schema;
 use prost_reflect::{
     DescriptorPool, FieldDescriptor, MessageDescriptor, MethodDescriptor, ServiceDescriptor,
 };
@@ -148,9 +150,11 @@ impl ProtoGenerator {
     pub fn generate(
         folder_path: &Path,
         schema_name: &str,
-        schema: &MigrationSchema,
+        schema: &Schema,
+        security: &Option<ApiSecurity>,
+        flags: &Option<Flags>,
     ) -> Result<(), GenerationError> {
-        let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
+        let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path, security, flags)?;
         generator.generate_proto()?;
         Ok(())
     }
