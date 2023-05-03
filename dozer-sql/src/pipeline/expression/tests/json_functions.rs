@@ -38,7 +38,45 @@ fn test_json_value() {
             .clone(),
         vec![Field::Json(json_val)],
     );
+
     assert_eq!(f, Field::Json(JsonValue::String(String::from("Bristol"))));
+}
+
+#[test]
+fn test_json_value_null() {
+    let json_val = serde_json_to_json_value(json!(
+        {
+            "info":{
+                "type":1,
+                "address":{
+                    "town":"Bristol",
+                    "county":"Avon",
+                    "country":"England"
+                },
+                "tags":["Sport", "Water polo"]
+            },
+            "type":"Basic"
+        }
+    ))
+    .unwrap();
+
+    let f = run_fct(
+        "SELECT JSON_VALUE(jsonInfo,'$.info.address.tags') FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::Null));
 }
 
 #[test]
@@ -74,6 +112,7 @@ fn test_json_query() {
             .clone(),
         vec![Field::Json(json_val)],
     );
+
     assert_eq!(
         f,
         Field::Json(JsonValue::Object(BTreeMap::from([
@@ -91,6 +130,42 @@ fn test_json_query() {
             ),
         ])))
     );
+}
+
+#[test]
+fn test_json_query_null() {
+    let json_val = serde_json_to_json_value(json!(
+        {
+            "info": {
+                "type": 1,
+                "address": {
+                    "town": "Cheltenham",
+                    "county": "Gloucestershire",
+                    "country": "England"
+                },
+                "tags": ["Sport", "Water polo"]
+            },
+            "type": "Basic"
+        }
+    ))
+    .unwrap();
+
+    let f = run_fct(
+        "SELECT JSON_QUERY(jsonInfo,'$.type') FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+    assert_eq!(f, Field::Json(JsonValue::String("Basic".to_string())));
 }
 
 #[test]
@@ -167,6 +242,7 @@ fn test_json_query_array() {
             .clone(),
         vec![Field::Json(json_val)],
     );
+
     assert_eq!(
         f,
         Field::Json(JsonValue::Array(vec![
@@ -241,6 +317,7 @@ fn test_json_query_all() {
             .clone(),
         vec![Field::Json(json_val)],
     );
+
     assert_eq!(
         f,
         Field::Json(
@@ -288,6 +365,7 @@ fn test_json_query_iter() {
             .clone(),
         vec![Field::Json(json_val)],
     );
+
     assert_eq!(
         f,
         Field::Json(serde_json_to_json_value(json!([30, 31,])).unwrap())
@@ -319,6 +397,7 @@ fn test_json_value_export() {
             .clone(),
         vec![Field::Json(json_val.clone())],
     );
+
     assert_eq!(f, Field::Int(30_i64));
 
     let f = run_fct(
@@ -336,5 +415,6 @@ fn test_json_value_export() {
             .clone(),
         vec![Field::Json(json_val)],
     );
+
     assert_eq!(f, Field::Float(OrderedFloat(30_f64)));
 }
