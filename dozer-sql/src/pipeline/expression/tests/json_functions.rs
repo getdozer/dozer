@@ -1,5 +1,6 @@
 use crate::pipeline::expression::tests::test_common::run_fct;
 use dozer_types::json_types::{serde_json_to_json_value, JsonValue};
+use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::serde_json::json;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::BTreeMap;
@@ -93,6 +94,47 @@ fn test_json_query() {
 }
 
 #[test]
+fn test_json_query_len_one_array() {
+    let json_val = serde_json_to_json_value(json!(
+        {
+            "info": {
+                "type": 1,
+                "address": {
+                    "town": "Cheltenham",
+                    "county": "Gloucestershire",
+                    "country": "England"
+                },
+                "tags": ["Sport"]
+            },
+            "type": "Basic"
+        }
+    ))
+    .unwrap();
+
+    let f = run_fct(
+        "SELECT JSON_VALUE(jsonInfo,'$.info.tags') FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+    assert_eq!(
+        f,
+        Field::Json(JsonValue::Array(vec![JsonValue::String(String::from(
+            "Sport"
+        ))]))
+    );
+}
+
+#[test]
 fn test_json_query_array() {
     let json_val = serde_json_to_json_value(json!(
         {
@@ -173,6 +215,7 @@ fn test_json_query_default_path() {
     );
     assert_eq!(f, Field::Json(json_val));
 }
+
 #[test]
 fn test_json_query_all() {
     let json_val = serde_json_to_json_value(json!(
@@ -249,4 +292,49 @@ fn test_json_query_iter() {
         f,
         Field::Json(serde_json_to_json_value(json!([30, 31,])).unwrap())
     );
+}
+
+#[test]
+fn test_json_value_export() {
+    let json_val = serde_json_to_json_value(json!(
+        [
+            {"digit": 30, "letter": "A"},
+            {"digit": 31, "letter": "B"}
+        ]
+    ))
+    .unwrap();
+
+    let f = run_fct(
+        "SELECT CAST(JSON_VALUE(jsonInfo, '$[0].digit') AS INT) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val.clone())],
+    );
+    assert_eq!(f, Field::Int(30_i64));
+
+    let f = run_fct(
+        "SELECT CAST(JSON_VALUE(jsonInfo, '$[0].digit') AS FLOAT) FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+    assert_eq!(f, Field::Float(OrderedFloat(30_f64)));
 }

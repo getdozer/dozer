@@ -3,12 +3,13 @@ use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidFunction, InvalidFunctionArgument, InvalidValue,
 };
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use jsonpath_rust::JsonPathQuery;
+use jsonpath_rust::{JsonPathFinder, JsonPathInst};
 
 use dozer_types::json_types::{json_value_to_serde_json, serde_json_to_json_value, JsonValue};
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record, Schema};
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum JsonFunctionType {
@@ -65,10 +66,7 @@ impl JsonFunctionType {
             .to_string()
             .ok_or(InvalidArgument(args[1].to_string(schema)))?;
 
-        Ok(Field::Json(
-            serde_json_to_json_value(self.evaluate_json(json_input, path)?)
-                .map_err(|e| InvalidValue(e.to_string()))?,
-        ))
+        Ok(Field::Json(self.evaluate_json(json_input, path)?))
     }
 
     pub(crate) fn evaluate_json_query(
@@ -79,12 +77,9 @@ impl JsonFunctionType {
     ) -> Result<Field, PipelineError> {
         let mut path = String::from("$");
         if args.len() < 2 && !args.is_empty() {
-            return Ok(Field::Json(
-                serde_json_to_json_value(
-                    self.evaluate_json(args[0].evaluate(record, schema)?, path)?,
-                )
-                .map_err(|e| InvalidValue(e.to_string()))?,
-            ));
+            Ok(Field::Json(
+                self.evaluate_json(args[0].evaluate(record, schema)?, path)?,
+            ))
         } else if args.len() == 2 {
             let json_input = args[0].evaluate(record, schema)?;
             path = args[1]
@@ -92,47 +87,57 @@ impl JsonFunctionType {
                 .to_string()
                 .ok_or(InvalidArgument(args[1].to_string(schema)))?;
 
-            return Ok(Field::Json(
-                serde_json_to_json_value(self.evaluate_json(json_input, path)?)
-                    .map_err(|e| InvalidValue(e.to_string()))?,
-            ));
+            Ok(Field::Json(self.evaluate_json(json_input, path)?))
+        } else {
+            Err(InvalidFunctionArgument(
+                self.to_string(),
+                args[2].evaluate(record, schema)?,
+                2,
+            ))
         }
-
-        Err(InvalidFunctionArgument(
-            self.to_string(),
-            args[2].evaluate(record, schema)?,
-            2,
-        ))
     }
 
     pub(crate) fn evaluate_json(
         &self,
         json_input: Field,
         path: String,
-    ) -> Result<Value, PipelineError> {
+    ) -> Result<JsonValue, PipelineError> {
         let json_val = json_value_to_serde_json(match json_input.to_json() {
             Some(json) => json.clone(),
             None => JsonValue::Null,
         })
         .map_err(|e| InvalidArgument(e.to_string()))?;
 
-        let res = json_val.path(path.as_str()).map_err(InvalidArgument)?;
+        let finder = JsonPathFinder::new(
+            Box::from(json_val),
+            Box::from(JsonPathInst::from_str(path.as_str()).map_err(InvalidArgument)?),
+        );
 
-        return match json_input.to_json().unwrap() {
-            JsonValue::Array(_) => Ok(res),
-            _ => match res {
-                Value::Array(array) => {
-                    return if array.len() == 1 {
-                        match array.get(0) {
-                            Some(r) => Ok(r.clone()),
-                            None => Err(InvalidFunction(self.to_string())),
-                        }
-                    } else {
-                        Err(InvalidFunction(self.to_string()))
+        match finder.find() {
+            Value::Null => Ok(JsonValue::Null),
+            Value::Array(a) => {
+                if a.is_empty() {
+                    Ok(JsonValue::Array(vec![]))
+                } else if a.len() == 1 {
+                    let item = match a.first() {
+                        Some(i) => i,
+                        None => return Err(InvalidValue("Invalid length of array".to_string())),
+                    };
+                    let value = serde_json_to_json_value(item.clone())
+                        .map_err(|e| InvalidValue(e.to_string()))?;
+                    Ok(value)
+                } else {
+                    let mut array_val = vec![];
+                    for item in a {
+                        array_val.push(
+                            serde_json_to_json_value(item)
+                                .map_err(|e| InvalidValue(e.to_string()))?,
+                        );
                     }
+                    Ok(JsonValue::Array(array_val))
                 }
-                _ => Err(InvalidValue(path)),
-            },
-        };
+            }
+            _ => Err(InvalidValue(path)),
+        }
     }
 }
