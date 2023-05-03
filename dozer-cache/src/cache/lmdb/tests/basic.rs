@@ -105,9 +105,9 @@ fn insert_and_query_record_impl(
     schema: Schema,
 ) {
     let val = "bar".to_string();
-    let mut record = Record::new(schema.identifier, vec![Field::String(val)]);
+    let record = Record::new(schema.identifier, vec![Field::String(val)]);
 
-    cache.insert(&mut record).unwrap();
+    cache.insert(&record).unwrap();
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
@@ -145,12 +145,14 @@ fn update_record_when_primary_changes() {
     let initial_record = Record {
         schema_id: schema.identifier,
         values: initial_values.clone(),
+        lifetime: None,
     };
 
     let updated_values = vec![Field::String("2".into())];
     let updated_record = Record {
         schema_id: schema.identifier,
         values: updated_values.clone(),
+        lifetime: None,
     };
 
     cache.insert(&initial_record).unwrap();

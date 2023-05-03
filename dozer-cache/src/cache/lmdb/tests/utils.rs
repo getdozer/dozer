@@ -36,7 +36,7 @@ pub fn insert_rec_1(
     schema: &Schema,
     (a, b, c): (i64, Option<String>, Option<i64>),
 ) {
-    let mut record = Record::new(
+    let record = Record::new(
         schema.identifier,
         vec![
             Field::Int(a),
@@ -44,7 +44,7 @@ pub fn insert_rec_1(
             c.map_or(Field::Null, Field::Int),
         ],
     );
-    cache.insert(&mut record).unwrap();
+    cache.insert(&record).unwrap();
 }
 
 pub fn insert_full_text(
@@ -52,14 +52,14 @@ pub fn insert_full_text(
     schema: &Schema,
     (a, b): (Option<String>, Option<String>),
 ) {
-    let mut record = Record::new(
+    let record = Record::new(
         schema.identifier,
         vec![
             a.map_or(Field::Null, Field::String),
             b.map_or(Field::Null, Field::Text),
         ],
     );
-    cache.insert(&mut record).unwrap();
+    cache.insert(&record).unwrap();
 }
 
 pub fn get_index_counts<C: LmdbCache>(cache: &C) -> Vec<usize> {
