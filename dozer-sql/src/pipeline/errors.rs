@@ -355,4 +355,7 @@ pub enum TableOperatorError {
 
     #[error("Invalid time interval '{0}' specified in the Table Operator {1}")]
     InvalidInterval(String, String),
+
+    #[error("Invalid reference expression '{0}' specified in the Table Operator {1}")]
+    InvalidReference(String, String),
 }

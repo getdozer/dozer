@@ -9,7 +9,9 @@ use dozer_types::types::{DozerDuration, Schema, TimeUnit};
 use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Value};
 
 use crate::pipeline::{
-    builder::SchemaSQLContext, errors::TableOperatorError, expression::builder::ExpressionBuilder,
+    builder::SchemaSQLContext,
+    errors::TableOperatorError,
+    expression::{builder::ExpressionBuilder, execution::Expression},
     pipeline_builder::from_builder::TableOperatorDescriptor,
 };
 
@@ -105,7 +107,10 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
         match operator_from_descriptor(&self.table, &input_schema)
             .map_err(|e| ExecutionError::TableProcessorError(Box::new(e)))?
         {
-            Some(operator) => Ok(Box::new(TableOperatorProcessor::new(operator))),
+            Some(operator) => Ok(Box::new(TableOperatorProcessor::new(
+                operator,
+                input_schema,
+            ))),
             None => Err(ExecutionError::TableProcessorError(Box::new(
                 TableOperatorError::InternalError("Invalid Table Operator".into()),
             ))),
@@ -115,10 +120,10 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
 
 pub(crate) fn operator_from_descriptor(
     descriptor: &TableOperatorDescriptor,
-    _schema: &Schema,
+    schema: &Schema,
 ) -> Result<Option<TableOperatorType>, ExecutionError> {
     if &descriptor.name.to_uppercase() == "TTL" {
-        let operator = lifetime_from_descriptor(descriptor)
+        let operator = lifetime_from_descriptor(descriptor, schema)
             .map_err(|e| ExecutionError::TableProcessorError(Box::new(e)))?;
 
         Ok(Some(operator.into()))
@@ -131,10 +136,25 @@ pub(crate) fn operator_from_descriptor(
 
 fn lifetime_from_descriptor(
     descriptor: &TableOperatorDescriptor,
+    schema: &Schema,
 ) -> Result<LifetimeTableOperator, TableOperatorError> {
-    let interval = get_interval(descriptor.name.to_owned(), descriptor.args.get(1).unwrap())?;
+    let expression_arg = descriptor
+        .args
+        .get(1)
+        .ok_or(TableOperatorError::InternalError(
+            "Invalid TTL Operator".into(),
+        ))?;
+    let duration_arg = descriptor
+        .args
+        .get(2)
+        .ok_or(TableOperatorError::InternalError(
+            "Invalid TTL Operator".into(),
+        ))?;
 
-    let operator = LifetimeTableOperator::new(None, interval);
+    let expression = get_expression(descriptor.name.to_owned(), expression_arg, schema)?;
+    let duration = get_interval(descriptor.name.to_owned(), duration_arg)?;
+
+    let operator = LifetimeTableOperator::new(None, expression, duration);
 
     Ok(operator)
 }
@@ -170,6 +190,40 @@ fn get_interval(
                 function_name,
             )),
             FunctionArgExpr::Wildcard => Err(TableOperatorError::InvalidInterval(
+                "*".to_string(),
+                function_name,
+            )),
+        },
+    }
+}
+
+fn get_expression(
+    function_name: String,
+    interval_arg: &FunctionArg,
+    schema: &Schema,
+) -> Result<Expression, TableOperatorError> {
+    match interval_arg {
+        FunctionArg::Named { name, arg: _ } => {
+            let column_name = ExpressionBuilder::normalize_ident(name);
+            Err(TableOperatorError::InvalidReference(
+                column_name,
+                function_name,
+            ))
+        }
+        FunctionArg::Unnamed(arg_expr) => match arg_expr {
+            FunctionArgExpr::Expr(expr) => {
+                let mut builder = ExpressionBuilder::new(schema.fields.len());
+                let expression = builder.build(false, expr, schema).map_err(|_| {
+                    TableOperatorError::InvalidReference(expr.to_string(), function_name)
+                })?;
+
+                Ok(expression)
+            }
+            FunctionArgExpr::QualifiedWildcard(_) => Err(TableOperatorError::InvalidReference(
+                "*".to_string(),
+                function_name,
+            )),
+            FunctionArgExpr::Wildcard => Err(TableOperatorError::InvalidReference(
                 "*".to_string(),
                 function_name,
             )),

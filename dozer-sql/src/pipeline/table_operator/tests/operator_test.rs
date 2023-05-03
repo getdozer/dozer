@@ -2,13 +2,44 @@ use std::time::Duration;
 
 use dozer_types::{
     chrono::DateTime,
-    types::{DozerDuration, Field, Record, TimeUnit},
+    types::{
+        DozerDuration, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition,
+        TimeUnit,
+    },
 };
 
-use crate::pipeline::table_operator::{lifetime::LifetimeTableOperator, operator::TableOperator};
+use crate::pipeline::{
+    expression::execution::{Expression, ExpressionType},
+    table_operator::{lifetime::LifetimeTableOperator, operator::TableOperator},
+};
 
 #[test]
 fn test_lifetime() {
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(
+                "id".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Alias {
+                    name: "alias".to_string(),
+                },
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "ref".to_string(),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Alias {
+                    name: "alias".to_string(),
+                },
+            ),
+            false,
+        )
+        .to_owned();
+
     let record = Record::new(
         None,
         vec![
@@ -19,6 +50,20 @@ fn test_lifetime() {
 
     let table_operator = LifetimeTableOperator::new(
         None,
+        Expression::Column(1),
+        // Expression::new(
+        //     ExpressionType::BinaryExpression {
+        //         operator: BinaryOperator::Add,
+        //         left: Box::new(Expression::new(ExpressionType::Field("ref".to_string()))),
+        //         right: Box::new(Expression::new(ExpressionType::Literal(
+        //             Literal::Duration(DozerDuration(
+        //                 Duration::from_secs(60),
+        //                 TimeUnit::Seconds,
+        //             )),
+        //         ))),
+        //     },
+        //     "ref".to_string(),
+        // ),
         DozerDuration(Duration::from_secs(60), TimeUnit::Seconds),
     );
 
