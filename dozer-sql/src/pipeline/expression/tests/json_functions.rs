@@ -173,3 +173,74 @@ fn test_json_query_default_path() {
     );
     assert_eq!(f, Field::Json(json_val));
 }
+#[test]
+fn test_json_query_all() {
+    let json_val = serde_json_to_json_value(json!(
+        [
+            {"digit": 30, "letter": "A"},
+            {"digit": 31, "letter": "B"}
+        ]
+    ))
+    .unwrap();
+
+    let f = run_fct(
+        "SELECT JSON_QUERY(jsonInfo, '$..*') FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+    assert_eq!(f, Field::Json(serde_json_to_json_value(json!([
+        {
+            "digit": 30,
+            "letter": "A"
+        },
+        30,
+        "A",
+        {
+            "digit": 31,
+            "letter": "B"
+        },
+        31,
+        "B"
+    ])).unwrap()));
+}
+
+#[test]
+fn test_json_query_iter() {
+    let json_val = serde_json_to_json_value(json!(
+        [
+            {"digit": 30, "letter": "A"},
+            {"digit": 31, "letter": "B"}
+        ]
+    ))
+        .unwrap();
+
+    let f = run_fct(
+        "SELECT JSON_QUERY(jsonInfo, '$[*].digit') FROM users",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+    assert_eq!(f, Field::Json(serde_json_to_json_value(json!([
+        30,
+        31,
+    ])).unwrap()));
+}

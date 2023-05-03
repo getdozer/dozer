@@ -121,18 +121,19 @@ impl JsonFunctionType {
             .path(path.as_str())
             .map_err(InvalidArgument)?;
 
-        let res = match res {
-            Value::Array(array) => array,
-            _ => return Err(InvalidValue(path)),
-        };
-
-        return if res.len() == 1 {
-            match res.get(0) {
-                Some(r) => Ok(r.clone()),
-                None => Err(InvalidFunction(self.to_string())),
+        return match json_input.to_json().unwrap() {
+            JsonValue::Array(_) => Ok(res),
+            _ => match res {
+                Value::Array(array) => return if array.len() == 1 {
+                    match array.get(0) {
+                        Some(r) => Ok(r.clone()),
+                        None => Err(InvalidFunction(self.to_string())),
+                    }
+                } else {
+                    Err(InvalidFunction(self.to_string()))
+                },
+                _ => Err(InvalidValue(path)),
             }
-        } else {
-            Err(InvalidFunction(self.to_string()))
-        };
+        }
     }
 }
