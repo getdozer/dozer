@@ -4,7 +4,6 @@ use crate::errors::OrchestrationError;
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
-use crate::simple::migration::{create_migration, modify_schema, needs_migration};
 use crate::utils::{
     get_api_security_config, get_cache_manager_options, get_executor_options,
     get_file_buffer_capacity, get_grpc_config, get_rest_config,
@@ -12,10 +11,11 @@ use crate::utils::{
 
 use crate::{flatten_join_handle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
+use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
-use dozer_cache::dozer_log::schemas::MigrationSchema;
+use dozer_cache::dozer_log::schemas::write_schema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 
@@ -72,7 +72,7 @@ impl Orchestrator for SimpleOrchestrator {
 
             let cache_manager = Arc::new(
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
-                    .map_err(OrchestrationError::CacheInitFailed)?,
+                    .map_err(OrchestrationError::RoCacheInitFailed)?,
             );
             let home_dir = HomeDir::new(
                 self.config.home_dir.as_ref(),
@@ -216,20 +216,22 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn generate_token(&self) -> Result<String, OrchestrationError> {
-        if let Some(api_config) = &self.config.api {
-            if let Some(api_security) = &api_config.api_security {
+        if let Some(api_config) = self.config.api.to_owned() {
+            if let Some(api_security) = api_config.api_security {
                 match api_security {
                     dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
-                        let auth = Authorizer::new(secret, None, None);
-                        let token = auth
-                            .generate_token(Access::All, None)
-                            .map_err(OrchestrationError::GenerateTokenFailed)?;
+                        let auth = Authorizer::new(&secret, None, None);
+                        let token = auth.generate_token(Access::All, None).map_err(|err| {
+                            OrchestrationError::GenerateTokenFailed(err.to_string())
+                        })?;
                         return Ok(token);
                     }
                 }
             }
         }
-        Err(OrchestrationError::MissingSecurityConfig)
+        Err(OrchestrationError::GenerateTokenFailed(
+            "Missing api config or security input".to_owned(),
+        ))
     }
 
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
@@ -247,13 +249,24 @@ impl Orchestrator for SimpleOrchestrator {
         }
         validate_config(&self.config)?;
 
+        // Always create new migration for now.
+        let mut endpoint_and_migration_paths = vec![];
+        for endpoint in &self.config.endpoints {
+            let migration_path =
+                home_dir
+                    .create_new_migration(&endpoint.name)
+                    .map_err(|(path, error)| {
+                        OrchestrationError::FailedToCreateMigration(path, error)
+                    })?;
+            endpoint_and_migration_paths.push((endpoint, migration_path));
+        }
+
         // Calculate schemas.
-        let endpoint_and_log_paths = self
-            .config
-            .endpoints
+        let endpoint_and_log_paths = endpoint_and_migration_paths
             .iter()
-            // We're not really going to run the pipeline, so we put dummy log paths.
-            .map(|endpoint| (endpoint.clone(), Default::default()))
+            .map(|(endpoint, migration_path)| {
+                ((*endpoint).clone(), migration_path.log_path.clone())
+            })
             .collect();
         let builder = PipelineBuilder::new(
             &self.config.connections,
@@ -269,42 +282,43 @@ impl Orchestrator for SimpleOrchestrator {
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
-        // Migrate endpoints one by one.
+        // Write schemas to pipeline_dir and generate proto files.
         let schemas = dag_schemas.get_sink_schemas();
-        let enable_token = self
-            .config
-            .api
-            .as_ref()
-            .map(|api| api.api_security.is_some())
-            .unwrap_or(false);
-        let enable_on_event = self
-            .config
-            .flags
-            .as_ref()
-            .map(|flags| flags.push_events)
-            .unwrap_or(false);
+        let api_config = self.config.api.clone().unwrap_or_default();
         for (endpoint_name, schema) in &schemas {
-            info!("Migrating endpoint: {endpoint_name}");
-            let endpoint = self
-                .config
-                .endpoints
+            let (endpoint, migration_path) = endpoint_and_migration_paths
                 .iter()
-                .find(|e| e.name == *endpoint_name)
+                .find(|e| e.0.name == *endpoint_name)
                 .expect("Sink name must be the same as endpoint name");
-            let schema = modify_schema(schema, endpoint)?;
-            let schema = MigrationSchema {
-                schema,
-                enable_token,
-                enable_on_event,
-            };
 
-            if let Some(migration_id) = needs_migration(&home_dir, endpoint_name, &schema)? {
-                let migration_name = migration_id.name().to_string();
-                create_migration(&home_dir, endpoint_name, migration_id, &schema)?;
-                info!("Created new migration {migration_name} for endpoint: {endpoint_name}");
-            } else {
-                info!("Migration not needed for endpoint: {endpoint_name}");
-            }
+            let schema = write_schema(schema, endpoint, &migration_path.schema_path)
+                .map_err(OrchestrationError::FailedToWriteSchema)?;
+
+            let proto_folder_path = &migration_path.api_dir;
+            ProtoGenerator::generate(
+                proto_folder_path,
+                endpoint_name,
+                &schema,
+                &api_config.api_security,
+                &self.config.flags,
+            )?;
+
+            let mut resources = Vec::new();
+            resources.push(endpoint_name);
+
+            let common_resources = ProtoGenerator::copy_common(proto_folder_path)
+                .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+
+            // Copy common service to be included in descriptor.
+            resources.extend(common_resources.iter());
+
+            // Generate a descriptor based on all proto files generated within sink.
+            ProtoGenerator::generate_descriptor(
+                proto_folder_path,
+                &migration_path.descriptor_path,
+                &resources,
+            )
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         }
 
         Ok(())

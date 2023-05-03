@@ -4,8 +4,9 @@ use crate::generator::protoc::generator::{
     CountMethodDesc, DecimalDesc, DurationDesc, EventDesc, OnEventMethodDesc, PointDesc,
     QueryMethodDesc, RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
 };
-use dozer_cache::dozer_log::schemas::MigrationSchema;
 use dozer_types::log::error;
+use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::flags::Flags;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::{FieldType, Schema};
 use handlebars::Handlebars;
@@ -37,23 +38,29 @@ struct ProtoMetadata {
 
 pub struct ProtoGeneratorImpl<'a> {
     handlebars: Handlebars<'a>,
-    schema: &'a MigrationSchema,
+    schema: &'a dozer_types::types::Schema,
     names: Names,
     folder_path: &'a Path,
+    security: &'a Option<ApiSecurity>,
+    flags: &'a Option<Flags>,
 }
 
 impl<'a> ProtoGeneratorImpl<'a> {
     pub fn new(
         schema_name: &str,
-        schema: &'a MigrationSchema,
+        schema: &'a Schema,
         folder_path: &'a Path,
+        security: &'a Option<ApiSecurity>,
+        flags: &'a Option<Flags>,
     ) -> Result<Self, GenerationError> {
-        let names = Names::new(schema_name, &schema.schema);
+        let names = Names::new(schema_name, schema);
         let mut generator = Self {
             handlebars: Handlebars::new(),
             schema,
             names,
             folder_path,
+            security,
+            flags,
         };
         generator.register_template()?;
         Ok(generator)
@@ -69,7 +76,6 @@ impl<'a> ProtoGeneratorImpl<'a> {
 
     fn props(&self) -> Vec<String> {
         self.schema
-            .schema
             .fields
             .iter()
             .enumerate()
@@ -85,7 +91,6 @@ impl<'a> ProtoGeneratorImpl<'a> {
     fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
         let type_need_import_libs = [TIMESTAMP_TYPE_CLASS, JSON_TYPE_CLASS];
         let mut libs_import: Vec<String> = self
-            .schema
             .schema
             .fields
             .iter()
@@ -114,9 +119,9 @@ impl<'a> ProtoGeneratorImpl<'a> {
             plural_pascal_name: self.names.plural_pascal_name.clone(),
             pascal_name: self.names.pascal_name.clone(),
             props: self.props(),
-            version_field_id: self.schema.schema.fields.len() + 1,
-            enable_token: self.schema.enable_token,
-            enable_on_event: self.schema.enable_on_event,
+            version_field_id: self.schema.fields.len() + 1,
+            enable_token: self.security.is_some(),
+            enable_on_event: self.flags.clone().unwrap_or_default().push_events,
         };
         Ok(metadata)
     }

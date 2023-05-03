@@ -44,7 +44,7 @@ impl LogReader {
             let reader = reader_result.map_err(|e| PyException::new_err(e.to_string()))?;
             Ok(LogReader {
                 reader: Arc::new(Mutex::new(reader)),
-                schema: schema.schema,
+                schema,
             })
         })
     }
