@@ -233,8 +233,8 @@ impl Record {
         res_buffer
     }
 
-    pub fn set_lifetime(&mut self, duration: Option<Lifetime>) {
-        self.lifetime = duration;
+    pub fn set_lifetime(&mut self, lifetime: Option<Lifetime>) {
+        self.lifetime = lifetime;
     }
 
     pub fn get_lifetime(&mut self) -> Option<Lifetime> {

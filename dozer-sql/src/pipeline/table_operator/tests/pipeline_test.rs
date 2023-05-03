@@ -37,7 +37,7 @@ fn test_lifetime_pipeline() {
 
     let context = statement_to_pipeline(
         "SELECT trips.taxi_id, puz.zone, trips.completed_at \
-                FROM TTL(taxi_trips, completed_at, '3 SECONDS') trips \
+                FROM TTL(taxi_trips, completed_at, '15 SECONDS') trips \
                 JOIN zones puz ON trips.pu_location_id = puz.location_id",
         &mut pipeline,
         Some("results".to_string()),
@@ -79,6 +79,8 @@ fn test_lifetime_pipeline() {
     app.add_pipeline(pipeline);
 
     let dag = app.get_dag().unwrap();
+
+    dag.print_dot();
 
     let now = std::time::Instant::now();
 
