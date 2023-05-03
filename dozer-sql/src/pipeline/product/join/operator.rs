@@ -410,8 +410,8 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                if let Some(lifetime) = new.lifetime.clone() {
+                    self.insert_evict_index(from, lifetime.duration, &join_key, &primary_key)
                 }
 
                 let records = self.inner_join_from_left(&JoinAction::Insert, &join_key, new)?;
@@ -423,8 +423,8 @@ impl JoinOperator {
 
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                if let Some(lifetime) = new.lifetime.clone() {
+                    self.insert_evict_index(from, lifetime.duration, &join_key, &primary_key)
                 }
 
                 let records = self.inner_join_from_right(&JoinAction::Insert, &join_key, new)?;
@@ -437,8 +437,8 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                if let Some(lifetime) = new.lifetime.clone() {
+                    self.insert_evict_index(from, lifetime.duration, &join_key, &primary_key)
                 }
 
                 let records = self.left_join_from_left(&JoinAction::Insert, &join_key, new)?;
@@ -451,8 +451,8 @@ impl JoinOperator {
 
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                if let Some(lifetime) = new.lifetime.clone() {
+                    self.insert_evict_index(from, lifetime.duration, &join_key, &primary_key)
                 }
 
                 let records = self.left_join_from_right(&JoinAction::Insert, &join_key, new)?;
@@ -465,8 +465,8 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                if let Some(lifetime) = new.lifetime.clone() {
+                    self.insert_evict_index(from, lifetime.duration, &join_key, &primary_key)
                 }
 
                 let records = self.right_join_from_left(&JoinAction::Insert, &join_key, new)?;
@@ -479,8 +479,8 @@ impl JoinOperator {
 
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                if let Some(lifetime) = new.lifetime.clone() {
+                    self.insert_evict_index(from, lifetime.duration, &join_key, &primary_key)
                 }
 
                 let records = self.right_join_from_right(&JoinAction::Insert, &join_key, new)?;
@@ -567,13 +567,17 @@ fn join_records(left_record: &Record, right_record: &Record) -> Record {
     .concat();
     let mut output_record = Record::new(None, concat_values);
 
-    if let Some(left_record_lifetime) = left_record.lifetime {
-        if let Some(right_record_lifetime) = right_record.lifetime {
-            output_record.set_lifetime(Some(left_record_lifetime.min(right_record_lifetime)));
+    if let Some(left_record_lifetime) = left_record.lifetime.clone() {
+        if let Some(right_record_lifetime) = right_record.lifetime.clone() {
+            if left_record_lifetime.duration < right_record_lifetime.duration {
+                output_record.set_lifetime(Some(left_record_lifetime));
+            } else {
+                output_record.set_lifetime(Some(right_record_lifetime));
+            }
         } else {
             output_record.set_lifetime(Some(left_record_lifetime));
         }
-    } else if let Some(right_record_lifetime) = right_record.lifetime {
+    } else if let Some(right_record_lifetime) = right_record.lifetime.clone() {
         output_record.set_lifetime(Some(right_record_lifetime));
     }
 

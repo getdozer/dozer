@@ -24,7 +24,7 @@ impl ProjectionProcessor {
 
     fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
-        let lifetime = record.lifetime;
+        let lifetime = record.lifetime.clone();
 
         for expr in &self.expressions {
             results.push(
@@ -41,7 +41,7 @@ impl ProjectionProcessor {
 
     fn insert(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
-        let lifetime = record.lifetime;
+        let lifetime = record.lifetime.clone();
 
         for expr in self.expressions.clone() {
             results.push(
@@ -59,8 +59,8 @@ impl ProjectionProcessor {
         let mut old_results = vec![];
         let mut new_results = vec![];
 
-        let old_lifetime = old.lifetime;
-        let new_lifetime = new.lifetime;
+        let old_lifetime = old.lifetime.clone();
+        let new_lifetime = new.lifetime.clone();
 
         for expr in &self.expressions {
             old_results.push(

@@ -30,14 +30,14 @@ const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 #[test]
 #[ignore]
-fn test_pipeline_builder() {
+fn test_lifetime_pipeline() {
     let _ = dozer_tracing::init_telemetry(None, None);
 
     let mut pipeline = AppPipeline::new();
 
     let context = statement_to_pipeline(
         "SELECT trips.taxi_id, puz.zone, trips.completed_at \
-                FROM TTL(taxi_trips, '3 SECONDS') trips \
+                FROM TTL(taxi_trips, completed_at, '3 SECONDS') trips \
                 JOIN zones puz ON trips.pu_location_id = puz.location_id",
         &mut pipeline,
         Some("results".to_string()),

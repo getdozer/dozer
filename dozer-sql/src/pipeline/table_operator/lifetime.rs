@@ -1,4 +1,4 @@
-use dozer_types::types::{DozerDuration, Record, Schema};
+use dozer_types::types::{DozerDuration, Lifetime, Record, Schema};
 
 use crate::pipeline::{
     errors::TableOperatorError,
@@ -41,19 +41,28 @@ impl TableOperator for LifetimeTableOperator {
 
             let schema = operator.get_output_schema(schema)?;
 
-            let lt = (
-                self.duration,
-                self.expression
+            let lifetime = Some(Lifetime {
+                reference: self
+                    .expression
                     .evaluate(&source_record, &schema)
                     .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?,
-            );
+                duration: self.duration,
+            });
             for operator_record in operator_records {
                 source_record = operator_record;
-                source_record.set_lifetime(Some(self.duration));
+                source_record.set_lifetime(lifetime.clone());
                 ttl_records.push(source_record);
             }
         } else {
-            source_record.set_lifetime(Some(self.duration));
+            let lifetime = Some(Lifetime {
+                reference: self
+                    .expression
+                    .evaluate(&source_record, schema)
+                    .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?,
+                duration: self.duration,
+            });
+
+            source_record.set_lifetime(lifetime);
             ttl_records.push(source_record);
         }
 

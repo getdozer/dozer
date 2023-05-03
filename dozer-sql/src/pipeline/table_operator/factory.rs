@@ -141,14 +141,14 @@ fn lifetime_from_descriptor(
     let expression_arg = descriptor
         .args
         .get(1)
-        .ok_or(TableOperatorError::InternalError(
-            "Invalid TTL Operator".into(),
+        .ok_or(TableOperatorError::MissingArgument(
+            descriptor.name.to_owned(),
         ))?;
     let duration_arg = descriptor
         .args
         .get(2)
-        .ok_or(TableOperatorError::InternalError(
-            "Invalid TTL Operator".into(),
+        .ok_or(TableOperatorError::MissingArgument(
+            descriptor.name.to_owned(),
         ))?;
 
     let expression = get_expression(descriptor.name.to_owned(), expression_arg, schema)?;

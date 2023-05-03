@@ -3,13 +3,13 @@ use std::time::Duration;
 use dozer_types::{
     chrono::DateTime,
     types::{
-        DozerDuration, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition,
-        TimeUnit,
+        DozerDuration, Field, FieldDefinition, FieldType, Lifetime, Record, Schema,
+        SourceDefinition, TimeUnit,
     },
 };
 
 use crate::pipeline::{
-    expression::execution::{Expression, ExpressionType},
+    expression::execution::Expression,
     table_operator::{lifetime::LifetimeTableOperator, operator::TableOperator},
 };
 
@@ -50,7 +50,7 @@ fn test_lifetime() {
 
     let table_operator = LifetimeTableOperator::new(
         None,
-        Expression::Column(1),
+        Expression::Column { index: 1 },
         // Expression::new(
         //     ExpressionType::BinaryExpression {
         //         operator: BinaryOperator::Add,
@@ -67,7 +67,7 @@ fn test_lifetime() {
         DozerDuration(Duration::from_secs(60), TimeUnit::Seconds),
     );
 
-    let result = table_operator.execute(&record).unwrap();
+    let result = table_operator.execute(&record, &schema).unwrap();
     assert_eq!(result.len(), 1);
     let lifetime_record = result.get(0).unwrap();
 
@@ -79,10 +79,10 @@ fn test_lifetime() {
         ],
     );
 
-    expected_record.set_lifetime(Some(DozerDuration(
-        Duration::from_secs(60),
-        TimeUnit::Seconds,
-    )));
+    expected_record.set_lifetime(Some(Lifetime {
+        reference: Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+        duration: DozerDuration(Duration::from_secs(60), TimeUnit::Seconds),
+    }));
 
     assert_eq!(*lifetime_record, expected_record);
 }

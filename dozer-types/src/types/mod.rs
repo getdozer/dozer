@@ -139,6 +139,12 @@ pub enum IndexDefinition {
 
 pub type SchemaWithIndex = (Schema, Vec<IndexDefinition>);
 
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
+pub struct Lifetime {
+    pub reference: Field,
+    pub duration: DozerDuration,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Record {
     /// Schema implemented by this Record
@@ -148,7 +154,7 @@ pub struct Record {
     pub values: Vec<Field>,
 
     /// Time To Live for this record. If the value is None, the record will never expire.
-    pub lifetime: Option<DozerDuration>,
+    pub lifetime: Option<Lifetime>,
 }
 
 impl Record {
@@ -227,12 +233,12 @@ impl Record {
         res_buffer
     }
 
-    pub fn set_lifetime(&mut self, duration: Option<DozerDuration>) {
+    pub fn set_lifetime(&mut self, duration: Option<Lifetime>) {
         self.lifetime = duration;
     }
 
-    pub fn get_lifetime(&mut self) -> Option<DozerDuration> {
-        self.lifetime
+    pub fn get_lifetime(&mut self) -> Option<Lifetime> {
+        self.lifetime.clone()
     }
 }
 

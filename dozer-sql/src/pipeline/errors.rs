@@ -358,4 +358,7 @@ pub enum TableOperatorError {
 
     #[error("Invalid reference expression '{0}' specified in the Table Operator {1}")]
     InvalidReference(String, String),
+
+    #[error("Missing Argument in '{0}' ")]
+    MissingArgument(String),
 }
