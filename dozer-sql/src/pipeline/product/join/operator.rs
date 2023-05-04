@@ -1,12 +1,16 @@
 use ahash::AHasher;
-use dozer_types::types::{Lifetime, Record};
+use dozer_types::{
+    chrono,
+    types::{Field, Lifetime, Record},
+};
 use linked_hash_map::LinkedHashMap;
 use std::{
     collections::HashMap,
     fmt::Debug,
     hash::{Hash, Hasher},
-    time::Instant,
 };
+
+use crate::pipeline::errors::JoinError;
 
 use super::JoinResult;
 
@@ -52,8 +56,8 @@ pub struct JoinOperator {
     left_map: HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
     right_map: HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
 
-    left_lifetime_map: LinkedHashMap<Instant, Vec<IndexKey>>,
-    right_lifetime_map: LinkedHashMap<Instant, Vec<IndexKey>>,
+    left_lifetime_map: LinkedHashMap<Field, Vec<IndexKey>>,
+    right_lifetime_map: LinkedHashMap<Field, Vec<IndexKey>>,
 }
 
 impl JoinOperator {
@@ -265,7 +269,7 @@ impl JoinOperator {
         Ok(matching_count)
     }
 
-    pub fn evict_index(&mut self, from_branch: &JoinBranch, now: &Instant) -> Vec<Instant> {
+    pub fn evict_index(&mut self, from_branch: &JoinBranch, now: &Field) -> Vec<Field> {
         let (eviction_index, join_index) = match from_branch {
             JoinBranch::Left => (&self.left_lifetime_map, &mut self.left_map),
             JoinBranch::Right => (&self.right_lifetime_map, &mut self.right_map),
@@ -274,7 +278,7 @@ impl JoinOperator {
         let mut old_instants = vec![];
         for (eviction_instant, join_index_keys) in eviction_index.iter() {
             if eviction_instant <= now {
-                old_instants.push(*eviction_instant);
+                old_instants.push(eviction_instant.clone());
                 for (join_key, primary_key) in join_index_keys.iter() {
                     evict_join_record(join_index, join_key, primary_key);
                 }
@@ -291,25 +295,40 @@ impl JoinOperator {
         lifetime: Lifetime,
         join_key: &[u8],
         primary_key: &[u8],
-    ) {
+    ) -> JoinResult<()> {
         let eviction_index = match from_branch {
             JoinBranch::Left => &mut self.left_lifetime_map,
             JoinBranch::Right => &mut self.right_lifetime_map,
         };
 
-        let eviction_instant = Instant::now() + lifetime.duration.0;
+        let eviction_time = match (lifetime.reference,) {
+            (Field::Timestamp(reference),) => {
+                let eviction_time_result = reference.checked_add_signed(
+                    chrono::Duration::nanoseconds(lifetime.duration.0.as_nanos() as i64),
+                );
 
-        if let Some(join_index_keys) = eviction_index.get_mut(&eviction_instant) {
+                if let Some(eviction_time) = eviction_time_result {
+                    Field::Timestamp(eviction_time)
+                } else {
+                    return Err(JoinError::EvictionTimeOverflow);
+                }
+            }
+            _ => return Err(JoinError::EvictionTypeOverflow),
+        };
+
+        if let Some(join_index_keys) = eviction_index.get_mut(&eviction_time) {
             join_index_keys.push((join_key.to_owned(), primary_key.to_owned()));
         } else {
             eviction_index.insert(
-                eviction_instant,
+                eviction_time,
                 vec![(join_key.to_owned(), primary_key.to_owned())],
             );
         }
+
+        Ok(())
     }
 
-    pub fn clean_evict_index(&mut self, from_branch: &JoinBranch, old_instants: &[Instant]) {
+    pub fn clean_evict_index(&mut self, from_branch: &JoinBranch, old_instants: &[Field]) {
         let eviction_index = match from_branch {
             JoinBranch::Left => &mut self.left_lifetime_map,
             JoinBranch::Right => &mut self.right_lifetime_map,
@@ -411,7 +430,7 @@ impl JoinOperator {
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
                 }
 
                 let records = self.inner_join_from_left(&JoinAction::Insert, &join_key, new)?;
@@ -424,7 +443,7 @@ impl JoinOperator {
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
                 }
 
                 let records = self.inner_join_from_right(&JoinAction::Insert, &join_key, new)?;
@@ -438,7 +457,7 @@ impl JoinOperator {
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
                 }
 
                 let records = self.left_join_from_left(&JoinAction::Insert, &join_key, new)?;
@@ -452,7 +471,7 @@ impl JoinOperator {
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
                 }
 
                 let records = self.left_join_from_right(&JoinAction::Insert, &join_key, new)?;
@@ -466,7 +485,7 @@ impl JoinOperator {
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
                 }
 
                 let records = self.right_join_from_left(&JoinAction::Insert, &join_key, new)?;
@@ -480,7 +499,7 @@ impl JoinOperator {
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
 
                 if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)
+                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
                 }
 
                 let records = self.right_join_from_right(&JoinAction::Insert, &join_key, new)?;

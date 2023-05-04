@@ -37,7 +37,7 @@ fn test_lifetime_pipeline() {
 
     let context = statement_to_pipeline(
         "SELECT trips.taxi_id, puz.zone, trips.completed_at \
-                FROM TTL(taxi_trips, completed_at, '15 SECONDS') trips \
+                FROM TTL(taxi_trips, completed_at, '3 MINUTES') trips \
                 JOIN zones puz ON trips.pu_location_id = puz.location_id",
         &mut pipeline,
         Some("results".to_string()),
@@ -351,7 +351,7 @@ impl Source for TestSource {
         for (index, (op, port)) in operations.into_iter().enumerate() {
             fw.send(IngestionMessage::new_op(index as u64, 0, op), port)
                 .unwrap();
-            thread::sleep(Duration::from_millis(2000));
+            //thread::sleep(Duration::from_millis(500));
         }
 
         thread::sleep(Duration::from_millis(500));

@@ -245,6 +245,12 @@ pub enum JoinError {
     UnsupportedJoinConstraintType,
     #[error("Unsupported Join type")]
     UnsupportedJoinType,
+
+    #[error("Overflow error computing the eviction time in the TTL reference field")]
+    EvictionTimeOverflow,
+
+    #[error("Field type error computing the eviction time in the TTL reference field")]
+    EvictionTypeOverflow,
 }
 
 #[derive(Error, Debug)]
