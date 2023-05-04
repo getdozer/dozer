@@ -13,7 +13,7 @@ use std::fmt::Debug;
 #[cfg(feature = "kafka")]
 use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
-use crate::errors::{ConnectorError};
+use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
 use dozer_types::log::debug;
@@ -38,7 +38,6 @@ use self::ethereum::{EthLogConnector, EthTraceConnector};
 use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
-
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
 #[serde(crate = "dozer_types::serde")]
