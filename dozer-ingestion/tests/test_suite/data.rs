@@ -1,4 +1,3 @@
-use dozer_types::json_types::JsonValue;
 use dozer_types::types::{Field, FieldDefinition, FieldType};
 
 use super::{records::Operation, FieldsAndPk};
@@ -17,26 +16,9 @@ pub fn records_without_primary_key() -> (FieldsAndPk, Vec<Vec<Field>>) {
             nullable: false,
             source: Default::default(),
         },
-        FieldDefinition {
-            name: "string".to_string(),
-            typ: FieldType::String,
-            nullable: false,
-            source: Default::default(),
-        },
-        FieldDefinition {
-            name: "json".to_string(),
-            typ: FieldType::Json,
-            nullable: false,
-            source: Default::default(),
-        },
     ];
 
-    let records = vec![vec![
-        Field::UInt(0),
-        Field::Int(0),
-        Field::String(String::from("s")),
-        Field::Json(JsonValue::String(String::from("s"))),
-    ]];
+    let records = vec![vec![Field::UInt(0), Field::Int(0)]];
 
     ((fields, vec![]), records)
 }
@@ -54,12 +36,7 @@ pub fn cud_operations() -> (FieldsAndPk, Vec<Operation>) {
         },
         Operation::Update {
             old: records[0].clone(),
-            new: vec![
-                Field::UInt(1),
-                Field::Int(1),
-                Field::String(String::from("s")),
-                Field::Json(JsonValue::String(String::from("s"))),
-            ],
+            new: vec![Field::UInt(1), Field::Int(1)],
         },
         Operation::Delete {
             old: records[0].clone(),

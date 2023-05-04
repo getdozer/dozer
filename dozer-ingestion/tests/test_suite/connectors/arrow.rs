@@ -421,7 +421,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             }
             Arc::new(builder.finish())
         }
-        FieldType::Json => panic!("Bson not supported"),
+        FieldType::Json => panic!("Json not supported"),
         FieldType::Point => panic!("Point not supported"),
         FieldType::Duration => {
             let mut builder = arrow::array::DurationNanosecondArray::builder(count);
