@@ -16,8 +16,8 @@ use arrow::datatypes::{DataType, TimeUnit};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
-use std::collections::HashMap;
 use arrow_schema::Field;
+use std::collections::HashMap;
 
 macro_rules! make_from {
     ($array_type:ty, $column: ident, $row: ident) => {{
