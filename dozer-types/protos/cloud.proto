@@ -47,7 +47,6 @@ message GetStatusResponse {
 }
 
 message CreateAppRequest {
-  string config = 2;
   repeated File files = 3;
 }
 message ParseRequest { string sql = 1; }
@@ -131,8 +130,7 @@ message LogMessageRequest {
   string app_name = 1;
 }
 message StatusUpdateRequest {
-  optional string host = 1;
-  optional uint32 port = 2;
+  string app_id = 1;
 }
 message Pagination {
   uint32 limit = 1;
