@@ -20,7 +20,6 @@ pub fn size(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
 }
 
 /// ensure the array on the left side is a subset of the array on the right side.
-//todo change the naive impl to sets
 pub fn sub_set_of(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
     if left.is_empty() {
         return true;
@@ -54,7 +53,6 @@ pub fn sub_set_of(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
 }
 
 /// ensure at least one element in the array  on the left side belongs to the array on the right side.
-//todo change the naive impl to sets
 pub fn any_of(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
     if left.is_empty() {
         return true;

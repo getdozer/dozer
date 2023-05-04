@@ -105,7 +105,6 @@ impl<'a> Path<'a> for FnPath {
         input: Vec<JsonPathValue<'a, Self::Data>>,
         is_search_length: bool,
     ) -> Vec<JsonPathValue<'a, Self::Data>> {
-        // todo rewrite
         if JsonPathValue::only_no_value(&input) {
             return vec![NoValue];
         }
@@ -169,7 +168,6 @@ impl<'a> Path<'a> for DescentWildcard {
     }
 }
 
-// todo rewrite to tail rec
 fn deep_flatten(data: &JsonValue) -> Vec<&JsonValue> {
     let mut acc = vec![];
     match data {
@@ -190,7 +188,6 @@ fn deep_flatten(data: &JsonValue) -> Vec<&JsonValue> {
     acc
 }
 
-// todo rewrite to tail rec
 fn deep_path_by_key<'a>(data: &'a JsonValue, key: ObjectField<'a>) -> Vec<&'a JsonValue> {
     let mut level: Vec<&JsonValue> = JsonPathValue::into_data(key.find(data.into()));
     match data {
