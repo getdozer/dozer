@@ -530,10 +530,21 @@ impl Field {
         }
     }
 
-    pub fn to_json(&self) -> Option<&JsonValue> {
+    pub fn to_json(&self) -> Option<JsonValue> {
         match self {
-            Field::Json(b) => Some(b),
-            Field::Null => Some(&JsonValue::Null),
+            Field::Json(b) => Some(b.to_owned()),
+            Field::UInt(u) => Some(JsonValue::Number(OrderedFloat((*u) as f64))),
+            Field::U128(u) => Some(JsonValue::Number(OrderedFloat((*u) as f64))),
+            Field::Int(i) => Some(JsonValue::Number(OrderedFloat((*i) as f64))),
+            Field::I128(i) => Some(JsonValue::Number(OrderedFloat((*i) as f64))),
+            Field::Float(f) => Some(JsonValue::Number(*f)),
+            Field::Boolean(b) => Some(JsonValue::Bool(*b)),
+            Field::String(s) => match JsonValue::from_str(s.as_str()) {
+                Ok(v) => Some(v),
+                _ => None,
+            },
+            Field::Text(t) => Some(JsonValue::String(t.to_owned())),
+            Field::Null => Some(JsonValue::Null),
             _ => None,
         }
     }

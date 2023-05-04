@@ -103,7 +103,7 @@ impl JsonFunctionType {
         path: String,
     ) -> Result<JsonValue, PipelineError> {
         let json_val = json_value_to_serde_json(match json_input.to_json() {
-            Some(json) => json.clone(),
+            Some(json) => json,
             None => JsonValue::Null,
         })
         .map_err(|e| InvalidArgument(e.to_string()))?;

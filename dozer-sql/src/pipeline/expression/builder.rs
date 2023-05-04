@@ -617,10 +617,9 @@ impl ExpressionBuilder {
             DataType::Timestamp(..) => CastOperatorType::Timestamp,
             DataType::Text => CastOperatorType::Text,
             DataType::String => CastOperatorType::String,
+            DataType::JSON => CastOperatorType::Json,
             DataType::Custom(name, ..) => {
-                if name.to_string().to_lowercase() == "json" {
-                    CastOperatorType::Json
-                } else if name.to_string().to_lowercase() == "uint" {
+                if name.to_string().to_lowercase() == "uint" {
                     CastOperatorType::UInt
                 } else if name.to_string().to_lowercase() == "u128" {
                     CastOperatorType::U128

@@ -178,7 +178,7 @@ impl CastOperatorType {
             }
             CastOperatorType::Json => {
                 if let Some(value) = field.to_json() {
-                    Ok(Field::Json(value.to_owned()))
+                    Ok(Field::Json(value))
                 } else {
                     Err(PipelineError::InvalidCast {
                         from: field,
@@ -319,7 +319,20 @@ impl CastOperatorType {
                 FieldType::Timestamp,
             ),
             CastOperatorType::Date => (vec![FieldType::Date, FieldType::String], FieldType::Date),
-            CastOperatorType::Json => (vec![FieldType::Json], FieldType::Json),
+            CastOperatorType::Json => (
+                vec![
+                    FieldType::Boolean,
+                    FieldType::Float,
+                    FieldType::Int,
+                    FieldType::I128,
+                    FieldType::String,
+                    FieldType::Text,
+                    FieldType::UInt,
+                    FieldType::U128,
+                    FieldType::Json,
+                ],
+                FieldType::Json,
+            ),
         };
 
         let expression_type = validate_arg_type(arg, expected_input_type, schema, self, 0)?;

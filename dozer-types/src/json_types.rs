@@ -9,6 +9,7 @@ use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
 
 use std::fmt::{Display, Formatter};
+
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
@@ -46,8 +47,24 @@ impl FromStr for JsonValue {
     type Err = DeserializationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let object: Value = serde_json::from_str(s)?;
-        serde_json_to_json_value(object)
+        let object = serde_json::from_str(s);
+        if object.is_ok() {
+            serde_json_to_json_value(object?)
+        } else {
+            let f = OrderedFloat::from_str(s)
+                .map_err(|e| DeserializationError::Custom(Box::from(format!("{:?}", e))));
+            if f.is_ok() {
+                Ok(JsonValue::Number(f?))
+            } else {
+                let b = bool::from_str(s)
+                    .map_err(|e| DeserializationError::Custom(Box::from(format!("{:?}", e))));
+                if b.is_ok() {
+                    Ok(JsonValue::Bool(b?))
+                } else {
+                    Ok(JsonValue::String(String::from(s)))
+                }
+            }
+        }
     }
 }
 
