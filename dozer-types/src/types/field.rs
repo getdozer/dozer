@@ -692,6 +692,7 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
+        Field::Json(JsonValue::Array(vec![])),
         Field::Json(JsonValue::Array(vec![
             JsonValue::Number(OrderedFloat(123_f64)),
             JsonValue::Number(OrderedFloat(34_f64)),

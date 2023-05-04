@@ -54,7 +54,12 @@ pub fn cud_operations() -> (FieldsAndPk, Vec<Operation>) {
         },
         Operation::Update {
             old: records[0].clone(),
-            new: vec![Field::UInt(1), Field::Int(1)],
+            new: vec![
+                Field::UInt(1),
+                Field::Int(1),
+                Field::String(String::from("s")),
+                Field::Json(JsonValue::String(String::from("s"))),
+            ],
         },
         Operation::Delete {
             old: records[0].clone(),
