@@ -2338,6 +2338,7 @@ dependencies = [
  "rdkafka",
  "regex",
  "rustls 0.21.0",
+ "rustls-native-certs 0.6.2",
  "schema_registry_converter",
  "serial_test",
  "tempdir",
