@@ -82,7 +82,7 @@ impl JsonValue {
 
     pub fn as_f64(&self) -> Option<f64> {
         match self {
-            JsonValue::Number(n) => Some(n.0 as f64),
+            JsonValue::Number(n) => Some(n.0),
             _ => None,
         }
     }
@@ -186,7 +186,7 @@ impl<'a> From<&'a str> for JsonValue {
 
 impl<'a> From<Cow<'a, str>> for JsonValue {
     fn from(f: Cow<'a, str>) -> Self {
-        JsonValue::String(String::from(f.into_owned()))
+        JsonValue::String(f.into_owned())
     }
 }
 
