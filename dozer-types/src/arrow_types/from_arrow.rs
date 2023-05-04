@@ -124,6 +124,24 @@ macro_rules! make_duration {
     }};
 }
 
+macro_rules! make_text {
+    ($array_type:ty, $column: ident, $row: ident) => {{
+        let array = $column.as_any().downcast_ref::<$array_type>();
+
+        if let Some(r) = array {
+            let s: DozerField = if r.is_null($row.clone()) {
+                DozerField::Null
+            } else {
+                DozerField::Text(r.value($row.clone()).to_string())
+            };
+
+            Ok(s)
+        } else {
+            Ok(DozerField::Null)
+        }
+    }};
+}
+
 pub fn map_schema_to_dozer(
     schema: &arrow::datatypes::Schema,
 ) -> Result<DozerSchema, FromArrowError> {
@@ -240,7 +258,7 @@ pub fn map_value_to_dozer_field(
         DataType::FixedSizeBinary(_) => make_binary!(array::FixedSizeBinaryArray, column, row),
         DataType::LargeBinary => make_binary!(array::LargeBinaryArray, column, row),
         DataType::Utf8 => make_from!(array::StringArray, column, row),
-        DataType::LargeUtf8 => make_from!(array::LargeStringArray, column, row),
+        DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
         // DataType::List(_) => {}
         // DataType::FixedSizeList(_, _) => {}
