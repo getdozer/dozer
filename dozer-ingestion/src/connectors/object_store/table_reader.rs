@@ -1,6 +1,5 @@
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::helper::map_listing_options;
-use crate::connectors::object_store::schema_helper::map_value_to_dozer_field;
 use crate::connectors::TableInfo;
 use crate::errors::ObjectStoreConnectorError::{RecvError, TableReaderError};
 use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
@@ -13,6 +12,7 @@ use deltalake::datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
 use deltalake::datafusion::prelude::SessionContext;
+use dozer_types::arrow_types::from_arrow::map_value_to_dozer_field;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
@@ -81,11 +81,19 @@ impl<T: Clone + Send + Sync> TableReader<T> {
 
             for row in 0..batch.num_rows() {
                 let fields = batch
+                    .to_owned()
                     .columns()
                     .iter()
                     .enumerate()
                     .map(|(col, column)| {
-                        map_value_to_dozer_field(column, &row, resolved_schema.field(col).name())
+                        let batch_schema = batch.schema();
+                        let metadata = batch_schema.metadata();
+                        map_value_to_dozer_field(
+                            column,
+                            &row,
+                            resolved_schema.field(col).name(),
+                            metadata,
+                        )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 

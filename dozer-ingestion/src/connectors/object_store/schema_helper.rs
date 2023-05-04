@@ -1,14 +1,8 @@
 use crate::errors::ObjectStoreSchemaError;
-use crate::errors::ObjectStoreSchemaError::DateConversionError;
-use crate::errors::ObjectStoreSchemaError::DateTimeConversionError;
-use crate::errors::ObjectStoreSchemaError::DurationConversionError;
 use crate::errors::ObjectStoreSchemaError::FieldTypeNotSupported;
-use crate::errors::ObjectStoreSchemaError::TimeConversionError;
-use deltalake::arrow::array;
-use deltalake::arrow::array::{Array, ArrayRef};
-use deltalake::arrow::datatypes::{DataType, Field, TimeUnit};
+use deltalake::arrow::datatypes::{DataType, Field};
 
-use dozer_types::types::{Field as DozerField, FieldDefinition, FieldType, SourceDefinition};
+use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 
 macro_rules! make_from {
     ($array_type:ty, $column: ident, $row: ident) => {{
@@ -181,78 +175,4 @@ pub fn map_schema_to_dozer<'a, I: Iterator<Item = &'a Field>>(
             })
         })
         .collect()
-}
-
-pub fn map_value_to_dozer_field(
-    column: &ArrayRef,
-    row: &usize,
-    column_name: &str,
-) -> Result<DozerField, ObjectStoreSchemaError> {
-    match column.data_type() {
-        DataType::Null => Ok(DozerField::Null),
-        DataType::Boolean => make_from!(array::BooleanArray, column, row),
-        DataType::Int8 => make_from!(array::Int8Array, column, row),
-        DataType::Int16 => make_from!(array::Int16Array, column, row),
-        DataType::Int32 => make_from!(array::Int32Array, column, row),
-        DataType::Int64 => make_from!(array::Int64Array, column, row),
-        DataType::UInt8 => make_from!(array::UInt8Array, column, row),
-        DataType::UInt16 => make_from!(array::UInt16Array, column, row),
-        DataType::UInt32 => make_from!(array::UInt32Array, column, row),
-        DataType::UInt64 => make_from!(array::UInt64Array, column, row),
-        DataType::Float16 => make_from!(array::Float32Array, column, row),
-        DataType::Float32 => make_from!(array::Float32Array, column, row),
-        DataType::Float64 => make_from!(array::Float64Array, column, row),
-        DataType::Timestamp(TimeUnit::Microsecond, _) => {
-            make_timestamp!(array::TimestampMicrosecondArray, column, row)
-        }
-        DataType::Timestamp(TimeUnit::Millisecond, _) => {
-            make_timestamp!(array::TimestampMillisecondArray, column, row)
-        }
-        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-            make_timestamp!(array::TimestampNanosecondArray, column, row)
-        }
-        DataType::Timestamp(TimeUnit::Second, _) => {
-            make_timestamp!(array::TimestampSecondArray, column, row)
-        }
-        DataType::Date32 => make_date!(array::Date32Array, column, row),
-        DataType::Date64 => make_date!(array::Date64Array, column, row),
-        DataType::Time32(TimeUnit::Millisecond) => {
-            make_time!(array::Time32MillisecondArray, column, row)
-        }
-        DataType::Time32(TimeUnit::Second) => make_time!(array::Time32SecondArray, column, row),
-        DataType::Time64(TimeUnit::Microsecond) => {
-            make_time!(array::Time64MicrosecondArray, column, row)
-        }
-        DataType::Time64(TimeUnit::Nanosecond) => {
-            make_time!(array::Time64NanosecondArray, column, row)
-        }
-        DataType::Duration(TimeUnit::Microsecond) => {
-            make_duration!(array::DurationMicrosecondArray, column, row)
-        }
-        DataType::Duration(TimeUnit::Millisecond) => {
-            make_duration!(array::DurationMillisecondArray, column, row)
-        }
-        DataType::Duration(TimeUnit::Nanosecond) => {
-            make_duration!(array::DurationNanosecondArray, column, row)
-        }
-        DataType::Duration(TimeUnit::Second) => {
-            make_duration!(array::DurationSecondArray, column, row)
-        }
-        DataType::Binary => make_binary!(array::BinaryArray, column, row),
-        DataType::FixedSizeBinary(_) => make_binary!(array::FixedSizeBinaryArray, column, row),
-        DataType::LargeBinary => make_binary!(array::LargeBinaryArray, column, row),
-        DataType::Utf8 => make_from!(array::StringArray, column, row),
-        DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
-        // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
-        // DataType::List(_) => {}
-        // DataType::FixedSizeList(_, _) => {}
-        // DataType::LargeList(_) => {}
-        // DataType::Struct(_) => {}
-        // DataType::Union(_, _, _) => {}
-        // DataType::Dictionary(_, _) => {}
-        // DataType::Decimal128(_, _) => {}
-        // DataType::Decimal256(_, _) => {}
-        // DataType::Map(_, _) => {}
-        _ => Err(FieldTypeNotSupported(column_name.to_string())),
-    }
 }

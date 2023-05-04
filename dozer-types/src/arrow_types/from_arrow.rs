@@ -15,6 +15,7 @@ use arrow::datatypes::{DataType, TimeUnit};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
+use std::collections::HashMap;
 
 macro_rules! make_from {
     ($array_type:ty, $column: ident, $row: ident) => {{
@@ -183,6 +184,7 @@ pub fn map_value_to_dozer_field(
     column: &ArrayRef,
     row: &usize,
     column_name: &str,
+    _metadata: &HashMap<String, String>,
 ) -> Result<DozerField, FromArrowError> {
     match column.data_type() {
         DataType::Null => Ok(DozerField::Null),
@@ -265,6 +267,7 @@ pub fn map_record_batch_to_dozer_records(
     }
     let mut records = Vec::new();
     let columns = batch.columns();
+    let batch_schema = batch.schema();
     let mut sort_fields = vec![];
     for x in schema.fields.iter() {
         let dt = to_arrow::map_field_type(x.typ, None);
@@ -275,8 +278,9 @@ pub fn map_record_batch_to_dozer_records(
     for r in 0..num_rows {
         let mut values = vec![];
         for (c, x) in columns.iter().enumerate() {
+            let metadata = batch_schema.metadata();
             let field = schema.fields.get(c).unwrap();
-            let value = map_value_to_dozer_field(x, &r, &field.name)?;
+            let value = map_value_to_dozer_field(x, &r, &field.name, metadata)?;
             values.push(value);
         }
         records.push(Record {
