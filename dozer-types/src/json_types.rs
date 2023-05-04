@@ -1,16 +1,17 @@
-use std::borrow::Cow;
 use crate::errors::types::DeserializationError;
 use crate::types::{DozerDuration, Field, DATE_FORMAT};
 use chrono::SecondsFormat;
 use ordered_float::OrderedFloat;
 use prost_types::value::Kind;
 use prost_types::{ListValue, Struct, Value as ProstValue};
+use rust_decimal::prelude::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use serde_json::{{json as serde_json}, Map, Value};
+use serde_json::{json as serde_json, Map, Value};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use rust_decimal::prelude::FromPrimitive;
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub enum JsonValue {
@@ -64,7 +65,6 @@ impl JsonValue {
             _ => None,
         }
     }
-
 
     pub fn as_u64(&self) -> Option<u64> {
         match self {
@@ -237,8 +237,8 @@ impl From<()> for JsonValue {
 }
 
 impl<T> From<Option<T>> for JsonValue
-    where
-        T: Into<JsonValue>,
+where
+    T: Into<JsonValue>,
 {
     fn from(opt: Option<T>) -> Self {
         match opt {
@@ -247,7 +247,6 @@ impl<T> From<Option<T>> for JsonValue
         }
     }
 }
-
 
 fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Value {
     let mut m = Map::new();
