@@ -1,8 +1,5 @@
 #![allow(clippy::enum_variant_names)]
 
-use glob::{GlobError, PatternError};
-use std::path::PathBuf;
-
 use dozer_api::errors::{ApiError, AuthError, GenerationError, GrpcError};
 use dozer_cache::dozer_log::errors::SchemaError;
 use dozer_cache::errors::CacheError;
@@ -10,8 +7,12 @@ use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::indicatif::style::TemplateError;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_yaml, thiserror};
+use glob::{GlobError, PatternError};
+use reqwest::header::InvalidHeaderValue;
+use std::path::PathBuf;
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
@@ -29,6 +30,10 @@ pub enum OrchestrationError {
     MissingSecurityConfig,
     #[error("Cloud service error: {0}")]
     CloudError(#[from] CloudError),
+    #[error("Transport error: {0}")]
+    Transport(#[from] tonic::transport::Error),
+    #[error("Server error: {0}")]
+    Server(#[from] tonic::Status),
     #[error("Failed to initialize api server: {0}")]
     ApiServerFailed(#[from] ApiError),
     #[error("Failed to initialize grpc server: {0}")]
@@ -59,6 +64,8 @@ pub enum OrchestrationError {
     DuplicateTable(String),
     #[error("No endpoints initialized in the config provided")]
     EmptyEndpoints,
+    #[error("Authentication Error: {0}")]
+    CognitoLoginError(#[from] CloudCredentialError),
 }
 
 #[derive(Error, Debug)]
@@ -121,3 +128,58 @@ pub enum MigrationError {
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
 }
+#[derive(Error, Debug)]
+pub enum CloudCredentialError {
+    #[error("Failed to parse url: {0}")]
+    FailedToParseUrl(#[source] BoxedError),
+
+    #[error("Failed to open browser: {0}")]
+    FailedToOpenBrowser(#[source] std::io::Error),
+
+    #[error("Failed to listen to config port: {0}")]
+    FailedToListenToConfigPort(#[source] std::io::Error),
+
+    #[error("Failed to accept connection from config port")]
+    FailedToAcceptConnectionFromConfigPort(#[source] std::io::Error),
+
+    #[error("Failed to extract authorization code")]
+    FailedToExtractAuthorizationCode,
+
+    #[error("Failed to obtain access_token request: {0}")]
+    FailedToGetAccessToken(#[source] reqwest::Error),
+
+    #[error("Failed to refresh new token request: {0}")]
+    FailedToRefreshNewToken(#[source] reqwest::Error),
+
+    #[error("Failed to get user info: {0}")]
+    FailedToGetUserInfo(#[source] reqwest::Error),
+
+    #[error(transparent)]
+    FailedToAddAuthorizationHeader(#[from] InvalidHeaderValue),
+
+    #[error(transparent)]
+    SerializationError(#[from] dozer_types::serde_json::Error),
+
+    #[error(transparent)]
+    FailedToCreateCredentialDirectory(#[from] std::io::Error),
+
+    #[error("Missing credential info - please try to login again")]
+    FailedToReadCredentialFile(PathBuf, #[source] std::io::Error),
+
+    #[error("Failed to write credential file")]
+    FailedToWriteCredentialFile(#[source] std::io::Error),
+
+    #[error(transparent)]
+    FailedToSetProgressStyle(#[from] TemplateError),
+
+    #[error(transparent)]
+    CliError(#[from] CliError),
+
+    #[error("Transport error: {0}")]
+    Transport(#[from] tonic::transport::Error),
+
+    #[error("Tonic error: {0}")]
+    TonicError(#[from] tonic::Status),
+}
+#[derive(Error, Debug)]
+pub enum CloudLoginError {}

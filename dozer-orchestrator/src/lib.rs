@@ -3,7 +3,6 @@ pub mod errors;
 pub mod pipeline;
 pub mod shutdown;
 pub mod simple;
-
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_ingestion::connectors::SourceSchema;
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
@@ -17,6 +16,8 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
+#[cfg(feature = "cloud")]
+use crate::cli::cloud::{Cloud, ListCommandArgs};
 #[cfg(feature = "cloud")]
 mod cloud_helper;
 mod console_helper;
@@ -48,6 +49,7 @@ pub trait CloudOrchestrator {
     fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
     fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
     fn trace_logs(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
+    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports
@@ -61,8 +63,7 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
     let mut pipeline = AppPipeline::new();
     statement_to_pipeline(sql, &mut pipeline, None)
 }
-#[cfg(feature = "cloud")]
-use crate::cli::cloud::{Cloud, ListCommandArgs};
+
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 

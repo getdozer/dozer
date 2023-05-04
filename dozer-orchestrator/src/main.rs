@@ -108,7 +108,6 @@ async fn check_update() {
 fn run() -> Result<(), OrchestrationError> {
     // Reloading trace layer seems impossible, so we are running Cli::parse in a closure
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
-
     let cli = parse_and_generate()?;
     #[cfg(feature = "cloud")]
     let is_cloud_orchestrator = matches!(cli.cmd, Some(Commands::Cloud(_)));
@@ -166,6 +165,9 @@ fn run() -> Result<(), OrchestrationError> {
                 CloudCommands::Delete(app) => dozer.delete(cloud, app.app_id),
                 CloudCommands::Logs(app) => dozer.trace_logs(cloud, app.app_id),
                 CloudCommands::Version(version) => dozer.version(cloud, version),
+                CloudCommands::Login(ref company) => {
+                    dozer.login(cloud, company.company_name.clone())
+                }
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
