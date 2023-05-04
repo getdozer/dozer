@@ -37,6 +37,20 @@ impl HomeDir {
         Ok(migration_path)
     }
 
+    pub fn find_migration_path(
+        &self,
+        endpoint_name: &str,
+        migration_id: u32,
+    ) -> Option<MigrationPath> {
+        let migration_path =
+            self.get_migration_path(endpoint_name, MigrationId::from_id(migration_id));
+        if migration_path.exists() {
+            Some(migration_path)
+        } else {
+            None
+        }
+    }
+
     pub fn find_latest_migration_path(
         &self,
         endpoint_name: &str,
@@ -163,4 +177,10 @@ pub struct MigrationPath {
     log_dir: PathBuf,
     pub schema_path: PathBuf,
     pub log_path: PathBuf,
+}
+
+impl MigrationPath {
+    pub fn exists(&self) -> bool {
+        self.api_dir.exists() && self.log_dir.exists()
+    }
 }

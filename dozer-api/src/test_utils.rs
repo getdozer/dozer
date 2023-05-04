@@ -68,6 +68,7 @@ pub fn get_endpoint() -> ApiEndpoint {
         }),
         table_name: "film".to_string(),
         conflict_resolution: None,
+        version: None,
     }
 }
 

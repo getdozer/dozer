@@ -44,6 +44,8 @@ pub enum ApiError {
     FailedToLoadSchema(#[from] SchemaError),
     #[error("Failed to find migration for endpoint {0}")]
     NoMigrationFound(String),
+    #[error("Failed to find migration for endpoint {0} with version {1}")]
+    MigrationNotFound(String, u32),
 }
 
 impl ApiError {
@@ -157,7 +159,8 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::CountFailed(_)
             | ApiError::FailedToBindToAddress(_, _)
             | ApiError::FailedToLoadSchema(_)
-            | ApiError::NoMigrationFound(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ApiError::NoMigrationFound(_)
+            | ApiError::MigrationNotFound(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
