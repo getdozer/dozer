@@ -34,6 +34,7 @@ pub struct OutputNodeInfo {
     pub port: PortHandle,
     // If this table is originally from a source or created in transforms
     pub is_derived: bool,
+    // TODO add:indexes to the tables
 }
 
 pub struct TableInfo {
