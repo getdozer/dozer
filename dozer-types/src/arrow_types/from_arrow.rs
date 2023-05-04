@@ -6,6 +6,7 @@ use super::errors::FromArrowError::FieldTypeNotSupported;
 use super::errors::FromArrowError::TimeConversionError;
 use super::to_arrow;
 use crate::arrow_types::to_arrow::{JSON_TYPE, LOGICAL_TYPE_KEY};
+use crate::json_types::JsonValue;
 use crate::types::Record;
 use crate::types::{
     Field as DozerField, FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition,
@@ -144,6 +145,25 @@ macro_rules! make_text {
     }};
 }
 
+macro_rules! make_json {
+    ($array_type:ty, $column: ident, $row: ident) => {{
+        let array = $column.as_any().downcast_ref::<$array_type>();
+
+        if let Some(r) = array {
+            let s: DozerField = match r.get($row.clone()) {
+                Some(j) => match j {
+                    JsonValue::Null => DozerField::Json(JsonValue::Null),
+                    _ => DozerField::Json(j.clone()),
+                },
+                None => DozerField::Json(JsonValue::Null),
+            };
+            Ok(s)
+        } else {
+            Ok(DozerField::Null)
+        }
+    }};
+}
+
 pub fn map_schema_to_dozer(
     schema: &arrow::datatypes::Schema,
 ) -> Result<DozerSchema, FromArrowError> {
@@ -221,7 +241,7 @@ pub fn map_value_to_dozer_field(
     column: &ArrayRef,
     row: &usize,
     column_name: &str,
-    _metadata: &HashMap<String, String>,
+    metadata: &HashMap<String, String>,
 ) -> Result<DozerField, FromArrowError> {
     match column.data_type() {
         DataType::Null => Ok(DozerField::Null),
@@ -276,7 +296,22 @@ pub fn map_value_to_dozer_field(
         DataType::Binary => make_binary!(array::BinaryArray, column, row),
         DataType::FixedSizeBinary(_) => make_binary!(array::FixedSizeBinaryArray, column, row),
         DataType::LargeBinary => make_binary!(array::LargeBinaryArray, column, row),
-        DataType::Utf8 => make_from!(array::StringArray, column, row),
+        DataType::Utf8 => {
+            if metadata.contains_key(LOGICAL_TYPE_KEY) {
+                match metadata.get(LOGICAL_TYPE_KEY) {
+                    Some(s) => {
+                        if s.eq(JSON_TYPE) {
+                            make_json!(Vec<JsonValue>, column, row)
+                        } else {
+                            make_from!(array::StringArray, column, row)
+                        }
+                    }
+                    None => make_from!(array::StringArray, column, row),
+                }
+            } else {
+                make_from!(array::StringArray, column, row)
+            }
+        }
         DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
         // DataType::List(_) => {}
