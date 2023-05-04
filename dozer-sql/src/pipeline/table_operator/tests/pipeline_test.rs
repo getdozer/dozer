@@ -30,14 +30,14 @@ const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 #[test]
 #[ignore]
-fn test_pipeline_builder() {
+fn test_lifetime_pipeline() {
     let _ = dozer_tracing::init_telemetry(None, None);
 
     let mut pipeline = AppPipeline::new();
 
     let context = statement_to_pipeline(
         "SELECT trips.taxi_id, puz.zone, trips.completed_at \
-                FROM TTL(taxi_trips, '3 SECONDS') trips \
+                FROM TTL(taxi_trips, completed_at, '3 MINUTES') trips \
                 JOIN zones puz ON trips.pu_location_id = puz.location_id",
         &mut pipeline,
         Some("results".to_string()),
@@ -79,6 +79,8 @@ fn test_pipeline_builder() {
     app.add_pipeline(pipeline);
 
     let dag = app.get_dag().unwrap();
+
+    dag.print_dot();
 
     let now = std::time::Instant::now();
 
@@ -349,7 +351,7 @@ impl Source for TestSource {
         for (index, (op, port)) in operations.into_iter().enumerate() {
             fw.send(IngestionMessage::new_op(index as u64, 0, op), port)
                 .unwrap();
-            thread::sleep(Duration::from_millis(2000));
+            //thread::sleep(Duration::from_millis(500));
         }
 
         thread::sleep(Duration::from_millis(500));
