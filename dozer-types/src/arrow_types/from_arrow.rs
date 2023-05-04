@@ -15,6 +15,7 @@ use arrow::datatypes::{DataType, TimeUnit};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
+use std::collections::HashMap;
 
 macro_rules! make_from {
     ($array_type:ty, $column: ident, $row: ident) => {{
@@ -123,6 +124,24 @@ macro_rules! make_duration {
     }};
 }
 
+macro_rules! make_text {
+    ($array_type:ty, $column: ident, $row: ident) => {{
+        let array = $column.as_any().downcast_ref::<$array_type>();
+
+        if let Some(r) = array {
+            let s: DozerField = if r.is_null($row.clone()) {
+                DozerField::Null
+            } else {
+                DozerField::Text(r.value($row.clone()).to_string())
+            };
+
+            Ok(s)
+        } else {
+            Ok(DozerField::Null)
+        }
+    }};
+}
+
 pub fn map_schema_to_dozer(
     schema: &arrow::datatypes::Schema,
 ) -> Result<DozerSchema, FromArrowError> {
@@ -183,6 +202,7 @@ pub fn map_value_to_dozer_field(
     column: &ArrayRef,
     row: &usize,
     column_name: &str,
+    _metadata: &HashMap<String, String>,
 ) -> Result<DozerField, FromArrowError> {
     match column.data_type() {
         DataType::Null => Ok(DozerField::Null),
@@ -238,7 +258,7 @@ pub fn map_value_to_dozer_field(
         DataType::FixedSizeBinary(_) => make_binary!(array::FixedSizeBinaryArray, column, row),
         DataType::LargeBinary => make_binary!(array::LargeBinaryArray, column, row),
         DataType::Utf8 => make_from!(array::StringArray, column, row),
-        DataType::LargeUtf8 => make_from!(array::LargeStringArray, column, row),
+        DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
         // DataType::List(_) => {}
         // DataType::FixedSizeList(_, _) => {}
@@ -265,6 +285,8 @@ pub fn map_record_batch_to_dozer_records(
     }
     let mut records = Vec::new();
     let columns = batch.columns();
+    let batch_schema = batch.schema();
+    let metadata = batch_schema.metadata();
     let mut sort_fields = vec![];
     for x in schema.fields.iter() {
         let dt = to_arrow::map_field_type(x.typ, None);
@@ -276,7 +298,7 @@ pub fn map_record_batch_to_dozer_records(
         let mut values = vec![];
         for (c, x) in columns.iter().enumerate() {
             let field = schema.fields.get(c).unwrap();
-            let value = map_value_to_dozer_field(x, &r, &field.name)?;
+            let value = map_value_to_dozer_field(x, &r, &field.name, metadata)?;
             values.push(value);
         }
         records.push(Record {

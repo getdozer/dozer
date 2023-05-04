@@ -7,6 +7,7 @@ pub mod object_store;
 pub mod postgres;
 
 use crate::connectors::postgres::connection::helper::map_connection_config;
+
 use std::fmt::Debug;
 
 #[cfg(feature = "kafka")]
@@ -14,6 +15,7 @@ use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
+
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
