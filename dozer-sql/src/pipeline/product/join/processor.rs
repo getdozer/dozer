@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
@@ -17,6 +15,17 @@ pub struct ProductProcessor {
 impl ProductProcessor {
     pub fn new(join_operator: JoinOperator) -> Self {
         Self { join_operator }
+    }
+
+    fn update_eviction_index(&mut self, lifetime: &dozer_types::types::Lifetime) {
+        let now = &lifetime.reference;
+
+        let old_instants = self.join_operator.evict_index(&JoinBranch::Left, now);
+        self.join_operator
+            .clean_evict_index(&JoinBranch::Left, &old_instants);
+        let old_instants = self.join_operator.evict_index(&JoinBranch::Right, now);
+        self.join_operator
+            .clean_evict_index(&JoinBranch::Right, &old_instants);
     }
 }
 
@@ -37,25 +46,30 @@ impl Processor for ProductProcessor {
             _ => return Err(ExecutionError::InvalidPort(from_port)),
         };
 
-        let now = Instant::now();
-
-        let old_instants = self.join_operator.evict_index(&JoinBranch::Left, &now);
-        self.join_operator
-            .clean_evict_index(&JoinBranch::Left, &old_instants);
-        let old_instants = self.join_operator.evict_index(&JoinBranch::Right, &now);
-        self.join_operator
-            .clean_evict_index(&JoinBranch::Right, &old_instants);
-
         let records = match op {
-            Operation::Delete { ref old } => self
-                .join_operator
-                .delete(from_branch, old)
-                .map_err(|err| ExecutionError::InternalError(Box::new(err)))?,
-            Operation::Insert { ref new } => self
-                .join_operator
-                .insert(from_branch, new)
-                .map_err(|err| ExecutionError::InternalError(Box::new(err)))?,
+            Operation::Delete { ref old } => {
+                if let Some(lifetime) = &old.lifetime {
+                    self.update_eviction_index(lifetime);
+                }
+
+                self.join_operator
+                    .delete(from_branch, old)
+                    .map_err(|err| ExecutionError::InternalError(Box::new(err)))?
+            }
+            Operation::Insert { ref new } => {
+                if let Some(lifetime) = &new.lifetime {
+                    self.update_eviction_index(lifetime);
+                }
+
+                self.join_operator
+                    .insert(from_branch, new)
+                    .map_err(|err| ExecutionError::InternalError(Box::new(err)))?
+            }
             Operation::Update { ref old, ref new } => {
+                if let Some(lifetime) = &old.lifetime {
+                    self.update_eviction_index(lifetime);
+                }
+
                 let old_records = self
                     .join_operator
                     .delete(from_branch, old)
