@@ -24,7 +24,6 @@ impl ProjectionProcessor {
 
     fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
-        let lifetime = record.lifetime;
 
         for expr in &self.expressions {
             results.push(
@@ -34,14 +33,13 @@ impl ProjectionProcessor {
         }
 
         let mut output_record = Record::new(None, results);
-        output_record.set_lifetime(lifetime);
+        output_record.set_lifetime(record.lifetime.to_owned());
 
         Ok(Operation::Delete { old: output_record })
     }
 
     fn insert(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
-        let lifetime = record.lifetime;
 
         for expr in self.expressions.clone() {
             results.push(
@@ -51,16 +49,13 @@ impl ProjectionProcessor {
         }
 
         let mut output_record = Record::new(None, results);
-        output_record.set_lifetime(lifetime);
+        output_record.set_lifetime(record.lifetime.to_owned());
         Ok(Operation::Insert { new: output_record })
     }
 
     fn update(&self, old: &Record, new: &Record) -> Result<Operation, ExecutionError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
-
-        let old_lifetime = old.lifetime;
-        let new_lifetime = new.lifetime;
 
         for expr in &self.expressions {
             old_results.push(
@@ -74,9 +69,9 @@ impl ProjectionProcessor {
         }
 
         let mut old_output_record = Record::new(None, old_results);
-        old_output_record.set_lifetime(old_lifetime);
+        old_output_record.set_lifetime(old.lifetime.to_owned());
         let mut new_output_record = Record::new(None, new_results);
-        new_output_record.set_lifetime(new_lifetime);
+        new_output_record.set_lifetime(new.lifetime.to_owned());
         Ok(Operation::Update {
             old: old_output_record,
             new: new_output_record,

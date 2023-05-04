@@ -7,7 +7,7 @@ use crate::pipeline::errors::TableOperatorError;
 #[enum_dispatch]
 pub trait TableOperator: Send + Sync {
     fn get_name(&self) -> String;
-    fn execute(&self, record: &Record) -> Result<Vec<Record>, TableOperatorError>;
+    fn execute(&self, record: &Record, schema: &Schema) -> Result<Vec<Record>, TableOperatorError>;
     fn get_output_schema(&self, schema: &Schema) -> Result<Schema, TableOperatorError>;
 }
 

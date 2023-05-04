@@ -20,6 +20,7 @@ use dozer_types::log::error;
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
 
+use dozer_types::arrow_types::errors::FromArrowError;
 #[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
 use tokio_postgres::Error;
@@ -402,6 +403,9 @@ pub enum ObjectStoreConnectorError {
 
     #[error(transparent)]
     IngestorError(#[from] IngestorError),
+
+    #[error(transparent)]
+    FromArrowError(#[from] FromArrowError),
 
     #[error("Failed to receive message on data read channel")]
     RecvError,
