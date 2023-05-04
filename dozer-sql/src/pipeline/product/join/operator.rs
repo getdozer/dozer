@@ -569,7 +569,7 @@ fn join_records(left_record: &Record, right_record: &Record) -> Record {
 
     if let Some(left_record_lifetime) = left_record.lifetime.clone() {
         if let Some(right_record_lifetime) = right_record.lifetime.clone() {
-            if left_record_lifetime.duration < right_record_lifetime.duration {
+            if left_record_lifetime.reference > right_record_lifetime.reference {
                 output_record.set_lifetime(Some(left_record_lifetime));
             } else {
                 output_record.set_lifetime(Some(right_record_lifetime));
