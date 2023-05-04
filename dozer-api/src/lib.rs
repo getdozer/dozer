@@ -41,11 +41,16 @@ impl CacheEndpoint {
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<(Self, Option<impl FnOnce() -> Result<(), CacheError>>), ApiError> {
-        let migration_path = home_dir
-            .find_latest_migration_path(&endpoint.name)
-            .map_err(|(path, error)| SchemaError::Filesystem(path, error))?;
-        let migration_path =
-            migration_path.ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?;
+        let migration_path = if let Some(version) = endpoint.version {
+            home_dir
+                .find_migration_path(&endpoint.name, version)
+                .ok_or(ApiError::MigrationNotFound(endpoint.name.clone(), version))?
+        } else {
+            home_dir
+                .find_latest_migration_path(&endpoint.name)
+                .map_err(|(path, error)| SchemaError::Filesystem(path, error))?
+                .ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?
+        };
 
         let (cache_reader, task) = if let Some(cache_reader) =
             open_cache_reader(cache_manager, &endpoint.name)?

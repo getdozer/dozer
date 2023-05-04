@@ -267,6 +267,10 @@ pub struct ApiEndpoint {
     #[prost(message, tag = "5")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conflict_resolution: Option<ConflictResolution>,
+
+    #[prost(optional, uint32, tag = "6")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<u32>,
 }
 
 impl Serialize for ApiEndpoint {
