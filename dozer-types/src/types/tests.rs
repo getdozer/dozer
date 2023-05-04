@@ -321,7 +321,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_some());
     assert!(field.to_timestamp().unwrap().is_none());
     assert!(field.to_date().unwrap().is_none());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
@@ -339,7 +339,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_some());
     assert!(field.to_timestamp().unwrap().is_none());
     assert!(field.to_date().unwrap().is_none());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
@@ -357,7 +357,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_some());
     assert!(field.to_timestamp().unwrap().is_none());
     assert!(field.to_date().unwrap().is_none());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
@@ -375,7 +375,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_some());
     assert!(field.to_timestamp().unwrap().is_none());
     assert!(field.to_date().unwrap().is_none());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_ok());
     assert!(field.to_null().is_none());
@@ -393,7 +393,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_some());
     assert!(field.to_timestamp().unwrap().is_none());
     assert!(field.to_date().unwrap().is_none());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
@@ -411,7 +411,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_none());
     assert!(field.to_timestamp().unwrap().is_none());
     assert!(field.to_date().unwrap().is_none());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
@@ -429,7 +429,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_none());
     assert!(field.to_timestamp().unwrap().is_none());
     assert!(field.to_date().unwrap().is_none());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
@@ -447,7 +447,7 @@ fn test_to_conversion() {
     assert!(field.to_decimal().is_none());
     assert!(field.to_timestamp().unwrap().is_none());
     assert!(field.to_date().unwrap().is_none());
-    assert!(field.to_json().is_none());
+    assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_err());
     assert!(field.to_null().is_none());
