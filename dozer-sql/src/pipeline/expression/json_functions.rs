@@ -3,10 +3,9 @@ use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidFunction, InvalidFunctionArgument, InvalidValue,
 };
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use jsonpath_rust::{JsonPathFinder, JsonPathInst};
 
-use dozer_types::json_types::{json_value_to_serde_json, serde_json_to_json_value, JsonValue};
-use dozer_types::serde_json::Value;
+use crate::jsonpath::{JsonPathFinder, JsonPathInst};
+use dozer_types::json_types::JsonValue;
 use dozer_types::types::{Field, Record, Schema};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -102,11 +101,10 @@ impl JsonFunctionType {
         json_input: Field,
         path: String,
     ) -> Result<JsonValue, PipelineError> {
-        let json_val = json_value_to_serde_json(match json_input.to_json() {
+        let json_val = match json_input.to_json() {
             Some(json) => json,
             None => JsonValue::Null,
-        })
-        .map_err(|e| InvalidArgument(e.to_string()))?;
+        };
 
         let finder = JsonPathFinder::new(
             Box::from(json_val),
@@ -114,8 +112,8 @@ impl JsonFunctionType {
         );
 
         match finder.find() {
-            Value::Null => Ok(JsonValue::Null),
-            Value::Array(a) => {
+            JsonValue::Null => Ok(JsonValue::Null),
+            JsonValue::Array(a) => {
                 if a.is_empty() {
                     Ok(JsonValue::Array(vec![]))
                 } else if a.len() == 1 {
@@ -123,16 +121,11 @@ impl JsonFunctionType {
                         Some(i) => i,
                         None => return Err(InvalidValue("Invalid length of array".to_string())),
                     };
-                    let value = serde_json_to_json_value(item.clone())
-                        .map_err(|e| InvalidValue(e.to_string()))?;
-                    Ok(value)
+                    Ok(item.to_owned())
                 } else {
                     let mut array_val = vec![];
                     for item in a {
-                        array_val.push(
-                            serde_json_to_json_value(item)
-                                .map_err(|e| InvalidValue(e.to_string()))?,
-                        );
+                        array_val.push(item);
                     }
                     Ok(JsonValue::Array(array_val))
                 }

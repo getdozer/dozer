@@ -184,6 +184,7 @@ impl Field {
     pub fn as_uint(&self) -> Option<u64> {
         match self {
             Field::UInt(i) => Some(*i),
+            Field::Json(JsonValue::Number(f)) => Some(f.0 as u64),
             _ => None,
         }
     }
@@ -191,6 +192,7 @@ impl Field {
     pub fn as_u128(&self) -> Option<u128> {
         match self {
             Field::U128(i) => Some(*i),
+            Field::Json(j) => j.as_u128(),
             _ => None,
         }
     }
@@ -198,6 +200,7 @@ impl Field {
     pub fn as_int(&self) -> Option<i64> {
         match self {
             Field::Int(i) => Some(*i),
+            Field::Json(j) => j.as_i64(),
             _ => None,
         }
     }
@@ -205,6 +208,7 @@ impl Field {
     pub fn as_i128(&self) -> Option<i128> {
         match self {
             Field::I128(i) => Some(*i),
+            Field::Json(j) => j.as_i128(),
             _ => None,
         }
     }
@@ -212,6 +216,7 @@ impl Field {
     pub fn as_float(&self) -> Option<f64> {
         match self {
             Field::Float(f) => Some(f.0),
+            Field::Json(j) => j.as_f64(),
             _ => None,
         }
     }
@@ -219,6 +224,7 @@ impl Field {
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
             Field::Boolean(b) => Some(*b),
+            Field::Json(j) => j.as_bool(),
             _ => None,
         }
     }
@@ -226,6 +232,7 @@ impl Field {
     pub fn as_string(&self) -> Option<&str> {
         match self {
             Field::String(s) => Some(s),
+            Field::Json(j) => j.as_str(),
             _ => None,
         }
     }
@@ -233,6 +240,7 @@ impl Field {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             Field::Text(s) => Some(s),
+            Field::Json(j) => j.as_str(),
             _ => None,
         }
     }
@@ -305,6 +313,7 @@ impl Field {
     pub fn as_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
+            Field::Json(j) => j.as_null(),
             _ => None,
         }
     }
