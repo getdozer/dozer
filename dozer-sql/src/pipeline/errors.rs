@@ -245,6 +245,12 @@ pub enum JoinError {
     UnsupportedJoinConstraintType,
     #[error("Unsupported Join type")]
     UnsupportedJoinType,
+
+    #[error("Overflow error computing the eviction time in the TTL reference field")]
+    EvictionTimeOverflow,
+
+    #[error("Field type error computing the eviction time in the TTL reference field")]
+    EvictionTypeOverflow,
 }
 
 #[derive(Error, Debug)]
@@ -355,4 +361,10 @@ pub enum TableOperatorError {
 
     #[error("Invalid time interval '{0}' specified in the Table Operator {1}")]
     InvalidInterval(String, String),
+
+    #[error("Invalid reference expression '{0}' specified in the Table Operator {1}")]
+    InvalidReference(String, String),
+
+    #[error("Missing Argument in '{0}' ")]
+    MissingArgument(String),
 }
