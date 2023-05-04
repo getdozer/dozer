@@ -23,6 +23,11 @@ pub fn init_dozer(config_path: String) -> Result<Dozer, CliError> {
     Ok(Dozer::new(config, Arc::new(runtime)))
 }
 
+pub fn init_dozer_with_default_config() -> Result<Dozer, CliError> {
+    let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
+    Ok(Dozer::new(Config::default(), Arc::new(runtime)))
+}
+
 pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {
     let dozer = init_dozer(config_path.to_string())?;
     let connection_map = dozer.list_connectors()?;
