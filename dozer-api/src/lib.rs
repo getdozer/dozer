@@ -52,7 +52,7 @@ impl CacheEndpoint {
         {
             (cache_reader, None)
         } else {
-            let schema = load_schema(&migration_path.schema_path)?;
+            let schema = load_schema(&migration_path.schema_path)?.schema;
             let secondary_index_config = get_secondary_index_config(&endpoint);
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
             let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();

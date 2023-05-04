@@ -67,7 +67,7 @@ async fn flatten_join_handle(
     match handle.await {
         Ok(Ok(_)) => Ok(()),
         Ok(Err(err)) => Err(err),
-        Err(err) => Err(OrchestrationError::InternalError(Box::new(err))),
+        Err(err) => Err(OrchestrationError::JoinError(err)),
     }
 }
 
