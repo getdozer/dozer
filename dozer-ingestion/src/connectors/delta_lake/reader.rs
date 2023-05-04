@@ -46,9 +46,9 @@ impl DeltaLakeReader {
 
         tokio::pin!(data);
         while let Some(Ok(batch)) = data.next().await {
+            let batch_schema = batch.schema();
+            let metadata = batch_schema.metadata();
             for row in 0..batch.num_rows() {
-                let batch_schema = batch.schema();
-                let metadata = batch_schema.metadata();
                 let fields = batch
                     .columns()
                     .iter()

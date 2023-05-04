@@ -79,15 +79,15 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                 }
             };
 
+            let batch_schema = batch.schema();
+            let metadata = batch_schema.metadata();
+
             for row in 0..batch.num_rows() {
                 let fields = batch
-                    .to_owned()
                     .columns()
                     .iter()
                     .enumerate()
                     .map(|(col, column)| {
-                        let batch_schema = batch.schema();
-                        let metadata = batch_schema.metadata();
                         map_value_to_dozer_field(
                             column,
                             &row,

@@ -286,6 +286,7 @@ pub fn map_record_batch_to_dozer_records(
     let mut records = Vec::new();
     let columns = batch.columns();
     let batch_schema = batch.schema();
+    let metadata = batch_schema.metadata();
     let mut sort_fields = vec![];
     for x in schema.fields.iter() {
         let dt = to_arrow::map_field_type(x.typ, None);
@@ -296,7 +297,6 @@ pub fn map_record_batch_to_dozer_records(
     for r in 0..num_rows {
         let mut values = vec![];
         for (c, x) in columns.iter().enumerate() {
-            let metadata = batch_schema.metadata();
             let field = schema.fields.get(c).unwrap();
             let value = map_value_to_dozer_field(x, &r, &field.name, metadata)?;
             values.push(value);
