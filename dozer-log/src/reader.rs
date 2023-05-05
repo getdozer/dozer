@@ -73,6 +73,10 @@ impl LogReader {
             }
         }
     }
+
+    pub fn pos(&self) -> u64 {
+        self.pos
+    }
 }
 
 async fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u64), ReaderError> {

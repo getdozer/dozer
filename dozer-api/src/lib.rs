@@ -38,7 +38,7 @@ impl CacheEndpoint {
         cancel: impl Future<Output = ()> + Unpin,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
-    ) -> Result<(Self, Option<impl FnOnce() -> Result<(), CacheError>>), ApiError> {
+    ) -> Result<(Self, impl FnOnce() -> Result<(), CacheError>), ApiError> {
         let migration_path = if let Some(version) = endpoint.version {
             home_dir
                 .find_migration_path(&endpoint.name, version)
@@ -50,39 +50,32 @@ impl CacheEndpoint {
                 .ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?
         };
 
-        let (cache_reader, task) = if let Some(cache_reader) =
-            open_cache_reader(cache_manager, &endpoint.name)?
-        {
-            (cache_reader, None)
-        } else {
-            let schema = load_schema(&migration_path.schema_path)?;
-            let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
-            let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
-            let write_options = CacheWriteOptions {
-                insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
-                delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
-                update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
-                ..Default::default()
-            };
-            let (cache_name, task) = cache_builder::create_cache(
-                cache_manager,
-                schema.schema,
-                schema.secondary_indexes,
-                runtime,
-                cancel,
-                &migration_path.log_path,
-                write_options,
-                operations_sender,
-                multi_pb,
-            )
-            .await
-            .map_err(ApiError::CreateCache)?;
-            // TODO: We intentionally don't create alias endpoint.name -> cache_name here.
-            (
-                open_cache_reader(cache_manager, &cache_name)?.expect("We just created the cache"),
-                Some(task),
-            )
+        let cache_name = format!("{}-{}", endpoint.name, migration_path.id.name());
+        let schema = load_schema(&migration_path.schema_path)?;
+        let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
+        let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
+        let write_options = CacheWriteOptions {
+            insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
+            delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
+            update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
+            ..Default::default()
         };
+        let task = cache_builder::build_cache(
+            cache_manager,
+            &cache_name,
+            (schema.schema, schema.secondary_indexes),
+            runtime,
+            cancel,
+            &migration_path.log_path,
+            write_options,
+            operations_sender,
+            multi_pb,
+        )
+        .await
+        .map_err(ApiError::CreateCache)?;
+
+        let cache_reader =
+            open_cache_reader(cache_manager, &cache_name)?.expect("We just created the cache");
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
@@ -118,14 +111,6 @@ impl CacheEndpoint {
 
     pub fn endpoint(&self) -> &ApiEndpoint {
         &self.endpoint
-    }
-
-    pub fn redirect_cache(&self, cache_manager: &dyn RwCacheManager) -> Result<(), ApiError> {
-        self.cache_reader.store(Arc::new(open_existing_cache_reader(
-            cache_manager,
-            &self.endpoint.name,
-        )?));
-        Ok(())
     }
 }
 

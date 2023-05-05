@@ -8,7 +8,7 @@ use dozer_cache::{
 };
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::MultiProgress;
-use dozer_types::types::IndexDefinition;
+use dozer_types::types::SchemaWithIndex;
 use dozer_types::{
     grpc_types::types::Operation as GrpcOperation,
     log::error,
@@ -21,39 +21,57 @@ use futures_util::{
 use tokio::{runtime::Runtime, sync::broadcast::Sender};
 
 #[allow(clippy::too_many_arguments)]
-pub async fn create_cache(
+pub async fn build_cache(
     cache_manager: &dyn RwCacheManager,
-    schema: Schema,
-    secondary_indexes: Vec<IndexDefinition>,
+    alias: &str,
+    schema: SchemaWithIndex,
     runtime: Arc<Runtime>,
     cancel: impl Future<Output = ()> + Unpin,
     log_path: &Path,
     write_options: CacheWriteOptions,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
-) -> Result<(String, impl FnOnce() -> Result<(), CacheError>), CacheError> {
-    // Create the cache.
-    let cache = cache_manager.create_cache(schema.clone(), secondary_indexes, write_options)?;
-    let name = cache.name().to_string();
+) -> Result<impl FnOnce() -> Result<(), CacheError>, CacheError> {
+    let cache = open_or_create_cache(cache_manager, alias, schema.clone(), write_options)?;
 
     // Create log reader.
-    let log_reader = LogReader::new(log_path, &name, 0, multi_pb).await?;
+    let pos = cache.get_metadata()?.unwrap_or(0);
+    let log_reader = LogReader::new(log_path, alias, pos, multi_pb).await?;
 
-    // Spawn a task to write to cache.
+    // Create the task that builds cache.
     let task = move || {
-        build_cache(
+        build_cache_task(
             cache,
             runtime,
             cancel,
             log_reader,
-            schema,
+            schema.0,
             operations_sender,
         )
     };
-    Ok((name, task))
+    Ok(task)
 }
 
-fn build_cache(
+fn open_or_create_cache(
+    cache_manager: &dyn RwCacheManager,
+    alias: &str,
+    schema: SchemaWithIndex,
+    write_options: CacheWriteOptions,
+) -> Result<Box<dyn RwCache>, CacheError> {
+    match cache_manager.open_rw_cache(alias, write_options)? {
+        Some(cache) => {
+            debug_assert!(cache.get_schema() == &schema);
+            Ok(cache)
+        }
+        None => {
+            let cache = cache_manager.create_cache(schema.0, schema.1, write_options)?;
+            cache_manager.create_alias(cache.name(), alias)?;
+            Ok(cache)
+        }
+    }
+}
+
+fn build_cache_task(
     mut cache: Box<dyn RwCache>,
     runtime: Arc<Runtime>,
     mut cancel: impl Future<Output = ()> + Unpin,
@@ -111,9 +129,11 @@ fn build_cache(
                 }
             },
             ExecutorOperation::Commit { .. } => {
+                cache.set_metadata(log_reader.pos())?;
                 cache.commit()?;
             }
             ExecutorOperation::SnapshottingDone {} => {
+                cache.set_metadata(log_reader.pos())?;
                 cache.commit()?;
             }
             ExecutorOperation::Terminate => {

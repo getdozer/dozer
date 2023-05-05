@@ -90,11 +90,9 @@ impl Orchestrator for SimpleOrchestrator {
                     Some(self.multi_pb.clone()),
                 )
                 .await?;
-                if let Some(task) = task {
-                    futures.push(flatten_join_handle(tokio::task::spawn_blocking(
-                        move || task().map_err(OrchestrationError::CacheBuildFailed),
-                    )));
-                }
+                futures.push(flatten_join_handle(tokio::task::spawn_blocking(
+                    move || task().map_err(OrchestrationError::CacheBuildFailed),
+                )));
                 cache_endpoints.push(Arc::new(cache_endpoint));
             }
 

@@ -75,6 +75,15 @@ pub trait MainEnvironment: LmdbEnvironment {
             .get_record(&txn, key)?
             .ok_or(CacheError::PrimaryKeyNotFound)
     }
+
+    fn metadata(&self) -> Result<Option<u64>, CacheError> {
+        let txn = self.begin_txn()?;
+        self.common()
+            .metadata
+            .load(&txn)
+            .map(|data| data.map(IntoOwned::into_owned))
+            .map_err(Into::into)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -85,6 +94,8 @@ pub struct MainEnvironmentCommon {
     name: String,
     /// The schema.
     schema: SchemaWithIndex,
+    /// The metadata.
+    metadata: LmdbOption<u64>,
     /// The operation log.
     operation_log: OperationLog,
     intersection_chunk_size: usize,
@@ -120,6 +131,7 @@ impl RwMainEnvironment {
 
         let operation_log = OperationLog::create(&mut env)?;
         let schema_option = LmdbOption::create(&mut env, Some("schema"))?;
+        let metadata = LmdbOption::create(&mut env, Some("metadata"))?;
 
         let old_schema = schema_option
             .load(&env.begin_txn()?)?
@@ -151,6 +163,7 @@ impl RwMainEnvironment {
                 base_path,
                 name,
                 schema,
+                metadata,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
             },
@@ -320,6 +333,14 @@ impl RwMainEnvironment {
         }
     }
 
+    pub fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError> {
+        let txn = self.env.txn_mut()?;
+        self.common
+            .metadata
+            .store(txn, &metadata)
+            .map_err(Into::into)
+    }
+
     pub fn commit(&mut self) -> Result<(), CacheError> {
         self.env.commit().map_err(Into::into)
     }
@@ -468,6 +489,7 @@ impl RoMainEnvironment {
 
         let operation_log = OperationLog::open(&env)?;
         let schema_option = LmdbOption::open(&env, Some("schema"))?;
+        let metadata = LmdbOption::open(&env, Some("metadata"))?;
 
         let schema = schema_option
             .load(&env.begin_txn()?)?
@@ -480,6 +502,7 @@ impl RoMainEnvironment {
                 base_path: base_path.to_path_buf(),
                 name: name.to_string(),
                 schema,
+                metadata,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
             },
