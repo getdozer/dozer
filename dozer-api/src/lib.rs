@@ -69,9 +69,12 @@ impl CacheEndpoint {
         )
         .map_err(ApiError::OpenOrCreateCache)?;
 
+        // Open cache reader.
+        let cache_reader =
+            open_cache_reader(cache_manager, &cache_name)?.expect("We just created the cache");
+
         // Start cache builder.
         let handle = {
-            let cache_name = cache_name.clone();
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
             tokio::spawn(async move {
                 cache_builder::build_cache(
@@ -86,8 +89,6 @@ impl CacheEndpoint {
             })
         };
 
-        let cache_reader =
-            open_cache_reader(cache_manager, &cache_name)?.expect("We just created the cache");
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
