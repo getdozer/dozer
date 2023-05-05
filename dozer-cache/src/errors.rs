@@ -50,6 +50,8 @@ pub enum CacheError {
     PrimaryKeyNotFound,
     #[error("Primary key already exists")]
     PrimaryKeyExists,
+    #[error("Internal thread panic: {0}")]
+    InternalThreadPanic(#[source] tokio::task::JoinError),
 }
 
 impl CacheError {

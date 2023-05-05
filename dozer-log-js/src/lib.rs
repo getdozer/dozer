@@ -136,7 +136,7 @@ fn reader_next_op(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let reader = reader.reader.clone();
     runtime.runtime.spawn(async move {
         // Read the next operation.
-        let op = reader.lock().await.next_op().await;
+        let op = reader.lock().await.next_op().await.0;
 
         // Resolve the promise.
         deferred.settle_with(&channel, move |mut cx| {

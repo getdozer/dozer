@@ -71,6 +71,19 @@ async fn flatten_join_handle(
     }
 }
 
+fn join_handle_map_err<E: Send + 'static>(
+    handle: JoinHandle<Result<(), E>>,
+    f: impl FnOnce(E) -> OrchestrationError + Send + 'static,
+) -> JoinHandle<Result<(), OrchestrationError>> {
+    tokio::spawn(async move {
+        match handle.await {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(err)) => Err(f(err)),
+            Err(err) => Err(OrchestrationError::JoinError(err)),
+        }
+    })
+}
+
 pub fn set_panic_hook() {
     panic::set_hook(Box::new(move |panic_info| {
         // All the orchestrator errors are captured here

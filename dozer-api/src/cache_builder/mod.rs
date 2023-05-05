@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use crate::grpc::types_helper;
 use dozer_cache::dozer_log::reader::LogReader;
@@ -8,51 +8,58 @@ use dozer_cache::{
 };
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::MultiProgress;
+use dozer_types::log::debug;
 use dozer_types::types::SchemaWithIndex;
 use dozer_types::{
     grpc_types::types::Operation as GrpcOperation,
     log::error,
     types::{Field, Operation, Record, Schema},
 };
+use futures_util::stream::FuturesUnordered;
 use futures_util::{
     future::{select, Either},
     Future,
 };
-use tokio::{runtime::Runtime, sync::broadcast::Sender};
+use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc;
+use tokio_stream::StreamExt;
 
-#[allow(clippy::too_many_arguments)]
 pub async fn build_cache(
-    cache_manager: &dyn RwCacheManager,
-    alias: &str,
-    schema: SchemaWithIndex,
-    runtime: Arc<Runtime>,
-    cancel: impl Future<Output = ()> + Unpin,
+    cache: Box<dyn RwCache>,
+    name: &str,
+    cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     log_path: &Path,
-    write_options: CacheWriteOptions,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
-) -> Result<impl FnOnce() -> Result<(), CacheError>, CacheError> {
-    let cache = open_or_create_cache(cache_manager, alias, schema.clone(), write_options)?;
-
+) -> Result<(), CacheError> {
     // Create log reader.
     let pos = cache.get_metadata()?.unwrap_or(0);
-    let log_reader = LogReader::new(log_path, alias, pos, multi_pb).await?;
+    debug!("Starting log reader {name} from position {pos}");
+    let log_reader = LogReader::new(log_path, name, pos, multi_pb).await?;
 
-    // Create the task that builds cache.
-    let task = move || {
-        build_cache_task(
-            cache,
-            runtime,
-            cancel,
-            log_reader,
-            schema.0,
-            operations_sender,
-        )
-    };
-    Ok(task)
+    // Spawn tasks
+    let mut futures = FuturesUnordered::new();
+    let (sender, receiver) = mpsc::channel(1);
+    futures.push(tokio::spawn(async move {
+        read_log_task(cancel, log_reader, sender).await;
+        Ok(())
+    }));
+    futures.push(tokio::task::spawn_blocking(|| {
+        build_cache_task(cache, receiver, operations_sender)
+    }));
+
+    while let Some(result) = futures.next().await {
+        match result {
+            Ok(Ok(())) => (),
+            Ok(Err(e)) => return Err(e),
+            Err(e) => return Err(CacheError::InternalThreadPanic(e)),
+        }
+    }
+
+    Ok(())
 }
 
-fn open_or_create_cache(
+pub fn open_or_create_cache(
     cache_manager: &dyn RwCacheManager,
     alias: &str,
     schema: SchemaWithIndex,
@@ -71,17 +78,35 @@ fn open_or_create_cache(
     }
 }
 
+async fn read_log_task(
+    mut cancel: impl Future<Output = ()> + Unpin + Send + 'static,
+    mut log_reader: LogReader,
+    sender: mpsc::Sender<(ExecutorOperation, u64)>,
+) {
+    loop {
+        let next_op = std::pin::pin!(log_reader.next_op());
+        match select(next_op, cancel).await {
+            Either::Left((op, c)) => {
+                cancel = c;
+                if sender.send(op).await.is_err() {
+                    debug!("Stop reading log because receiver is dropped");
+                    break;
+                }
+            }
+            Either::Right(_) => break,
+        }
+    }
+}
+
 fn build_cache_task(
     mut cache: Box<dyn RwCache>,
-    runtime: Arc<Runtime>,
-    mut cancel: impl Future<Output = ()> + Unpin,
-    mut log_reader: LogReader,
-    schema: Schema,
+    mut receiver: mpsc::Receiver<(ExecutorOperation, u64)>,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
 ) -> Result<(), CacheError> {
-    while let Some(op) = runtime.block_on(next_op_with_cancel(&mut log_reader, cancel)) {
-        cancel = op.1;
-        match op.0 {
+    let schema = cache.get_schema().0.clone();
+
+    while let Some((op, offset)) = receiver.blocking_recv() {
+        match op {
             ExecutorOperation::Op { op } => match op {
                 Operation::Delete { mut old } => {
                     old.schema_id = schema.identifier;
@@ -129,11 +154,11 @@ fn build_cache_task(
                 }
             },
             ExecutorOperation::Commit { .. } => {
-                cache.set_metadata(log_reader.pos())?;
+                cache.set_metadata(offset)?;
                 cache.commit()?;
             }
             ExecutorOperation::SnapshottingDone {} => {
-                cache.set_metadata(log_reader.pos())?;
+                cache.set_metadata(offset)?;
                 cache.commit()?;
             }
             ExecutorOperation::Terminate => {
@@ -143,17 +168,6 @@ fn build_cache_task(
     }
 
     Ok(())
-}
-
-async fn next_op_with_cancel<F: Future<Output = ()> + Unpin>(
-    log_reader: &mut LogReader,
-    cancel: F,
-) -> Option<(ExecutorOperation, F)> {
-    let next_op = Box::pin(log_reader.next_op());
-    match select(next_op, cancel).await {
-        Either::Left((op, cancel)) => Some((op, cancel)),
-        Either::Right(_) => None,
-    }
 }
 
 fn send_upsert_result(

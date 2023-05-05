@@ -110,7 +110,7 @@ pub fn modify_schema(
 
     schema.identifier = Some(SchemaIdentifier { id: 0, version: 1 });
 
-    let secondary_index_config = get_secondary_index_config(&api_endpoint);
+    let secondary_index_config = get_secondary_index_config(api_endpoint);
     let secondary_indexes = generate_secondary_indexes(&schema.fields, &secondary_index_config)?;
 
     Ok((schema, secondary_indexes))

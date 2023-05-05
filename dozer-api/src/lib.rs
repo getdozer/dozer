@@ -1,4 +1,5 @@
 use arc_swap::ArcSwap;
+use cache_builder::open_or_create_cache;
 use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
     dozer_log::{errors::SchemaError, home_dir::HomeDir, schemas::load_schema},
@@ -34,11 +35,11 @@ impl CacheEndpoint {
         home_dir: &HomeDir,
         cache_manager: &dyn RwCacheManager,
         endpoint: ApiEndpoint,
-        runtime: Arc<Runtime>,
-        cancel: impl Future<Output = ()> + Unpin,
+        cancel: impl Future<Output = ()> + Unpin + Send + 'static,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
-    ) -> Result<(Self, impl FnOnce() -> Result<(), CacheError>), ApiError> {
+    ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiError> {
+        // Find migration.
         let migration_path = if let Some(version) = endpoint.version {
             home_dir
                 .find_migration_path(&endpoint.name, version)
@@ -50,9 +51,9 @@ impl CacheEndpoint {
                 .ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?
         };
 
+        // Open or create cache.
         let cache_name = format!("{}-{}", endpoint.name, migration_path.id.name());
         let schema = load_schema(&migration_path.schema_path)?;
-        let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
         let write_options = CacheWriteOptions {
             insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
@@ -60,19 +61,30 @@ impl CacheEndpoint {
             update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
             ..Default::default()
         };
-        let task = cache_builder::build_cache(
+        let cache = open_or_create_cache(
             cache_manager,
             &cache_name,
             (schema.schema, schema.secondary_indexes),
-            runtime,
-            cancel,
-            &migration_path.log_path,
             write_options,
-            operations_sender,
-            multi_pb,
         )
-        .await
-        .map_err(ApiError::CreateCache)?;
+        .map_err(ApiError::OpenOrCreateCache)?;
+
+        // Start cache builder.
+        let handle = {
+            let cache_name = cache_name.clone();
+            let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
+            tokio::spawn(async move {
+                cache_builder::build_cache(
+                    cache,
+                    &cache_name,
+                    cancel,
+                    &migration_path.log_path,
+                    operations_sender,
+                    multi_pb,
+                )
+                .await
+            })
+        };
 
         let cache_reader =
             open_cache_reader(cache_manager, &cache_name)?.expect("We just created the cache");
@@ -82,7 +94,7 @@ impl CacheEndpoint {
                 descriptor_path: migration_path.descriptor_path,
                 endpoint,
             },
-            task,
+            handle,
         ))
     }
 
@@ -120,7 +132,7 @@ fn open_cache_reader(
 ) -> Result<Option<CacheReader>, ApiError> {
     let cache = cache_manager
         .open_ro_cache(name)
-        .map_err(ApiError::OpenCache)?;
+        .map_err(ApiError::OpenOrCreateCache)?;
     Ok(cache.map(|cache| {
         info!("[api] Serving {} using cache {}", name, cache.name());
         CacheReader::new(cache)
@@ -149,7 +161,7 @@ use dozer_types::indicatif::MultiProgress;
 use errors::ApiError;
 pub use openapiv3;
 pub use tokio;
-use tokio::{runtime::Runtime, sync::broadcast::Sender};
+use tokio::{sync::broadcast::Sender, task::JoinHandle};
 pub use tonic;
 pub use tracing_actix_web;
 
