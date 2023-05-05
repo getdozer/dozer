@@ -9,9 +9,11 @@ use crate::pipeline::expression::conditional::{
 };
 use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
+use crate::pipeline::expression::json_functions::JsonFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
+
 use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
 use uuid::Uuid;
 
@@ -70,6 +72,10 @@ pub enum Expression {
     },
     Now {
         fun: DateTimeFunctionType,
+    },
+    Json {
+        fun: JsonFunctionType,
+        args: Vec<Expression>,
     },
     #[cfg(feature = "python")]
     PythonUDF {
@@ -188,6 +194,17 @@ impl Expression {
                 fun.to_string() + "(" + arg.to_string(schema).as_str() + ")"
             }
             Expression::Now { fun } => fun.to_string() + "()",
+            Expression::Json { fun, args } => {
+                fun.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|e| e.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
         }
     }
 }
@@ -266,6 +283,7 @@ impl ExpressionExecutor for Expression {
             Expression::ConditionalExpression { fun, args } => fun.evaluate(schema, args, record),
             Expression::DateTimeFunction { fun, arg } => fun.evaluate(schema, arg, record),
             Expression::Now { fun } => fun.evaluate_now(),
+            Expression::Json { fun, args } => fun.evaluate(schema, args, record),
         }
     }
 
@@ -327,6 +345,12 @@ impl ExpressionExecutor for Expression {
             }
             Expression::Now { fun: _ } => Ok(ExpressionType::new(
                 FieldType::Timestamp,
+                false,
+                dozer_types::types::SourceDefinition::Dynamic,
+                false,
+            )),
+            Expression::Json { fun: _, args: _ } => Ok(ExpressionType::new(
+                FieldType::Json,
                 false,
                 dozer_types::types::SourceDefinition::Dynamic,
                 false,

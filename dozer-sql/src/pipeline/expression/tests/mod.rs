@@ -14,6 +14,8 @@ mod datetime;
 #[cfg(test)]
 mod distance;
 #[cfg(test)]
+mod json_functions;
+#[cfg(test)]
 mod logical;
 #[cfg(test)]
 mod mathematical;
