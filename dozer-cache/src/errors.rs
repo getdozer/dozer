@@ -116,8 +116,6 @@ pub enum IndexError {
     UnsupportedMultiRangeIndex,
     #[error("Compound_index is required for fields: {0}")]
     MissingCompoundIndex(String),
-    #[error("Unknown filed name {0} in secondary index config")]
-    UnknownFieldName(String),
 }
 
 #[derive(Error, Debug)]

@@ -3,7 +3,7 @@ use std::{fs::OpenOptions, path::Path};
 use dozer_types::{
     serde::{Deserialize, Serialize},
     serde_json,
-    types::Schema,
+    types::{IndexDefinition, Schema},
 };
 use std::io::Write;
 
@@ -13,6 +13,7 @@ use crate::errors::SchemaError;
 #[serde(crate = "dozer_types::serde")]
 pub struct MigrationSchema {
     pub schema: Schema,
+    pub secondary_indexes: Vec<IndexDefinition>,
     pub enable_token: bool,
     pub enable_on_event: bool,
 }

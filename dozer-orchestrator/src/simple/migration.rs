@@ -1,11 +1,17 @@
+use std::borrow::Cow;
+
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_cache::dozer_log::{
     home_dir::{HomeDir, MigrationId},
     schemas::{load_schema, write_schema, MigrationSchema},
 };
 use dozer_types::{
-    models::api_endpoint::{ApiEndpoint, ApiIndex},
-    types::{Schema, SchemaIdentifier},
+    models::api_endpoint::{
+        ApiEndpoint, FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
+    },
+    types::{
+        FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SchemaWithIndex,
+    },
 };
 
 use crate::errors::MigrationError;
@@ -71,11 +77,16 @@ pub fn create_migration(
 pub fn modify_schema(
     schema: &Schema,
     api_endpoint: &ApiEndpoint,
-) -> Result<Schema, MigrationError> {
+) -> Result<SchemaWithIndex, MigrationError> {
     let mut schema = schema.clone();
     // Generated Cache index based on api_index
-    let configured_index =
-        create_primary_indexes(&schema, &api_endpoint.index.to_owned().unwrap_or_default())?;
+    let configured_index = create_primary_indexes(
+        &schema.fields,
+        api_endpoint
+            .index
+            .as_ref()
+            .map(|index| index.primary_key.as_slice()),
+    )?;
     // Generated schema in SQL
     let upstream_index = schema.primary_index.clone();
 
@@ -98,7 +109,11 @@ pub fn modify_schema(
     schema.primary_index = index;
 
     schema.identifier = Some(SchemaIdentifier { id: 0, version: 1 });
-    Ok(schema)
+
+    let secondary_index_config = get_secondary_index_config(&api_endpoint);
+    let secondary_indexes = generate_secondary_indexes(&schema.fields, &secondary_index_config)?;
+
+    Ok((schema, secondary_indexes))
 }
 
 fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
@@ -108,19 +123,96 @@ fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
         .collect()
 }
 
+fn get_secondary_index_config(api_endpoint: &ApiEndpoint) -> Cow<SecondaryIndexConfig> {
+    if let Some(config) = api_endpoint
+        .index
+        .as_ref()
+        .and_then(|index| index.secondary.as_ref())
+    {
+        Cow::Borrowed(config)
+    } else {
+        Cow::Owned(SecondaryIndexConfig::default())
+    }
+}
+
 fn create_primary_indexes(
-    schema: &Schema,
-    api_index: &ApiIndex,
+    field_definitions: &[FieldDefinition],
+    primary_key: Option<&[String]>,
 ) -> Result<Vec<usize>, MigrationError> {
     let mut primary_index = Vec::new();
-    for name in api_index.primary_key.iter() {
-        let idx = schema
-            .fields
-            .iter()
-            .position(|fd: &dozer_types::types::FieldDefinition| fd.name == name.clone())
-            .map_or(Err(MigrationError::FieldNotFound(name.to_owned())), Ok)?;
-
-        primary_index.push(idx);
+    if let Some(primary_key) = primary_key {
+        for name in primary_key {
+            primary_index.push(field_index_from_field_name(field_definitions, name)?);
+        }
     }
     Ok(primary_index)
+}
+
+fn generate_secondary_indexes(
+    field_definitions: &[FieldDefinition],
+    config: &SecondaryIndexConfig,
+) -> Result<Vec<IndexDefinition>, MigrationError> {
+    let mut result = vec![];
+
+    // Create default indexes unless skipped.
+    for (index, field) in field_definitions.iter().enumerate() {
+        if config.skip_default.contains(&field.name) {
+            continue;
+        }
+
+        match field.typ {
+            // Create sorted inverted indexes for these fields
+            FieldType::UInt
+            | FieldType::U128
+            | FieldType::Int
+            | FieldType::I128
+            | FieldType::Float
+            | FieldType::Boolean
+            | FieldType::Decimal
+            | FieldType::Timestamp
+            | FieldType::Date
+            | FieldType::Point
+            | FieldType::Duration => result.push(IndexDefinition::SortedInverted(vec![index])),
+
+            // Create sorted inverted and full text indexes for string fields.
+            FieldType::String => {
+                result.push(IndexDefinition::SortedInverted(vec![index]));
+                result.push(IndexDefinition::FullText(index));
+            }
+
+            // Skip creating indexes
+            FieldType::Text | FieldType::Binary | FieldType::Json => (),
+        }
+    }
+
+    // Create requested indexes.
+    for create in &config.create {
+        if let Some(index) = &create.index {
+            match index {
+                SecondaryIndex::SortedInverted(SortedInverted { fields }) => {
+                    let fields = fields
+                        .iter()
+                        .map(|field| field_index_from_field_name(field_definitions, field))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    result.push(IndexDefinition::SortedInverted(fields));
+                }
+                SecondaryIndex::FullText(FullText { field }) => {
+                    let field = field_index_from_field_name(field_definitions, field)?;
+                    result.push(IndexDefinition::FullText(field));
+                }
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+fn field_index_from_field_name(
+    fields: &[FieldDefinition],
+    field_name: &str,
+) -> Result<usize, MigrationError> {
+    fields
+        .iter()
+        .position(|field| field.name == field_name)
+        .ok_or(MigrationError::FieldNotFound(field_name.to_string()))
 }

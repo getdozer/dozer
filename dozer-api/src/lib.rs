@@ -10,12 +10,10 @@ use dozer_types::{
     log::info,
     models::api_endpoint::{
         ApiEndpoint, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
-        SecondaryIndexConfig,
     },
 };
 use futures_util::Future;
 use std::{
-    borrow::Cow,
     ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
@@ -57,8 +55,7 @@ impl CacheEndpoint {
         {
             (cache_reader, None)
         } else {
-            let schema = load_schema(&migration_path.schema_path)?.schema;
-            let secondary_index_config = get_secondary_index_config(&endpoint);
+            let schema = load_schema(&migration_path.schema_path)?;
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
             let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
             let write_options = CacheWriteOptions {
@@ -69,8 +66,8 @@ impl CacheEndpoint {
             };
             let (cache_name, task) = cache_builder::create_cache(
                 cache_manager,
-                schema,
-                &secondary_index_config,
+                schema.schema,
+                schema.secondary_indexes,
                 runtime,
                 cancel,
                 &migration_path.log_path,
@@ -150,18 +147,6 @@ fn open_existing_cache_reader(
     name: &str,
 ) -> Result<CacheReader, ApiError> {
     open_cache_reader(cache_manager, name)?.ok_or_else(|| ApiError::CacheNotFound(name.to_string()))
-}
-
-fn get_secondary_index_config(api_endpoint: &ApiEndpoint) -> Cow<SecondaryIndexConfig> {
-    if let Some(config) = api_endpoint
-        .index
-        .as_ref()
-        .and_then(|index| index.secondary.as_ref())
-    {
-        Cow::Borrowed(config)
-    } else {
-        Cow::Owned(SecondaryIndexConfig::default())
-    }
 }
 
 // Exports

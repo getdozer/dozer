@@ -291,9 +291,10 @@ impl Orchestrator for SimpleOrchestrator {
                 .iter()
                 .find(|e| e.name == *endpoint_name)
                 .expect("Sink name must be the same as endpoint name");
-            let schema = modify_schema(schema, endpoint)?;
+            let (schema, secondary_indexes) = modify_schema(schema, endpoint)?;
             let schema = MigrationSchema {
                 schema,
+                secondary_indexes,
                 enable_token,
                 enable_on_event,
             };
