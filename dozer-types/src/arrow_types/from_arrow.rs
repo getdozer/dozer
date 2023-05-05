@@ -18,6 +18,7 @@ use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
 use arrow_schema::Field;
+
 use std::collections::HashMap;
 
 macro_rules! make_from {
@@ -208,22 +209,16 @@ pub fn map_arrow_to_dozer_type(field: &Field) -> Result<FieldType, FromArrowErro
         DataType::Binary | DataType::FixedSizeBinary(_) | DataType::LargeBinary => {
             Ok(FieldType::Binary)
         }
-        DataType::Utf8 => {
-            if m.contains_key(LOGICAL_TYPE_KEY) {
-                match m.get(LOGICAL_TYPE_KEY) {
-                    Some(s) => {
-                        if s.eq(JSON_TYPE) {
-                            Ok(FieldType::Json)
-                        } else {
-                            Ok(FieldType::String)
-                        }
-                    }
-                    None => Ok(FieldType::String),
+        DataType::Utf8 => match m.get(LOGICAL_TYPE_KEY) {
+            Some(s) => {
+                if s.eq(JSON_TYPE) {
+                    Ok(FieldType::Json)
+                } else {
+                    Ok(FieldType::String)
                 }
-            } else {
-                Ok(FieldType::String)
             }
-        }
+            None => Ok(FieldType::String),
+        },
         DataType::LargeUtf8 => Ok(FieldType::Text),
         // DataType::List(_) => {}
         // DataType::FixedSizeList(_, _) => {}
@@ -296,22 +291,16 @@ pub fn map_value_to_dozer_field(
         DataType::Binary => make_binary!(array::BinaryArray, column, row),
         DataType::FixedSizeBinary(_) => make_binary!(array::FixedSizeBinaryArray, column, row),
         DataType::LargeBinary => make_binary!(array::LargeBinaryArray, column, row),
-        DataType::Utf8 => {
-            if metadata.contains_key(LOGICAL_TYPE_KEY) {
-                match metadata.get(LOGICAL_TYPE_KEY) {
-                    Some(s) => {
-                        if s.eq(JSON_TYPE) {
-                            make_json!(Vec<JsonValue>, column, row)
-                        } else {
-                            make_from!(array::StringArray, column, row)
-                        }
-                    }
-                    None => make_from!(array::StringArray, column, row),
+        DataType::Utf8 => match metadata.get(LOGICAL_TYPE_KEY) {
+            Some(s) => {
+                if s.eq(JSON_TYPE) {
+                    make_json!(Vec<JsonValue>, column, row)
+                } else {
+                    make_from!(array::StringArray, column, row)
                 }
-            } else {
-                make_from!(array::StringArray, column, row)
             }
-        }
+            None => make_from!(array::StringArray, column, row),
+        },
         DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
         // DataType::List(_) => {}
