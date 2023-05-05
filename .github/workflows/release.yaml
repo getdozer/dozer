@@ -9,6 +9,8 @@ env:
   BUCKET_NAME: "dozer-releases"
   ECR_REGISTRY: public.ecr.aws/k7k6x1d4
   ECR_REPOSITORY: dozer
+  DOCKERHUB_REGISTRY: getdozer
+  DOCKERHUB_REPOSITORY: dozer
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -147,9 +149,9 @@ jobs:
           mv release/ ${{matrix.asset_name}}/
 
           tar -czvf ${{matrix.asset_name}}.tar.gz ${{matrix.asset_name}}/
-          
+
           cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/
-          
+
           ls -l ${{matrix.asset_name}}
 
       - name: Upload the release
@@ -364,7 +366,7 @@ jobs:
               ${{matrix.asset_name}}/
 
           cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/ 2>/dev/null || :
-          
+
           ls -l ${{matrix.asset_name}}
 
       - name: Upload the release
@@ -426,6 +428,22 @@ jobs:
         run: |
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image to Docker Hub
+        if: (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
+        env:
+          IMAGE_TAG: ${{ needs.prepare.outputs.version }}
+        uses: docker/build-push-action@v2
+        with:
+          context: ci/Dockerfile
+          push: true
+          tags: $DOCKERHUB_REGISTRY/$DOCKER_REPOSITORY:latest,$DOCKERHUB_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG
 
       - name: Release notification
         if: ${{ env.VERSION != 'dev' && matrix.os == 'ubuntu-20-16-cores'}}
