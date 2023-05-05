@@ -42,7 +42,9 @@ use super::{CacheOptions, CacheWriteOptions};
 pub trait MainEnvironment: LmdbEnvironment {
     fn common(&self) -> &MainEnvironmentCommon;
 
-    fn schema(&self) -> &SchemaWithIndex;
+    fn schema(&self) -> &SchemaWithIndex {
+        &self.common().schema
+    }
 
     fn base_path(&self) -> &Path {
         &self.common().base_path
@@ -81,6 +83,8 @@ pub struct MainEnvironmentCommon {
     base_path: PathBuf,
     /// The environment name.
     name: String,
+    /// The schema.
+    schema: SchemaWithIndex,
     /// The operation log.
     operation_log: OperationLog,
     intersection_chunk_size: usize,
@@ -91,7 +95,6 @@ pub struct RwMainEnvironment {
     env: RwLmdbEnvironment,
     common: MainEnvironmentCommon,
     _temp_dir: Option<TempDir>,
-    schema: SchemaWithIndex,
     write_options: CacheWriteOptions,
 }
 
@@ -104,10 +107,6 @@ impl LmdbEnvironment for RwMainEnvironment {
 impl MainEnvironment for RwMainEnvironment {
     fn common(&self) -> &MainEnvironmentCommon {
         &self.common
-    }
-
-    fn schema(&self) -> &SchemaWithIndex {
-        &self.schema
     }
 }
 
@@ -151,10 +150,10 @@ impl RwMainEnvironment {
             common: MainEnvironmentCommon {
                 base_path,
                 name,
+                schema,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
             },
-            schema,
             _temp_dir: temp_dir,
             write_options,
         })
@@ -164,7 +163,6 @@ impl RwMainEnvironment {
         RoMainEnvironment {
             env: self.env.share(),
             common: self.common.clone(),
-            schema: self.schema.clone(),
         }
     }
 
@@ -173,20 +171,20 @@ impl RwMainEnvironment {
         insert_impl(
             self.common.operation_log,
             txn,
-            &self.schema.0,
+            &self.common.schema.0,
             record,
             self.write_options.insert_resolution,
         )
     }
 
     pub fn delete(&mut self, record: &Record) -> Result<Option<RecordMeta>, CacheError> {
-        if self.schema.0.is_append_only() {
+        if self.common.schema.0.is_append_only() {
             return Err(CacheError::AppendOnlySchema);
         }
 
         let txn = self.env.txn_mut()?;
         let operation_log = self.common.operation_log;
-        let key = calculate_key(&self.schema.0, record);
+        let key = calculate_key(&self.common.schema.0, record);
 
         if let Some((meta, insert_operation_id)) =
             get_existing_record_metadata(operation_log, txn, &key)?
@@ -231,13 +229,13 @@ impl RwMainEnvironment {
 
         let txn = self.env.txn_mut()?;
         let operation_log = self.common.operation_log;
-        let old_key = calculate_key(&self.schema.0, old);
+        let old_key = calculate_key(&self.common.schema.0, old);
 
         if let Some((old_meta, insert_operation_id)) =
             get_existing_record_metadata(operation_log, txn, &old_key)?
         {
             // Case 1, 5, 6, 7, 8.
-            let new_key = calculate_key(&self.schema.0, new);
+            let new_key = calculate_key(&self.common.schema.0, new);
             if new_key.equal(&old_key) {
                 // Case 1.
                 let new_meta = operation_log.update(
@@ -309,7 +307,7 @@ impl RwMainEnvironment {
                     insert_impl(
                         operation_log,
                         txn,
-                        &self.schema.0,
+                        &self.common.schema.0,
                         new,
                         OnInsertResolutionTypes::Panic,
                     )
@@ -450,7 +448,6 @@ fn get_existing_record_metadata<T: Transaction>(
 pub struct RoMainEnvironment {
     env: RoLmdbEnvironment,
     common: MainEnvironmentCommon,
-    schema: SchemaWithIndex,
 }
 
 impl LmdbEnvironment for RoMainEnvironment {
@@ -462,10 +459,6 @@ impl LmdbEnvironment for RoMainEnvironment {
 impl MainEnvironment for RoMainEnvironment {
     fn common(&self) -> &MainEnvironmentCommon {
         &self.common
-    }
-
-    fn schema(&self) -> &SchemaWithIndex {
-        &self.schema
     }
 }
 
@@ -486,10 +479,10 @@ impl RoMainEnvironment {
             common: MainEnvironmentCommon {
                 base_path: base_path.to_path_buf(),
                 name: name.to_string(),
+                schema,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
             },
-            schema,
         })
     }
 }
