@@ -1,74 +1,112 @@
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use crate::grpc::types_helper;
 use dozer_cache::dozer_log::reader::LogReader;
-use dozer_cache::errors::IndexError;
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::MultiProgress;
-use dozer_types::models::api_endpoint::{
-    FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
-};
+use dozer_types::log::debug;
+use dozer_types::types::SchemaWithIndex;
 use dozer_types::{
     grpc_types::types::Operation as GrpcOperation,
     log::error,
-    types::{Field, FieldDefinition, FieldType, IndexDefinition, Operation, Record, Schema},
+    types::{Field, Operation, Record, Schema},
 };
+use futures_util::stream::FuturesUnordered;
 use futures_util::{
     future::{select, Either},
     Future,
 };
-use tokio::{runtime::Runtime, sync::broadcast::Sender};
+use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc;
+use tokio_stream::StreamExt;
 
-#[allow(clippy::too_many_arguments)]
-pub async fn create_cache(
-    cache_manager: &dyn RwCacheManager,
-    schema: Schema,
-    secondary_index_config: &SecondaryIndexConfig,
-    runtime: Arc<Runtime>,
-    cancel: impl Future<Output = ()> + Unpin,
+pub async fn build_cache(
+    cache: Box<dyn RwCache>,
+    name: &str,
+    cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     log_path: &Path,
-    write_options: CacheWriteOptions,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
-) -> Result<(String, impl FnOnce() -> Result<(), CacheError>), CacheError> {
-    // Create secondary indexes
-    let secondary_indexes = generate_secondary_indexes(&schema.fields, secondary_index_config)?;
-    // Create the cache.
-    let cache = cache_manager.create_cache(schema.clone(), secondary_indexes, write_options)?;
-    let name = cache.name().to_string();
-
+) -> Result<(), CacheError> {
     // Create log reader.
-    let log_reader = LogReader::new(log_path, &name, 0, multi_pb).await?;
+    let pos = cache.get_metadata()?.unwrap_or(0);
+    debug!("Starting log reader {name} from position {pos}");
+    let log_reader = LogReader::new(log_path, name, pos, multi_pb).await?;
 
-    // Spawn a task to write to cache.
-    let task = move || {
-        build_cache(
-            cache,
-            runtime,
-            cancel,
-            log_reader,
-            schema,
-            operations_sender,
-        )
-    };
-    Ok((name, task))
+    // Spawn tasks
+    let mut futures = FuturesUnordered::new();
+    let (sender, receiver) = mpsc::channel(1);
+    futures.push(tokio::spawn(async move {
+        read_log_task(cancel, log_reader, sender).await;
+        Ok(())
+    }));
+    futures.push(tokio::task::spawn_blocking(|| {
+        build_cache_task(cache, receiver, operations_sender)
+    }));
+
+    while let Some(result) = futures.next().await {
+        match result {
+            Ok(Ok(())) => (),
+            Ok(Err(e)) => return Err(e),
+            Err(e) => return Err(CacheError::InternalThreadPanic(e)),
+        }
+    }
+
+    Ok(())
 }
 
-fn build_cache(
-    mut cache: Box<dyn RwCache>,
-    runtime: Arc<Runtime>,
-    mut cancel: impl Future<Output = ()> + Unpin,
+pub fn open_or_create_cache(
+    cache_manager: &dyn RwCacheManager,
+    alias: &str,
+    schema: SchemaWithIndex,
+    write_options: CacheWriteOptions,
+) -> Result<Box<dyn RwCache>, CacheError> {
+    match cache_manager.open_rw_cache(alias, write_options)? {
+        Some(cache) => {
+            debug_assert!(cache.get_schema() == &schema);
+            Ok(cache)
+        }
+        None => {
+            let cache = cache_manager.create_cache(schema.0, schema.1, write_options)?;
+            cache_manager.create_alias(cache.name(), alias)?;
+            Ok(cache)
+        }
+    }
+}
+
+async fn read_log_task(
+    mut cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     mut log_reader: LogReader,
-    schema: Schema,
+    sender: mpsc::Sender<(ExecutorOperation, u64)>,
+) {
+    loop {
+        let next_op = std::pin::pin!(log_reader.next_op());
+        match select(next_op, cancel).await {
+            Either::Left((op, c)) => {
+                cancel = c;
+                if sender.send(op).await.is_err() {
+                    debug!("Stop reading log because receiver is dropped");
+                    break;
+                }
+            }
+            Either::Right(_) => break,
+        }
+    }
+}
+
+fn build_cache_task(
+    mut cache: Box<dyn RwCache>,
+    mut receiver: mpsc::Receiver<(ExecutorOperation, u64)>,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
 ) -> Result<(), CacheError> {
-    while let Some(op) = runtime.block_on(next_op_with_cancel(&mut log_reader, cancel)) {
-        cancel = op.1;
-        match op.0 {
+    let schema = cache.get_schema().0.clone();
+
+    while let Some((op, offset)) = receiver.blocking_recv() {
+        match op {
             ExecutorOperation::Op { op } => match op {
                 Operation::Delete { mut old } => {
                     old.schema_id = schema.identifier;
@@ -116,9 +154,11 @@ fn build_cache(
                 }
             },
             ExecutorOperation::Commit { .. } => {
+                cache.set_metadata(offset)?;
                 cache.commit()?;
             }
             ExecutorOperation::SnapshottingDone {} => {
+                cache.set_metadata(offset)?;
                 cache.commit()?;
             }
             ExecutorOperation::Terminate => {
@@ -128,85 +168,6 @@ fn build_cache(
     }
 
     Ok(())
-}
-
-fn generate_secondary_indexes(
-    field_definitions: &[FieldDefinition],
-    config: &SecondaryIndexConfig,
-) -> Result<Vec<IndexDefinition>, CacheError> {
-    let mut result = vec![];
-
-    // Create default indexes unless skipped.
-    for (index, field) in field_definitions.iter().enumerate() {
-        if config.skip_default.contains(&field.name) {
-            continue;
-        }
-
-        match field.typ {
-            // Create sorted inverted indexes for these fields
-            FieldType::UInt
-            | FieldType::U128
-            | FieldType::Int
-            | FieldType::I128
-            | FieldType::Float
-            | FieldType::Boolean
-            | FieldType::Decimal
-            | FieldType::Timestamp
-            | FieldType::Date
-            | FieldType::Point
-            | FieldType::Duration => result.push(IndexDefinition::SortedInverted(vec![index])),
-
-            // Create sorted inverted and full text indexes for string fields.
-            FieldType::String => {
-                result.push(IndexDefinition::SortedInverted(vec![index]));
-                result.push(IndexDefinition::FullText(index));
-            }
-
-            // Skip creating indexes
-            FieldType::Text | FieldType::Binary | FieldType::Json => (),
-        }
-    }
-
-    // Create requested indexes.
-    fn field_index_from_field_name(
-        fields: &[FieldDefinition],
-        field_name: &str,
-    ) -> Result<usize, IndexError> {
-        fields
-            .iter()
-            .position(|field| field.name == field_name)
-            .ok_or(IndexError::UnknownFieldName(field_name.to_string()))
-    }
-    for create in &config.create {
-        if let Some(index) = &create.index {
-            match index {
-                SecondaryIndex::SortedInverted(SortedInverted { fields }) => {
-                    let fields = fields
-                        .iter()
-                        .map(|field| field_index_from_field_name(field_definitions, field))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    result.push(IndexDefinition::SortedInverted(fields));
-                }
-                SecondaryIndex::FullText(FullText { field }) => {
-                    let field = field_index_from_field_name(field_definitions, field)?;
-                    result.push(IndexDefinition::FullText(field));
-                }
-            }
-        }
-    }
-
-    Ok(result)
-}
-
-async fn next_op_with_cancel<F: Future<Output = ()> + Unpin>(
-    log_reader: &mut LogReader,
-    cancel: F,
-) -> Option<(ExecutorOperation, F)> {
-    let next_op = Box::pin(log_reader.next_op());
-    match select(next_op, cancel).await {
-        Either::Left((op, cancel)) => Some((op, cancel)),
-        Either::Right(_) => None,
-    }
 }
 
 fn send_upsert_result(

@@ -140,6 +140,10 @@ impl<C: LmdbCache> RoCache for C {
     fn get_schema(&self) -> &SchemaWithIndex {
         self.main_env().schema()
     }
+
+    fn get_metadata(&self) -> Result<Option<u64>, CacheError> {
+        self.main_env().metadata()
+    }
 }
 
 impl RwCache for LmdbRwCache {
@@ -155,6 +159,10 @@ impl RwCache for LmdbRwCache {
 
     fn update(&mut self, old: &Record, new: &Record) -> Result<UpsertResult, CacheError> {
         self.main_env.update(old, new)
+    }
+
+    fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError> {
+        self.main_env.set_metadata(metadata)
     }
 
     fn commit(&mut self) -> Result<(), CacheError> {

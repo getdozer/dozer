@@ -49,7 +49,7 @@ impl LogReader {
         })
     }
 
-    pub async fn next_op(&mut self) -> ExecutorOperation {
+    pub async fn next_op(&mut self) -> (ExecutorOperation, u64) {
         loop {
             let msg = read_msg(&mut self.reader).await;
             match msg {
@@ -57,7 +57,7 @@ impl LogReader {
                     self.pos += len;
                     self.count += 1;
                     self.pb.set_position(self.count);
-                    return msg;
+                    return (msg, self.pos);
                 }
                 Err(e) => {
                     trace!(
