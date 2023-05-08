@@ -4,8 +4,8 @@ use crate::errors::{DeployError, OrchestrationError};
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::grpc_types::cloud::{
-    dozer_cloud_client::DozerCloudClient, CreateAppRequest, GetStatusRequest, ListAppRequest,
-    StartRequest,
+    dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
+    ListAppRequest, StartRequest, UpdateAppRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
@@ -53,6 +53,49 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             Ok::<(), DeployError>(())
         })?;
+        Ok(())
+    }
+
+    fn update(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+        let target_url = cloud.target_url;
+
+        info!("Update target url: {:?}", target_url);
+        self.runtime.block_on(async move {
+            let mut client: DozerCloudClient<tonic::transport::Channel> =
+                DozerCloudClient::connect(target_url).await?;
+            let files = list_files()?;
+            let response = client
+                .update_application(UpdateAppRequest {
+                    id: app_id.clone(),
+                    files,
+                })
+                .await?
+                .into_inner();
+
+            info!("Updated {}", &response.id);
+
+            Ok::<(), DeployError>(())
+        })?;
+
+        Ok(())
+    }
+
+    fn delete(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+        let target_url = cloud.target_url;
+        self.runtime.block_on(async move {
+            let mut client: DozerCloudClient<tonic::transport::Channel> =
+                DozerCloudClient::connect(target_url).await?;
+
+            info!("Delete application");
+            let _delete_result = client
+                .delete_application(DeleteAppRequest { id: app_id.clone() })
+                .await?
+                .into_inner();
+            info!("Deleted {}", &app_id);
+
+            Ok::<(), DeployError>(())
+        })?;
+
         Ok(())
     }
 
@@ -125,6 +168,10 @@ impl CloudOrchestrator for SimpleOrchestrator {
             Ok::<(), DeployError>(())
         })?;
 
+        Ok(())
+    }
+
+    fn monitor(&mut self, _cloud: Cloud, _app_id: String) -> Result<(), OrchestrationError> {
         Ok(())
     }
 }
