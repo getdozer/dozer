@@ -55,6 +55,7 @@ pub fn init_telemetry(
         .with(fmt_layer.with_filter(fmt_filter))
         .with(
             fmt::Layer::default()
+                .with_ansi(false)
                 .with_writer(non_blocking)
                 .with_filter(log_writer_filter),
         )
@@ -107,10 +108,10 @@ pub fn init_telemetry_closure<T>(
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     let subscriber = tracing_subscriber::registry()
-        .with(fmt::Layer::default().with_writer(non_blocking.clone()))
         .with(fmt_layer.with_filter(fmt_filter))
         .with(
             fmt::Layer::default()
+                .with_ansi(false)
                 .with_writer(non_blocking)
                 .with_filter(log_writer_filter),
         )
