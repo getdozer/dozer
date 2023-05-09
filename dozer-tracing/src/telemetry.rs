@@ -1,4 +1,4 @@
-use dozer_types::log::debug;
+use dozer_types::log::{debug, error};
 use dozer_types::models::telemetry::{DozerTelemetryConfig, OpenTelemetryConfig, TelemetryConfig};
 use dozer_types::tracing::Subscriber;
 use opentelemetry::sdk;
@@ -17,8 +17,11 @@ pub fn init_telemetry(
     app_name: Option<&str>,
     telemetry_config: Option<TelemetryConfig>,
 ) -> WorkerGuard {
-    // disable errors from open telemetry
-    opentelemetry::global::set_error_handler(|_| {}).unwrap();
+    // log errors from open telemetry
+    opentelemetry::global::set_error_handler(|e| {
+        error!("OpenTelemetry error: {}", e);
+    })
+    .unwrap();
 
     debug!("Initializing telemetry for {:?}", telemetry_config);
 
@@ -103,7 +106,7 @@ where
     global::set_text_map_propagator(TraceContextPropagator::new());
     let tracer = opentelemetry_jaeger::new_agent_pipeline()
         .with_service_name(app_name)
-        .install_batch(opentelemetry::runtime::TokioCurrentThread)
+        .install_simple()
         .expect("Failed to install OpenTelemetry tracer.");
 
     tracing_opentelemetry::layer().with_tracer(tracer)
