@@ -1,5 +1,7 @@
 use dozer_types::log::{debug, error};
-use dozer_types::models::telemetry::{DozerTelemetryConfig, OpenTelemetryConfig, TelemetryConfig};
+use dozer_types::models::telemetry::{
+    DozerTelemetryConfig, JaegerTelemetryConfig, TelemetryConfig, TelemetryTraceConfig,
+};
 use dozer_types::tracing::Subscriber;
 use opentelemetry::sdk;
 use opentelemetry::sdk::trace::{BatchConfig, BatchSpanProcessor, Sampler};
@@ -66,14 +68,15 @@ fn create_subscriber(
         let trace_filter = EnvFilter::try_from_env("DOZER_TRACE_FILTER")
             .or_else(|_| EnvFilter::try_new("dozer=trace"))
             .unwrap();
-        match c {
-            TelemetryConfig::Dozer(config) => (
+        match c.trace {
+            None => (None, None),
+            Some(TelemetryTraceConfig::Dozer(config)) => (
                 Some(get_dozer_tracer(config).with_filter(trace_filter)),
                 None,
             ),
-            TelemetryConfig::OpenTelemetry(config) => (
+            Some(TelemetryTraceConfig::Jaeger(config)) => (
                 None,
-                Some(get_otel_tracer(app_name, config).with_filter(trace_filter)),
+                Some(get_jaeger_tracer(app_name, config).with_filter(trace_filter)),
             ),
         }
     });
@@ -95,9 +98,9 @@ fn create_subscriber(
     (subscriber, guard)
 }
 
-fn get_otel_tracer<S>(
+fn get_jaeger_tracer<S>(
     app_name: &str,
-    _config: OpenTelemetryConfig,
+    _config: JaegerTelemetryConfig,
 ) -> OpenTelemetryLayer<S, opentelemetry::sdk::trace::Tracer>
 where
     S: for<'span> tracing_subscriber::registry::LookupSpan<'span>
