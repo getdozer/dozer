@@ -1,5 +1,6 @@
 use dozer_types::log::debug;
 use dozer_types::models::telemetry::{DozerTelemetryConfig, OpenTelemetryConfig, TelemetryConfig};
+use dozer_types::tracing::Subscriber;
 use opentelemetry::sdk;
 use opentelemetry::sdk::trace::{BatchConfig, BatchSpanProcessor, Sampler};
 use opentelemetry::trace::TracerProvider;
@@ -16,52 +17,13 @@ pub fn init_telemetry(
     app_name: Option<&str>,
     telemetry_config: Option<TelemetryConfig>,
 ) -> WorkerGuard {
-    let app_name = app_name.unwrap_or("dozer");
-
     // disable errors from open telemetry
     opentelemetry::global::set_error_handler(|_| {}).unwrap();
 
     debug!("Initializing telemetry for {:?}", telemetry_config);
 
-    let fmt_layer = fmt::layer().with_target(false);
-    let fmt_filter = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
-        .unwrap();
-
-    let log_writer_filter = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
-        .unwrap();
-
-    let layers = telemetry_config.map_or((None, None), |c| {
-        let trace_filter = EnvFilter::try_from_env("DOZER_TRACE_FILTER")
-            .or_else(|_| EnvFilter::try_new("dozer=debug"))
-            .unwrap();
-        match c {
-            TelemetryConfig::Dozer(config) => (
-                Some(get_dozer_tracer(config).with_filter(trace_filter)),
-                None,
-            ),
-            TelemetryConfig::OpenTelemetry(config) => (
-                None,
-                Some(get_otel_tracer(app_name, config).with_filter(trace_filter)),
-            ),
-        }
-    });
-
-    let file_appender = tracing_appender::rolling::never("./log", format!("{app_name}.log"));
-    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-
-    tracing_subscriber::registry()
-        .with(fmt_layer.with_filter(fmt_filter))
-        .with(
-            fmt::Layer::default()
-                .with_ansi(false)
-                .with_writer(non_blocking)
-                .with_filter(log_writer_filter),
-        )
-        .with(layers.0)
-        .with(layers.1)
-        .init();
+    let (subscriber, guard) = create_subscriber(app_name, telemetry_config);
+    subscriber.init();
 
     guard
 }
@@ -77,6 +39,15 @@ pub fn init_telemetry_closure<T>(
     telemetry_config: Option<TelemetryConfig>,
     closure: impl FnOnce() -> T,
 ) -> T {
+    let (subscriber, _guard) = create_subscriber(app_name, telemetry_config);
+
+    dozer_types::tracing::subscriber::with_default(subscriber, closure)
+}
+
+fn create_subscriber(
+    app_name: Option<&str>,
+    telemetry_config: Option<TelemetryConfig>,
+) -> (impl Subscriber, WorkerGuard) {
     let app_name = app_name.unwrap_or("dozer");
 
     let fmt_layer = fmt::layer().with_target(false);
@@ -105,7 +76,7 @@ pub fn init_telemetry_closure<T>(
     });
 
     let file_appender = tracing_appender::rolling::never("./log", format!("{app_name}.log"));
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     let subscriber = tracing_subscriber::registry()
         .with(fmt_layer.with_filter(fmt_filter))
@@ -118,10 +89,10 @@ pub fn init_telemetry_closure<T>(
         .with(layers.0)
         .with(layers.1);
 
-    dozer_types::tracing::subscriber::with_default(subscriber, closure)
+    (subscriber, guard)
 }
 
-pub fn get_otel_tracer<S>(
+fn get_otel_tracer<S>(
     app_name: &str,
     _config: OpenTelemetryConfig,
 ) -> OpenTelemetryLayer<S, opentelemetry::sdk::trace::Tracer>
@@ -138,7 +109,7 @@ where
     tracing_opentelemetry::layer().with_tracer(tracer)
 }
 
-pub fn get_dozer_tracer<S>(
+fn get_dozer_tracer<S>(
     config: DozerTelemetryConfig,
 ) -> OpenTelemetryLayer<S, opentelemetry::sdk::trace::Tracer>
 where
