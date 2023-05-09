@@ -45,4 +45,7 @@ fn default_sample_ratio() -> u32 {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Oneof)]
-pub enum TelemetryMetricsConfig {}
+pub enum TelemetryMetricsConfig {
+    #[prost(message, tag = "1")]
+    Prometheus(()),
+}

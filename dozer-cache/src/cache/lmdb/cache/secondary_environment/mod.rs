@@ -4,6 +4,7 @@ use dozer_storage::{
     LmdbCounter, LmdbEnvironment, LmdbMultimap, LmdbOption,
 };
 use dozer_types::{borrow::IntoOwned, labels::Labels, log::debug, types::IndexDefinition};
+use metrics::increment_counter;
 
 use crate::{
     cache::lmdb::utils::{create_env, open_env},
@@ -108,6 +109,8 @@ impl RwSecondaryEnvironment {
         &mut self,
         log_txn: &T,
         operation_log: OperationLog,
+        counter_name: &'static str,
+        labels: &Labels,
     ) -> Result<bool, CacheError> {
         let main_env_next_operation_id = operation_log.next_operation_id(log_txn)?;
 
@@ -156,6 +159,8 @@ impl RwSecondaryEnvironment {
                 }
             }
             self.next_operation_id.store(txn, operation_id + 1)?;
+
+            increment_counter!(counter_name, labels.clone());
         }
     }
 

@@ -21,6 +21,7 @@ use futures_util::{
     future::{select, Either},
     Future,
 };
+use metrics::{describe_counter, increment_counter};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -45,9 +46,9 @@ pub async fn build_cache(
         read_log_task(cancel, log_reader, sender).await;
         Ok(())
     }));
-    futures.push(tokio::task::spawn_blocking(|| {
-        build_cache_task(cache, receiver, operations_sender)
-    }));
+    futures.push({
+        tokio::task::spawn_blocking(|| build_cache_task(cache, receiver, operations_sender))
+    });
 
     while let Some(result) = futures.next().await {
         match result {
@@ -104,6 +105,12 @@ fn build_cache_task(
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
+
+    const BUILD_CACHE_COUNTER_NAME: &str = "build_cache";
+    describe_counter!(
+        BUILD_CACHE_COUNTER_NAME,
+        "Number of operations processed by cache builder"
+    );
 
     while let Some((op, offset)) = receiver.blocking_recv() {
         match op {
@@ -165,6 +172,8 @@ fn build_cache_task(
                 break;
             }
         }
+
+        increment_counter!(BUILD_CACHE_COUNTER_NAME, cache.labels().clone());
     }
 
     Ok(())
