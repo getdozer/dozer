@@ -4,12 +4,14 @@ import "cloud_types.proto";
 
 service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
+  rpc update_application(UpdateAppRequest) returns (AppResponse);
+  rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
+  rpc list_applications(ListAppRequest) returns (ListAppResponse);
+
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
   rpc generate_yaml(GenerateYamlRequest) returns (GenerateYamlResponse);
   rpc generate_graph(GenerateGraphRequest) returns (GenerateGraphResponse);
-  rpc list_applications(ListAppRequest) returns (ListAppResponse);
-  rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc get_application(GetAppRequest) returns (AppResponse);
   rpc validate_connection(ConnectionRequest)
       returns (ValidateConnectionResponse);
@@ -86,8 +88,13 @@ message ListAppResponse {
 
 message UpdateAppRequest {
   string id = 1;
-  string config = 3;
+  repeated File files = 2;
 }
+
+message DeleteAppRequest {
+  string id = 1;
+}
+message DeleteAppResponse { bool success = 1; }
 
 message GetAppRequest { optional string app_id = 1; }
 message ConnectionRequest { Connection connection = 1; }
@@ -127,7 +134,7 @@ message SaveFilesRequest {
 message SaveFilesResponse {
 }
 message LogMessageRequest {
-  string app_name = 1;
+  string app_id = 1;
 }
 message StatusUpdateRequest {
   string app_id = 1;

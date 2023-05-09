@@ -19,8 +19,11 @@ pub struct Cloud {
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
     Deploy,
+    Update(AppCommand),
+    Delete(AppCommand),
     List,
     Status(AppCommand),
+    Monitor(AppCommand),
 }
 
 #[derive(Debug, Args, Clone)]
