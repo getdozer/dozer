@@ -442,6 +442,9 @@ pub enum ObjectStoreObjectError {
 
     #[error("File format unsupported: {0}")]
     FileFormatUnsupportedError(String),
+
+    #[error("Listing path {0} error: {1}")]
+    ListingPathError(String, #[source] DataFusionError),
 }
 
 #[derive(Error, Debug)]

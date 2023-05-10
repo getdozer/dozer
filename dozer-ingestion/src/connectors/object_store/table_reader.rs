@@ -2,7 +2,7 @@ use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::TableInfo;
 use crate::errors::ObjectStoreConnectorError::{RecvError, TableReaderError};
-use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
+use crate::errors::ObjectStoreObjectError::{self, ListingPathParsingError};
 use crate::errors::ObjectStoreTableReaderError::{
     ColumnsSelectFailed, StreamExecutionError, TableReadFailed,
 };
@@ -12,12 +12,15 @@ use deltalake::datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
 use deltalake::datafusion::prelude::SessionContext;
+use deltalake::Path;
 use dozer_types::arrow_types::from_arrow::map_value_to_dozer_field;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
+use object_store::ObjectStore;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::{channel, Sender};
 use tonic::async_trait;
 
@@ -153,29 +156,69 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
 
             let ctx = SessionContext::new();
 
-            ctx.runtime_env().register_object_store(
-                params.scheme,
-                params.host,
-                Arc::new(params.object_store),
-            );
+            let store = Arc::new(params.object_store);
+            ctx.runtime_env()
+                .register_object_store(params.scheme, params.host, store.clone());
 
             let sender = tx.clone();
             let t = table.clone();
 
             tokio::spawn(async move {
-                let result = Self::read(
-                    id as u32,
-                    ctx,
-                    table_path,
-                    listing_options,
-                    &t,
-                    sender.clone(),
-                )
-                .await;
-                if let Err(e) = result {
-                    sender.send(Err(e)).await.unwrap();
+                loop {
+                    // List objects in the S3 bucket with the specified prefix
+                    let mut stream = store.list(Some(&Path::from("trips"))).await.unwrap();
+
+                    while let Some(item) = stream.next().await {
+                        // Check if any objects have been added or modified
+                        let object = item.unwrap();
+                        println!(
+                            "Found object: {:?}, {:?}",
+                            object.location, object.last_modified
+                        );
+
+                        // Do something with the object, such as download it or process it
+                    }
+
+                    let table_path = ListingTableUrl::parse("data/trips")
+                        .map_err(|e| {
+                            ObjectStoreConnectorError::DataFusionStorageObjectError(
+                                ListingPathParsingError(params.table_path.clone(), e),
+                            )
+                        })
+                        .unwrap();
+
+                    let result = Self::read(
+                        id as u32,
+                        ctx.clone(),
+                        table_path,
+                        listing_options.clone(),
+                        &t,
+                        sender.clone(),
+                    )
+                    .await;
+                    if let Err(e) = result {
+                        sender.send(Err(e)).await.unwrap();
+                    }
+
+                    // Wait for 10 seconds before checking again
+                    tokio::time::sleep(Duration::from_secs(10)).await;
                 }
             });
+
+            // tokio::spawn(async move {
+            //     let result = Self::read(
+            //         id as u32,
+            //         ctx,
+            //         table_path,
+            //         listing_options,
+            //         &t,
+            //         sender.clone(),
+            //     )
+            //     .await;
+            //     if let Err(e) = result {
+            //         sender.send(Err(e)).await.unwrap();
+            //     }
+            // });
         }
 
         let mut idx = 1;
