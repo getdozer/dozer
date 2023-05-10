@@ -1,6 +1,5 @@
 use std::{
     fs,
-    ops::Deref,
     path::{Path, PathBuf},
 };
 
@@ -11,6 +10,7 @@ use dozer_storage::{
         LmdbEnvironmentManager, LmdbEnvironmentOptions, RoLmdbEnvironment, RwLmdbEnvironment,
     },
 };
+use dozer_types::labels::Labels;
 use tempdir::TempDir;
 
 use super::cache::CacheOptions;
@@ -18,20 +18,18 @@ use super::cache::CacheOptions;
 #[allow(clippy::type_complexity)]
 pub fn create_env(
     options: &CacheOptions,
-) -> Result<(RwLmdbEnvironment, (PathBuf, String), Option<TempDir>), CacheError> {
-    let (base_path, name, temp_dir) = match &options.path {
+) -> Result<(RwLmdbEnvironment, (PathBuf, Labels), Option<TempDir>), CacheError> {
+    let (base_path, labels, temp_dir) = match &options.path {
         None => {
             let base_path =
                 TempDir::new("dozer").map_err(|e| CacheError::Io("tempdir".into(), e))?;
-            (
-                base_path.path().to_path_buf(),
-                "dozer-cache",
-                Some(base_path),
-            )
+            let mut labels = Labels::empty();
+            labels.push("cache_name", "temp");
+            (base_path.path().to_path_buf(), labels, Some(base_path))
         }
-        Some((base_path, name)) => {
+        Some((base_path, labels)) => {
             fs::create_dir_all(base_path).map_err(|e| CacheError::Io(base_path.clone(), e))?;
-            (base_path.clone(), name.deref(), None)
+            (base_path.clone(), labels.clone(), None)
         }
     };
 
@@ -43,8 +41,8 @@ pub fn create_env(
     );
 
     Ok((
-        LmdbEnvironmentManager::create_rw(&base_path, name, options)?,
-        (base_path, name.to_string()),
+        LmdbEnvironmentManager::create_rw(&base_path, &labels.to_non_empty_string(), options)?,
+        (base_path, labels),
         temp_dir,
     ))
 }
@@ -52,8 +50,8 @@ pub fn create_env(
 #[allow(clippy::type_complexity)]
 pub fn open_env(
     options: &CacheOptions,
-) -> Result<(RoLmdbEnvironment, (&Path, &str), Option<TempDir>), CacheError> {
-    let (base_path, name) = options
+) -> Result<(RoLmdbEnvironment, (&Path, &Labels), Option<TempDir>), CacheError> {
+    let (base_path, labels) = options
         .path
         .as_ref()
         .ok_or(CacheError::PathNotInitialized)?;
@@ -66,8 +64,8 @@ pub fn open_env(
     );
 
     Ok((
-        LmdbEnvironmentManager::create_ro(base_path, name, env_options)?,
-        (base_path, name),
+        LmdbEnvironmentManager::create_ro(base_path, &labels.to_non_empty_string(), env_options)?,
+        (base_path, labels),
         None,
     ))
 }

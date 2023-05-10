@@ -5,6 +5,7 @@ use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
 use dozer_cache::dozer_log::errors::SchemaError;
+use dozer_types::labels::Labels;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_json, thiserror};
 
@@ -21,7 +22,7 @@ pub enum ApiError {
     #[error("Failed to open or create cache: {0}")]
     OpenOrCreateCache(#[source] CacheError),
     #[error("Failed to find cache: {0}")]
-    CacheNotFound(String),
+    CacheNotFound(Labels),
     #[error("Get by primary key is not supported when there is no primary key")]
     NoPrimaryKey,
     #[error("Get by primary key is not supported when it is composite: {0:?}")]

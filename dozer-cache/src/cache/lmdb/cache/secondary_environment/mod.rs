@@ -3,7 +3,7 @@ use dozer_storage::{
     lmdb_storage::{RoLmdbEnvironment, RwLmdbEnvironment},
     LmdbCounter, LmdbEnvironment, LmdbMultimap, LmdbOption,
 };
-use dozer_types::{borrow::IntoOwned, log::debug, types::IndexDefinition};
+use dozer_types::{borrow::IntoOwned, labels::Labels, log::debug, types::IndexDefinition};
 
 use crate::{
     cache::lmdb::utils::{create_env, open_env},
@@ -209,10 +209,12 @@ impl RoSecondaryEnvironment {
 }
 
 fn get_cache_options(name: String, options: &CacheOptions) -> CacheOptions {
-    let path = options
-        .path
-        .as_ref()
-        .map(|(base_path, main_name)| (base_path.join(format!("{main_name}_index")), name));
+    let path = options.path.as_ref().map(|(main_base_path, main_labels)| {
+        let base_path = main_base_path.join(format!("{}_index", main_labels));
+        let mut labels = Labels::empty();
+        labels.push("secondary_index", name);
+        (base_path, labels)
+    });
     CacheOptions { path, ..*options }
 }
 

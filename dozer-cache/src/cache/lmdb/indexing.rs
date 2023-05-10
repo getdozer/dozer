@@ -5,6 +5,7 @@ use std::sync::{
 
 use dozer_storage::LmdbEnvironment;
 use dozer_types::{
+    labels::Labels,
     log::{debug, error},
     parking_lot::Mutex,
 };
@@ -52,9 +53,9 @@ impl IndexingThreadPool {
         }
     }
 
-    pub fn find_cache(&self, name: &str) -> Option<LmdbRoCache> {
+    pub fn find_cache(&self, labels: &Labels) -> Option<LmdbRoCache> {
         for cache in self.caches.iter() {
-            if cache.main_env.name() == name {
+            if cache.main_env.labels() == labels {
                 let secondary_envs = cache
                     .secondary_envs
                     .iter()
@@ -69,11 +70,11 @@ impl IndexingThreadPool {
         None
     }
 
-    pub fn wake(&mut self, env_name: &str) {
+    pub fn wake(&mut self, labels: &Labels) {
         self.refresh_task_state();
         for index in 0..self.caches.len() {
             let cache = &self.caches[index];
-            if cache.main_env.name() == env_name {
+            if cache.main_env.labels() == labels {
                 for secondary_index in 0..cache.secondary_envs.len() {
                     self.spawn_task_if_not_running(index, secondary_index);
                 }
@@ -154,18 +155,18 @@ fn index_and_log_error(
             Ok(false) => {
                 debug!(
                     "Some operation can't be read from {}: {:?}",
-                    main_env.name(),
+                    main_env.labels(),
                     secondary_env.index_definition()
                 );
                 rayon::yield_local();
                 continue;
             }
             Err(e) => {
-                debug!("Error while indexing {}: {e}", main_env.name());
+                debug!("Error while indexing {}: {e}", main_env.labels());
                 if e.is_map_full() {
                     error!(
                         "Cache {} has reached its maximum size. Try to increase `cache_max_map_size` in the config.",
-                        main_env.name()
+                        main_env.labels()
                     );
                     break;
                 }
