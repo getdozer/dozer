@@ -8,16 +8,13 @@ use super::to_arrow;
 use crate::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
 use crate::json_types::JsonValue;
 use crate::types::Record;
-use crate::types::{
-    Field as DozerField, FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition,
-};
+use crate::types::{Field as DozerField, FieldType, Schema as DozerSchema};
 use arrow::array;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
-use arrow_schema::Field;
 
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -222,7 +219,7 @@ pub fn map_value_to_dozer_field(
         DataType::Utf8 => {
             let schema_val = match metadata.get(DOZER_SCHEMA_KEY) {
                 Some(s) => s,
-                None => return Err(SchemaDeserializationError(format!("{:?}", metadata))),
+                None => return make_from!(array::StringArray, column, row),
             };
             let schema: DozerSchema = serde_json::from_str(schema_val.as_str()).map_err(|e| SchemaDeserializationError(e.to_string()))?;
             for fd in schema.fields.into_iter() {
