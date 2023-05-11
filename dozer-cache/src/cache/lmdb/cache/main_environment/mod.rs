@@ -11,6 +11,7 @@ use dozer_storage::{
 };
 use dozer_types::{
     borrow::IntoOwned,
+    labels::Labels,
     types::{Field, FieldType, Record, Schema, SchemaWithIndex},
 };
 use dozer_types::{
@@ -50,8 +51,8 @@ pub trait MainEnvironment: LmdbEnvironment {
         &self.common().base_path
     }
 
-    fn name(&self) -> &str {
-        &self.common().name
+    fn labels(&self) -> &Labels {
+        &self.common().labels
     }
 
     fn operation_log(&self) -> OperationLog {
@@ -90,8 +91,8 @@ pub trait MainEnvironment: LmdbEnvironment {
 pub struct MainEnvironmentCommon {
     /// The environment base path.
     base_path: PathBuf,
-    /// The environment name.
-    name: String,
+    /// The environment labels.
+    labels: Labels,
     /// The schema.
     schema: SchemaWithIndex,
     /// The metadata.
@@ -127,7 +128,7 @@ impl RwMainEnvironment {
         options: &CacheOptions,
         write_options: CacheWriteOptions,
     ) -> Result<Self, CacheError> {
-        let (mut env, (base_path, name), temp_dir) = create_env(options)?;
+        let (mut env, (base_path, labels), temp_dir) = create_env(options)?;
 
         let operation_log = OperationLog::create(&mut env)?;
         let schema_option = LmdbOption::create(&mut env, Some("schema"))?;
@@ -141,7 +142,7 @@ impl RwMainEnvironment {
             (Some(schema), Some(old_schema)) => {
                 if &old_schema != schema {
                     return Err(CacheError::SchemaMismatch {
-                        name,
+                        name: labels.to_string(),
                         given: Box::new(schema.clone()),
                         stored: Box::new(old_schema),
                     });
@@ -161,7 +162,7 @@ impl RwMainEnvironment {
             env,
             common: MainEnvironmentCommon {
                 base_path,
-                name,
+                labels,
                 schema,
                 metadata,
                 operation_log,
@@ -485,7 +486,7 @@ impl MainEnvironment for RoMainEnvironment {
 
 impl RoMainEnvironment {
     pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
-        let (env, (base_path, name), _temp_dir) = open_env(options)?;
+        let (env, (base_path, labels), _temp_dir) = open_env(options)?;
 
         let operation_log = OperationLog::open(&env)?;
         let schema_option = LmdbOption::open(&env, Some("schema"))?;
@@ -500,7 +501,7 @@ impl RoMainEnvironment {
             env,
             common: MainEnvironmentCommon {
                 base_path: base_path.to_path_buf(),
-                name: name.to_string(),
+                labels: labels.clone(),
                 schema,
                 metadata,
                 operation_log,

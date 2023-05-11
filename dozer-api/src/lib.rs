@@ -8,7 +8,7 @@ use dozer_cache::{
 };
 use dozer_types::{
     grpc_types::types::Operation,
-    log::info,
+    labels::Labels,
     models::api_endpoint::{
         ApiEndpoint, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
     },
@@ -52,7 +52,9 @@ impl CacheEndpoint {
         };
 
         // Open or create cache.
-        let cache_name = format!("{}-{}", endpoint.name, migration_path.id.name());
+        let mut cache_labels = Labels::new();
+        cache_labels.push("endpoint", endpoint.name.clone());
+        cache_labels.push("migration", migration_path.id.name().to_string());
         let schema = load_schema(&migration_path.schema_path)?;
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
         let write_options = CacheWriteOptions {
@@ -63,7 +65,7 @@ impl CacheEndpoint {
         };
         let cache = open_or_create_cache(
             cache_manager,
-            &cache_name,
+            cache_labels.clone(),
             (schema.schema, schema.secondary_indexes),
             write_options,
         )
@@ -71,7 +73,7 @@ impl CacheEndpoint {
 
         // Open cache reader.
         let cache_reader =
-            open_cache_reader(cache_manager, &cache_name)?.expect("We just created the cache");
+            open_cache_reader(cache_manager, cache_labels)?.expect("We just created the cache");
 
         // Start cache builder.
         let handle = {
@@ -79,7 +81,6 @@ impl CacheEndpoint {
             tokio::spawn(async move {
                 cache_builder::build_cache(
                     cache,
-                    &cache_name,
                     cancel,
                     &migration_path.log_path,
                     operations_sender,
@@ -104,11 +105,10 @@ impl CacheEndpoint {
         descriptor_path: PathBuf,
         endpoint: ApiEndpoint,
     ) -> Result<Self, ApiError> {
+        let mut labels = Labels::new();
+        labels.push(endpoint.name.clone(), endpoint.name.clone());
         Ok(Self {
-            cache_reader: ArcSwap::from_pointee(open_existing_cache_reader(
-                cache_manager,
-                &endpoint.name,
-            )?),
+            cache_reader: ArcSwap::from_pointee(open_existing_cache_reader(cache_manager, labels)?),
             descriptor_path,
             endpoint,
         })
@@ -129,22 +129,19 @@ impl CacheEndpoint {
 
 fn open_cache_reader(
     cache_manager: &dyn RwCacheManager,
-    name: &str,
+    labels: Labels,
 ) -> Result<Option<CacheReader>, ApiError> {
     let cache = cache_manager
-        .open_ro_cache(name)
+        .open_ro_cache(labels)
         .map_err(ApiError::OpenOrCreateCache)?;
-    Ok(cache.map(|cache| {
-        info!("[api] Serving {} using cache {}", name, cache.name());
-        CacheReader::new(cache)
-    }))
+    Ok(cache.map(CacheReader::new))
 }
 
 fn open_existing_cache_reader(
     cache_manager: &dyn RwCacheManager,
-    name: &str,
+    labels: Labels,
 ) -> Result<CacheReader, ApiError> {
-    open_cache_reader(cache_manager, name)?.ok_or_else(|| ApiError::CacheNotFound(name.to_string()))
+    open_cache_reader(cache_manager, labels.clone())?.ok_or_else(|| ApiError::CacheNotFound(labels))
 }
 
 // Exports

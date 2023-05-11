@@ -12,7 +12,7 @@ use tempdir::TempDir;
 #[test]
 fn read_and_write() {
     let path = TempDir::new("dozer").unwrap();
-    let path = (path.path().to_path_buf(), "cache".to_string());
+    let path = (path.path().to_path_buf(), Default::default());
 
     // write and read from cache from two different threads.
 

@@ -20,7 +20,7 @@ const SLEEP_TIME_MS: u16 = 300;
 impl LogReader {
     pub async fn new(
         path: &Path,
-        name: &str,
+        name: String,
         pos: u64,
         multi_pb: Option<MultiProgress>,
     ) -> Result<Self, ReaderError> {
@@ -35,14 +35,14 @@ impl LogReader {
         reader
             .seek(SeekFrom::Start(pos))
             .await
-            .map_err(|e| ReaderError::SeekError(name.to_string(), pos, e))?;
+            .map_err(|e| ReaderError::SeekError(name.clone(), pos, e))?;
 
         let pb = attach_progress(multi_pb);
         pb.set_message(format!("reader: {}", name));
 
         Ok(Self {
             reader,
-            name: name.to_string(),
+            name,
             pos,
             pb,
             count: 0,

@@ -3,6 +3,7 @@ use dozer_types::models::telemetry::{
     DozerTelemetryConfig, JaegerTelemetryConfig, TelemetryConfig, TelemetryTraceConfig,
 };
 use dozer_types::tracing::Subscriber;
+use metrics_exporter_prometheus::PrometheusBuilder;
 use opentelemetry::sdk;
 use opentelemetry::sdk::trace::{BatchConfig, BatchSpanProcessor, Sampler};
 use opentelemetry::trace::TracerProvider;
@@ -27,8 +28,16 @@ pub fn init_telemetry(
 
     debug!("Initializing telemetry for {:?}", telemetry_config);
 
-    let (subscriber, guard) = create_subscriber(app_name, telemetry_config);
+    let (subscriber, guard) = create_subscriber(app_name, telemetry_config.as_ref());
     subscriber.init();
+
+    if let Some(telemetry_config) = telemetry_config {
+        if telemetry_config.metrics.is_some() {
+            PrometheusBuilder::new()
+                .install()
+                .expect("Failed to install Prometheus recorder/exporter");
+        }
+    }
 
     guard
 }
@@ -44,14 +53,14 @@ pub fn init_telemetry_closure<T>(
     telemetry_config: Option<TelemetryConfig>,
     closure: impl FnOnce() -> T,
 ) -> T {
-    let (subscriber, _guard) = create_subscriber(app_name, telemetry_config);
+    let (subscriber, _guard) = create_subscriber(app_name, telemetry_config.as_ref());
 
     dozer_types::tracing::subscriber::with_default(subscriber, closure)
 }
 
 fn create_subscriber(
     app_name: Option<&str>,
-    telemetry_config: Option<TelemetryConfig>,
+    telemetry_config: Option<&TelemetryConfig>,
 ) -> (impl Subscriber, WorkerGuard) {
     let app_name = app_name.unwrap_or("dozer");
 
@@ -68,7 +77,7 @@ fn create_subscriber(
         let trace_filter = EnvFilter::try_from_env("DOZER_TRACE_FILTER")
             .or_else(|_| EnvFilter::try_new("dozer=trace"))
             .unwrap();
-        match c.trace {
+        match &c.trace {
             None => (None, None),
             Some(TelemetryTraceConfig::Dozer(config)) => (
                 Some(get_dozer_tracer(config).with_filter(trace_filter)),
@@ -100,7 +109,7 @@ fn create_subscriber(
 
 fn get_jaeger_tracer<S>(
     app_name: &str,
-    _config: JaegerTelemetryConfig,
+    _config: &JaegerTelemetryConfig,
 ) -> OpenTelemetryLayer<S, opentelemetry::sdk::trace::Tracer>
 where
     S: for<'span> tracing_subscriber::registry::LookupSpan<'span>
@@ -116,7 +125,7 @@ where
 }
 
 fn get_dozer_tracer<S>(
-    config: DozerTelemetryConfig,
+    config: &DozerTelemetryConfig,
 ) -> OpenTelemetryLayer<S, opentelemetry::sdk::trace::Tracer>
 where
     S: for<'span> tracing_subscriber::registry::LookupSpan<'span>
@@ -124,7 +133,7 @@ where
 {
     let builder = sdk::trace::TracerProvider::builder();
     let sample_percent = config.sample_percent as f64 / 100.0;
-    let exporter = DozerExporter::new(config);
+    let exporter = DozerExporter::new(config.clone());
     let batch_config = BatchConfig::default()
         .with_max_concurrent_exports(100000)
         .with_max_concurrent_exports(5);
