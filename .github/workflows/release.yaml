@@ -430,20 +430,22 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Log in to Docker Hub
+        if: (github.event_name == 'release') && (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Docker image to Docker Hub
-        if: (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
+        if: (github.event_name == 'release') && (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         uses: docker/build-push-action@v2
         with:
-          context: ci/Dockerfile
+          context: .
+          file: ./ci/Dockerfile
           push: true
-          tags: $DOCKERHUB_REGISTRY/$DOCKER_REPOSITORY:latest,$DOCKERHUB_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG
+          tags: ${{ env.DOCKERHUB_REGISTRY }}/${{ env.DOCKERHUB_REPOSITORY }}:latest,${{ env.DOCKERHUB_REGISTRY }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
       - name: Release notification
         if: ${{ env.VERSION != 'dev' && matrix.os == 'ubuntu-20-16-cores'}}
