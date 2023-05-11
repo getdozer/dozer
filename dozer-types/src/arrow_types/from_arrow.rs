@@ -7,8 +7,10 @@ use super::errors::FromArrowError::TimeConversionError;
 use super::to_arrow;
 use crate::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
 use crate::json_types::JsonValue;
-use crate::types::Record;
-use crate::types::{Field as DozerField, FieldType, Schema as DozerSchema};
+use crate::types::{
+    Field as DozerField, FieldDefinition, FieldType, Record, Schema as DozerSchema,
+    SourceDefinition,
+};
 use arrow::array;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{DataType, TimeUnit};
@@ -168,12 +170,65 @@ pub fn map_schema_to_dozer(
 ) -> Result<DozerSchema, FromArrowError> {
     let schema_val = match schema.metadata.get(DOZER_SCHEMA_KEY) {
         Some(s) => s,
-        None => return Err(SchemaDeserializationError(format!("{:?}", schema.metadata))),
+        None => {
+            let mut fields = vec![];
+            for field in schema.fields() {
+                let typ = map_arrow_to_dozer_type(field.data_type())?;
+
+                fields.push(FieldDefinition {
+                    name: field.name().clone(),
+                    typ,
+                    nullable: field.is_nullable(),
+                    source: SourceDefinition::Dynamic,
+                });
+            }
+
+            return Ok(DozerSchema {
+                identifier: None,
+                fields,
+                primary_index: vec![],
+            });
+        }
     };
+
     let schema: DozerSchema = serde_json::from_str(schema_val.as_str())
         .map_err(|e| SchemaDeserializationError(e.to_string()))?;
 
     Ok(schema)
+}
+
+pub fn map_arrow_to_dozer_type(dt: &DataType) -> Result<FieldType, FromArrowError> {
+    match dt {
+        DataType::Boolean => Ok(FieldType::Boolean),
+        DataType::Time32(_)
+        | DataType::Time64(_)
+        | DataType::Duration(_)
+        | DataType::Interval(_)
+        | DataType::Int8
+        | DataType::Int16
+        | DataType::Int32
+        | DataType::Int64 => Ok(FieldType::Int),
+        DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
+            Ok(FieldType::UInt)
+        }
+        DataType::Float16 | DataType::Float32 | DataType::Float64 => Ok(FieldType::Float),
+        DataType::Timestamp(_, _) => Ok(FieldType::Timestamp),
+        DataType::Date32 | DataType::Date64 => Ok(FieldType::Date),
+        DataType::Binary | DataType::FixedSizeBinary(_) | DataType::LargeBinary => {
+            Ok(FieldType::Binary)
+        }
+        DataType::Utf8 => Ok(FieldType::String),
+        DataType::LargeUtf8 => Ok(FieldType::Text),
+        // DataType::List(_) => {}
+        // DataType::FixedSizeList(_, _) => {}
+        // DataType::LargeList(_) => {}
+        // DataType::Struct(_) => {}
+        // DataType::Union(_, _, _) => {}
+        // DataType::Dictionary(_, _) => {}
+        // DataType::Decimal128(_, _) => {}
+        // DataType::Decimal256(_, _) => {}
+        _ => Err(FieldTypeNotSupported(format!("{dt:?}"))),
+    }
 }
 
 pub fn map_value_to_dozer_field(
