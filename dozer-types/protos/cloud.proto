@@ -31,6 +31,10 @@ service DozerCloud {
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
 }
 
+service DozerPublic {
+  rpc company_metadata(CompanyRequest) returns (CompanyResponse);
+}
+
 message StartRequest { string id = 1; }
 message StartResponse {
   bool success = 1;
@@ -169,4 +173,17 @@ message QueryEdge {
 message QueryGraph {
   repeated QueryNode nodes = 1;
   repeated QueryEdge edges = 2;
+}
+message CompanyRequest {
+    string name = 1;
+}
+message CompanyResponse {
+    string name = 1;
+    string cli_client_id = 2;
+    string region = 3;
+    string user_pool_id = 4;
+    string user_pool_name = 5;
+    string redirect_url = 6;
+    string domain_name = 7;
+    string callback_url = 8;
 }
