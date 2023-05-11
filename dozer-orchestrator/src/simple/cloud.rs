@@ -41,20 +41,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             info!("Application created with id: {:?}", &response.id);
             // 2. START application
-            info!("Deploying application");
-            let deploy_result = client
-                .start_dozer(StartRequest {
-                    id: response.id.clone(),
-                })
-                .await?
-                .into_inner();
-            info!("Deployed {}", &response.id);
-            match deploy_result.api_endpoint {
-                None => {}
-                Some(endpoint) => info!("Endpoint: http://{endpoint}"),
-            }
-
-            Ok::<(), DeployError>(())
+            start_dozer(&mut client, &response.id).await
         })?;
         Ok(())
     }
@@ -77,7 +64,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             info!("Updated {}", &response.id);
 
-            Ok::<(), DeployError>(())
+            start_dozer(&mut client, &app_id).await
         })?;
 
         Ok(())
@@ -198,4 +185,24 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
         Ok(())
     }
+}
+
+async fn start_dozer(
+    client: &mut DozerCloudClient<tonic::transport::Channel>,
+    app_id: &str,
+) -> Result<(), DeployError> {
+    info!("Deploying application");
+    let deploy_result = client
+        .start_dozer(StartRequest {
+            id: app_id.to_string(),
+        })
+        .await?
+        .into_inner();
+    info!("Deployed {}", app_id);
+    match deploy_result.api_endpoint {
+        None => {}
+        Some(endpoint) => info!("Endpoint: http://{endpoint}"),
+    }
+
+    Ok(())
 }
