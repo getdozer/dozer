@@ -15,9 +15,10 @@ fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDe
 #[test]
 fn test_generate_proto_and_descriptor() {
     let schema_name = "films";
-    let schema = test_utils::get_schema().0;
+    let (schema, secondary_indexes) = test_utils::get_schema();
     let schema = MigrationSchema {
         schema,
+        secondary_indexes,
         enable_token: false,
         enable_on_event: false,
     };
@@ -47,9 +48,10 @@ fn test_generate_proto_and_descriptor() {
 #[test]
 fn test_generate_proto_and_descriptor_with_security() {
     let schema_name = "films";
-    let schema = test_utils::get_schema().0;
+    let (schema, secondary_indexes) = test_utils::get_schema();
     let schema = MigrationSchema {
         schema,
+        secondary_indexes,
         enable_token: true,
         enable_on_event: true,
     };
@@ -87,9 +89,10 @@ fn test_generate_proto_and_descriptor_with_security() {
 #[test]
 fn test_generate_proto_and_descriptor_with_push_event_off() {
     let schema_name = "films";
-    let schema = test_utils::get_schema().0;
+    let (schema, secondary_indexes) = test_utils::get_schema();
     let schema = MigrationSchema {
         schema,
+        secondary_indexes,
         enable_token: true,
         enable_on_event: false,
     };

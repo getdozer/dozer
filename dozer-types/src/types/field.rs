@@ -184,6 +184,7 @@ impl Field {
     pub fn as_uint(&self) -> Option<u64> {
         match self {
             Field::UInt(i) => Some(*i),
+            Field::Json(JsonValue::Number(f)) => Some(f.0 as u64),
             _ => None,
         }
     }
@@ -191,6 +192,7 @@ impl Field {
     pub fn as_u128(&self) -> Option<u128> {
         match self {
             Field::U128(i) => Some(*i),
+            Field::Json(j) => j.as_u128(),
             _ => None,
         }
     }
@@ -198,6 +200,7 @@ impl Field {
     pub fn as_int(&self) -> Option<i64> {
         match self {
             Field::Int(i) => Some(*i),
+            Field::Json(j) => j.as_i64(),
             _ => None,
         }
     }
@@ -205,6 +208,7 @@ impl Field {
     pub fn as_i128(&self) -> Option<i128> {
         match self {
             Field::I128(i) => Some(*i),
+            Field::Json(j) => j.as_i128(),
             _ => None,
         }
     }
@@ -212,6 +216,7 @@ impl Field {
     pub fn as_float(&self) -> Option<f64> {
         match self {
             Field::Float(f) => Some(f.0),
+            Field::Json(j) => j.as_f64(),
             _ => None,
         }
     }
@@ -219,6 +224,7 @@ impl Field {
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
             Field::Boolean(b) => Some(*b),
+            Field::Json(j) => j.as_bool(),
             _ => None,
         }
     }
@@ -226,6 +232,7 @@ impl Field {
     pub fn as_string(&self) -> Option<&str> {
         match self {
             Field::String(s) => Some(s),
+            Field::Json(j) => j.as_str(),
             _ => None,
         }
     }
@@ -233,6 +240,7 @@ impl Field {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             Field::Text(s) => Some(s),
+            Field::Json(j) => j.as_str(),
             _ => None,
         }
     }
@@ -305,6 +313,7 @@ impl Field {
     pub fn as_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
+            Field::Json(j) => j.as_null(),
             _ => None,
         }
     }
@@ -319,6 +328,12 @@ impl Field {
             Field::Decimal(d) => d.to_u64(),
             Field::String(s) => s.parse::<u64>().ok(),
             Field::Text(s) => s.parse::<u64>().ok(),
+            Field::Json(j) => match j {
+                &JsonValue::Number(n) => u64::from_f64(*n),
+                JsonValue::String(s) => s.parse::<u64>().ok(),
+                &JsonValue::Null => Some(0_u64),
+                _ => None,
+            },
             Field::Null => Some(0_u64),
             _ => None,
         }
@@ -334,6 +349,12 @@ impl Field {
             Field::Decimal(d) => d.to_u128(),
             Field::String(s) => s.parse::<u128>().ok(),
             Field::Text(s) => s.parse::<u128>().ok(),
+            Field::Json(j) => match j {
+                &JsonValue::Number(n) => u128::from_f64(*n),
+                JsonValue::String(s) => s.parse::<u128>().ok(),
+                &JsonValue::Null => Some(0_u128),
+                _ => None,
+            },
             Field::Null => Some(0_u128),
             _ => None,
         }
@@ -349,6 +370,12 @@ impl Field {
             Field::Decimal(d) => d.to_i64(),
             Field::String(s) => s.parse::<i64>().ok(),
             Field::Text(s) => s.parse::<i64>().ok(),
+            Field::Json(j) => match j {
+                &JsonValue::Number(n) => i64::from_f64(*n),
+                JsonValue::String(s) => s.parse::<i64>().ok(),
+                &JsonValue::Null => Some(0_i64),
+                _ => None,
+            },
             Field::Null => Some(0_i64),
             _ => None,
         }
@@ -364,6 +391,12 @@ impl Field {
             Field::Decimal(d) => d.to_i128(),
             Field::String(s) => s.parse::<i128>().ok(),
             Field::Text(s) => s.parse::<i128>().ok(),
+            Field::Json(j) => match j {
+                &JsonValue::Number(n) => i128::from_f64(*n),
+                JsonValue::String(s) => s.parse::<i128>().ok(),
+                &JsonValue::Null => Some(0_i128),
+                _ => None,
+            },
             Field::Null => Some(0_i128),
             _ => None,
         }
@@ -379,6 +412,12 @@ impl Field {
             Field::Decimal(d) => d.to_f64(),
             Field::String(s) => s.parse::<f64>().ok(),
             Field::Text(s) => s.parse::<f64>().ok(),
+            Field::Json(j) => match j {
+                &JsonValue::Number(n) => Some(*n),
+                JsonValue::String(s) => s.parse::<f64>().ok(),
+                &JsonValue::Null => Some(0_f64),
+                _ => None,
+            },
             Field::Null => Some(0_f64),
             _ => None,
         }
@@ -395,6 +434,11 @@ impl Field {
             Field::Boolean(b) => Some(*b),
             Field::String(s) => s.parse::<bool>().ok(),
             Field::Text(s) => s.parse::<bool>().ok(),
+            Field::Json(j) => match j {
+                JsonValue::Bool(b) => Some(*b),
+                JsonValue::Null => Some(false),
+                _ => None,
+            },
             Field::Null => Some(false),
             _ => None,
         }
@@ -418,6 +462,7 @@ impl Field {
             Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
             Field::Timestamp(t) => Some(t.to_rfc3339()),
             Field::Binary(b) => Some(format!("{b:X?}")),
+            Field::Json(j) => Some(j.to_string()),
             Field::Null => Some("".to_string()),
             _ => None,
         }
@@ -441,6 +486,7 @@ impl Field {
             Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
             Field::Timestamp(t) => Some(t.to_rfc3339()),
             Field::Binary(b) => Some(format!("{b:X?}")),
+            Field::Json(j) => Some(j.to_string()),
             Field::Null => Some("".to_string()),
             _ => None,
         }
@@ -493,9 +539,21 @@ impl Field {
         }
     }
 
-    pub fn to_json(&self) -> Option<&JsonValue> {
+    pub fn to_json(&self) -> Option<JsonValue> {
         match self {
-            Field::Json(b) => Some(b),
+            Field::Json(b) => Some(b.to_owned()),
+            Field::UInt(u) => Some(JsonValue::Number(OrderedFloat((*u) as f64))),
+            Field::U128(u) => Some(JsonValue::Number(OrderedFloat((*u) as f64))),
+            Field::Int(i) => Some(JsonValue::Number(OrderedFloat((*i) as f64))),
+            Field::I128(i) => Some(JsonValue::Number(OrderedFloat((*i) as f64))),
+            Field::Float(f) => Some(JsonValue::Number(*f)),
+            Field::Boolean(b) => Some(JsonValue::Bool(*b)),
+            Field::String(s) => match JsonValue::from_str(s.as_str()) {
+                Ok(v) => Some(v),
+                _ => None,
+            },
+            Field::Text(t) => Some(JsonValue::String(t.to_owned())),
+            Field::Null => Some(JsonValue::Null),
             _ => None,
         }
     }

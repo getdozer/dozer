@@ -1,6 +1,6 @@
 [package]
 name = "dozer-types"
-version = "0.1.19"
+version = "0.1.20"
 authors = ["getdozer/dozer-dev"]
 edition = "2021"
 
@@ -31,6 +31,7 @@ prost-types = "0.11.1"
 prost = "0.11.8"
 arrow = { version = "33.0.0"}
 arrow-schema = { version = "33.0.0", features=["serde"]}
+metrics = "0.21.0"
 
 
 [build-dependencies]

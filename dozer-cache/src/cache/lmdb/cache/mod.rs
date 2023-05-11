@@ -1,3 +1,4 @@
+use dozer_types::labels::Labels;
 use dozer_types::parking_lot::Mutex;
 use std::path::PathBuf;
 use std::{fmt::Debug, sync::Arc};
@@ -36,8 +37,8 @@ pub struct CacheOptions {
     pub intersection_chunk_size: usize,
 
     /// Provide a path where db will be created. If nothing is provided, will default to a temp location.
-    /// Db path will be `PathBuf.join(String)`.
-    pub path: Option<(PathBuf, String)>,
+    /// Db path will be `PathBuf.join(Labels.to_non_empty_string())`.
+    pub path: Option<(PathBuf, Labels)>,
 }
 
 impl Default for CacheOptions {
@@ -90,7 +91,7 @@ impl LmdbRwCache {
         let options = CacheOptions {
             path: Some((
                 rw_main_env.base_path().to_path_buf(),
-                rw_main_env.name().to_string(),
+                rw_main_env.labels().clone(),
             )),
             ..*options
         };
@@ -121,8 +122,8 @@ impl LmdbRwCache {
 }
 
 impl<C: LmdbCache> RoCache for C {
-    fn name(&self) -> &str {
-        self.main_env().name()
+    fn labels(&self) -> &Labels {
+        self.main_env().labels()
     }
 
     fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError> {
@@ -139,6 +140,10 @@ impl<C: LmdbCache> RoCache for C {
 
     fn get_schema(&self) -> &SchemaWithIndex {
         self.main_env().schema()
+    }
+
+    fn get_metadata(&self) -> Result<Option<u64>, CacheError> {
+        self.main_env().metadata()
     }
 }
 
@@ -157,9 +162,13 @@ impl RwCache for LmdbRwCache {
         self.main_env.update(old, new)
     }
 
+    fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError> {
+        self.main_env.set_metadata(metadata)
+    }
+
     fn commit(&mut self) -> Result<(), CacheError> {
         self.main_env.commit()?;
-        self.indexing_thread_pool.lock().wake(self.name());
+        self.indexing_thread_pool.lock().wake(self.labels());
         Ok(())
     }
 }

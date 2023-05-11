@@ -17,6 +17,7 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
+#[cfg(feature = "cloud")]
 mod cloud_helper;
 mod console_helper;
 mod utils;
@@ -40,9 +41,12 @@ pub trait Orchestrator {
 
 #[cfg(feature = "cloud")]
 pub trait CloudOrchestrator {
-    fn deploy(&mut self, cloud: Cloud, config_path: String) -> Result<(), OrchestrationError>;
+    fn deploy(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
+    fn update(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
+    fn delete(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
     fn list(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
+    fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports
@@ -69,6 +73,19 @@ async fn flatten_join_handle(
         Ok(Err(err)) => Err(err),
         Err(err) => Err(OrchestrationError::JoinError(err)),
     }
+}
+
+fn join_handle_map_err<E: Send + 'static>(
+    handle: JoinHandle<Result<(), E>>,
+    f: impl FnOnce(E) -> OrchestrationError + Send + 'static,
+) -> JoinHandle<Result<(), OrchestrationError>> {
+    tokio::spawn(async move {
+        match handle.await {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(err)) => Err(f(err)),
+            Err(err) => Err(OrchestrationError::JoinError(err)),
+        }
+    })
 }
 
 pub fn set_panic_hook() {

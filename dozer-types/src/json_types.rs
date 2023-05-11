@@ -4,10 +4,11 @@ use chrono::SecondsFormat;
 use ordered_float::OrderedFloat;
 use prost_types::value::Kind;
 use prost_types::{ListValue, Struct, Value as ProstValue};
+use rust_decimal::prelude::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{json as serde_json, Map, Value};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
@@ -19,6 +20,85 @@ pub enum JsonValue {
     String(String),
     Array(Vec<JsonValue>),
     Object(BTreeMap<String, JsonValue>),
+}
+
+#[allow(clippy::derivable_impls)]
+impl Default for JsonValue {
+    fn default() -> JsonValue {
+        JsonValue::Null
+    }
+}
+
+impl JsonValue {
+    pub fn as_array(&self) -> Option<&Vec<JsonValue>> {
+        match self {
+            JsonValue::Array(array) => Some(array),
+            _ => None,
+        }
+    }
+
+    pub fn as_object(&self) -> Option<&BTreeMap<String, JsonValue>> {
+        match self {
+            JsonValue::Object(map) => Some(map),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            JsonValue::String(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            JsonValue::Number(n) => Some(n.0 as i64),
+            _ => None,
+        }
+    }
+
+    pub fn as_i128(&self) -> Option<i128> {
+        match self {
+            JsonValue::Number(n) => i128::from_f64(n.0),
+            _ => None,
+        }
+    }
+
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            JsonValue::Number(n) => Some(n.0 as u64),
+            _ => None,
+        }
+    }
+
+    pub fn as_u128(&self) -> Option<u128> {
+        match self {
+            JsonValue::Number(n) => u128::from_f64(n.0),
+            _ => None,
+        }
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            JsonValue::Number(n) => Some(n.0),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match *self {
+            JsonValue::Bool(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    pub fn as_null(&self) -> Option<()> {
+        match *self {
+            JsonValue::Null => Some(()),
+            _ => None,
+        }
+    }
 }
 
 impl Display for JsonValue {
@@ -46,8 +126,124 @@ impl FromStr for JsonValue {
     type Err = DeserializationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let object: Value = serde_json::from_str(s)?;
-        serde_json_to_json_value(object)
+        let object = serde_json::from_str(s);
+        if object.is_ok() {
+            serde_json_to_json_value(object?)
+        } else {
+            let f = OrderedFloat::from_str(s)
+                .map_err(|e| DeserializationError::Custom(Box::from(format!("{:?}", e))));
+            if f.is_ok() {
+                Ok(JsonValue::Number(f?))
+            } else {
+                let b = bool::from_str(s)
+                    .map_err(|e| DeserializationError::Custom(Box::from(format!("{:?}", e))));
+                if b.is_ok() {
+                    Ok(JsonValue::Bool(b?))
+                } else {
+                    Ok(JsonValue::String(String::from(s)))
+                }
+            }
+        }
+    }
+}
+
+impl From<usize> for JsonValue {
+    fn from(f: usize) -> Self {
+        From::from(f as f64)
+    }
+}
+
+impl From<f32> for JsonValue {
+    fn from(f: f32) -> Self {
+        From::from(f as f64)
+    }
+}
+
+impl From<f64> for JsonValue {
+    fn from(f: f64) -> Self {
+        JsonValue::Number(OrderedFloat(f))
+    }
+}
+
+impl From<bool> for JsonValue {
+    fn from(f: bool) -> Self {
+        JsonValue::Bool(f)
+    }
+}
+
+impl From<String> for JsonValue {
+    fn from(f: String) -> Self {
+        JsonValue::String(f)
+    }
+}
+
+impl<'a> From<&'a str> for JsonValue {
+    fn from(f: &str) -> Self {
+        JsonValue::String(f.to_string())
+    }
+}
+
+impl<'a> From<Cow<'a, str>> for JsonValue {
+    fn from(f: Cow<'a, str>) -> Self {
+        JsonValue::String(f.into_owned())
+    }
+}
+
+impl From<OrderedFloat<f64>> for JsonValue {
+    fn from(f: OrderedFloat<f64>) -> Self {
+        JsonValue::Number(f)
+    }
+}
+
+impl From<BTreeMap<String, JsonValue>> for JsonValue {
+    fn from(f: BTreeMap<String, JsonValue>) -> Self {
+        JsonValue::Object(f)
+    }
+}
+
+impl<T: Into<JsonValue>> From<Vec<T>> for JsonValue {
+    fn from(f: Vec<T>) -> Self {
+        JsonValue::Array(f.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<'a, T: Clone + Into<JsonValue>> From<&'a [T]> for JsonValue {
+    fn from(f: &'a [T]) -> Self {
+        JsonValue::Array(f.iter().cloned().map(Into::into).collect())
+    }
+}
+
+impl<T: Into<JsonValue>> FromIterator<T> for JsonValue {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        JsonValue::Array(iter.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<K: Into<String>, V: Into<JsonValue>> FromIterator<(K, V)> for JsonValue {
+    fn from_iter<I: IntoIterator<Item = (K, V)>>(iter: I) -> Self {
+        JsonValue::Object(
+            iter.into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
+        )
+    }
+}
+
+impl From<()> for JsonValue {
+    fn from((): ()) -> Self {
+        JsonValue::Null
+    }
+}
+
+impl<T> From<Option<T>> for JsonValue
+where
+    T: Into<JsonValue>,
+{
+    fn from(opt: Option<T>) -> Self {
+        match opt {
+            None => JsonValue::Null,
+            Some(value) => Into::into(value),
+        }
     }
 }
 
@@ -95,7 +291,7 @@ pub fn json_value_to_serde_json(value: JsonValue) -> Result<Value, Deserializati
         JsonValue::Bool(b) => Ok(Value::Bool(b)),
         JsonValue::Number(n) => {
             if n.0.is_finite() {
-                Ok(json!(n.0))
+                Ok(serde_json!(n.0))
             } else {
                 Err(DeserializationError::F64TypeConversionError)
             }

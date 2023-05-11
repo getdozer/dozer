@@ -179,3 +179,12 @@ fn update_record_when_primary_changes() {
 
     assert_eq!(updated_values, record.values);
 }
+
+#[test]
+fn test_cache_metadata() {
+    let (mut cache, _, _) = _setup();
+    assert!(cache.get_metadata().unwrap().is_none());
+    cache.set_metadata(32).unwrap();
+    cache.commit().unwrap();
+    assert_eq!(cache.get_metadata().unwrap().unwrap(), 32);
+}

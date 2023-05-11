@@ -3,6 +3,7 @@ use std::fmt::Debug;
 
 use self::expression::QueryExpression;
 use crate::errors::CacheError;
+use dozer_types::labels::Labels;
 use dozer_types::models::api_endpoint::{
     OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
 };
@@ -35,10 +36,8 @@ impl CacheRecord {
 }
 
 pub trait RoCacheManager: Send + Sync + Debug {
-    /// Opens a cache in read-only mode with given name or an alias with that name.
-    ///
-    /// If the name is both an alias and a real name, it's treated as an alias.
-    fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError>;
+    /// Opens a cache in read-only mode with given labels.
+    fn open_ro_cache(&self, labels: Labels) -> Result<Option<Box<dyn RoCache>>, CacheError>;
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -50,12 +49,10 @@ pub struct CacheWriteOptions {
 }
 
 pub trait RwCacheManager: RoCacheManager {
-    /// Opens a cache in read-write mode with given name or an alias with that name.
-    ///
-    /// If the name is both an alias and a real name, it's treated as an alias.
+    /// Opens a cache in read-write mode with given labels.
     fn open_rw_cache(
         &self,
-        name: &str,
+        labels: Labels,
         write_options: CacheWriteOptions,
     ) -> Result<Option<Box<dyn RwCache>>, CacheError>;
 
@@ -63,9 +60,10 @@ pub trait RwCacheManager: RoCacheManager {
     ///
     /// Schemas cannot be changed after the cache is created.
     ///
-    /// The cache's name is unique.
+    /// The labels must be unique.
     fn create_cache(
         &self,
+        labels: Labels,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
         write_options: CacheWriteOptions,
@@ -78,8 +76,8 @@ pub trait RwCacheManager: RoCacheManager {
 }
 
 pub trait RoCache: Send + Sync + Debug {
-    /// Returns the name of the cache.
-    fn name(&self) -> &str;
+    /// Returns the labels of the cache.
+    fn labels(&self) -> &Labels;
 
     // Schema Operations
     fn get_schema(&self) -> &SchemaWithIndex;
@@ -88,6 +86,9 @@ pub trait RoCache: Send + Sync + Debug {
     fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError>;
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError>;
     fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError>;
+
+    // Cache metadata
+    fn get_metadata(&self) -> Result<Option<u64>, CacheError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -134,6 +135,9 @@ pub trait RwCache: RoCache {
     ///
     /// If the schema has primary index, only fields that are part of the primary index are used to identify the old record.
     fn update(&mut self, old: &Record, record: &Record) -> Result<UpsertResult, CacheError>;
+
+    /// Sets the metadata of the cache. Implicitly starts a transaction if there's no active transaction.
+    fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError>;
 
     /// Commits the current transaction.
     fn commit(&mut self) -> Result<(), CacheError>;

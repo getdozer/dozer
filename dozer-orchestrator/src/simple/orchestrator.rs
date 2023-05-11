@@ -10,7 +10,7 @@ use crate::utils::{
     get_file_buffer_capacity, get_grpc_config, get_rest_config,
 };
 
-use crate::{flatten_join_handle, Orchestrator};
+use crate::{flatten_join_handle, join_handle_map_err, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
@@ -80,21 +80,19 @@ impl Orchestrator for SimpleOrchestrator {
             );
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
-                let (cache_endpoint, task) = CacheEndpoint::new(
+                let (cache_endpoint, handle) = CacheEndpoint::new(
                     &home_dir,
                     &*cache_manager,
                     endpoint.clone(),
-                    self.runtime.clone(),
                     Box::pin(shutdown.create_shutdown_future()),
                     operations_sender.clone(),
                     Some(self.multi_pb.clone()),
                 )
                 .await?;
-                if let Some(task) = task {
-                    futures.push(flatten_join_handle(tokio::task::spawn_blocking(
-                        move || task().map_err(OrchestrationError::CacheBuildFailed),
-                    )));
-                }
+                futures.push(flatten_join_handle(join_handle_map_err(
+                    handle,
+                    OrchestrationError::CacheBuildFailed,
+                )));
                 cache_endpoints.push(Arc::new(cache_endpoint));
             }
 
@@ -291,9 +289,10 @@ impl Orchestrator for SimpleOrchestrator {
                 .iter()
                 .find(|e| e.name == *endpoint_name)
                 .expect("Sink name must be the same as endpoint name");
-            let schema = modify_schema(schema, endpoint)?;
+            let (schema, secondary_indexes) = modify_schema(schema, endpoint)?;
             let schema = MigrationSchema {
                 schema,
+                secondary_indexes,
                 enable_token,
                 enable_on_event,
             };

@@ -3,7 +3,7 @@ use clap::Parser;
 use dozer_orchestrator::cli::cloud::CloudCommands;
 use dozer_orchestrator::cli::generate_config_repl;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
-use dozer_orchestrator::cli::{init_dozer, list_sources, LOGO};
+use dozer_orchestrator::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
 use dozer_orchestrator::errors::{CliError, OrchestrationError};
 use dozer_orchestrator::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
@@ -110,13 +110,20 @@ fn run() -> Result<(), OrchestrationError> {
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
 
     let cli = parse_and_generate()?;
-    let mut dozer = init_orchestrator(&cli)?;
+    #[cfg(feature = "cloud")]
+    let is_cloud_orchestrator = matches!(cli.cmd, Some(Commands::Cloud(_)));
+    #[cfg(not(feature = "cloud"))]
+    let is_cloud_orchestrator = false;
+
+    let mut dozer = init_orchestrator(&cli, is_cloud_orchestrator)?;
 
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     set_ctrl_handler(shutdown_sender);
 
-    // Now we have access to telemetry configuration
-    let _telemetry = Telemetry::new(Some(&dozer.config.app_name), dozer.config.telemetry.clone());
+    // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
+    let _telemetry = dozer.runtime.block_on(async {
+        Telemetry::new(Some(&dozer.config.app_name), dozer.config.telemetry.clone())
+    });
 
     if let Some(cmd) = cli.cmd {
         // run individual servers
@@ -151,9 +158,12 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
-                CloudCommands::Deploy => dozer.deploy(cloud, cli.config_path),
+                CloudCommands::Deploy => dozer.deploy(cloud),
                 CloudCommands::List => dozer.list(cloud),
                 CloudCommands::Status(ref app) => dozer.status(cloud, app.app_id.clone()),
+                CloudCommands::Monitor(ref app) => dozer.monitor(cloud, app.app_id.clone()),
+                CloudCommands::Update(ref app) => dozer.update(cloud, app.app_id.clone()),
+                CloudCommands::Delete(ref app) => dozer.delete(cloud, app.app_id.clone()),
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
@@ -186,9 +196,16 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
     })
 }
 
-fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
+fn init_orchestrator(
+    cli: &Cli,
+    is_cloud_orchestrator: bool,
+) -> Result<SimpleOrchestrator, CliError> {
     dozer_tracing::init_telemetry_closure(None, None, || -> Result<SimpleOrchestrator, CliError> {
-        let res = init_dozer(cli.config_path.clone());
+        let res = if is_cloud_orchestrator {
+            init_dozer_with_default_config()
+        } else {
+            init_dozer(cli.config_path.clone())
+        };
 
         match res {
             Ok(dozer) => {

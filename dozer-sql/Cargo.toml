@@ -1,6 +1,6 @@
 [package]
 name = "dozer-sql"
-version = "0.1.19"
+version = "0.1.20"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -22,6 +22,10 @@ ahash = "0.8.3"
 bloom = "0.3.2"
 enum_dispatch = "0.3.11"
 linked-hash-map = "0.5.6"
+pest_derive = "2.5.6"
+pest = "2.5.6"
+jsonpath-rust = "0.3.0"
+regex = "1.8.1"
 
 [dev-dependencies]
 tempdir = "0.3.7"

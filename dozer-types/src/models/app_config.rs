@@ -80,7 +80,7 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_buffer_capacity: Option<u64>,
 
-    #[prost(oneof = "TelemetryConfig", tags = "16,17,18")]
+    #[prost(message, tag = "16")]
     /// Instrument using Dozer
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TelemetryConfig>,

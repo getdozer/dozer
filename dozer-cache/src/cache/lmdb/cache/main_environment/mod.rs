@@ -11,6 +11,7 @@ use dozer_storage::{
 };
 use dozer_types::{
     borrow::IntoOwned,
+    labels::Labels,
     types::{Field, FieldType, Record, Schema, SchemaWithIndex},
 };
 use dozer_types::{
@@ -42,14 +43,16 @@ use super::{CacheOptions, CacheWriteOptions};
 pub trait MainEnvironment: LmdbEnvironment {
     fn common(&self) -> &MainEnvironmentCommon;
 
-    fn schema(&self) -> &SchemaWithIndex;
+    fn schema(&self) -> &SchemaWithIndex {
+        &self.common().schema
+    }
 
     fn base_path(&self) -> &Path {
         &self.common().base_path
     }
 
-    fn name(&self) -> &str {
-        &self.common().name
+    fn labels(&self) -> &Labels {
+        &self.common().labels
     }
 
     fn operation_log(&self) -> OperationLog {
@@ -73,14 +76,27 @@ pub trait MainEnvironment: LmdbEnvironment {
             .get_record(&txn, key)?
             .ok_or(CacheError::PrimaryKeyNotFound)
     }
+
+    fn metadata(&self) -> Result<Option<u64>, CacheError> {
+        let txn = self.begin_txn()?;
+        self.common()
+            .metadata
+            .load(&txn)
+            .map(|data| data.map(IntoOwned::into_owned))
+            .map_err(Into::into)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct MainEnvironmentCommon {
     /// The environment base path.
     base_path: PathBuf,
-    /// The environment name.
-    name: String,
+    /// The environment labels.
+    labels: Labels,
+    /// The schema.
+    schema: SchemaWithIndex,
+    /// The metadata.
+    metadata: LmdbOption<u64>,
     /// The operation log.
     operation_log: OperationLog,
     intersection_chunk_size: usize,
@@ -91,7 +107,6 @@ pub struct RwMainEnvironment {
     env: RwLmdbEnvironment,
     common: MainEnvironmentCommon,
     _temp_dir: Option<TempDir>,
-    schema: SchemaWithIndex,
     write_options: CacheWriteOptions,
 }
 
@@ -105,10 +120,6 @@ impl MainEnvironment for RwMainEnvironment {
     fn common(&self) -> &MainEnvironmentCommon {
         &self.common
     }
-
-    fn schema(&self) -> &SchemaWithIndex {
-        &self.schema
-    }
 }
 
 impl RwMainEnvironment {
@@ -117,10 +128,11 @@ impl RwMainEnvironment {
         options: &CacheOptions,
         write_options: CacheWriteOptions,
     ) -> Result<Self, CacheError> {
-        let (mut env, (base_path, name), temp_dir) = create_env(options)?;
+        let (mut env, (base_path, labels), temp_dir) = create_env(options)?;
 
         let operation_log = OperationLog::create(&mut env)?;
         let schema_option = LmdbOption::create(&mut env, Some("schema"))?;
+        let metadata = LmdbOption::create(&mut env, Some("metadata"))?;
 
         let old_schema = schema_option
             .load(&env.begin_txn()?)?
@@ -130,7 +142,7 @@ impl RwMainEnvironment {
             (Some(schema), Some(old_schema)) => {
                 if &old_schema != schema {
                     return Err(CacheError::SchemaMismatch {
-                        name,
+                        name: labels.to_string(),
                         given: Box::new(schema.clone()),
                         stored: Box::new(old_schema),
                     });
@@ -150,11 +162,12 @@ impl RwMainEnvironment {
             env,
             common: MainEnvironmentCommon {
                 base_path,
-                name,
+                labels,
+                schema,
+                metadata,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
             },
-            schema,
             _temp_dir: temp_dir,
             write_options,
         })
@@ -164,7 +177,6 @@ impl RwMainEnvironment {
         RoMainEnvironment {
             env: self.env.share(),
             common: self.common.clone(),
-            schema: self.schema.clone(),
         }
     }
 
@@ -173,20 +185,20 @@ impl RwMainEnvironment {
         insert_impl(
             self.common.operation_log,
             txn,
-            &self.schema.0,
+            &self.common.schema.0,
             record,
             self.write_options.insert_resolution,
         )
     }
 
     pub fn delete(&mut self, record: &Record) -> Result<Option<RecordMeta>, CacheError> {
-        if self.schema.0.is_append_only() {
+        if self.common.schema.0.is_append_only() {
             return Err(CacheError::AppendOnlySchema);
         }
 
         let txn = self.env.txn_mut()?;
         let operation_log = self.common.operation_log;
-        let key = calculate_key(&self.schema.0, record);
+        let key = calculate_key(&self.common.schema.0, record);
 
         if let Some((meta, insert_operation_id)) =
             get_existing_record_metadata(operation_log, txn, &key)?
@@ -231,13 +243,13 @@ impl RwMainEnvironment {
 
         let txn = self.env.txn_mut()?;
         let operation_log = self.common.operation_log;
-        let old_key = calculate_key(&self.schema.0, old);
+        let old_key = calculate_key(&self.common.schema.0, old);
 
         if let Some((old_meta, insert_operation_id)) =
             get_existing_record_metadata(operation_log, txn, &old_key)?
         {
             // Case 1, 5, 6, 7, 8.
-            let new_key = calculate_key(&self.schema.0, new);
+            let new_key = calculate_key(&self.common.schema.0, new);
             if new_key.equal(&old_key) {
                 // Case 1.
                 let new_meta = operation_log.update(
@@ -309,7 +321,7 @@ impl RwMainEnvironment {
                     insert_impl(
                         operation_log,
                         txn,
-                        &self.schema.0,
+                        &self.common.schema.0,
                         new,
                         OnInsertResolutionTypes::Panic,
                     )
@@ -320,6 +332,14 @@ impl RwMainEnvironment {
                 }
             }
         }
+    }
+
+    pub fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError> {
+        let txn = self.env.txn_mut()?;
+        self.common
+            .metadata
+            .store(txn, &metadata)
+            .map_err(Into::into)
     }
 
     pub fn commit(&mut self) -> Result<(), CacheError> {
@@ -450,7 +470,6 @@ fn get_existing_record_metadata<T: Transaction>(
 pub struct RoMainEnvironment {
     env: RoLmdbEnvironment,
     common: MainEnvironmentCommon,
-    schema: SchemaWithIndex,
 }
 
 impl LmdbEnvironment for RoMainEnvironment {
@@ -463,18 +482,15 @@ impl MainEnvironment for RoMainEnvironment {
     fn common(&self) -> &MainEnvironmentCommon {
         &self.common
     }
-
-    fn schema(&self) -> &SchemaWithIndex {
-        &self.schema
-    }
 }
 
 impl RoMainEnvironment {
     pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
-        let (env, (base_path, name), _temp_dir) = open_env(options)?;
+        let (env, (base_path, labels), _temp_dir) = open_env(options)?;
 
         let operation_log = OperationLog::open(&env)?;
         let schema_option = LmdbOption::open(&env, Some("schema"))?;
+        let metadata = LmdbOption::open(&env, Some("metadata"))?;
 
         let schema = schema_option
             .load(&env.begin_txn()?)?
@@ -485,11 +501,12 @@ impl RoMainEnvironment {
             env,
             common: MainEnvironmentCommon {
                 base_path: base_path.to_path_buf(),
-                name: name.to_string(),
+                labels: labels.clone(),
+                schema,
+                metadata,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
             },
-            schema,
         })
     }
 }

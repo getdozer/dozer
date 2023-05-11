@@ -87,7 +87,7 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
             .and_then(|parent| parent.file_name().and_then(|file_name| file_name.to_str()))
             .unwrap_or("unknown".as_ref())
             .to_string();
-        let reader = RustLogReader::new(log_path.as_ref(), &name, 0, None).await;
+        let reader = RustLogReader::new(log_path.as_ref(), name, 0, None).await;
 
         // Resolve the promise.
         deferred.settle_with(&channel, move |mut cx| match reader {
@@ -136,7 +136,7 @@ fn reader_next_op(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let reader = reader.reader.clone();
     runtime.runtime.spawn(async move {
         // Read the next operation.
-        let op = reader.lock().await.next_op().await;
+        let op = reader.lock().await.next_op().await.0;
 
         // Resolve the promise.
         deferred.settle_with(&channel, move |mut cx| {

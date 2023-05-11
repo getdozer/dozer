@@ -39,7 +39,8 @@ impl LogReader {
             let name = log_path
                 .parent()
                 .and_then(|parent| parent.file_name().and_then(|file_name| file_name.to_str()))
-                .unwrap_or("unknown");
+                .unwrap_or("unknown")
+                .to_string();
             let reader_result = DozerLogReader::new(&log_path, name, 0, None).await;
             let reader = reader_result.map_err(|e| PyException::new_err(e.to_string()))?;
             Ok(LogReader {
@@ -53,7 +54,7 @@ impl LogReader {
         let reader = self.reader.clone();
         let schema = self.schema.clone();
         pyo3_asyncio::tokio::future_into_py(py, async move {
-            let op = reader.lock().await.next_op().await;
+            let op = reader.lock().await.next_op().await.0;
             Python::with_gil(|py| mapper::map_executor_operation(op, &schema, py))
         })
     }

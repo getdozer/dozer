@@ -1,4 +1,5 @@
 use arc_swap::ArcSwap;
+use cache_builder::open_or_create_cache;
 use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
     dozer_log::{errors::SchemaError, home_dir::HomeDir, schemas::load_schema},
@@ -7,15 +8,13 @@ use dozer_cache::{
 };
 use dozer_types::{
     grpc_types::types::Operation,
-    log::info,
+    labels::Labels,
     models::api_endpoint::{
         ApiEndpoint, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
-        SecondaryIndexConfig,
     },
 };
 use futures_util::Future;
 use std::{
-    borrow::Cow,
     ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
@@ -36,11 +35,11 @@ impl CacheEndpoint {
         home_dir: &HomeDir,
         cache_manager: &dyn RwCacheManager,
         endpoint: ApiEndpoint,
-        runtime: Arc<Runtime>,
-        cancel: impl Future<Output = ()> + Unpin,
+        cancel: impl Future<Output = ()> + Unpin + Send + 'static,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
-    ) -> Result<(Self, Option<impl FnOnce() -> Result<(), CacheError>>), ApiError> {
+    ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiError> {
+        // Find migration.
         let migration_path = if let Some(version) = endpoint.version {
             home_dir
                 .find_migration_path(&endpoint.name, version)
@@ -52,47 +51,52 @@ impl CacheEndpoint {
                 .ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?
         };
 
-        let (cache_reader, task) = if let Some(cache_reader) =
-            open_cache_reader(cache_manager, &endpoint.name)?
-        {
-            (cache_reader, None)
-        } else {
-            let schema = load_schema(&migration_path.schema_path)?.schema;
-            let secondary_index_config = get_secondary_index_config(&endpoint);
-            let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
-            let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
-            let write_options = CacheWriteOptions {
-                insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
-                delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
-                update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
-                ..Default::default()
-            };
-            let (cache_name, task) = cache_builder::create_cache(
-                cache_manager,
-                schema,
-                &secondary_index_config,
-                runtime,
-                cancel,
-                &migration_path.log_path,
-                write_options,
-                operations_sender,
-                multi_pb,
-            )
-            .await
-            .map_err(ApiError::CreateCache)?;
-            // TODO: We intentionally don't create alias endpoint.name -> cache_name here.
-            (
-                open_cache_reader(cache_manager, &cache_name)?.expect("We just created the cache"),
-                Some(task),
-            )
+        // Open or create cache.
+        let mut cache_labels = Labels::new();
+        cache_labels.push("endpoint", endpoint.name.clone());
+        cache_labels.push("migration", migration_path.id.name().to_string());
+        let schema = load_schema(&migration_path.schema_path)?;
+        let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
+        let write_options = CacheWriteOptions {
+            insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
+            delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
+            update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
+            ..Default::default()
         };
+        let cache = open_or_create_cache(
+            cache_manager,
+            cache_labels.clone(),
+            (schema.schema, schema.secondary_indexes),
+            write_options,
+        )
+        .map_err(ApiError::OpenOrCreateCache)?;
+
+        // Open cache reader.
+        let cache_reader =
+            open_cache_reader(cache_manager, cache_labels)?.expect("We just created the cache");
+
+        // Start cache builder.
+        let handle = {
+            let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
+            tokio::spawn(async move {
+                cache_builder::build_cache(
+                    cache,
+                    cancel,
+                    &migration_path.log_path,
+                    operations_sender,
+                    multi_pb,
+                )
+                .await
+            })
+        };
+
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
                 descriptor_path: migration_path.descriptor_path,
                 endpoint,
             },
-            task,
+            handle,
         ))
     }
 
@@ -101,11 +105,10 @@ impl CacheEndpoint {
         descriptor_path: PathBuf,
         endpoint: ApiEndpoint,
     ) -> Result<Self, ApiError> {
+        let mut labels = Labels::new();
+        labels.push(endpoint.name.clone(), endpoint.name.clone());
         Ok(Self {
-            cache_reader: ArcSwap::from_pointee(open_existing_cache_reader(
-                cache_manager,
-                &endpoint.name,
-            )?),
+            cache_reader: ArcSwap::from_pointee(open_existing_cache_reader(cache_manager, labels)?),
             descriptor_path,
             endpoint,
         })
@@ -122,46 +125,23 @@ impl CacheEndpoint {
     pub fn endpoint(&self) -> &ApiEndpoint {
         &self.endpoint
     }
-
-    pub fn redirect_cache(&self, cache_manager: &dyn RwCacheManager) -> Result<(), ApiError> {
-        self.cache_reader.store(Arc::new(open_existing_cache_reader(
-            cache_manager,
-            &self.endpoint.name,
-        )?));
-        Ok(())
-    }
 }
 
 fn open_cache_reader(
     cache_manager: &dyn RwCacheManager,
-    name: &str,
+    labels: Labels,
 ) -> Result<Option<CacheReader>, ApiError> {
     let cache = cache_manager
-        .open_ro_cache(name)
-        .map_err(ApiError::OpenCache)?;
-    Ok(cache.map(|cache| {
-        info!("[api] Serving {} using cache {}", name, cache.name());
-        CacheReader::new(cache)
-    }))
+        .open_ro_cache(labels)
+        .map_err(ApiError::OpenOrCreateCache)?;
+    Ok(cache.map(CacheReader::new))
 }
 
 fn open_existing_cache_reader(
     cache_manager: &dyn RwCacheManager,
-    name: &str,
+    labels: Labels,
 ) -> Result<CacheReader, ApiError> {
-    open_cache_reader(cache_manager, name)?.ok_or_else(|| ApiError::CacheNotFound(name.to_string()))
-}
-
-fn get_secondary_index_config(api_endpoint: &ApiEndpoint) -> Cow<SecondaryIndexConfig> {
-    if let Some(config) = api_endpoint
-        .index
-        .as_ref()
-        .and_then(|index| index.secondary.as_ref())
-    {
-        Cow::Borrowed(config)
-    } else {
-        Cow::Owned(SecondaryIndexConfig::default())
-    }
+    open_cache_reader(cache_manager, labels.clone())?.ok_or_else(|| ApiError::CacheNotFound(labels))
 }
 
 // Exports
@@ -179,7 +159,7 @@ use dozer_types::indicatif::MultiProgress;
 use errors::ApiError;
 pub use openapiv3;
 pub use tokio;
-use tokio::{runtime::Runtime, sync::broadcast::Sender};
+use tokio::{sync::broadcast::Sender, task::JoinHandle};
 pub use tonic;
 pub use tracing_actix_web;
 

@@ -57,7 +57,12 @@ fn cache(c: &mut Criterion) {
     .unwrap();
     let cache = Mutex::new(
         cache_manager
-            .create_cache(schema.clone(), secondary_indexes, Default::default())
+            .create_cache(
+                Default::default(),
+                schema.clone(),
+                secondary_indexes,
+                Default::default(),
+            )
             .unwrap(),
     );
 
