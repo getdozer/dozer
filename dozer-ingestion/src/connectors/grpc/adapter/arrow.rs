@@ -126,7 +126,7 @@ pub fn handle_message(
     Ok(())
 }
 
-pub fn map_record_batch(
+fn map_record_batch(
     req: IngestArrowRequest,
     schema: &Schema,
 ) -> Result<Vec<Record>, ConnectorError> {
