@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs::ReadDir,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone)]
 pub struct HomeDir {
@@ -60,11 +63,14 @@ impl HomeDir {
             .map(|migration_id| self.get_migration_path(endpoint_name, migration_id)))
     }
 
-    fn find_latest_migration_id(&self, endpoint_name: &str) -> Result<Option<MigrationId>, Error> {
+    pub fn find_latest_migration_id(
+        &self,
+        endpoint_name: &str,
+    ) -> Result<Option<MigrationId>, Error> {
         let api_dir = self.get_endpoint_api_dir(endpoint_name);
-        let migration1 = find_latest_migration_id(&api_dir)?;
+        let migration1 = find_latest_migration_id(api_dir)?;
         let log_dir = self.get_endpoint_log_dir(endpoint_name);
-        let migration2 = find_latest_migration_id(&log_dir)?;
+        let migration2 = find_latest_migration_id(log_dir)?;
 
         match (migration1, migration2) {
             (Some(migration1), Some(migration2)) => {
@@ -107,6 +113,23 @@ impl HomeDir {
     fn get_endpoint_log_dir(&self, endpoint_name: &str) -> PathBuf {
         self.log_dir.join(endpoint_name)
     }
+
+    pub fn list_endpoints(&self) -> Result<Vec<String>, Error> {
+        if !self.api_dir.exists() || !self.log_dir.exists() {
+            return Ok(vec![]);
+        }
+
+        let mut result = vec![];
+        for sub_dir in list_sub_dir(self.api_dir.clone())? {
+            let sub_dir = sub_dir?;
+            let log_dir = self.get_endpoint_log_dir(&sub_dir.name);
+            if !log_dir.is_dir() {
+                continue;
+            }
+            result.push(sub_dir.name);
+        }
+        Ok(result)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -135,6 +158,10 @@ impl MigrationId {
         Self::from_id(1)
     }
 
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -144,25 +171,60 @@ impl MigrationId {
     }
 }
 
-fn find_latest_migration_id(dir: &Path) -> Result<Option<MigrationId>, Error> {
+struct ListSubDir {
+    parent_dir: PathBuf,
+    read_dir: ReadDir,
+}
+
+struct SubDir {
+    _path: PathBuf,
+    name: String,
+}
+
+impl Iterator for ListSubDir {
+    type Item = Result<SubDir, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let entry = self.read_dir.next()?;
+            let entry = match entry {
+                Err(e) => return Some(Err((self.parent_dir.clone(), e))),
+                Ok(entry) => entry,
+            };
+
+            let path = entry.path();
+            if path.is_dir() {
+                if let Ok(name) = entry.file_name().into_string() {
+                    return Some(Ok(SubDir { _path: path, name }));
+                }
+            }
+        }
+    }
+}
+
+fn list_sub_dir(dir: PathBuf) -> Result<ListSubDir, Error> {
+    let read_dir = std::fs::read_dir(&dir).map_err(|e| (dir.clone(), e))?;
+    Ok(ListSubDir {
+        parent_dir: dir,
+        read_dir,
+    })
+}
+
+fn find_latest_migration_id(dir: PathBuf) -> Result<Option<MigrationId>, Error> {
     if !dir.exists() {
         return Ok(None);
     }
 
     let mut result = None;
-    for entry in std::fs::read_dir(dir).map_err(|e| (dir.to_path_buf(), e))? {
-        let entry = entry.map_err(|e| (dir.to_path_buf(), e))?;
-        if entry.path().is_dir() {
-            if let Some(file_name) = entry.file_name().to_str() {
-                if let Some(migration) = MigrationId::from_name(file_name) {
-                    if let Some(MigrationId { id, .. }) = result {
-                        if migration.id > id {
-                            result = Some(migration);
-                        }
-                    } else {
-                        result = Some(migration);
-                    }
+    for sub_dir in list_sub_dir(dir)? {
+        let sub_dir = sub_dir?;
+        if let Some(migration) = MigrationId::from_name(&sub_dir.name) {
+            if let Some(MigrationId { id, .. }) = result {
+                if migration.id > id {
+                    result = Some(migration);
                 }
+            } else {
+                result = Some(migration);
             }
         }
     }
