@@ -168,7 +168,8 @@ impl Orchestrator for SimpleOrchestrator {
                     status_update_receiver,
                 ),
             )
-            .await {
+            .await
+            {
                 error!("global_err_count {:?}", global_err_count);
                 if global_err_count < global_err_threshold {
                     global_err_count += 1;
@@ -346,7 +347,8 @@ impl Orchestrator for SimpleOrchestrator {
         self.migrate(false)?;
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), String::new()));
+        let pipeline_thread =
+            thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), String::new()));
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
