@@ -8,10 +8,7 @@ use arrow::{
 use arrow_schema::TimeUnit;
 use std::{collections::HashMap, sync::Arc};
 
-pub const LOGICAL_TYPE_KEY: &str = "logical_type";
-pub const JSON_TYPE: &str = "Json";
-pub const BINARY_TYPE: &str = "Binary";
-pub const POINT_TYPE: &str = "Point";
+pub const DOZER_SCHEMA_KEY: &str = "dozer_schema";
 
 // Maps a Dozer Schema to an Arrow Schema
 pub fn map_to_arrow_schema(
@@ -24,7 +21,7 @@ pub fn map_to_arrow_schema(
     }
     Ok(arrow_types::Schema {
         fields,
-        metadata: HashMap::new(),
+        metadata: HashMap::from([(DOZER_SCHEMA_KEY.to_string(), serde_json::to_string(&schema).expect("Schema can always be serialized as JSON"))]),
     })
 }
 
@@ -135,13 +132,15 @@ pub fn map_record_to_arrow(
         };
         rows.push(r);
     }
-    RecordBatch::try_new(Arc::new(map_to_arrow_schema(schema).unwrap()), rows)
+
+    let schema = map_to_arrow_schema(schema).unwrap();
+    RecordBatch::try_new(Arc::new(schema), rows)
 }
 
 // Maps the dozer field type to the arrow data type
 // Optionally takes a metadata map to add additional metadata to the field
 
-pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, String>>) -> DataType {
+pub fn map_field_type(typ: FieldType) -> DataType {
     match typ {
         FieldType::UInt => DataType::UInt64,
         FieldType::U128 => DataType::Utf8,
@@ -154,27 +153,16 @@ pub fn map_field_type(typ: FieldType, metadata: Option<&mut HashMap<String, Stri
         FieldType::Decimal => DataType::Decimal256(10, 5), // TODO: Map this correctly
         FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Nanosecond, None),
         FieldType::Date => DataType::Date64,
-        FieldType::Binary => {
-            metadata.map(|m| m.insert(LOGICAL_TYPE_KEY.to_string(), BINARY_TYPE.to_string()));
-            DataType::Binary
-        }
-        FieldType::Json => {
-            metadata.map(|m| m.insert(LOGICAL_TYPE_KEY.to_string(), JSON_TYPE.to_string()));
-            DataType::Utf8
-        }
-        FieldType::Point => {
-            metadata.map(|m| m.insert(LOGICAL_TYPE_KEY.to_string(), POINT_TYPE.to_string()));
-            DataType::Binary
-        }
+        FieldType::Binary => DataType::Binary,
+        FieldType::Json => DataType::Utf8,
+        FieldType::Point => DataType::Binary,
         FieldType::Duration => DataType::Duration(TimeUnit::Nanosecond),
     }
 }
 
 impl From<FieldDefinition> for arrow_types::Field {
     fn from(f: FieldDefinition) -> Self {
-        let mut metadata = HashMap::new();
-        let dt = map_field_type(f.typ, Some(&mut metadata));
-
+        let dt = map_field_type(f.typ);
         arrow_types::Field::new(f.name, dt, f.nullable)
     }
 }

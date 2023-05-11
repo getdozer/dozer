@@ -35,6 +35,9 @@ pub enum FromArrowError {
     #[error("Schema has {0} fields, but batch has {1}")]
     SchemaMismatchError(usize, usize),
 
+    #[error("Schema {0} deserialization failed")]
+    SchemaDeserializationError(String),
+
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
 }
