@@ -31,6 +31,7 @@ pub trait Orchestrator {
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
+        err_threshold: String,
     ) -> Result<(), OrchestrationError>;
     #[allow(clippy::type_complexity)]
     fn list_connectors(

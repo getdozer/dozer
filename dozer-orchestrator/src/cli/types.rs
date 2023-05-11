@@ -75,6 +75,14 @@ pub struct Deploy {
 pub struct App {
     #[command(subcommand)]
     pub command: AppCommands,
+
+    #[arg(
+        global = true,
+        short = 'e',
+        long,
+        default_value = "10"
+    )]
+    pub err_threshold: String,
 }
 
 #[derive(Debug, Args)]

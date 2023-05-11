@@ -34,6 +34,7 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
@@ -146,14 +147,20 @@ impl Orchestrator for SimpleOrchestrator {
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
+        err_threshold: String,
     ) -> Result<(), OrchestrationError> {
+        let mut global_err_count = 0_i32;
+        let global_err_threshold = i32::from_str(err_threshold.as_str()).unwrap_or(0_i32);
+
+        error!("global_err_threshold {:?}", global_err_threshold);
+
         // gRPC notifier channel
         let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
         let (operation_sender, operation_receiver) = channel::unbounded();
         let (status_update_sender, status_update_receiver) = channel::unbounded();
         let internal_app_config = self.config.clone();
         let _intern_pipeline_thread = self.runtime.spawn(async move {
-            let result = start_internal_pipeline_server(
+            if let Err(_e) = start_internal_pipeline_server(
                 internal_app_config,
                 (
                     alias_redirected_receiver,
@@ -161,13 +168,15 @@ impl Orchestrator for SimpleOrchestrator {
                     status_update_receiver,
                 ),
             )
-            .await;
-
-            if let Err(e) = result {
-                std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
+            .await {
+                error!("global_err_count {:?}", global_err_count);
+                if global_err_count < global_err_threshold {
+                    global_err_count += 1;
+                    error!("global_err_count {:?}", global_err_count);
+                } else {
+                    warn!("Shutting down internal pipeline server");
+                }
             }
-
-            warn!("Shutting down internal pipeline server");
         });
 
         let home_dir = HomeDir::new(
@@ -337,7 +346,7 @@ impl Orchestrator for SimpleOrchestrator {
         self.migrate(false)?;
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx)));
+        let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), String::new()));
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
