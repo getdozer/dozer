@@ -2,7 +2,7 @@ use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::TableInfo;
 use crate::errors::ObjectStoreConnectorError::{RecvError, TableReaderError};
-use crate::errors::ObjectStoreObjectError::{self, ListingPathParsingError};
+use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
 use crate::errors::ObjectStoreTableReaderError::{
     ColumnsSelectFailed, StreamExecutionError, TableReadFailed,
 };
@@ -163,47 +163,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
             let sender = tx.clone();
             let t = table.clone();
 
-            tokio::spawn(async move {
-                loop {
-                    // List objects in the S3 bucket with the specified prefix
-                    let mut stream = store.list(Some(&Path::from("trips"))).await.unwrap();
-
-                    while let Some(item) = stream.next().await {
-                        // Check if any objects have been added or modified
-                        let object = item.unwrap();
-                        println!(
-                            "Found object: {:?}, {:?}",
-                            object.location, object.last_modified
-                        );
-
-                        // Do something with the object, such as download it or process it
-                    }
-
-                    let table_path = ListingTableUrl::parse("data/trips")
-                        .map_err(|e| {
-                            ObjectStoreConnectorError::DataFusionStorageObjectError(
-                                ListingPathParsingError(params.table_path.clone(), e),
-                            )
-                        })
-                        .unwrap();
-
-                    let result = Self::read(
-                        id as u32,
-                        ctx.clone(),
-                        table_path,
-                        listing_options.clone(),
-                        &t,
-                        sender.clone(),
-                    )
-                    .await;
-                    if let Err(e) = result {
-                        sender.send(Err(e)).await.unwrap();
-                    }
-
-                    // Wait for 10 seconds before checking again
-                    tokio::time::sleep(Duration::from_secs(10)).await;
-                }
-            });
+            self.watch(id as u32, table, sender).await.unwrap();
 
             // tokio::spawn(async move {
             //     let result = Self::read(
@@ -246,6 +206,60 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
         ingestor
             .handle_message(IngestionMessage::new_snapshotting_done(0, idx))
             .map_err(ObjectStoreConnectorError::IngestorError)?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+pub trait Watcher<T> {
+    async fn watch(
+        &self,
+        id: u32,
+        table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+    ) -> Result<(), ConnectorError>;
+}
+
+#[async_trait]
+impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
+    async fn watch(
+        &self,
+        id: u32,
+        table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+    ) -> Result<(), ConnectorError> {
+        let params = self.config.table_params(&table.name)?;
+        let store = Arc::new(params.object_store);
+
+        tokio::spawn(async move {
+            loop {
+                // List objects in the S3 bucket with the specified prefix
+                let mut stream = store.list(Some(&Path::from("taxi_data"))).await.unwrap();
+
+                while let Some(item) = stream.next().await {
+                    // Check if any objects have been added or modified
+                    let object = item.unwrap();
+                    println!(
+                        "Found object: {:?}, {:?}",
+                        object.location, object.last_modified
+                    );
+
+                    // Do something with the object, such as download it or process it
+                }
+
+                let table_path = ListingTableUrl::parse("data/trips")
+                    .map_err(|e| {
+                        ObjectStoreConnectorError::DataFusionStorageObjectError(
+                            ListingPathParsingError(params.table_path.clone(), e),
+                        )
+                    })
+                    .unwrap();
+
+                // Wait for 10 seconds before checking again
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            }
+        });
 
         Ok(())
     }

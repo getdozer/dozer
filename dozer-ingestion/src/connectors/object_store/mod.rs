@@ -7,4 +7,3 @@ pub mod schema_mapper;
 mod table_reader;
 #[cfg(test)]
 mod tests;
-mod watcher;
