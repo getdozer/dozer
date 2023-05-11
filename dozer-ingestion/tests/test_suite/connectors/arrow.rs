@@ -5,8 +5,13 @@ use dozer_types::arrow::array::{
     Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
 };
 
-use dozer_types::{arrow, chrono::Datelike, serde_json, types::{Field, FieldDefinition, FieldType}};
 use dozer_types::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
+use dozer_types::{
+    arrow,
+    chrono::Datelike,
+    serde_json,
+    types::{Field, FieldDefinition, FieldType},
+};
 
 use crate::test_suite::FieldsAndPk;
 
@@ -264,7 +269,10 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Arc::new(StringArray::from_iter([Some("[1, 2, 3]"), None])),
     ];
 
-    let  metadata = HashMap::from([(DOZER_SCHEMA_KEY.to_string(), serde_json::to_string(&schema).expect("Schema can always be serialized as JSON"))]);
+    let metadata = HashMap::from([(
+        DOZER_SCHEMA_KEY.to_string(),
+        serde_json::to_string(&schema).expect("Schema can always be serialized as JSON"),
+    )]);
     arrow::record_batch::RecordBatch::try_new(Arc::new(schema.with_metadata(metadata)), columns)
         .expect("BUG in record_batch_with_all_supported_data_types")
 }
@@ -434,7 +442,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
                 }
             }
             Arc::new(builder.finish())
-        },
+        }
         FieldType::Point => panic!("Point not supported"),
         FieldType::Duration => {
             let mut builder = arrow::array::DurationNanosecondArray::builder(count);

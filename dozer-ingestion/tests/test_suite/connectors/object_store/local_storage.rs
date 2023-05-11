@@ -1,4 +1,6 @@
 use dozer_ingestion::connectors::object_store::connector::ObjectStoreConnector;
+use dozer_types::arrow_types::from_arrow::map_schema_to_dozer;
+use dozer_types::arrow_types::to_arrow::map_to_arrow_schema;
 use dozer_types::{
     arrow,
     ingestion_types::{LocalDetails, LocalStorage, Table},
@@ -99,4 +101,60 @@ fn create_connector(
     let connector = ObjectStoreConnector::new(0, local_storage);
 
     (temp_dir, connector)
+}
+
+#[test]
+fn roundtrip_record_to_record_batch() {
+    use dozer_types::arrow::record_batch::RecordBatch;
+    use dozer_types::arrow_types::from_arrow::map_record_batch_to_dozer_records;
+    use dozer_types::arrow_types::to_arrow::map_record_to_arrow;
+    use dozer_types::json_types::JsonValue;
+    use dozer_types::ordered_float::OrderedFloat;
+    use dozer_types::types::{FieldDefinition, FieldType, Record, Schema, SourceDefinition};
+
+    let id = FieldDefinition::new(
+        "id".to_string(),
+        FieldType::Int,
+        false,
+        SourceDefinition::Dynamic,
+    );
+    let name = FieldDefinition::new(
+        "name".to_string(),
+        FieldType::String,
+        false,
+        SourceDefinition::Dynamic,
+    );
+    let json = FieldDefinition::new(
+        "json".to_string(),
+        FieldType::Json,
+        false,
+        SourceDefinition::Dynamic,
+    );
+
+    let schema: Schema = Schema::empty()
+        .field(id, false)
+        .field(name, false)
+        .field(json, false)
+        .clone();
+
+    let records: Vec<Field> = vec![
+        Field::Int(1),
+        Field::String("test".to_string()),
+        Field::Json(JsonValue::Array(vec![
+            JsonValue::Number(OrderedFloat(1_f64)),
+            JsonValue::Number(OrderedFloat(2_f64)),
+            JsonValue::Number(OrderedFloat(3_f64)),
+        ])),
+    ];
+
+    let record: Record = Record::new(None, records);
+    let record_batch: RecordBatch = map_record_to_arrow(record.clone(), &schema).unwrap();
+    let res: Vec<Record> = map_record_batch_to_dozer_records(record_batch, &schema).unwrap();
+
+    assert_eq!(vec![record], res);
+
+    let arrow_schema = map_to_arrow_schema(&schema).unwrap();
+    let original_schema = map_schema_to_dozer(&arrow_schema).unwrap();
+
+    assert_eq!(original_schema, schema);
 }

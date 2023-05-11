@@ -21,7 +21,10 @@ pub fn map_to_arrow_schema(
     }
     Ok(arrow_types::Schema {
         fields,
-        metadata: HashMap::from([(DOZER_SCHEMA_KEY.to_string(), serde_json::to_string(&schema).expect("Schema can always be serialized as JSON"))]),
+        metadata: HashMap::from([(
+            DOZER_SCHEMA_KEY.to_string(),
+            serde_json::to_string(&schema).expect("Schema can always be serialized as JSON"),
+        )]),
     })
 }
 

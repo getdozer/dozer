@@ -16,9 +16,9 @@ use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
 
+use crate::arrow_types::errors::FromArrowError::SchemaDeserializationError;
 use std::collections::HashMap;
 use std::str::FromStr;
-use crate::arrow_types::errors::FromArrowError::SchemaDeserializationError;
 
 macro_rules! make_from {
     ($array_type:ty, $column: ident, $row: ident) => {{
@@ -152,7 +152,8 @@ pub fn map_schema_to_dozer(
         Some(s) => s,
         None => return Err(SchemaDeserializationError(format!("{:?}", schema.metadata))),
     };
-    let schema: DozerSchema = serde_json::from_str(schema_val.as_str()).map_err(|e| SchemaDeserializationError(e.to_string()))?;
+    let schema: DozerSchema = serde_json::from_str(schema_val.as_str())
+        .map_err(|e| SchemaDeserializationError(e.to_string()))?;
 
     Ok(schema)
 }
@@ -221,7 +222,8 @@ pub fn map_value_to_dozer_field(
                 Some(s) => s,
                 None => return make_from!(array::StringArray, column, row),
             };
-            let schema: DozerSchema = serde_json::from_str(schema_val.as_str()).map_err(|e| SchemaDeserializationError(e.to_string()))?;
+            let schema: DozerSchema = serde_json::from_str(schema_val.as_str())
+                .map_err(|e| SchemaDeserializationError(e.to_string()))?;
             for fd in schema.fields.into_iter() {
                 if fd.name == *column_name && fd.typ == FieldType::Json {
                     let array = column.as_any().downcast_ref::<array::StringArray>();
@@ -238,11 +240,11 @@ pub fn map_value_to_dozer_field(
                         Ok(s)
                     } else {
                         Ok(DozerField::Null)
-                    }
+                    };
                 }
             }
             make_from!(array::StringArray, column, row)
-        },
+        }
         DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
         // DataType::List(_) => {}
