@@ -145,6 +145,24 @@ macro_rules! make_text {
     }};
 }
 
+fn make_json(column: &ArrayRef, row: &usize) -> Result<DozerField, FromArrowError> {
+    let array = column.as_any().downcast_ref::<array::StringArray>();
+
+    return if let Some(r) = array {
+        let s: DozerField = if r.is_null(*row) {
+            DozerField::Null
+        } else {
+            match JsonValue::from_str(r.value(*row)) {
+                Ok(j) => DozerField::Json(j),
+                Err(_) => DozerField::from(r.value(*row)),
+            }
+        };
+        Ok(s)
+    } else {
+        Ok(DozerField::Null)
+    };
+}
+
 pub fn map_schema_to_dozer(
     schema: &arrow::datatypes::Schema,
 ) -> Result<DozerSchema, FromArrowError> {
@@ -226,21 +244,7 @@ pub fn map_value_to_dozer_field(
                 .map_err(|e| SchemaDeserializationError(e.to_string()))?;
             for fd in schema.fields.into_iter() {
                 if fd.name == *column_name && fd.typ == FieldType::Json {
-                    let array = column.as_any().downcast_ref::<array::StringArray>();
-
-                    return if let Some(r) = array {
-                        let s: DozerField = if r.is_null(*row) {
-                            DozerField::Null
-                        } else {
-                            match JsonValue::from_str(r.value(*row)) {
-                                Ok(j) => DozerField::Json(j),
-                                Err(_) => DozerField::from(r.value(*row)),
-                            }
-                        };
-                        Ok(s)
-                    } else {
-                        Ok(DozerField::Null)
-                    };
+                    return make_json(column, row);
                 }
             }
             make_from!(array::StringArray, column, row)

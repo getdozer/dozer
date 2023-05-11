@@ -1,4 +1,4 @@
-use crate::arrow_types::from_arrow::{map_schema_to_dozer};
+use crate::arrow_types::from_arrow::map_schema_to_dozer;
 use crate::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
 use crate::types::{FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition};
 use arrow::datatypes::{self as arrow_types};
