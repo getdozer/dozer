@@ -5,10 +5,13 @@ use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
-    ListAppRequest, StartRequest, UpdateAppRequest,
+    ListAppRequest, LogMessageRequest, StartRequest, UpdateAppRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
+use crate::errors::OrchestrationError::DeployFailed;
+
+use crate::simple::cloud_monitor::monitor_app;
 
 impl CloudOrchestrator for SimpleOrchestrator {
     // TODO: Deploy Dozer application using local Dozer configuration
@@ -171,7 +174,28 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn monitor(&mut self, _cloud: Cloud, _app_id: String) -> Result<(), OrchestrationError> {
+    fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+        monitor_app(app_id, cloud.target_url, self.runtime.clone()).map_err(DeployFailed)
+    }
+
+    fn trace_logs(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+        let target_url = cloud.target_url;
+
+        self.runtime.block_on(async move {
+            let mut client: DozerCloudClient<tonic::transport::Channel> =
+                DozerCloudClient::connect(target_url).await?;
+            let mut response = client
+                .on_log_message(LogMessageRequest { app_id })
+                .await?
+                .into_inner();
+
+            if let Some(next_message) = response.message().await? {
+                println!("{:?}", next_message);
+            }
+
+            Ok::<(), DeployError>(())
+        })?;
+
         Ok(())
     }
 }
