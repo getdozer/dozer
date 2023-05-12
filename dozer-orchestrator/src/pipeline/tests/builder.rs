@@ -76,7 +76,7 @@ fn load_multi_sources() {
         .block_on(builder.get_grouped_tables(&used_sources))
         .unwrap();
 
-    let source_builder = SourceBuilder::new(grouped_connections, None, None);
+    let source_builder = SourceBuilder::new(grouped_connections, None);
     let asm = source_builder
         .build_source_manager(Arc::new(runtime))
         .unwrap();

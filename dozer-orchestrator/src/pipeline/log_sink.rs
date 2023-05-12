@@ -5,7 +5,6 @@ use std::{
     path::PathBuf,
 };
 
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_core::{
     epoch::Epoch,
     errors::ExecutionError,
@@ -13,12 +12,12 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::{
     bytes::{BufMut, BytesMut},
     types::{Operation, Schema},
 };
-use dozer_types::{epoch::ExecutorOperation, grpc_types::internal::StatusUpdate};
 use std::fs::OpenOptions;
 
 #[derive(Debug, Clone)]
@@ -32,7 +31,6 @@ pub struct LogSinkFactory {
     settings: LogSinkSettings,
     endpoint_name: String,
     multi_pb: MultiProgress,
-    notifier: Option<PipelineEventSenders>,
 }
 
 impl LogSinkFactory {
@@ -41,14 +39,12 @@ impl LogSinkFactory {
         settings: LogSinkSettings,
         endpoint_name: String,
         multi_pb: MultiProgress,
-        notifier: Option<PipelineEventSenders>,
     ) -> Self {
         Self {
             log_path,
             settings,
             endpoint_name,
             multi_pb,
-            notifier,
         }
     }
 }
@@ -75,7 +71,6 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
             self.log_path.clone(),
             self.settings.file_buffer_capacity,
             self.endpoint_name.clone(),
-            self.notifier.clone(),
         )?))
     }
 }
@@ -85,8 +80,6 @@ pub struct LogSink {
     pb: ProgressBar,
     buffered_file: BufWriter<File>,
     counter: usize,
-    notifier: Option<PipelineEventSenders>,
-    endpoint_name: String,
 }
 
 impl LogSink {
@@ -95,7 +88,6 @@ impl LogSink {
         log_path: PathBuf,
         file_buffer_capacity: u64,
         endpoint_name: String,
-        notifier: Option<PipelineEventSenders>,
     ) -> Result<Self, ExecutionError> {
         let file = OpenOptions::new()
             .write(true)
@@ -107,14 +99,12 @@ impl LogSink {
         let buffered_file = std::io::BufWriter::with_capacity(file_buffer_capacity as usize, file);
 
         let pb = attach_progress(multi_pb);
-        pb.set_message(endpoint_name.clone());
+        pb.set_message(endpoint_name);
 
         Ok(Self {
             pb,
             buffered_file,
             counter: 0,
-            notifier,
-            endpoint_name,
         })
     }
 }
@@ -124,9 +114,6 @@ impl Sink for LogSink {
         let msg = ExecutorOperation::Op { op };
         self.counter += 1;
         self.pb.set_position(self.counter as u64);
-        if self.counter % 1000 == 0 {
-            try_send(&self.notifier, self.counter, &self.endpoint_name);
-        }
         write_msg_to_file(&mut self.buffered_file, &msg)
     }
 
@@ -135,7 +122,6 @@ impl Sink for LogSink {
             epoch: Epoch::new(0, Default::default()),
         };
 
-        try_send(&self.notifier, self.counter, &self.endpoint_name);
         write_msg_to_file(&mut self.buffered_file, &msg)?;
         self.buffered_file.flush()?;
         Ok(())
@@ -181,16 +167,4 @@ fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
             ]),
     );
     pb
-}
-
-fn try_send(notifier: &Option<PipelineEventSenders>, progress: usize, endpoint_name: &str) {
-    if let Some(n) = notifier {
-        let status_update = StatusUpdate {
-            source: endpoint_name.to_string(),
-            r#type: "sink".to_string(),
-            count: progress as i64,
-        };
-
-        let _ = n.2.try_send(status_update);
-    }
 }
