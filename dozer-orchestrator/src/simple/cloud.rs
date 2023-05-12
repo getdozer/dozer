@@ -1,5 +1,6 @@
 use crate::cli::cloud::Cloud;
 use crate::cloud_helper::list_files;
+use crate::errors::OrchestrationError::DeployFailed;
 use crate::errors::{DeployError, OrchestrationError};
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
@@ -9,7 +10,6 @@ use dozer_types::grpc_types::cloud::{
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
-use crate::errors::OrchestrationError::DeployFailed;
 
 use crate::simple::cloud_monitor::monitor_app;
 
