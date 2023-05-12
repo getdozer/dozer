@@ -190,7 +190,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .into_inner();
 
             if let Some(next_message) = response.message().await? {
-                println!("{:?}", next_message);
+                info!("{:?}", next_message);
             }
 
             Ok::<(), DeployError>(())
