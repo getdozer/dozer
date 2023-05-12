@@ -1,6 +1,5 @@
 use dozer_ingestion::connectors::object_store::connector::ObjectStoreConnector;
 
-
 use dozer_types::{
     arrow,
     ingestion_types::{LocalDetails, LocalStorage, Table},
