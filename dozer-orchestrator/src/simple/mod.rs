@@ -6,3 +6,5 @@ mod migration;
 
 #[cfg(feature = "cloud")]
 mod cloud;
+#[cfg(feature = "cloud")]
+mod cloud_monitor;

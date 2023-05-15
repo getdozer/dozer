@@ -7,7 +7,6 @@ import "types.proto";
 service InternalPipelineService {
   rpc StreamOperations(OperationsRequest) returns (stream dozer.types.Operation);
   rpc StreamAliasEvents(AliasEventsRequest) returns (stream AliasRedirected);
-  rpc StreamStatusUpdates(StatusUpdateRequest) returns (stream StatusUpdate);
 }
 
 // ---------------- Api ------------------------
@@ -15,15 +14,7 @@ message OperationsRequest {}
 
 message AliasEventsRequest {}
 
-message StatusUpdateRequest {}
-
 message AliasRedirected {
   string real_name = 1;
   string alias = 2;
-}
-
-message StatusUpdate {
-  string source = 1;
-  string type = 2;
-  int64 count = 3;
 }

@@ -170,5 +170,5 @@ message LogMessage {
 message StatusUpdate {
   string source = 1;
   string type = 2;
-  int64 count = 3;
+  uint64 count = 3;
 }
