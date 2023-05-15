@@ -7,8 +7,6 @@ use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
-use dozer_types::grpc_types::internal::StatusUpdate;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, IngestorError};
 use dozer_types::log::info;
@@ -60,7 +58,6 @@ pub struct ConnectorSourceFactory {
     connector: Mutex<Option<Box<dyn Connector>>>,
     runtime: Arc<Runtime>,
     progress: Option<MultiProgress>,
-    notifier: Option<PipelineEventSenders>,
 }
 
 fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
@@ -77,7 +74,6 @@ impl ConnectorSourceFactory {
         connection: Connection,
         runtime: Arc<Runtime>,
         progress: Option<MultiProgress>,
-        notifier: Option<PipelineEventSenders>,
     ) -> Result<Self, ExecutionError> {
         let connection_name = connection.name.clone();
 
@@ -121,7 +117,6 @@ impl ConnectorSourceFactory {
             connector: Mutex::new(Some(connector)),
             runtime,
             progress,
-            notifier,
         })
     }
 }
@@ -210,7 +205,6 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
             bars,
-            notifier: self.notifier.clone(),
         }))
     }
 }
@@ -225,7 +219,6 @@ pub struct ConnectorSource {
     runtime: Arc<Runtime>,
     connection_name: String,
     bars: HashMap<PortHandle, ProgressBar>,
-    notifier: Option<PipelineEventSenders>,
 }
 
 impl Source for ConnectorSource {
@@ -279,7 +272,7 @@ impl Source for ConnectorSource {
                     | IngestionMessageKind::SnapshottingStarted => None,
                 };
                 if let Some(schema_id) = schema_id {
-                    let (port, table_name) =
+                    let (port, _) =
                         self.schema_port_map
                             .get(&schema_id)
                             .ok_or(ExecutionError::SourceError(SourceError::PortError(
@@ -296,15 +289,6 @@ impl Source for ConnectorSource {
                         let pb = self.bars.get(port);
                         if let Some(pb) = pb {
                             pb.set_position(*schema_counter);
-                        }
-
-                        if let Some(notifier) = &self.notifier {
-                            let status_update = StatusUpdate {
-                                source: table_name.clone(),
-                                r#type: "source".to_string(),
-                                count: *schema_counter as i64,
-                            };
-                            let _ = notifier.2.try_send(status_update);
                         }
                     }
                     fw.send(IngestionMessage { identifier, kind }, *port)?

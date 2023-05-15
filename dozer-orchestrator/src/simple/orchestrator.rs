@@ -19,14 +19,13 @@ use dozer_cache::dozer_log::schemas::MigrationSchema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 
-use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
 use dozer_types::indicatif::MultiProgress;
-use dozer_types::log::{info, warn};
+use dozer_types::log::info;
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
@@ -148,27 +147,25 @@ impl Orchestrator for SimpleOrchestrator {
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
         // gRPC notifier channel
-        let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
-        let (operation_sender, operation_receiver) = channel::unbounded();
-        let (status_update_sender, status_update_receiver) = channel::unbounded();
-        let internal_app_config = self.config.clone();
-        let _intern_pipeline_thread = self.runtime.spawn(async move {
-            let result = start_internal_pipeline_server(
-                internal_app_config,
-                (
-                    alias_redirected_receiver,
-                    operation_receiver,
-                    status_update_receiver,
-                ),
-            )
-            .await;
-
-            if let Err(e) = result {
-                std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
-            }
-
-            warn!("Shutting down internal pipeline server");
-        });
+        // let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
+        // let (operation_sender, operation_receiver) = channel::unbounded();
+        // let internal_app_config = self.config.clone();
+        // let _intern_pipeline_thread = self.runtime.spawn(async move {
+        //     let result = start_internal_pipeline_server(
+        //         internal_app_config,
+        //         (
+        //             alias_redirected_receiver,
+        //             operation_receiver,
+        //         ),
+        //     )
+        //     .await;
+        //
+        //     if let Err(e) = result {
+        //         std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
+        //     }
+        //
+        //     warn!("Shutting down internal pipeline server");
+        // });
 
         let home_dir = HomeDir::new(
             self.config.home_dir.as_ref(),
@@ -190,11 +187,6 @@ impl Orchestrator for SimpleOrchestrator {
             self.runtime.clone(),
             settings,
             get_executor_options(&self.config),
-            Some((
-                alias_redirected_sender,
-                operation_sender,
-                status_update_sender,
-            )),
         )?;
 
         if let Some(api_notifier) = api_notifier {
@@ -263,7 +255,7 @@ impl Orchestrator for SimpleOrchestrator {
         let settings = LogSinkSettings {
             file_buffer_capacity: get_file_buffer_capacity(&self.config),
         };
-        let dag = builder.build(self.runtime.clone(), settings, None)?;
+        let dag = builder.build(self.runtime.clone(), settings)?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 

@@ -24,6 +24,7 @@ pub enum CloudCommands {
     List,
     Status(AppCommand),
     Monitor(AppCommand),
+    Logs(AppCommand),
 }
 
 #[derive(Debug, Args, Clone)]
