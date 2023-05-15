@@ -18,6 +18,7 @@ use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
 
+use crate::arrow_types::errors::FromArrowError::DeserializationError;
 use log::error;
 use std::str::FromStr;
 
@@ -155,7 +156,7 @@ fn make_json(column: &ArrayRef, row: &usize) -> Result<DozerField, FromArrowErro
         } else {
             match JsonValue::from_str(r.value(*row)) {
                 Ok(j) => DozerField::Json(j),
-                Err(_) => DozerField::Json(JsonValue::String(r.value(*row).to_string())),
+                Err(e) => return Err(DeserializationError(e)),
             }
         };
         Ok(s)

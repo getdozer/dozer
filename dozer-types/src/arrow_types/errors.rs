@@ -2,6 +2,7 @@ use arrow::error::ArrowError;
 use thiserror::Error;
 
 use crate::errors::internal::BoxedError;
+use crate::errors::types::DeserializationError;
 
 #[derive(Error, Debug)]
 pub enum ArrowConversionError {
@@ -34,6 +35,9 @@ pub enum FromArrowError {
 
     #[error("Schema has {0} fields, but batch has {1}")]
     SchemaMismatchError(usize, usize),
+
+    #[error(transparent)]
+    DeserializationError(#[from] DeserializationError),
 
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
