@@ -55,6 +55,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "crate::ingestion_types::EthereumFilter",
         )
         .extern_path(
+            ".dozer.cloud.DeltaLakeConfig",
+            "crate::ingestion_types::DeltaLakeConfig",
+        )
+        .extern_path(
+            ".dozer.cloud.LocalStorage",
+            "crate::ingestion_types::LocalStorage",
+        )
+        .extern_path(
+            ".dozer.cloud.S3Storage",
+            "crate::ingestion_types::S3Storage",
+        )
+        .extern_path(
             ".dozer.cloud.KafkaConfig",
             "crate::ingestion_types::KafkaConfig",
         )
