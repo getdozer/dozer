@@ -1,12 +1,7 @@
-use std::path::Path;
 use std::{path::PathBuf, sync::Arc};
 
-use dozer_storage::lmdb::RoTransaction;
-use dozer_storage::{
-    lmdb_storage::LmdbEnvironmentManager, LmdbEnvironment, LmdbMap, RoLmdbEnvironment,
-    RwLmdbEnvironment,
-};
-use dozer_types::borrow::Cow;
+use dozer_storage::{lmdb_storage::LmdbEnvironmentManager, LmdbMap, RwLmdbEnvironment};
+use dozer_types::labels::Labels;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::{
     parking_lot::Mutex,
@@ -64,8 +59,6 @@ impl Default for CacheManagerOptions {
 pub struct LmdbRoCacheManager {
     options: CacheManagerOptions,
     base_path: PathBuf,
-    alias_to_real_name: LmdbMap<String, String>,
-    env: RoLmdbEnvironment,
 }
 
 impl LmdbRoCacheManager {
@@ -74,27 +67,14 @@ impl LmdbRoCacheManager {
             .path
             .as_deref()
             .ok_or(CacheError::PathNotInitialized)?;
-        let env = LmdbEnvironmentManager::create_ro(
-            base_path,
-            LMDB_CACHE_MANAGER_ALIAS_ENV_NAME,
-            Default::default(),
-        )?;
         let base_path = base_path.to_path_buf();
-        let alias_to_real_name = LmdbMap::open(&env, None)?;
-        Ok(Self {
-            options,
-            base_path,
-            alias_to_real_name,
-            env,
-        })
+        Ok(Self { options, base_path })
     }
 }
 
 impl RoCacheManager for LmdbRoCacheManager {
-    fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError> {
-        let txn = self.env.begin_txn()?;
-        let real_name = resolve_alias(&txn, self.alias_to_real_name, name)?;
-        open_ro_cache(&self.base_path, real_name, &self.options)
+    fn open_ro_cache(&self, labels: Labels) -> Result<Option<Box<dyn RoCache>>, CacheError> {
+        open_ro_cache(self.base_path.clone(), labels, &self.options)
     }
 }
 
@@ -152,35 +132,27 @@ impl LmdbRwCacheManager {
 }
 
 impl RoCacheManager for LmdbRwCacheManager {
-    fn open_ro_cache(&self, name: &str) -> Result<Option<Box<dyn RoCache>>, CacheError> {
-        let env = self.env.read();
-        let txn = env.begin_txn()?;
-        let real_name = resolve_alias(&txn, self.alias_to_real_name, name)?;
-
+    fn open_ro_cache(&self, labels: Labels) -> Result<Option<Box<dyn RoCache>>, CacheError> {
         // Check if the cache is already opened.
-        if let Some(cache) = self.indexing_thread_pool.lock().find_cache(real_name) {
+        if let Some(cache) = self.indexing_thread_pool.lock().find_cache(&labels) {
             return Ok(Some(Box::new(cache)));
         }
 
-        open_ro_cache(&self.base_path, real_name, &self.options)
+        open_ro_cache(self.base_path.clone(), labels, &self.options)
     }
 }
 
 impl RwCacheManager for LmdbRwCacheManager {
     fn open_rw_cache(
         &self,
-        name: &str,
+        labels: Labels,
         write_options: CacheWriteOptions,
     ) -> Result<Option<Box<dyn RwCache>>, CacheError> {
-        let env = self.env.read();
-        let txn = env.begin_txn()?;
-        let real_name = resolve_alias(&txn, self.alias_to_real_name, name)?;
-
         let cache: Option<Box<dyn RwCache>> =
-            if LmdbEnvironmentManager::exists(&self.base_path, real_name) {
+            if LmdbEnvironmentManager::exists(&self.base_path, &labels.to_non_empty_string()) {
                 let cache = LmdbRwCache::new(
                     None,
-                    &cache_options(&self.options, self.base_path.clone(), real_name.to_string()),
+                    &cache_options(&self.options, self.base_path.clone(), labels),
                     write_options,
                     self.indexing_thread_pool.clone(),
                 )?;
@@ -193,14 +165,14 @@ impl RwCacheManager for LmdbRwCacheManager {
 
     fn create_cache(
         &self,
+        labels: Labels,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
         write_options: CacheWriteOptions,
     ) -> Result<Box<dyn RwCache>, CacheError> {
-        let name = self.generate_unique_name();
         let cache = LmdbRwCache::new(
             Some(&(schema, indexes)),
-            &cache_options(&self.options, self.base_path.clone(), name),
+            &cache_options(&self.options, self.base_path.clone(), labels),
             write_options,
             self.indexing_thread_pool.clone(),
         )?;
@@ -218,53 +190,32 @@ impl RwCacheManager for LmdbRwCacheManager {
 
 const LMDB_CACHE_MANAGER_ALIAS_ENV_NAME: &str = "__DOZER_CACHE_MANAGER_ALIAS__";
 
-impl LmdbRwCacheManager {
-    fn generate_unique_name(&self) -> String {
-        uuid::Uuid::new_v4().to_string()
-    }
-}
-
-fn resolve_alias<'a>(
-    txn: &'a RoTransaction,
-    alias_to_real_name: LmdbMap<String, String>,
-    name: &'a str,
-) -> Result<&'a str, CacheError> {
-    Ok(match alias_to_real_name.get(txn, name)? {
-        None => name,
-        Some(real_name) => {
-            let Cow::Borrowed(real_name) = real_name else {
-                panic!("String should be zero-copy")
-            };
-            real_name
-        }
-    })
-}
-
-fn cache_options(options: &CacheManagerOptions, base_path: PathBuf, name: String) -> CacheOptions {
+fn cache_options(
+    options: &CacheManagerOptions,
+    base_path: PathBuf,
+    labels: Labels,
+) -> CacheOptions {
     CacheOptions {
         max_db_size: options.max_db_size,
         max_readers: options.max_readers,
         max_size: options.max_size,
         intersection_chunk_size: options.intersection_chunk_size,
-        path: Some((base_path, name)),
+        path: Some((base_path, labels)),
     }
 }
 
 fn open_ro_cache(
-    base_path: &Path,
-    name: &str,
+    base_path: PathBuf,
+    labels: Labels,
     options: &CacheManagerOptions,
 ) -> Result<Option<Box<dyn RoCache>>, CacheError> {
-    let cache: Option<Box<dyn RoCache>> = if LmdbEnvironmentManager::exists(base_path, name) {
-        let cache = LmdbRoCache::new(&cache_options(
-            options,
-            base_path.to_path_buf(),
-            name.to_string(),
-        ))?;
-        Some(Box::new(cache))
-    } else {
-        None
-    };
+    let cache: Option<Box<dyn RoCache>> =
+        if LmdbEnvironmentManager::exists(&base_path, &labels.to_non_empty_string()) {
+            let cache = LmdbRoCache::new(&cache_options(options, base_path, labels))?;
+            Some(Box::new(cache))
+        } else {
+            None
+        };
     Ok(cache)
 }
 
@@ -275,83 +226,32 @@ mod tests {
     #[test]
     fn test_lmdb_cache_manager() {
         let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
-        let real_name = cache_manager
-            .create_cache(Schema::empty(), vec![], Default::default())
+        let labels = cache_manager
+            .create_cache(
+                Default::default(),
+                Schema::empty(),
+                vec![],
+                Default::default(),
+            )
             .unwrap()
-            .name()
-            .to_string();
-        // Test open with real name.
+            .labels()
+            .clone();
+        // Test open with labels.
         assert_eq!(
             cache_manager
-                .open_rw_cache(&real_name, Default::default())
+                .open_rw_cache(labels.clone(), Default::default())
                 .unwrap()
                 .unwrap()
-                .name(),
-            real_name
+                .labels(),
+            &labels
         );
         assert_eq!(
             cache_manager
-                .open_ro_cache(&real_name)
+                .open_ro_cache(labels.clone())
                 .unwrap()
                 .unwrap()
-                .name(),
-            real_name
-        );
-        // Test open with alias.
-        let alias = "alias";
-        cache_manager.create_alias(&real_name, alias).unwrap();
-        assert_eq!(
-            cache_manager
-                .open_rw_cache(alias, Default::default())
-                .unwrap()
-                .unwrap()
-                .name(),
-            real_name
-        );
-        assert_eq!(
-            cache_manager.open_ro_cache(alias).unwrap().unwrap().name(),
-            real_name
-        );
-        // Test duplicate alias and real name.
-        cache_manager.create_alias(&real_name, &real_name).unwrap();
-        assert_eq!(
-            cache_manager
-                .open_rw_cache(&real_name, Default::default())
-                .unwrap()
-                .unwrap()
-                .name(),
-            real_name
-        );
-        assert_eq!(
-            cache_manager
-                .open_ro_cache(&real_name)
-                .unwrap()
-                .unwrap()
-                .name(),
-            real_name
-        );
-        // If name is both alias and real name, alias shadows real name.
-        let real_name2 = cache_manager
-            .create_cache(Schema::empty(), vec![], Default::default())
-            .unwrap()
-            .name()
-            .to_string();
-        cache_manager.create_alias(&real_name, &real_name2).unwrap();
-        assert_eq!(
-            cache_manager
-                .open_rw_cache(&real_name, Default::default())
-                .unwrap()
-                .unwrap()
-                .name(),
-            real_name
-        );
-        assert_eq!(
-            cache_manager
-                .open_ro_cache(&real_name)
-                .unwrap()
-                .unwrap()
-                .name(),
-            real_name
+                .labels(),
+            &labels
         );
     }
 }

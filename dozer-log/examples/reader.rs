@@ -10,7 +10,7 @@ async fn main() {
     if args.len() == 2 {
         path = &args[1];
     };
-    let mut log_reader = LogReader::new(Path::new(path), "logs", 0, None)
+    let mut log_reader = LogReader::new(Path::new(path), "logs".to_string(), 0, None)
         .await
         .unwrap();
 

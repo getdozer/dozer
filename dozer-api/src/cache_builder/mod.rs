@@ -8,6 +8,7 @@ use dozer_cache::{
 };
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::MultiProgress;
+use dozer_types::labels::Labels;
 use dozer_types::log::debug;
 use dozer_types::types::SchemaWithIndex;
 use dozer_types::{
@@ -20,13 +21,13 @@ use futures_util::{
     future::{select, Either},
     Future,
 };
+use metrics::{describe_counter, increment_counter};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 pub async fn build_cache(
     cache: Box<dyn RwCache>,
-    name: &str,
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     log_path: &Path,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
@@ -34,8 +35,9 @@ pub async fn build_cache(
 ) -> Result<(), CacheError> {
     // Create log reader.
     let pos = cache.get_metadata()?.unwrap_or(0);
-    debug!("Starting log reader {name} from position {pos}");
-    let log_reader = LogReader::new(log_path, name, pos, multi_pb).await?;
+    let reader_name = cache.labels().to_string();
+    debug!("Starting log reader {reader_name} from position {pos}");
+    let log_reader = LogReader::new(log_path, reader_name, pos, multi_pb).await?;
 
     // Spawn tasks
     let mut futures = FuturesUnordered::new();
@@ -44,9 +46,9 @@ pub async fn build_cache(
         read_log_task(cancel, log_reader, sender).await;
         Ok(())
     }));
-    futures.push(tokio::task::spawn_blocking(|| {
-        build_cache_task(cache, receiver, operations_sender)
-    }));
+    futures.push({
+        tokio::task::spawn_blocking(|| build_cache_task(cache, receiver, operations_sender))
+    });
 
     while let Some(result) = futures.next().await {
         match result {
@@ -61,18 +63,17 @@ pub async fn build_cache(
 
 pub fn open_or_create_cache(
     cache_manager: &dyn RwCacheManager,
-    alias: &str,
+    labels: Labels,
     schema: SchemaWithIndex,
     write_options: CacheWriteOptions,
 ) -> Result<Box<dyn RwCache>, CacheError> {
-    match cache_manager.open_rw_cache(alias, write_options)? {
+    match cache_manager.open_rw_cache(labels.clone(), write_options)? {
         Some(cache) => {
             debug_assert!(cache.get_schema() == &schema);
             Ok(cache)
         }
         None => {
-            let cache = cache_manager.create_cache(schema.0, schema.1, write_options)?;
-            cache_manager.create_alias(cache.name(), alias)?;
+            let cache = cache_manager.create_cache(labels, schema.0, schema.1, write_options)?;
             Ok(cache)
         }
     }
@@ -104,6 +105,12 @@ fn build_cache_task(
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
+
+    const BUILD_CACHE_COUNTER_NAME: &str = "build_cache";
+    describe_counter!(
+        BUILD_CACHE_COUNTER_NAME,
+        "Number of operations processed by cache builder"
+    );
 
     while let Some((op, offset)) = receiver.blocking_recv() {
         match op {
@@ -165,6 +172,8 @@ fn build_cache_task(
                 break;
             }
         }
+
+        increment_counter!(BUILD_CACHE_COUNTER_NAME, cache.labels().clone());
     }
 
     Ok(())

@@ -164,6 +164,7 @@ fn run() -> Result<(), OrchestrationError> {
                 CloudCommands::Monitor(ref app) => dozer.monitor(cloud, app.app_id.clone()),
                 CloudCommands::Update(ref app) => dozer.update(cloud, app.app_id.clone()),
                 CloudCommands::Delete(ref app) => dozer.delete(cloud, app.app_id.clone()),
+                CloudCommands::Logs(ref app) => dozer.trace_logs(cloud, app.app_id.clone()),
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");

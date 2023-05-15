@@ -1,3 +1,4 @@
+use dozer_types::labels::Labels;
 use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Record, SchemaWithIndex, SourceDefinition};
 use dozer_types::{
@@ -107,9 +108,16 @@ pub fn initialize_cache(
     schema: Option<SchemaWithIndex>,
 ) -> Box<LmdbRwCacheManager> {
     let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
+    let mut labels = Labels::new();
+    labels.push(schema_name.to_string(), schema_name.to_string());
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     let mut cache = cache_manager
-        .create_cache(schema.clone(), secondary_indexes, Default::default())
+        .create_cache(
+            labels,
+            schema.clone(),
+            secondary_indexes,
+            Default::default(),
+        )
         .unwrap();
     let records = get_sample_records(schema);
     for mut record in records {
@@ -118,9 +126,6 @@ pub fn initialize_cache(
     cache.commit().unwrap();
     cache_manager.wait_until_indexing_catchup();
 
-    cache_manager
-        .create_alias(cache.name(), schema_name)
-        .unwrap();
     Box::new(cache_manager)
 }
 

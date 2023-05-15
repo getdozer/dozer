@@ -5,13 +5,17 @@ use std::sync::{
 
 use dozer_storage::LmdbEnvironment;
 use dozer_types::{
+    labels::Labels,
     log::{debug, error},
     parking_lot::Mutex,
 };
+use metrics::describe_counter;
 
 use crate::{cache::lmdb::cache::SecondaryEnvironment, errors::CacheError};
 
 use super::cache::{LmdbRoCache, MainEnvironment, RoMainEnvironment, RwSecondaryEnvironment};
+
+const BUILD_INDEX_COUNTER_NAME: &str = "build_index";
 
 #[derive(Debug)]
 pub struct IndexingThreadPool {
@@ -23,6 +27,11 @@ pub struct IndexingThreadPool {
 
 impl IndexingThreadPool {
     pub fn new(num_threads: usize) -> Self {
+        describe_counter!(
+            BUILD_INDEX_COUNTER_NAME,
+            "Number of operations built into indexes"
+        );
+
         let (sender, receiver) = std::sync::mpsc::channel();
         Self {
             caches: Vec::new(),
@@ -47,14 +56,15 @@ impl IndexingThreadPool {
             secondary_envs,
         };
         self.caches.push(cache);
+        let index = self.caches.len() - 1;
         for secondary_index in 0..num_secondary_envs {
-            self.spawn_task_if_not_running(self.caches.len() - 1, secondary_index);
+            self.spawn_task_if_not_running(index, secondary_index);
         }
     }
 
-    pub fn find_cache(&self, name: &str) -> Option<LmdbRoCache> {
+    pub fn find_cache(&self, labels: &Labels) -> Option<LmdbRoCache> {
         for cache in self.caches.iter() {
-            if cache.main_env.name() == name {
+            if cache.main_env.labels() == labels {
                 let secondary_envs = cache
                     .secondary_envs
                     .iter()
@@ -69,11 +79,11 @@ impl IndexingThreadPool {
         None
     }
 
-    pub fn wake(&mut self, env_name: &str) {
+    pub fn wake(&mut self, labels: &Labels) {
         self.refresh_task_state();
         for index in 0..self.caches.len() {
             let cache = &self.caches[index];
-            if cache.main_env.name() == env_name {
+            if cache.main_env.labels() == labels {
                 for secondary_index in 0..cache.secondary_envs.len() {
                     self.spawn_task_if_not_running(index, secondary_index);
                 }
@@ -143,29 +153,32 @@ fn index_and_log_error(
     secondary_env: Arc<Mutex<RwSecondaryEnvironment>>,
     task_completion_sender: Sender<(usize, usize)>,
 ) {
+    let mut labels = main_env.labels().clone();
+    labels.push("secondary_index", secondary_index.to_string());
+
     // Loop until map full or up to date.
     loop {
         let mut secondary_env = secondary_env.lock();
 
-        match run_indexing(&main_env, &mut secondary_env) {
+        match run_indexing(&main_env, &mut secondary_env, &labels) {
             Ok(true) => {
                 break;
             }
             Ok(false) => {
                 debug!(
                     "Some operation can't be read from {}: {:?}",
-                    main_env.name(),
+                    main_env.labels(),
                     secondary_env.index_definition()
                 );
                 rayon::yield_local();
                 continue;
             }
             Err(e) => {
-                debug!("Error while indexing {}: {e}", main_env.name());
+                debug!("Error while indexing {}: {e}", main_env.labels());
                 if e.is_map_full() {
                     error!(
                         "Cache {} has reached its maximum size. Try to increase `cache_max_map_size` in the config.",
-                        main_env.name()
+                        main_env.labels()
                     );
                     break;
                 }
@@ -183,13 +196,19 @@ fn index_and_log_error(
 fn run_indexing(
     main_env: &RoMainEnvironment,
     secondary_env: &mut RwSecondaryEnvironment,
+    labels: &Labels,
 ) -> Result<bool, CacheError> {
     let txn = main_env.begin_txn()?;
 
     let span = dozer_types::tracing::span!(dozer_types::tracing::Level::TRACE, "build_indexes",);
     let _enter = span.enter();
 
-    let result = secondary_env.index(&txn, main_env.operation_log())?;
+    let result = secondary_env.index(
+        &txn,
+        main_env.operation_log(),
+        BUILD_INDEX_COUNTER_NAME,
+        labels,
+    )?;
     secondary_env.commit()?;
     Ok(result)
 }
