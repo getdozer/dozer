@@ -155,7 +155,7 @@ fn make_json(column: &ArrayRef, row: &usize) -> Result<DozerField, FromArrowErro
         } else {
             match JsonValue::from_str(r.value(*row)) {
                 Ok(j) => DozerField::Json(j),
-                Err(_) => DozerField::from(r.value(*row)),
+                Err(_) => DozerField::Json(JsonValue::String(r.value(*row).to_string())),
             }
         };
         Ok(s)
