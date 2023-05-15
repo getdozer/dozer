@@ -5,9 +5,11 @@ use super::errors::FromArrowError::DurationConversionError;
 use super::errors::FromArrowError::FieldTypeNotSupported;
 use super::errors::FromArrowError::TimeConversionError;
 use super::to_arrow;
-use crate::types::Record;
+use crate::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
+use crate::json_types::JsonValue;
 use crate::types::{
-    Field as DozerField, FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition,
+    Field as DozerField, FieldDefinition, FieldType, Record, Schema as DozerSchema, Schema,
+    SourceDefinition,
 };
 use arrow::array;
 use arrow::array::{Array, ArrayRef};
@@ -15,7 +17,10 @@ use arrow::datatypes::{DataType, TimeUnit};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
-use std::collections::HashMap;
+
+use crate::arrow_types::errors::FromArrowError::DeserializationError;
+use log::error;
+use std::str::FromStr;
 
 macro_rules! make_from {
     ($array_type:ty, $column: ident, $row: ident) => {{
@@ -142,7 +147,40 @@ macro_rules! make_text {
     }};
 }
 
+fn make_json(column: &ArrayRef, row: &usize) -> Result<DozerField, FromArrowError> {
+    let array = column.as_any().downcast_ref::<array::StringArray>();
+
+    return if let Some(r) = array {
+        let s: DozerField = if r.is_null(*row) {
+            DozerField::Null
+        } else {
+            match JsonValue::from_str(r.value(*row)) {
+                Ok(j) => DozerField::Json(j),
+                Err(e) => return Err(DeserializationError(e)),
+            }
+        };
+        Ok(s)
+    } else {
+        Ok(DozerField::Null)
+    };
+}
+
 pub fn map_schema_to_dozer(
+    schema: &arrow::datatypes::Schema,
+) -> Result<DozerSchema, FromArrowError> {
+    match schema.metadata.get(DOZER_SCHEMA_KEY) {
+        Some(schema_val) => match serde_json::from_str(schema_val.as_str()) {
+            Ok(s) => Ok(s),
+            Err(e) => {
+                error!("Dozer schema deserialization error {}", e.to_string());
+                handle_with_dozer_schema(schema)
+            }
+        },
+        None => handle_with_dozer_schema(schema),
+    }
+}
+
+fn handle_with_dozer_schema(
     schema: &arrow::datatypes::Schema,
 ) -> Result<DozerSchema, FromArrowError> {
     let mut fields = vec![];
@@ -202,7 +240,7 @@ pub fn map_value_to_dozer_field(
     column: &ArrayRef,
     row: &usize,
     column_name: &str,
-    _metadata: &HashMap<String, String>,
+    schema: &Schema,
 ) -> Result<DozerField, FromArrowError> {
     match column.data_type() {
         DataType::Null => Ok(DozerField::Null),
@@ -257,7 +295,14 @@ pub fn map_value_to_dozer_field(
         DataType::Binary => make_binary!(array::BinaryArray, column, row),
         DataType::FixedSizeBinary(_) => make_binary!(array::FixedSizeBinaryArray, column, row),
         DataType::LargeBinary => make_binary!(array::LargeBinaryArray, column, row),
-        DataType::Utf8 => make_from!(array::StringArray, column, row),
+        DataType::Utf8 => {
+            for fd in schema.fields.clone().into_iter() {
+                if fd.name == *column_name && fd.typ == FieldType::Json {
+                    return make_json(column, row);
+                }
+            }
+            make_from!(array::StringArray, column, row)
+        }
         DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
         // DataType::List(_) => {}
@@ -286,10 +331,10 @@ pub fn map_record_batch_to_dozer_records(
     let mut records = Vec::new();
     let columns = batch.columns();
     let batch_schema = batch.schema();
-    let metadata = batch_schema.metadata();
+    let dozer_schema = map_schema_to_dozer(&batch_schema)?;
     let mut sort_fields = vec![];
     for x in schema.fields.iter() {
-        let dt = to_arrow::map_field_type(x.typ, None);
+        let dt = to_arrow::map_field_type(x.typ);
         sort_fields.push(SortField::new(dt));
     }
     let num_rows = batch.num_rows();
@@ -298,7 +343,7 @@ pub fn map_record_batch_to_dozer_records(
         let mut values = vec![];
         for (c, x) in columns.iter().enumerate() {
             let field = schema.fields.get(c).unwrap();
-            let value = map_value_to_dozer_field(x, &r, &field.name, metadata)?;
+            let value = map_value_to_dozer_field(x, &r, &field.name, &dozer_schema)?;
             values.push(value);
         }
         records.push(Record {

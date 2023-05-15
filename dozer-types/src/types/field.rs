@@ -1,6 +1,8 @@
 use crate::errors::types::{DeserializationError, TypeError};
 use crate::json_types::JsonValue;
-use crate::types::{DozerDuration, DozerPoint, TimeUnit};
+use crate::types::{
+    DozerDuration, DozerPoint, FieldDefinition, Schema, SourceDefinition, TimeUnit,
+};
 #[allow(unused_imports)]
 use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
@@ -197,6 +199,10 @@ impl Field {
         }
     }
 
+    pub fn is_u128(&self) -> bool {
+        matches!(self, Field::U128(_))
+    }
+
     pub fn as_int(&self) -> Option<i64> {
         match self {
             Field::Int(i) => Some(*i),
@@ -211,6 +217,10 @@ impl Field {
             Field::Json(j) => j.as_i128(),
             _ => None,
         }
+    }
+
+    pub fn is_i128(&self) -> bool {
+        matches!(self, Field::I128(_))
     }
 
     pub fn as_float(&self) -> Option<f64> {
@@ -257,6 +267,10 @@ impl Field {
             Field::Decimal(d) => Some(*d),
             _ => None,
         }
+    }
+
+    pub fn is_decimal(&self) -> bool {
+        matches!(self, Field::Decimal(_))
     }
 
     pub fn as_timestamp(&self) -> Option<DateTime<FixedOffset>> {
@@ -750,6 +764,7 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
+        Field::Json(JsonValue::Array(vec![])),
         Field::Json(JsonValue::Array(vec![
             JsonValue::Number(OrderedFloat(123_f64)),
             JsonValue::Number(OrderedFloat(34_f64)),
@@ -767,6 +782,204 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
         Field::Null,
     ]
     .into_iter()
+}
+
+pub fn arrow_field_test_cases() -> impl Iterator<Item = Field> {
+    field_test_cases().filter(|case| !case.is_u128() && !case.is_i128() && !case.is_decimal())
+}
+
+pub fn arrow_field_test_cases_schema() -> Schema {
+    Schema::empty()
+        .field(
+            FieldDefinition::new(
+                "uint1".to_string(),
+                FieldType::UInt,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "uint2".to_string(),
+                FieldType::UInt,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "int1".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "int2".to_string(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "float1".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "float2".to_string(),
+                FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "boolean1".to_string(),
+                FieldType::Boolean,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "boolean2".to_string(),
+                FieldType::Boolean,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "string1".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "string2".to_string(),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "text1".to_string(),
+                FieldType::Text,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "text2".to_string(),
+                FieldType::Text,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "binary1".to_string(),
+                FieldType::Binary,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "binary2".to_string(),
+                FieldType::Binary,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "timestamp1".to_string(),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "timestamp2".to_string(),
+                FieldType::Timestamp,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "date1".to_string(),
+                FieldType::Date,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "date2".to_string(),
+                FieldType::Date,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "json1".to_string(),
+                FieldType::Json,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "json2".to_string(),
+                FieldType::Json,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                "null".to_string(),
+                FieldType::String,
+                true,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .clone()
 }
 
 #[cfg(any(

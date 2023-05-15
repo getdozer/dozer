@@ -176,6 +176,8 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Field::new("utf8_null", DataType::Utf8, true),
         Field::new("large_utf8", DataType::LargeUtf8, false),
         Field::new("large_utf8_null", DataType::LargeUtf8, true),
+        Field::new("json", DataType::Utf8, false),
+        Field::new("json_null", DataType::Utf8, true),
     ]);
 
     use arrow::array::{
@@ -260,6 +262,8 @@ pub fn record_batch_with_all_supported_data_types() -> arrow::record_batch::Reco
         Arc::new(StringArray::from_iter([Some(""), None])),
         Arc::new(LargeStringArray::from_iter_values(["", "1"])),
         Arc::new(LargeStringArray::from_iter([Some(""), None])),
+        Arc::new(StringArray::from_iter_values(["[1, 2, 3]", "1"])),
+        Arc::new(StringArray::from_iter([Some("[1, 2, 3]"), None])),
     ];
 
     arrow::record_batch::RecordBatch::try_new(Arc::new(schema), columns)
@@ -283,7 +287,7 @@ fn field_type_to_arrow(field_type: FieldType) -> Option<arrow::datatypes::DataTy
             None,
         )),
         FieldType::Date => Some(arrow::datatypes::DataType::Date32),
-        FieldType::Json => None,
+        FieldType::Json => Some(arrow::datatypes::DataType::Utf8),
         FieldType::Point => None,
         FieldType::Duration => Some(arrow::datatypes::DataType::Duration(
             arrow::datatypes::TimeUnit::Nanosecond,
@@ -421,7 +425,17 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             }
             Arc::new(builder.finish())
         }
-        FieldType::Json => panic!("Bson not supported"),
+        FieldType::Json => {
+            let mut builder = arrow::array::StringBuilder::new();
+            for field in fields {
+                match field {
+                    Field::Json(value) => builder.append_value(value.to_string()),
+                    Field::Null => builder.append_null(),
+                    _ => panic!("Unexpected field type"),
+                }
+            }
+            Arc::new(builder.finish())
+        }
         FieldType::Point => panic!("Point not supported"),
         FieldType::Duration => {
             let mut builder = arrow::array::DurationNanosecondArray::builder(count);
