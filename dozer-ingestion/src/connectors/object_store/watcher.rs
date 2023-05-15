@@ -1,6 +1,9 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use deltalake::{datafusion::datasource::listing::ListingTableUrl, Path};
+use deltalake::{
+    datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
+    Path,
+};
 use dozer_types::types::Operation;
 use futures::StreamExt;
 use object_store::ObjectStore;
@@ -8,7 +11,7 @@ use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
 use crate::{
-    connectors::TableInfo,
+    connectors::{object_store::helper::map_listing_options, TableInfo},
     errors::{ConnectorError, ObjectStoreConnectorError, ObjectStoreObjectError},
 };
 
@@ -18,7 +21,7 @@ const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Eq, Clone)]
 struct FileInfo {
-    name: String,
+    _name: String,
     last_modified: u64,
 }
 
@@ -61,32 +64,63 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
         let params = self.config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);
 
+        let source_folder = params.folder.to_string();
+
+        let mut source_state = HashMap::new();
+
+        let table_path = ListingTableUrl::parse(&params.table_path).map_err(|e| {
+            ObjectStoreConnectorError::DataFusionStorageObjectError(
+                ObjectStoreObjectError::ListingPathParsingError(params.table_path.clone(), e),
+            )
+        })?;
+        let listing_options = map_listing_options(params.data_fusion_table)
+            .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
+
+        let ctx = SessionContext::new();
+
+        ctx.runtime_env()
+            .register_object_store(params.scheme, params.host, store.clone());
+
+        let t = table.clone();
+
         tokio::spawn(async move {
             loop {
                 // List objects in the S3 bucket with the specified prefix
-                let mut stream = store.list(Some(&Path::from(params.folder))).await.unwrap();
+                let mut stream = store
+                    .list(Some(&Path::from(source_folder.to_owned())))
+                    .await
+                    .unwrap();
 
                 while let Some(item) = stream.next().await {
                     // Check if any objects have been added or modified
                     let object = item.unwrap();
                     println!(
-                        "Found object: {:?}, {:?}",
+                        "Source object: {:?}, {:?}",
                         object.location, object.last_modified
                     );
 
-                    // Do something with the object, such as download it or process it
-                }
+                    if let Some(last_modified) = source_state.get_mut(&object.location) {
+                        if *last_modified < object.last_modified {
+                            println!("Source Object has been modified");
+                        }
+                    } else {
+                        println!("Source Object has been added");
+                        source_state.insert(object.location, object.last_modified);
 
-                let table_path = ListingTableUrl::parse("data/trips")
-                    .map_err(|e| {
-                        ObjectStoreConnectorError::DataFusionStorageObjectError(
-                            ObjectStoreObjectError::ListingPathParsingError(
-                                params.table_path.clone(),
-                                e,
-                            ),
+                        let result = Self::read(
+                            id,
+                            ctx.clone(),
+                            table_path.clone(),
+                            listing_options.clone(),
+                            &t,
+                            sender.clone(),
                         )
-                    })
-                    .unwrap();
+                        .await;
+                        if let Err(e) = result {
+                            sender.send(Err(e)).await.unwrap();
+                        }
+                    }
+                }
 
                 // Wait for 10 seconds before checking again
                 tokio::time::sleep(WATCHER_INTERVAL).await;

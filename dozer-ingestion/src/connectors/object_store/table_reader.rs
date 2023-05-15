@@ -1,8 +1,6 @@
 use crate::connectors::object_store::adapters::DozerObjectStore;
-use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::TableInfo;
 use crate::errors::ObjectStoreConnectorError::{RecvError, TableReaderError};
-use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
 use crate::errors::ObjectStoreTableReaderError::{
     ColumnsSelectFailed, StreamExecutionError, TableReadFailed,
 };
@@ -18,7 +16,6 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Sender};
 use tonic::async_trait;
@@ -27,15 +24,11 @@ use super::watcher::Watcher;
 
 pub struct TableReader<T: Clone + Send + Sync> {
     pub(crate) config: T,
-    table_state: HashMap<String, u64>,
 }
 
 impl<T: Clone + Send + Sync> TableReader<T> {
     pub fn new(config: T) -> TableReader<T> {
-        Self {
-            config,
-            table_state: HashMap::new(),
-        }
+        Self { config }
     }
 
     pub async fn read(
@@ -147,43 +140,7 @@ impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
         let (tx, mut rx) = channel(16);
 
         for (id, table) in tables.iter().enumerate() {
-            let params = self.config.table_params(&table.name)?;
-
-            let table_path = ListingTableUrl::parse(&params.table_path).map_err(|e| {
-                ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError(
-                    params.table_path.clone(),
-                    e,
-                ))
-            })?;
-
-            let listing_options = map_listing_options(params.data_fusion_table)
-                .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
-
-            let ctx = SessionContext::new();
-
-            let store = Arc::new(params.object_store);
-            ctx.runtime_env()
-                .register_object_store(params.scheme, params.host, store.clone());
-
-            let sender = tx.clone();
-            let t = table.clone();
-
-            self.watch(id as u32, table, sender.clone()).await.unwrap();
-
-            tokio::spawn(async move {
-                let result = Self::read(
-                    id as u32,
-                    ctx,
-                    table_path,
-                    listing_options,
-                    &t,
-                    sender.clone(),
-                )
-                .await;
-                if let Err(e) = result {
-                    sender.send(Err(e)).await.unwrap();
-                }
-            });
+            self.watch(id as u32, table, tx.clone()).await.unwrap();
         }
 
         let mut idx = 1;
