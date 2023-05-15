@@ -199,6 +199,10 @@ impl Field {
         }
     }
 
+    pub fn is_u128(&self) -> bool {
+        matches!(self, Field::U128(_))
+    }
+
     pub fn as_int(&self) -> Option<i64> {
         match self {
             Field::Int(i) => Some(*i),
@@ -213,6 +217,10 @@ impl Field {
             Field::Json(j) => j.as_i128(),
             _ => None,
         }
+    }
+
+    pub fn is_i128(&self) -> bool {
+        matches!(self, Field::I128(_))
     }
 
     pub fn as_float(&self) -> Option<f64> {
@@ -259,6 +267,10 @@ impl Field {
             Field::Decimal(d) => Some(*d),
             _ => None,
         }
+    }
+
+    pub fn is_decimal(&self) -> bool {
+        matches!(self, Field::Decimal(_))
     }
 
     pub fn as_timestamp(&self) -> Option<DateTime<FixedOffset>> {
@@ -773,46 +785,10 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
 }
 
 pub fn arrow_field_test_cases() -> impl Iterator<Item = Field> {
-    [
-        Field::UInt(0_u64),
-        Field::UInt(1_u64),
-        Field::Int(0_i64),
-        Field::Int(1_i64),
-        Field::Float(OrderedFloat::from(0_f64)),
-        Field::Float(OrderedFloat::from(1_f64)),
-        Field::Boolean(true),
-        Field::Boolean(false),
-        Field::String("".to_string()),
-        Field::String("1".to_string()),
-        Field::Text("".to_string()),
-        Field::Text("1".to_string()),
-        Field::Binary(vec![]),
-        Field::Binary(vec![1]),
-        Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(0).unwrap())),
-        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
-        Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
-        Field::Date(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
-        Field::Json(JsonValue::Array(vec![])),
-        Field::Json(JsonValue::Array(vec![
-            JsonValue::Number(OrderedFloat(123_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(97_f64)),
-            JsonValue::Number(OrderedFloat(98_f64)),
-            JsonValue::Number(OrderedFloat(99_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(58_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(102_f64)),
-            JsonValue::Number(OrderedFloat(111_f64)),
-            JsonValue::Number(OrderedFloat(111_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-        ])),
-        Field::Null,
-    ]
-    .into_iter()
+    field_test_cases().filter(|case| !case.is_u128() && !case.is_i128() && !case.is_decimal())
 }
 
-pub fn schema_test_cases() -> Schema {
+pub fn arrow_field_test_cases_schema() -> Schema {
     Schema::empty()
         .field(
             FieldDefinition::new(

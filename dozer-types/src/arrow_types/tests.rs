@@ -117,18 +117,18 @@ fn roundtrip_record_to_record_batch() {
     use super::super::arrow_types::to_arrow::map_record_to_arrow;
     use super::super::types::Record;
     use crate::arrow_types::to_arrow::map_to_arrow_schema;
-    use crate::types::field::{arrow_field_test_cases, schema_test_cases};
+    use crate::types::field::{arrow_field_test_cases, arrow_field_test_cases_schema};
 
     let record: Record = Record::new(None, arrow_field_test_cases().collect());
     let record_batch: RecordBatch =
-        map_record_to_arrow(record.clone(), &schema_test_cases()).unwrap();
+        map_record_to_arrow(record.clone(), &arrow_field_test_cases_schema()).unwrap();
     let res: Vec<Record> =
-        map_record_batch_to_dozer_records(record_batch, &schema_test_cases()).unwrap();
+        map_record_batch_to_dozer_records(record_batch, &arrow_field_test_cases_schema()).unwrap();
 
     assert_eq!(vec![record], res);
 
-    let arrow_schema = map_to_arrow_schema(&schema_test_cases()).unwrap();
+    let arrow_schema = map_to_arrow_schema(&arrow_field_test_cases_schema()).unwrap();
     let original_schema = map_schema_to_dozer(&arrow_schema).unwrap();
 
-    assert_eq!(original_schema, schema_test_cases());
+    assert_eq!(original_schema, arrow_field_test_cases_schema());
 }
