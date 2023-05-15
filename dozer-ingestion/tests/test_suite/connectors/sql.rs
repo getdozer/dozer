@@ -164,7 +164,6 @@ fn field_type_to_sql(field_type: FieldType) -> Option<String> {
         FieldType::Decimal => Some("NUMERIC".to_string()),
         FieldType::Timestamp => Some("TIMESTAMP".to_string()),
         FieldType::Date => Some("DATE".to_string()),
-        // todo: mapping for `JSON`, `JSONB[]`, `JSON[]` is needed
         FieldType::Json => Some("JSONB".to_string()),
         FieldType::Point => Some("POINT".to_string()),
         FieldType::Duration => Some("DURATION".to_string()),

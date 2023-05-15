@@ -11,7 +11,7 @@ use deltalake::datafusion::datasource::listing::{
 };
 
 use deltalake::datafusion::prelude::SessionContext;
-use dozer_types::arrow_types::from_arrow::map_value_to_dozer_field;
+use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
@@ -81,7 +81,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
             };
 
             let batch_schema = batch.schema();
-            let metadata = batch_schema.metadata();
+            let dozer_schema = map_schema_to_dozer(&batch_schema)?;
 
             for row in 0..batch.num_rows() {
                 let fields = batch
@@ -93,7 +93,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                             column,
                             &row,
                             resolved_schema.field(col).name(),
-                            metadata,
+                            &dozer_schema,
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
