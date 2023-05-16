@@ -26,7 +26,7 @@ pub async fn deploy_app(
     {
         match result {
             Some(r) => {
-                if r.success == true {
+                if r.success {
                     info!("Deployed {}", &r.id);
                     match r.api_endpoint {
                         None => {}
