@@ -94,17 +94,19 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
                 while let Some(item) = stream.next().await {
                     // Check if any objects have been added or modified
                     let object = item.unwrap();
-                    info!(
-                        "Source object: {:?}, {:?}",
-                        object.location, object.last_modified
-                    );
 
                     if let Some(last_modified) = source_state.get_mut(&object.location) {
                         if *last_modified < object.last_modified {
-                            info!("Source Object has been modified");
+                            info!(
+                                "Source Object has been modified: {:?}, {:?}",
+                                object.location, object.last_modified
+                            );
                         }
                     } else {
-                        println!("Source Object has been added");
+                        info!(
+                            "Source Object has been added: {:?}, {:?}",
+                            object.location, object.last_modified
+                        );
                         source_state.insert(object.location, object.last_modified);
 
                         let result = Self::read(
