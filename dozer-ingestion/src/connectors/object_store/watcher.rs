@@ -4,7 +4,7 @@ use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path,
 };
-use dozer_types::types::Operation;
+use dozer_types::{tracing::info, types::Operation};
 use futures::StreamExt;
 use object_store::ObjectStore;
 use tokio::sync::mpsc::Sender;
@@ -94,14 +94,14 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
                 while let Some(item) = stream.next().await {
                     // Check if any objects have been added or modified
                     let object = item.unwrap();
-                    println!(
+                    info!(
                         "Source object: {:?}, {:?}",
                         object.location, object.last_modified
                     );
 
                     if let Some(last_modified) = source_state.get_mut(&object.location) {
                         if *last_modified < object.last_modified {
-                            println!("Source Object has been modified");
+                            info!("Source Object has been modified");
                         }
                     } else {
                         println!("Source Object has been added");
