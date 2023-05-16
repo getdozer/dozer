@@ -2,16 +2,16 @@ use crate::cli::cloud::Cloud;
 use crate::cloud_helper::list_files;
 use crate::errors::OrchestrationError::DeployFailed;
 use crate::errors::{DeployError, OrchestrationError};
+use crate::simple::cloud::deployer::deploy_app;
+use crate::simple::cloud::monitor::monitor_app;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
-    ListAppRequest, LogMessageRequest, StartRequest, UpdateAppRequest,
+    ListAppRequest, LogMessageRequest, UpdateAppRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
-
-use crate::simple::cloud_monitor::monitor_app;
 
 impl CloudOrchestrator for SimpleOrchestrator {
     // TODO: Deploy Dozer application using local Dozer configuration
@@ -41,7 +41,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             info!("Application created with id: {:?}", &response.id);
             // 2. START application
-            start_dozer(&mut client, &response.id).await
+            deploy_app(&mut client, &response.id).await
         })?;
         Ok(())
     }
@@ -64,7 +64,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             info!("Updated {}", &response.id);
 
-            start_dozer(&mut client, &app_id).await
+            deploy_app(&mut client, &app_id).await
         })?;
 
         Ok(())
@@ -185,24 +185,4 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
         Ok(())
     }
-}
-
-async fn start_dozer(
-    client: &mut DozerCloudClient<tonic::transport::Channel>,
-    app_id: &str,
-) -> Result<(), DeployError> {
-    info!("Deploying application");
-    let deploy_result = client
-        .start_dozer(StartRequest {
-            id: app_id.to_string(),
-        })
-        .await?
-        .into_inner();
-    info!("Deployed {}", app_id);
-    match deploy_result.api_endpoint {
-        None => {}
-        Some(endpoint) => info!("Endpoint: http://{endpoint}"),
-    }
-
-    Ok(())
 }

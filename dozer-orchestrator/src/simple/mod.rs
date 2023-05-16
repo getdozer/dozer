@@ -5,6 +5,7 @@ mod helper;
 mod migration;
 
 #[cfg(feature = "cloud")]
-mod cloud;
+mod cloud_orchestrator;
+
 #[cfg(feature = "cloud")]
-mod cloud_monitor;
+mod cloud;
