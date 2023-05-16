@@ -7,6 +7,11 @@ service DozerCloud {
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
+  rpc list_app_connections(ListAppConnectionRequest) returns (GetAllConnectionResponse);
+  rpc list_app_sources(ListSourceRequest) returns (ListSourceResponse);
+  rpc list_app_endpoints(ListEndpointRequest) returns (ListEndpointResponse);
+
+  rpc get_connection(GetConnectionRequest) returns (ConnectionResponse);
 
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
@@ -35,6 +40,45 @@ service DozerPublic {
   rpc company_metadata(CompanyRequest) returns (CompanyResponse);
 }
 
+message ListEndpointRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+
+message ListEndpointResponse {
+    repeated EndpointResponse endpoints = 1;
+    Pagination pagination = 2;
+}
+
+message EndpointResponse {
+  string id = 1;
+  Endpoint endpoint = 2;
+  string yaml_content = 3; 
+}
+
+message ListSourceRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+
+message ListSourceResponse {
+    repeated SourceResponse sources = 1;
+    Pagination pagination = 2;
+}
+
+message SourceResponse {
+  string id = 1;
+  Source source = 2;
+  string yaml_content = 3;
+}
+
+message ListAppConnectionRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
 message StartRequest { string id = 1; }
 message StartResponse {
   bool success = 1;
@@ -102,10 +146,14 @@ message DeleteAppResponse { bool success = 1; }
 
 message GetAppRequest { optional string app_id = 1; }
 message ConnectionRequest { Connection connection = 1; }
+message GetConnectionRequest {
+  string connection_id = 1;
+}
 message ValidateConnectionResponse { bool success = 1; }
 message ConnectionResponse {
   string id = 1;
   Connection connection = 2;
+  string yaml_content = 3;
 }
 
 message GetTablesRequest { string connection_id = 2; }
