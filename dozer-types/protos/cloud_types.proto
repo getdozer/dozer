@@ -32,6 +32,9 @@ message Connection {
     GrpcConfig Grpc = 3;
     SnowflakeConfig Snowflake = 4;
     KafkaConfig Kafka = 5;
+    S3Storage S3Storage = 6;
+    LocalStorage LocalStorage = 7;
+    DeltaLakeConfig DeltaLake = 8;
   }
   string name = 9;
 }
@@ -43,7 +46,40 @@ message ConnectionConfig {
     GrpcConfig Grpc = 3;
     SnowflakeConfig Snowflake = 4;
     KafkaConfig Kafka = 5;
+    S3Storage S3Storage = 6;
+    LocalStorage LocalStorage = 7;
+    DeltaLakeConfig DeltaLake = 8;
   }
+}
+message DeltaLakeConfig {
+  repeated Table tables = 1;
+}
+message S3Storage {
+  S3Details details = 1;
+  repeated Table tables = 2;
+}
+
+message S3Details {
+  string access_key_id = 1;
+  string secret_access_key = 2;
+  string region = 3;
+  string bucket_name = 4;
+}
+
+message LocalStorage {
+  LocalDetails details = 1;
+  repeated Table tables = 2;
+}
+
+message LocalDetails {
+  string path = 1;
+}
+
+message Table {
+  string name = 1;
+  string prefix = 2;
+  string file_type = 3;
+  string extension = 4;
 }
 
 message SnowflakeConfig {
