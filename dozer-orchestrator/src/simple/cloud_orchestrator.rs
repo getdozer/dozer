@@ -42,7 +42,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let response = client
                 .create_application(CreateAppRequest { files })
                 .await
-                .map_err(|e| GRPCCallError("create application".to_string(), e))?
+                .map_err(GRPCCallError)?
                 .into_inner();
 
             info!("Application created with id: {:?}", &response.id);
@@ -62,7 +62,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     files,
                 })
                 .await
-                .map_err(|e| GRPCCallError("update application".to_string(), e))?
+                .map_err(GRPCCallError)?
                 .into_inner();
 
             info!("Updated {}", &response.id);
@@ -81,7 +81,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let _delete_result = client
                 .delete_application(DeleteAppRequest { id: app_id.clone() })
                 .await
-                .map_err(|e| GRPCCallError("delete application".to_string(), e))?
+                .map_err(GRPCCallError)?
                 .into_inner();
             info!("Deleted {}", &app_id);
 
@@ -100,7 +100,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     offset: None,
                 })
                 .await
-                .map_err(|e| GRPCCallError("list applications".to_string(), e))?
+                .map_err(GRPCCallError)?
                 .into_inner();
 
             let mut table = table!();
@@ -123,7 +123,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let response = client
                 .get_status(GetStatusRequest { id: app_id })
                 .await
-                .map_err(|e| GRPCCallError("get status".to_string(), e))?
+                .map_err(GRPCCallError)?
                 .into_inner();
 
             let mut table = table!();
