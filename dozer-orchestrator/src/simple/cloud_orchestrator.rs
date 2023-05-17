@@ -162,7 +162,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 
     fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
-        monitor_app(app_id, cloud.target_url, self.runtime.clone()).map_err(crate::errors::OrchestrationError::CloudError)
+        monitor_app(app_id, cloud.target_url, self.runtime.clone())
+            .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
     fn trace_logs(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
