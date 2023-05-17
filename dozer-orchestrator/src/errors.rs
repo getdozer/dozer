@@ -27,8 +27,8 @@ pub enum OrchestrationError {
     GenerateTokenFailed(#[source] AuthError),
     #[error("Missing api config or security input")]
     MissingSecurityConfig,
-    #[error("Failed to deploy dozer application: {0:?}")]
-    DeployFailed(#[from] DeployError),
+    #[error("Cloud service error: {0}")]
+    CloudError(#[from] CloudError),
     #[error("Failed to initialize api server: {0}")]
     ApiServerFailed(#[from] ApiError),
     #[error("Failed to initialize grpc server: {0}")]
@@ -82,13 +82,15 @@ pub enum CliError {
 }
 
 #[derive(Error, Debug)]
-pub enum DeployError {
-    #[error("Cannot read configuration: {0}")]
+pub enum CloudError {
+    #[error("Connection failed. Error: {0:?}")]
+    ConnectionToCloudServiceError(#[from] tonic::transport::Error),
+
+    #[error("Cloud service returned error: {0:?}")]
+    CloudServiceError(#[from] tonic::Status),
+
+    #[error("Cannot read configuration: {0:?}")]
     CannotReadConfig(PathBuf, #[source] std::io::Error),
-    #[error("Transport error: {0}")]
-    Transport(#[from] tonic::transport::Error),
-    #[error("Server error: {0}")]
-    Server(#[from] tonic::Status),
 
     #[error("Wrong pattern of config files read glob: {0}")]
     WrongPatternOfConfigFilesGlob(#[from] PatternError),

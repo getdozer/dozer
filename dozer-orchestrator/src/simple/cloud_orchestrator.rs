@@ -1,7 +1,7 @@
 use crate::cli::cloud::Cloud;
 use crate::cloud_helper::list_files;
-use crate::errors::OrchestrationError::DeployFailed;
-use crate::errors::{DeployError, OrchestrationError};
+// use crate::errors::OrchestrationError::CloudError;
+use crate::errors::{CloudError, OrchestrationError};
 use crate::simple::cloud::deployer::deploy_app;
 use crate::simple::cloud::monitor::monitor_app;
 use crate::simple::SimpleOrchestrator;
@@ -83,7 +83,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .into_inner();
             info!("Deleted {}", &app_id);
 
-            Ok::<(), DeployError>(())
+            Ok::<(), CloudError>(())
         })?;
 
         Ok(())
@@ -112,7 +112,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             table.printstd();
 
-            Ok::<(), DeployError>(())
+            Ok::<(), CloudError>(())
         })?;
 
         Ok(())
@@ -155,14 +155,15 @@ impl CloudOrchestrator for SimpleOrchestrator {
             }
 
             table.printstd();
-            Ok::<(), DeployError>(())
+            Ok::<(), CloudError>(())
         })?;
 
         Ok(())
     }
 
     fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
-        monitor_app(app_id, cloud.target_url, self.runtime.clone()).map_err(DeployFailed)
+        monitor_app(app_id, cloud.target_url, self.runtime.clone())
+            .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
     fn trace_logs(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
@@ -180,7 +181,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 info!("{:?}", next_message);
             }
 
-            Ok::<(), DeployError>(())
+            Ok::<(), CloudError>(())
         })?;
 
         Ok(())
