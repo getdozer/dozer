@@ -31,6 +31,7 @@ service DozerCloud {
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
 
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
+  rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
   rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
 
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
@@ -183,14 +184,30 @@ message UpdateConnectionRequest {
   string connection_id = 3;
 }
 message ListFilesRequest {
+  string app_id = 1;
 }
 message ListFilesResponse {
-  repeated File files = 1;
+  repeated FileInfo files = 1;
+}
+message FileInfo {
+  string id = 1;
+  File file = 2;
+}
+
+message UpdateFileRequest {
+  string app_id = 1;
+  repeated FileInfo files = 2;
+}
+
+message UpdateFileResponse {
+  repeated FileInfo files = 1; 
 }
 message SaveFilesRequest {
-  repeated File files = 1;
+  string app_id = 1;
+  repeated File files = 2;
 }
 message SaveFilesResponse {
+  repeated FileInfo files = 1;
 }
 message LogMessageRequest {
   string app_id = 1;
