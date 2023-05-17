@@ -2,7 +2,7 @@ use crate::errors::DeployError;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::StartRequest;
 use dozer_types::grpc_types::cloud::StartUpdate;
-use dozer_types::indicatif::{ProgressBar, ProgressStyle};
+use dozer_types::indicatif::ProgressBar;
 use dozer_types::log::{info, warn};
 
 pub async fn deploy_app(
@@ -16,7 +16,7 @@ pub async fn deploy_app(
         .await?
         .into_inner();
 
-    let pb = attach_progress();
+    let pb = ProgressBar::new(0);
 
     while let Some(StartUpdate {
         result,
@@ -40,32 +40,11 @@ pub async fn deploy_app(
                 }
             }
             None => {
-                pb.set_message("Deployment in progress");
-                pb.set_position(current_step.into());
                 pb.set_length(total_steps.into());
+                pb.set_position(current_step.into());
             }
         }
     }
 
     Ok::<(), DeployError>(())
-}
-
-fn attach_progress() -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.red} {msg}: {pos}")
-            .unwrap()
-            // For more spinners check out the cli-spinners project:
-            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
-            .tick_strings(&[
-                "▹▹▹▹▹",
-                "▸▹▹▹▹",
-                "▹▸▹▹▹",
-                "▹▹▸▹▹",
-                "▹▹▹▸▹",
-                "▹▹▹▹▸",
-                "▪▪▪▪▪",
-            ]),
-    );
-    pb
 }
