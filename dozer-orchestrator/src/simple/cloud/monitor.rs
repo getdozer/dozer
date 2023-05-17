@@ -1,4 +1,4 @@
-use crate::errors::DeployError;
+use crate::errors::CloudError;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::StatusUpdate;
 use dozer_types::grpc_types::cloud::StatusUpdateRequest;
@@ -11,7 +11,7 @@ pub fn monitor_app(
     app_id: String,
     target_url: String,
     runtime: Arc<Runtime>,
-) -> Result<(), DeployError> {
+) -> Result<(), CloudError> {
     runtime.block_on(async move {
         let mut client: DozerCloudClient<tonic::transport::Channel> =
             DozerCloudClient::connect(target_url).await?;
@@ -37,7 +37,7 @@ pub fn monitor_app(
             };
         }
 
-        Ok::<(), DeployError>(())
+        Ok::<(), CloudError>(())
     })?;
 
     Ok(())

@@ -1,4 +1,4 @@
-use crate::errors::DeployError;
+use crate::errors::CloudError;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::StartRequest;
 use dozer_types::grpc_types::cloud::StartUpdate;
@@ -8,7 +8,7 @@ use dozer_types::log::{info, warn};
 pub async fn deploy_app(
     client: &mut DozerCloudClient<tonic::transport::Channel>,
     app_id: &str,
-) -> Result<(), DeployError> {
+) -> Result<(), CloudError> {
     let mut response = client
         .start_dozer(StartRequest {
             app_id: app_id.to_string(),
@@ -46,5 +46,5 @@ pub async fn deploy_app(
         }
     }
 
-    Ok::<(), DeployError>(())
+    Ok::<(), CloudError>(())
 }
