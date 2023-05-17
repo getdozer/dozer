@@ -97,6 +97,9 @@ pub enum CloudError {
 
     #[error("Cannot read file: {0}")]
     CannotReadFile(#[from] GlobError),
+
+    #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
+    GRPCCallError(#[source] tonic::Status),
 }
 
 #[derive(Debug, Error)]
