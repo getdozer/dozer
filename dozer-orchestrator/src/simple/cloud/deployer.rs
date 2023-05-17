@@ -1,4 +1,5 @@
 use crate::errors::CloudError;
+use crate::errors::CloudError::GRPCCallError;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::StartRequest;
 use dozer_types::grpc_types::cloud::StartUpdate;
@@ -22,7 +23,7 @@ pub async fn deploy_app(
         result,
         current_step,
         total_steps,
-    }) = response.message().await?
+    }) = response.message().await.map_err(GRPCCallError)?
     {
         match result {
             Some(r) => {
