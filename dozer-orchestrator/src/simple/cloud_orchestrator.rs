@@ -145,11 +145,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             table.add_row(row![
                 "Api endpoint",
-                if let Some(endpoint) = response.api_endpoint {
-                    format!("http://{}", endpoint)
-                } else {
-                    "-".to_string()
-                }
+                format!("http://{}", response.api_endpoint),
             ]);
 
             let mut revision_table = table!();
