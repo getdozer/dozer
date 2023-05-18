@@ -136,6 +136,8 @@ message AppResponse {
 message ListAppRequest {
   optional uint32 limit = 1;
   optional uint32 offset = 2;
+  optional string name = 3;
+  optional string uuid = 4;
 }
 message ListAppResponse {
   repeated AppResponse apps = 1;

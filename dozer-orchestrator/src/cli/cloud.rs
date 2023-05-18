@@ -21,7 +21,7 @@ pub enum CloudCommands {
     Deploy,
     Update(AppCommand),
     Delete(AppCommand),
-    List,
+    List(ListCommandArgs),
     Status(AppCommand),
     Monitor(AppCommand),
     Logs(AppCommand),
@@ -31,4 +31,16 @@ pub enum CloudCommands {
 pub struct AppCommand {
     #[arg(short = 'a', long)]
     pub app_id: String,
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct ListCommandArgs {
+    #[arg(short = 'o', long)]
+    pub offset: Option<u32>,
+    #[arg(short = 'l', long)]
+    pub limit: Option<u32>,
+    #[arg(short = 'n', long)]
+    pub name: Option<String>,
+    #[arg(short = 'u', long)]
+    pub uuid: Option<String>,
 }

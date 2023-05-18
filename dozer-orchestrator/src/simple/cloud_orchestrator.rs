@@ -1,4 +1,4 @@
-use crate::cli::cloud::Cloud;
+use crate::cli::cloud::{Cloud, ListCommandArgs};
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
 use crate::errors::{CloudError, OrchestrationError};
@@ -94,13 +94,15 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn list(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+    fn list(&mut self, cloud: Cloud, list: &ListCommandArgs) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
             let response = client
                 .list_applications(ListAppRequest {
-                    limit: None,
-                    offset: None,
+                    limit: list.limit,
+                    offset: list.offset,
+                    name: list.name.clone(),
+                    uuid: list.uuid.clone(),
                 })
                 .await
                 .map_err(GRPCCallError)?
@@ -109,10 +111,19 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let mut table = table!();
 
             for app in response.apps {
-                table.add_row(row![app.id, app.app.unwrap().convert_to_table()]);
+                if let Some(app_data) = app.app {
+                    table.add_row(row![app.id, app_data.convert_to_table()]);
+                }
             }
 
             table.printstd();
+
+            info!(
+                "Total apps: {}",
+                response
+                    .pagination
+                    .map_or_else(|| 0, |pagination| pagination.total)
+            );
 
             Ok::<(), CloudError>(())
         })?;
