@@ -93,10 +93,10 @@ message StartUpdate {
   uint32 current_step = 2;
   uint32 total_steps = 3;
 }
-message StopRequest { string id = 1; }
+message StopRequest { string app_id = 1; }
 message StopResponse { bool success = 1; }
 
-message GetStatusRequest { string id = 1; }
+message GetStatusRequest { string app_id = 1; }
 message GetStatusResponse {
   string state = 1;
   optional string api_endpoint = 2;

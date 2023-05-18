@@ -2,7 +2,7 @@ use crate::cli::cloud::Cloud;
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
 use crate::errors::{CloudError, OrchestrationError};
-use crate::simple::cloud::deployer::deploy_app;
+use crate::simple::cloud::deployer::{deploy_app, stop_app};
 use crate::simple::cloud::monitor::monitor_app;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
@@ -76,8 +76,11 @@ impl CloudOrchestrator for SimpleOrchestrator {
     fn delete(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
+            info!("Stopping application");
+            stop_app(&mut client, &app_id).await?;
+            info!("Application stopped");
 
-            info!("Delete application");
+            info!("Deleting application");
             let _delete_result = client
                 .delete_application(DeleteAppRequest { id: app_id.clone() })
                 .await
@@ -121,7 +124,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
             let response = client
-                .get_status(GetStatusRequest { id: app_id })
+                .get_status(GetStatusRequest { app_id })
                 .await
                 .map_err(GRPCCallError)?
                 .into_inner();
