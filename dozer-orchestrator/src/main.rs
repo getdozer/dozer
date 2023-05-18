@@ -159,7 +159,7 @@ fn run() -> Result<(), OrchestrationError> {
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
                 CloudCommands::Deploy => dozer.deploy(cloud),
-                CloudCommands::List => dozer.list(cloud),
+                CloudCommands::List(ref list) => dozer.list(cloud, list),
                 CloudCommands::Status(ref app) => dozer.status(cloud, app.app_id.clone()),
                 CloudCommands::Monitor(ref app) => dozer.monitor(cloud, app.app_id.clone()),
                 CloudCommands::Update(ref app) => dozer.update(cloud, app.app_id.clone()),
