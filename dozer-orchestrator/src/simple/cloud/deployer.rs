@@ -1,8 +1,8 @@
 use crate::errors::CloudError;
 use crate::errors::CloudError::GRPCCallError;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
-use dozer_types::grpc_types::cloud::StartRequest;
 use dozer_types::grpc_types::cloud::StartUpdate;
+use dozer_types::grpc_types::cloud::{StartRequest, StopRequest, StopResponse};
 use dozer_types::indicatif::ProgressBar;
 use dozer_types::log::{info, warn};
 
@@ -48,4 +48,18 @@ pub async fn deploy_app(
     }
 
     Ok::<(), CloudError>(())
+}
+
+pub async fn stop_app(
+    client: &mut DozerCloudClient<tonic::transport::Channel>,
+    app_id: &str,
+) -> Result<StopResponse, CloudError> {
+    let result = client
+        .stop_dozer(StopRequest {
+            app_id: app_id.to_string(),
+        })
+        .await?
+        .into_inner();
+
+    Ok(result)
 }
