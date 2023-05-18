@@ -151,7 +151,7 @@ async fn test_csv_read() {
     }
 
     let mut i = 1;
-    while i < 9 {
+    while i < 19 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },

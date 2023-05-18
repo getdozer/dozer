@@ -90,6 +90,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
                     .await
                     .unwrap();
 
+                // Contains added files as FileInfo
                 let mut new_files = vec![];
 
                 while let Some(item) = stream.next().await {
@@ -97,6 +98,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
                     let object = item.unwrap();
 
                     if let Some(last_modified) = source_state.get_mut(&object.location) {
+                        // Scenario 1: Update on existing file
                         if *last_modified < object.last_modified {
                             info!(
                                 "Source Object has been modified: {:?}, {:?}",
@@ -104,18 +106,19 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
                             );
                         }
                     } else {
+                        // Scenario 2: New file added
                         info!(
                             "Source Object has been added: {:?}, {:?}",
                             object.location, object.last_modified
                         );
 
                         let file_path = object.location.to_string();
-                        // skip the source folder
+                        // Skip the source folder
                         if file_path == source_folder {
                             continue;
                         }
 
-                        //remove base folder from relative path
+                        // Remove base folder from relative path
                         let path = Path::new(&file_path);
                         let new_path = path
                             .strip_prefix(path.components().next().unwrap())
@@ -130,6 +133,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
                     }
                 }
 
+                new_files.sort();
                 for file in new_files {
                     let file_path = ListingTableUrl::parse(&file._name)
                         .map_err(|e| {
