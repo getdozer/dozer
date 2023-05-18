@@ -98,10 +98,15 @@ message StopResponse { bool success = 1; }
 
 message GetStatusRequest { string app_id = 1; }
 message GetStatusResponse {
-  string state = 1;
-  optional string api_endpoint = 2;
-  optional uint32 rest_port = 3;
-  optional string grpc_port = 4;
+  optional string api_endpoint = 1;
+  repeated RevisionStatus revisions = 2;
+  map<uint32, uint32> versions = 3;
+  optional uint32 current_version = 4;
+}
+
+message RevisionStatus {
+  bool app_running = 1;
+  bool api_running = 2;
 }
 
 message CreateAppRequest {

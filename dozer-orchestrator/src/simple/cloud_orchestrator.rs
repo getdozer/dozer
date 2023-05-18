@@ -142,27 +142,50 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             let mut table = table!();
 
-            table.add_row(row!["State", response.state]);
-            match response.api_endpoint {
-                None => {}
-                Some(endpoint) => {
-                    table.add_row(row!["API endpoint", format!("http://{}", endpoint)]);
+            table.add_row(row![
+                "Api endpoint",
+                if let Some(endpoint) = response.api_endpoint {
+                    format!("http://{}", endpoint)
+                } else {
+                    "-".to_string()
                 }
+            ]);
+
+            let mut revision_table = table!();
+            revision_table.set_titles(row!["Revision", "App", "Api", "Version"]);
+
+            for (revision, status) in response.revisions.iter().enumerate() {
+                let revision = revision as u32;
+
+                fn mark(status: bool) -> &'static str {
+                    if status {
+                        "✅︎"
+                    } else {
+                        "❎"
+                    }
+                }
+
+                let mut version = "".to_string();
+                for (loop_version, loop_revision) in response.versions.iter() {
+                    if loop_revision == &revision {
+                        if Some(*loop_version) == response.current_version {
+                            version = format!("v{loop_version} (current)");
+                        } else {
+                            version = format!("v{loop_version}");
+                        }
+                        break;
+                    }
+                }
+
+                revision_table.add_row(row![
+                    revision,
+                    mark(status.app_running),
+                    mark(status.api_running),
+                    version
+                ]);
             }
 
-            match response.rest_port {
-                None => {}
-                Some(port) => {
-                    table.add_row(row!["REST Port", port.to_string()]);
-                }
-            }
-
-            match response.grpc_port {
-                None => {}
-                Some(port) => {
-                    table.add_row(row!["GRPC Port", port]);
-                }
-            }
+            table.add_row(row!["Revisions", revision_table]);
 
             table.printstd();
             Ok::<(), CloudError>(())
