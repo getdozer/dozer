@@ -62,8 +62,7 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
     statement_to_pipeline(sql, &mut pipeline, None)
 }
 #[cfg(feature = "cloud")]
-use crate::cli::cloud::Cloud;
-use crate::cli::cloud::ListCommandArgs;
+use crate::cli::cloud::{Cloud, ListCommandArgs};
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 
