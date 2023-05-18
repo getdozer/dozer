@@ -1,4 +1,4 @@
-use crate::cli::cloud::{Cloud, ListCommandArgs};
+use crate::cli::cloud::{Cloud, ListCommandArgs, VersionCommand};
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
 use crate::errors::{CloudError, OrchestrationError};
@@ -10,6 +10,7 @@ use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
     ListAppRequest, LogMessageRequest, UpdateAppRequest,
 };
+use dozer_types::grpc_types::cloud::{SetCurrentVersionRequest, UpsertVersionRequest};
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 
@@ -94,15 +95,15 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn list(&mut self, cloud: Cloud, list: &ListCommandArgs) -> Result<(), OrchestrationError> {
+    fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
             let response = client
                 .list_applications(ListAppRequest {
                     limit: list.limit,
                     offset: list.offset,
-                    name: list.name.clone(),
-                    uuid: list.uuid.clone(),
+                    name: list.name,
+                    uuid: list.uuid,
                 })
                 .await
                 .map_err(GRPCCallError)?
@@ -217,6 +218,46 @@ impl CloudOrchestrator for SimpleOrchestrator {
             Ok::<(), CloudError>(())
         })?;
 
+        Ok(())
+    }
+}
+
+impl SimpleOrchestrator {
+    pub fn version(
+        &mut self,
+        cloud: Cloud,
+        version: VersionCommand,
+    ) -> Result<(), OrchestrationError> {
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud).await?;
+
+            match version {
+                VersionCommand::Create { revision, app_id } => {
+                    let status = client
+                        .get_status(GetStatusRequest {
+                            app_id: app_id.clone(),
+                        })
+                        .await?
+                        .into_inner();
+                    let latest_version = status.versions.into_values().max().unwrap_or(0);
+
+                    client
+                        .upsert_version(UpsertVersionRequest {
+                            app_id,
+                            version: latest_version + 1,
+                            revision,
+                        })
+                        .await?;
+                }
+                VersionCommand::SetCurrent { version, app_id } => {
+                    client
+                        .set_current_version(SetCurrentVersionRequest { app_id, version })
+                        .await?;
+                }
+            }
+
+            Ok::<_, CloudError>(())
+        })?;
         Ok(())
     }
 }

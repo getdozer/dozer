@@ -29,6 +29,8 @@ service DozerCloud {
   rpc StartDozer(StartRequest) returns (stream StartUpdate);
   rpc stop_dozer(StopRequest) returns (StopResponse);
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
+  rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
+  rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
 
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
@@ -108,6 +110,21 @@ message RevisionStatus {
   bool app_running = 1;
   bool api_running = 2;
 }
+
+message UpsertVersionRequest {
+  string app_id = 1;
+  uint32 version = 2;
+  uint32 revision = 3;
+}
+
+message UpsertVersionResponse {}
+
+message SetCurrentVersionRequest {
+  string app_id = 1;
+  uint32 version = 2;
+}
+
+message SetCurrentVersionResponse {}
 
 message CreateAppRequest {
   repeated File files = 3;

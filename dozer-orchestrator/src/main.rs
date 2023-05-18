@@ -159,12 +159,13 @@ fn run() -> Result<(), OrchestrationError> {
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
                 CloudCommands::Deploy => dozer.deploy(cloud),
-                CloudCommands::List(ref list) => dozer.list(cloud, list),
-                CloudCommands::Status(ref app) => dozer.status(cloud, app.app_id.clone()),
-                CloudCommands::Monitor(ref app) => dozer.monitor(cloud, app.app_id.clone()),
-                CloudCommands::Update(ref app) => dozer.update(cloud, app.app_id.clone()),
-                CloudCommands::Delete(ref app) => dozer.delete(cloud, app.app_id.clone()),
-                CloudCommands::Logs(ref app) => dozer.trace_logs(cloud, app.app_id.clone()),
+                CloudCommands::List(list) => dozer.list(cloud, list),
+                CloudCommands::Status(app) => dozer.status(cloud, app.app_id),
+                CloudCommands::Monitor(app) => dozer.monitor(cloud, app.app_id),
+                CloudCommands::Update(app) => dozer.update(cloud, app.app_id),
+                CloudCommands::Delete(app) => dozer.delete(cloud, app.app_id),
+                CloudCommands::Logs(app) => dozer.trace_logs(cloud, app.app_id),
+                CloudCommands::Version(version) => dozer.version(cloud, version),
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
