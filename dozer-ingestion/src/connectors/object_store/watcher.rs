@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
-    Path,
+    Path as DeltaPath,
 };
 use dozer_types::{tracing::info, types::Operation};
 use futures::StreamExt;
@@ -15,6 +15,8 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError, ObjectStoreObjectError},
 };
 
+use std::path::Path;
+
 use super::{adapters::DozerObjectStore, table_reader::TableReader};
 
 const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
@@ -22,7 +24,7 @@ const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 #[derive(Debug, Eq, Clone)]
 struct FileInfo {
     _name: String,
-    last_modified: u64,
+    last_modified: i64,
 }
 
 impl Ord for FileInfo {
@@ -68,11 +70,8 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
 
         let mut source_state = HashMap::new();
 
-        let table_path = ListingTableUrl::parse(&params.table_path).map_err(|e| {
-            ObjectStoreConnectorError::DataFusionStorageObjectError(
-                ObjectStoreObjectError::ListingPathParsingError(params.table_path.clone(), e),
-            )
-        })?;
+        let base_path = params.table_path;
+
         let listing_options = map_listing_options(params.data_fusion_table)
             .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
 
@@ -87,9 +86,11 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
             loop {
                 // List objects in the S3 bucket with the specified prefix
                 let mut stream = store
-                    .list(Some(&Path::from(source_folder.to_owned())))
+                    .list(Some(&DeltaPath::from(source_folder.to_owned())))
                     .await
                     .unwrap();
+
+                let mut new_files = vec![];
 
                 while let Some(item) = stream.next().await {
                     // Check if any objects have been added or modified
@@ -107,20 +108,51 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
                             "Source Object has been added: {:?}, {:?}",
                             object.location, object.last_modified
                         );
-                        source_state.insert(object.location, object.last_modified);
 
-                        let result = Self::read(
-                            id,
-                            ctx.clone(),
-                            table_path.clone(),
-                            listing_options.clone(),
-                            &t,
-                            sender.clone(),
-                        )
-                        .await;
-                        if let Err(e) = result {
-                            sender.send(Err(e)).await.unwrap();
+                        let file_path = object.location.to_string();
+                        // skip the source folder
+                        if file_path == source_folder {
+                            continue;
                         }
+
+                        //remove base folder from relative path
+                        let path = Path::new(&file_path);
+                        let new_path = path
+                            .strip_prefix(path.components().next().unwrap())
+                            .unwrap();
+                        let new_path_str = new_path.to_str().unwrap();
+
+                        new_files.push(FileInfo {
+                            _name: base_path.clone() + new_path_str,
+                            last_modified: object.last_modified.timestamp(),
+                        });
+                        source_state.insert(object.location, object.last_modified);
+                    }
+                }
+
+                for file in new_files {
+                    let file_path = ListingTableUrl::parse(&file._name)
+                        .map_err(|e| {
+                            ObjectStoreConnectorError::DataFusionStorageObjectError(
+                                ObjectStoreObjectError::ListingPathParsingError(
+                                    file._name.clone(),
+                                    e,
+                                ),
+                            )
+                        })
+                        .unwrap();
+
+                    let result = Self::read(
+                        id,
+                        ctx.clone(),
+                        file_path,
+                        listing_options.clone(),
+                        &t,
+                        sender.clone(),
+                    )
+                    .await;
+                    if let Err(e) = result {
+                        sender.send(Err(e)).await.unwrap();
                     }
                 }
 
