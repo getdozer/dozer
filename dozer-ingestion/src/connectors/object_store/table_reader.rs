@@ -110,7 +110,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
             }
         }
 
-        sender.send(Ok(None)).await.unwrap();
+        // sender.send(Ok(None)).await.unwrap();
 
         Ok(())
     }
