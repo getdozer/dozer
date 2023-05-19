@@ -2282,6 +2282,7 @@ dependencies = [
 name = "dozer-orchestrator"
 version = "0.1.22"
 dependencies = [
+ "atty",
  "clap 4.1.11",
  "ctrlc",
  "dozer-api",
@@ -2381,6 +2382,7 @@ dependencies = [
 name = "dozer-tracing"
 version = "0.1.22"
 dependencies = [
+ "atty",
  "dozer-types",
  "metrics-exporter-prometheus",
  "opentelemetry",

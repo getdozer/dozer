@@ -64,7 +64,6 @@ fn create_subscriber(
 ) -> (impl Subscriber, WorkerGuard) {
     let app_name = app_name.unwrap_or("dozer");
 
-    let fmt_layer = fmt::layer().with_target(false);
     let fmt_filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("info"))
         .unwrap();
@@ -93,8 +92,14 @@ fn create_subscriber(
     let file_appender = tracing_appender::rolling::never("./log", format!("{app_name}.log"));
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
+    let stdout_is_tty = atty::is(atty::Stream::Stdout);
     let subscriber = tracing_subscriber::registry()
-        .with(fmt_layer.with_filter(fmt_filter))
+        .with(
+            fmt::Layer::default()
+                .with_target(!stdout_is_tty)
+                .with_ansi(stdout_is_tty)
+                .with_filter(fmt_filter),
+        )
         .with(
             fmt::Layer::default()
                 .with_ansi(false)
