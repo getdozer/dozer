@@ -50,10 +50,10 @@ pub struct ListCommandArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum VersionCommand {
-    /// Creates a new version of the application with the given revision
+    /// Creates a new version of the application with the given deployment
     Create {
-        /// The revision of the application to create a new version from
-        revision: u32,
+        /// The deployment of the application to create a new version from
+        deployment: u32,
         /// The application id.
         #[clap(short, long)]
         app_id: String,

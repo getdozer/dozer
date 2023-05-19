@@ -148,23 +148,23 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 format!("http://{}", response.api_endpoint),
             ]);
 
-            let mut revision_table = table!();
-            revision_table.set_titles(row!["Revision", "App", "Api", "Version"]);
+            let mut deployment_table = table!();
+            deployment_table.set_titles(row!["Deployment", "App", "Api", "Version"]);
 
-            for (revision, status) in response.revisions.iter().enumerate() {
-                let revision = revision as u32;
+            for (deployment, status) in response.deployments.iter().enumerate() {
+                let deployment = deployment as u32;
 
                 fn mark(status: bool) -> &'static str {
                     if status {
-                        "✅︎"
+                        "🟢"
                     } else {
-                        "❎"
+                        "🟠"
                     }
                 }
 
                 let mut version = "".to_string();
-                for (loop_version, loop_revision) in response.versions.iter() {
-                    if loop_revision == &revision {
+                for (loop_version, loop_deployment) in response.versions.iter() {
+                    if loop_deployment == &deployment {
                         if Some(*loop_version) == response.current_version {
                             version = format!("v{loop_version} (current)");
                         } else {
@@ -174,15 +174,15 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     }
                 }
 
-                revision_table.add_row(row![
-                    revision,
+                deployment_table.add_row(row![
+                    deployment,
                     mark(status.app_running),
                     mark(status.api_running),
                     version
                 ]);
             }
 
-            table.add_row(row!["Revisions", revision_table]);
+            table.add_row(row!["Deployments", deployment_table]);
 
             table.printstd();
             Ok::<(), CloudError>(())
@@ -228,7 +228,7 @@ impl SimpleOrchestrator {
             let mut client = get_cloud_client(&cloud).await?;
 
             match version {
-                VersionCommand::Create { revision, app_id } => {
+                VersionCommand::Create { deployment, app_id } => {
                     let status = client
                         .get_status(GetStatusRequest {
                             app_id: app_id.clone(),
@@ -241,7 +241,7 @@ impl SimpleOrchestrator {
                         .upsert_version(UpsertVersionRequest {
                             app_id,
                             version: latest_version + 1,
-                            revision,
+                            deployment,
                         })
                         .await?;
                 }

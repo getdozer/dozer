@@ -102,12 +102,12 @@ message StopResponse { bool success = 1; }
 message GetStatusRequest { string app_id = 1; }
 message GetStatusResponse {
   string api_endpoint = 1;
-  repeated RevisionStatus revisions = 2;
+  repeated DeploymentStatus deployments = 2;
   map<uint32, uint32> versions = 3;
   optional uint32 current_version = 4;
 }
 
-message RevisionStatus {
+message DeploymentStatus {
   bool app_running = 1;
   bool api_running = 2;
 }
@@ -115,7 +115,7 @@ message RevisionStatus {
 message UpsertVersionRequest {
   string app_id = 1;
   uint32 version = 2;
-  uint32 revision = 3;
+  uint32 deployment = 3;
 }
 
 message UpsertVersionResponse {}
