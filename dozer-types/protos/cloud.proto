@@ -12,6 +12,9 @@ service DozerCloud {
   rpc list_app_endpoints(ListEndpointRequest) returns (ListEndpointResponse);
 
   rpc get_connection(GetConnectionRequest) returns (ConnectionResponse);
+  rpc create_app_connection(AppConnectionRequest) returns (ConnectionResponse);
+  rpc create_source(CreateSourceRequest) returns (SourceResponse);
+
 
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
@@ -43,6 +46,19 @@ service DozerCloud {
 
 service DozerPublic {
   rpc company_metadata(CompanyRequest) returns (CompanyResponse);
+}
+
+message AppConnectionRequest {
+  string app_id = 1;
+  oneof input {
+    Connection connection = 2;
+    string connection_yaml = 3;
+  }
+}
+
+message CreateSourceRequest {
+  string app_id = 1;
+  Source source = 2;
 }
 
 message ListEndpointRequest {
