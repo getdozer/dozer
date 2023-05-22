@@ -4,7 +4,7 @@ use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
 use dozer_cache::cache::CacheRecord;
-use dozer_cache::CacheReader;
+use dozer_cache::{CacheReader, Phase};
 use dozer_types::errors::types::TypeError;
 use dozer_types::indexmap::IndexMap;
 use dozer_types::log::warn;
@@ -179,4 +179,12 @@ fn record_to_map(
     );
 
     Ok(map)
+}
+
+pub async fn get_phase(
+    cache_endpoint: ReqData<Arc<CacheEndpoint>>,
+) -> Result<web::Json<Phase>, ApiError> {
+    let cache_reader = cache_endpoint.cache_reader();
+    let phase = cache_reader.get_phase().map_err(ApiError::GetPhaseFailed)?;
+    Ok(web::Json(phase))
 }

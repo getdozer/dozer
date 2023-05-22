@@ -33,6 +33,8 @@ pub enum ApiError {
     CountFailed(#[source] CacheError),
     #[error("Failed to query cache: {0}")]
     QueryFailed(#[source] CacheError),
+    #[error("Failed to get cache phase: {0}")]
+    GetPhaseFailed(#[source] CacheError),
     #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
     #[error("Type error: {0}")]
@@ -155,6 +157,7 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::CacheNotFound(_)
             | ApiError::QueryFailed(_)
             | ApiError::CountFailed(_)
+            | ApiError::GetPhaseFailed(_)
             | ApiError::FailedToBindToAddress(_, _)
             | ApiError::FailedToLoadSchema(_)
             | ApiError::NoMigrationFound(_)

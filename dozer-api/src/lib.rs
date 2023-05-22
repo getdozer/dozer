@@ -67,6 +67,7 @@ impl CacheEndpoint {
             cache_manager,
             cache_labels.clone(),
             (schema.schema, schema.secondary_indexes),
+            &schema.connections,
             write_options,
         )
         .map_err(ApiError::OpenOrCreateCache)?;

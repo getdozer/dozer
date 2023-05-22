@@ -23,6 +23,7 @@ pub fn create_cache(
     let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(1)));
     let cache = LmdbRwCache::new(
         Some(&schema),
+        None,
         &Default::default(),
         Default::default(),
         indexing_thread_pool.clone(),

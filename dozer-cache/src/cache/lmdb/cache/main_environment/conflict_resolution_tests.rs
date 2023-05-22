@@ -18,7 +18,7 @@ fn init_env(conflict_resolution: ConflictResolution) -> (RwMainEnvironment, Sche
         ..Default::default()
     };
     let main_env =
-        RwMainEnvironment::new(Some(&schema), &Default::default(), write_options).unwrap();
+        RwMainEnvironment::new(Some(&schema), None, &Default::default(), write_options).unwrap();
     (main_env, schema.0)
 }
 

@@ -80,10 +80,12 @@ impl ChannelManager {
         Ok(())
     }
 
-    fn send_snapshotting_done(&self) -> Result<(), ExecutionError> {
+    fn send_snapshotting_done(&self, connection_name: String) -> Result<(), ExecutionError> {
         for senders in self.senders.values() {
             for sender in senders {
-                sender.send(ExecutorOperation::SnapshottingDone {})?;
+                sender.send(ExecutorOperation::SnapshottingDone {
+                    connection_name: connection_name.clone(),
+                })?;
             }
         }
 
@@ -207,12 +209,13 @@ impl SourceChannelManager {
             }
             IngestionMessageKind::SnapshottingDone => {
                 self.num_uncommitted_ops += 1;
-                self.manager.send_snapshotting_done()?;
+                self.manager
+                    .send_snapshotting_done(self.source_handle.id.clone())?;
                 self.commit(request_termination)
             }
             IngestionMessageKind::SnapshottingStarted => {
                 // TODO "implement handle for snapshotting started"
-                Ok(true)
+                Ok(false)
             }
         }
     }
@@ -247,8 +250,8 @@ impl ProcessorChannelManager {
         self.manager.send_terminate()
     }
 
-    pub fn send_snapshotting_done(&self) -> Result<(), ExecutionError> {
-        self.manager.send_snapshotting_done()
+    pub fn send_snapshotting_done(&self, connection_name: String) -> Result<(), ExecutionError> {
+        self.manager.send_snapshotting_done(connection_name)
     }
 }
 

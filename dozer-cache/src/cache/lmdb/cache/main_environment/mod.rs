@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
 };
@@ -7,7 +8,7 @@ use dozer_storage::{
     errors::StorageError,
     lmdb::{RwTransaction, Transaction},
     lmdb_storage::{RoLmdbEnvironment, RwLmdbEnvironment},
-    LmdbEnvironment, LmdbOption,
+    LmdbEnvironment, LmdbMap, LmdbOption,
 };
 use dozer_types::{
     borrow::IntoOwned,
@@ -28,7 +29,7 @@ use crate::{
         lmdb::utils::{create_env, open_env},
         CacheRecord, RecordMeta, UpsertResult,
     },
-    errors::CacheError,
+    errors::{CacheError, ConnectionMismatch},
 };
 
 mod operation_log;
@@ -85,6 +86,16 @@ pub trait MainEnvironment: LmdbEnvironment {
             .map(|data| data.map(IntoOwned::into_owned))
             .map_err(Into::into)
     }
+
+    fn is_snapshotting_done(&self) -> Result<bool, CacheError> {
+        let txn = self.begin_txn()?;
+        for value in self.common().connection_snapshotting_done.values(&txn)? {
+            if !value?.into_owned() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +108,8 @@ pub struct MainEnvironmentCommon {
     schema: SchemaWithIndex,
     /// The metadata.
     metadata: LmdbOption<u64>,
+    /// The source status.
+    connection_snapshotting_done: LmdbMap<String, bool>,
     /// The operation log.
     operation_log: OperationLog,
     intersection_chunk_size: usize,
@@ -125,6 +138,7 @@ impl MainEnvironment for RwMainEnvironment {
 impl RwMainEnvironment {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
+        connections: Option<&HashSet<String>>,
         options: &CacheOptions,
         write_options: CacheWriteOptions,
     ) -> Result<Self, CacheError> {
@@ -133,6 +147,8 @@ impl RwMainEnvironment {
         let operation_log = OperationLog::create(&mut env)?;
         let schema_option = LmdbOption::create(&mut env, Some("schema"))?;
         let metadata = LmdbOption::create(&mut env, Some("metadata"))?;
+        let connection_snapshotting_done =
+            LmdbMap::create(&mut env, Some("connection_snapshotting_done"))?;
 
         let old_schema = schema_option
             .load(&env.begin_txn()?)?
@@ -158,6 +174,32 @@ impl RwMainEnvironment {
             (None, None) => return Err(CacheError::SchemaNotFound),
         };
 
+        if let Some(connections) = connections {
+            if connection_snapshotting_done.count(&env.begin_txn()?)? == 0 {
+                // A new environment, set all connections to false.
+                let txn = env.txn_mut()?;
+                for connection in connections {
+                    connection_snapshotting_done.insert(txn, connection.as_str(), &false)?;
+                }
+                env.commit()?;
+            } else {
+                // Check if the connections match.
+                let mut existing_connections = HashSet::<String>::default();
+                for connection in connection_snapshotting_done.iter(&env.begin_txn()?)? {
+                    existing_connections.insert(connection?.0.into_owned());
+                }
+                if &existing_connections != connections {
+                    return Err(CacheError::ConnectionsMismatch(Box::new(
+                        ConnectionMismatch {
+                            name: labels.to_string(),
+                            given: connections.clone(),
+                            stored: existing_connections,
+                        },
+                    )));
+                }
+            }
+        }
+
         Ok(Self {
             env,
             common: MainEnvironmentCommon {
@@ -165,6 +207,7 @@ impl RwMainEnvironment {
                 labels,
                 schema,
                 metadata,
+                connection_snapshotting_done,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
             },
@@ -342,6 +385,17 @@ impl RwMainEnvironment {
             .map_err(Into::into)
     }
 
+    pub fn set_connection_snapshotting_done(
+        &mut self,
+        connection_name: &str,
+    ) -> Result<(), CacheError> {
+        let txn = self.env.txn_mut()?;
+        self.common
+            .connection_snapshotting_done
+            .insert_overwrite(txn, connection_name, &true)
+            .map_err(Into::into)
+    }
+
     pub fn commit(&mut self) -> Result<(), CacheError> {
         self.env.commit().map_err(Into::into)
     }
@@ -491,6 +545,8 @@ impl RoMainEnvironment {
         let operation_log = OperationLog::open(&env)?;
         let schema_option = LmdbOption::open(&env, Some("schema"))?;
         let metadata = LmdbOption::open(&env, Some("metadata"))?;
+        let connection_snapshotting_done =
+            LmdbMap::open(&env, Some("connection_snapshotting_done"))?;
 
         let schema = schema_option
             .load(&env.begin_txn()?)?
@@ -504,6 +560,7 @@ impl RoMainEnvironment {
                 labels: labels.clone(),
                 schema,
                 metadata,
+                connection_snapshotting_done,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
             },

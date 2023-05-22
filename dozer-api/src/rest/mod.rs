@@ -116,6 +116,7 @@ impl ApiServer {
                         })
                         .route("/count", web::post().to(api_generator::count))
                         .route("/query", web::post().to(api_generator::query))
+                        .route("/phase", web::post().to(api_generator::get_phase))
                         .route("/oapi", web::post().to(api_generator::generate_oapi))
                         .route("/{id}", web::get().to(api_generator::get))
                         .route("/", web::get().to(api_generator::list))

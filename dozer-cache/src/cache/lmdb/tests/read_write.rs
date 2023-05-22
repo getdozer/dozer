@@ -20,6 +20,7 @@ fn read_and_write() {
     let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(1)));
     let mut cache_writer = LmdbRwCache::new(
         Some(&schema),
+        None,
         &CacheOptions {
             max_readers: 2,
             max_db_size: 100,
