@@ -161,7 +161,9 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
             (
                 grpc_types::types::value::Value::DecimalValue(d),
                 dozer_types::types::FieldType::Decimal,
-            ) => Ok(dozer_types::types::Field::Decimal(Decimal::from_parts(d.lo, d.mid, d.hi, d.negative, d.scale))),
+            ) => Ok(dozer_types::types::Field::Decimal(Decimal::from_parts(
+                d.lo, d.mid, d.hi, d.negative, d.scale
+            ))),
             (
                 grpc_types::types::value::Value::DateValue(_),
                 dozer_types::types::FieldType::UInt,
