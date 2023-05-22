@@ -153,7 +153,7 @@ pub fn map_field_type(typ: FieldType) -> DataType {
         FieldType::Boolean => DataType::Boolean,
         FieldType::String => DataType::Utf8,
         FieldType::Text => DataType::LargeUtf8,
-        FieldType::Decimal => DataType::Decimal256(10, 2), // TODO: Map this correctly
+        FieldType::Decimal => DataType::Decimal256(10, 5), // TODO: Map this correctly
         FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Nanosecond, None),
         FieldType::Date => DataType::Date64,
         FieldType::Binary => DataType::Binary,

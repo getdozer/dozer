@@ -17,6 +17,7 @@ use crate::ingestion::Ingestor;
 use dozer_types::grpc_types;
 use dozer_types::grpc_types::ingest::IngestRequest;
 use dozer_types::json_types::prost_to_json_value;
+use dozer_types::rust_decimal::Decimal;
 
 #[derive(Debug)]
 pub struct DefaultAdapter {
@@ -158,10 +159,10 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
                     .unwrap_or(dozer_types::types::Field::Null),
             ),
             (
-                grpc_types::types::value::Value::DecimalValue(_),
+                grpc_types::types::value::Value::DecimalValue(d),
                 dozer_types::types::FieldType::Decimal,
-            )
-            | (
+            ) => Ok(dozer_types::types::Field::Decimal(Decimal::from_parts(d.lo, d.mid, d.hi, d.negative, d.scale))),
+            (
                 grpc_types::types::value::Value::DateValue(_),
                 dozer_types::types::FieldType::UInt,
             )
