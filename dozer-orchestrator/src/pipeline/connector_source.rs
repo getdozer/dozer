@@ -269,7 +269,18 @@ impl Source for ConnectorSource {
                         Some(get_schema_id(new.schema_id)?)
                     }
                     IngestionMessageKind::SnapshottingDone
-                    | IngestionMessageKind::SnapshottingStarted => None,
+                    | IngestionMessageKind::SnapshottingStarted => {
+                        for (port, _) in self.schema_port_map.values() {
+                            fw.send(
+                                IngestionMessage {
+                                    identifier,
+                                    kind: kind.clone(),
+                                },
+                                *port,
+                            )?;
+                        }
+                        None
+                    }
                 };
                 if let Some(schema_id) = schema_id {
                     let (port, _) =
@@ -292,16 +303,6 @@ impl Source for ConnectorSource {
                         }
                     }
                     fw.send(IngestionMessage { identifier, kind }, *port)?
-                } else {
-                    for (port, _) in self.schema_port_map.values() {
-                        fw.send(
-                            IngestionMessage::new_snapshotting_done(
-                                identifier.txid,
-                                identifier.seq_in_tx,
-                            ),
-                            *port,
-                        )?
-                    }
                 }
             }
 

@@ -212,7 +212,7 @@ impl SourceChannelManager {
             }
             IngestionMessageKind::SnapshottingStarted => {
                 // TODO "implement handle for snapshotting started"
-                Ok(true)
+                Ok(false)
             }
         }
     }
