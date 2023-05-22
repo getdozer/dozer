@@ -463,7 +463,10 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        _connection_name: String,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

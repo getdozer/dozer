@@ -104,7 +104,7 @@ impl ReceiverLoop for ProcessorNode {
         self.channel_manager.send_terminate()
     }
 
-    fn on_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
-        self.channel_manager.send_snapshotting_done()
+    fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError> {
+        self.channel_manager.send_snapshotting_done(connection_name)
     }
 }

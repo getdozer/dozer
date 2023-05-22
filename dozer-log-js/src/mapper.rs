@@ -28,9 +28,11 @@ pub fn map_executor_operation<'a, C: Context<'a>>(
             let typ = cx.string("commit");
             result.set(cx, "type", typ)?;
         }
-        ExecutorOperation::SnapshottingDone {} => {
+        ExecutorOperation::SnapshottingDone { connection_name } => {
             let typ = cx.string("snapshotting_done");
             result.set(cx, "type", typ)?;
+            let connection_name = cx.string(&connection_name);
+            result.set(cx, "connection_name", connection_name)?;
         }
         ExecutorOperation::Terminate => {
             let typ = cx.string("terminate");

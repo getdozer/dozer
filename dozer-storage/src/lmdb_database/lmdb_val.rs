@@ -3,7 +3,7 @@ use dozer_types::{
     types::{IndexDefinition, Record, SchemaWithIndex},
 };
 
-use crate::errors::StorageError;
+use crate::errors::{InvalidBool, StorageError};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Encoded<'a> {
@@ -70,6 +70,35 @@ pub enum LmdbKeyType {
 pub unsafe trait LmdbKey: LmdbVal {
     const TYPE: LmdbKeyType;
 }
+
+impl<'a> Encode<'a> for &'a bool {
+    fn encode(self) -> Result<Encoded<'a>, StorageError> {
+        Ok(Encoded::U8([*self as u8]))
+    }
+}
+
+impl BorrowEncode for bool {
+    type Encode<'a> = &'a bool;
+}
+
+impl Decode for bool {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        match bytes[0] {
+            0 => Ok(Cow::Owned(false)),
+            1 => Ok(Cow::Owned(true)),
+            other => Err(StorageError::DeserializationError {
+                typ: "bool",
+                reason: Box::new(InvalidBool(other)),
+            }),
+        }
+    }
+}
+
+unsafe impl LmdbKey for bool {
+    const TYPE: LmdbKeyType = LmdbKeyType::FixedSizeOtherThanU32OrUsize;
+}
+
+unsafe impl LmdbVal for bool {}
 
 impl<'a> Encode<'a> for &'a u8 {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
