@@ -37,7 +37,7 @@ pub enum OrchestrationError {
     InternalServerFailed(#[source] tonic::transport::Error),
     #[error("{0}: Failed to initialize cache. Have you run `dozer migrate`?")]
     CacheInitFailed(#[source] CacheError),
-    #[error("Failed to build cache from log")]
+    #[error("Failed to build cache from log: {0}")]
     CacheBuildFailed(#[source] CacheError),
     #[error("Internal thread panic: {0}")]
     JoinError(#[source] tokio::task::JoinError),

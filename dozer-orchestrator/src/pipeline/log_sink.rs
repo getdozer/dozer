@@ -127,8 +127,11 @@ impl Sink for LogSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
-        let msg = ExecutorOperation::SnapshottingDone {};
+    fn on_source_snapshotting_done(
+        &mut self,
+        connection_name: String,
+    ) -> Result<(), ExecutionError> {
+        let msg = ExecutorOperation::SnapshottingDone { connection_name };
         write_msg_to_file(&mut self.buffered_file, &msg)
     }
 }

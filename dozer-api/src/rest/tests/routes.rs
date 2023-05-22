@@ -4,6 +4,7 @@ use super::super::{ApiServer, CorsOptions};
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint};
 use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
+use dozer_cache::Phase;
 use dozer_types::serde_json::{json, Value};
 
 #[test]
@@ -153,4 +154,28 @@ async fn get_route() {
         "268".to_string(),
         "Must be equal"
     );
+}
+
+#[actix_web::test]
+async fn get_phase_test() {
+    let endpoint = test_utils::get_endpoint();
+    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
+    let api_server = ApiServer::create_app_entry(
+        None,
+        CorsOptions::Permissive,
+        vec![Arc::new(
+            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
+        )],
+    );
+    let app = actix_web::test::init_service(api_server).await;
+
+    let req = actix_web::test::TestRequest::post()
+        .uri(&format!("{}/{}", endpoint.path, "phase"))
+        .to_request();
+
+    let res = actix_web::test::call_service(&app, req).await;
+    assert!(res.status().is_success());
+
+    let phase: Phase = actix_web::test::read_body_json(res).await;
+    assert_eq!(phase, Phase::Streaming);
 }

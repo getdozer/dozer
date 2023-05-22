@@ -9,6 +9,7 @@ fn test_hash_insert_delete_insert() {
     let schema = Schema::empty();
     let mut env = RwMainEnvironment::new(
         Some(&(schema, vec![])),
+        None,
         &Default::default(),
         Default::default(),
     )
