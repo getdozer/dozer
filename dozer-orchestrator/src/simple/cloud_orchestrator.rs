@@ -1,4 +1,4 @@
-use crate::cli::cloud::Cloud;
+use crate::cli::cloud::{Cloud, ListCommandArgs, VersionCommand};
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
 use crate::errors::{CloudError, OrchestrationError};
@@ -10,6 +10,7 @@ use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
     ListAppRequest, LogMessageRequest, UpdateAppRequest,
 };
+use dozer_types::grpc_types::cloud::{SetCurrentVersionRequest, UpsertVersionRequest};
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 
@@ -94,13 +95,15 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn list(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+    fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
             let response = client
                 .list_applications(ListAppRequest {
-                    limit: None,
-                    offset: None,
+                    limit: list.limit,
+                    offset: list.offset,
+                    name: list.name,
+                    uuid: list.uuid,
                 })
                 .await
                 .map_err(GRPCCallError)?
@@ -109,10 +112,19 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let mut table = table!();
 
             for app in response.apps {
-                table.add_row(row![app.id, app.app.unwrap().convert_to_table()]);
+                if let Some(app_data) = app.app {
+                    table.add_row(row![app.id, app_data.convert_to_table()]);
+                }
             }
 
             table.printstd();
+
+            info!(
+                "Total apps: {}",
+                response
+                    .pagination
+                    .map_or_else(|| 0, |pagination| pagination.total)
+            );
 
             Ok::<(), CloudError>(())
         })?;
@@ -131,27 +143,46 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             let mut table = table!();
 
-            table.add_row(row!["State", response.state]);
-            match response.api_endpoint {
-                None => {}
-                Some(endpoint) => {
-                    table.add_row(row!["API endpoint", format!("http://{}", endpoint)]);
+            table.add_row(row![
+                "Api endpoint",
+                format!("http://{}", response.api_endpoint),
+            ]);
+
+            let mut deployment_table = table!();
+            deployment_table.set_titles(row!["Deployment", "App", "Api", "Version"]);
+
+            for (deployment, status) in response.deployments.iter().enumerate() {
+                let deployment = deployment as u32;
+
+                fn mark(status: bool) -> &'static str {
+                    if status {
+                        "🟢"
+                    } else {
+                        "🟠"
+                    }
                 }
+
+                let mut version = "".to_string();
+                for (loop_version, loop_deployment) in response.versions.iter() {
+                    if loop_deployment == &deployment {
+                        if Some(*loop_version) == response.current_version {
+                            version = format!("v{loop_version} (current)");
+                        } else {
+                            version = format!("v{loop_version}");
+                        }
+                        break;
+                    }
+                }
+
+                deployment_table.add_row(row![
+                    deployment,
+                    mark(status.app_running),
+                    mark(status.api_running),
+                    version
+                ]);
             }
 
-            match response.rest_port {
-                None => {}
-                Some(port) => {
-                    table.add_row(row!["REST Port", port.to_string()]);
-                }
-            }
-
-            match response.grpc_port {
-                None => {}
-                Some(port) => {
-                    table.add_row(row!["GRPC Port", port]);
-                }
-            }
+            table.add_row(row!["Deployments", deployment_table]);
 
             table.printstd();
             Ok::<(), CloudError>(())
@@ -183,6 +214,46 @@ impl CloudOrchestrator for SimpleOrchestrator {
             Ok::<(), CloudError>(())
         })?;
 
+        Ok(())
+    }
+}
+
+impl SimpleOrchestrator {
+    pub fn version(
+        &mut self,
+        cloud: Cloud,
+        version: VersionCommand,
+    ) -> Result<(), OrchestrationError> {
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud).await?;
+
+            match version {
+                VersionCommand::Create { deployment, app_id } => {
+                    let status = client
+                        .get_status(GetStatusRequest {
+                            app_id: app_id.clone(),
+                        })
+                        .await?
+                        .into_inner();
+                    let latest_version = status.versions.into_values().max().unwrap_or(0);
+
+                    client
+                        .upsert_version(UpsertVersionRequest {
+                            app_id,
+                            version: latest_version + 1,
+                            deployment,
+                        })
+                        .await?;
+                }
+                VersionCommand::SetCurrent { version, app_id } => {
+                    client
+                        .set_current_version(SetCurrentVersionRequest { app_id, version })
+                        .await?;
+                }
+            }
+
+            Ok::<_, CloudError>(())
+        })?;
         Ok(())
     }
 }

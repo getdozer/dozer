@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tracing"
-version = "0.1.21"
+version = "0.1.22"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -16,3 +16,4 @@ tracing-opentelemetry = "0.18.0"
 tokio = { version = "1", features = ["full"] }
 tracing-appender = "0.2.2"
 metrics-exporter-prometheus = "0.12.1"
+atty = "0.2.14"

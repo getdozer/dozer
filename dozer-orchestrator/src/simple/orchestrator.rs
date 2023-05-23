@@ -24,7 +24,7 @@ use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
-use dozer_types::indicatif::MultiProgress;
+use dozer_types::indicatif::{MultiProgress, ProgressDrawTarget};
 use dozer_types::log::info;
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
@@ -47,10 +47,15 @@ pub struct SimpleOrchestrator {
 
 impl SimpleOrchestrator {
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
+        let progress_draw_target = if atty::is(atty::Stream::Stderr) {
+            ProgressDrawTarget::stderr()
+        } else {
+            ProgressDrawTarget::hidden()
+        };
         Self {
             config,
             runtime,
-            multi_pb: MultiProgress::new(),
+            multi_pb: MultiProgress::with_draw_target(progress_draw_target),
         }
     }
 }
@@ -273,7 +278,7 @@ impl Orchestrator for SimpleOrchestrator {
             .as_ref()
             .map(|flags| flags.push_events)
             .unwrap_or(false);
-        for (endpoint_name, schema) in &schemas {
+        for (endpoint_name, (schema, connections)) in schemas {
             info!("Migrating endpoint: {endpoint_name}");
             let endpoint = self
                 .config
@@ -281,17 +286,18 @@ impl Orchestrator for SimpleOrchestrator {
                 .iter()
                 .find(|e| e.name == *endpoint_name)
                 .expect("Sink name must be the same as endpoint name");
-            let (schema, secondary_indexes) = modify_schema(schema, endpoint)?;
+            let (schema, secondary_indexes) = modify_schema(&schema, endpoint)?;
             let schema = MigrationSchema {
                 schema,
                 secondary_indexes,
                 enable_token,
                 enable_on_event,
+                connections,
             };
 
-            if let Some(migration_id) = needs_migration(&home_dir, endpoint_name, &schema)? {
+            if let Some(migration_id) = needs_migration(&home_dir, &endpoint_name, &schema)? {
                 let migration_name = migration_id.name().to_string();
-                create_migration(&home_dir, endpoint_name, migration_id, &schema)?;
+                create_migration(&home_dir, &endpoint_name, migration_id, &schema)?;
                 info!("Created new migration {migration_name} for endpoint: {endpoint_name}");
             } else {
                 info!("Migration not needed for endpoint: {endpoint_name}");

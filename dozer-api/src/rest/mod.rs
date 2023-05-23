@@ -86,7 +86,13 @@ impl ApiServer {
             Error = actix_web::Error,
         >,
     > {
+        let endpoint_paths: Vec<String> = cache_endpoints
+            .iter()
+            .map(|cache_endpoint| cache_endpoint.endpoint.path.clone())
+            .collect();
+
         let mut app = App::new()
+            .app_data(web::Data::new(endpoint_paths))
             .wrap(Logger::default())
             .wrap(TracingLogger::default());
 
@@ -116,6 +122,7 @@ impl ApiServer {
                         })
                         .route("/count", web::post().to(api_generator::count))
                         .route("/query", web::post().to(api_generator::query))
+                        .route("/phase", web::post().to(api_generator::get_phase))
                         .route("/oapi", web::post().to(api_generator::generate_oapi))
                         .route("/{id}", web::get().to(api_generator::get))
                         .route("/", web::get().to(api_generator::list))
@@ -126,6 +133,8 @@ impl ApiServer {
             .route("/auth/token", web::post().to(auth_route))
             // Attach health route
             .route("/health", web::get().to(health_route))
+            .route("/", web::get().to(list_endpoint_paths))
+            .route("", web::get().to(list_endpoint_paths))
             // Wrap Api Validator
             .wrap(auth_middleware)
             // Wrap CORS around api validator. Required to return the right headers.
@@ -169,6 +178,10 @@ impl ApiServer {
             .await
             .map_err(|e| ApiError::InternalError(Box::new(e)))
     }
+}
+
+async fn list_endpoint_paths(endpoints: web::Data<Vec<String>>) -> web::Json<Vec<String>> {
+    web::Json(endpoints.get_ref().clone())
 }
 
 #[cfg(test)]

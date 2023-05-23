@@ -308,7 +308,7 @@ mod tests {
         let value: Vec<u8> = vec![98, 121, 116, 101, 97];
         test_conversion!("bytea", Type::BYTEA, Field::Binary(value));
 
-        let value = Decimal::from_f64(8.28).unwrap();
+        let value = rust_decimal::Decimal::from_f64(8.28).unwrap();
         test_conversion!("8.28", Type::NUMERIC, Field::Decimal(value));
 
         let value = DateTime::from_utc(

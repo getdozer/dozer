@@ -21,6 +21,13 @@ pub struct AccessFilter {
     pub fields: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(crate = "dozer_types::serde")]
+pub enum Phase {
+    Snapshotting,
+    Streaming,
+}
+
 #[derive(Debug)]
 /// CacheReader dynamically attaches permissions on top of queries
 pub struct CacheReader {
@@ -65,6 +72,14 @@ impl CacheReader {
     ) -> Result<usize, CacheError> {
         self.apply_access_filter(query, access_filter);
         self.cache.count(query)
+    }
+
+    pub fn get_phase(&self) -> Result<Phase, CacheError> {
+        if self.cache.is_snapshotting_done()? {
+            Ok(Phase::Streaming)
+        } else {
+            Ok(Phase::Snapshotting)
+        }
     }
 
     // Apply filter if specified in access

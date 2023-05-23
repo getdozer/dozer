@@ -43,9 +43,9 @@ impl IngestionMessage {
 pub enum IngestionMessageKind {
     /// A CDC event.
     OperationEvent(Operation),
-    /// A connector uses this message kind to notify Dozer that a initial snapshot of the source table is started
+    /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is started
     SnapshottingStarted,
-    /// A connector uses this message kind to notify Dozer that a initial snapshot of the source table is done,
+    /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is done,
     /// and the data is up-to-date until next CDC event.
     SnapshottingDone,
 }

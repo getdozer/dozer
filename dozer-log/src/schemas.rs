@@ -1,4 +1,4 @@
-use std::{fs::OpenOptions, path::Path};
+use std::{collections::HashSet, fs::OpenOptions, path::Path};
 
 use dozer_types::{
     serde::{Deserialize, Serialize},
@@ -16,6 +16,7 @@ pub struct MigrationSchema {
     pub secondary_indexes: Vec<IndexDefinition>,
     pub enable_token: bool,
     pub enable_on_event: bool,
+    pub connections: HashSet<String>,
 }
 
 pub fn write_schema(schema: &MigrationSchema, schema_path: &Path) -> Result<(), SchemaError> {

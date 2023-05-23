@@ -24,7 +24,7 @@ pub trait ReceiverLoop: Name {
     /// Responds to `terminate`.
     fn on_terminate(&mut self) -> Result<(), ExecutionError>;
     /// Responds to `SnapshottingDone`.
-    fn on_snapshotting_done(&mut self) -> Result<(), ExecutionError>;
+    fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError>;
 
     /// The loop implementation, calls [`on_op`], [`on_commit`] and [`on_terminate`] at appropriate times.
     fn receiver_loop(&mut self) -> Result<(), ExecutionError> {
@@ -76,7 +76,9 @@ pub trait ReceiverLoop: Name {
                         return Ok(());
                     }
                 }
-                ExecutorOperation::SnapshottingDone {} => self.on_snapshotting_done()?,
+                ExecutorOperation::SnapshottingDone { connection_name } => {
+                    self.on_snapshotting_done(connection_name)?
+                }
             }
         }
     }
@@ -106,7 +108,7 @@ mod tests {
         receivers: Vec<Receiver<ExecutorOperation>>,
         ops: Vec<(usize, Operation)>,
         commits: Vec<Epoch>,
-        snapshotting_done: Vec<()>,
+        snapshotting_done: Vec<String>,
         num_terminations: usize,
     }
 
@@ -142,8 +144,8 @@ mod tests {
             Ok(())
         }
 
-        fn on_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
-            self.snapshotting_done.push(());
+        fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError> {
+            self.snapshotting_done.push(connection_name);
             Ok(())
         }
     }
@@ -175,14 +177,17 @@ mod tests {
 
     #[test]
     fn receiver_loop_forwards_snapshotting_done() {
+        let connection_name = "test_connection".to_string();
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
         senders[0]
-            .send(ExecutorOperation::SnapshottingDone {})
+            .send(ExecutorOperation::SnapshottingDone {
+                connection_name: connection_name.clone(),
+            })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop().unwrap();
-        assert_eq!(test_loop.snapshotting_done, vec![()])
+        assert_eq!(test_loop.snapshotting_done, vec![connection_name])
     }
 
     #[test]

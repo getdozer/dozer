@@ -98,5 +98,8 @@ pub trait Sink: Send + Sync + Debug {
     fn commit(&mut self) -> Result<(), ExecutionError>;
     fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), ExecutionError>;
 
-    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError>;
+    fn on_source_snapshotting_done(
+        &mut self,
+        connection_name: String,
+    ) -> Result<(), ExecutionError>;
 }

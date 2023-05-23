@@ -116,6 +116,7 @@ pub fn initialize_cache(
             labels,
             schema.clone(),
             secondary_indexes,
+            &Default::default(),
             Default::default(),
         )
         .unwrap();

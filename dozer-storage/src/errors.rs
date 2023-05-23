@@ -32,3 +32,7 @@ pub enum StorageError {
     #[error("Lmdb error: {0}")]
     Lmdb(#[from] lmdb::Error),
 }
+
+#[derive(Debug, Error)]
+#[error("Invalid bool value {0}")]
+pub struct InvalidBool(pub u8);

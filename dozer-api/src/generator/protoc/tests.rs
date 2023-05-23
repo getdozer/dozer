@@ -21,6 +21,7 @@ fn test_generate_proto_and_descriptor() {
         secondary_indexes,
         enable_token: false,
         enable_on_event: false,
+        connections: Default::default(),
     };
 
     let endpoint = test_utils::get_endpoint();
@@ -54,6 +55,7 @@ fn test_generate_proto_and_descriptor_with_security() {
         secondary_indexes,
         enable_token: true,
         enable_on_event: true,
+        connections: Default::default(),
     };
 
     let endpoint = test_utils::get_endpoint();
@@ -95,6 +97,7 @@ fn test_generate_proto_and_descriptor_with_push_event_off() {
         secondary_indexes,
         enable_token: true,
         enable_on_event: false,
+        connections: Default::default(),
     };
 
     let endpoint = test_utils::get_endpoint();

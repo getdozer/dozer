@@ -96,7 +96,7 @@ impl ReceiverLoop for SinkNode {
         Ok(())
     }
 
-    fn on_snapshotting_done(&mut self) -> Result<(), ExecutionError> {
-        self.sink.on_source_snapshotting_done()
+    fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError> {
+        self.sink.on_source_snapshotting_done(connection_name)
     }
 }

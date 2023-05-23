@@ -12,6 +12,9 @@ service DozerCloud {
   rpc list_app_endpoints(ListEndpointRequest) returns (ListEndpointResponse);
 
   rpc get_connection(GetConnectionRequest) returns (ConnectionResponse);
+  rpc create_app_connection(AppConnectionRequest) returns (ConnectionResponse);
+  rpc create_source(CreateSourceRequest) returns (SourceResponse);
+
 
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
@@ -29,10 +32,13 @@ service DozerCloud {
   rpc StartDozer(StartRequest) returns (stream StartUpdate);
   rpc stop_dozer(StopRequest) returns (StopResponse);
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
+  rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
+  rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
 
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
   rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
+  rpc delete_files(DeleteFileRequest) returns (DeleteFileResponse);
 
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
@@ -40,6 +46,19 @@ service DozerCloud {
 
 service DozerPublic {
   rpc company_metadata(CompanyRequest) returns (CompanyResponse);
+}
+
+message AppConnectionRequest {
+  string app_id = 1;
+  oneof input {
+    Connection connection = 2;
+    string connection_yaml = 3;
+  }
+}
+
+message CreateSourceRequest {
+  string app_id = 1;
+  Source source = 2;
 }
 
 message ListEndpointRequest {
@@ -85,7 +104,7 @@ message StartRequest { string app_id = 1; }
 message StartResponse {
   bool success = 1;
   string id = 2;
-  optional string api_endpoint = 3;
+  string api_endpoint = 3;
   optional string error = 4;
 }
 message StartUpdate {
@@ -98,11 +117,31 @@ message StopResponse { bool success = 1; }
 
 message GetStatusRequest { string app_id = 1; }
 message GetStatusResponse {
-  string state = 1;
-  optional string api_endpoint = 2;
-  optional uint32 rest_port = 3;
-  optional string grpc_port = 4;
+  string api_endpoint = 1;
+  repeated DeploymentStatus deployments = 2;
+  map<uint32, uint32> versions = 3;
+  optional uint32 current_version = 4;
 }
+
+message DeploymentStatus {
+  bool app_running = 1;
+  bool api_running = 2;
+}
+
+message UpsertVersionRequest {
+  string app_id = 1;
+  uint32 version = 2;
+  uint32 deployment = 3;
+}
+
+message UpsertVersionResponse {}
+
+message SetCurrentVersionRequest {
+  string app_id = 1;
+  uint32 version = 2;
+}
+
+message SetCurrentVersionResponse {}
 
 message CreateAppRequest {
   repeated File files = 3;
@@ -136,6 +175,8 @@ message AppResponse {
 message ListAppRequest {
   optional uint32 limit = 1;
   optional uint32 offset = 2;
+  optional string name = 3;
+  optional string uuid = 4;
 }
 message ListAppResponse {
   repeated AppResponse apps = 1;
@@ -193,12 +234,16 @@ message FileInfo {
   string id = 1;
   File file = 2;
 }
-
+message DeleteFileRequest {
+  string app_id = 1;
+  repeated string file_ids = 2;
+}
+message DeleteFileResponse {
+}
 message UpdateFileRequest {
   string app_id = 1;
   repeated FileInfo files = 2;
 }
-
 message UpdateFileResponse {
   repeated FileInfo files = 1; 
 }

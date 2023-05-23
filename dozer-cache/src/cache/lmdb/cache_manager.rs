@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::{path::PathBuf, sync::Arc};
 
 use dozer_storage::{lmdb_storage::LmdbEnvironmentManager, LmdbMap, RwLmdbEnvironment};
@@ -152,6 +153,7 @@ impl RwCacheManager for LmdbRwCacheManager {
             if LmdbEnvironmentManager::exists(&self.base_path, &labels.to_non_empty_string()) {
                 let cache = LmdbRwCache::new(
                     None,
+                    None,
                     &cache_options(&self.options, self.base_path.clone(), labels),
                     write_options,
                     self.indexing_thread_pool.clone(),
@@ -168,10 +170,12 @@ impl RwCacheManager for LmdbRwCacheManager {
         labels: Labels,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
+        connections: &HashSet<String>,
         write_options: CacheWriteOptions,
     ) -> Result<Box<dyn RwCache>, CacheError> {
         let cache = LmdbRwCache::new(
             Some(&(schema, indexes)),
+            Some(connections),
             &cache_options(&self.options, self.base_path.clone(), labels),
             write_options,
             self.indexing_thread_pool.clone(),
@@ -231,6 +235,7 @@ mod tests {
                 Default::default(),
                 Schema::empty(),
                 vec![],
+                &Default::default(),
                 Default::default(),
             )
             .unwrap()

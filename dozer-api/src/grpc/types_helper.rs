@@ -82,10 +82,11 @@ fn map_duration_to_prost_coord_map(d: DozerDuration) -> Value {
 fn map_decimal(d: Decimal) -> Value {
     Value {
         value: Some(value::Value::DecimalValue(RustDecimal {
-            flags: d.unpack().negative as u32,
+            scale: d.unpack().scale,
             lo: d.unpack().lo,
             mid: d.unpack().mid,
             hi: d.unpack().hi,
+            negative: d.unpack().negative,
         })),
     }
 }
