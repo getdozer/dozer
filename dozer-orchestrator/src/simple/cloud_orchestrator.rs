@@ -14,6 +14,8 @@ use dozer_types::grpc_types::cloud::{SetCurrentVersionRequest, UpsertVersionRequ
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 
+use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
+
 async fn get_cloud_client(
     cloud: &Cloud,
 ) -> Result<DozerCloudClient<tonic::transport::Channel>, tonic::transport::Error> {
@@ -249,6 +251,56 @@ impl SimpleOrchestrator {
                     client
                         .set_current_version(SetCurrentVersionRequest { app_id, version })
                         .await?;
+                }
+                VersionCommand::Status { version, app_id } => {
+                    let status = client
+                        .get_status(GetStatusRequest { app_id })
+                        .await?
+                        .into_inner();
+                    if !status.versions.contains_key(&version) {
+                        info!("Version {} does not exist", version);
+                        return Ok(());
+                    }
+
+                    let version_status = get_version_status(&status.api_endpoint, version).await;
+                    let mut table = table!();
+
+                    if let Some(current_version) = status.current_version {
+                        if current_version != version {
+                            table.add_row(row![
+                                format!("v{version}"),
+                                version_status_table(&version_status)
+                            ]);
+
+                            let current_version_status =
+                                get_version_status(&status.api_endpoint, current_version).await;
+                            table.add_row(row![
+                                format!("v{current_version} (current)"),
+                                version_status_table(&current_version_status)
+                            ]);
+
+                            table.printstd();
+
+                            if version_is_up_to_date(&version_status, &current_version_status) {
+                                info!("Version {} is up to date", version);
+                            } else {
+                                info!("Version {} is not up to date", version);
+                            }
+                        } else {
+                            table.add_row(row![
+                                format!("v{version} (current)"),
+                                version_status_table(&version_status)
+                            ]);
+                            table.printstd();
+                        }
+                    } else {
+                        table.add_row(row![
+                            format!("v{version}"),
+                            version_status_table(&version_status)
+                        ]);
+                        table.printstd();
+                        info!("No current version");
+                    };
                 }
             }
 

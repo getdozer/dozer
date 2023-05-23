@@ -50,6 +50,14 @@ pub struct ListCommandArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum VersionCommand {
+    /// Inspects the status of a version, compared to the current version if it's not current.
+    Status {
+        /// The version to inspect
+        version: u32,
+        /// The application id.
+        #[clap(short, long)]
+        app_id: String,
+    },
     /// Creates a new version of the application with the given deployment
     Create {
         /// The deployment of the application to create a new version from
