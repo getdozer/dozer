@@ -101,15 +101,17 @@ fn interval_value_to_pb(
         }
         GrpcTypes::value::Value::DecimalValue(d) => {
             let decimal_type_desc = descriptor.decimal_field.message.clone();
-            let flags_field_desc = &descriptor.decimal_field.flags;
+            let scale_field_desc = &descriptor.decimal_field.scale;
             let lo_field_desc = &descriptor.decimal_field.lo;
             let mid_field_desc = &descriptor.decimal_field.mid;
             let hi_field_desc = &descriptor.decimal_field.hi;
+            let negative_field_desc = &descriptor.decimal_field.negative;
             let mut decimal = DynamicMessage::new(decimal_type_desc);
-            decimal.set_field(flags_field_desc, prost_reflect::Value::U32(d.flags));
+            decimal.set_field(scale_field_desc, prost_reflect::Value::U32(d.scale));
             decimal.set_field(lo_field_desc, prost_reflect::Value::U32(d.lo));
             decimal.set_field(mid_field_desc, prost_reflect::Value::U32(d.mid));
             decimal.set_field(hi_field_desc, prost_reflect::Value::U32(d.hi));
+            decimal.set_field(negative_field_desc, prost_reflect::Value::Bool(d.negative));
             Value::Message(decimal)
         }
         GrpcTypes::value::Value::TimestampValue(ts) => Value::Message(ts.transcode_to_dynamic()),
