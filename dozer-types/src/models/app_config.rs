@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use super::{
-    api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, flags::Flags,
-    source::Source, telemetry::TelemetryConfig,
+    api_config::ApiConfig, api_endpoint::ApiEndpoint, cloud::Cloud, connection::Connection,
+    flags::Flags, source::Source, telemetry::TelemetryConfig,
 };
 use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
 use prettytable::Table as PrettyTable;
@@ -84,6 +84,11 @@ pub struct Config {
     /// Instrument using Dozer
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TelemetryConfig>,
+
+    #[prost(message, tag = "17")]
+    /// Dozer Cloud specific configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cloud: Option<Cloud>,
 }
 
 pub fn default_home_dir() -> String {
@@ -170,6 +175,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints_value: Vec<serde_yaml::Value> = vec![];
                 let mut telemetry: Option<TelemetryConfig> = None;
+                let mut cloud: Option<Cloud> = None;
 
                 let mut app_name = "".to_owned();
                 let mut sql = None;
@@ -228,6 +234,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "telemetry" => {
                             telemetry = access.next_value::<Option<TelemetryConfig>>()?;
+                        }
+                        "cloud" => {
+                            cloud = access.next_value::<Option<Cloud>>()?;
                         }
                         _ => {
                             access.next_value::<IgnoredAny>()?;
@@ -301,6 +310,7 @@ impl<'de> Deserialize<'de> for Config {
                     commit_size,
                     commit_timeout,
                     telemetry,
+                    cloud,
                 })
             }
         }
