@@ -222,11 +222,12 @@ fn init_orchestrator(
     })
 }
 
-struct Telemetry(dozer_tracing::WorkerGuard);
+struct Telemetry();
 
 impl Telemetry {
     fn new(app_name: Option<&str>, config: Option<TelemetryConfig>) -> Self {
-        Self(dozer_tracing::init_telemetry(app_name, config))
+        dozer_tracing::init_telemetry(app_name, config);
+        Self()
     }
 }
 
