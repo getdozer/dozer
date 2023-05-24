@@ -6,6 +6,7 @@ service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
+  rpc clone_application(CloneAppRequest) returns (AppResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
   rpc list_app_connections(ListAppConnectionRequest) returns (GetAllConnectionResponse);
   rpc list_app_sources(ListSourceRequest) returns (ListSourceResponse);
@@ -103,7 +104,7 @@ message ListAppConnectionRequest {
 message StartRequest { string app_id = 1; }
 message StartResponse {
   bool success = 1;
-  string id = 2;
+  string app_id = 2;
   string api_endpoint = 3;
   optional string error = 4;
 }
@@ -168,8 +169,9 @@ message GenerateYamlResponse {
 }
 
 message AppResponse {
-  string id = 1;
+  string app_id = 1;
   AppConfig app = 2;
+  optional string repository_url = 3;
 }
 
 message ListAppRequest {
@@ -184,12 +186,15 @@ message ListAppResponse {
 }
 
 message UpdateAppRequest {
-  string id = 1;
+  string app_id = 1;
   repeated File files = 2;
 }
 
 message DeleteAppRequest {
-  string id = 1;
+  string app_id = 1;
+}
+message CloneAppRequest {
+  string app_id = 1;
 }
 message DeleteAppResponse { bool success = 1; }
 

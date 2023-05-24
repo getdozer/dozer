@@ -48,9 +48,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .map_err(GRPCCallError)?
                 .into_inner();
 
-            info!("Application created with id: {:?}", &response.id);
+            info!("Application created with id: {:?}", &response.app_id);
             // 2. START application
-            deploy_app(&mut client, &response.id).await
+            deploy_app(&mut client, &response.app_id).await
         })?;
         Ok(())
     }
@@ -61,14 +61,14 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let files = list_files()?;
             let response = client
                 .update_application(UpdateAppRequest {
-                    id: app_id.clone(),
+                    app_id: app_id.clone(),
                     files,
                 })
                 .await
                 .map_err(GRPCCallError)?
                 .into_inner();
 
-            info!("Updated {}", &response.id);
+            info!("Updated {}", &response.app_id);
 
             deploy_app(&mut client, &app_id).await
         })?;
@@ -85,7 +85,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             info!("Deleting application");
             let _delete_result = client
-                .delete_application(DeleteAppRequest { id: app_id.clone() })
+                .delete_application(DeleteAppRequest {
+                    app_id: app_id.clone(),
+                })
                 .await
                 .map_err(GRPCCallError)?
                 .into_inner();
@@ -115,7 +117,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             for app in response.apps {
                 if let Some(app_data) = app.app {
-                    table.add_row(row![app.id, app_data.convert_to_table()]);
+                    table.add_row(row![app.app_id, app_data.convert_to_table()]);
                 }
             }
 
