@@ -55,7 +55,9 @@ impl BuilderDag {
             let kind = match &node.kind {
                 CheckpointNodeKind::Source(_) => None,
                 CheckpointNodeKind::Processor(processor) => {
-                    let processor = processor.build(input_schemas, output_schemas)?;
+                    let processor = processor
+                        .build(input_schemas, output_schemas)
+                        .map_err(ExecutionError::Factory)?;
                     Some(NodeKind::Processor(processor))
                 }
                 CheckpointNodeKind::Sink(sink) => {

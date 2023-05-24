@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use dozer_types::types::Schema;
+use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
@@ -28,7 +28,7 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
         &self,
         _output_port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), crate::errors::ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )
@@ -38,7 +38,7 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, crate::errors::ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )
@@ -64,7 +64,7 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
         &self,
         _output_port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), crate::errors::ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )
@@ -74,7 +74,7 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, crate::errors::ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )

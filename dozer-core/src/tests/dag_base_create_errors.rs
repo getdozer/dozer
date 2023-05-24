@@ -1,4 +1,3 @@
-use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
@@ -167,7 +166,7 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         &self,
         _port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -199,11 +198,11 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         if self.panic {
             panic!("Generated error");
         } else {
-            Err(ExecutionError::TestError("Generated Error".to_string()))
+            Err("Generated Error".to_string().into())
         }
     }
 }

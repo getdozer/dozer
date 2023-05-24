@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::types::Schema;
+use dozer_types::{errors::internal::BoxedError, types::Schema};
 use sqlparser::ast::TableFactor;
 
 use crate::pipeline::{
-    builder::SchemaSQLContext, errors::ProductError, expression::builder::extend_schema_source_def,
+    builder::SchemaSQLContext,
+    errors::{PipelineError, ProductError},
+    expression::builder::extend_schema_source_def,
 };
 use crate::pipeline::{
     expression::builder::NameOrAlias, window::builder::string_from_sql_object_name,
@@ -44,13 +45,13 @@ impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         if let Some((input_schema, query_context)) = input_schemas.get(&DEFAULT_PORT_HANDLE) {
             let table = get_name_or_alias(&self.relation)?;
             let extended_input_schema = extend_schema_source_def(input_schema, &table);
             Ok((extended_input_schema, query_context.clone()))
         } else {
-            Err(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))
+            Err(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE).into())
         }
     }
 
@@ -58,12 +59,12 @@ impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(TableProcessor::new()))
     }
 }
 
-pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, ExecutionError> {
+pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, PipelineError> {
     match relation {
         TableFactor::Table { name, alias, .. } => {
             let table_name = string_from_sql_object_name(name);
@@ -80,10 +81,10 @@ pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, Executio
             }
             Ok(NameOrAlias("dozer_derived".to_string(), None))
         }
-        TableFactor::TableFunction { .. } => Err(ExecutionError::InternalError(Box::new(
+        TableFactor::TableFunction { .. } => Err(PipelineError::InternalError(Box::new(
             ProductError::UnsupportedTableFunction,
         ))),
-        TableFactor::UNNEST { .. } => Err(ExecutionError::InternalError(Box::new(
+        TableFactor::UNNEST { .. } => Err(PipelineError::InternalError(Box::new(
             ProductError::UnsupportedUnnest,
         ))),
         TableFactor::NestedJoin { alias, .. } => {

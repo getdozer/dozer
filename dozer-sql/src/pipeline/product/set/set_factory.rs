@@ -5,10 +5,10 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SetError;
 
 use dozer_core::{
-    errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
 use sqlparser::ast::{SetOperator, SetQuantifier};
 
@@ -43,9 +43,8 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
-        let output_columns = validate_set_operation_input_schemas(input_schemas)
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
+        let output_columns = validate_set_operation_input_schemas(input_schemas)?;
 
         let mut output_schema = Schema::empty();
         output_schema.fields = output_columns;
@@ -71,14 +70,11 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
-        Ok(Box::new(
-            SetProcessor::new(SetOperation {
-                op: SetOperator::Union,
-                quantifier: self.set_quantifier,
-            })
-            .map_err(|err| ExecutionError::InternalError(Box::new(err)))?,
-        ))
+    ) -> Result<Box<dyn Processor>, BoxedError> {
+        Ok(Box::new(SetProcessor::new(SetOperation {
+            op: SetOperator::Union,
+            quantifier: self.set_quantifier,
+        })?))
     }
 }
 

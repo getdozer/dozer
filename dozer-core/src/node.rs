@@ -63,14 +63,14 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
         &self,
         output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(Schema, T), ExecutionError>;
+    ) -> Result<(Schema, T), BoxedError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError>;
+    ) -> Result<Box<dyn Processor>, BoxedError>;
 }
 
 pub trait Processor: Send + Sync + Debug {

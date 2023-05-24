@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::types::Schema;
+use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::pipeline::{
     builder::SchemaSQLContext,
@@ -49,25 +48,21 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
-            .ok_or(ExecutionError::InternalError(
+            .ok_or(PipelineError::InternalError(
                 "Invalid Window".to_string().into(),
             ))?
             .clone();
 
         let output_schema = match window_from_table_operator(&self.table, &input_schema.0)
-            .map_err(|e| ExecutionError::WindowProcessorFactoryError(Box::new(e)))?
+            .map_err(PipelineError::WindowError)?
         {
             Some(window) => window
                 .get_output_schema(&input_schema.0)
-                .map_err(|e| ExecutionError::WindowProcessorFactoryError(Box::new(e)))?,
-            None => {
-                return Err(ExecutionError::WindowProcessorFactoryError(Box::new(
-                    WindowError::InvalidWindow(),
-                )))
-            }
+                .map_err(PipelineError::WindowError)?,
+            None => return Err(PipelineError::WindowError(WindowError::InvalidWindow()).into()),
         };
 
         Ok((output_schema, SchemaSQLContext::default()))
@@ -77,21 +72,19 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
-            .ok_or(ExecutionError::InternalError(
+            .ok_or(PipelineError::InternalError(
                 "Invalid Window".to_string().into(),
             ))?
             .clone();
 
         match window_from_table_operator(&self.table, &input_schema)
-            .map_err(|e| ExecutionError::WindowProcessorFactoryError(Box::new(e)))?
+            .map_err(PipelineError::WindowError)?
         {
             Some(window) => Ok(Box::new(WindowProcessor::new(window))),
-            None => Err(ExecutionError::WindowProcessorFactoryError(Box::new(
-                WindowError::InvalidWindow(),
-            ))),
+            None => Err(PipelineError::WindowError(WindowError::InvalidWindow()).into()),
         }
     }
 }

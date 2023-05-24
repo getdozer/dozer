@@ -1,5 +1,4 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas};
-use crate::errors::ExecutionError;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, SinkFactory, Source,
     SourceFactory,
@@ -127,7 +126,7 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         let mut joined: Vec<FieldDefinition> = Vec::new();
         joined.extend(input_schemas.get(&1).unwrap().0.fields.clone());
         joined.extend(input_schemas.get(&2).unwrap().0.fields.clone());
@@ -156,7 +155,7 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }
 }

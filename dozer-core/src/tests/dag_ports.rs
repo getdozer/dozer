@@ -1,4 +1,3 @@
-use crate::errors::ExecutionError;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
@@ -60,7 +59,7 @@ impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
         &self,
         _output_port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         todo!()
     }
 
@@ -79,7 +78,7 @@ impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }
 }
