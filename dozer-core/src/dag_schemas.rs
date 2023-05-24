@@ -268,7 +268,8 @@ fn populate_schemas<T: Clone>(
             NodeKind::Sink(sink) => {
                 let input_schemas =
                     validate_input_schemas(&dag, &edges, node_index, sink.get_input_ports())?;
-                sink.prepare(input_schemas)?;
+                sink.prepare(input_schemas)
+                    .map_err(ExecutionError::Factory)?;
             }
         }
     }

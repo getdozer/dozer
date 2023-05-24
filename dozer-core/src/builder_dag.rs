@@ -59,7 +59,7 @@ impl BuilderDag {
                     Some(NodeKind::Processor(processor))
                 }
                 CheckpointNodeKind::Sink(sink) => {
-                    let sink = sink.build(input_schemas)?;
+                    let sink = sink.build(input_schemas).map_err(ExecutionError::Factory)?;
                     Some(NodeKind::Sink(sink))
                 }
             };

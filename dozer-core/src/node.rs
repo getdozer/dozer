@@ -85,14 +85,11 @@ pub trait Processor: Send + Sync + Debug {
 
 pub trait SinkFactory<T>: Send + Sync + Debug {
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn prepare(
-        &self,
-        input_schemas: HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(), ExecutionError>;
+    fn prepare(&self, input_schemas: HashMap<PortHandle, (Schema, T)>) -> Result<(), BoxedError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError>;
+    ) -> Result<Box<dyn Sink>, BoxedError>;
 }
 
 pub trait Sink: Send + Sync + Debug {

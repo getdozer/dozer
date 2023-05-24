@@ -172,14 +172,14 @@ impl SinkFactory<NoneContext> for TestSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn crate::node::Sink>, ExecutionError> {
+    ) -> Result<Box<dyn crate::node::Sink>, BoxedError> {
         todo!()
     }
 }

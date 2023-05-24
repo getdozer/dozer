@@ -161,14 +161,14 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(TestSink::new(self.output.to_owned())))
     }
 }

@@ -1,6 +1,7 @@
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Schema};
 
 use dozer_types::log::debug;
@@ -35,14 +36,14 @@ impl SinkFactory<NoneContext> for CountingSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(CountingSink {
             expected: self.expected,
             current: 0,
@@ -100,14 +101,14 @@ impl SinkFactory<NoneContext> for ConnectivityTestSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 }
@@ -123,14 +124,14 @@ impl SinkFactory<NoneContext> for NoInputPortSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 }

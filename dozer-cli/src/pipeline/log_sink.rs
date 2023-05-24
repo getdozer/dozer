@@ -12,12 +12,12 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::{
     bytes::{BufMut, BytesMut},
     types::{Operation, Schema},
 };
+use dozer_types::{epoch::ExecutorOperation, errors::internal::BoxedError};
 use std::fs::OpenOptions;
 
 #[derive(Debug, Clone)]
@@ -57,7 +57,7 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
     fn prepare(
         &self,
         input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         debug_assert!(input_schemas.len() == 1);
         Ok(())
     }
@@ -65,7 +65,7 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(LogSink::new(
             Some(self.multi_pb.clone()),
             self.log_path.clone(),
