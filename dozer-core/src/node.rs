@@ -2,6 +2,7 @@ use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::errors::ExecutionError;
 
 use dozer_types::epoch::Epoch;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -38,12 +39,12 @@ impl OutputPortDef {
 }
 
 pub trait SourceFactory<T>: Send + Sync + Debug {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), ExecutionError>;
+    fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), BoxedError>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError>;
+    ) -> Result<Box<dyn Source>, BoxedError>;
 }
 
 pub trait Source: Send + Sync + Debug {

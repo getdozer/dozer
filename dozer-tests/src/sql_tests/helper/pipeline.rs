@@ -14,6 +14,7 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
@@ -50,7 +51,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_schema(
         &self,
         port: &PortHandle,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         let mut schema = self
             .schemas
             .get(port)
@@ -92,7 +93,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {
             name_to_port: self.name_to_port.to_owned(),
             receiver: self.receiver.clone(),

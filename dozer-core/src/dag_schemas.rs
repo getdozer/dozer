@@ -244,7 +244,9 @@ fn populate_schemas<T: Clone>(
 
                 for edge in dag.graph().edges(node_index) {
                     let port = find_output_port_def(&ports, edge);
-                    let (schema, ctx) = source.get_output_schema(&port.handle)?;
+                    let (schema, ctx) = source
+                        .get_output_schema(&port.handle)
+                        .map_err(ExecutionError::Factory)?;
                     create_edge(&mut edges, edge, port, schema, ctx);
                 }
             }

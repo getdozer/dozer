@@ -2,6 +2,7 @@ use crate::channels::SourceChannelForwarder;
 use crate::errors::ExecutionError;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use crate::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -35,10 +36,7 @@ impl GeneratorSourceFactory {
 }
 
 impl SourceFactory<NoneContext> for GeneratorSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -78,7 +76,7 @@ impl SourceFactory<NoneContext> for GeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(GeneratorSource {
             count: self.count,
             running: self.running.clone(),
@@ -155,10 +153,7 @@ impl DualPortGeneratorSourceFactory {
 }
 
 impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -208,7 +203,7 @@ impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(DualPortGeneratorSource {
             count: self.count,
             running: self.running.clone(),
@@ -280,10 +275,7 @@ impl Source for DualPortGeneratorSource {
 pub struct ConnectivityTestSourceFactory;
 
 impl SourceFactory<NoneContext> for ConnectivityTestSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         unimplemented!("This struct is for connectivity test, only output ports are defined")
     }
 
@@ -297,7 +289,7 @@ impl SourceFactory<NoneContext> for ConnectivityTestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only output ports are defined")
     }
 }

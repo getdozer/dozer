@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use crate::appsource::AppSourceId;
 use crate::node::PortHandle;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::TypeError;
 use dozer_types::node::NodeHandle;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
@@ -34,21 +33,17 @@ pub enum ExecutionError {
     InvalidSourceIdentifier(AppSourceId),
     #[error("Ambiguous source identifier {0}")]
     AmbiguousSourceIdentifier(AppSourceId),
-    #[error("Port not found for source: {0}")]
-    PortNotFoundInSource(PortHandle),
     #[error("Invalid AppSource connection {0}. Already exists.")]
     AppSourceConnectionAlreadyExists(String),
+    #[error("Factory error: {0}")]
+    Factory(#[source] BoxedError),
 
     // Error forwarders
     #[error("File system error {0:?}: {1}")]
     FileSystemError(PathBuf, #[source] std::io::Error),
-    #[error("Internal type error: {0}")]
-    InternalTypeError(#[from] TypeError),
     #[error("Internal error: {0}")]
-    InternalError(#[from] BoxedError),
+    InternalError(#[source] BoxedError),
 
-    #[error("Failed to initialize source: {0}")]
-    ConnectorError(#[source] BoxedError),
     // to remove
     #[error("{0}")]
     InternalStringError(String),

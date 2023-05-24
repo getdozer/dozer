@@ -10,6 +10,7 @@ use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::epoch::Epoch;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{
@@ -278,10 +279,7 @@ impl ErrGeneratorSourceFactory {
 }
 
 impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -317,7 +315,7 @@ impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(ErrGeneratorSource {
             count: self.count,
             err_at: self.err_at,

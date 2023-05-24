@@ -6,6 +6,7 @@ use crate::node::{
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
@@ -23,10 +24,7 @@ macro_rules! chk {
 struct TestUsersSourceFactory {}
 
 impl SourceFactory<NoneContext> for TestUsersSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -71,7 +69,7 @@ impl SourceFactory<NoneContext> for TestUsersSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
 }
@@ -80,10 +78,7 @@ impl SourceFactory<NoneContext> for TestUsersSourceFactory {
 struct TestCountriesSourceFactory {}
 
 impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -119,7 +114,7 @@ impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
 }
