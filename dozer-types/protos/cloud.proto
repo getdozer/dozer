@@ -256,6 +256,11 @@ message SaveFilesResponse {
 }
 message LogMessageRequest {
   string app_id = 1;
+  uint32 deployment = 2;
+  bool follow = 3;
+  bool include_migrate = 4;
+  bool include_app = 5;
+  bool include_api = 6;
 }
 message StatusUpdateRequest {
   string app_id = 1;

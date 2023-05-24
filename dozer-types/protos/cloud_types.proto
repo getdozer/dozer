@@ -201,6 +201,7 @@ message File {
 
 message LogMessage {
   string message = 1;
+  string from = 2;
 }
 
 message StatusUpdate {
