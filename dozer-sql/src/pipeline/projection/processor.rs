@@ -74,7 +74,7 @@ impl Processor for ProjectionProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        let _ = match op {
+        match op {
             Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),
             Operation::Insert { ref new } => fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE),
             Operation::Update { ref old, ref new } => {

@@ -47,12 +47,12 @@ impl Processor for SelectionProcessor {
         match op {
             Operation::Delete { ref old } => {
                 if self.expression.evaluate(old, &self.input_schema)? == Field::Boolean(true) {
-                    let _ = fw.send(op, DEFAULT_PORT_HANDLE);
+                    fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
                 if self.expression.evaluate(new, &self.input_schema)? == Field::Boolean(true) {
-                    let _ = fw.send(op, DEFAULT_PORT_HANDLE);
+                    fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Update { ref old, ref new } => {
@@ -63,15 +63,15 @@ impl Processor for SelectionProcessor {
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
                         // both records fulfills the WHERE condition, forward the operation
-                        let _ = fw.send(op, DEFAULT_PORT_HANDLE);
+                        fw.send(op, DEFAULT_PORT_HANDLE);
                     }
                     (true, false) => {
                         // the old record fulfills the WHERE condition while then new one doesn't, forward a delete operation
-                        let _ = fw.send(self.delete(old), DEFAULT_PORT_HANDLE);
+                        fw.send(self.delete(old), DEFAULT_PORT_HANDLE);
                     }
                     (false, true) => {
                         // the old record doesn't fulfill the WHERE condition while then new one does, forward an insert operation
-                        let _ = fw.send(self.insert(new), DEFAULT_PORT_HANDLE);
+                        fw.send(self.insert(new), DEFAULT_PORT_HANDLE);
                     }
                     (false, false) => {
                         // both records doesn't fulfill the WHERE condition, don't forward the operation

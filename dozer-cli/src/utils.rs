@@ -58,6 +58,7 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
         commit_sz: get_commit_size(config),
         channel_buffer_sz: get_buffer_size(config) as usize,
         commit_time_threshold: get_commit_time_threshold(config),
+        error_threshold: Some(0), // TODO: Read from configuration
     }
 }
 

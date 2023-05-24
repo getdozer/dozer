@@ -16,13 +16,8 @@ struct TestChannelForwarder {
 }
 
 impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(
-        &mut self,
-        op: dozer_types::types::Operation,
-        _port: dozer_core::node::PortHandle,
-    ) -> Result<(), dozer_core::errors::ExecutionError> {
+    fn send(&mut self, op: dozer_types::types::Operation, _port: dozer_core::node::PortHandle) {
         self.operations.push(op);
-        Ok(())
     }
 }
 

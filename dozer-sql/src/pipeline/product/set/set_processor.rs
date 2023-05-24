@@ -100,10 +100,10 @@ impl Processor for SetProcessor {
                 for (action, record) in records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
@@ -114,10 +114,10 @@ impl Processor for SetProcessor {
                 for (action, record) in records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
@@ -129,10 +129,10 @@ impl Processor for SetProcessor {
                 for (action, old) in old_records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
@@ -140,10 +140,10 @@ impl Processor for SetProcessor {
                 for (action, new) in new_records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
