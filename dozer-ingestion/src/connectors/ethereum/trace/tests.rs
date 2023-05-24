@@ -42,7 +42,7 @@ async fn test_get_block_traces() {
 async fn test_trace_iterator() {
     let https_url = env::var("ETH_HTTPS_URL").unwrap();
 
-    let _ = dozer_tracing::init_telemetry(None, None);
+    dozer_tracing::init_telemetry(None, None);
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         // invoke the default handler and exit the process

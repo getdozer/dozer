@@ -31,7 +31,7 @@ const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 #[test]
 #[ignore]
 fn test_lifetime_pipeline() {
-    let _ = dozer_tracing::init_telemetry(None, None);
+    dozer_tracing::init_telemetry(None, None);
 
     let mut pipeline = AppPipeline::new();
 
