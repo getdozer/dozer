@@ -37,6 +37,8 @@ pub enum ExecutionError {
     Factory(#[source] BoxedError),
     #[error("Source error: {0}")]
     Source(#[source] BoxedError),
+    #[error("Processor or sink error: {0}")]
+    ProcessorOrSink(#[source] BoxedError),
 
     // Error forwarders
     #[error("File system error {0:?}: {1}")]

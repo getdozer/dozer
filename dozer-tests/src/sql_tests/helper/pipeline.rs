@@ -222,19 +222,16 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), BoxedError> {
         self.update_result(op);
         Ok(())
     }
 
-    fn commit(&mut self) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(
-        &mut self,
-        _connection_name: String,
-    ) -> Result<(), ExecutionError> {
+    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }

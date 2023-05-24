@@ -186,7 +186,7 @@ impl Orchestrator for SimpleOrchestrator {
             self.multi_pb.clone(),
         )?;
         let settings = LogSinkSettings {
-            file_buffer_capacity: get_file_buffer_capacity(&self.config),
+            file_buffer_capacity: get_file_buffer_capacity(&self.config) as usize,
         };
         let dag_executor = executor.create_dag_executor(
             self.runtime.clone(),
@@ -258,7 +258,7 @@ impl Orchestrator for SimpleOrchestrator {
             self.multi_pb.clone(),
         );
         let settings = LogSinkSettings {
-            file_buffer_capacity: get_file_buffer_capacity(&self.config),
+            file_buffer_capacity: get_file_buffer_capacity(&self.config) as usize,
         };
         let dag = builder.build(self.runtime.clone(), settings)?;
         // Populate schemas.

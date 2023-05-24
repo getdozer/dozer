@@ -83,12 +83,16 @@ impl ReceiverLoop for SinkNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        self.sink.process(self.port_handles[index], op)
+        self.sink
+            .process(self.port_handles[index], op)
+            .map_err(ExecutionError::ProcessorOrSink)
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
-        self.sink.commit()?;
+        self.sink
+            .commit()
+            .map_err(ExecutionError::ProcessorOrSink)?;
         self.state_writer.store_commit_info(epoch)
     }
 
@@ -97,6 +101,8 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError> {
-        self.sink.on_source_snapshotting_done(connection_name)
+        self.sink
+            .on_source_snapshotting_done(connection_name)
+            .map_err(ExecutionError::ProcessorOrSink)
     }
 }

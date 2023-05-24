@@ -1,8 +1,10 @@
 use std::{io::SeekFrom, path::Path, time::Duration};
 
+use crate::attach_progress;
+
 use super::errors::ReaderError;
 use dozer_types::epoch::ExecutorOperation;
-use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use dozer_types::indicatif::{MultiProgress, ProgressBar};
 use dozer_types::{bincode, log::trace};
 use tokio::{
     fs::{File, OpenOptions},
@@ -90,25 +92,4 @@ async fn read_msg(reader: &mut BufReader<File>) -> Result<(ExecutorOperation, u6
         .map_err(ReaderError::ReadError)?;
     let msg = bincode::deserialize(&buf).map_err(ReaderError::DeserializationError)?;
     Ok((msg, len + 8))
-}
-
-fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    multi_pb.as_ref().map(|m| m.add(pb.clone()));
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.blue} {msg}: {pos}: {per_sec}")
-            .unwrap()
-            // For more spinners check out the cli-spinners project:
-            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
-            .tick_strings(&[
-                "▹▹▹▹▹",
-                "▸▹▹▹▹",
-                "▹▸▹▹▹",
-                "▹▹▸▹▹",
-                "▹▹▹▸▹",
-                "▹▹▹▹▸",
-                "▪▪▪▪▪",
-            ]),
-    );
-    pb
 }
