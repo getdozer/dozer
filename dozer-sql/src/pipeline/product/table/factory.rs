@@ -81,12 +81,12 @@ pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, Pipeline
             }
             Ok(NameOrAlias("dozer_derived".to_string(), None))
         }
-        TableFactor::TableFunction { .. } => Err(PipelineError::InternalError(Box::new(
+        TableFactor::TableFunction { .. } => Err(PipelineError::ProductError(
             ProductError::UnsupportedTableFunction,
-        ))),
-        TableFactor::UNNEST { .. } => Err(PipelineError::InternalError(Box::new(
-            ProductError::UnsupportedUnnest,
-        ))),
+        )),
+        TableFactor::UNNEST { .. } => {
+            Err(PipelineError::ProductError(ProductError::UnsupportedUnnest))
+        }
         TableFactor::NestedJoin { alias, .. } => {
             if let Some(table_alias) = alias {
                 let alias = table_alias.name.value.clone();

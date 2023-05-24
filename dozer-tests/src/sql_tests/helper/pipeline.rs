@@ -294,15 +294,13 @@ impl TestPipeline {
         let output = Arc::new(Mutex::new(HashMap::new()));
         pipeline.add_sink(Arc::new(TestSinkFactory::new(output.clone())), "sink");
 
-        pipeline
-            .connect_nodes(
-                &output_table.node,
-                Some(output_table.port),
-                "sink",
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            )
-            .unwrap();
+        pipeline.connect_nodes(
+            &output_table.node,
+            Some(output_table.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        );
         let used_schemas = pipeline.get_entry_points_sources_names();
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);

@@ -1,5 +1,4 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::errors::ExecutionError;
 
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
@@ -74,13 +73,13 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Processor: Send + Sync + Debug {
-    fn commit(&self, epoch_details: &Epoch) -> Result<(), ExecutionError>;
+    fn commit(&self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError>;
+    ) -> Result<(), BoxedError>;
 }
 
 pub trait SinkFactory<T>: Send + Sync + Debug {

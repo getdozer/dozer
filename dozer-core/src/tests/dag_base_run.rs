@@ -1,6 +1,5 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::dag_schemas::DagSchemas;
-use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory};
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -59,7 +58,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
-    fn commit(&self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -68,8 +67,8 @@ impl Processor for NoopProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
-        fw.send(op, DEFAULT_PORT_HANDLE)
+    ) -> Result<(), BoxedError> {
+        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
     }
 }
 
@@ -199,7 +198,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
-    fn commit(&self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -208,8 +207,8 @@ impl Processor for NoopJoinProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
-        fw.send(op, DEFAULT_PORT_HANDLE)
+    ) -> Result<(), BoxedError> {
+        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
     }
 }
 

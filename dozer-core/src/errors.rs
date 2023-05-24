@@ -17,8 +17,6 @@ pub enum ExecutionError {
     MissingInput { node: NodeHandle, port: PortHandle },
     #[error("Duplicate input for node {node} on port {port}")]
     DuplicateInput { node: NodeHandle, port: PortHandle },
-    #[error("Invalid type: {0}")]
-    InvalidType(String),
     #[error("Record not found")]
     RecordNotFound(),
     #[error("Cannot send to channel")]
@@ -39,34 +37,8 @@ pub enum ExecutionError {
     Source(#[source] BoxedError),
     #[error("Processor or sink error: {0}")]
     ProcessorOrSink(#[source] BoxedError),
-
-    // Error forwarders
     #[error("File system error {0:?}: {1}")]
     FileSystemError(PathBuf, #[source] std::io::Error),
-    #[error("Internal error: {0}")]
-    InternalError(#[source] BoxedError),
-
-    // to remove
-    #[error("{0}")]
-    InternalStringError(String),
-
-    #[error("Failed to execute product processor: {0}")]
-    ProductProcessorError(#[source] BoxedError),
-
-    #[error("Failed to create Window processor: {0}")]
-    WindowProcessorFactoryError(#[source] BoxedError),
-
-    #[error("Failed to execute the Window processor: {0}")]
-    WindowProcessorError(#[source] BoxedError),
-
-    #[error("Failed to execute the Table processor: {0}")]
-    TableProcessorError(#[source] BoxedError),
-
-    #[error("JOIN processor received a Record from a wrong input: {0}")]
-    InvalidPort(u16),
-
-    #[error("Error variant for testing: {0}")]
-    TestError(String),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {

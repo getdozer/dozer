@@ -1,5 +1,4 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
@@ -74,7 +73,7 @@ struct ErrorProcessor {
 }
 
 impl Processor for ErrorProcessor {
-    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -83,17 +82,17 @@ impl Processor for ErrorProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         self.count += 1;
         if self.count == self.err_on {
             if self.panic {
                 panic!("Generated error");
             } else {
-                return Err(ExecutionError::TestError("Uknown".to_string()));
+                return Err("Uknown".to_string().into());
             }
         }
 
-        fw.send(op, DEFAULT_PORT_HANDLE)
+        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
     }
 }
 

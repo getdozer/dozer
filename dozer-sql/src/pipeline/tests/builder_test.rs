@@ -1,12 +1,12 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::errors::ExecutionError;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
@@ -44,7 +44,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_schema(
         &self,
         _port: &PortHandle,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -82,7 +82,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {}))
     }
 }
@@ -91,7 +91,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
@@ -99,7 +99,7 @@ impl Source for TestSource {
         &self,
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         for n in 0..10000 {
             fw.send(
                 IngestionMessage::new_op(
@@ -143,14 +143,14 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(TestSink {}))
     }
 
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -159,18 +159,15 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn commit(&mut self) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(
-        &mut self,
-        _connection_name: String,
-    ) -> Result<(), ExecutionError> {
+    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -203,15 +200,13 @@ fn test_pipeline_builder() {
         Arc::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
         "sink",
     );
-    pipeline
-        .connect_nodes(
-            &table_info.node,
-            Some(table_info.port),
-            "sink",
-            Some(DEFAULT_PORT_HANDLE),
-            true,
-        )
-        .unwrap();
+    pipeline.connect_nodes(
+        &table_info.node,
+        Some(table_info.port),
+        "sink",
+        Some(DEFAULT_PORT_HANDLE),
+        true,
+    );
 
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);

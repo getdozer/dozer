@@ -245,15 +245,13 @@ impl<'a> PipelineBuilder<'a> {
                 OutputTableInfo::Transformed(table_info) => {
                     pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
 
-                    pipeline
-                        .connect_nodes(
-                            &table_info.node,
-                            Some(table_info.port),
-                            api_endpoint.name.as_str(),
-                            Some(DEFAULT_PORT_HANDLE),
-                            true,
-                        )
-                        .map_err(ExecutionError)?;
+                    pipeline.connect_nodes(
+                        &table_info.node,
+                        Some(table_info.port),
+                        api_endpoint.name.as_str(),
+                        Some(DEFAULT_PORT_HANDLE),
+                        true,
+                    );
                 }
                 OutputTableInfo::Original(table_info) => {
                     pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
@@ -265,15 +263,13 @@ impl<'a> PipelineBuilder<'a> {
                         ))
                         .expect("port should be present based on source mapping");
 
-                    pipeline
-                        .connect_nodes(
-                            &table_info.connection_name,
-                            Some(*conn_port),
-                            api_endpoint.name.as_str(),
-                            Some(DEFAULT_PORT_HANDLE),
-                            false,
-                        )
-                        .map_err(ExecutionError)?;
+                    pipeline.connect_nodes(
+                        &table_info.connection_name,
+                        Some(*conn_port),
+                        api_endpoint.name.as_str(),
+                        Some(DEFAULT_PORT_HANDLE),
+                        false,
+                    );
                 }
             }
         }

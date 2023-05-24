@@ -3,7 +3,6 @@ use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Count;
 use crate::pipeline::expression::execution::{Expression, ExpressionType};
-use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
@@ -78,12 +77,12 @@ fn get_count(count: u64, return_type: Option<FieldType>) -> Result<Field, Pipeli
             | FieldType::Timestamp
             | FieldType::Binary
             | FieldType::Json
-            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+            | FieldType::Point => Err(PipelineError::InvalidReturnType(format!(
                 "Not supported return type {typ} for {Count}"
-            )))),
+            ))),
         },
-        None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+        None => Err(PipelineError::InvalidReturnType(format!(
             "Not supported None return type for {Count}"
-        )))),
+        ))),
     }
 }

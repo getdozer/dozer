@@ -247,8 +247,7 @@ fn test_app_dag() {
         Arc::new(CountingSinkFactory::new(20_000, latch.clone())),
         "sink",
     );
-    p1.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true)
-        .unwrap();
+    p1.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true);
 
     app.add_pipeline(p1);
 
@@ -268,8 +267,7 @@ fn test_app_dag() {
         ],
     );
     p2.add_sink(Arc::new(CountingSinkFactory::new(20_000, latch)), "sink");
-    p2.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true)
-        .unwrap();
+    p2.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true);
 
     app.add_pipeline(p2);
 
