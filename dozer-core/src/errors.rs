@@ -14,22 +14,14 @@ pub enum ExecutionError {
     WouldCycle,
     #[error("Invalid port handle: {0}")]
     InvalidPortHandle(PortHandle),
-    #[error("Invalid node handle: {0}")]
-    InvalidNodeHandle(NodeHandle),
     #[error("Missing input for node {node} on port {port}")]
     MissingInput { node: NodeHandle, port: PortHandle },
     #[error("Duplicate input for node {node} on port {port}")]
     DuplicateInput { node: NodeHandle, port: PortHandle },
-    #[error("Invalid operation: {0}")]
-    InvalidOperation(String),
     #[error("Invalid type: {0}")]
     InvalidType(String),
     #[error("Schema not initialized")]
     SchemaNotInitialized,
-    #[error("The database is invalid")]
-    InvalidDatabase,
-    #[error("Field not found at position {0}")]
-    FieldNotFound(String),
     #[error("Record not found")]
     RecordNotFound(),
     #[error("Cannot send to channel")]
@@ -37,25 +29,15 @@ pub enum ExecutionError {
     #[error("Cannot receive from channel")]
     CannotReceiveFromChannel,
     #[error("Cannot spawn worker thread: {0}")]
-    CannotSpawnWorkerThread(#[from] std::io::Error),
-    #[error("Internal thread panicked")]
-    InternalThreadPanic,
+    CannotSpawnWorkerThread(#[source] std::io::Error),
     #[error("Invalid source identifier {0}")]
     InvalidSourceIdentifier(AppSourceId),
     #[error("Ambiguous source identifier {0}")]
     AmbiguousSourceIdentifier(AppSourceId),
     #[error("Port not found for source: {0}")]
     PortNotFoundInSource(PortHandle),
-    #[error("Failed to get output schema: {0}")]
-    FailedToGetOutputSchema(String),
-    #[error("Update operation not supported: {0}")]
-    UnsupportedUpdateOperation(String),
-    #[error("Delete operation not supported: {0}")]
-    UnsupportedDeleteOperation(String),
     #[error("Invalid AppSource connection {0}. Already exists.")]
     AppSourceConnectionAlreadyExists(String),
-    #[error("Failed to get primary key for `{0}`")]
-    FailedToGetPrimaryKey(String),
 
     // Error forwarders
     #[error("File system error {0:?}: {1}")]
@@ -70,14 +52,6 @@ pub enum ExecutionError {
     // to remove
     #[error("{0}")]
     InternalStringError(String),
-
-    #[error("Channel returned empty message in sink. Might be an issue with the sender: {0}, {1}")]
-    SinkReceiverError(usize, #[source] BoxedError),
-
-    #[error(
-        "Channel returned empty message in processor. Might be an issue with the sender: {0}, {1}"
-    )]
-    ProcessorReceiverError(usize, #[source] BoxedError),
 
     #[error("Source error: {0}")]
     SourceError(SourceError),
@@ -96,6 +70,9 @@ pub enum ExecutionError {
 
     #[error("JOIN processor received a Record from a wrong input: {0}")]
     InvalidPort(u16),
+
+    #[error("Error variant for testing: {0}")]
+    TestError(String),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {

@@ -88,7 +88,7 @@ impl Processor for ErrorProcessor {
             if self.panic {
                 panic!("Generated error");
             } else {
-                return Err(ExecutionError::InvalidOperation("Uknown".to_string()));
+                return Err(ExecutionError::TestError("Uknown".to_string()));
             }
         }
 
@@ -343,9 +343,7 @@ impl Source for ErrGeneratorSource {
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
-                return Err(ExecutionError::InvalidOperation(
-                    "Generated Error".to_string(),
-                ));
+                return Err(ExecutionError::TestError("Generated Error".to_string()));
             }
 
             fw.send(
@@ -462,9 +460,7 @@ impl Sink for ErrSink {
             if self.panic {
                 panic!("Generated error");
             } else {
-                return Err(ExecutionError::InvalidOperation(
-                    "Generated error".to_string(),
-                ));
+                return Err(ExecutionError::TestError("Generated error".to_string()));
             }
         }
         Ok(())

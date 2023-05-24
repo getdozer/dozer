@@ -123,7 +123,9 @@ impl Sink for LogSink {
         };
 
         write_msg_to_file(&mut self.buffered_file, &msg)?;
-        self.buffered_file.flush()?;
+        self.buffered_file
+            .flush()
+            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         Ok(())
     }
 

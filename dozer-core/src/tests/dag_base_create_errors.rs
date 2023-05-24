@@ -64,9 +64,7 @@ impl SourceFactory<NoneContext> for CreateErrSourceFactory {
         if self.panic {
             panic!("Generated error");
         } else {
-            Err(ExecutionError::InvalidOperation(
-                "Generated Error".to_string(),
-            ))
+            Err(ExecutionError::TestError("Generated Error".to_string()))
         }
     }
 }
@@ -207,9 +205,7 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         if self.panic {
             panic!("Generated error");
         } else {
-            Err(ExecutionError::InvalidOperation(
-                "Generated Error".to_string(),
-            ))
+            Err(ExecutionError::TestError("Generated Error".to_string()))
         }
     }
 }
