@@ -98,13 +98,19 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     if let Some(config) = &table_config.config {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
-                                csv_config.watch(id, table_info).await?;
+                                csv_config
+                                    .watch(id, table_info, &self.config, ingestor)
+                                    .await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(delta_config) => {
-                                delta_config.watch(id, table_info).await?;
+                                delta_config
+                                    .watch(id, table_info, &self.config, ingestor)
+                                    .await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
-                                parquet_config.watch(id, table_info).await?;
+                                parquet_config
+                                    .watch(id, table_info, &self.config, ingestor)
+                                    .await?;
                             }
                         }
                     }
