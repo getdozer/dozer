@@ -204,13 +204,36 @@ impl CloudOrchestrator for SimpleOrchestrator {
         self.runtime.block_on(async move {
             let mut client: DozerCloudClient<tonic::transport::Channel> =
                 DozerCloudClient::connect(target_url).await?;
-            let mut response = client
-                .on_log_message(LogMessageRequest { app_id })
+
+            let status = client
+                .get_status(GetStatusRequest {
+                    app_id: app_id.clone(),
+                })
                 .await?
                 .into_inner();
 
-            if let Some(next_message) = response.message().await? {
-                info!("{:?}", next_message);
+            // Show log of the latest deployment for now.
+            if status.deployments.is_empty() {
+                info!("No deployments found");
+                return Ok(());
+            }
+            let deployment = (status.deployments.len() - 1) as u32;
+            let mut response = client
+                .on_log_message(LogMessageRequest {
+                    app_id,
+                    deployment,
+                    follow: false,
+                    include_migrate: true,
+                    include_app: true,
+                    include_api: true,
+                })
+                .await?
+                .into_inner();
+
+            while let Some(next_message) = response.message().await? {
+                for line in next_message.message.lines() {
+                    info!("[{}] {line}", next_message.from);
+                }
             }
 
             Ok::<(), CloudError>(())
