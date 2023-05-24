@@ -64,8 +64,6 @@ pub enum ExecutionError {
     InternalTypeError(#[from] TypeError),
     #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
-    #[error("Sink error: {0}")]
-    SinkError(#[from] SinkError),
 
     #[error("Failed to initialize source: {0}")]
     ConnectorError(#[source] BoxedError),
@@ -110,41 +108,6 @@ impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
     fn from(_: daggy::WouldCycle<T>) -> Self {
         ExecutionError::WouldCycle
     }
-}
-
-#[derive(Error, Debug)]
-pub enum SinkError {
-    #[error("Failed to open Cache: {0:?}, Error: {1:?}.")]
-    CacheOpenFailed(String, #[source] BoxedError),
-
-    #[error("Failed to create Cache: {0:?}, Error: {1:?}.")]
-    CacheCreateFailed(String, #[source] BoxedError),
-
-    #[error("Failed to create alias {alias:?} for Cache: {real_name:?}, Error: {source:?}.")]
-    CacheCreateAliasFailed {
-        alias: String,
-        real_name: String,
-        #[source]
-        source: BoxedError,
-    },
-
-    #[error("Failed to insert record in Cache: {0:?}, Error: {1:?}. Usually this happens if primary key is wrongly specified.")]
-    CacheInsertFailed(String, #[source] BoxedError),
-
-    #[error("Failed to delete record in Cache: {0:?}, Error: {1:?}. Usually this happens if primary key is wrongly specified.")]
-    CacheDeleteFailed(String, #[source] BoxedError),
-
-    #[error("Failed to update record in Cache: {0:?}, Error: {1:?}. Usually this happens if primary key is wrongly specified.")]
-    CacheUpdateFailed(String, #[source] BoxedError),
-
-    #[error("Failed to commit cache transaction: {0:?}, Error: {1:?}")]
-    CacheCommitTransactionFailed(String, #[source] BoxedError),
-
-    #[error("Cache {0} has reached its maximum size. Try to increase `cache_max_map_size` in the config.")]
-    CacheFull(String),
-
-    #[error("Failed to count the records during init in Cache: {0:?}, Error: {1:?}")]
-    CacheCountFailed(String, #[source] BoxedError),
 }
 
 #[derive(Error, Debug)]
