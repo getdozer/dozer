@@ -1,14 +1,14 @@
 use clap::Parser;
 #[cfg(feature = "cloud")]
-use dozer_orchestrator::cli::cloud::CloudCommands;
-use dozer_orchestrator::cli::generate_config_repl;
-use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
-use dozer_orchestrator::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
-use dozer_orchestrator::errors::{CliError, OrchestrationError};
-use dozer_orchestrator::simple::SimpleOrchestrator;
+use dozer_cli::cli::cloud::CloudCommands;
+use dozer_cli::cli::generate_config_repl;
+use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
+use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
+use dozer_cli::errors::{CliError, OrchestrationError};
+use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
-use dozer_orchestrator::CloudOrchestrator;
-use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
+use dozer_cli::CloudOrchestrator;
+use dozer_cli::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;

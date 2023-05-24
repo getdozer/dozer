@@ -137,7 +137,7 @@ jobs:
         run: cargo install cargo-deb
 
       - name: Compile deb file
-        run: cargo-deb -p dozer-orchestrator --target ${{ matrix.target }} --output ./deb/${{matrix.asset_name}}.deb
+        run: cargo-deb -p dozer-cli --target ${{ matrix.target }} --output ./deb/${{matrix.asset_name}}.deb
 
       - name: Prepare release assets
         shell: bash
@@ -347,7 +347,7 @@ jobs:
 
       - name: Compile deb file
         if: matrix.os == 'ubuntu-20-16-cores'
-        run: cargo-deb -p dozer-orchestrator  --output ./deb/${{matrix.asset_name}}.deb
+        run: cargo-deb -p dozer-cli  --output ./deb/${{matrix.asset_name}}.deb
 
       # - name: Build Linux binary
       #   if: matrix.os == 'ubuntu-20-16-cores'

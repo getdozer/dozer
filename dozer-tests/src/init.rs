@@ -23,6 +23,6 @@ pub fn init() {
         let _ = dozer_tracing::init_telemetry(None, None);
         download("actor");
 
-        dozer_orchestrator::set_panic_hook();
+        dozer_cli::set_panic_hook();
     });
 }

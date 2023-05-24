@@ -2199,6 +2199,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-cli"
+version = "0.1.22"
+dependencies = [
+ "atty",
+ "clap 4.1.11",
+ "ctrlc",
+ "dozer-api",
+ "dozer-cache",
+ "dozer-core",
+ "dozer-ingestion",
+ "dozer-sql",
+ "dozer-storage",
+ "dozer-tracing",
+ "dozer-types",
+ "futures",
+ "glob",
+ "handlebars",
+ "include_dir",
+ "page_size",
+ "reqwest",
+ "rustyline",
+ "rustyline-derive",
+ "serde",
+ "serde_json",
+ "tempdir",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "uuid",
+]
+
+[[package]]
 name = "dozer-core"
 version = "0.1.22"
 dependencies = [
@@ -2279,38 +2311,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dozer-orchestrator"
-version = "0.1.22"
-dependencies = [
- "atty",
- "clap 4.1.11",
- "ctrlc",
- "dozer-api",
- "dozer-cache",
- "dozer-core",
- "dozer-ingestion",
- "dozer-sql",
- "dozer-storage",
- "dozer-tracing",
- "dozer-types",
- "futures",
- "glob",
- "handlebars",
- "include_dir",
- "page_size",
- "reqwest",
- "rustyline",
- "rustyline-derive",
- "serde",
- "serde_json",
- "tempdir",
- "tokio",
- "tokio-stream",
- "tonic",
- "uuid",
-]
-
-[[package]]
 name = "dozer-sql"
 version = "0.1.22"
 dependencies = [
@@ -2358,8 +2358,8 @@ dependencies = [
  "csv",
  "dozer-api",
  "dozer-cache",
+ "dozer-cli",
  "dozer-core",
- "dozer-orchestrator",
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",

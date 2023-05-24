@@ -1,5 +1,5 @@
 [package]
-name = "dozer-orchestrator"
+name = "dozer-cli"
 version = "0.1.22"
 edition = "2021"
 default-run = "dozer"
