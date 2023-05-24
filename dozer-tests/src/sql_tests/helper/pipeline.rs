@@ -108,7 +108,7 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
@@ -116,7 +116,7 @@ impl Source for TestSource {
         &self,
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         let mut idx = 0;
 
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {

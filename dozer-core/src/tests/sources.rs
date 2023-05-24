@@ -1,5 +1,4 @@
 use crate::channels::SourceChannelForwarder;
-use crate::errors::ExecutionError;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
@@ -91,7 +90,7 @@ pub(crate) struct GeneratorSource {
 }
 
 impl Source for GeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(true)
     }
 
@@ -99,7 +98,7 @@ impl Source for GeneratorSource {
         &self,
         fw: &mut dyn SourceChannelForwarder,
         last_checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         let start = last_checkpoint.unwrap_or((0, 0)).0;
 
         for n in start + 1..(start + self.count + 1) {
@@ -218,7 +217,7 @@ pub(crate) struct DualPortGeneratorSource {
 }
 
 impl Source for DualPortGeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
@@ -226,7 +225,7 @@ impl Source for DualPortGeneratorSource {
         &self,
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             fw.send(
                 IngestionMessage::new_op(

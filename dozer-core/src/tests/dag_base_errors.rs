@@ -330,7 +330,7 @@ pub(crate) struct ErrGeneratorSource {
 }
 
 impl Source for ErrGeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
@@ -338,10 +338,10 @@ impl Source for ErrGeneratorSource {
         &self,
         fw: &mut dyn SourceChannelForwarder,
         _checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
-                return Err(ExecutionError::TestError("Generated Error".to_string()));
+                return Err("Generated Error".to_string().into());
             }
 
             fw.send(

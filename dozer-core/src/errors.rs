@@ -19,8 +19,6 @@ pub enum ExecutionError {
     DuplicateInput { node: NodeHandle, port: PortHandle },
     #[error("Invalid type: {0}")]
     InvalidType(String),
-    #[error("Schema not initialized")]
-    SchemaNotInitialized,
     #[error("Record not found")]
     RecordNotFound(),
     #[error("Cannot send to channel")]
@@ -37,6 +35,8 @@ pub enum ExecutionError {
     AppSourceConnectionAlreadyExists(String),
     #[error("Factory error: {0}")]
     Factory(#[source] BoxedError),
+    #[error("Source error: {0}")]
+    Source(#[source] BoxedError),
 
     // Error forwarders
     #[error("File system error {0:?}: {1}")]
@@ -47,9 +47,6 @@ pub enum ExecutionError {
     // to remove
     #[error("{0}")]
     InternalStringError(String),
-
-    #[error("Source error: {0}")]
-    SourceError(SourceError),
 
     #[error("Failed to execute product processor: {0}")]
     ProductProcessorError(#[source] BoxedError),
@@ -80,10 +77,4 @@ impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
     fn from(_: daggy::WouldCycle<T>) -> Self {
         ExecutionError::WouldCycle
     }
-}
-
-#[derive(Error, Debug)]
-pub enum SourceError {
-    #[error("Failed to find table in Source: {0}")]
-    PortError(u32),
 }

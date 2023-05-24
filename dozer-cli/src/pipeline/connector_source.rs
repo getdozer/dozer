@@ -1,5 +1,4 @@
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::errors::{ExecutionError, SourceError};
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
@@ -219,6 +218,14 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
     }
 }
 
+#[derive(Error, Debug)]
+enum ConnectorSourceError {
+    #[error("Schema not initialized")]
+    SchemaNotInitialized,
+    #[error("Failed to find table in Source: {0}")]
+    PortError(u32),
+}
+
 #[derive(Debug)]
 pub struct ConnectorSource {
     ingestor: Ingestor,
@@ -232,7 +239,7 @@ pub struct ConnectorSource {
 }
 
 impl Source for ConnectorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
@@ -240,7 +247,7 @@ impl Source for ConnectorSource {
         &self,
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         thread::scope(|scope| {
             let mut counter = HashMap::new();
             let t = scope.spawn(|| {
@@ -293,12 +300,10 @@ impl Source for ConnectorSource {
                     }
                 };
                 if let Some(schema_id) = schema_id {
-                    let (port, _) =
-                        self.schema_port_map
-                            .get(&schema_id)
-                            .ok_or(ExecutionError::SourceError(SourceError::PortError(
-                                schema_id,
-                            )))?;
+                    let (port, _) = self
+                        .schema_port_map
+                        .get(&schema_id)
+                        .ok_or(ConnectorSourceError::PortError(schema_id))?;
 
                     counter
                         .entry(schema_id)
@@ -327,6 +332,8 @@ impl Source for ConnectorSource {
     }
 }
 
-fn get_schema_id(op_schema_id: Option<SchemaIdentifier>) -> Result<u32, ExecutionError> {
-    Ok(op_schema_id.ok_or(ExecutionError::SchemaNotInitialized)?.id)
+fn get_schema_id(op_schema_id: Option<SchemaIdentifier>) -> Result<u32, ConnectorSourceError> {
+    Ok(op_schema_id
+        .ok_or(ConnectorSourceError::SchemaNotInitialized)?
+        .id)
 }
