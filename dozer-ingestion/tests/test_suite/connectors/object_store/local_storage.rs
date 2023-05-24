@@ -2,7 +2,7 @@ use dozer_ingestion::connectors::object_store::connector::ObjectStoreConnector;
 
 use dozer_types::{
     arrow,
-    ingestion_types::{LocalDetails, LocalStorage, Table},
+    ingestion_types::{LocalDetails, LocalStorage, ParquetConfig, Table, TableConfig},
     types::Field,
 };
 use tempdir::TempDir;
@@ -85,16 +85,16 @@ fn create_connector(
         .expect("Failed to write record batch");
     writer.close().expect("Failed to close writer");
 
-    let prefix = format!("/{table_name}");
     let local_storage = LocalStorage {
         details: Some(LocalDetails {
             path: temp_dir.path().to_str().expect("Non-UTF8 path").to_string(),
         }),
         tables: vec![Table {
+            config: Some(TableConfig::Parquet(ParquetConfig {
+                path: format!("/{table_name}"),
+                extension: ".parquet".to_string(),
+            })),
             name: table_name,
-            prefix,
-            file_type: "parquet".to_string(),
-            extension: ".parquet".to_string(),
         }],
     };
     let connector = ObjectStoreConnector::new(0, local_storage);

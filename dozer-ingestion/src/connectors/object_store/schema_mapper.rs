@@ -5,11 +5,19 @@ use crate::connectors::{CdcType, ListOrFilterColumns, SourceSchema, SourceSchema
 use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use deltalake::arrow::datatypes::SchemaRef;
-use deltalake::datafusion::datasource::listing::ListingTableUrl;
+use deltalake::datafusion::datasource::file_format::csv::CsvFormat;
+use deltalake::datafusion::datasource::file_format::parquet::ParquetFormat;
+use deltalake::datafusion::datasource::listing::{ListingOptions, ListingTableUrl};
 use deltalake::datafusion::prelude::SessionContext;
+use dozer_types::ingestion_types::{CsvConfig, DeltaConfig};
 use dozer_types::log::error;
 use dozer_types::types::{Schema, SchemaIdentifier};
+use object_store::ObjectStore;
 use std::sync::Arc;
+
+use super::adapters::DozerObjectStoreParams;
+use super::delta;
+use super::delta::schema_helper::SchemaHelper;
 
 pub fn map_schema(
     id: u32,
@@ -50,9 +58,39 @@ async fn get_table_schema(
     table: &ListOrFilterColumns,
     id: u32,
 ) -> SourceSchemaResult {
-    let table_name = table.name.clone();
+    let params = &config.table_params(&table.name)?;
 
-    let params = config.table_params(&table_name)?;
+    if let Some(table_config) = &params.data_fusion_table.config {
+        match table_config {
+            dozer_types::ingestion_types::TableConfig::CSV(table_config) => {
+                let format = CsvFormat::default();
+                let listing_options = ListingOptions::new(Arc::new(format))
+                    .with_file_extension(table_config.extension.clone());
+                get_object_schema(id, table, config, listing_options).await
+            }
+            dozer_types::ingestion_types::TableConfig::Delta(table_config) => {
+                get_delta_schema(id, table, config, table_config).await
+            }
+            dozer_types::ingestion_types::TableConfig::Parquet(table_config) => {
+                let format = ParquetFormat::default();
+                let listing_options = ListingOptions::new(Arc::new(format))
+                    .with_file_extension(table_config.extension.clone());
+
+                get_object_schema(id, table, config, listing_options).await
+            }
+        }
+    } else {
+        Err(ConnectorError::WrongConnectionConfiguration)
+    }
+}
+
+async fn get_object_schema(
+    id: u32,
+    table: &ListOrFilterColumns,
+    store_config: &impl DozerObjectStore,
+    listing_options: ListingOptions,
+) -> SourceSchemaResult {
+    let params = store_config.table_params(&table.name)?;
 
     let table_path = ListingTableUrl::parse(&params.table_path).map_err(|e| {
         ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError(
@@ -60,9 +98,6 @@ async fn get_table_schema(
             e,
         ))
     })?;
-
-    let listing_options = map_listing_options(params.data_fusion_table)
-        .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
 
     let ctx = SessionContext::new();
 
@@ -82,5 +117,24 @@ async fn get_table_schema(
 
     let schema = map_schema(id, resolved_schema, table)?;
 
+    Ok(SourceSchema::new(schema, CdcType::Nothing))
+}
+
+async fn get_delta_schema(
+    id: u32,
+    table: &ListOrFilterColumns,
+    store_config: &impl DozerObjectStore,
+    table_config: &DeltaConfig,
+) -> SourceSchemaResult {
+    let params = store_config.table_params(&table.name)?;
+
+    let table_path = params.table_path;
+
+    let ctx = SessionContext::new();
+    let delta_table = deltalake::open_table(table_path).await?;
+    let arrow_schema: SchemaRef = (*ctx.read_table(Arc::new(delta_table))?.schema())
+        .clone()
+        .into();
+    let schema = map_schema(id, arrow_schema, table)?;
     Ok(SourceSchema::new(schema, CdcType::Nothing))
 }

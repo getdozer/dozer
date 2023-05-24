@@ -10,6 +10,7 @@ use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
 use super::connection::validator::validate_connection;
+use super::table_watcher::TableWatcher;
 
 type ConnectorResult<T> = Result<T, ConnectorError>;
 
@@ -79,7 +80,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         &self,
         table_infos: &[TableInfo],
     ) -> ConnectorResult<Vec<SourceSchemaResult>> {
-        let table_infos = table_infos
+        let list_or_filter_columns = table_infos
             .iter()
             .map(|table_info| ListOrFilterColumns {
                 schema: table_info.schema.clone(),
@@ -87,13 +88,30 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                 columns: Some(table_info.column_names.clone()),
             })
             .collect::<Vec<_>>();
-        schema_mapper::get_schema(&self.config, &table_infos).await
+        schema_mapper::get_schema(&self.config, &list_or_filter_columns).await
     }
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
-        TableReader::new(self.config.clone())
-            .read_tables(&tables, ingestor)
-            .await
+        for (id, table_info) in tables.iter().enumerate() {
+            for table_config in self.config.tables() {
+                if table_info.name == table_config.name {
+                    if let Some(config) = &table_config.config {
+                        match config {
+                            dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
+                                csv_config.watch(id, table_info).await?;
+                            }
+                            dozer_types::ingestion_types::TableConfig::Delta(delta_config) => {
+                                delta_config.watch(id, table_info).await?;
+                            }
+                            dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
+                                parquet_config.watch(id, table_info).await?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 

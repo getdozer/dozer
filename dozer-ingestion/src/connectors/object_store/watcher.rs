@@ -72,7 +72,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
 
         let base_path = params.table_path;
 
-        let listing_options = map_listing_options(params.data_fusion_table)
+        let listing_options = map_listing_options(&params.data_fusion_table)
             .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
 
         let ctx = SessionContext::new();
