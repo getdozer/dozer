@@ -132,8 +132,8 @@ message GetStatusResponse {
 
 message DeploymentStatus {
   bool app_running = 1;
-  int32 api_desired = 2;
-  int32 api_available = 3;
+  optional int32 api_desired = 2;
+  optional int32 api_available = 3;
 }
 
 message UpsertVersionRequest {

@@ -189,6 +189,14 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     }
                 }
 
+                fn number(number: Option<i32>) -> String {
+                    if let Some(n) = number {
+                        n.to_string()
+                    } else {
+                        "-".to_string()
+                    }
+                }
+
                 let mut version = "".to_string();
                 for (loop_version, loop_deployment) in response.versions.iter() {
                     if loop_deployment == &deployment {
@@ -204,7 +212,11 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 deployment_table.add_row(row![
                     deployment,
                     mark(status.app_running),
-                    format!("{}/{}", status.api_available, status.api_desired),
+                    format!(
+                        "{}/{}",
+                        number(status.api_available),
+                        number(status.api_desired)
+                    ),
                     version
                 ]);
             }
