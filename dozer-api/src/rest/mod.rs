@@ -8,6 +8,7 @@ use crate::{
     CacheEndpoint,
 };
 use actix_cors::Cors;
+use actix_web::middleware::DefaultHeaders;
 use actix_web::{
     body::MessageBody,
     dev::{Service, ServiceFactory, ServiceRequest, ServiceResponse},
@@ -32,6 +33,9 @@ enum CorsOptions {
     // origins, max_age
     Custom(Vec<String>, usize),
 }
+
+pub const DOZER_SERVER_NAME_HEADER: &str = "x-dozer-server-name";
+
 #[derive(Clone)]
 pub struct ApiServer {
     shutdown_timeout: u64,
@@ -94,7 +98,11 @@ impl ApiServer {
         let mut app = App::new()
             .app_data(web::Data::new(endpoint_paths))
             .wrap(Logger::default())
-            .wrap(TracingLogger::default());
+            .wrap(TracingLogger::default())
+            .wrap(DefaultHeaders::new().add((
+                DOZER_SERVER_NAME_HEADER,
+                gethostname::gethostname().to_string_lossy().into_owned(),
+            )));
 
         let is_auth_configured = if let Some(api_security) = security {
             // Injecting API Security
