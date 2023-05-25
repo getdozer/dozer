@@ -23,6 +23,8 @@ pub enum OrchestrationError {
     FileSystem(PathBuf, std::io::Error),
     #[error("Failed to find migration for endpoint {0}")]
     NoMigrationFound(String),
+    #[error("Failed to login: {0}")]
+    CloudLoginFailed(#[from] CloudLoginError),
     #[error("Failed to migrate: {0}")]
     MigrateFailed(#[from] MigrationError),
     #[error("Failed to generate token: {0}")]
@@ -124,4 +126,19 @@ pub enum MigrationError {
     CannotWriteSchema(#[source] SchemaError),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
+}
+
+#[derive(Debug, Error)]
+pub enum CloudLoginError {
+    #[error("Tonic error: {0}")]
+    TonicError(#[from] tonic::Status),
+
+    #[error("Transport error: {0}")]
+    Transport(#[from] tonic::transport::Error),
+
+    #[error("HttpRequest error: {0}")]
+    HttpRequestError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    SerializationError(#[from] dozer_types::serde_json::Error),
 }

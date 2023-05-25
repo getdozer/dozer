@@ -19,6 +19,7 @@ use dozer_types::grpc_types::cloud::{
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 
+use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
 
 async fn get_cloud_client(
@@ -275,6 +276,12 @@ impl CloudOrchestrator for SimpleOrchestrator {
             Ok::<(), CloudError>(())
         })?;
 
+        Ok(())
+    }
+
+    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError> {
+        let login_svc = LoginSvc::new(company_name);
+        login_svc.login()?;
         Ok(())
     }
 }

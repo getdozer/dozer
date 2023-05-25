@@ -17,7 +17,7 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
-#[cfg(feature = "cloud")]
+// #[cfg(feature = "cloud")]
 mod cloud_helper;
 mod console_helper;
 mod utils;
@@ -39,7 +39,7 @@ pub trait Orchestrator {
     fn generate_token(&self) -> Result<String, OrchestrationError>;
 }
 
-#[cfg(feature = "cloud")]
+// #[cfg(feature = "cloud")]
 pub trait CloudOrchestrator {
     fn deploy(&mut self, cloud: Cloud, deploy: DeployCommandArgs)
         -> Result<(), OrchestrationError>;
@@ -50,6 +50,7 @@ pub trait CloudOrchestrator {
     fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
     fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
     fn trace_logs(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
+    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports

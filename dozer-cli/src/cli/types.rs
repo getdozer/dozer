@@ -2,7 +2,7 @@ use clap::{Args, Parser, Subcommand};
 
 use super::helper::{DESCRIPTION, LOGO};
 
-#[cfg(feature = "cloud")]
+// #[cfg(feature = "cloud")]
 use crate::cli::cloud::Cloud;
 use dozer_types::constants::DEFAULT_CONFIG_PATH;
 
@@ -35,7 +35,7 @@ pub enum Commands {
         about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed"
     )]
     Migrate(Migrate),
-    #[cfg(feature = "cloud")]
+    // #[cfg(feature = "cloud")]
     #[command(about = "Deploy cloud applications")]
     Cloud(Cloud),
     #[command(about = "Run Api Server")]

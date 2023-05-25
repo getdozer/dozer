@@ -27,6 +27,7 @@ pub enum CloudCommands {
     Status(AppCommand),
     Monitor(AppCommand),
     Logs(AppCommand),
+    Login(CompanyCommand),
     /// Application version management
     #[command(subcommand)]
     Version(VersionCommand),
@@ -54,6 +55,11 @@ pub struct UpdateCommandArgs {
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
     pub num_replicas: Option<i32>,
+}
+#[derive(Debug, Args, Clone)]
+pub struct CompanyCommand {
+    #[arg(long = "company-name")]
+    pub company_name: String,
 }
 
 #[derive(Debug, Args, Clone)]
