@@ -16,7 +16,6 @@ service DozerCloud {
   rpc create_app_connection(AppConnectionRequest) returns (ConnectionResponse);
   rpc create_source(CreateSourceRequest) returns (SourceResponse);
 
-
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
   rpc generate_yaml(GenerateYamlRequest) returns (GenerateYamlResponse);
@@ -131,9 +130,10 @@ message GetStatusResponse {
 }
 
 message DeploymentStatus {
-  bool app_running = 1;
-  optional int32 api_desired = 2;
-  optional int32 api_available = 3;
+  uint32 deployment = 1;
+  bool app_running = 2;
+  optional int32 api_desired = 3;
+  optional int32 api_available = 4;
 }
 
 message UpsertVersionRequest {
