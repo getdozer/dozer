@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, mem::swap};
+use std::{borrow::Cow, collections::HashMap, mem::swap, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
@@ -10,6 +10,7 @@ use dozer_types::{
 
 use crate::{
     builder_dag::NodeKind,
+    error_manager::ErrorManager,
     errors::ExecutionError,
     forwarder::StateWriter,
     node::{PortHandle, Sink},
@@ -31,6 +32,8 @@ pub struct SinkNode {
     sink: Box<dyn Sink>,
     /// This node's state writer, for writing metadata and port state.
     state_writer: StateWriter,
+    /// The error manager, for reporting non-fatal errors.
+    error_manager: Arc<ErrorManager>,
 }
 
 impl SinkNode {
@@ -53,6 +56,7 @@ impl SinkNode {
             receivers,
             sink,
             state_writer,
+            error_manager: dag.error_manager().clone(),
         }
     }
 
@@ -83,12 +87,17 @@ impl ReceiverLoop for SinkNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        self.sink.process(self.port_handles[index], op)
+        if let Err(e) = self.sink.process(self.port_handles[index], op) {
+            self.error_manager.report(e);
+        }
+        Ok(())
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
-        self.sink.commit()?;
+        if let Err(e) = self.sink.commit() {
+            self.error_manager.report(e);
+        }
         self.state_writer.store_commit_info(epoch)
     }
 
@@ -97,6 +106,9 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError> {
-        self.sink.on_source_snapshotting_done(connection_name)
+        if let Err(e) = self.sink.on_source_snapshotting_done(connection_name) {
+            self.error_manager.report(e);
+        }
+        Ok(())
     }
 }

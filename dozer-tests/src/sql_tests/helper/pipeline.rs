@@ -14,6 +14,7 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
@@ -50,7 +51,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn get_output_schema(
         &self,
         port: &PortHandle,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         let mut schema = self
             .schemas
             .get(port)
@@ -92,7 +93,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {
             name_to_port: self.name_to_port.to_owned(),
             receiver: self.receiver.clone(),
@@ -107,7 +108,7 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
@@ -115,7 +116,7 @@ impl Source for TestSource {
         &self,
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         let mut idx = 0;
 
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
@@ -160,14 +161,14 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(TestSink::new(self.output.to_owned())))
     }
 }
@@ -221,19 +222,16 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), BoxedError> {
         self.update_result(op);
         Ok(())
     }
 
-    fn commit(&mut self) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(
-        &mut self,
-        _connection_name: String,
-    ) -> Result<(), ExecutionError> {
+    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -296,15 +294,13 @@ impl TestPipeline {
         let output = Arc::new(Mutex::new(HashMap::new()));
         pipeline.add_sink(Arc::new(TestSinkFactory::new(output.clone())), "sink");
 
-        pipeline
-            .connect_nodes(
-                &output_table.node,
-                Some(output_table.port),
-                "sink",
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            )
-            .unwrap();
+        pipeline.connect_nodes(
+            &output_table.node,
+            Some(output_table.port),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+            true,
+        );
         let used_schemas = pipeline.get_entry_points_sources_names();
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);

@@ -1,12 +1,12 @@
-use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::projection::processor::ProjectionProcessor;
+use crate::pipeline::{aggregation::processor::AggregationProcessor, errors::PipelineError};
 use dozer_core::{
-    errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Schema;
 use sqlparser::ast::Select;
 use std::collections::HashMap;
@@ -25,11 +25,9 @@ impl AggregationProcessorFactory {
         }
     }
 
-    fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, ExecutionError> {
+    fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
         let mut projection_planner = CommonPlanner::new(input_schema);
-        projection_planner
-            .plan(self.projection.clone())
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        projection_planner.plan(self.projection.clone())?;
         Ok(projection_planner)
     }
 }
@@ -50,10 +48,10 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         let (input_schema, ctx) = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
-            .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
+            .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
         let planner = self.get_planner(input_schema.clone())?;
         Ok((planner.post_projection_schema, ctx.clone()))
@@ -63,10 +61,10 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
-            .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
+            .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
         let planner = self.get_planner(input_schema.clone())?;
 
@@ -77,17 +75,14 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                 planner.projection_output,
             ))
         } else {
-            Box::new(
-                AggregationProcessor::new(
-                    planner.groupby,
-                    planner.aggregation_output,
-                    planner.projection_output,
-                    planner.having,
-                    input_schema.clone(),
-                    planner.post_aggregation_schema,
-                )
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
-            )
+            Box::new(AggregationProcessor::new(
+                planner.groupby,
+                planner.aggregation_output,
+                planner.projection_output,
+                planner.having,
+                input_schema.clone(),
+                planner.post_aggregation_schema,
+            )?)
         };
         Ok(processor)
     }

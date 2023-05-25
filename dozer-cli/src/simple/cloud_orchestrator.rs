@@ -1,4 +1,7 @@
-use crate::cli::cloud::{Cloud, ListCommandArgs, VersionCommand};
+use crate::cli::cloud::{
+    default_num_replicas, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, UpdateCommandArgs,
+    VersionCommand,
+};
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
 use crate::errors::{CloudError, OrchestrationError};
@@ -10,7 +13,9 @@ use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
     ListAppRequest, LogMessageRequest, UpdateAppRequest,
 };
-use dozer_types::grpc_types::cloud::{SetCurrentVersionRequest, UpsertVersionRequest};
+use dozer_types::grpc_types::cloud::{
+    SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
+};
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 
@@ -26,7 +31,11 @@ async fn get_cloud_client(
 
 impl CloudOrchestrator for SimpleOrchestrator {
     // TODO: Deploy Dozer application using local Dozer configuration
-    fn deploy(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+    fn deploy(
+        &mut self,
+        cloud: Cloud,
+        deploy: DeployCommandArgs,
+    ) -> Result<(), OrchestrationError> {
         // let username = match deploy.username {
         //     Some(u) => u,
         //     None => String::new(),
@@ -48,29 +57,43 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .map_err(GRPCCallError)?
                 .into_inner();
 
-            info!("Application created with id: {:?}", &response.id);
+            info!("Application created with id: {:?}", &response.app_id);
             // 2. START application
-            deploy_app(&mut client, &response.id).await
+            deploy_app(
+                &mut client,
+                &response.app_id,
+                deploy.num_replicas.unwrap_or_else(default_num_replicas),
+            )
+            .await
         })?;
         Ok(())
     }
 
-    fn update(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+    fn update(
+        &mut self,
+        cloud: Cloud,
+        update: UpdateCommandArgs,
+    ) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
             let files = list_files()?;
             let response = client
                 .update_application(UpdateAppRequest {
-                    id: app_id.clone(),
+                    app_id: update.app_id.clone(),
                     files,
                 })
                 .await
                 .map_err(GRPCCallError)?
                 .into_inner();
 
-            info!("Updated {}", &response.id);
+            info!("Updated {}", &response.app_id);
 
-            deploy_app(&mut client, &app_id).await
+            deploy_app(
+                &mut client,
+                &update.app_id,
+                update.num_replicas.unwrap_or_else(default_num_replicas),
+            )
+            .await
         })?;
 
         Ok(())
@@ -85,7 +108,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             info!("Deleting application");
             let _delete_result = client
-                .delete_application(DeleteAppRequest { id: app_id.clone() })
+                .delete_application(DeleteAppRequest {
+                    app_id: app_id.clone(),
+                })
                 .await
                 .map_err(GRPCCallError)?
                 .into_inner();
@@ -115,7 +140,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             for app in response.apps {
                 if let Some(app_data) = app.app {
-                    table.add_row(row![app.id, app_data.convert_to_table()]);
+                    table.add_row(row![app.app_id, app_data.convert_to_table()]);
                 }
             }
 
@@ -179,7 +204,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 deployment_table.add_row(row![
                     deployment,
                     mark(status.app_running),
-                    mark(status.api_running),
+                    format!("{}/{}", status.api_available, status.api_desired),
                     version
                 ]);
             }
@@ -327,6 +352,36 @@ impl SimpleOrchestrator {
                 }
             }
 
+            Ok::<_, CloudError>(())
+        })?;
+        Ok(())
+    }
+
+    pub fn api(&self, cloud: Cloud, api: ApiCommand) -> Result<(), OrchestrationError> {
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud).await?;
+            match api {
+                ApiCommand::SetNumReplicas {
+                    num_replicas,
+                    app_id,
+                } => {
+                    let status = client
+                        .get_status(GetStatusRequest {
+                            app_id: app_id.clone(),
+                        })
+                        .await?
+                        .into_inner();
+                    // Update the latest deployment for now.
+                    let deployment = status.deployments.len() as u32 - 1;
+                    client
+                        .set_num_api_instances(SetNumApiInstancesRequest {
+                            app_id,
+                            deployment,
+                            num_api_instances: num_replicas,
+                        })
+                        .await?;
+                }
+            }
             Ok::<_, CloudError>(())
         })?;
         Ok(())

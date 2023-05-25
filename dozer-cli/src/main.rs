@@ -1,14 +1,14 @@
 use clap::Parser;
 #[cfg(feature = "cloud")]
-use dozer_orchestrator::cli::cloud::CloudCommands;
-use dozer_orchestrator::cli::generate_config_repl;
-use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
-use dozer_orchestrator::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
-use dozer_orchestrator::errors::{CliError, OrchestrationError};
-use dozer_orchestrator::simple::SimpleOrchestrator;
+use dozer_cli::cli::cloud::CloudCommands;
+use dozer_cli::cli::generate_config_repl;
+use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
+use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
+use dozer_cli::errors::{CliError, OrchestrationError};
+use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
-use dozer_orchestrator::CloudOrchestrator;
-use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
+use dozer_cli::CloudOrchestrator;
+use dozer_cli::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;
@@ -158,14 +158,15 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
-                CloudCommands::Deploy => dozer.deploy(cloud),
+                CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
                 CloudCommands::List(list) => dozer.list(cloud, list),
                 CloudCommands::Status(app) => dozer.status(cloud, app.app_id),
                 CloudCommands::Monitor(app) => dozer.monitor(cloud, app.app_id),
-                CloudCommands::Update(app) => dozer.update(cloud, app.app_id),
+                CloudCommands::Update(update) => dozer.update(cloud, update),
                 CloudCommands::Delete(app) => dozer.delete(cloud, app.app_id),
                 CloudCommands::Logs(app) => dozer.trace_logs(cloud, app.app_id),
                 CloudCommands::Version(version) => dozer.version(cloud, version),
+                CloudCommands::Api(api) => dozer.api(cloud, api),
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");

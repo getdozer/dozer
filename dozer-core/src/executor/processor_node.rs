@@ -1,11 +1,13 @@
+use std::sync::Arc;
 use std::{borrow::Cow, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_types::epoch::Epoch;
+use dozer_types::epoch::ExecutorOperation;
 use dozer_types::node::NodeHandle;
-use dozer_types::{epoch::ExecutorOperation, log::warn};
 
+use crate::error_manager::ErrorManager;
 use crate::{
     builder_dag::NodeKind,
     errors::ExecutionError,
@@ -28,6 +30,8 @@ pub struct ProcessorNode {
     processor: Box<dyn Processor>,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
     channel_manager: ProcessorChannelManager,
+    /// The error manager, for reporting non-fatal errors.
+    error_manager: Arc<ErrorManager>,
 }
 
 impl ProcessorNode {
@@ -45,8 +49,13 @@ impl ProcessorNode {
         let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
 
         let state_writer = StateWriter::new(record_writers);
-        let channel_manager =
-            ProcessorChannelManager::new(node_handle.clone(), senders, state_writer, true);
+        let channel_manager = ProcessorChannelManager::new(
+            node_handle.clone(),
+            senders,
+            state_writer,
+            true,
+            dag.error_manager().clone(),
+        );
 
         Self {
             node_handle,
@@ -54,6 +63,7 @@ impl ProcessorNode {
             receivers,
             processor,
             channel_manager,
+            error_manager: dag.error_manager().clone(),
         }
     }
 
@@ -84,19 +94,19 @@ impl ReceiverLoop for ProcessorNode {
         index: usize,
         op: dozer_types::types::Operation,
     ) -> Result<(), ExecutionError> {
-        let result =
+        if let Err(e) =
             self.processor
-                .process(self.port_handles[index], op, &mut self.channel_manager);
-        if let Err(e) = result {
-            warn!("Processor error: {:?}", e);
+                .process(self.port_handles[index], op, &mut self.channel_manager)
+        {
+            self.error_manager.report(e);
         }
-
-        // TODO: Enable "test_run_dag_proc_err_2" and "test_run_dag_proc_err_3" tests when errors threshold is implemented
         Ok(())
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        self.processor.commit(epoch)?;
+        if let Err(e) = self.processor.commit(epoch) {
+            self.error_manager.report(e);
+        }
         self.channel_manager.store_and_send_commit(epoch)
     }
 

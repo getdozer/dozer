@@ -22,6 +22,7 @@ pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
+    pub error_threshold: Option<u64>,
 }
 
 impl Default for ExecutorOptions {
@@ -30,6 +31,7 @@ impl Default for ExecutorOptions {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
+            error_threshold: Some(0),
         }
     }
 }
@@ -86,8 +88,11 @@ impl DagExecutor {
 
     pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
-        let mut execution_dag =
-            ExecutionDag::new(self.builder_dag, self.options.channel_buffer_sz)?;
+        let mut execution_dag = ExecutionDag::new(
+            self.builder_dag,
+            self.options.channel_buffer_sz,
+            self.options.error_threshold,
+        )?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.
@@ -164,31 +169,37 @@ fn start_source(
             Err(ExecutionError::CannotSendToChannel) => {}
             // Other errors result in panic.
             Err(e) => std::panic::panic_any(e),
-        })?;
+        })
+        .map_err(ExecutionError::CannotSpawnWorkerThread)?;
 
-    Ok(Builder::new()
+    Builder::new()
         .name(format!("{handle}-listener"))
         .spawn(move || {
             if let Err(e) = source_listener.run() {
                 std::panic::panic_any(e);
             }
-        })?)
+        })
+        .map_err(ExecutionError::CannotSpawnWorkerThread)
 }
 
 fn start_processor(processor: ProcessorNode) -> Result<JoinHandle<()>, ExecutionError> {
-    Ok(Builder::new()
+    Builder::new()
         .name(processor.handle().to_string())
         .spawn(move || {
             if let Err(e) = processor.run() {
                 std::panic::panic_any(e);
             }
-        })?)
+        })
+        .map_err(ExecutionError::CannotSpawnWorkerThread)
 }
 
 fn start_sink(sink: SinkNode) -> Result<JoinHandle<()>, ExecutionError> {
-    Ok(Builder::new().name(sink.handle().to_string()).spawn(|| {
-        if let Err(e) = sink.run() {
-            std::panic::panic_any(e);
-        }
-    })?)
+    Builder::new()
+        .name(sink.handle().to_string())
+        .spawn(|| {
+            if let Err(e) = sink.run() {
+                std::panic::panic_any(e);
+            }
+        })
+        .map_err(ExecutionError::CannotSpawnWorkerThread)
 }

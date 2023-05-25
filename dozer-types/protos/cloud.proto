@@ -6,6 +6,7 @@ service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
+  rpc clone_application(CloneAppRequest) returns (AppResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
   rpc list_app_connections(ListAppConnectionRequest) returns (GetAllConnectionResponse);
   rpc list_app_sources(ListSourceRequest) returns (ListSourceResponse);
@@ -34,6 +35,7 @@ service DozerCloud {
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
   rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
+  rpc set_num_api_instances(SetNumApiInstancesRequest) returns (SetNumApiInstancesResponse);
 
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
@@ -100,10 +102,15 @@ message ListAppConnectionRequest {
   optional uint32 limit = 2;
   optional uint32 offset = 3;
 }
-message StartRequest { string app_id = 1; }
+
+message StartRequest {
+  string app_id = 1;
+  int32 num_api_instances = 2;
+}
+
 message StartResponse {
   bool success = 1;
-  string id = 2;
+  string app_id = 2;
   string api_endpoint = 3;
   optional string error = 4;
 }
@@ -125,7 +132,8 @@ message GetStatusResponse {
 
 message DeploymentStatus {
   bool app_running = 1;
-  bool api_running = 2;
+  int32 api_desired = 2;
+  int32 api_available = 3;
 }
 
 message UpsertVersionRequest {
@@ -142,6 +150,14 @@ message SetCurrentVersionRequest {
 }
 
 message SetCurrentVersionResponse {}
+
+message SetNumApiInstancesRequest {
+  string app_id = 1;
+  uint32 deployment = 2;
+  int32 num_api_instances = 3;
+}
+
+message SetNumApiInstancesResponse {}
 
 message CreateAppRequest {
   repeated File files = 3;
@@ -168,8 +184,9 @@ message GenerateYamlResponse {
 }
 
 message AppResponse {
-  string id = 1;
+  string app_id = 1;
   AppConfig app = 2;
+  optional string repository_url = 3;
 }
 
 message ListAppRequest {
@@ -184,12 +201,15 @@ message ListAppResponse {
 }
 
 message UpdateAppRequest {
-  string id = 1;
+  string app_id = 1;
   repeated File files = 2;
 }
 
 message DeleteAppRequest {
-  string id = 1;
+  string app_id = 1;
+}
+message CloneAppRequest {
+  string app_id = 1;
 }
 message DeleteAppResponse { bool success = 1; }
 

@@ -77,7 +77,7 @@ pub trait ReceiverLoop: Name {
                     }
                 }
                 ExecutorOperation::SnapshottingDone { connection_name } => {
-                    self.on_snapshotting_done(connection_name)?
+                    self.on_snapshotting_done(connection_name)?;
                 }
             }
         }

@@ -54,7 +54,7 @@ Dozer requires `protobuf-compiler`, installation instructions can be found in [a
 **Build from source**
 
 ```bash
-cargo install --path dozer-orchestrator --locked
+cargo install --path dozer-cli --locked
 ```
 
 ### Run it

@@ -4,10 +4,9 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::errors::ExecutionError;
-use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use std::hash::{Hash, Hasher};
 
@@ -558,7 +557,7 @@ fn get_key(
 }
 
 impl Processor for AggregationProcessor {
-    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -567,10 +566,10 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
-        let ops = self.aggregate(op).map_err(|e| InternalError(Box::new(e)))?;
+    ) -> Result<(), BoxedError> {
+        let ops = self.aggregate(op)?;
         for fop in ops {
-            fw.send(fop, DEFAULT_PORT_HANDLE)?;
+            fw.send(fop, DEFAULT_PORT_HANDLE);
         }
         Ok(())
     }

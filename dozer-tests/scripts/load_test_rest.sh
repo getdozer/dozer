@@ -4,7 +4,7 @@ set -e
 hash drill 2>/dev/null || { echo >&2 "drill (cargo install drill) is needed for load testing grpc service.  Aborting."; exit 1; }
 
 # Start dozer
-cargo build -p dozer-orchestrator --release
+cargo build -p dozer-cli --release
 ./target/release/dozer &
 DOZER_PID=$!
 echo Dozer server pid $DOZER_PID

@@ -18,5 +18,5 @@ loggers:
       - sql
   dozer_core:
     level: off
-  dozer_orchestrator:
+  dozer_cli:
     level: off

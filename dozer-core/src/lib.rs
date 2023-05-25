@@ -7,6 +7,7 @@ pub use dag_impl::*;
 mod dag_checkpoint;
 pub mod dag_schemas;
 pub mod epoch;
+mod error_manager;
 pub mod errors;
 pub mod executor;
 pub mod forwarder;

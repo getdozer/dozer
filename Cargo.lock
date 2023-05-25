@@ -2157,6 +2157,7 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "futures-util",
+ "gethostname",
  "handlebars",
  "hyper",
  "jsonwebtoken",
@@ -2195,6 +2196,38 @@ dependencies = [
  "tempdir",
  "tokio",
  "unicode-segmentation",
+ "uuid",
+]
+
+[[package]]
+name = "dozer-cli"
+version = "0.1.22"
+dependencies = [
+ "atty",
+ "clap 4.1.11",
+ "ctrlc",
+ "dozer-api",
+ "dozer-cache",
+ "dozer-core",
+ "dozer-ingestion",
+ "dozer-sql",
+ "dozer-storage",
+ "dozer-tracing",
+ "dozer-types",
+ "futures",
+ "glob",
+ "handlebars",
+ "include_dir",
+ "page_size",
+ "reqwest",
+ "rustyline",
+ "rustyline-derive",
+ "serde",
+ "serde_json",
+ "tempdir",
+ "tokio",
+ "tokio-stream",
+ "tonic",
  "uuid",
 ]
 
@@ -2279,38 +2312,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dozer-orchestrator"
-version = "0.1.22"
-dependencies = [
- "atty",
- "clap 4.1.11",
- "ctrlc",
- "dozer-api",
- "dozer-cache",
- "dozer-core",
- "dozer-ingestion",
- "dozer-sql",
- "dozer-storage",
- "dozer-tracing",
- "dozer-types",
- "futures",
- "glob",
- "handlebars",
- "include_dir",
- "page_size",
- "reqwest",
- "rustyline",
- "rustyline-derive",
- "serde",
- "serde_json",
- "tempdir",
- "tokio",
- "tokio-stream",
- "tonic",
- "uuid",
-]
-
-[[package]]
 name = "dozer-sql"
 version = "0.1.22"
 dependencies = [
@@ -2358,8 +2359,8 @@ dependencies = [
  "csv",
  "dozer-api",
  "dozer-cache",
+ "dozer-cli",
  "dozer-core",
- "dozer-orchestrator",
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
@@ -2897,6 +2898,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea804e7bd3c6a4ca6a01edfa35231557a8a81d4d3f3e1e2b650d028c42592be"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "gethostname"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0176e0459c2e4a1fe232f984bca6890e681076abb9934f6cea7c326f3fc47818"
+dependencies = [
+ "libc",
+ "windows-targets 0.48.0",
 ]
 
 [[package]]
@@ -3628,9 +3639,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.140"
+version = "0.2.144"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99227334921fae1a979cf0bfdfcc6b3e5ce376ef57e16fb6fb3ea2ed6095f80c"
+checksum = "2b00cc1c228a6782d0f076e7b232802e0c5689d41bb5df366f2a6b6621cfdfe1"
 
 [[package]]
 name = "libflate"

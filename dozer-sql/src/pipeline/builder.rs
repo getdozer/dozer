@@ -259,7 +259,7 @@ fn select_to_pipeline(
                 processor_name,
                 Some(*processor_port as PortHandle),
                 true,
-            )?;
+            );
             // If not present in pipeline_map, insert into used_sources as this is coming from source
         } else {
             query_ctx.used_sources.push(source_name.clone());
@@ -282,7 +282,7 @@ fn select_to_pipeline(
             &gen_selection_name,
             Some(DEFAULT_PORT_HANDLE),
             true,
-        )?;
+        );
 
         pipeline.connect_nodes(
             &gen_selection_name,
@@ -290,7 +290,7 @@ fn select_to_pipeline(
             &gen_agg_name,
             Some(DEFAULT_PORT_HANDLE),
             true,
-        )?;
+        );
     } else {
         pipeline.connect_nodes(
             &gen_product_name,
@@ -298,7 +298,7 @@ fn select_to_pipeline(
             &gen_agg_name,
             Some(DEFAULT_PORT_HANDLE),
             true,
-        )?;
+        );
     }
 
     query_ctx.pipeline_map.insert(
@@ -455,7 +455,7 @@ fn set_to_pipeline(
         &gen_set_name,
         Some(0 as PortHandle),
         true,
-    )?;
+    );
 
     pipeline.connect_nodes(
         &right_pipeline_output_node.node,
@@ -463,7 +463,7 @@ fn set_to_pipeline(
         &gen_set_name,
         Some(1 as PortHandle),
         true,
-    )?;
+    );
 
     for (_, table_name) in query_ctx.pipeline_map.keys() {
         query_ctx.output_tables_map.remove_entry(table_name);

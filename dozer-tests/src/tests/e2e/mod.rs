@@ -1,7 +1,7 @@
 use std::{future::Future, sync::Arc, thread::JoinHandle, time::Duration};
 
 use dozer_api::tonic::transport::Channel;
-use dozer_orchestrator::{
+use dozer_cli::{
     shutdown::{self, ShutdownSender},
     simple::SimpleOrchestrator,
     Orchestrator,

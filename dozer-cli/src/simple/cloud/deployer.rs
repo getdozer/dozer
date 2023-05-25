@@ -9,10 +9,12 @@ use dozer_types::log::{info, warn};
 pub async fn deploy_app(
     client: &mut DozerCloudClient<tonic::transport::Channel>,
     app_id: &str,
+    num_api_instances: i32,
 ) -> Result<(), CloudError> {
     let mut response = client
         .start_dozer(StartRequest {
             app_id: app_id.to_string(),
+            num_api_instances,
         })
         .await?
         .into_inner();
@@ -28,7 +30,7 @@ pub async fn deploy_app(
         match result {
             Some(r) => {
                 if r.success {
-                    info!("Deployed {}", &r.id);
+                    info!("Deployed {}", &r.app_id);
                     info!("Endpoint: http://{}", r.api_endpoint);
                 } else {
                     match r.error {

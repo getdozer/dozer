@@ -18,8 +18,10 @@ pub struct Cloud {
 
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
-    Deploy,
-    Update(AppCommand),
+    /// Deploy application to Dozer Cloud
+    Deploy(DeployCommandArgs),
+    /// Update existing application on Dozer Cloud
+    Update(UpdateCommandArgs),
     Delete(AppCommand),
     List(ListCommandArgs),
     Status(AppCommand),
@@ -28,6 +30,30 @@ pub enum CloudCommands {
     /// Application version management
     #[command(subcommand)]
     Version(VersionCommand),
+    /// Dozer API server management
+    #[command(subcommand)]
+    Api(ApiCommand),
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct DeployCommandArgs {
+    /// Number of replicas to serve Dozer APIs
+    #[arg(short, long)]
+    pub num_replicas: Option<i32>,
+}
+
+pub fn default_num_replicas() -> i32 {
+    2
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct UpdateCommandArgs {
+    /// The id of the application to update
+    #[arg(short, long)]
+    pub app_id: String,
+    /// Number of replicas to serve Dozer APIs
+    #[arg(short, long)]
+    pub num_replicas: Option<i32>,
 }
 
 #[derive(Debug, Args, Clone)]
@@ -72,6 +98,18 @@ pub enum VersionCommand {
     SetCurrent {
         /// The version to set as current
         version: u32,
+        /// The application id.
+        #[clap(short, long)]
+        app_id: String,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum ApiCommand {
+    /// Sets the number of replicas to serve Dozer APIs
+    SetNumReplicas {
+        /// The number of replicas to set
+        num_replicas: i32,
         /// The application id.
         #[clap(short, long)]
         app_id: String,

@@ -13,6 +13,8 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_yaml, thiserror};
 
+use crate::pipeline::connector_source::ConnectorSourceFactoryError;
+
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
     #[error("Failed to write config yaml: {0:?}")]
@@ -41,6 +43,8 @@ pub enum OrchestrationError {
     CacheBuildFailed(#[source] CacheError),
     #[error("Internal thread panic: {0}")]
     JoinError(#[source] tokio::task::JoinError),
+    #[error("Connector source factory error: {0}")]
+    ConnectorSourceFactory(#[from] ConnectorSourceFactoryError),
     #[error(transparent)]
     ExecutionError(#[from] ExecutionError),
     #[error(transparent)]
