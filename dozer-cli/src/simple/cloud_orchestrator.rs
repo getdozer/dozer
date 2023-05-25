@@ -178,8 +178,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let mut deployment_table = table!();
             deployment_table.set_titles(row!["Deployment", "App", "Api", "Version"]);
 
-            for (deployment, status) in response.deployments.iter().enumerate() {
-                let deployment = deployment as u32;
+            for status in response.deployments.iter() {
+                let deployment = status.deployment;
 
                 fn mark(status: bool) -> &'static str {
                     if status {
