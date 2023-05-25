@@ -1,11 +1,11 @@
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
-use dozer_core::errors::ExecutionError;
-use dozer_core::errors::ExecutionError::InternalError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Record, Schema};
 
 #[derive(Debug)]
@@ -22,14 +22,11 @@ impl ProjectionProcessor {
         }
     }
 
-    fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
+    fn delete(&mut self, record: &Record) -> Result<Operation, PipelineError> {
         let mut results = vec![];
 
         for expr in &self.expressions {
-            results.push(
-                expr.evaluate(record, &self.input_schema)
-                    .map_err(|e| InternalError(Box::new(e)))?,
-            );
+            results.push(expr.evaluate(record, &self.input_schema)?);
         }
 
         let mut output_record = Record::new(None, results);
@@ -38,14 +35,11 @@ impl ProjectionProcessor {
         Ok(Operation::Delete { old: output_record })
     }
 
-    fn insert(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
+    fn insert(&mut self, record: &Record) -> Result<Operation, PipelineError> {
         let mut results = vec![];
 
         for expr in self.expressions.clone() {
-            results.push(
-                expr.evaluate(record, &self.input_schema)
-                    .map_err(|e| InternalError(Box::new(e)))?,
-            );
+            results.push(expr.evaluate(record, &self.input_schema)?);
         }
 
         let mut output_record = Record::new(None, results);
@@ -53,19 +47,13 @@ impl ProjectionProcessor {
         Ok(Operation::Insert { new: output_record })
     }
 
-    fn update(&self, old: &Record, new: &Record) -> Result<Operation, ExecutionError> {
+    fn update(&self, old: &Record, new: &Record) -> Result<Operation, PipelineError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
 
         for expr in &self.expressions {
-            old_results.push(
-                expr.evaluate(old, &self.input_schema)
-                    .map_err(|e| InternalError(Box::new(e)))?,
-            );
-            new_results.push(
-                expr.evaluate(new, &self.input_schema)
-                    .map_err(|e| InternalError(Box::new(e)))?,
-            );
+            old_results.push(expr.evaluate(old, &self.input_schema)?);
+            new_results.push(expr.evaluate(new, &self.input_schema)?);
         }
 
         let mut old_output_record = Record::new(None, old_results);
@@ -85,7 +73,7 @@ impl Processor for ProjectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         let _ = match op {
             Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),
             Operation::Insert { ref new } => fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE),
@@ -96,7 +84,7 @@ impl Processor for ProjectionProcessor {
         Ok(())
     }
 
-    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 }

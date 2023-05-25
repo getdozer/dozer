@@ -1,5 +1,4 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
@@ -10,6 +9,7 @@ use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::epoch::Epoch;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{
@@ -37,7 +37,7 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
     }
 
@@ -56,7 +56,7 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(ErrorProcessor {
             err_on: self.err_on,
             count: 0,
@@ -73,7 +73,7 @@ struct ErrorProcessor {
 }
 
 impl Processor for ErrorProcessor {
-    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -82,17 +82,17 @@ impl Processor for ErrorProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         self.count += 1;
         if self.count == self.err_on {
             if self.panic {
                 panic!("Generated error");
             } else {
-                return Err(ExecutionError::InvalidOperation("Uknown".to_string()));
+                return Err("Uknown".to_string().into());
             }
         }
 
-        fw.send(op, DEFAULT_PORT_HANDLE)
+        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
     }
 }
 
@@ -278,10 +278,7 @@ impl ErrGeneratorSourceFactory {
 }
 
 impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -317,7 +314,7 @@ impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(ErrGeneratorSource {
             count: self.count,
             err_at: self.err_at,
@@ -332,7 +329,7 @@ pub(crate) struct ErrGeneratorSource {
 }
 
 impl Source for ErrGeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError> {
+    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
@@ -340,12 +337,10 @@ impl Source for ErrGeneratorSource {
         &self,
         fw: &mut dyn SourceChannelForwarder,
         _checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
-                return Err(ExecutionError::InvalidOperation(
-                    "Generated Error".to_string(),
-                ));
+                return Err("Generated Error".to_string().into());
             }
 
             fw.send(
@@ -429,14 +424,14 @@ impl SinkFactory<NoneContext> for ErrSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(ErrSink {
             err_at: self.err_at,
             current: 0,
@@ -452,28 +447,23 @@ pub(crate) struct ErrSink {
     panic: bool,
 }
 impl Sink for ErrSink {
-    fn commit(&mut self) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.err_at {
             if self.panic {
                 panic!("Generated error");
             } else {
-                return Err(ExecutionError::InvalidOperation(
-                    "Generated error".to_string(),
-                ));
+                return Err("Generated error".to_string().into());
             }
         }
         Ok(())
     }
 
-    fn on_source_snapshotting_done(
-        &mut self,
-        _connection_name: String,
-    ) -> Result<(), ExecutionError> {
+    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }

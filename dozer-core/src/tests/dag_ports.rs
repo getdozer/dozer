@@ -1,9 +1,9 @@
-use crate::errors::ExecutionError;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
 use crate::tests::app::NoneContext;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::{node::NodeHandle, types::Schema};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,10 +20,7 @@ impl DynPortsSourceFactory {
 }
 
 impl SourceFactory<NoneContext> for DynPortsSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         todo!()
     }
 
@@ -37,7 +34,7 @@ impl SourceFactory<NoneContext> for DynPortsSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
 }
@@ -62,7 +59,7 @@ impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
         &self,
         _output_port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         todo!()
     }
 
@@ -81,7 +78,7 @@ impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }
 }

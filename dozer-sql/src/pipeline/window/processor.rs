@@ -1,9 +1,9 @@
-use crate::pipeline::errors::WindowError;
+use crate::pipeline::errors::{PipelineError, WindowError};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
-use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Record};
 
 use super::operator::WindowType;
@@ -24,7 +24,7 @@ impl WindowProcessor {
 }
 
 impl Processor for WindowProcessor {
-    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -33,35 +33,27 @@ impl Processor for WindowProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         match op {
             Operation::Delete { ref old } => {
-                let records = self
-                    .execute(old)
-                    .map_err(|e| ExecutionError::WindowProcessorError(Box::new(e)))?;
+                let records = self.execute(old).map_err(PipelineError::WindowError)?;
                 for record in records {
                     fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
                 }
             }
             Operation::Insert { ref new } => {
-                let records = self
-                    .execute(new)
-                    .map_err(|e| ExecutionError::WindowProcessorError(Box::new(e)))?;
+                let records = self.execute(new).map_err(PipelineError::WindowError)?;
                 for record in records {
                     fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
                 }
             }
             Operation::Update { ref old, ref new } => {
-                let old_records = self
-                    .execute(old)
-                    .map_err(|e| ExecutionError::WindowProcessorError(Box::new(e)))?;
+                let old_records = self.execute(old).map_err(PipelineError::WindowError)?;
                 for record in old_records {
                     fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
                 }
 
-                let new_records = self
-                    .execute(new)
-                    .map_err(|e| ExecutionError::WindowProcessorError(Box::new(e)))?;
+                let new_records = self.execute(new).map_err(PipelineError::WindowError)?;
                 for record in new_records {
                     fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
                 }

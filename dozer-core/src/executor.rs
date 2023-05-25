@@ -164,31 +164,37 @@ fn start_source(
             Err(ExecutionError::CannotSendToChannel) => {}
             // Other errors result in panic.
             Err(e) => std::panic::panic_any(e),
-        })?;
+        })
+        .map_err(ExecutionError::CannotSpawnWorkerThread)?;
 
-    Ok(Builder::new()
+    Builder::new()
         .name(format!("{handle}-listener"))
         .spawn(move || {
             if let Err(e) = source_listener.run() {
                 std::panic::panic_any(e);
             }
-        })?)
+        })
+        .map_err(ExecutionError::CannotSpawnWorkerThread)
 }
 
 fn start_processor(processor: ProcessorNode) -> Result<JoinHandle<()>, ExecutionError> {
-    Ok(Builder::new()
+    Builder::new()
         .name(processor.handle().to_string())
         .spawn(move || {
             if let Err(e) = processor.run() {
                 std::panic::panic_any(e);
             }
-        })?)
+        })
+        .map_err(ExecutionError::CannotSpawnWorkerThread)
 }
 
 fn start_sink(sink: SinkNode) -> Result<JoinHandle<()>, ExecutionError> {
-    Ok(Builder::new().name(sink.handle().to_string()).spawn(|| {
-        if let Err(e) = sink.run() {
-            std::panic::panic_any(e);
-        }
-    })?)
+    Builder::new()
+        .name(sink.handle().to_string())
+        .spawn(|| {
+            if let Err(e) = sink.run() {
+                std::panic::panic_any(e);
+            }
+        })
+        .map_err(ExecutionError::CannotSpawnWorkerThread)
 }

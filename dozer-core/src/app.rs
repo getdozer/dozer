@@ -86,7 +86,7 @@ impl<T> AppPipeline<T> {
         to: &str,
         to_port: Option<PortHandle>,
         namespaced: bool,
-    ) -> Result<(), ExecutionError> {
+    ) {
         let edge = Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, from.to_string()),
@@ -106,7 +106,6 @@ impl<T> AppPipeline<T> {
             ),
         );
         self.edges.push(NamespacedEdge { edge, namespaced });
-        Ok(())
     }
 
     pub fn new() -> Self {

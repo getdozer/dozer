@@ -1,6 +1,6 @@
-use crate::errors::ExecutionError;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Schema};
 
 use dozer_types::log::debug;
@@ -35,14 +35,14 @@ impl SinkFactory<NoneContext> for CountingSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(CountingSink {
             expected: self.expected,
             current: 0,
@@ -58,7 +58,7 @@ pub(crate) struct CountingSink {
     running: Arc<AtomicBool>,
 }
 impl Sink for CountingSink {
-    fn commit(&mut self) -> Result<(), ExecutionError> {
+    fn commit(&mut self) -> Result<(), BoxedError> {
         // if self.current == self.expected {
         //     info!(
         //         "Received {} messages. Notifying sender to exit!",
@@ -69,7 +69,7 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), ExecutionError> {
+    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.expected {
             debug!(
@@ -81,10 +81,7 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(
-        &mut self,
-        _connection_name: String,
-    ) -> Result<(), ExecutionError> {
+    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -100,14 +97,14 @@ impl SinkFactory<NoneContext> for ConnectivityTestSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 }
@@ -123,14 +120,14 @@ impl SinkFactory<NoneContext> for NoInputPortSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
+    ) -> Result<Box<dyn Sink>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 }

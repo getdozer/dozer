@@ -46,7 +46,9 @@ impl<T> DagCheckpoint<T> {
             match &node.kind {
                 DagNodeKind::Source(source) => {
                     let output_schemas = dag_schemas.get_node_output_schemas(node_index);
-                    let source = source.build(output_schemas)?;
+                    let source = source
+                        .build(output_schemas)
+                        .map_err(ExecutionError::Factory)?;
                     sources.push(Some(source));
                 }
                 DagNodeKind::Processor(_) | DagNodeKind::Sink(_) => {

@@ -96,7 +96,9 @@ impl ReceiverLoop for ProcessorNode {
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        self.processor.commit(epoch)?;
+        self.processor
+            .commit(epoch)
+            .map_err(ExecutionError::ProcessorOrSink)?;
         self.channel_manager.store_and_send_commit(epoch)
     }
 

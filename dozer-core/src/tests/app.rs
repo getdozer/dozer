@@ -1,6 +1,5 @@
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::appsource::{AppSource, AppSourceId, AppSourceManager};
-use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
 use crate::tests::dag_base_run::{
@@ -13,6 +12,7 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
 
@@ -26,10 +26,7 @@ pub(crate) struct NoneContext {}
 #[derive(Debug)]
 struct NoneSourceFactory {}
 impl SourceFactory<NoneContext> for NoneSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         todo!()
     }
 
@@ -40,7 +37,7 @@ impl SourceFactory<NoneContext> for NoneSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
 }
@@ -250,8 +247,7 @@ fn test_app_dag() {
         Arc::new(CountingSinkFactory::new(20_000, latch.clone())),
         "sink",
     );
-    p1.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true)
-        .unwrap();
+    p1.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true);
 
     app.add_pipeline(p1);
 
@@ -271,8 +267,7 @@ fn test_app_dag() {
         ],
     );
     p2.add_sink(Arc::new(CountingSinkFactory::new(20_000, latch)), "sink");
-    p2.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true)
-        .unwrap();
+    p2.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true);
 
     app.add_pipeline(p2);
 
