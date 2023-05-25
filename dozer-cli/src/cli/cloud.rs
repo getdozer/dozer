@@ -18,8 +18,10 @@ pub struct Cloud {
 
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
-    Deploy,
-    Update(AppCommand),
+    /// Deploy application to Dozer Cloud
+    Deploy(DeployCommandArgs),
+    /// Update existing application on Dozer Cloud
+    Update(UpdateCommandArgs),
     Delete(AppCommand),
     List(ListCommandArgs),
     Status(AppCommand),
@@ -28,6 +30,27 @@ pub enum CloudCommands {
     /// Application version management
     #[command(subcommand)]
     Version(VersionCommand),
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct DeployCommandArgs {
+    /// Number of replicas to serve Dozer APIs
+    #[arg(short, long)]
+    pub num_replicas: Option<i32>,
+}
+
+pub fn default_num_replicas() -> i32 {
+    2
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct UpdateCommandArgs {
+    /// The id of the application to update
+    #[arg(short, long)]
+    pub app_id: String,
+    /// Number of replicas to serve Dozer APIs
+    #[arg(short, long)]
+    pub num_replicas: Option<i32>,
 }
 
 #[derive(Debug, Args, Clone)]
