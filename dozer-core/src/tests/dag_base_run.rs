@@ -68,7 +68,8 @@ impl Processor for NoopProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
+        fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
     }
 }
 
@@ -208,7 +209,8 @@ impl Processor for NoopJoinProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
+        fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
     }
 }
 

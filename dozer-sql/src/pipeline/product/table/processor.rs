@@ -25,7 +25,7 @@ impl Processor for TableProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE)?;
+        fw.send(op, DEFAULT_PORT_HANDLE);
         Ok(())
     }
 }

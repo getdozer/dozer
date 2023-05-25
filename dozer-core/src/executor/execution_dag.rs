@@ -10,6 +10,7 @@ use std::{
 use crate::{
     builder_dag::{BuilderDag, NodeKind, NodeType},
     epoch::EpochManager,
+    error_manager::ErrorManager,
     errors::ExecutionError,
     hash_map_to_vec::insert_vec_element,
     node::PortHandle,
@@ -43,10 +44,15 @@ pub struct ExecutionDag {
     /// Nodes will be moved into execution threads.
     graph: daggy::Dag<Option<NodeType>, EdgeType>,
     epoch_manager: Arc<EpochManager>,
+    error_manager: Arc<ErrorManager>,
 }
 
 impl ExecutionDag {
-    pub fn new(builder_dag: BuilderDag, channel_buffer_sz: usize) -> Result<Self, ExecutionError> {
+    pub fn new(
+        builder_dag: BuilderDag,
+        channel_buffer_sz: usize,
+        error_threshold: Option<u64>,
+    ) -> Result<Self, ExecutionError> {
         // Count number of sources.
         let num_sources = builder_dag
             .graph()
@@ -117,6 +123,11 @@ impl ExecutionDag {
         Ok(ExecutionDag {
             graph,
             epoch_manager: Arc::new(EpochManager::new(num_sources)),
+            error_manager: Arc::new(if let Some(threshold) = error_threshold {
+                ErrorManager::new_threshold(threshold)
+            } else {
+                ErrorManager::new_unlimited()
+            }),
         })
     }
 
@@ -130,6 +141,10 @@ impl ExecutionDag {
 
     pub fn epoch_manager(&self) -> &Arc<EpochManager> {
         &self.epoch_manager
+    }
+
+    pub fn error_manager(&self) -> &Arc<ErrorManager> {
+        &self.error_manager
     }
 
     #[allow(clippy::type_complexity)]

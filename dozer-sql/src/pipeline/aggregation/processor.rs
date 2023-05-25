@@ -569,7 +569,7 @@ impl Processor for AggregationProcessor {
     ) -> Result<(), BoxedError> {
         let ops = self.aggregate(op)?;
         for fop in ops {
-            fw.send(fop, DEFAULT_PORT_HANDLE)?;
+            fw.send(fop, DEFAULT_PORT_HANDLE);
         }
         Ok(())
     }

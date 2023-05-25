@@ -1,9 +1,10 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::epoch::EpochManager;
+use crate::error_manager::ErrorManager;
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::InvalidPortHandle;
 use crate::node::PortHandle;
-use crate::record_store::RecordWriter;
+use crate::record_store::{RecordWriter, RecordWriterError};
 
 use crossbeam::channel::Sender;
 use dozer_types::epoch::{Epoch, ExecutorOperation};
@@ -25,7 +26,11 @@ impl StateWriter {
         Self { record_writers }
     }
 
-    fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
+    fn store_op(
+        &mut self,
+        op: Operation,
+        port: &PortHandle,
+    ) -> Result<Operation, RecordWriterError> {
         if let Some(writer) = self.record_writers.get_mut(port) {
             writer.write(op)
         } else {
@@ -44,13 +49,20 @@ struct ChannelManager {
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     state_writer: StateWriter,
     stateful: bool,
+    error_manager: Arc<ErrorManager>,
 }
 
 impl ChannelManager {
     #[inline]
     fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
         if self.stateful {
-            op = self.state_writer.store_op(op, &port_id)?;
+            match self.state_writer.store_op(op, &port_id) {
+                Ok(new_op) => op = new_op,
+                Err(e) => {
+                    self.error_manager.report(e.into());
+                    return Ok(());
+                }
+            }
         }
 
         let senders = self
@@ -111,12 +123,14 @@ impl ChannelManager {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         state_writer: StateWriter,
         stateful: bool,
+        error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
             owner,
             senders,
             state_writer,
             stateful,
+            error_manager,
         }
     }
 }
@@ -144,9 +158,16 @@ impl SourceChannelManager {
         commit_sz: u32,
         max_duration_between_commits: Duration,
         epoch_manager: Arc<EpochManager>,
+        error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
-            manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
+            manager: ChannelManager::new(
+                owner.clone(),
+                senders,
+                state_writer,
+                stateful,
+                error_manager,
+            ),
             // FIXME: Read curr_txid and curr_seq_in_tx from persisted state.
             curr_txid: 0,
             curr_seq_in_tx: 0,
@@ -236,9 +257,10 @@ impl ProcessorChannelManager {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         state_writer: StateWriter,
         stateful: bool,
+        error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
-            manager: ChannelManager::new(owner, senders, state_writer, stateful),
+            manager: ChannelManager::new(owner, senders, state_writer, stateful, error_manager),
         }
     }
 
@@ -256,7 +278,9 @@ impl ProcessorChannelManager {
 }
 
 impl ProcessorChannelForwarder for ProcessorChannelManager {
-    fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        self.manager.send_op(op, port)
+    fn send(&mut self, op: Operation, port: PortHandle) {
+        self.manager
+            .send_op(op, port)
+            .unwrap_or_else(|e| panic!("Failed to send operation: {e}"))
     }
 }

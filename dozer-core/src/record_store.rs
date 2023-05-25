@@ -1,14 +1,19 @@
-use crate::errors::ExecutionError;
-use crate::errors::ExecutionError::RecordNotFound;
 use crate::node::OutputPortType;
+use dozer_types::thiserror::Error;
 use dozer_types::types::{Operation, Record, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
 use super::node::PortHandle;
 
+#[derive(Debug, Error)]
+pub enum RecordWriterError {
+    #[error("Record not found")]
+    RecordNotFound,
+}
+
 pub trait RecordWriter: Send + Sync {
-    fn write(&mut self, op: Operation) -> Result<Operation, ExecutionError>;
+    fn write(&mut self, op: Operation) -> Result<Operation, RecordWriterError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -52,7 +57,7 @@ impl PrimaryKeyLookupRecordWriter {
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
-    fn write(&mut self, op: Operation) -> Result<Operation, ExecutionError> {
+    fn write(&mut self, op: Operation) -> Result<Operation, RecordWriterError> {
         match op {
             Operation::Insert { new } => {
                 let new_key = new.get_key(&self.schema.primary_index);
@@ -64,7 +69,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                 old = self
                     .index
                     .remove_entry(&old_key)
-                    .ok_or_else(RecordNotFound)?
+                    .ok_or(RecordWriterError::RecordNotFound)?
                     .1;
                 Ok(Operation::Delete { old })
             }
@@ -73,7 +78,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                 old = self
                     .index
                     .remove_entry(&old_key)
-                    .ok_or_else(RecordNotFound)?
+                    .ok_or(RecordWriterError::RecordNotFound)?
                     .1;
                 let new_key = new.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());

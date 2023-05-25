@@ -17,8 +17,6 @@ pub enum ExecutionError {
     MissingInput { node: NodeHandle, port: PortHandle },
     #[error("Duplicate input for node {node} on port {port}")]
     DuplicateInput { node: NodeHandle, port: PortHandle },
-    #[error("Record not found")]
-    RecordNotFound(),
     #[error("Cannot send to channel")]
     CannotSendToChannel,
     #[error("Cannot receive from channel")]
@@ -35,8 +33,6 @@ pub enum ExecutionError {
     Factory(#[source] BoxedError),
     #[error("Source error: {0}")]
     Source(#[source] BoxedError),
-    #[error("Processor or sink error: {0}")]
-    ProcessorOrSink(#[source] BoxedError),
     #[error("File system error {0:?}: {1}")]
     FileSystemError(PathBuf, #[source] std::io::Error),
 }

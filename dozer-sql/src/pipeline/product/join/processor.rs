@@ -92,10 +92,10 @@ impl Processor for ProductProcessor {
         for (action, record) in records {
             match action {
                 JoinAction::Insert => {
-                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
                 JoinAction::Delete => {
-                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
             }
         }
