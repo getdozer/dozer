@@ -101,7 +101,12 @@ message ListAppConnectionRequest {
   optional uint32 limit = 2;
   optional uint32 offset = 3;
 }
-message StartRequest { string app_id = 1; }
+
+message StartRequest {
+  string app_id = 1;
+  int32 num_api_instances = 2;
+}
+
 message StartResponse {
   bool success = 1;
   string app_id = 2;

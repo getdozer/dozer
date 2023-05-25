@@ -1,4 +1,7 @@
-use crate::cli::cloud::{Cloud, ListCommandArgs, VersionCommand};
+use crate::cli::cloud::{
+    default_num_replicas, Cloud, DeployCommandArgs, ListCommandArgs, UpdateCommandArgs,
+    VersionCommand,
+};
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
 use crate::errors::{CloudError, OrchestrationError};
@@ -26,7 +29,11 @@ async fn get_cloud_client(
 
 impl CloudOrchestrator for SimpleOrchestrator {
     // TODO: Deploy Dozer application using local Dozer configuration
-    fn deploy(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+    fn deploy(
+        &mut self,
+        cloud: Cloud,
+        deploy: DeployCommandArgs,
+    ) -> Result<(), OrchestrationError> {
         // let username = match deploy.username {
         //     Some(u) => u,
         //     None => String::new(),
@@ -50,18 +57,27 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             info!("Application created with id: {:?}", &response.app_id);
             // 2. START application
-            deploy_app(&mut client, &response.app_id).await
+            deploy_app(
+                &mut client,
+                &response.app_id,
+                deploy.num_replicas.unwrap_or_else(default_num_replicas),
+            )
+            .await
         })?;
         Ok(())
     }
 
-    fn update(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+    fn update(
+        &mut self,
+        cloud: Cloud,
+        update: UpdateCommandArgs,
+    ) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
             let files = list_files()?;
             let response = client
                 .update_application(UpdateAppRequest {
-                    app_id: app_id.clone(),
+                    app_id: update.app_id.clone(),
                     files,
                 })
                 .await
@@ -70,7 +86,12 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             info!("Updated {}", &response.app_id);
 
-            deploy_app(&mut client, &app_id).await
+            deploy_app(
+                &mut client,
+                &update.app_id,
+                update.num_replicas.unwrap_or_else(default_num_replicas),
+            )
+            .await
         })?;
 
         Ok(())
