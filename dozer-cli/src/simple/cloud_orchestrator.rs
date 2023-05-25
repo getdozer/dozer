@@ -14,7 +14,7 @@ use dozer_types::grpc_types::cloud::{
     ListAppRequest, LogMessageRequest, UpdateAppRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
+    DeploymentStatus, SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
@@ -250,11 +250,10 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .into_inner();
 
             // Show log of the latest deployment for now.
-            if status.deployments.is_empty() {
+            let Some(deployment) = latest_deployment(&status.deployments) else {
                 info!("No deployments found");
                 return Ok(());
-            }
-            let deployment = (status.deployments.len() - 1) as u32;
+            };
             let mut response = client
                 .on_log_message(LogMessageRequest {
                     app_id,
@@ -384,7 +383,10 @@ impl SimpleOrchestrator {
                         .await?
                         .into_inner();
                     // Update the latest deployment for now.
-                    let deployment = status.deployments.len() as u32 - 1;
+                    let Some(deployment) = latest_deployment(&status.deployments) else {
+                        info!("No deployments found");
+                        return Ok(());
+                    };
                     client
                         .set_num_api_instances(SetNumApiInstancesRequest {
                             app_id,
@@ -398,4 +400,8 @@ impl SimpleOrchestrator {
         })?;
         Ok(())
     }
+}
+
+fn latest_deployment(deployments: &[DeploymentStatus]) -> Option<u32> {
+    deployments.iter().map(|status| status.deployment).max()
 }
