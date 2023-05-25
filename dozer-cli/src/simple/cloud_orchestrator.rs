@@ -1,5 +1,5 @@
 use crate::cli::cloud::{
-    default_num_replicas, Cloud, DeployCommandArgs, ListCommandArgs, UpdateCommandArgs,
+    default_num_replicas, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, UpdateCommandArgs,
     VersionCommand,
 };
 use crate::cloud_helper::list_files;
@@ -13,7 +13,9 @@ use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
     ListAppRequest, LogMessageRequest, UpdateAppRequest,
 };
-use dozer_types::grpc_types::cloud::{SetCurrentVersionRequest, UpsertVersionRequest};
+use dozer_types::grpc_types::cloud::{
+    SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
+};
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 
@@ -202,7 +204,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 deployment_table.add_row(row![
                     deployment,
                     mark(status.app_running),
-                    mark(status.api_running),
+                    format!("{}/{}", status.api_available, status.api_desired),
                     version
                 ]);
             }
@@ -350,6 +352,36 @@ impl SimpleOrchestrator {
                 }
             }
 
+            Ok::<_, CloudError>(())
+        })?;
+        Ok(())
+    }
+
+    pub fn api(&self, cloud: Cloud, api: ApiCommand) -> Result<(), OrchestrationError> {
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud).await?;
+            match api {
+                ApiCommand::SetNumReplicas {
+                    num_replicas,
+                    app_id,
+                } => {
+                    let status = client
+                        .get_status(GetStatusRequest {
+                            app_id: app_id.clone(),
+                        })
+                        .await?
+                        .into_inner();
+                    // Update the latest deployment for now.
+                    let deployment = status.deployments.len() as u32 - 1;
+                    client
+                        .set_num_api_instances(SetNumApiInstancesRequest {
+                            app_id,
+                            deployment,
+                            num_api_instances: num_replicas,
+                        })
+                        .await?;
+                }
+            }
             Ok::<_, CloudError>(())
         })?;
         Ok(())

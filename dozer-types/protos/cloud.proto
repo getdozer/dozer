@@ -35,6 +35,7 @@ service DozerCloud {
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
   rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
+  rpc set_num_api_instances(SetNumApiInstancesRequest) returns (SetNumApiInstancesResponse);
 
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
@@ -131,7 +132,8 @@ message GetStatusResponse {
 
 message DeploymentStatus {
   bool app_running = 1;
-  bool api_running = 2;
+  int32 api_desired = 2;
+  int32 api_available = 3;
 }
 
 message UpsertVersionRequest {
@@ -148,6 +150,14 @@ message SetCurrentVersionRequest {
 }
 
 message SetCurrentVersionResponse {}
+
+message SetNumApiInstancesRequest {
+  string app_id = 1;
+  uint32 deployment = 2;
+  int32 num_api_instances = 3;
+}
+
+message SetNumApiInstancesResponse {}
 
 message CreateAppRequest {
   repeated File files = 3;
