@@ -1,5 +1,4 @@
 use crate::connectors::object_store::adapters::DozerObjectStore;
-use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::schema_helper::map_schema_to_dozer;
 use crate::connectors::{CdcType, ListOrFilterColumns, SourceSchema, SourceSchemaResult};
 use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
@@ -9,15 +8,9 @@ use deltalake::datafusion::datasource::file_format::csv::CsvFormat;
 use deltalake::datafusion::datasource::file_format::parquet::ParquetFormat;
 use deltalake::datafusion::datasource::listing::{ListingOptions, ListingTableUrl};
 use deltalake::datafusion::prelude::SessionContext;
-use dozer_types::ingestion_types::{CsvConfig, DeltaConfig};
 use dozer_types::log::error;
 use dozer_types::types::{Schema, SchemaIdentifier};
-use object_store::ObjectStore;
 use std::sync::Arc;
-
-use super::adapters::DozerObjectStoreParams;
-use super::delta;
-use super::delta::schema_helper::SchemaHelper;
 
 pub fn map_schema(
     id: u32,
@@ -68,8 +61,8 @@ async fn get_table_schema(
                     .with_file_extension(table_config.extension.clone());
                 get_object_schema(id, table, config, listing_options).await
             }
-            dozer_types::ingestion_types::TableConfig::Delta(table_config) => {
-                get_delta_schema(id, table, config, table_config).await
+            dozer_types::ingestion_types::TableConfig::Delta(_table_config) => {
+                get_delta_schema(id, table, config).await
             }
             dozer_types::ingestion_types::TableConfig::Parquet(table_config) => {
                 let format = ParquetFormat::default();
@@ -124,7 +117,6 @@ async fn get_delta_schema(
     id: u32,
     table: &ListOrFilterColumns,
     store_config: &impl DozerObjectStore,
-    table_config: &DeltaConfig,
 ) -> SourceSchemaResult {
     let params = store_config.table_params(&table.name)?;
 

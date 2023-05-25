@@ -27,7 +27,7 @@ pub struct TableReader<T: Clone + Send + Sync> {
 }
 
 impl<T: Clone + Send + Sync> TableReader<T> {
-    pub fn new(config: T) -> TableReader<T> {
+    pub fn _new(config: T) -> TableReader<T> {
         Self { config }
     }
 

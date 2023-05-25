@@ -2,7 +2,6 @@ use tonic::async_trait;
 
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::schema_mapper;
-use crate::connectors::object_store::table_reader::{Reader, TableReader};
 use crate::connectors::{
     Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
 };
@@ -10,6 +9,9 @@ use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
 use super::connection::validator::validate_connection;
+use super::csv::csv_table::CsvTable;
+use super::delta::delta_table::DeltaTable;
+use super::parquet::parquet_table::ParquetTable;
 use super::table_watcher::TableWatcher;
 
 type ConnectorResult<T> = Result<T, ConnectorError>;
@@ -97,20 +99,23 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                 if table_info.name == table_config.name {
                     if let Some(config) = &table_config.config {
                         match config {
-                            dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
-                                csv_config
-                                    .watch(id, table_info, &self.config, ingestor)
-                                    .await?;
+                            dozer_types::ingestion_types::TableConfig::CSV(config) => {
+                                let table =
+                                    CsvTable::new(config.clone(), self.config.clone(), ingestor);
+                                table.watch(id, table_info).await.unwrap();
                             }
-                            dozer_types::ingestion_types::TableConfig::Delta(delta_config) => {
-                                delta_config
-                                    .watch(id, table_info, &self.config, ingestor)
-                                    .await?;
+                            dozer_types::ingestion_types::TableConfig::Delta(config) => {
+                                let table =
+                                    DeltaTable::new(config.clone(), self.config.clone(), ingestor);
+                                table.watch(id, table_info).await?;
                             }
-                            dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
-                                parquet_config
-                                    .watch(id, table_info, &self.config, ingestor)
-                                    .await?;
+                            dozer_types::ingestion_types::TableConfig::Parquet(config) => {
+                                let table = ParquetTable::new(
+                                    config.clone(),
+                                    self.config.clone(),
+                                    ingestor,
+                                );
+                                table.watch(id, table_info).await?;
                             }
                         }
                     }
